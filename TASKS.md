@@ -52,7 +52,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: one portable call selects per-target implementations from one Terminal artifact under `omega run --both`.
 
 - **TARGET-REALIZED-FLOAT-ARITHMETIC.** Realize canonical `f32`/`f64` operations from the selected target's declared table ([design](wiki/drafts/designs/target_realized_float_arithmetic.md)); retire their Build provider selection.
-  - Add the checked-machine realization entry kind beside catalog intrinsic and unsupported in `target::CanonicalFloatRealization`; retire core's now selection-free `build.omg` activation (`State::Defaults`, `CompletedProviderDefaults::from_captured_toolchain`) while keeping differential-evidence identities; profile remaining `select_provider` cost inside this item.
+  - Add the checked-machine realization entry kind beside catalog intrinsic and unsupported in `target::CanonicalFloatRealization`; profile remaining `select_provider` cost inside this item.
   Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions.
 
 - **BUILD-OWNED-NATIVE-BINDINGS.** Replace `via` with [Build-owned bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding).
@@ -72,7 +72,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 ## Pipeline route
 
 - **PIPELINE-ARCHITECTURE-ENFORCEMENT.** Enforce the single-pass Psi (`00–07`) + Build + per-target Omega (`00–09`) [pipeline](omega-rust/pipeline.md) in `target_batch.rs`.
-  - Admit dependency contexts ([scoped_execution.md](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)), run `build.omg` and Psi `00–07` once, clear `FIREWALL_ALLOWANCES` in `tools/check_native_boundary.py`, and drop 256 MiB stacks (source depth is bounded only by memory and time, per [compiler_request.md](wiki/spec/build/compiler_request.md)).
+  - Admit dependency contexts ([scoped_execution.md](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)), run `build.omg` and Psi `00–07` once, clear `FIREWALL_ALLOWANCES` in `tools/check_native_boundary.py`, store recursive terms as flat tables in memory ([pipeline](omega-rust/pipeline.md)), and drop 256 MiB stacks (source depth is bounded only by memory and time, per [compiler_request.md](wiki/spec/build/compiler_request.md)).
   Acceptance: two-target builds run Psi `00–07` and Build once and Omega `00–09` once per target with clean boundary guards.
 
 - **VALIDATION-SUBJECTS.** Implement [validation subjects](wiki/drafts/designs/validation_subjects.md): check the selected packages in full and dependencies only through their required semantic closure.
@@ -132,6 +132,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: `pass/comptime/*_exit`, `pass/layouts/runtime_plan_laid_*_exit`, `pass/wire/*_exit`, and `pass/build/*_exit` pass `--both`.
 
 - **UNIVERSAL-INTERPRETER-CLOSURE.** Delete `omega-rust/psi/interpreter/checked-interpreter/` and finish `omega-rust/omega/interpreter/terminal-runtime/src/execution.rs`.
+  - Add a `ForeignBinding::Syscall` adapter; witness `kernel_import_result_chain_exit` on `work/tests-kernel-import-process-exit`.
   Acceptance: audits find no tree visitor, and `omega run --both`, `--engine native|terminal`, and `interpreter_migration.json` pass on all hosts.
 
 ## Immediate product closure
@@ -152,7 +153,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: `modules/`, `runtime_index_application`, `selected_value_application`, `inferred_array_equation_call`, and finite-family fixtures pass `--both`.
 
 - **DOMAIN-ACCESS-AUTHORITY.** (covers **DOMAIN-CARRIER-FORMATION**, **NOMINAL-FIELD-FLOW**, **DOMAIN-ISSUER-ROUTES**) Complete [carrier membership](wiki/spec/language/domains.md#carrier-exact-membership), `[u8; N] in D`, [domain `access Policy`](wiki/spec/resources/access.md), and [repair facts](wiki/drafts/designs/invariant_repair_facts.md).
-  Acceptance: [domain_carrier_identity](samples/cli/facts/domain_carrier_identity/README.md), Dungeon Crawler, [controlled cell](wiki/language_guide/chapter_8_domains.md#read-and-write-authority), and `bodyless_owner_establishment` pass `--both`.
+  Acceptance: [domain_carrier_identity](samples/cli/facts/domain_carrier_identity/README.md), Dungeon Crawler, [controlled cell](wiki/language_guide/chapter_8_domains.md#read-and-write-authority), `bodyless_owner_establishment` and `non_owning_reference_erasure` pass `--both`.
 
 - **TERMINATION-RANKING-CHECKS.** (covers **GENERAL-CYCLIC-EXECUTION**, **CRASH-CONTRACT**, **OUTCOME-SPECIFIC-CALL-EVIDENCE**, **UNREACHABLE-BRANCH-DIAGNOSTICS**) Complete [termination](wiki/spec/language/termination.md) (`ranking_range/calls.rs`, `value_origins.rs`), crash/outcome evidence (`operator_crashes.rs`), and [unreachable warnings](wiki/spec/language/state_contracts.md#unreachable-branches).
   Acceptance: `termination/,control_flow/`, `progress_selector/`, `array_max`/`dot_product`/`horner_eval`, crash rows, and unreachable warnings pass `--both`.

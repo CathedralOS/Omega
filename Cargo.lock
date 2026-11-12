@@ -757,6 +757,7 @@ dependencies = [
  "arena",
  "compiler-storage",
  "language-semantics",
+ "optimization",
  "semantic-vocabulary",
  "symbols",
 ]
@@ -1177,6 +1178,7 @@ name = "lowered-discharge"
 version = "0.1.0"
 dependencies = [
  "diagnostics",
+ "language-core",
  "optimization",
  "proof-admission",
  "semantic-vocabulary",
@@ -2698,6 +2700,7 @@ dependencies = [
  "access-plans",
  "arena",
  "compiler-storage",
+ "flow-effects",
  "language-core",
  "language-semantics",
  "layout-plans",

@@ -543,7 +543,13 @@ pub(super) mod lexical_regions {
         let parameters = program.state_parameters(destination);
         let authenticated = closed_private
             && site.is_some_and(|site| {
-                site.target_symbol(program) == destination.symbol
+                // A machine's own body names itself, `write(...)` inside
+                // `write`, by its machine symbol, while its declaring machine's
+                // call resolves to the entry state. Both invoke that entry, and
+                // the self edge's facts derive from the entry being joined.
+                (site.target_symbol(program) == destination.symbol
+                    || (owner.symbol == machine.symbol
+                        && site.target_symbol(program) == owner.symbol))
                     && match owner.lexical_region_origin {
                         Some(origin) => {
                             origin.machine == machine.symbol

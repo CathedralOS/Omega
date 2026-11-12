@@ -54,8 +54,8 @@ mod outcome;
 mod read;
 
 pub use body::{
-    Body, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
-    Statement, Strict, Target, Termination, ValueType, self_place,
+    Body, Borrowed, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType,
+    Signature, Statement, Strict, Target, Termination, ValueType, self_place,
 };
 pub use names::{Binder, ClauseText, MachineNames, Piece};
 pub use outcome::Outcome;
@@ -167,6 +167,12 @@ pub struct Elaboration {
     /// The typed-tree machine each `MachineId` elaborates. The first entry
     /// is 1.
     pub machines: IdTable<MachineId, SymbolHandle>,
+    /// Private checked helpers in the complete verification subject whose
+    /// input clause was omitted. Every inferred condition must
+    /// become a requirement at every invocation before the module is judged.
+    /// Written `requires true` is complete even though it leaves no clause.
+    /// Entries, selected providers and abstract requirements never appear here.
+    pub private_inputs: Vec<MachineId>,
     /// The `requires` clauses of each data type the module declares, by the
     /// type's identity and in authored order, as `RecordType::requires`
     /// states them: the checker's restatement of each type declaration's
@@ -327,8 +333,10 @@ pub fn elaborate(typed: &TypedTrees, compilation: Compilation<'_>) -> Checked<El
         ));
     };
     let entry = program.machine(*entry)?;
+    program.fixed_inputs.push(entry);
     for other in others {
-        program.machine(*other)?;
+        let other = program.machine(*other)?;
+        program.fixed_inputs.push(other);
     }
     program.selected_declarations(entry, compilation.selected)?;
     program.subject_declarations(entry, compilation.subject)?;
@@ -520,6 +528,7 @@ fn finish_reading(
         let body = program.body(next)?;
         bodies.push(body);
     }
+    let private_inputs = program.private_input_contracts(entry)?;
     let mut elaboration = lower_generic(
         entry,
         &bodies,
@@ -528,6 +537,7 @@ fn finish_reading(
         &program.requirements,
     )?;
     elaboration.machines = program.symbols;
+    elaboration.private_inputs = private_inputs;
     elaboration.names = program.names;
     elaboration.selections = program.selections;
     elaboration.applications = program.applications;
@@ -591,7 +601,7 @@ pub fn lower_generic(
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
     // record declares none and keeps the empty identity table.
-    let declared = lower::places::declare(entry, records, bodies)?;
+    let declared = lower::places::declare(entry, records, bodies, signatures)?;
     if !declared.structural_types.is_empty() {
         module.identities = declared.identities;
         module.structural_types = declared.structural_types;
@@ -634,6 +644,7 @@ pub fn lower_generic(
         sources,
         names: IdTable::default(),
         machines: IdTable::default(),
+        private_inputs: Vec::new(),
         domains,
         requirements: requirements.to_vec(),
         selections: Vec::new(),

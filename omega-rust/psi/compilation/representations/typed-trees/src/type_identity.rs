@@ -3069,10 +3069,35 @@ pub(crate) mod lifetime_parameters {
     }
 }
 pub(crate) mod normalized_identities {
-    #[derive(
-        Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct TypeIdentityId(u32);
+
+    /*
+        Written under the table's canonical numbering when one is installed
+        (`TypeIdentityTable::renumber_canonically`), so the bytes do not depend
+        on which checking thread first minted an identity.
+    */
+    impl compiler_storage::Record for TypeIdentityId {
+        fn write(
+            &self,
+            output: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            output.record(|output| {
+                let number = match self.slot() {
+                    None => 0,
+                    Some(slot) => u32::try_from(output.renumbered::<TypeIdentityId>(slot)? + 1)
+                        .map_err(|_| output.error("type identity number overflow"))?,
+                };
+                compiler_storage::Record::write(&number, output)
+            })
+        }
+
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            input.record(|input| Ok(Self(compiler_storage::Record::read(input)?)))
+        }
+    }
 
     impl TypeIdentityId {
         pub fn is_valid(self) -> bool {
@@ -3094,12 +3119,63 @@ pub(crate) mod normalized_identities {
 
     pub type NormalizedTypeIdentity = TypeIdentityId;
 
-    #[derive(Clone, Default, PartialEq, Eq, Debug, compiler_storage::Record)]
+    #[derive(Clone, Default, PartialEq, Eq, Debug)]
     pub struct TypeIdentityTable {
         texts: arena::OwnedTextInterner,
     }
 
+    /*
+        Parallel checking passes mint identities into one shared table in the
+        order their threads first ask, so the same program numbers them
+        differently from run to run. A record of the program is written under
+        a canonical numbering instead: the table's texts in sorted order, and
+        every `TypeIdentityId` by its text's place there. Equal programs then
+        write equal bytes, which exact-key reuse of checked slices needs.
+        Reading needs no change; the table comes back in canonical order.
+    */
+    impl compiler_storage::Record for TypeIdentityTable {
+        fn write(
+            &self,
+            output: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            output.record(|output| {
+                let installed = output
+                    .renumbering_owner::<TypeIdentityId>()
+                    .map(|(owner, numbers)| (owner, numbers.to_vec()));
+                match installed {
+                    None => compiler_storage::Record::write(&self.texts, output),
+                    Some((owner, _)) if owner != self.owner() => Err(output
+                        .error("a second type identity table under another table's numbering")),
+                    Some((_, numbers)) => self.texts.write_renumbered(output, &numbers),
+                }
+            })
+        }
+
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            input.record(|input| {
+                Ok(Self {
+                    texts: compiler_storage::Record::read(input)?,
+                })
+            })
+        }
+    }
+
     impl TypeIdentityTable {
+        fn owner(&self) -> *const () {
+            std::ptr::from_ref(self).cast()
+        }
+
+        /*
+            Installs this table's canonical numbering on `output`; see the
+            `Record` implementation. Every identity in the written value must
+            come from this table, and none may be minted while it is written.
+        */
+        pub fn renumber_canonically(&self, output: &mut compiler_storage::RecordWriter) {
+            output.renumber::<TypeIdentityId>(self.owner(), self.texts.sorted_numbering().into());
+        }
+
         pub fn intern(&self, text: &str) -> TypeIdentityId {
             TypeIdentityId::from_slot(self.texts.intern(text))
         }
@@ -3113,6 +3189,95 @@ pub(crate) mod normalized_identities {
                 .slot(text)
                 .map(TypeIdentityId::from_slot)
                 .unwrap_or_default()
+        }
+    }
+
+    #[cfg(test)]
+    mod canonical_numbering_tests {
+        use super::{TypeIdentityId, TypeIdentityTable};
+        use compiler_storage::RecordLimits;
+        use std::collections::BTreeMap;
+
+        /* A program's identities as checking leaves them: a table, the
+        identities its facts name, and a map ordered by identity. */
+        #[derive(Default, compiler_storage::Record)]
+        struct Checked {
+            identities: TypeIdentityTable,
+            named: Vec<TypeIdentityId>,
+            by_identity: BTreeMap<TypeIdentityId, u32>,
+        }
+
+        const NAMED: [&str; 3] = ["b", "a", "c"];
+
+        fn checked(minted: &[&str]) -> Checked {
+            let identities = TypeIdentityTable::default();
+            for text in minted {
+                identities.intern(text);
+            }
+            let named: Vec<_> = NAMED.iter().map(|text| identities.by_text(text)).collect();
+            let by_identity = named
+                .iter()
+                .zip(0..)
+                .map(|(id, place)| (*id, place))
+                .collect();
+            Checked {
+                identities,
+                named,
+                by_identity,
+            }
+        }
+
+        fn encoded(checked: &Checked) -> Result<Vec<u8>, compiler_storage::RecordError> {
+            compiler_storage::encode_with(checked, RecordLimits::default(), |output| {
+                checked.identities.renumber_canonically(output)
+            })
+        }
+
+        #[test]
+        fn a_program_whose_threads_minted_in_another_order_writes_equal_bytes() {
+            let first = checked(&["a", "b", "c"]);
+            let raced = checked(&["c", "a", "b"]);
+            assert_ne!(
+                first.named, raced.named,
+                "the two orders mint other numbers"
+            );
+            let bytes = encoded(&raced).unwrap();
+            assert_eq!(encoded(&first).unwrap(), bytes);
+            let read: Checked = compiler_storage::decode(&bytes, RecordLimits::default()).unwrap();
+            for (identity, text) in read.named.iter().zip(NAMED) {
+                assert_eq!(read.identities.text(*identity), Some(text));
+            }
+            let places: Vec<u32> = NAMED
+                .iter()
+                .map(|text| read.by_identity[&read.identities.by_text(text)])
+                .collect();
+            assert_eq!(places, [0, 1, 2]);
+        }
+
+        #[test]
+        fn a_second_table_under_the_first_tables_numbering_is_refused() {
+            #[derive(compiler_storage::Record)]
+            struct Two {
+                first: TypeIdentityTable,
+                second: TypeIdentityTable,
+            }
+            let two = Two {
+                first: checked(&["a"]).identities,
+                second: checked(&["a", "b"]).identities,
+            };
+            let written = compiler_storage::encode_with(&two, RecordLimits::default(), |output| {
+                two.first.renumber_canonically(output)
+            });
+            assert!(written.is_err());
+        }
+
+        #[test]
+        fn an_identity_minted_after_the_numbering_was_taken_is_refused() {
+            let checked = checked(&["a", "b", "c"]);
+            let mut output = compiler_storage::RecordWriter::new(RecordLimits::default());
+            checked.identities.renumber_canonically(&mut output);
+            let late = checked.identities.intern("d");
+            assert!(compiler_storage::Record::write(&late, &mut output).is_err());
         }
     }
 
@@ -6744,6 +6909,26 @@ pub use static_operand_identity::{
 use crate::TypedTrees;
 use crate::data;
 use crate::trait_definition::TraitDefinition;
+
+/*
+    Every program numbers type identities in its own table, and a program can
+    hold another (its product declaration frontier). Under a canonical
+    numbering, each program's fields are written under its own table's, and
+    the enclosing one is restored after; see `TypeIdentityTable`'s `Record`.
+*/
+pub(crate) fn write_under_own_numbering(
+    program: &TypedTrees,
+    output: &mut compiler_storage::RecordWriter,
+    write: impl FnOnce(&mut compiler_storage::RecordWriter) -> Result<(), compiler_storage::RecordError>,
+) -> Result<(), compiler_storage::RecordError> {
+    let Some(enclosing) = output.take_renumbering::<TypeIdentityId>() else {
+        return write(output);
+    };
+    program.type_identities.renumber_canonically(output);
+    let written = write(output);
+    output.restore_renumbering::<TypeIdentityId>(Some(enclosing));
+    written
+}
 
 fn program_intern_type_identity(program: &TypedTrees, identity: String) -> TypeIdentityId {
     program.type_identities.intern(&identity)

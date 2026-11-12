@@ -8,10 +8,9 @@ toggling whether checking runs.
 
 How we project, fold, and check the `Build` slice without corrupting the Product
 continuation:
-1. Rejoin completed toolchain provider defaults (`toolchain_defaults.rejoin_build(typed)`)
-   against the canonical `TypedTrees` arena before projecting, and collect only
-   the `SymbolHandle`s of actually selected providers and boundary requirements
-   (describing an unselected implementation never imports its body).
+1. Retain the canonical float catalog and public requirements supplied by the
+   target realization table when projecting the Build slice. Ordinary provider
+   defaults remain declared by their supplying package.
 2. Project the `Build` slice (`project_build_program`) and verify that source
    code cannot manufacture a counterfeit `Build` value
    (`admit_toolchain_build_activation`) before ordinary borrow checking runs.
@@ -41,9 +40,7 @@ same way on either frontier.
 */
 
 use artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES;
-use build_time_evaluation::{
-    PreparedBuildMachineProgram, provider_declarations::ProviderSelectionSubject,
-};
+use build_time_evaluation::PreparedBuildMachineProgram;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use provider_planning::{ProviderPlanDerivation, ProviderPlanningContext};
@@ -93,35 +90,17 @@ pub(crate) fn settle_build_slice(
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     dependency_activation: bool,
-    toolchain_defaults: Option<&package_compilation::CompletedProviderDefaults>,
     execution_profile: Option<target::TargetProfile>,
     demand: BuildPlanDemand,
 ) -> Result<SettledBuildSlice, Vec<Diagnostic>> {
-    let completed_defaults = toolchain_defaults
-        .map(|defaults| defaults.rejoin_build(typed))
-        .transpose()?
-        .unwrap_or_default();
     // The target realization table supplies canonical float operations, so
     // the activation keeps the sealed catalog map and its public requirements
     // in its projection whether or not any Build selection names them.
-    let mut selected_declarations =
+    let selected_declarations =
         typed_trees::float_providers::catalog_realization_declarations(typed);
-    for selection in &completed_defaults {
-        selected_declarations.push(selection.provider_type.symbol);
-        match &selection.subject {
-            ProviderSelectionSubject::BoundaryTrait(identity)
-            | ProviderSelectionSubject::BoundaryRequirement(identity) => {
-                selected_declarations.push(identity.symbol);
-            }
-            ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
-                selected_declarations.extend(family.coordinates().iter().map(|row| row.symbol));
-            }
-        }
-    }
     // Validation subjects are the request's root package, as on the product
-    // side: the core Build that settles provider defaults, or a dependency's
-    // own Build executed for its consumer, checks only what its entry and
-    // selections reach.
+    // side. A dependency's Build executed for its consumer checks only what
+    // its entry and selections reach.
     let is_subject = |file: &source::SourceFile| {
         !dependency_activation && PackageCompilationInputs::is_validation_subject(packages, file)
     };
@@ -160,17 +139,7 @@ pub(crate) fn settle_build_slice(
     };
     let provisional = reprojected.as_ref().unwrap_or(&projection);
     let context = ProviderPlanningContext::new(provisional, DependencyScope::Build);
-    let mut defaults =
-        build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
-    defaults.extend(completed_defaults.into_iter().map(|selection| {
-        build_time_evaluation::provider_declarations::TargetProviderDefaults {
-            target: selection
-                .target
-                .map(|target| target.canonical_name().to_owned()),
-            machines: Vec::new(),
-            selections: vec![selection],
-        }
-    }));
+    let defaults = build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
     let declarations = provider_planning::target_machines::settle_provider_defaults(
         &typed_trees::provider_declarations::provider_target_declarations(
             context.typed,
@@ -276,7 +245,6 @@ pub fn settle_rejoined_build_slice(
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     dependency_activation: bool,
-    toolchain_defaults: Option<&package_compilation::CompletedProviderDefaults>,
     execution_profile: Option<target::TargetProfile>,
 ) -> Result<(), Vec<Diagnostic>> {
     let psi_compiler::BuildSourceInput { typed, pre_checks } = input;
@@ -286,7 +254,6 @@ pub fn settle_rejoined_build_slice(
         entry,
         packages,
         dependency_activation,
-        toolchain_defaults,
         execution_profile,
         BuildPlanDemand::PendingConstants,
     )?;
@@ -299,7 +266,6 @@ pub(crate) fn prepare_checked_build(
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     dependency_activation: bool,
-    toolchain_defaults: Option<&package_compilation::CompletedProviderDefaults>,
     execution_profile: Option<target::TargetProfile>,
     timings: &mut artifacts::compile_timings::CompileTimings,
     priors: &[&RetainedCheck],
@@ -324,7 +290,6 @@ pub(crate) fn prepare_checked_build(
         entry,
         packages,
         dependency_activation,
-        toolchain_defaults,
         execution_profile,
         BuildPlanDemand::Admission,
     )?;

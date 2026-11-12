@@ -65,12 +65,40 @@ pub fn encode_beside<T: Record, External: 'static>(
     external: &std::sync::Arc<External>,
     limits: RecordLimits,
 ) -> Result<Vec<u8>, RecordError> {
+    encode_beside_with(value, external, limits, |_| {})
+}
+
+/*
+    `encode_beside`, after `configure` prepares the writer, which is how an
+    owner installs a `renumber`ing before any of its numbers are written.
+*/
+pub fn encode_beside_with<T: Record, External: 'static>(
+    value: &T,
+    external: &std::sync::Arc<External>,
+    limits: RecordLimits,
+    configure: impl FnOnce(&mut RecordWriter),
+) -> Result<Vec<u8>, RecordError> {
     let mut output = RecordWriter::new(limits);
     let pointer = std::sync::Arc::as_ptr(external).cast::<()>() as usize;
     output
         .shared_values
         .insert((TypeId::of::<External>(), pointer, 0), 1);
     output.external = Some((TypeId::of::<External>(), pointer));
+    configure(&mut output);
+    value.write(&mut output)?;
+    Ok(output.finish())
+}
+
+/*
+    `encode`, after `configure` prepares the writer; see `encode_beside_with`.
+*/
+pub fn encode_with<T: Record>(
+    value: &T,
+    limits: RecordLimits,
+    configure: impl FnOnce(&mut RecordWriter),
+) -> Result<Vec<u8>, RecordError> {
+    let mut output = RecordWriter::new(limits);
+    configure(&mut output);
     value.write(&mut output)?;
     Ok(output.finish())
 }
@@ -131,6 +159,29 @@ pub struct RecordWriter {
     remaining_depth: usize,
     shared_values: HashMap<(TypeId, usize, usize), u64>,
     external: Option<(TypeId, usize)>, // The one value of its type the reader supplies instead of the bytes.
+    renumberings: Vec<Renumbering>,
+}
+
+/*
+    The numbers one interning table hands out, written by their place in a
+    canonical order instead of the order they were minted in.
+
+    A table shared by parallel checking passes mints a number for a text the
+    first time any thread asks for it, so the same program gets different
+    numbers from one run to the next. Written as minted, equal programs gave
+    different bytes and a key over them never matched again. The table's
+    owner installs its canonical order (`renumber`) before writing, writes its
+    own texts in that order, and writes every number through `renumbered`.
+    The numbers then depend only on the table's texts; a reader rebuilds the
+    table in that order and needs no change. `owner` names the one table the
+    numbering belongs to, so a second table of the same kind in one record is
+    refused rather than written under another table's numbering.
+*/
+#[derive(Clone)]
+pub struct Renumbering {
+    value_type: TypeId,
+    owner: usize,
+    numbers: std::sync::Arc<[u32]>,
 }
 
 impl RecordWriter {
@@ -141,8 +192,88 @@ impl RecordWriter {
             remaining_depth: limits.depth,
             shared_values: HashMap::new(),
             external: None,
+            renumberings: Vec::new(),
             limits,
         }
+    }
+
+    /*
+        A writer for one value's bytes on their own, such as a key whose
+        encoding orders a collection. It writes numbers under this writer's
+        renumberings, so the order it gives is the order of what is written.
+    */
+    pub fn scratch(&self) -> Self {
+        let mut scratch = Self::new(self.limits);
+        scratch.renumberings = self.renumberings.clone();
+        scratch
+    }
+
+    /*
+        Writes every number of `T` that `owner` minted as `numbers[slot]`; see
+        `Renumbering`. The last installation for `T` wins.
+    */
+    pub fn renumber<T: ?Sized + 'static>(
+        &mut self,
+        owner: *const (),
+        numbers: std::sync::Arc<[u32]>,
+    ) {
+        let value_type = TypeId::of::<T>();
+        self.renumberings
+            .retain(|renumbering| renumbering.value_type != value_type);
+        self.renumberings.push(Renumbering {
+            value_type,
+            owner: owner as usize,
+            numbers,
+        });
+    }
+
+    /*
+        Removes the renumbering of `T`, for a value that writes its own
+        numbers under another table and then `restore_renumbering`s this one.
+    */
+    pub fn take_renumbering<T: ?Sized + 'static>(&mut self) -> Option<Renumbering> {
+        let position = self
+            .renumberings
+            .iter()
+            .position(|renumbering| renumbering.value_type == TypeId::of::<T>())?;
+        Some(self.renumberings.swap_remove(position))
+    }
+
+    /* Puts back what `take_renumbering::<T>` removed. */
+    pub fn restore_renumbering<T: ?Sized + 'static>(&mut self, renumbering: Option<Renumbering>) {
+        let value_type = TypeId::of::<T>();
+        self.renumberings
+            .retain(|renumbering| renumbering.value_type != value_type);
+        self.renumberings.extend(renumbering);
+    }
+
+    /* The table whose numbering `T` is written under, if any. */
+    pub fn renumbering_owner<T: ?Sized + 'static>(&self) -> Option<(*const (), &[u32])> {
+        self.renumberings
+            .iter()
+            .find(|renumbering| renumbering.value_type == TypeId::of::<T>())
+            .map(|renumbering| (renumbering.owner as *const (), &*renumbering.numbers))
+    }
+
+    /*
+        The number to write for `slot` of `T`. A slot the installed numbering
+        does not cover was minted after it was taken, or by another table, and
+        is refused.
+    */
+    pub fn renumbered<T: ?Sized + 'static>(&self, slot: usize) -> Result<usize, RecordError> {
+        match self.renumbering_owner::<T>() {
+            None => Ok(slot),
+            Some((_, numbers)) => numbers
+                .get(slot)
+                .map(|number| *number as usize)
+                .ok_or_else(|| self.error("an interned number outside its table's renumbering")),
+        }
+    }
+
+    /* Whether any numbers are written renumbered; ordered collections then
+    write in the order of their keys' bytes, not of the minted numbers. */
+    pub fn is_renumbering(&self) -> bool {
+        !self.renumberings.is_empty()
     }
 
     pub fn extend(&mut self, bytes: &[u8]) -> Result<(), RecordError> {

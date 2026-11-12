@@ -49,10 +49,41 @@ use terminal_check_tables::values::{Justification, ValueOrigin};
 use terminal_check_tables::{
     Checked, Construct, KnowledgeId, MachineTables, ProgramPoint, RefusalReason,
 };
-use terminal_psi::{SuccessorEdge, TerminalMachine, Terminator};
+use terminal_psi::{ScalarBlockInvariant, SuccessorEdge, TerminalMachine, Terminator};
 
 use crate::graph::Graph;
-use crate::{Discharged, decide, goal, push_knowledge, refusal};
+use crate::{Discharged, arrivals, decide, goal, push_knowledge, refusal};
+
+/// The declared and inferred predicates available at block entries. Both
+/// ordinary discharge and private-input inference prepare the same rows;
+/// `check` verifies their arrivals before downstream obligations use them.
+pub(crate) fn prepare(
+    lowered: &TerminalMachine,
+    id: MachineId,
+    tables: &mut MachineTables,
+    graph: &Graph,
+    context: &PropositionContext,
+    invariants: &[ScalarBlockInvariant],
+    infer_joins: bool,
+) -> Checked<Vec<BlockId>> {
+    let mut declared = Vec::new();
+    for invariant in invariants.iter().filter(|row| row.machine == id) {
+        arrivals::admit(id, lowered, tables, invariant)?;
+        push_knowledge(
+            tables,
+            invariant.predicate.clone(),
+            ProgramPoint::BlockEntry(invariant.header),
+            Justification::BlockInvariant {
+                block: invariant.header,
+            },
+        );
+        declared.push(invariant.header);
+    }
+    if infer_joins {
+        infer(lowered, id, tables, graph, context, &declared)?;
+    }
+    Ok(declared)
+}
 
 /// How deep a definition may unfold into another before it is left alone.
 const UNFOLD_DEPTH: usize = 64;
@@ -112,7 +143,11 @@ fn in_scope(tables: &MachineTables, block: BlockId, proposition: &Proposition) -
 }
 
 /// `term` with each defined value replaced by its definition, recursively.
-fn unfold(term: &ScalarTerm, definitions: &[(ValueId, &ScalarTerm)], depth: usize) -> ScalarTerm {
+pub(crate) fn unfold(
+    term: &ScalarTerm,
+    definitions: &[(ValueId, &ScalarTerm)],
+    depth: usize,
+) -> ScalarTerm {
     if depth > UNFOLD_DEPTH {
         return term.clone();
     }
@@ -128,7 +163,7 @@ fn unfold(term: &ScalarTerm, definitions: &[(ValueId, &ScalarTerm)], depth: usiz
     unfolded
 }
 
-fn connective(mut parts: Vec<Proposition>, conjunction: bool) -> Proposition {
+pub(crate) fn connective(mut parts: Vec<Proposition>, conjunction: bool) -> Proposition {
     let (unit, zero) = if conjunction {
         (Proposition::Truth, Proposition::Falsehood)
     } else {
@@ -148,6 +183,23 @@ fn connective(mut parts: Vec<Proposition>, conjunction: bool) -> Proposition {
     }
 }
 
+/// Forget atoms whose values cannot cross this boundary. Both connectives
+/// are monotone: replacing an unavailable atom with `Truth` weakens the
+/// predicate, including inside a disjunction. Dropping a disjunct instead
+/// would strengthen it and incorrectly lose a possible arrival.
+pub(crate) fn project(
+    proposition: &Proposition,
+    atom: &mut impl FnMut(&Proposition) -> Option<Proposition>,
+) -> Proposition {
+    match proposition {
+        Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => connective(
+            parts.iter().map(|part| project(part, atom)).collect(),
+            matches!(proposition, Proposition::Conjunction(_)),
+        ),
+        other => atom(other).unwrap_or(Proposition::Truth),
+    }
+}
+
 /// Infers a predicate for every acyclic block with parameters and records it
 /// as that block's `BlockInvariant` knowledge row at its entry. `check` must
 /// run before any other obligation reads it. A block in `declared` already
@@ -160,8 +212,8 @@ pub(crate) fn infer(
     context: &PropositionContext,
     declared: &[BlockId],
 ) -> Checked<()> {
-    let mut predicates = Vec::new();
-    for join in &lowered.blocks {
+    for block in graph.reverse_postorder()? {
+        let join = &lowered.blocks[usize::try_from(block.get() - 1).expect("dense block position")];
         if join.parameters.is_empty() || declared.contains(&join.id) {
             continue;
         }
@@ -193,16 +245,13 @@ pub(crate) fn infer(
         }
         let predicate = connective(disjuncts, false);
         if predicate != Proposition::Truth {
-            predicates.push((join.id, predicate));
+            push_knowledge(
+                tables,
+                predicate,
+                ProgramPoint::BlockEntry(join.id),
+                Justification::BlockInvariant { block: join.id },
+            );
         }
-    }
-    for (block, predicate) in predicates {
-        push_knowledge(
-            tables,
-            predicate,
-            ProgramPoint::BlockEntry(block),
-            Justification::BlockInvariant { block },
-        );
     }
     Ok(())
 }
@@ -261,6 +310,11 @@ fn describe(
         })
         .collect();
     let mut parts = Vec::new();
+    let renaming: Vec<_> = arguments
+        .iter()
+        .copied()
+        .zip(join.parameters.iter().map(|parameter| parameter.id))
+        .collect();
     for (parameter, argument) in join.parameters.iter().zip(arguments) {
         let defined = unfold(
             &ScalarTerm::value(*argument, parameter.scalar_type),
@@ -276,16 +330,30 @@ fn describe(
         if !path || matches!(justification, Justification::OperationSemantics(_)) {
             continue;
         }
+        // Keep a predicate that already crosses under the exact argument
+        // substitution. Expanding its Boolean equalities into cases would
+        // discard the reusable form the preceding join established.
+        if let Some(stated) = rename(proposition, &renaming)
+            && in_scope(tables, join.id, &stated)
+        {
+            parts.push(stated);
+            continue;
+        }
         let denotation = if equations.is_empty() {
             (*proposition).clone()
         } else {
             check_value_equality_denotation(context, proposition, equations.iter().copied())
                 .unwrap_or_else(|_| (*proposition).clone())
         };
-        match denotation {
-            Proposition::Conjunction(conjuncts) => parts.extend(conjuncts),
-            other => parts.push(other),
-        }
+        // A preceding join's result becomes this join's formal on this
+        // exact edge. Its predicate follows that identity too, rather than
+        // being discarded for naming the preceding result.
+        let Some(denotation) = rename(&denotation, &renaming) else {
+            continue;
+        };
+        parts.push(project(&denotation, &mut |atom| {
+            in_scope(tables, join.id, atom).then(|| atom.clone())
+        }));
     }
     // A part outside the scope, or one this route does not state (a
     // contradiction, which would make the disjunct unprovable here), is left

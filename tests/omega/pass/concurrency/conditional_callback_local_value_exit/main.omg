@@ -1,0 +1,84 @@
+// Expected exit: 0
+// A quiet selected callback does not require suspension permission for the live local value.
+use omega::language::core::drop;
+
+data Receipt [
+    linear,
+    carry(suspension: forbidden, cpu: any, thread: any, address: movable)
+] dropped by drop_receipt { value: u32; }
+
+machine drop_receipt(receipt: &mut Receipt) {}
+
+machine acquire(value: u32) -> Receipt {
+    let receipt: Receipt = Receipt { value: value };
+    receipt
+}
+
+machine consume(receipt: Receipt) -> u32 {
+    let value: u32 = receipt.value;
+    drop(receipt);
+    value
+}
+
+public machine retain_claim<
+    const Callback: machine(value: u32) -> u32 suspends
+>(value: u32) -> u32 suspends {
+    let claimed_receipt: Receipt = acquire(value);
+    let ignored: u32 = suspend Callback(value);
+    consume(claimed_receipt)
+}
+
+public machine forward_claim<
+    const Renamed: machine(value: u32) -> u32 suspends
+>(value: u32) -> u32 suspends {
+    suspend retain_claim<Renamed>(value)
+}
+
+data Kept [carry(suspension: forbidden, cpu: any, thread: any, address: movable)] { value: u32; }
+machine observe(kept: Kept) -> u32 { kept.value }
+public machine retain<const Callback: machine(value: u32) -> u32 suspends>(value: u32) -> u32
+suspends {
+    let kept: Kept = Kept { value: value };
+    let callback_result: u32 = suspend Callback(value);
+    observe(kept)
+}
+public machine quiet(value: u32) -> u32 { value }
+public machine may_pause(value: u32) -> u32 suspends { value }
+machine private_wide(value: u32) -> u32 suspends { value }
+public machine first<const Callback: machine(value: u32) -> u32 suspends>(remaining: i32 in Wrapping, value: u32) -> u32
+suspends {
+    transition remaining > 0 {
+        true -> suspend second<Callback>(remaining - 1, value)
+        _ -> suspend retain<Callback>(value)
+    }
+}
+public machine second<const Forwarded: machine(value: u32) -> u32 suspends>(remaining: i32 in Wrapping, value: u32) -> u32
+suspends {
+    suspend first<Forwarded>(remaining, value)
+}
+public machine retain_scalar<const Callback: machine(value: u32) -> u32 suspends>(value: u32) -> u32
+suspends {
+    let kept: u32 = value;
+    let callback_result: u32 = suspend Callback(value);
+    kept
+}
+public machine retain_value<T, const Callback: machine(value: u32) -> u32 suspends>(generic_kept: T, value: u32) -> T
+suspends {
+    let callback_result: u32 = suspend Callback(value);
+    generic_kept
+}
+machine main() crashes Trap {
+    let acquired: u32 = forward_claim<quiet>(73u32);
+    let direct_acquired: u32 = retain_claim<quiet>(61u32);
+    let observed: u32 = suspend retain<quiet>(73u32);
+    let unmarked: u32 = retain<quiet>(73u32);
+    let recursive: u32 = first<quiet>(3, 73u32);
+    let allowed: u32 = suspend retain_scalar<may_pause>(73u32);
+    let generic_allowed: u32 = suspend retain_value<u32, may_pause>(73u32, 73u32);
+    let backing: u32 = 89u32;
+    let retained: &u32 = suspend retain_value<&u32, may_pause>(&backing, 73u32);
+    let borrowed_allowed: u32 = retained;
+    transition direct_acquired == 61u32 && acquired == 73u32 && observed == 73u32 && unmarked == 73u32 && recursive == 73u32 && allowed == 73u32 && generic_allowed == 73u32 && borrowed_allowed == 89u32 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

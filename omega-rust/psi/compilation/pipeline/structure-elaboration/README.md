@@ -56,7 +56,7 @@ normal completion is served only in terminal position (an arm target or a
 call statement), where it becomes the block's no-normal invocation.
 Everything else is refused with `RefusalReason::Unsupported` and a detail
 naming the construct (`expression match`, `type reference`, `call no-normal
-call inside an expression`, ...): a reference, slice, generic, callable value, suspension, assembly, float,
+call inside an expression`, ...): a reference outside [References](#references), slice, generic, callable value, suspension, assembly, float,
 domain, cast that names a domain, or service reach is never skipped, approximated or passed through. A
 refusal anywhere in the compilation refuses the whole compilation.
 
@@ -364,9 +364,72 @@ requires an explicit `[copy]` declaration; copyable fields do not change the
 affine default."). Plain data without it is affine, moves once, and belongs
 to the ownership lane (`type data with custody`).
 
-Formals are immutable here. A `mut` formal is refused where the signature is
-read (`parameter mutable parameter`), and a store through a `&mut` formal
-belongs to the references lane (`type reference`).
+Formals are immutable here. A `mut` formal that holds its own value is
+refused where the signature is read (`parameter mutable parameter`); a
+formal passed by reference is [References](#references).
+
+### References
+
+The first slice of the references and loans lane: a formal passed by `&T`
+or `&mut T`, for a builtin scalar or plain record `T`, and the loans a direct
+call forms for it.
+
+- **A borrowed formal** is read as its referent type with the reference
+  beside it (`Signature::borrowed`). It is a place whatever its referent: a
+  root `Parameter` place declared with the reference's access
+  (`SharedBorrow`, `MutableBorrow`), holding the caller's storage for the
+  activation ([ownership](../../../../../wiki/spec/language/ownership.md#borrows-and-aliases):
+  "Borrowed arguments continue to denote the original storage, not a
+  caller-side snapshot chosen because the referent is small."). A scalar
+  referent is a place of its primitive type, read with
+  `PrimitiveScalarRead` and stored with `WriteOnlyPrimitiveStore`, as a
+  home is; a record referent is read and stored by field, as a record
+  formal is. Only `&mut` lets the body store into it. The formals that are
+  places, record formals and borrowed formals in position order, are the
+  machine's first places, so a clause names the `k`-th of them as place
+  `k + 1`. An entry `requires` may name a borrowed scalar formal (`x < 10`)
+  or a field of a borrowed record (`cell.value > 0`): what the storage holds
+  at entry. This is what the current pipeline emits for such a formal.
+- **A loan** is the argument for a borrowed formal: `&place` or `&mut
+  place` with the formal's access, the place a slot or a field path beneath
+  one (`ExpressionKind::Borrow`), or a borrowed formal of the caller named
+  whole, which reborrows its referent (`set(value)`). The call passes the
+  lent place itself as a structural argument with the loan's access, the
+  invocation row names that exact place, and one `Loan` obligation is
+  minted at the point before the call: captured place, access, and lender
+  (`Lender::Owner` for owned storage, `Lender::Incoming` beneath a borrowed
+  formal). [loans](../../../../../wiki/spec/terminal-psi/loans.md): "Loan
+  formation captures a place, not a live selector expression." A scalar
+  local that is an SSA value gets a home holding its current value first
+  (`EstablishPrimitiveLocal`, as the current pipeline does for a local it
+  lends), and the slot names that home from then on.
+- **When the call returns**, the loan has ended: each is formed for one call
+  and returns with it, so no loan is live on any edge. An exclusive loan
+  logs `Overwritten` on the lent place at the call's normal continuation:
+  the callee may have stored anything beneath it, and nothing else changes,
+  so a sibling field keeps what it held
+  ([exact projected-path scoping](../../../../../AGENTS.md)). A shared loan
+  logs nothing.
+
+Whether two loans of one call may both be formed, and whether a reborrow
+asks for more than its parent holds, is the checker's judgment
+([lowered-discharge](../lowered-discharge/README.md#loans)). The reader
+refuses, by name, what the slice does not serve:
+
+| Construct | Refusal detail |
+| --- | --- |
+| `&write T`, a reference with a named lifetime, an `[erased]` reference, `mut` on a shared reference, a reference of a requirement, a referent of a type parameter | `parameter write-only reference parameter`, `parameter reference parameter with a named lifetime`, `parameter erased reference parameter`, `parameter mutable binding of a shared reference`, `parameter reference parameter of a requirement`, `parameter reference to a value of a type parameter` |
+| a referent of data with `requires`, or holding such data | `parameter reference to data with requires` |
+| a reference local, a reference result or field, a reference anywhere but a formal | `type reference` |
+| a borrow anywhere but the argument for a borrowed formal | `expression borrow` |
+| an argument for a borrowed formal that is not a borrow, a borrow with another access than its formal's, of a value that is not a place, of a case payload | `call argument for a borrowed formal that is not a borrow`, `call borrow whose access differs from its formal's`, `call borrow of a value that is not a place`, `call borrow of a case payload` |
+| `&mut` of a binding that is not `mut` (an exclusive reborrow of a shared reference is the checker's conflict) | `call exclusive loan of an immutable binding` |
+| another argument of the same call that names a lent slot (`f(&mut a, a)`): the lowered form forms every loan at the call, so it does not say that the read runs while the loan is live | `call argument that names storage another argument lends` |
+| a call that never returns and lends storage | `call no-normal call that lends storage` |
+| a loan that would give an SSA local a home inside the right of `&&` or `||` or a value `match` arm, so on some paths only | `call loan of a value local on some paths only` |
+| `let r = reference;` without a declared type, and whole assignment through a record reference | `statement local bound to a reference without a declared type`, `statement whole assignment through a reference` |
+| an `ensures` or crash guard that names a borrowed formal: what it holds at the return is a version no slice states yet | `contract clause that names a borrowed formal outside requires`, `contract clause that projects a formal or result` |
+| a borrowed formal on a call cycle | `machine storage on a call cycle` |
 
 ### Sums
 

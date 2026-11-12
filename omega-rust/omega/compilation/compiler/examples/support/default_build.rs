@@ -79,7 +79,6 @@ fn inherited(role: BuildDeclarationKind, marker: u8) {
             ..CheckedCompileRequest::new(&root, Some(host.target_name()))
         })
         .unwrap();
-    build_sequence::prepare_package_root(&mut invocation);
     let mut returned = execute(invocation.execution());
     assert!(
         returned
@@ -106,16 +105,16 @@ fn inherited(role: BuildDeclarationKind, marker: u8) {
     build_sequence::print_execution_counts("default Build after both Product contexts");
     assert_eq!(
         counters::build_execution_count() - before,
-        2,
-        "one source and one supplier Build must complete without Product replay"
+        1,
+        "one source Build must complete without Product replay"
     );
     assert_eq!(counters::source_build_execution_count() - sources_before, 1);
     assert_eq!(
         counters::provider_defaults_execution_count() - suppliers_before,
-        1
+        0
     );
     println!(
-        "default_role={role:?} source_executions=1 supplier_executions=1 retained_purposes=2 role_substitution=refused product_build_trap=not_executed"
+        "default_role={role:?} source_executions=1 supplier_executions=0 retained_purposes=2 role_substitution=refused product_build_trap=not_executed"
     );
 }
 
@@ -149,7 +148,6 @@ fn anonymous() {
     let mut invocation = session
         .begin_source_compilation(CheckedCompileRequest::new(&root, Some(host.target_name())))
         .unwrap();
-    build_sequence::prepare_source_root(&mut invocation);
     let mut returned = execute(invocation.execution());
     assert!(
         returned
@@ -162,15 +160,15 @@ fn anonymous() {
         .result
         .unwrap();
     build_sequence::print_execution_counts("anonymous default Build completed");
-    assert_eq!(counters::build_execution_count() - before, 2);
+    assert_eq!(counters::build_execution_count() - before, 1);
     assert_eq!(counters::source_build_execution_count() - sources_before, 1);
     assert_eq!(
         counters::provider_defaults_execution_count() - suppliers_before,
-        1
+        0
     );
     assert!(!temporary.path().join("build.omg").exists());
     println!(
-        "anonymous_default source_executions=1 supplier_executions=1 late_package_graft=refused product_build_trap=not_executed"
+        "anonymous_default source_executions=1 supplier_executions=0 late_package_graft=refused product_build_trap=not_executed"
     );
 }
 

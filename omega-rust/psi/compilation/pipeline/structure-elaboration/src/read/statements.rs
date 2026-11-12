@@ -5,8 +5,9 @@ scalar value, or the fresh root of a whole record value); an assignment to a
 member path is a store into that exact field of a mutable local's record; an
 assignment to a scalar local declared without an initializer is a store into
 its home. Formals are immutable here: a `mut` formal is refused where the
-signature is read, and a store through a `&mut` formal belongs to the
-references lane.
+signature is read. A formal passed by `&mut` is stored into in place: a
+scalar referent like a home, a field of a record referent like a field of a
+mutable local.
 */
 
 use semantic_vocabulary::MachineId;
@@ -39,6 +40,12 @@ impl Program<'_> {
                 let slot = self.slot_of(id, slots, path)?;
                 if !slots[slot].assignable {
                     return Err(unserved("assignment to an immutable binding"));
+                }
+                // A whole record stored through a reference replaces the
+                // caller's storage in place, a store no slice lowers yet; a
+                // record local's assignment rebinds its slot instead.
+                if slots[slot].borrowed.is_some() && !slots[slot].homed {
+                    return Err(unserved("whole assignment through a reference"));
                 }
                 let value_type = slots[slot].value_type;
                 let value = self.expression(id, slots, assignment.value, value_type.scalar())?;
@@ -91,6 +98,7 @@ impl Program<'_> {
                         | ExpressionKind::BitwiseNot(_)
                         | ExpressionKind::Cast(_)
                         | ExpressionKind::ShortCircuit { .. }
+                        | ExpressionKind::Borrow { .. }
                         | ExpressionKind::Call { .. } => {
                             return Err(unserved("store into a value that is not a local"));
                         }
@@ -200,6 +208,7 @@ impl Program<'_> {
                 assignable: local.is_mutable,
                 homed: value_type.scalar().is_some(),
                 erased: false,
+                borrowed: None,
             };
             return Ok((
                 slot,
@@ -230,6 +239,15 @@ impl Program<'_> {
                 Unserved::Typing("local bound to a Unit call"),
             ));
         };
+        // `let r = reference;` with no declared type: whether the local is
+        // a copy of the referent or the reference itself, the typed trees
+        // do not say here, and a reference local belongs to a later slice.
+        if declared.is_none()
+            && let ExpressionKind::Slot(named) = value.kind
+            && slots[named].borrowed.is_some()
+        {
+            return unserved("local bound to a reference without a declared type");
+        }
         if declared.is_some_and(|declared| declared != value_type) {
             return Err(refuse(
                 id,
@@ -243,6 +261,7 @@ impl Program<'_> {
             assignable: local.is_mutable,
             homed: false,
             erased: false,
+            borrowed: None,
         };
         Ok((
             slot,
@@ -296,6 +315,7 @@ impl Program<'_> {
             assignable: false,
             homed: false,
             erased: true,
+            borrowed: None,
         };
         Ok((
             slot,

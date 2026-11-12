@@ -4,14 +4,16 @@ application and authored selection it must leave unused, and the call itself
 with its arguments.
 */
 
+use language_core::ReferenceAccess;
 use semantic_vocabulary::MachineId;
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
-use typed_trees::expression::{ExpressionHandle, TableCallExpression};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::statement::TableCall;
 
+use super::expressions::names_storage;
 use super::{Program, Slot, symbol_kind};
-use crate::body::{Expression, ExpressionKind};
+use crate::body::{Expression, ExpressionKind, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
 impl<'t> Program<'t> {
@@ -766,7 +768,13 @@ impl<'t> Program<'t> {
             .parameters
             .iter()
             .enumerate()
-            .map(|(position, formal)| (*formal, signature.is_erased(position)))
+            .map(|(position, formal)| {
+                (
+                    *formal,
+                    signature.is_erased(position),
+                    signature.borrowed(position).cloned(),
+                )
+            })
             .collect();
         if formals.len() != arguments.len() {
             return Err(refuse(
@@ -785,14 +793,34 @@ impl<'t> Program<'t> {
             names.calls.push((span, shown));
         }
         let mut read = Vec::with_capacity(arguments.len());
-        for (argument, (formal, erased)) in arguments.iter().zip(&formals) {
+        let mut lenders = Vec::new();
+        for (argument, (formal, erased, borrowed)) in arguments.iter().zip(&formals) {
             // The argument for an erased formal is a term, not a
-            // computation.
+            // computation; the argument for a borrowed formal is a loan of
+            // a place.
             read.push(if *erased {
                 self.erased_term(id, slots, *argument, formal.scalar())?
+            } else if let Some(borrowed) = borrowed {
+                let (lent, lender) = self.lent(id, slots, *argument, borrowed)?;
+                // Its position among the runtime actuals, as the invocation
+                // row counts them: erased arguments are not actuals.
+                let actual = formals[..read.len()]
+                    .iter()
+                    .filter(|(_, erased, _)| !erased)
+                    .count();
+                lenders.push((actual, lender));
+                lent
             } else {
                 self.expression(id, slots, *argument, formal.scalar())?
             });
+        }
+        lent_storage_is_untouched(id, &read)?;
+        if let SourceOrigin::Authored(span) = source
+            && let Some(names) = self.names.get_mut(id)
+        {
+            for (position, lender) in lenders {
+                names.loans.push((span, position, lender));
+            }
         }
         let signature =
             terminal_check_tables::row(&self.signatures, callee, id, Construct::Machine)?;
@@ -826,5 +854,173 @@ impl<'t> Program<'t> {
             result: signature.result,
             source,
         })
+    }
+
+    /// The argument for a borrowed formal: `&place` or `&mut place`, or a
+    /// borrowed formal of this machine named whole, which lends its
+    /// referent on (a reborrow). The place is a slot or a field path
+    /// beneath one. ownership.md, "Owned local mutability": "modifying an
+    /// established ordinary local's owned storage requires a `mut` binding.
+    /// This covers ... formation of `&mut` or `&write` loans to those
+    /// places. A callee cannot grant writable access that the caller's place
+    /// lacks."
+    fn lent(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        argument: ExpressionHandle,
+        formal: &crate::body::Borrowed,
+    ) -> Checked<(Expression, String)> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
+        let (target, access) = match self.node(id, argument)? {
+            ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access),
+            ExpressionNode::Name(path) => {
+                let slot = self.slot_of(id, slots, path)?;
+                match slots[slot].borrowed {
+                    Some(_) => (argument, formal.access),
+                    None => return unserved("argument for a borrowed formal that is not a borrow"),
+                }
+            }
+            _ => return unserved("argument for a borrowed formal that is not a borrow"),
+        };
+        if access != formal.access {
+            return unserved("borrow whose access differs from its formal's");
+        }
+        // What a diagnostic calls the lender: the binding at the root of
+        // the place, as the current checker names it.
+        let mut root = target;
+        while let ExpressionNode::Member(member) = self.node(id, root)? {
+            root = member.receiver;
+        }
+        let lender_text = self.typed.expression_table.display_name(root);
+        let place = self.expression(id, slots, target, None)?;
+        if !names_storage(&place) {
+            return unserved("borrow of a value that is not a place");
+        }
+        let mut at = &place;
+        let slot = loop {
+            match &at.kind {
+                ExpressionKind::Slot(slot) => break *slot,
+                ExpressionKind::Field { base, .. } => at = base,
+                _ => return unserved("borrow of a case payload"),
+            }
+        };
+        // A binding's mutability is a source rule the lowered form does not
+        // keep, so it is decided here; a reborrow's access against its
+        // parent's is the checker's judgment (`lowered-discharge`, loans).
+        let lender = &slots[slot];
+        if access == ReferenceAccess::Mutable && lender.borrowed.is_none() && !lender.assignable {
+            return unserved("exclusive loan of an immutable binding");
+        }
+        // A scalar local that is an SSA value here gets a home for the loan;
+        // its type's identity is the formal's referent identity, the same
+        // scalar type.
+        let home = match (&place.kind, lender.value_type) {
+            (ExpressionKind::Slot(_), ValueType::Scalar(_)) if !lender.homed => {
+                Some(formal.home.clone().ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Spelling("scalar referent without a type identity"),
+                    )
+                })?)
+            }
+            _ => None,
+        };
+        Ok((
+            Expression {
+                result: place.result,
+                kind: ExpressionKind::Borrow {
+                    access,
+                    place: Box::new(place),
+                    home,
+                },
+                source,
+            },
+            lender_text,
+        ))
+    }
+}
+
+/// The slot whose storage a place expression names.
+pub(super) fn root_slot(place: &Expression) -> Option<usize> {
+    match &place.kind {
+        ExpressionKind::Slot(slot) => Some(*slot),
+        ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
+            root_slot(base)
+        }
+        _ => None,
+    }
+}
+
+/// Refuses a call whose other arguments name storage one of its arguments
+/// lends. Arguments are evaluated left to right and each loan is formed
+/// where its argument stands (expressions.md, "Evaluation schedule";
+/// loans.md: "Loan formation captures a place"), so a read of a lent slot
+/// in a later argument would run while the loan is live, and a loan in an
+/// earlier argument's own call would end before this one forms. The
+/// lowered form forms every loan of a call at the call, which says neither,
+/// so such a call is left to the current checker. Two loans of one call are
+/// both at the call, and the checker judges them (`lowered-discharge`).
+fn lent_storage_is_untouched(id: MachineId, arguments: &[Expression]) -> Checked<()> {
+    let lent: Vec<usize> = arguments
+        .iter()
+        .filter_map(|argument| match &argument.kind {
+            ExpressionKind::Borrow { place, .. } => root_slot(place),
+            _ => None,
+        })
+        .collect();
+    if lent.is_empty() {
+        return Ok(());
+    }
+    for argument in arguments {
+        if matches!(argument.kind, ExpressionKind::Borrow { .. }) {
+            continue;
+        }
+        if mentions(argument, &lent) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("argument that names storage another argument lends"),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Whether an expression names any of `slots`, anywhere inside it.
+fn mentions(expression: &Expression, slots: &[usize]) -> bool {
+    match &expression.kind {
+        ExpressionKind::Slot(slot) => slots.contains(slot),
+        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) => false,
+        ExpressionKind::Not(operand)
+        | ExpressionKind::BitwiseNot(operand)
+        | ExpressionKind::Cast(operand)
+        | ExpressionKind::Field { base: operand, .. }
+        | ExpressionKind::Payload { base: operand, .. }
+        | ExpressionKind::IsCase {
+            subject: operand, ..
+        }
+        | ExpressionKind::Borrow { place: operand, .. } => mentions(operand, slots),
+        ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
+            fields.iter().any(|(_, operand)| mentions(operand, slots))
+        }
+        ExpressionKind::Match {
+            subject,
+            arms,
+            default,
+        } => {
+            mentions(subject, slots)
+                || arms.iter().any(|(_, arm)| mentions(arm, slots))
+                || default.as_ref().is_some_and(|arm| mentions(arm, slots))
+        }
+        ExpressionKind::Strict { left, right, .. }
+        | ExpressionKind::ShortCircuit { left, right, .. } => {
+            mentions(left, slots) || mentions(right, slots)
+        }
+        ExpressionKind::Call { arguments, .. } => {
+            arguments.iter().any(|argument| mentions(argument, slots))
+        }
     }
 }

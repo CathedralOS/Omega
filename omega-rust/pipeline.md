@@ -1452,6 +1452,14 @@ text is diagnostic/debug payload after resolution, user literals remain program
 payload, and linker/display names are edge metadata. Scoped symbol-tree lookup
 is the baseline; extra lookup maps require a measured reason.
 
+Recursive terms are flat in memory, not only on the wire. A scalar term,
+proposition, proof term or any other value whose children are values of its own
+kind is stored as a postorder table whose entries name earlier entries by handle,
+never as a tree of nested `Box`/`Vec` children. Every walk over one, including
+drop, clone and comparison, is a loop over that table, so a deep term costs
+memory, not stack (the owner's ruling of 2026-11-12, extending the
+[no-depth-limit ruling](../wiki/spec/build/compiler_request.md)).
+
 Working state belongs to an explicit compilation, checking or worker invocation.
 Put durable indexes beside their owning arena and derived memos, recursion
 stacks and scratch in an invocation-owned context passed by borrow. Production

@@ -40,7 +40,7 @@ than simplifying the chain:
   pre-normalization expectations. Removing either summary removes its
   consumer's evidence, not only private metadata.
 - The shared-prefix name cursor stays without expansion, as its
-  [owner README](../../../bootstrap/3_delta/implementation/checking/names/README.md)
+  [owner README](../../../bootstrap/interpreted/3_delta/implementation/checking/names/README.md)
   already records; the measured removal cost below bought no conformance or
   failure-behavior improvement.
 
@@ -57,7 +57,7 @@ At `59e73ffef81b550c0eac4946b0e40970dc90942b`, normalization left 724
 definitions at maximum Gamma height 69 and generated no helpers. This does
 not establish that normalization is unnecessary for Delta's deeper admitted
 sources. The [normalization gate](../../tests/delta/normalization/run.sh) and
-[Gamma containment argument](../../../bootstrap/2_gamma/EVALUATOR_PROFILE.md#containment-argument)
+[Gamma containment argument](../../../bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md#containment-argument)
 own that separate obligation. Compare exact complete emission from the
 original plan before proposing removal; do not remove height/extent metadata
 also consumed by emission or narrow the language to fit this customer.
@@ -69,7 +69,7 @@ on that subject. Both receipts matched the selected evaluator's exact
 this is cumulative allocation, not live memory or host RSS. Both fit the
 selected provision. Single-run timings do not establish a throughput gain.
 The decision above retains the
-[existing cursor](../../../bootstrap/3_delta/implementation/checking/names/README.md)
+[existing cursor](../../../bootstrap/interpreted/3_delta/implementation/checking/names/README.md)
 without expansion; neither customer fit nor
 this isolated comparison closes full parameter, constructor, or match limits.
 Both investigations ran on macOS arm64; no Windows result is claimed.
@@ -79,7 +79,7 @@ Both investigations ran on macOS arm64; no Windows result is claimed.
 The next unit and scope pause belong to the
 [complete encoder candidate](../../../bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md).
 Its recorded customer was the exact evaluator source/tape in
-[the Gamma profile](../../../bootstrap/2_gamma/EVALUATOR_PROFILE.md), not another
+[the Gamma profile](../../../bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md), not another
 literal instruction proof. The
 [complete encoding subject](../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
 requires complete error-valued Beta definitions, independently constructed
@@ -298,7 +298,7 @@ A larger Gamma frame requires a coherent memory layout and exact/adjacent
 failure controls. Tighter allocation accounting must cover accepted, rejected,
 and interrupted requests, not only cheap successful branches. If full costs
 justify more native backing, compare a fixed zeroed startup allocation against
-the [static image constraints](../../../bootstrap/0_alpha/README.md), preserving
+the [static image constraints](../../../bootstrap/interpreted/0_alpha/README.md), preserving
 the same monotone arena and auditing both host realizations and allocation
 failure. No new allocator, opcode, or accelerator is authorized by this option.
 

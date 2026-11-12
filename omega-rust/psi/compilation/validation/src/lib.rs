@@ -1581,7 +1581,7 @@ pub use proof_contracts::contract_entailment::numeric_observations::{
 pub use proof_contracts::contract_entailment::ranking_range::{
     captured_collection_length, captured_integer_value, closed_collection_length,
     closed_collection_length_at_place, closed_collection_length_under_matches,
-    unique_literal_field,
+    collection_length_equals_under_matches, unique_literal_field,
 };
 pub use proof_contracts::contract_entailment::structural_prefix::{
     private_invocation_entry_is_closed, with_private_invocation_inputs,
@@ -1787,10 +1787,11 @@ pub use declarations::traits::{
     revalidate_named_implementation, revalidate_top_level_requirement_realization,
 };
 pub use machine_calls::effect_inference::{
-    declared_machine_invocations, declared_signature_invocations,
+    DirectCallOperational, declared_machine_invocations, declared_signature_invocations,
     fixed_installation_boundary_service_reach, has_self_forwarded_boundary_parameter,
     infer_operational_may, infer_operational_may_for_dependencies, infer_service_reaches,
-    infer_synchronous_invocations, invocation_target_label, trait_signature_service_reach,
+    infer_synchronous_invocations, invocation_target_label, signature_operational,
+    trait_signature_service_reach,
 };
 pub use machine_calls::effects::{
     AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,

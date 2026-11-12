@@ -30,7 +30,7 @@ Two checker defects motivate the controls. Grouping a non-callable continuation
 previously bypassed control-target rejection; grouped and nested forms must
 retain the same judgment at the outer continuation start. Separately, a
 transition after a resolved `never` call still derived subject-admission and
-sum-coverage parent judgments. The [block-exit contract](../../../bootstrap/4_epsilon/LANGUAGE.md#8-machines-states-and-transitions) suppresses those parent relations and
+sum-coverage parent judgments. The [block-exit contract](../../../bootstrap/interpreted/4_epsilon/LANGUAGE.md#8-machines-states-and-transitions) suppresses those parent relations and
 requires `InvalidTerminal` at the transition's closing brace, while independent
 subject, argument, and pattern name errors remain active. Paired reachable
 record-subject and incomplete-sum controls retain their ordinary `TypeMismatch`
@@ -106,7 +106,7 @@ authored name judgments. The retained pre-repair checker fails nine of these
 16 observations and already preserves the other seven.
 
 Eleven reason-coverage controls close the closed-set inventory: every one of
-the 26 [`EpsilonRejectReason` identities](../../../bootstrap/4_epsilon/LANGUAGE.md#9-closed-rejection-and-trap-identities)
+the 26 [`EpsilonRejectReason` identities](../../../bootstrap/interpreted/4_epsilon/LANGUAGE.md#9-closed-rejection-and-trap-identities)
 now has at least one executed checking observation. They pin `InvalidToken` on a
 bare `!` operator, `InvalidCharacterLiteral` on a two-byte literal, both
 `IntegerLiteralOutOfRange` boundaries (the parser-adjacent `2147483648` outside

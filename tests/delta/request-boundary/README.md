@@ -40,8 +40,8 @@ The adjacent full-size body instead produces the exact source-provision frame.
 Request failures use Reject code 1 `malformed_request`, Reject code 2
 `unknown_profile`, or Incomplete resource 1 `source_bytes`, all in DCREQ
 coordinate space 4; bound-support failures use space-5 codes 1 and 2. These follow the common frame and bounded order fixed by
-[request-boundary contract](../../../bootstrap/3_delta/implementation/boundary/README.md)
-and the [current Delta boundary contract](../../../bootstrap/3_delta/LANGUAGE.md#compiler-boundary-family).
+[request-boundary contract](../../../bootstrap/interpreted/3_delta/implementation/boundary/README.md)
+and the [current Delta boundary contract](../../../bootstrap/interpreted/3_delta/LANGUAGE.md#compiler-boundary-family).
 The compiler owns the serialized constants; the gate's expected bytes are
 comparators, not a runtime metadata input.
 

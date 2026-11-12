@@ -88,7 +88,8 @@ impl Program<'_> {
         let typed = self.typed;
         for symbol in selected {
             if typed.machine_by_symbol(*symbol).is_some() {
-                self.machine(*symbol)?;
+                let machine = self.machine(*symbol)?;
+                self.fixed_inputs.push(machine);
             } else if self.data_declaration(*symbol).is_some() {
                 self.record(entry, *symbol)?;
             } else {
@@ -118,7 +119,8 @@ impl Program<'_> {
             // A generic machine is checked once as written, as its own check
             // form, not as a closed body (`Elaboration::generic_templates`).
             if machine.type_parameters.is_empty() {
-                self.machine(machine.symbol)?;
+                let id = self.machine(machine.symbol)?;
+                self.subject_machines.push(id);
             } else {
                 self.generic_templates.push(machine.symbol);
             }

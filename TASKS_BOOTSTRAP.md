@@ -42,6 +42,12 @@ avoid implementation. Continue independent work while a question is pending.
   by its own source closure and end-to-end program behavior. The Rust compiler is
   a comparator, not an undisclosed construction stage. Coordinate with
   OMEGA-PRODUCT-COMPILER-SOURCE in [TASKS.md](TASKS.md).
+- **INDEPENDENT-CONSTRUCTION.** (new-scope) Develop the standalone-language peer
+  under `bootstrap/independent/`, using an actual successor compiler as its first
+  implementation customer. Document its seed and compare total implementation,
+  review and execution costs with the other paths. Carry viable construction
+  through the Omega compiler and its reproducible self-rebuild; stage count and
+  native versus VM output remain engineering choices.
 
 The following retained tasks detail unfinished interpreted-variant and product
 work. Their existence gives that variant no priority over alternative routes.
@@ -51,12 +57,12 @@ work. Their existence gives that variant no priority over alternative routes.
 ## Interpreted variant and Omega self-hosting
 
 - **OMEGA-D.** Complete the Epsilon closure selected by
-  `bootstrap/5_omega/omega_compiler.epsilon.sources` as the bootstrap compiler for the actual Omega compiler closure. Work against specified Omega semantics and the actual Omega compiler requirements;
+  `bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources` as the bootstrap compiler for the actual Omega compiler closure. Work against specified Omega semantics and the actual Omega compiler requirements;
   conservative, slow interpreted execution is acceptable when feasible.
 
   - Migrate the evaluator, independent refinement model, fixtures and full D
     source closure to `epsilon-expression-arm-results` in
-    [the Epsilon contract](bootstrap/4_epsilon/LANGUAGE.md#8-machines-states-and-transitions):
+    [the Epsilon contract](bootstrap/interpreted/4_epsilon/LANGUAGE.md#8-machines-states-and-transitions):
     direct value results, forwarded machine-call results, explicit `{}` resultless
     completion, unchanged state transfers and ordinary `return expression?;`.
     Remove optional arm-return parsing and its pattern-arrow probe. Re-admit
@@ -84,7 +90,7 @@ work. Their existence gives that variant no priority over alternative routes.
   named-only rows are not that encoding; validate canonical identity inputs and
   graph sharing in D and C without a compiled-project registry or fake lineage.
   Continue from the [source-to-executable gate](tests/bootstrap/omega-executable/README.md)
-  and `bootstrap/5_omega/scalar_compilation.epsilon`: extend parsed scalar
+  and `bootstrap/interpreted/5_omega/scalar_compilation.epsilon`: extend parsed scalar
   operations and checked call/state sequencing through the existing Alpha emitter.
   Retain changed-source, entry-selection, invalid-body and no-partial-output
   controls as the executable path grows; do not replace the gate with hand-built
@@ -146,7 +152,7 @@ work. Their existence gives that variant no priority over alternative routes.
   - Complete the chain beyond interpreted D once OMEGA-D, OMEGA-C and their
     executable construction obligations close, then reconstruct/check it on a blank supported
     host without unavailable-host success or an undisclosed authority substitute.
-  - Complete [Delta's cumulative pair containment](bootstrap/3_delta/implementation/boundary/execution_storage.md#remaining-obligation)
+  - Complete [Delta's cumulative pair containment](bootstrap/interpreted/3_delta/implementation/boundary/execution_storage.md#remaining-obligation)
     for the selected Gamma profile. Scaled allocation projections and individual
     full-extent runs do not cover every admitted composition. Derive the complete
     bound, coherently reprovision if needed, and validate the actual Epsilon

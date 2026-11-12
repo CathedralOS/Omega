@@ -49,6 +49,8 @@ pub(crate) mod declarations {
         pub callable: TerminalIdentityIndex,
         pub result_type: TerminalIdentityIndex,
         pub contract: [u8; 32],
+        pub published_may_suspend: bool,
+        pub published_may_block: bool,
         pub specialization: Option<CheckedMachineSpecialization>,
     }
 
@@ -97,6 +99,8 @@ pub(crate) mod declarations {
                 || identities.text(self.callable) != other_identities.text(other.callable)
                 || identities.text(self.result_type) != other_identities.text(other.result_type)
                 || self.contract != other.contract
+                || self.published_may_suspend != other.published_may_suspend
+                || self.published_may_block != other.published_may_block
             {
                 return false;
             }

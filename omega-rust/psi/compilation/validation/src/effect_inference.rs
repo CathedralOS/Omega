@@ -2,6 +2,10 @@
 Target-neutral effect, operational-may, synchronous-invocation, and
 service-reach fixed-point inference (`machine_calls::effect_inference`).
 */
+
+type ContractDependencyWork<Contribution> =
+    flow_effects::ContractDependency<Contribution, Vec<symbols::SymbolHandle>>;
+
 pub(crate) mod call_sites {
     use arena::HandleSpan;
     use symbols::SymbolHandle;
@@ -1060,7 +1064,39 @@ pub(crate) mod invocations {
     }
 }
 pub(crate) use invocations::full_parameter_invocation;
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FamilyMemberDependency {
+    machine: symbols::SymbolHandle,
+    parameters: Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>,
+}
+
+// Target bodies rename the same callback slots. Both effect analyses retain
+// that correspondence rather than leaking a member's binder into its family.
+fn family_dependencies(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> Vec<FamilyMemberDependency> {
+    family_interface_members(program, machine)
+        .iter()
+        .map(|member| FamilyMemberDependency {
+            machine: member.machine,
+            parameters: program
+                .machine_by_symbol(member.machine)
+                .map(|member| {
+                    program
+                        .machine_type_parameters(member)
+                        .iter()
+                        .zip(program.machine_type_parameters(machine))
+                        .map(|(member, interface)| (member.symbol, interface.symbol))
+                        .collect()
+                })
+                .unwrap_or_default(),
+        })
+        .collect()
+}
+
 pub(crate) mod operational {
+    use super::ContractDependencyWork;
     use crate::CheckingInput;
     use arena::HandleSpan;
     use std::collections::HashMap;
@@ -1077,15 +1113,22 @@ pub(crate) mod operational {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub(crate) struct MachineWork {
         symbol: SymbolHandle,
-        family_members: Vec<SymbolHandle>,
+        family_members: Vec<super::FamilyMemberDependency>,
         parameters: Vec<SymbolHandle>,
         uses_published_contract: bool,
+        checked_generic: bool,
+        template_application: Option<(
+            SymbolHandle,
+            HandleSpan<flow_effects::StaticMachineCallBinding>,
+        )>,
         published_may_suspend: bool,
         published_may_block: bool,
         transitive_may_suspend: bool,
         transitive_may_block: bool,
         body_may_suspend: bool,
         body_may_block: bool,
+        suspension_dependency: ContractDependencyWork<bool>,
+        blocking_dependency: ContractDependencyWork<bool>,
         states: Vec<StateWork>,
     }
 
@@ -1105,8 +1148,10 @@ pub(crate) mod operational {
         call_ordinal: usize,
         target_name: String,
         target_state_symbol: SymbolHandle,
+        requirement_symbol: SymbolHandle,
         static_machine_parameter: SymbolHandle,
-        static_machine_arguments: Box<[typed_trees::expression::StaticMachineArgument]>,
+        pending_static_machine_arguments: Box<[typed_trees::expression::StaticMachineArgument]>,
+        static_machine_bindings: HandleSpan<flow_effects::StaticMachineCallBinding>,
         target_machine_symbol: SymbolHandle,
 
         target_operator_symbol: SymbolHandle,
@@ -1114,13 +1159,21 @@ pub(crate) mod operational {
         direct_may_block: bool,
         transitive_may_suspend: bool,
         transitive_may_block: bool,
+        suspension_dependency: ContractDependencyWork<bool>,
+        blocking_dependency: ContractDependencyWork<bool>,
         acknowledgement: language_semantics::CallOperationalAcknowledgement,
     }
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-    pub(crate) struct DirectCallOperational {
-        pub(crate) may_suspend: bool,
-        pub(crate) may_block: bool,
+    pub struct DirectCallOperational {
+        pub may_suspend: bool,
+        pub may_block: bool,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub(crate) struct OperationalDependencies {
+        may_suspend: ContractDependencyWork<bool>,
+        may_block: ContractDependencyWork<bool>,
     }
 
     pub fn infer_operational_may(program: &dyn CheckingInput) -> OperationalPlan {
@@ -1142,9 +1195,16 @@ pub(crate) mod operational {
     ) -> OperationalPlan {
         let signature_effects = DirectSignatureEffects::of(program);
         let mut machines = build_machine_work(&signature_effects, program);
-        let selected_call_contexts =
-            propagate_operational_may(program, &mut machines, dependencies, captured);
-        let mut plan = build_plan(program, machines);
+        let mut plan = OperationalPlan::default();
+        prepare_static_bindings(program, &mut machines, &mut plan.static_machine_bindings);
+        let selected_call_contexts = propagate_operational_may(
+            program,
+            &mut machines,
+            dependencies,
+            captured,
+            &plan.static_machine_bindings,
+        );
+        let mut plan = build_plan(machines, plan);
         plan.selected_call_contexts = selected_call_contexts;
         plan.cleanup_dependencies = dependencies.clone();
         plan.captured_selector_calls = captured.clone();
@@ -1158,10 +1218,20 @@ pub(crate) mod operational {
         let mut machines = Vec::with_capacity(program.machines().len());
 
         for machine in program.machines() {
-            let family_members = super::family_interface_members(program, machine)
+            let template = program
+                .machine_specializations
                 .iter()
-                .map(|member| member.machine)
-                .collect::<Vec<_>>();
+                .find(|specialization| specialization.instance == machine.symbol)
+                .and_then(|specialization| program.machine_by_symbol(specialization.template))
+                .unwrap_or(machine);
+            let checked_generic = template.supply_mode
+                == language_semantics::MachineSupplyMode::CheckedBody
+                && template.body_is_present
+                && program
+                    .machine_kind_type_parameters(template)
+                    .next()
+                    .is_some();
+            let family_members = super::family_dependencies(program, machine);
             let uses_published_contract = family_members.is_empty()
                 && (machine.is_public
                     || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody);
@@ -1194,12 +1264,16 @@ pub(crate) mod operational {
                     })
                     .unwrap_or_default(),
                 uses_published_contract,
+                checked_generic,
+                template_application: None,
                 published_may_suspend: published.may_suspend,
                 published_may_block: published.may_block,
                 transitive_may_suspend: uses_published_contract && published.may_suspend,
                 transitive_may_block: uses_published_contract && published.may_block,
                 body_may_suspend: false,
                 body_may_block: false,
+                suspension_dependency: Default::default(),
+                blocking_dependency: Default::default(),
                 states,
             });
         }
@@ -1230,6 +1304,7 @@ pub(crate) mod operational {
                     call.target_state_symbol,
                 ) {
                     call.target_state_symbol = requirement.signature.symbol;
+                    call.requirement_symbol = requirement.signature.symbol;
                     let direct = signature_effects.for_symbol(requirement.signature.symbol);
                     call.direct_may_suspend = direct.may_suspend;
                     call.direct_may_block = direct.may_block;
@@ -1383,8 +1458,10 @@ pub(crate) mod operational {
             call_ordinal,
             target_name: target_name.to_owned(),
             target_state_symbol,
+            requirement_symbol,
             static_machine_parameter,
-            static_machine_arguments: static_machine_arguments.into(),
+            pending_static_machine_arguments: static_machine_arguments.into(),
+            static_machine_bindings: HandleSpan::empty(),
             target_machine_symbol,
 
             target_operator_symbol,
@@ -1392,6 +1469,8 @@ pub(crate) mod operational {
             direct_may_block: direct.may_block,
             transitive_may_suspend: false,
             transitive_may_block: false,
+            suspension_dependency: Default::default(),
+            blocking_dependency: Default::default(),
             acknowledgement,
         });
     }
@@ -1473,7 +1552,7 @@ pub(crate) mod operational {
         DirectCallOperational::default()
     }
 
-    pub(crate) fn signature_operational(
+    pub fn signature_operational(
         program: &dyn CheckingInput,
         signature: &typed_trees::signature::StateSignature,
     ) -> DirectCallOperational {
@@ -1523,15 +1602,15 @@ pub(crate) mod operational {
     pub(crate) struct OperationalContext {
         machine: usize,
         selectors: Vec<Option<Vec<SymbolHandle>>>,
-        body: DirectCallOperational,
-        summary: DirectCallOperational,
+        body: OperationalDependencies,
+        summary: OperationalDependencies,
     }
 
     pub(crate) type SelectorArguments = Vec<Option<Vec<SymbolHandle>>>;
 
     pub(crate) struct MachineContextInputs {
         parameter_count: usize,
-        initial_summary: DirectCallOperational,
+        initial_summary: OperationalDependencies,
         unknown_context: Option<usize>,
         selected_contexts: HashMap<SelectorArguments, usize>,
     }
@@ -1540,6 +1619,7 @@ pub(crate) mod operational {
         entries: Vec<OperationalContext>,
         machines: Vec<MachineContextInputs>,
         machine_positions: HashMap<SymbolHandle, usize>,
+        checked_dependencies: Option<Vec<(bool, bool)>>,
     }
 
     impl OperationalContexts {
@@ -1552,11 +1632,15 @@ pub(crate) mod operational {
                     machine_positions.entry(machine.symbol).or_insert(position);
                     MachineContextInputs {
                         parameter_count: machine.parameters.len(),
-                        initial_summary: DirectCallOperational {
-                            may_suspend: machine.uses_published_contract
-                                && machine.published_may_suspend,
-                            may_block: machine.uses_published_contract
-                                && machine.published_may_block,
+                        initial_summary: OperationalDependencies {
+                            may_suspend: (machine.uses_published_contract
+                                && !machine.checked_generic
+                                && machine.published_may_suspend)
+                                .into(),
+                            may_block: (machine.uses_published_contract
+                                && !machine.checked_generic
+                                && machine.published_may_block)
+                                .into(),
                         },
                         unknown_context: None,
                         selected_contexts: HashMap::new(),
@@ -1567,6 +1651,7 @@ pub(crate) mod operational {
                 entries: Vec::with_capacity(machines.len()),
                 machines: inputs,
                 machine_positions,
+                checked_dependencies: None,
             }
         }
 
@@ -1603,8 +1688,8 @@ pub(crate) mod operational {
             self.entries.push(OperationalContext {
                 machine,
                 selectors,
-                body: DirectCallOperational::default(),
-                summary: inputs.initial_summary,
+                body: OperationalDependencies::default(),
+                summary: inputs.initial_summary.clone(),
             });
             position
         }
@@ -1651,7 +1736,7 @@ pub(crate) mod operational {
     }
 
     pub(crate) struct ResolvedCall {
-        envelope: DirectCallOperational,
+        envelope: OperationalDependencies,
         selected_dispatch: bool,
         targets: Vec<(SymbolHandle, usize)>,
     }
@@ -1660,15 +1745,16 @@ pub(crate) mod operational {
     fn call_envelope(
         program: &dyn CheckingInput,
         machines: &[MachineWork],
+        bindings: &arena::Arena<flow_effects::StaticMachineCallBinding>,
         captured: &flow_effects::CapturedSelectorCalls,
         contexts: &mut OperationalContexts,
         owner: &MachineWork,
         selectors: &[Option<Vec<SymbolHandle>>],
         state: SymbolHandle,
         call: &CallWork,
-    ) -> DirectCallOperational {
+    ) -> OperationalDependencies {
         resolve_call(
-            program, machines, captured, contexts, owner, selectors, state, call,
+            program, machines, bindings, captured, contexts, owner, selectors, state, call,
         )
         .envelope
     }
@@ -1677,6 +1763,7 @@ pub(crate) mod operational {
     fn resolve_call(
         program: &dyn CheckingInput,
         machines: &[MachineWork],
+        bindings: &arena::Arena<flow_effects::StaticMachineCallBinding>,
         captured: &flow_effects::CapturedSelectorCalls,
         contexts: &mut OperationalContexts,
         owner: &MachineWork,
@@ -1692,10 +1779,35 @@ pub(crate) mod operational {
                 .then_some(record)
         });
         let record = records.next().filter(|_| records.next().is_none());
-        let mut envelope = DirectCallOperational {
-            may_suspend: call.direct_may_suspend,
-            may_block: call.direct_may_block,
+        let mut envelope = OperationalDependencies {
+            may_suspend: (call.direct_may_suspend).into(),
+            may_block: (call.direct_may_block).into(),
         };
+        let parameter = if program
+            .retained_static_machine_contract(call.target_state_symbol)
+            .is_some()
+        {
+            call.target_state_symbol
+        } else if !call.target_machine_symbol.is_valid() {
+            call.static_machine_parameter
+        } else {
+            SymbolHandle::invalid()
+        };
+        if parameter.is_valid() {
+            envelope = OperationalDependencies {
+                may_suspend: ContractDependencyWork::parameter(parameter, call.direct_may_suspend),
+                may_block: ContractDependencyWork::parameter(parameter, call.direct_may_block),
+            };
+        } else if !call.requirement_symbol.is_valid()
+            && contexts
+                .position_of_machine(call.target_machine_symbol)
+                .is_some()
+        {
+            // The callee's summary already includes its published ceiling or
+            // its checked callback dependency. Adding the old ceiling again
+            // would erase the dependency before selections can substitute it.
+            envelope = OperationalDependencies::default();
+        }
         let mut selected_dispatch = false;
         let (targets, offset) = if let Some(slot) =
             program.dynamic_slot_by_symbol(call.target_state_symbol)
@@ -1725,7 +1837,7 @@ pub(crate) mod operational {
                         .all(|target| contexts.position_of_machine(*target).is_some())
             }) {
                 Some(targets) => {
-                    envelope = DirectCallOperational::default();
+                    envelope = OperationalDependencies::default();
                     selected_dispatch = true;
                     (targets, 1)
                 }
@@ -1749,8 +1861,22 @@ pub(crate) mod operational {
                 Vec::new()
             };
             let context = contexts.intern(machine, arguments);
-            envelope.may_suspend |= contexts[context].summary.may_suspend;
-            envelope.may_block |= contexts[context].summary.may_block;
+            let summary = if call.static_machine_parameter.is_valid() {
+                let published = contexts.intern(machine, Vec::new());
+                selected_dependencies(machines, contexts, published)
+            } else {
+                contexts[context].summary.clone()
+            };
+            let summary = substitute_operational_dependencies(
+                program,
+                machines,
+                contexts,
+                &summary,
+                call.static_machine_bindings,
+                bindings,
+            );
+            envelope.may_suspend |= summary.may_suspend;
+            envelope.may_block |= summary.may_block;
             resolved.push((target, context));
         }
         ResolvedCall {
@@ -1763,6 +1889,7 @@ pub(crate) mod operational {
     fn export_selected_call_contexts(
         program: &dyn CheckingInput,
         machines: &[MachineWork],
+        bindings: &arena::Arena<flow_effects::StaticMachineCallBinding>,
         captured: &flow_effects::CapturedSelectorCalls,
         contexts: &mut OperationalContexts,
     ) -> flow_effects::SelectedCallContexts {
@@ -1777,6 +1904,7 @@ pub(crate) mod operational {
                     let resolution = resolve_call(
                         program,
                         machines,
+                        bindings,
                         captured,
                         contexts,
                         owner,
@@ -1836,22 +1964,230 @@ pub(crate) mod operational {
         exported
     }
 
+    fn prepare_static_bindings(
+        program: &dyn CheckingInput,
+        machines: &mut [MachineWork],
+        bindings: &mut arena::Arena<flow_effects::StaticMachineCallBinding>,
+    ) {
+        for machine in machines {
+            machine.template_application = program
+                .machine_specializations
+                .iter()
+                .find(|specialization| specialization.instance == machine.symbol)
+                .map(|specialization| {
+                    let mut rows = Vec::new();
+                    for binding in program
+                        .expression_table
+                        .static_machine_application_bindings(specialization.binding_application)
+                    {
+                        let typed_trees::static_applications::StaticMachineBindingValue::Machine(
+                            argument,
+                        ) = &binding.value
+                        else {
+                            continue;
+                        };
+                        let nested = argument
+                            .application
+                            .as_ref()
+                            .map_or(&[][..], |application| application.arguments.as_ref());
+                        let arguments = retain_static_machine_bindings(
+                            program,
+                            argument.symbol,
+                            nested,
+                            bindings,
+                        );
+                        rows.push(flow_effects::StaticMachineCallBinding {
+                            parameter: binding.parameter,
+                            selected: argument.symbol,
+                            arguments,
+                        });
+                    }
+                    (specialization.template, bindings.insert_many(rows))
+                });
+            for state in &mut machine.states {
+                for call in &mut state.calls {
+                    let arguments = std::mem::take(&mut call.pending_static_machine_arguments);
+                    call.static_machine_bindings = retain_static_machine_bindings(
+                        program,
+                        call.target_state_symbol,
+                        &arguments,
+                        bindings,
+                    );
+                }
+            }
+        }
+    }
+
+    fn published_dependency(
+        published: bool,
+        body: ContractDependencyWork<bool>,
+        checked_dependency: bool,
+    ) -> ContractDependencyWork<bool> {
+        if published && checked_dependency {
+            body
+        } else {
+            published.into()
+        }
+    }
+
+    fn selected_dependencies(
+        machines: &[MachineWork],
+        contexts: &OperationalContexts,
+        context: usize,
+    ) -> OperationalDependencies {
+        // A selected callback keeps its written ceiling even when its private
+        // body finishes immediately. Only its checked generic dependency may
+        // specialize that ceiling; runtime selector observations do not.
+        let owner = &machines[contexts[context].machine];
+        let template = owner
+            .template_application
+            .and_then(|(template, _)| contexts.position_of_machine(template))
+            .unwrap_or(contexts[context].machine);
+        let dependency = contexts
+            .checked_dependencies
+            .as_ref()
+            .map_or((true, true), |dependencies| dependencies[template]);
+        let summary = &contexts[context].summary;
+        OperationalDependencies {
+            may_suspend: if owner.published_may_suspend && !(owner.checked_generic && dependency.0)
+            {
+                true.into()
+            } else {
+                summary.may_suspend.clone()
+            },
+            may_block: if owner.published_may_block && !(owner.checked_generic && dependency.1) {
+                true.into()
+            } else {
+                summary.may_block.clone()
+            },
+        }
+    }
+
+    fn substitute_operational_dependencies(
+        program: &dyn CheckingInput,
+        machines: &[MachineWork],
+        contexts: &mut OperationalContexts,
+        dependency: &OperationalDependencies,
+        application: HandleSpan<flow_effects::StaticMachineCallBinding>,
+        bindings: &arena::Arena<flow_effects::StaticMachineCallBinding>,
+    ) -> OperationalDependencies {
+        fn substitute(
+            program: &dyn CheckingInput,
+            machines: &[MachineWork],
+            contexts: &mut OperationalContexts,
+            dependency: &ContractDependencyWork<bool>,
+            application: HandleSpan<flow_effects::StaticMachineCallBinding>,
+            bindings: &arena::Arena<flow_effects::StaticMachineCallBinding>,
+            suspend: bool,
+        ) -> ContractDependencyWork<bool> {
+            let mut result = ContractDependencyWork::from(dependency.concrete);
+            for parameter in &dependency.parameters {
+                let selected = bindings
+                    .span_or_empty(application)
+                    .iter()
+                    .find(|binding| binding.parameter == *parameter)
+                    .copied();
+                if let Some(binding) = selected {
+                    if let Some(contract) =
+                        program.retained_static_machine_contract(binding.selected)
+                    {
+                        let bound = signature_operational(program, contract.signature());
+                        result |= ContractDependencyWork::parameter(
+                            binding.selected,
+                            if suspend {
+                                bound.may_suspend
+                            } else {
+                                bound.may_block
+                            },
+                        );
+                    } else if let Some((machine, _)) =
+                        crate::declarations::transitions::resolved_transition_target_state(
+                            program,
+                            binding.selected,
+                        )
+                        && let Some(machine) = contexts.position_of_machine(machine.symbol)
+                    {
+                        let selected = contexts.intern(machine, Vec::new());
+                        let summary = selected_dependencies(machines, contexts, selected);
+                        let dependency = if suspend {
+                            &summary.may_suspend
+                        } else {
+                            &summary.may_block
+                        };
+                        let mut contribution = substitute(
+                            program,
+                            machines,
+                            contexts,
+                            dependency,
+                            binding.arguments,
+                            bindings,
+                            suspend,
+                        );
+                        if contribution.parameters.iter().any(|parameter| {
+                            program
+                                .declaration_type_parameters(binding.selected)
+                                .iter()
+                                .any(|owned| owned.symbol == *parameter)
+                        }) {
+                            // An unapplied family keeps its published upper bound.
+                            // Its method-local binders are not caller binders.
+                            contribution = true.into();
+                        }
+                        result |= contribution;
+                    } else {
+                        // Keep an unresolved projection visible. A missing
+                        // selection cannot establish that the call is quiet.
+                        result |= ContractDependencyWork::parameter(*parameter, true);
+                    }
+                } else {
+                    result |= ContractDependencyWork::parameter(*parameter, true);
+                }
+            }
+            result
+        }
+        OperationalDependencies {
+            may_suspend: substitute(
+                program,
+                machines,
+                contexts,
+                &dependency.may_suspend,
+                application,
+                bindings,
+                true,
+            ),
+            may_block: substitute(
+                program,
+                machines,
+                contexts,
+                &dependency.may_block,
+                application,
+                bindings,
+                false,
+            ),
+        }
+    }
+
     fn propagate_operational_may(
         program: &dyn CheckingInput,
         machines: &mut [MachineWork],
         dependencies: &arena::Arena<flow_effects::CleanupDependency>,
         captured: &flow_effects::CapturedSelectorCalls,
+        bindings: &arena::Arena<flow_effects::StaticMachineCallBinding>,
     ) -> flow_effects::SelectedCallContexts {
         let mut contexts = OperationalContexts::new(machines);
         let roots = (0..machines.len())
             .map(|machine| contexts.intern(machine, Vec::new()))
             .collect::<Vec<_>>();
+        // Recursive helpers must first solve their own callback equations.
+        // Seeding them with an opaque ceiling would turn A(F) = F OR A(F)
+        // into an unconditional effect. Once those equations settle, axes
+        // without a checked callback dependency keep their authored ceiling.
         loop {
             let previous = contexts.entries.clone();
             for position in 0..previous.len() {
                 let owner = &machines[contexts[position].machine];
                 let selectors = contexts[position].selectors.clone();
-                let mut body = DirectCallOperational::default();
+                let mut body = OperationalDependencies::default();
                 for state in &owner.states {
                     body.may_suspend |= state.direct_may_suspend;
                     body.may_block |= state.direct_may_block;
@@ -1859,6 +2195,7 @@ pub(crate) mod operational {
                         let envelope = call_envelope(
                             program,
                             machines,
+                            bindings,
                             captured,
                             &mut contexts,
                             owner,
@@ -1875,41 +2212,95 @@ pub(crate) mod operational {
                 }) {
                     if let Some(machine) = contexts.position_of_machine(target) {
                         let target = contexts.intern(machine, Vec::new());
-                        body.may_suspend |= contexts[target].summary.may_suspend;
-                        body.may_block |= contexts[target].summary.may_block;
+                        body.may_suspend |= &contexts[target].summary.may_suspend;
+                        body.may_block |= &contexts[target].summary.may_block;
                     }
                 }
-                let mut family = DirectCallOperational::default();
-                for target in &owner.family_members {
-                    if let Some(machine) = contexts.position_of_machine(*target) {
+                let mut family = OperationalDependencies::default();
+                for member in &owner.family_members {
+                    if let Some(machine) = contexts.position_of_machine(member.machine) {
                         let target = contexts.intern(machine, selectors.clone());
-                        family.may_suspend |= contexts[target].summary.may_suspend;
-                        family.may_block |= contexts[target].summary.may_block;
+                        let rename = |dependency: &ContractDependencyWork<bool>| {
+                            let mut result = ContractDependencyWork::from(dependency.concrete);
+                            for parameter in &dependency.parameters {
+                                let parameter = member
+                                    .parameters
+                                    .iter()
+                                    .find(|(source, _)| source == parameter)
+                                    .map_or(*parameter, |(_, interface)| *interface);
+                                result |= ContractDependencyWork::parameter(parameter, true);
+                            }
+                            result
+                        };
+                        family.may_suspend |= rename(&contexts[target].summary.may_suspend);
+                        family.may_block |= rename(&contexts[target].summary.may_block);
                     }
                 }
-                contexts.entries[position].body = body;
-                contexts.entries[position].summary = if owner.uses_published_contract {
-                    DirectCallOperational {
-                        may_suspend: owner.published_may_suspend,
-                        may_block: owner.published_may_block,
+                contexts.entries[position].body = body.clone();
+                contexts.entries[position].summary = if let Some((template, application)) =
+                    owner.template_application
+                    && let Some(template) = contexts.position_of_machine(template)
+                {
+                    let template = contexts.intern(template, Vec::new());
+                    let template = contexts.entries[template].summary.clone();
+                    substitute_operational_dependencies(
+                        program,
+                        machines,
+                        &mut contexts,
+                        &template,
+                        application,
+                        bindings,
+                    )
+                } else if owner.uses_published_contract {
+                    OperationalDependencies {
+                        may_suspend: published_dependency(
+                            owner.published_may_suspend,
+                            body.may_suspend,
+                            owner.checked_generic
+                                && contexts.checked_dependencies.as_ref().is_none_or(
+                                    |dependencies| dependencies[contexts[position].machine].0,
+                                ),
+                        ),
+                        may_block: published_dependency(
+                            owner.published_may_block,
+                            body.may_block,
+                            owner.checked_generic
+                                && contexts.checked_dependencies.as_ref().is_none_or(
+                                    |dependencies| dependencies[contexts[position].machine].1,
+                                ),
+                        ),
                     }
                 } else {
-                    DirectCallOperational {
-                        may_suspend: body.may_suspend || family.may_suspend,
-                        may_block: body.may_block || family.may_block,
+                    OperationalDependencies {
+                        may_suspend: body.may_suspend.clone() | family.may_suspend,
+                        may_block: body.may_block.clone() | family.may_block,
                     }
                 };
             }
             if contexts.entries == previous {
-                break;
+                if contexts.checked_dependencies.is_some() {
+                    break;
+                }
+                contexts.checked_dependencies = Some(
+                    roots
+                        .iter()
+                        .map(|root| {
+                            let summary = &contexts[*root].summary;
+                            (
+                                !summary.may_suspend.parameters.is_empty(),
+                                !summary.may_block.parameters.is_empty(),
+                            )
+                        })
+                        .collect(),
+                );
             }
         }
         let selected_call_contexts =
-            export_selected_call_contexts(program, machines, captured, &mut contexts);
+            export_selected_call_contexts(program, machines, bindings, captured, &mut contexts);
         let declaration_summaries = machines
             .iter()
             .enumerate()
-            .map(|(position, machine)| (machine.symbol, contexts[roots[position]].summary))
+            .map(|(position, machine)| (machine.symbol, contexts[roots[position]].summary.clone()))
             .collect::<Vec<_>>();
         for machine_index in 0..machines.len() {
             let root = roots[machine_index];
@@ -1920,6 +2311,7 @@ pub(crate) mod operational {
                     call_summaries.push(call_envelope(
                         program,
                         machines,
+                        bindings,
                         captured,
                         &mut contexts,
                         &machines[machine_index],
@@ -1929,21 +2321,26 @@ pub(crate) mod operational {
                     ));
                 }
             }
+            let published = selected_dependencies(machines, &contexts, root);
             let machine = &mut machines[machine_index];
-            machine.body_may_suspend = summary.body.may_suspend;
-            machine.body_may_block = summary.body.may_block;
-            machine.transitive_may_suspend = summary.summary.may_suspend;
-            machine.transitive_may_block = summary.summary.may_block;
+            machine.body_may_suspend = summary.body.may_suspend.possible();
+            machine.body_may_block = summary.body.may_block.possible();
+            machine.transitive_may_suspend = summary.summary.may_suspend.possible();
+            machine.transitive_may_block = summary.summary.may_block.possible();
+            machine.suspension_dependency = published.may_suspend;
+            machine.blocking_dependency = published.may_block;
             let mut summaries = call_summaries.into_iter();
             for state in &mut machine.states {
                 state.transitive_may_suspend = state.direct_may_suspend;
                 state.transitive_may_block = state.direct_may_block;
                 for call in &mut state.calls {
                     if let Some(envelope) = summaries.next() {
-                        call.direct_may_suspend &= envelope.may_suspend;
-                        call.direct_may_block &= envelope.may_block;
-                        call.transitive_may_suspend = envelope.may_suspend;
-                        call.transitive_may_block = envelope.may_block;
+                        call.direct_may_suspend &= envelope.may_suspend.possible();
+                        call.direct_may_block &= envelope.may_block.possible();
+                        call.transitive_may_suspend = envelope.may_suspend.possible();
+                        call.transitive_may_block = envelope.may_block.possible();
+                        call.suspension_dependency = envelope.may_suspend;
+                        call.blocking_dependency = envelope.may_block;
                     }
                     state.transitive_may_suspend |= call.transitive_may_suspend;
                     state.transitive_may_block |= call.transitive_may_block;
@@ -1954,11 +2351,11 @@ pub(crate) mod operational {
                 }) {
                     if let Some(target) =
                         declaration_summaries.iter().find_map(|(symbol, summary)| {
-                            (*symbol == dependency.target_machine).then_some(*summary)
+                            (*symbol == dependency.target_machine).then_some(summary.clone())
                         })
                     {
-                        state.transitive_may_suspend |= target.may_suspend;
-                        state.transitive_may_block |= target.may_block;
+                        state.transitive_may_suspend |= target.may_suspend.possible();
+                        state.transitive_may_block |= target.may_block.possible();
                     }
                 }
             }
@@ -1973,12 +2370,22 @@ pub(crate) mod operational {
         bindings: &mut arena::Arena<flow_effects::StaticMachineCallBinding>,
     ) -> HandleSpan<flow_effects::StaticMachineCallBinding> {
         let mut result = HandleSpan::empty();
-        let Some((machine, _)) =
-            crate::declarations::transitions::resolved_transition_target_state(program, target)
-        else {
+        if !target.is_valid() || arguments.is_empty() {
             return result;
-        };
-        let parameters = program.machine_kind_type_parameters(machine);
+        }
+        let parameters = program
+            .retained_static_machine_contract(target)
+            .map_or_else(
+                || program.declaration_type_parameters(target),
+                |contract| program.state_signature_type_parameters(contract.signature()),
+            )
+            .iter()
+            .filter(|parameter| {
+                matches!(
+                    parameter.kind,
+                    typed_trees::data::TypeParameterKind::Machine { .. }
+                )
+            });
         let selected = arguments.iter().filter(|argument| {
             argument.symbol.is_valid()
                 && matches!(
@@ -2005,20 +2412,13 @@ pub(crate) mod operational {
         result
     }
 
-    fn build_plan(program: &dyn CheckingInput, machines: Vec<MachineWork>) -> OperationalPlan {
-        let mut plan = OperationalPlan::default();
-
+    fn build_plan(machines: Vec<MachineWork>, mut plan: OperationalPlan) -> OperationalPlan {
         for machine in machines {
             let mut states = HandleSpan::empty();
             for state in machine.states {
                 let mut calls = HandleSpan::empty();
                 for call in state.calls {
-                    let static_machine_bindings = retain_static_machine_bindings(
-                        program,
-                        call.target_state_symbol,
-                        &call.static_machine_arguments,
-                        &mut plan.static_machine_bindings,
-                    );
+                    let static_machine_bindings = call.static_machine_bindings;
                     let acknowledgement = if call.acknowledgement.origin
                     == language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized
                 {
@@ -2041,6 +2441,12 @@ pub(crate) mod operational {
                             static_machine_bindings,
                             target_machine_symbol: call.target_machine_symbol,
                             target_operator_symbol: call.target_operator_symbol,
+                            suspension_dependency: call
+                                .suspension_dependency
+                                .retain(&mut plan.dependency_parameters),
+                            blocking_dependency: call
+                                .blocking_dependency
+                                .retain(&mut plan.dependency_parameters),
                             direct_may_suspend: call.direct_may_suspend,
                             direct_may_block: call.direct_may_block,
                             transitive_may_suspend: call.transitive_may_suspend,
@@ -2065,8 +2471,14 @@ pub(crate) mod operational {
                 &mut plan.root_machines,
                 MachineOperational {
                     symbol: machine.symbol,
-                    published_may_suspend: machine.published_may_suspend,
-                    published_may_block: machine.published_may_block,
+                    suspension_dependency: machine
+                        .suspension_dependency
+                        .retain(&mut plan.dependency_parameters),
+                    blocking_dependency: machine
+                        .blocking_dependency
+                        .retain(&mut plan.dependency_parameters),
+                    published_may_suspend: machine.suspension_dependency.possible(),
+                    published_may_block: machine.blocking_dependency.possible(),
                     transitive_may_suspend: machine.transitive_may_suspend,
                     transitive_may_block: machine.transitive_may_block,
                     body_may_suspend: machine.body_may_suspend,
@@ -2091,12 +2503,16 @@ pub(crate) mod operational {
                     .map(|position| SymbolHandle::from_parts(position, 1))
                     .collect(),
                 uses_published_contract: published,
+                checked_generic: false,
+                template_application: None,
                 published_may_suspend: published,
                 published_may_block: published,
                 transitive_may_suspend: false,
                 transitive_may_block: false,
                 body_may_suspend: false,
                 body_may_block: false,
+                suspension_dependency: Default::default(),
+                blocking_dependency: Default::default(),
                 states: Vec::new(),
             }
         }
@@ -2158,26 +2574,26 @@ pub(crate) mod operational {
             let unknown = contexts.intern(0, Vec::new());
             assert_eq!(
                 contexts[unknown].summary,
-                DirectCallOperational {
-                    may_suspend: true,
-                    may_block: true
+                OperationalDependencies {
+                    may_suspend: (true).into(),
+                    may_block: true.into()
                 }
             );
             let actual = vec![Some(vec![SymbolHandle::from_parts(20, 1)])];
             let selected = contexts.intern(0, actual.clone());
             assert_ne!(unknown, selected);
-            contexts.entries[selected].body = DirectCallOperational {
-                may_suspend: true,
-                may_block: false,
+            contexts.entries[selected].body = OperationalDependencies {
+                may_suspend: (true).into(),
+                may_block: (false).into(),
             };
-            contexts.entries[selected].summary = DirectCallOperational::default();
+            contexts.entries[selected].summary = OperationalDependencies::default();
             assert_eq!(contexts.intern(0, actual), selected);
             assert_eq!(contexts.intern(0, vec![None]), unknown);
             assert_eq!(
                 contexts[unknown].summary,
-                DirectCallOperational {
-                    may_suspend: true,
-                    may_block: true
+                OperationalDependencies {
+                    may_suspend: (true).into(),
+                    may_block: true.into()
                 }
             );
             assert_eq!(contexts.len(), 2);
@@ -2274,11 +2690,7 @@ pub(crate) mod service_reach {
         calls: Vec<MachineReachCall>,
     }
 
-    #[derive(Debug, Clone)]
-    pub(crate) struct FamilyMemberReach {
-        machine: SymbolHandle,
-        parameters: Vec<(SymbolHandle, SymbolHandle)>,
-    }
+    type FamilyMemberReach = super::FamilyMemberDependency;
 
     #[derive(Debug, Clone)]
     pub(crate) struct MachineReachCall {
@@ -2296,11 +2708,7 @@ pub(crate) mod service_reach {
         SelectedCleanup,
     }
 
-    #[derive(Debug, Clone, Default, PartialEq, Eq)]
-    pub(crate) struct DependencyWork {
-        concrete: Vec<ServiceReachId>,
-        parameters: Vec<SymbolHandle>,
-    }
+    type DependencyWork = super::ContractDependencyWork<Vec<ServiceReachId>>;
 
     #[derive(Debug, Clone, Default)]
     pub(crate) struct DirectServiceReach {
@@ -2691,23 +3099,7 @@ pub(crate) mod service_reach {
         assembly_services: &crate::machine_calls::assembly_services::AssemblyServices,
     ) -> MachineReachWork {
         let contexts = &operational.selected_call_contexts;
-        let family_members = super::family_interface_members(program, machine)
-            .iter()
-            .map(|member| FamilyMemberReach {
-                machine: member.machine,
-                parameters: program
-                    .machine_by_symbol(member.machine)
-                    .map(|member| {
-                        program
-                            .machine_type_parameters(member)
-                            .iter()
-                            .zip(program.machine_type_parameters(machine))
-                            .map(|(member, interface)| (member.symbol, interface.symbol))
-                            .collect()
-                    })
-                    .unwrap_or_default(),
-            })
-            .collect::<Vec<_>>();
+        let family_members = super::family_dependencies(program, machine);
         let checked_body =
             machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody;
         let authored_ceiling = program
@@ -3301,7 +3693,7 @@ pub use invocations::{
     declared_machine_invocations, declared_signature_invocations,
     has_self_forwarded_boundary_parameter, infer_synchronous_invocations, invocation_target_label,
 };
-pub(crate) use operational::signature_operational;
+pub use operational::{DirectCallOperational, signature_operational};
 pub use operational::{infer_operational_may, infer_operational_may_for_dependencies};
 pub(crate) use service_reach::signature_service_reach;
 pub use service_reach::{

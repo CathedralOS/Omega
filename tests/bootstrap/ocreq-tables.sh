@@ -14,7 +14,7 @@ command -v python3 >/dev/null 2>&1 || {
 # projections embedded in the D members before either implementation can
 # claim the V1 boundary. This gate compares the markdown records in
 # wiki/spec/build/compiler_request.md against the constant tables compiled
-# into bootstrap/5_omega and the copies asserted by the omega-outcome gate:
+# into bootstrap/interpreted/5_omega and the copies asserted by the omega-outcome gate:
 # a table that drifts from any record refuses here without executing a seed.
 python3 -B - "$OMEGA_REPO_ROOT" <<'PY'
 import re
@@ -23,7 +23,7 @@ from pathlib import Path
 
 root = Path(sys.argv[1])
 spec = (root / "wiki/spec/build/compiler_request.md").read_text(encoding="utf-8")
-omega5 = root / "bootstrap/5_omega"
+omega5 = root / "bootstrap/interpreted/5_omega"
 request_src = (omega5 / "request_and_utf8.epsilon").read_text(encoding="utf-8")
 outcome_src = (omega5 / "outcome.epsilon").read_text(encoding="utf-8")
 scalar_src = (omega5 / "scalar_compilation.epsilon").read_text(encoding="utf-8")

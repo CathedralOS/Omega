@@ -2387,13 +2387,27 @@ pub(crate) mod arithmetic_judgment {
                 ) {
                     return false;
                 }
+                let dividend = self.substituted(left);
+                let divisor = self.substituted(right);
+                let result = self.substituted(value);
+                let consequence = match operator {
+                    BinaryOperator::Modulo => divisor.sub(&result),
+                    _ => dividend.sub(&result),
+                };
+                // These rules establish a difference of at least zero or one.
+                // Once the stronger bound is present, rechecking its conditions
+                // cannot strengthen it. A zero bound must still be reconsidered.
+                let strongest_minimum = BigInt::from_i64(1);
+                if self.bounds.iter().any(|(existing, minimum)| {
+                    *existing == consequence && minimum >= &strongest_minimum
+                }) {
+                    return false;
+                }
                 let consequence = {
                     // These few queries share unchanged premises. Defer the full
                     // bound index until a simple query cannot resolve, then release
                     // the borrowed view before installing any consequence.
                     let mut queries = super::LowerBoundQueries::direct(self);
-                    let dividend = self.substituted(left);
-                    let divisor = self.substituted(right);
                     match operator {
                         BinaryOperator::Divide
                             if queries
@@ -2409,10 +2423,7 @@ pub(crate) mod arithmetic_judgment {
                                     &divisor,
                                     &BigInt::from_i64(2),
                                 );
-                            Some((
-                                dividend.sub(&self.substituted(value)),
-                                BigInt::from_i64(i64::from(strict)),
-                            ))
+                            Some((consequence, BigInt::from_i64(i64::from(strict))))
                         }
                         BinaryOperator::ShiftRight
                             if queries.prove_with_deferred_preparation(
@@ -2423,7 +2434,7 @@ pub(crate) mod arithmetic_judgment {
                                 &BigInt::from_i64(1),
                             ) =>
                         {
-                            Some((dividend.sub(&self.substituted(value)), BigInt::from_i64(1)))
+                            Some((consequence, BigInt::from_i64(1)))
                         }
                         BinaryOperator::Modulo
                             if queries
@@ -2433,7 +2444,7 @@ pub(crate) mod arithmetic_judgment {
                                     &BigInt::from_i64(1),
                                 ) =>
                         {
-                            Some((divisor.sub(&self.substituted(value)), BigInt::from_i64(1)))
+                            Some((consequence, BigInt::from_i64(1)))
                         }
                         _ => None,
                     }
@@ -2454,6 +2465,110 @@ pub(crate) mod arithmetic_judgment {
 
             fn constant(value: i64) -> Polynomial {
                 Polynomial::constant(BigInt::from_i64(value))
+            }
+
+            #[test]
+            fn established_operation_bounds_do_not_repeat_their_proof() {
+                use std::sync::atomic::Ordering;
+
+                let program = typed_trees::TypedTrees::default();
+                for operator in [
+                    BinaryOperator::Divide,
+                    BinaryOperator::Modulo,
+                    BinaryOperator::ShiftRight,
+                ] {
+                    let mut engine = Engine::for_explicit_bindings(&program);
+                    let dividend = engine
+                        .conditional_value(vec![
+                            super::super::ConditionalValueArm {
+                                conditions: vec![],
+                                value: constant(4),
+                            },
+                            super::super::ConditionalValueArm {
+                                conditions: vec![],
+                                value: constant(8),
+                            },
+                        ])
+                        .unwrap();
+                    let divisor = constant(2);
+                    let result = Polynomial::atom("result".to_owned());
+                    assert!(
+                        engine.install_integer_operation_bounds(
+                            operator, &dividend, &divisor, &result,
+                        )
+                    );
+                    let bounds = engine.bounds.clone();
+                    let remaining = engine.conditional_work_remaining.load(Ordering::Relaxed);
+                    for _ in 0..4 {
+                        assert!(!engine.install_integer_operation_bounds(
+                            operator, &dividend, &divisor, &result,
+                        ));
+                    }
+                    assert_eq!(engine.bounds, bounds);
+                    assert_eq!(
+                        engine.conditional_work_remaining.load(Ordering::Relaxed),
+                        remaining,
+                        "an established consequence needs no repeated conditional proof",
+                    );
+                    let other_result = Polynomial::atom("other_result".to_owned());
+                    assert!(engine.install_integer_operation_bounds(
+                        operator,
+                        &dividend,
+                        &divisor,
+                        &other_result,
+                    ));
+                }
+
+                let mut engine = Engine::for_explicit_bindings(&program);
+                let dividend = Polynomial::atom("dividend".to_owned());
+                let divisor = Polynomial::atom("divisor".to_owned());
+                let result = Polynomial::atom("result".to_owned());
+                assert!(!engine.install_integer_operation_bounds(
+                    BinaryOperator::Divide,
+                    &dividend,
+                    &divisor,
+                    &result,
+                ));
+                assert!(engine.install_hypotheses(vec![
+                    (
+                        BinaryOperator::GreaterOrEqual,
+                        dividend.clone(),
+                        constant(0)
+                    ),
+                    (BinaryOperator::GreaterOrEqual, divisor.clone(), constant(1)),
+                ]));
+                assert!(engine.install_integer_operation_bounds(
+                    BinaryOperator::Divide,
+                    &dividend,
+                    &divisor,
+                    &result,
+                ));
+                let difference = dividend.sub(&result);
+                assert!(
+                    engine
+                        .bounds
+                        .contains(&(difference.clone(), BigInt::zero()))
+                );
+                assert!(
+                    !engine
+                        .bounds
+                        .contains(&(difference.clone(), BigInt::from_i64(1)))
+                );
+                assert!(engine.install_hypotheses(vec![
+                    (
+                        BinaryOperator::GreaterOrEqual,
+                        dividend.clone(),
+                        constant(1)
+                    ),
+                    (BinaryOperator::GreaterOrEqual, divisor.clone(), constant(2)),
+                ]));
+                assert!(engine.install_integer_operation_bounds(
+                    BinaryOperator::Divide,
+                    &dividend,
+                    &divisor,
+                    &result,
+                ));
+                assert!(engine.bounds.contains(&(difference, BigInt::from_i64(1))));
             }
 
             #[test]
@@ -28794,6 +28909,23 @@ pub(crate) mod ranking_range {
             ) {
                 return Some(Polynomial::constant(BigInt::from_u64(length as u64)));
             }
+            // An extent spelled by a const parameter is that parameter's value
+            // when the engine holds it as a rigid atom (a generic body proved
+            // once). Without that binding the extent stays unknown.
+            if let Some(typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. }) =
+                crate::value_custody::places::declared_place_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+                .and_then(|declared| {
+                    crate::value_custody::places::fixed_array_type_extent(program, declared)
+                })
+                && let Some(extent) = engine.strict_symbol_value(*symbol)
+            {
+                return Some(extent);
+            }
             let length = match expression_table(program).expression(expression) {
                 ExpressionNode::Name(_) => {
                     let symbol = crate::queries::expression_traversal::single_segment_name_symbol(
@@ -32665,6 +32797,60 @@ pub(crate) mod ranking_range {
         lengths::actual(program, machine, state, collection, &[], &mut engine)?
             .constant_value()?
             .to_u64()
+    }
+
+    /*
+        Whether the slice `collection` selects has exactly the length `expected`
+        names, where either side may be one of `machine`'s const integer
+        parameters. A generic body is proved under its own entry contract, so a
+        full view of `[Element; Count]` has length `Count` without a caller
+        supplying `Count`. Each const parameter is one rigid atom, shared by its
+        name and by every array extent that spells it; nothing else is assumed.
+    */
+    pub fn collection_length_equals_under_matches(
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        collection: ExpressionHandle,
+        matched: &[(ExpressionHandle, BigInt)],
+        expected: ExpressionHandle,
+    ) -> bool {
+        let bindings = program
+            .machine_type_parameters(machine)
+            .iter()
+            .filter_map(|parameter| {
+                let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+                else {
+                    return None;
+                };
+                let primitive = program
+                    .primitive_type_reference(type_reference)
+                    .filter(|primitive| primitive.is_fixed_integer())?;
+                Some(StrictArithmeticSymbolBinding::unsigned_integer_atom(
+                    parameter.symbol,
+                    format!(
+                        "\0const-parameter:{:?}:{:?}",
+                        machine.symbol, parameter.symbol
+                    ),
+                    primitive,
+                ))
+            })
+            .collect::<Vec<_>>();
+        let mut engine = Engine::strict(program, machine, &bindings);
+        if !engine.strict_symbol_bindings_are_valid() {
+            return false;
+        }
+        saved_arguments::install(program, machine, state, &[], &mut engine);
+        for (subject, value) in matched {
+            engine.bind_matched_integer_subject(*subject, value.clone());
+        }
+        let Some(length) = lengths::actual(program, machine, state, collection, &[], &mut engine)
+        else {
+            return false;
+        };
+        engine
+            .normalize(expected)
+            .is_some_and(|expected| expected == length)
     }
 
     pub fn captured_collection_length(
@@ -64448,7 +64634,13 @@ pub(crate) mod structural_judgment {
                     0,
                     self.captured_result_equations
                         .iter()
-                        .filter(|equation| !equation.is_data_identity())
+                        // Data Id rows are substituted by Id elimination. A completed
+                        // call's identity row names its executed occurrence; rewriting
+                        // that result into its application would detach the result's
+                        // own guarantees from the value a later case match observes.
+                        .filter(|equation| {
+                            !equation.is_data_identity() && !equation.is_completed_call_identity()
+                        })
                         .map(|equation| (&equation.left, &equation.right))
                         // A completed owned read already records the exact value it
                         // copied. Later operands must retain that identity even when
@@ -91147,14 +91339,39 @@ pub(crate) mod structural_terms {
                     )),
                 }
             }
-            ExpressionNode::Indexed(indexed) => indexed_term_in_scope(
-                program,
-                scope,
-                frame,
-                expression,
-                structural_term(program, scope, frame, indexed.collection, bindings)?,
-                structural_term(program, scope, frame, indexed.index, bindings)?,
-            ),
+            ExpressionNode::Indexed(indexed) => {
+                // Indexing an array literal at a constant index denotes the
+                // selected element itself, as with a constant substituted from
+                // `const SOURCE: [u64; 1] = [3]`. Formation has already proved
+                // the index in range; any other index stays unformed.
+                if let ExpressionNode::ArrayLiteral(elements) =
+                    expression_table(program).expression(indexed.collection)
+                {
+                    let StructuralTerm::Integer(position) =
+                        structural_term(program, scope, frame, indexed.index, bindings)?
+                    else {
+                        return None;
+                    };
+                    let element = position
+                        .to_u64()
+                        .and_then(|position| usize::try_from(position).ok())
+                        .and_then(|position| {
+                            expression_table(program)
+                                .expression_handles(*elements)
+                                .get(position)
+                                .copied()
+                        })?;
+                    return structural_term(program, scope, frame, element, bindings);
+                }
+                indexed_term_in_scope(
+                    program,
+                    scope,
+                    frame,
+                    expression,
+                    structural_term(program, scope, frame, indexed.collection, bindings)?,
+                    structural_term(program, scope, frame, indexed.index, bindings)?,
+                )
+            }
             ExpressionNode::ZeroValue(type_reference) => {
                 zero_value_structural_term(program, *type_reference)
             }

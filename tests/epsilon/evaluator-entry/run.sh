@@ -287,7 +287,7 @@ expect_observation("large sparse array through the canonical edge",
 # context or pair exhaustion halts the process outright. At the edge boundary
 # a nonzero status with empty stdout is the section-10 outer Incomplete; the
 # status and the requester's own submitted extents carry its fields
-# (bootstrap/4_epsilon/EVALUATOR_ENTRY.md).
+# (bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md).
 
 INCOMPLETE = {
     # status: (resource, limit, requested)

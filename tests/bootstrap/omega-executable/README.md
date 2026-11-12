@@ -29,7 +29,7 @@ sh tests/bootstrap/omega-executable/run.sh
 
 The gate requires Python 3, the selected checked-in Alpha seed and the existing
 shell tools; macOS also requires `codesign`. It stamps the separately admitted
-[Beta tape](../../../bootstrap/1_beta/AUDIT.md) into the selected Alpha container,
+[Beta tape](../../../bootstrap/interpreted/1_beta/AUDIT.md) into the selected Alpha container,
 rebuilds Beta from source, and uses the rebuilt compiler to
 construct the Gamma evaluator from source, and compares both tapes exactly
 with their bound artifacts. It executes those constructed bytes to reconstruct
@@ -61,14 +61,17 @@ different output directory. These are host controls, not language semantics.
 
 ## Current compiler slice
 
-[The bootstrap compiler's coverage and storage contract](../../../bootstrap/5_omega/README.md)
+[The bootstrap compiler's coverage and storage contract](../../../bootstrap/interpreted/5_omega/README.md)
 is authoritative for this gate. It admits a nullary `u8` entry and checked
-`u8`, `u32`, `bool`, and `u32 in Trapping` values through parameters, immutable locals,
+`u8`, `u32`, bounded-literal `u64`, `bool`, and `u32 in Trapping` values through parameters, locals,
 free calls and same-owner parameterized transfers. Runtime comparisons and
 short-circuit Boolean control preserve those types. All bodies and arms are
 checked before emission; reentrant ordinary-call graphs and unsupported
-facilities refuse without publishing a partial tape. Runtime numeric arithmetic,
-rich data, clauses and references remain outside this slice.
+facilities refuse without publishing a partial tape. Copy records, zero-established
+affine locals, projected field writes, Unit completion and scoped record-reference
+parameters now support the actual SourceUnit clear helper. Runtime numeric
+arithmetic, indexed access, richer domains and machine clauses remain outside
+this slice. The compiler README specifies the precise storage and loan boundaries.
 
 The source-built compiled peer also exposes `--omega-control`. It takes exact
 identifier-predicate declarations from the real lexer source and appends
@@ -77,6 +80,18 @@ and high `u32` inputs. [controls_control.epsilon](controls_control.epsilon)
 compiles that input plus generic parallel-transfer, comparison, short-circuit,
 and refusal/reset controls. The harness executes every emitted artifact through
 the Alpha seed. The compiler has no special case for this customer.
+
+The peer's `--omega-storage` customer similarly extracts exact SourceId,
+SourceUnit and `source_unit_clear` declarations from the actual source package,
+then appends [storage_controls.omg](storage_controls.omg).
+[controls_storage.epsilon](controls_storage.epsilon) checks that program plus
+eight generic storage programs, twenty-seven explicit refusals and a reset program;
+the harness executes all ten published artifacts. The actual source clear routine
+preserves a nonzero byte canary, and an indexed-write control captures its selector
+before a disjoint RHS mutation. Shared/mutable authority, bounds, shell-domain
+views and overlapping RHS loans are checked before emission. Local-backed tail
+reference transfer remains an explicit unsupported case. These are internal
+single-source compilation customers; they do not claim full package admission.
 
 The route selects `main` — the machine name `alpha_bootstrap::ProgramEntry`
 binds. Another source can be exercised without changing compiler code:

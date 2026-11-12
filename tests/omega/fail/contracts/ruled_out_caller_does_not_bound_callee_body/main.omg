@@ -1,6 +1,6 @@
 // The only call to `helper` sits on a branch the caller's requirement rules
-// out, but `helper` is an ordinary machine checked under its own contract,
-// which does not bound `value`; its subtraction rejects.
+// out, but `helper` explicitly requires every u64 input to be supported.
+// Its complete authored contract does not bound `value`; subtraction rejects.
 machine pick(count: u64) -> u64
 requires count >= 10
 {
@@ -8,6 +8,8 @@ requires count >= 10
         true -> helper(count)
         false -> (count - 10u64)
     }
-    machine helper(value: u64) -> u64 { value - 100u64 }
+    machine helper(value: u64) -> u64
+    requires true
+    { value - 100u64 }
 }
 machine main() {}

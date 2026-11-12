@@ -1,7 +1,0 @@
-// Core's Build activation declares the bundled package only. Canonical f32/f64
-// operations are realized by each target's declared realization table
-// (wiki/spec/language/numeric_values.md#target-realization-and-control-state),
-// so this program makes no float provider selections.
-machine build(builder: &mut Build) {
-    Build::package(builder, "omega_float_defaults");
-}

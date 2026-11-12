@@ -11,7 +11,7 @@ is a whole-producer total for that source. The instrumented interpreter is a
 diagnostic witness; it is not an admitted evaluator variant.
 
 The selected evaluator provisions 3,422,453,760 immutable pairs
-(bootstrap/2_gamma/EVALUATOR_PROFILE.md); its tape sets the allocation cursor
+(bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md); its tape sets the allocation cursor
 at 0x20400000 with the limit at 0x2000000000 and each node is 40 bytes. This
 script is the measured worst-shape study named by the DELTA-COMPILER scope
 checkpoint in TASKS_BOOTSTRAP.md: each family is one admitted extent's worst
@@ -51,9 +51,9 @@ from pathlib import Path
 GATE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = GATE_DIR.parents[2]
 ALPHA_REFERENCE = REPO_ROOT / "tests" / "alpha" / "reference" / "alpha_ref.py"
-EVALUATOR_TAPE = REPO_ROOT / "bootstrap" / "2_gamma" / "gamma_evaluator_bytecode.tape"
+EVALUATOR_TAPE = REPO_ROOT / "bootstrap" / "interpreted" / "2_gamma" / "gamma_evaluator_bytecode.tape"
 
-# Selected-evaluator immutable-pair provision (bootstrap/2_gamma/EVALUATOR_PROFILE.md).
+# Selected-evaluator immutable-pair provision (bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md).
 PAIR_ARENA = 3422453760
 
 MAIN = b"(def main ((input Bytes)) Bytes input)\n"

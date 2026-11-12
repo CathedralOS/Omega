@@ -45,6 +45,8 @@ public SegmentSelectorProbeCalling satisfies CallingPolicy {
             plan.state.permitted_transitive_use.instruction_pointer = true;
             plan.state.permitted_transitive_use.stack_pointer = true;
             plan.state.permitted_transitive_use.control_state = true;
+            // Reloading CS, DS, ES and SS writes segment state.
+            plan.state.permitted_transitive_use.segment_state = true;
             plan.state.stack = EntryStack::ProviderSelected;
             plan.state.preemption = Preemption::NotApplicable;
             BoundaryPlanResult::Accepted { plan: plan }

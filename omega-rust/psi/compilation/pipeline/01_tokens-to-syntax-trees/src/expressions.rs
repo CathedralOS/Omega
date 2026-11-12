@@ -90,169 +90,9 @@ pub(crate) mod context {
         }
     }
 }
-pub(crate) mod match_dispatch {
-
-    use super::parse_expression::{
-        parse_expression_handle, parse_expression_handle_without_struct_literals,
-    };
-    use crate::grammar::patterns::bindings::{
-        DestructureBinding, rewrite_destructure_guard_expression,
-    };
-    use crate::storage::tables::{exprs, exprs_of};
-    use crate::tokens::token_cursor::{Input, ParseResult};
-    use arena::Handle;
-    use syntax_trees::SyntaxTrees;
-    use syntax_trees::expression::{
-        ExpressionHandle, ExpressionNode, MatchFieldAction, MatchPattern, MatchSubjectCapture,
-        TableDestructurePattern, TableMatchArm, TableMatchExpression, TableSavedSubject,
-    };
-    use tokens::{KeywordKind, PunctuationKind};
-
-    pub(crate) fn parse_match_expression_handle<'tokens, 'source>(
-        syntax_trees: &mut SyntaxTrees,
-        input: Input<'tokens, 'source>,
-    ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-        let start = input;
-        let input = input.take_keyword(KeywordKind::Match, "match")?;
-        let (subject, input) =
-            parse_expression_handle_without_struct_literals(syntax_trees, input)?;
-        let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-        let mut capture = Handle::<MatchSubjectCapture>::invalid();
-        let mut arms = Vec::new();
-        while !input.at_punctuation(PunctuationKind::RightBrace) {
-            let arm_start = input;
-            let (mut pattern, rest) = parse_pattern(syntax_trees, input)?;
-            let rest = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
-            let (mut value, rest) = parse_expression_handle(syntax_trees, rest)?;
-            if let MatchPattern::Destructure(destructure) = &mut pattern {
-                if !capture.is_valid() {
-                    capture = exprs(syntax_trees).insert_match_subject(subject);
-                }
-                let bindings = syntax_trees
-                    .expressions
-                    .match_fields(destructure.fields)
-                    .iter()
-                    .filter_map(|field| {
-                        let MatchFieldAction::Bind(binding) = &field.action else {
-                            return None;
-                        };
-                        Some(DestructureBinding {
-                            component: field.component,
-                            binding: binding.clone(),
-                            member: field.member.clone(),
-                            case_variant: None,
-                        })
-                    })
-                    .collect::<Vec<_>>();
-                for (position, binding) in bindings.iter().enumerate() {
-                    if bindings[..position].iter().any(|prior| {
-                        prior.binding.as_str(syntax_trees) == binding.binding.as_str(syntax_trees)
-                    }) || syntax_trees
-                        .statements
-                        .outcome_proof_selectors(destructure.proof_selectors)
-                        .iter()
-                        .any(|selector| {
-                            selector.binding.as_str(syntax_trees)
-                                == binding.binding.as_str(syntax_trees)
-                        })
-                    {
-                        return Err(arm_start.error_here(format!(
-                            "pattern binding `{}` is introduced more than once in this arm",
-                            binding.binding.as_str(syntax_trees)
-                        )));
-                    }
-                }
-                let saved = syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::SavedSubject(TableSavedSubject {
-                        component: Default::default(),
-                        capture,
-                        pattern_head: destructure.head,
-                    }));
-                let source_span = exprs_of(syntax_trees).source_span(subject);
-                exprs(syntax_trees).set_source_span(saved, source_span);
-                value = rewrite_destructure_guard_expression(syntax_trees, value, saved, &bindings);
-                if destructure.guard.is_valid() {
-                    destructure.guard = rewrite_destructure_guard_expression(
-                        syntax_trees,
-                        destructure.guard,
-                        saved,
-                        &bindings,
-                    );
-                }
-            }
-            arms.push(TableMatchArm {
-                pattern,
-                value,
-                source_span: arm_start.source_span_until(rest),
-            });
-            input = if rest.at_punctuation(PunctuationKind::Comma) {
-                rest.take_punctuation(PunctuationKind::Comma, ",")?
-            } else {
-                rest
-            };
-        }
-        let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-        if arms.is_empty() {
-            return Err(input.error_here("match expression must have at least one arm"));
-        }
-        let arms = exprs(syntax_trees).insert_match_arms(arms);
-        let expression =
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Match(TableMatchExpression {
-                    subject,
-                    capture,
-                    arms,
-                }));
-        exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
-        Ok((expression, input))
-    }
-
-    fn parse_pattern<'tokens, 'source>(
-        syntax_trees: &mut SyntaxTrees,
-        input: Input<'tokens, 'source>,
-    ) -> ParseResult<'tokens, 'source, MatchPattern> {
-        if input.at_contextual("_") {
-            return Ok((MatchPattern::Wildcard, input.take_contextual("_")?));
-        }
-        let (head, rest) = parse_expression_handle_without_struct_literals(syntax_trees, input)?;
-        if !rest.at_punctuation(PunctuationKind::LeftBrace)
-            || !matches!(
-                exprs_of(syntax_trees).expression(head),
-                ExpressionNode::Name(_)
-            )
-        {
-            return Ok((MatchPattern::Value(head), rest));
-        }
-        let (fields, rest) =
-            crate::grammar::patterns::parse_destructure_fields(syntax_trees, rest)?;
-        let fields_span = exprs(syntax_trees).insert_match_fields(fields.fields);
-        let proof_selectors = syntax_trees
-            .statements
-            .insert_outcome_proof_selectors(fields.proof_selectors);
-        let (guard, rest) = if rest.at_keyword(KeywordKind::If) {
-            let rest = rest.take_keyword(KeywordKind::If, "if")?;
-            parse_expression_handle_without_struct_literals(syntax_trees, rest)?
-        } else {
-            (ExpressionHandle::invalid(), rest)
-        };
-        Ok((
-            MatchPattern::Destructure(TableDestructurePattern {
-                application_type: Default::default(),
-                head,
-                fields: fields_span,
-                has_rest: fields.has_rest,
-                guard,
-                proof_selectors,
-            }),
-            rest,
-        ))
-    }
-}
+pub(crate) mod frames;
 pub(crate) mod membership {
     use crate::grammar::expressions::context::ExpressionContext;
-    use crate::grammar::expressions::parse_expression::parse_bitwise_or_expression_handle;
     use crate::storage::tables::exprs;
     use crate::tokens::token_cursor::{Input, ParseResult, parse_path_handle_span};
     use syntax_trees::SyntaxTrees;
@@ -262,14 +102,14 @@ pub(crate) mod membership {
     };
     use tokens::PunctuationKind;
 
-    pub(crate) fn parse_membership_expression_handle<'tokens, 'source>(
+    /// Domain membership tests (`value in Domain & Other`) after a finished
+    /// arithmetic operand.
+    pub(crate) fn extend_membership<'tokens, 'source>(
         syntax_trees: &mut SyntaxTrees,
-        input: Input<'tokens, 'source>,
+        mut expression: ExpressionHandle,
+        mut input: Input<'tokens, 'source>,
         context: ExpressionContext,
     ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-        let (mut expression, mut input) =
-            parse_bitwise_or_expression_handle(syntax_trees, input, context)?;
-
         while context.allows_membership() && input.at_contextual("in") {
             input = input.take_contextual("in")?;
             let subject = expression;
@@ -335,8 +175,7 @@ pub(crate) mod parse_expression {
     };
     use tokens::{KeywordKind, PunctuationKind};
 
-    use super::membership::parse_membership_expression_handle;
-    use super::parse_postfix::parse_postfix_expression_handle;
+    use super::frames::{Goal, run_expression};
     use language_core::ReferenceAccess;
 
     pub(crate) fn parse_expression_handle<'tokens, 'source>(
@@ -389,19 +228,7 @@ pub(crate) mod parse_expression {
         syntax_trees: &mut SyntaxTrees,
         input: Input<'tokens, 'source>,
     ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-        let outer_depth = input.depth();
-        let outer_constant = input.constant_position();
-        let input = input.with_constant_position(true).deepen()?;
-        let (handle, rest) = parse_bitwise_or_expression_handle(
-            syntax_trees,
-            input,
-            ExpressionContext::NoStructLiteral,
-        )?;
-        Ok((
-            handle,
-            rest.with_depth(outer_depth)
-                .with_constant_position(outer_constant),
-        ))
+        run_expression(syntax_trees, input, Goal::ConstInteger)
     }
 
     pub(crate) fn parse_expression_handle_in<'tokens, 'source>(
@@ -409,127 +236,103 @@ pub(crate) mod parse_expression {
         input: Input<'tokens, 'source>,
         context: ExpressionContext,
     ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-        let outer_depth = input.depth();
-        let input = input.deepen()?;
-        let (handle, rest) = parse_or_expression_handle(syntax_trees, input, context)?;
-        Ok((handle, rest.with_depth(outer_depth)))
+        run_expression(syntax_trees, input, Goal::Expression(context))
     }
 
-    fn parse_or_expression_handle<'tokens, 'source>(
-        syntax_trees: &mut SyntaxTrees,
-        input: Input<'tokens, 'source>,
-        context: ExpressionContext,
-    ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-        let context = context.boolean();
-        parse_binary_chain_handle::<4>(
-            syntax_trees,
-            input,
-            context,
-            parse_membership_expression_handle,
-            &[
-                (PunctuationKind::PipePipe, BinaryOperator::Or, 0),
-                (PunctuationKind::AndAnd, BinaryOperator::And, 1),
-                (PunctuationKind::EqualEqual, BinaryOperator::Equal, 2),
-                (
-                    PunctuationKind::ExclamationEqual,
-                    BinaryOperator::NotEqual,
-                    2,
-                ),
-                (PunctuationKind::LessEqual, BinaryOperator::LessOrEqual, 3),
-                (
-                    PunctuationKind::GreaterEqual,
-                    BinaryOperator::GreaterOrEqual,
-                    3,
-                ),
-                (PunctuationKind::Less, BinaryOperator::Less, 3),
-                (PunctuationKind::Greater, BinaryOperator::Greater, 3),
-            ],
-        )
-    }
+    /// Logical chain operators over membership operands, with their
+    /// precedence (higher binds tighter).
+    pub(crate) const LOGICAL_OPERATORS: &[(PunctuationKind, BinaryOperator, u8)] = &[
+        (PunctuationKind::PipePipe, BinaryOperator::Or, 0),
+        (PunctuationKind::AndAnd, BinaryOperator::And, 1),
+        (PunctuationKind::EqualEqual, BinaryOperator::Equal, 2),
+        (
+            PunctuationKind::ExclamationEqual,
+            BinaryOperator::NotEqual,
+            2,
+        ),
+        (PunctuationKind::LessEqual, BinaryOperator::LessOrEqual, 3),
+        (
+            PunctuationKind::GreaterEqual,
+            BinaryOperator::GreaterOrEqual,
+            3,
+        ),
+        (PunctuationKind::Less, BinaryOperator::Less, 3),
+        (PunctuationKind::Greater, BinaryOperator::Greater, 3),
+    ];
 
-    pub(crate) fn parse_bitwise_or_expression_handle<'tokens, 'source>(
-        syntax_trees: &mut SyntaxTrees,
-        input: Input<'tokens, 'source>,
-        context: ExpressionContext,
-    ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-        parse_binary_chain_handle::<6>(
-            syntax_trees,
-            input,
-            context,
-            parse_unary_expression_handle,
-            &[
-                (PunctuationKind::Pipe, BinaryOperator::BitwiseOr, 0),
-                (PunctuationKind::Caret, BinaryOperator::BitwiseXor, 1),
-                (PunctuationKind::Ampersand, BinaryOperator::BitwiseAnd, 2),
-                (PunctuationKind::LessLess, BinaryOperator::ShiftLeft, 3),
-                (
-                    PunctuationKind::GreaterGreater,
-                    BinaryOperator::ShiftRight,
-                    3,
-                ),
-                (PunctuationKind::Plus, BinaryOperator::Add, 4),
-                (PunctuationKind::Minus, BinaryOperator::Subtract, 4),
-                (PunctuationKind::Asterisk, BinaryOperator::Multiply, 5),
-                (PunctuationKind::Slash, BinaryOperator::Divide, 5),
-                (PunctuationKind::Percent, BinaryOperator::Modulo, 5),
-                (PunctuationKind::PlusWrapping, BinaryOperator::Add, 4),
-                (PunctuationKind::PlusSaturating, BinaryOperator::Add, 4),
-                (PunctuationKind::PlusTrapping, BinaryOperator::Add, 4),
-                (PunctuationKind::MinusWrapping, BinaryOperator::Subtract, 4),
-                (
-                    PunctuationKind::MinusSaturating,
-                    BinaryOperator::Subtract,
-                    4,
-                ),
-                (PunctuationKind::MinusTrapping, BinaryOperator::Subtract, 4),
-                (
-                    PunctuationKind::AsteriskWrapping,
-                    BinaryOperator::Multiply,
-                    5,
-                ),
-                (
-                    PunctuationKind::AsteriskSaturating,
-                    BinaryOperator::Multiply,
-                    5,
-                ),
-                (
-                    PunctuationKind::AsteriskTrapping,
-                    BinaryOperator::Multiply,
-                    5,
-                ),
-                (PunctuationKind::SlashWrapping, BinaryOperator::Divide, 5),
-                (PunctuationKind::SlashSaturating, BinaryOperator::Divide, 5),
-                (PunctuationKind::SlashTrapping, BinaryOperator::Divide, 5),
-                (PunctuationKind::PercentWrapping, BinaryOperator::Modulo, 5),
-                (
-                    PunctuationKind::PercentSaturating,
-                    BinaryOperator::Modulo,
-                    5,
-                ),
-                (PunctuationKind::PercentTrapping, BinaryOperator::Modulo, 5),
-                (
-                    PunctuationKind::LessLessWrapping,
-                    BinaryOperator::ShiftLeft,
-                    3,
-                ),
-                (
-                    PunctuationKind::LessLessSaturating,
-                    BinaryOperator::ShiftLeft,
-                    3,
-                ),
-                (
-                    PunctuationKind::LessLessTrapping,
-                    BinaryOperator::ShiftLeft,
-                    3,
-                ),
-            ],
-        )
-    }
+    /// Arithmetic chain operators over unary operands, with their
+    /// precedence (higher binds tighter).
+    pub(crate) const ARITHMETIC_OPERATORS: &[(PunctuationKind, BinaryOperator, u8)] = &[
+        (PunctuationKind::Pipe, BinaryOperator::BitwiseOr, 0),
+        (PunctuationKind::Caret, BinaryOperator::BitwiseXor, 1),
+        (PunctuationKind::Ampersand, BinaryOperator::BitwiseAnd, 2),
+        (PunctuationKind::LessLess, BinaryOperator::ShiftLeft, 3),
+        (
+            PunctuationKind::GreaterGreater,
+            BinaryOperator::ShiftRight,
+            3,
+        ),
+        (PunctuationKind::Plus, BinaryOperator::Add, 4),
+        (PunctuationKind::Minus, BinaryOperator::Subtract, 4),
+        (PunctuationKind::Asterisk, BinaryOperator::Multiply, 5),
+        (PunctuationKind::Slash, BinaryOperator::Divide, 5),
+        (PunctuationKind::Percent, BinaryOperator::Modulo, 5),
+        (PunctuationKind::PlusWrapping, BinaryOperator::Add, 4),
+        (PunctuationKind::PlusSaturating, BinaryOperator::Add, 4),
+        (PunctuationKind::PlusTrapping, BinaryOperator::Add, 4),
+        (PunctuationKind::MinusWrapping, BinaryOperator::Subtract, 4),
+        (
+            PunctuationKind::MinusSaturating,
+            BinaryOperator::Subtract,
+            4,
+        ),
+        (PunctuationKind::MinusTrapping, BinaryOperator::Subtract, 4),
+        (
+            PunctuationKind::AsteriskWrapping,
+            BinaryOperator::Multiply,
+            5,
+        ),
+        (
+            PunctuationKind::AsteriskSaturating,
+            BinaryOperator::Multiply,
+            5,
+        ),
+        (
+            PunctuationKind::AsteriskTrapping,
+            BinaryOperator::Multiply,
+            5,
+        ),
+        (PunctuationKind::SlashWrapping, BinaryOperator::Divide, 5),
+        (PunctuationKind::SlashSaturating, BinaryOperator::Divide, 5),
+        (PunctuationKind::SlashTrapping, BinaryOperator::Divide, 5),
+        (PunctuationKind::PercentWrapping, BinaryOperator::Modulo, 5),
+        (
+            PunctuationKind::PercentSaturating,
+            BinaryOperator::Modulo,
+            5,
+        ),
+        (PunctuationKind::PercentTrapping, BinaryOperator::Modulo, 5),
+        (
+            PunctuationKind::LessLessWrapping,
+            BinaryOperator::ShiftLeft,
+            3,
+        ),
+        (
+            PunctuationKind::LessLessSaturating,
+            BinaryOperator::ShiftLeft,
+            3,
+        ),
+        (
+            PunctuationKind::LessLessTrapping,
+            BinaryOperator::ShiftLeft,
+            3,
+        ),
+    ];
 
     /// The policy a suffixed operator token selects. A suffixed form keeps
     /// the precedence and associativity of its base operator, so the chain
     /// table lists it beside that operator and this reads the suffix back.
-    fn punctuation_policy(punctuation: PunctuationKind) -> ArithmeticDomain {
+    pub(crate) fn punctuation_policy(punctuation: PunctuationKind) -> ArithmeticDomain {
         match punctuation {
             PunctuationKind::PlusWrapping
             | PunctuationKind::MinusWrapping
@@ -557,7 +360,7 @@ pub(crate) mod parse_expression {
     /// static argument list can close one `>` at a time. Its policy suffix is
     /// the `%`, `|` or `!` written immediately after it, with no space, so
     /// `a >>! b` traps while `a >> !b` shifts by a negation.
-    fn take_right_shift_policy<'tokens, 'source>(
+    pub(crate) fn take_right_shift_policy<'tokens, 'source>(
         shift: source::SourceSpan,
         input: Input<'tokens, 'source>,
     ) -> Result<(ArithmeticDomain, Input<'tokens, 'source>), crate::ParseError> {
@@ -581,82 +384,7 @@ pub(crate) mod parse_expression {
         Ok((ArithmeticDomain::Exact, input))
     }
 
-    fn parse_binary_chain_handle<'tokens, 'source, const PRECEDENCE_LEVELS: usize>(
-        syntax_trees: &mut SyntaxTrees,
-        input: Input<'tokens, 'source>,
-        context: ExpressionContext,
-        lower: fn(
-            &mut SyntaxTrees,
-            Input<'tokens, 'source>,
-            ExpressionContext,
-        ) -> ParseResult<'tokens, 'source, ExpressionHandle>,
-        operators: &[(PunctuationKind, BinaryOperator, u8)],
-    ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-        let (mut expression, mut input) = lower(syntax_trees, input, context)?;
-        let mut pending = [None; PRECEDENCE_LEVELS];
-        let mut pending_count = 0;
-
-        while let Some((punctuation, operator, precedence)) = operators
-            .iter()
-            .find(|(punctuation, _, _)| input.at_punctuation(*punctuation))
-            .copied()
-        {
-            while pending_count != 0 {
-                let (_, _, pending_precedence, _, _) = pending[pending_count - 1]
-                    .as_ref()
-                    .expect("pending operator");
-                if *pending_precedence < precedence {
-                    break;
-                }
-                pending_count -= 1;
-                let (left, operator, _, span, policy) =
-                    pending[pending_count].take().expect("pending operator");
-                expression = insert_binary_expression(
-                    syntax_trees,
-                    left,
-                    operator,
-                    policy,
-                    expression,
-                    span,
-                );
-            }
-            let operator_span = input.current_source_span();
-            input = input.take_punctuation(punctuation, punctuation_label(punctuation))?;
-            let mut policy = punctuation_policy(punctuation);
-            if punctuation == PunctuationKind::GreaterGreater {
-                (policy, input) = take_right_shift_policy(operator_span, input)?;
-            }
-            // A constant position is folded before any operand is typed, and
-            // folding a suffixed operator as the bare Exact one would drop
-            // its policy without a word. Reject it at the operator, however
-            // deeply the constant nests it.
-            if policy != ArithmeticDomain::Exact && input.constant_position() {
-                return Err(crate::ParseError::at_source_span(
-                    format!(
-                        "the policy operator `{}{}` is not available in a constant expression yet; use it in executable machine code",
-                        operator.display_name(),
-                        policy.operator_suffix(),
-                    ),
-                    operator_span,
-                ));
-            }
-            pending[pending_count] =
-                Some((expression, operator, precedence, operator_span, policy));
-            pending_count += 1;
-            (expression, input) = lower(syntax_trees, input, context)?;
-        }
-
-        while pending_count != 0 {
-            pending_count -= 1;
-            let (left, operator, _, span, policy) =
-                pending[pending_count].take().expect("pending operator");
-            expression =
-                insert_binary_expression(syntax_trees, left, operator, policy, expression, span);
-        }
-        Ok((expression, input))
-    }
-
-    fn insert_binary_expression(
+    pub(crate) fn insert_binary_expression(
         syntax_trees: &mut SyntaxTrees,
         left: ExpressionHandle,
         operator: BinaryOperator,
@@ -675,7 +403,7 @@ pub(crate) mod parse_expression {
         expression
     }
 
-    enum UnaryPrefix<'tokens, 'source> {
+    pub(crate) enum UnaryPrefix<'tokens, 'source> {
         Borrow(ReferenceAccess),
         Operator(UnaryOperator, source::SourceSpan),
         Negate(source::SourceSpan),
@@ -687,34 +415,13 @@ pub(crate) mod parse_expression {
         Move,
     }
 
-    fn parse_unary_expression_handle<'tokens, 'source>(
-        syntax_trees: &mut SyntaxTrees,
-        input: Input<'tokens, 'source>,
-        context: ExpressionContext,
-    ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-        let Some((first_prefix, mut input)) = take_unary_prefix(input, context)? else {
-            return parse_postfix_expression_handle(syntax_trees, input, context);
-        };
-        let mut prefixes = Vec::new();
-        while let Some((prefix, rest)) = take_unary_prefix(input, context)? {
-            prefixes.push(prefix);
-            input = rest;
-        }
-        let (mut expression, rest) = parse_postfix_expression_handle(syntax_trees, input, context)?;
-        while let Some(prefix) = prefixes.pop() {
-            expression = apply_unary_prefix(syntax_trees, expression, prefix)?;
-        }
-        expression = apply_unary_prefix(syntax_trees, expression, first_prefix)?;
-        Ok((expression, rest))
-    }
-
     pub(crate) fn has_unary_expression_prefix(
         input: Input<'_, '_>,
     ) -> Result<bool, crate::ParseError> {
         take_unary_prefix(input, ExpressionContext::Default).map(|prefix| prefix.is_some())
     }
 
-    fn take_unary_prefix<'tokens, 'source>(
+    pub(crate) fn take_unary_prefix<'tokens, 'source>(
         input: Input<'tokens, 'source>,
         context: ExpressionContext,
     ) -> Result<Option<(UnaryPrefix<'tokens, 'source>, Input<'tokens, 'source>)>, crate::ParseError>
@@ -811,7 +518,7 @@ pub(crate) mod parse_expression {
         Ok(None)
     }
 
-    fn apply_unary_prefix(
+    pub(crate) fn apply_unary_prefix(
         syntax_trees: &mut SyntaxTrees,
         expression: ExpressionHandle,
         prefix: UnaryPrefix<'_, '_>,
@@ -879,7 +586,7 @@ pub(crate) mod parse_expression {
         }
     }
 
-    fn punctuation_label(punctuation: PunctuationKind) -> &'static str {
+    pub(crate) fn punctuation_label(punctuation: PunctuationKind) -> &'static str {
         match punctuation {
             PunctuationKind::PipePipe => "||",
             PunctuationKind::AndAnd => "&&",
@@ -928,52 +635,31 @@ pub(crate) mod parse_postfix {
     use syntax_trees::SyntaxTrees;
     use syntax_trees::expression::{
         ExpressionHandle, ExpressionNode, StaticMachineArgument, StaticSymbolApplication,
-        TableCallExpression, TableCastExpression, TableIndexedExpression, TableMemberExpression,
-        TableRangeExpression,
+        TableCallExpression, TableCastExpression, TableMemberExpression,
     };
     use tokens::{KeywordKind, PunctuationKind};
 
-    use super::parse_expression::{parse_expression_handle, parse_expression_handle_in};
-    use super::primary::parse_primary_expression_handle;
     use crate::grammar::type_syntax::parse_type::parse_domain_argument_handles;
     use numerics::arithmetic::ArithmeticDomain;
     use syntax_trees::identifier::Identifier;
 
-    pub(crate) fn parse_argument_list_after_open_paren_handle<'tokens, 'source>(
+    /// A primary operand and its postfix suffixes, for statement grammar
+    /// that reads a call or place target without operators around it.
+    pub(crate) fn parse_postfix_expression_handle<'tokens, 'source>(
         syntax_trees: &mut SyntaxTrees,
         input: Input<'tokens, 'source>,
-    ) -> ParseResult<'tokens, 'source, (HandleSpan<ExpressionHandle>, Box<[Identifier]>)> {
-        parse_arguments_in(syntax_trees, input, ExpressionContext::Default)
+        context: ExpressionContext,
+    ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+        super::frames::run_expression(syntax_trees, input, super::frames::Goal::Postfix(context))
     }
 
-    fn parse_arguments_in<'tokens, 'source>(
+    /// The end of a call's argument list once its value arguments are
+    /// parsed: the optional `;` evidence lane, then the closing `)`.
+    pub(crate) fn finish_argument_lanes<'tokens, 'source>(
         syntax_trees: &mut SyntaxTrees,
+        arguments: Vec<ExpressionHandle>,
         mut input: Input<'tokens, 'source>,
-        context: ExpressionContext,
     ) -> ParseResult<'tokens, 'source, (HandleSpan<ExpressionHandle>, Box<[Identifier]>)> {
-        let mut arguments = Vec::new();
-
-        if !input.at_punctuation(PunctuationKind::RightParen)
-            && !input.at_punctuation(PunctuationKind::Semicolon)
-        {
-            loop {
-                let (expression, rest) =
-                    parse_expression_handle_in(syntax_trees, input, context.value())?;
-                arguments.push(expression);
-                input = rest;
-
-                if input.at_punctuation(PunctuationKind::Comma) {
-                    input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-                    if input.at_punctuation(PunctuationKind::RightParen) {
-                        break;
-                    }
-                    continue;
-                }
-
-                break;
-            }
-        }
-
         let mut evidence_arguments = Vec::new();
         if input.at_punctuation(PunctuationKind::Semicolon) {
             input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
@@ -1004,266 +690,165 @@ pub(crate) mod parse_postfix {
         Ok(((arguments, evidence_arguments.into_boxed_slice()), input))
     }
 
-    pub(crate) fn parse_postfix_expression_handle<'tokens, 'source>(
-        syntax_trees: &mut SyntaxTrees,
-        input: Input<'tokens, 'source>,
-        context: ExpressionContext,
-    ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-        let (expression, input) = parse_primary_expression_handle(syntax_trees, input, context)?;
-        parse_postfix_suffixes_handle(syntax_trees, expression, input, context)
+    /// A `.member` projection after the operand parsed so far, or the
+    /// start of an atomic `.load(ordering)` whose ordering the caller parses.
+    pub(crate) enum MemberSuffix<'tokens, 'source> {
+        Member(ExpressionHandle, Input<'tokens, 'source>),
+        Load { after_open: Input<'tokens, 'source> },
     }
 
-    fn parse_postfix_suffixes_handle<'tokens, 'source>(
+    pub(crate) fn parse_member_suffix<'tokens, 'source>(
+        syntax_trees: &mut SyntaxTrees,
+        mut expression: ExpressionHandle,
+        input: Input<'tokens, 'source>,
+    ) -> Result<MemberSuffix<'tokens, 'source>, ParseError> {
+        let mut access_source_span = input.source_span(
+            input
+                .tokens
+                .first()
+                .expect("recognized member punctuation has a source token"),
+        );
+        let after_dot = input.take_punctuation(PunctuationKind::Dot, ".")?;
+        let (member, rest) = after_dot.take_identifier()?;
+        access_source_span.span.end = member.source_span().span.end;
+
+        if rest.at_punctuation(PunctuationKind::Less) {
+            let retired = match member.as_str(syntax_trees) {
+                "accept_boundary" => Some(
+                    "receiver-style boundary acceptance is retired; use Build::accept_boundary<Boundary>(builder)",
+                ),
+                "select_provider" => Some(
+                    "receiver-style provider selection is retired; use Build::select_provider<Slot, Provider>(builder)",
+                ),
+                "exclude_service" => Some(
+                    "receiver-style service exclusion is retired; use Build::exclude_service<BoundaryTrait>(builder)",
+                ),
+                "select_representation" => Some(
+                    "receiver-style representation selection is retired; use Build::select_representation<Opaque, Conformance>(builder)",
+                ),
+                "require_wire_compatibility" => Some(
+                    "receiver-style wire compatibility is retired; use Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Fact>(builder)",
+                ),
+                "assume_binding_contract" => Some(
+                    "receiver-style assumed binding is retired; use Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)",
+                ),
+                _ => None,
+            };
+            if let Some(message) = retired {
+                return Err(rest.error_here(message));
+            }
+        }
+
+        if member.as_str(syntax_trees) == "load" && rest.at_punctuation(PunctuationKind::LeftParen)
+        {
+            let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
+            return Ok(MemberSuffix::Load { after_open });
+        }
+
+        let member_span = member.source_span();
+        expression = exprs(syntax_trees).insert(ExpressionNode::Member(TableMemberExpression {
+            receiver: expression,
+            access_source_span,
+            member,
+            case_variant: None,
+        }));
+        exprs(syntax_trees).set_source_span(expression, member_span);
+        Ok(MemberSuffix::Member(expression, rest))
+    }
+
+    /// A cast written after the operand parsed so far, starting at `as`.
+    pub(crate) fn parse_cast_suffix<'tokens, 'source>(
         syntax_trees: &mut SyntaxTrees,
         mut expression: ExpressionHandle,
         mut input: Input<'tokens, 'source>,
-        context: ExpressionContext,
     ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-        loop {
-            let can_call = matches!(
-                exprs_of(syntax_trees).expression(expression),
-                ExpressionNode::Name(_) | ExpressionNode::Member(_)
-            );
-            if can_call
-                && input.at_punctuation(PunctuationKind::Less)
-                && let Some((machine_arguments, rest)) =
-                    try_parse_static_machine_arguments(syntax_trees, input)?
-            {
-                let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
-                let ((arguments, evidence_arguments), rest) =
-                    parse_arguments_in(syntax_trees, after_open, context)?;
-                input = rest;
-                expression = build_call_expression_handle(
-                    syntax_trees,
-                    expression,
-                    machine_arguments,
-                    arguments,
-                    evidence_arguments,
-                )?;
-                continue;
-            }
-
-            if can_call && input.at_punctuation(PunctuationKind::LeftParen) {
-                input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-                let ((arguments, evidence_arguments), rest) =
-                    parse_arguments_in(syntax_trees, input, context)?;
-                input = rest;
-                expression = build_call_expression_handle(
-                    syntax_trees,
-                    expression,
-                    Box::default(),
-                    arguments,
-                    evidence_arguments,
-                )?;
-                continue;
-            }
-
-            if input.at_punctuation(PunctuationKind::LeftBracket) {
-                let operator_span = input
-                    .tokens
-                    .first()
-                    .map(|token| input.source_span(token))
-                    .expect("recognized index punctuation has a source token");
-                input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
-                let (index, rest) =
-                    parse_index_or_range_expression_handle(syntax_trees, input, context.value())?;
-                input = rest.take_punctuation(PunctuationKind::RightBracket, "]")?;
-                expression =
-                    exprs(syntax_trees).insert(ExpressionNode::Indexed(TableIndexedExpression {
-                        collection: expression,
-                        index,
-                    }));
-                exprs(syntax_trees).set_source_span(expression, operator_span);
-                continue;
-            }
-
-            if input.at_punctuation(PunctuationKind::Dot) {
-                let mut access_source_span = input.source_span(
-                    input
-                        .tokens
-                        .first()
-                        .expect("recognized member punctuation has a source token"),
-                );
-                let after_dot = input.take_punctuation(PunctuationKind::Dot, ".")?;
-                let (member, rest) = after_dot.take_identifier()?;
-                access_source_span.span.end = member.source_span().span.end;
-
-                if rest.at_punctuation(PunctuationKind::Less) {
-                    let retired = match member.as_str(syntax_trees) {
-                        "accept_boundary" => Some(
-                            "receiver-style boundary acceptance is retired; use Build::accept_boundary<Boundary>(builder)",
-                        ),
-                        "select_provider" => Some(
-                            "receiver-style provider selection is retired; use Build::select_provider<Slot, Provider>(builder)",
-                        ),
-                        "exclude_service" => Some(
-                            "receiver-style service exclusion is retired; use Build::exclude_service<BoundaryTrait>(builder)",
-                        ),
-                        "select_representation" => Some(
-                            "receiver-style representation selection is retired; use Build::select_representation<Opaque, Conformance>(builder)",
-                        ),
-                        "require_wire_compatibility" => Some(
-                            "receiver-style wire compatibility is retired; use Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Fact>(builder)",
-                        ),
-                        "assume_binding_contract" => Some(
-                            "receiver-style assumed binding is retired; use Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)",
-                        ),
-                        _ => None,
-                    };
-                    if let Some(message) = retired {
-                        return Err(rest.error_here(message));
-                    }
-                }
-
-                if member.as_str(syntax_trees) == "load"
-                    && rest.at_punctuation(PunctuationKind::LeftParen)
-                {
-                    let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
-                    if !after_open.at_punctuation(PunctuationKind::RightParen) {
-                        let (ordering_expression, after_ord) =
-                            parse_expression_handle(syntax_trees, after_open)?;
-                        if after_ord.at_punctuation(PunctuationKind::RightParen) {
-                            let ordering =
-                                memory_ordering_from_expression(syntax_trees, ordering_expression)
-                                    .map_err(|reason| after_open.error_here(reason))?;
-                            if !ordering.valid_for_load() {
-                                return Err(after_open.error_here(format!(
-                                "atomic load cannot use `{}` ordering; use `NoOrdering`, `Receive`, or `GlobalOrder`",
-                                ordering.name()
-                            )));
-                            }
-                            input = after_ord.take_punctuation(PunctuationKind::RightParen, ")")?;
-                            expression = exprs(syntax_trees).insert(ExpressionNode::Atomic(
-                            syntax_trees::expression::TableAtomicExpression {
-                                value: expression,
-                                result: ExpressionHandle::invalid(),
-                                ordering: language_core::atomic::AtomicOrderingPlan::Load(ordering),
-                                result_custody:
-                                    language_core::atomic::AtomicExpressionResultCustody::Scalar,
-                            },
-                        ));
-                            continue;
-                        }
-                    }
-                    return Err(after_open.error_here(
-                    "`load` takes exactly one ordering argument: e.g. `self.counter.load(NoOrdering)`",
-                ));
-                }
-
-                input = rest;
-                let member_span = member.source_span();
-                expression =
-                    exprs(syntax_trees).insert(ExpressionNode::Member(TableMemberExpression {
-                        receiver: expression,
-                        access_source_span,
-                        member,
-                        case_variant: None,
-                    }));
-                exprs(syntax_trees).set_source_span(expression, member_span);
-                continue;
-            }
-
-            if input.at_keyword(KeywordKind::As) {
-                let cast_source = input.current_source_span();
-                input = input.take_keyword(KeywordKind::As, "as")?;
-                if at_cast_entry(input) {
-                    (expression, input) =
-                        parse_cast_entries(syntax_trees, expression, input, false)?;
-                    continue;
-                }
-                let mut form = language_core::cast_form::CastForm::Value;
-                if input.at_punctuation(PunctuationKind::Ampersand) {
-                    input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
-                    let access = if input.at_contextual("mut") {
-                        input = input.take_contextual("mut")?;
-                        language_core::ReferenceAccess::Mutable
-                    } else if input.at_contextual("write") {
-                        input = input.take_contextual("write")?;
-                        language_core::ReferenceAccess::WriteOnly
-                    } else {
-                        language_core::ReferenceAccess::Shared
-                    };
-                    form = language_core::cast_form::CastForm::Recast(access);
-                }
-                let target_start = input;
-                let (target_type, rest) =
-                    parse_cast_target_type_reference_handle(syntax_trees, input)?;
-                let consumed = target_start.tokens.len().saturating_sub(rest.tokens.len());
-                let target_label_text = target_start.tokens[..consumed]
-                    .iter()
-                    .map(|token| target_start.text(token).as_str())
-                    .collect::<String>();
-                let mut target_label = HandleSpan::empty();
-                exprs(syntax_trees).append_identifier_path_member_to_span(
-                    &mut target_label,
-                    Identifier::generated(target_label_text),
-                );
-                input = rest;
-                let mut domain = ArithmeticDomain::Exact;
-                let mut semantic_domain = arena::HandleSpan::empty();
-                let mut semantic_domain_arguments = arena::HandleSpan::empty();
-                if input.at_contextual("in") {
-                    let after_in = input.take_contextual("in")?;
-                    let (domain_name, rest) =
-                        crate::grammar::type_syntax::parse_type::parse_static_name(after_in)?;
-                    match ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)) {
-                        Some(_) if form.is_recast() => {
-                            return Err(input.error_here(
-                            "a recast re-views a place's bytes and takes no arithmetic domain; domains retag VALUE casts (`x as u8 in Wrapping`)",
-                        ));
-                        }
-                        Some(parsed) => domain = parsed,
-                        None => {
-                            exprs(syntax_trees).append_identifier_path_member_to_span(
-                                &mut semantic_domain,
-                                domain_name.clone(),
-                            );
-                            let (arguments, rest) =
-                                parse_domain_argument_handles(syntax_trees, rest)?;
-                            semantic_domain_arguments = arguments;
-                            input = rest;
-                        }
-                    }
-                    if semantic_domain.is_empty() {
-                        if rest.at_punctuation(PunctuationKind::Less) {
-                            return Err(rest.error_here(
-                                "compiler arithmetic domains do not take index arguments",
-                            ));
-                        }
-                        input = rest;
-                    }
-                }
-                expression =
-                    exprs(syntax_trees).insert(ExpressionNode::Cast(TableCastExpression {
-                        value: expression,
-                        target_type,
-                        target_label,
-                        domain,
-                        semantic_domain,
-                        semantic_domain_arguments,
-                        form,
-                    }));
-                exprs(syntax_trees).set_source_span(expression, cast_source);
-                if at_cast_entry(input) {
-                    if form.is_recast() {
-                        return Err(input.error_here(
-                            "a recast re-views a place's bytes and takes no domain entries",
-                        ));
-                    }
-                    if domain != ArithmeticDomain::Exact || !semantic_domain.is_empty() {
-                        return Err(input.error_here(
-                            "a cast names its domains either with entries (`as T +D`) or with the older `as T in D`, not both",
-                        ));
-                    }
-                    (expression, input) =
-                        parse_cast_entries(syntax_trees, expression, input, true)?;
-                }
-                continue;
-            }
-
-            break;
+        let cast_source = input.current_source_span();
+        input = input.take_keyword(KeywordKind::As, "as")?;
+        if at_cast_entry(input) {
+            return parse_cast_entries(syntax_trees, expression, input, false);
         }
-
+        let mut form = language_core::cast_form::CastForm::Value;
+        if input.at_punctuation(PunctuationKind::Ampersand) {
+            input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
+            let access = if input.at_contextual("mut") {
+                input = input.take_contextual("mut")?;
+                language_core::ReferenceAccess::Mutable
+            } else if input.at_contextual("write") {
+                input = input.take_contextual("write")?;
+                language_core::ReferenceAccess::WriteOnly
+            } else {
+                language_core::ReferenceAccess::Shared
+            };
+            form = language_core::cast_form::CastForm::Recast(access);
+        }
+        let target_start = input;
+        let (target_type, rest) = parse_cast_target_type_reference_handle(syntax_trees, input)?;
+        let consumed = target_start.tokens.len().saturating_sub(rest.tokens.len());
+        let target_label_text = target_start.tokens[..consumed]
+            .iter()
+            .map(|token| target_start.text(token).as_str())
+            .collect::<String>();
+        let mut target_label = HandleSpan::empty();
+        exprs(syntax_trees).append_identifier_path_member_to_span(
+            &mut target_label,
+            Identifier::generated(target_label_text),
+        );
+        input = rest;
+        let mut domain = ArithmeticDomain::Exact;
+        let mut semantic_domain = arena::HandleSpan::empty();
+        let mut semantic_domain_arguments = arena::HandleSpan::empty();
+        if input.at_contextual("in") {
+            let after_in = input.take_contextual("in")?;
+            let (domain_name, rest) =
+                crate::grammar::type_syntax::parse_type::parse_static_name(after_in)?;
+            match ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)) {
+                Some(_) if form.is_recast() => {
+                    return Err(input.error_here(
+                        "a recast re-views a place's bytes and takes no arithmetic domain; domains retag VALUE casts (`x as u8 in Wrapping`)",
+                    ));
+                }
+                Some(parsed) => domain = parsed,
+                None => {
+                    exprs(syntax_trees).append_identifier_path_member_to_span(
+                        &mut semantic_domain,
+                        domain_name.clone(),
+                    );
+                    let (arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
+                    semantic_domain_arguments = arguments;
+                    input = rest;
+                }
+            }
+            if semantic_domain.is_empty() {
+                if rest.at_punctuation(PunctuationKind::Less) {
+                    return Err(
+                        rest.error_here("compiler arithmetic domains do not take index arguments")
+                    );
+                }
+                input = rest;
+            }
+        }
+        expression = exprs(syntax_trees).insert(ExpressionNode::Cast(TableCastExpression {
+            value: expression,
+            target_type,
+            target_label,
+            domain,
+            semantic_domain,
+            semantic_domain_arguments,
+            form,
+        }));
+        exprs(syntax_trees).set_source_span(expression, cast_source);
+        if at_cast_entry(input) {
+            if form.is_recast() {
+                return Err(input
+                    .error_here("a recast re-views a place's bytes and takes no domain entries"));
+            }
+            if domain != ArithmeticDomain::Exact || !semantic_domain.is_empty() {
+                return Err(input.error_here(
+                        "a cast names its domains either with entries (`as T +D`) or with the older `as T in D`, not both",
+                    ));
+            }
+            (expression, input) = parse_cast_entries(syntax_trees, expression, input, true)?;
+        }
         Ok((expression, input))
     }
 
@@ -1369,44 +954,7 @@ pub(crate) mod parse_postfix {
         Ok((expression, input))
     }
 
-    fn parse_index_or_range_expression_handle<'tokens, 'source>(
-        syntax_trees: &mut SyntaxTrees,
-        input: Input<'tokens, 'source>,
-        context: ExpressionContext,
-    ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-        let (start, input, end_inclusive) = if let Some(end_inclusive) = range_separator(&input) {
-            (ExpressionHandle::invalid(), input, end_inclusive)
-        } else {
-            let (start, input) = parse_expression_handle_in(syntax_trees, input, context)?;
-            let Some(end_inclusive) = range_separator(&input) else {
-                return Ok((start, input));
-            };
-            (start, input, end_inclusive)
-        };
-
-        let input = take_range_separator(input, end_inclusive)?;
-        let (end, input) = if input.at_punctuation(PunctuationKind::RightBracket) {
-            if end_inclusive {
-                return Err(ParseError::new(
-                    "inclusive range `..=` requires an end expression",
-                ));
-            }
-            (ExpressionHandle::invalid(), input)
-        } else {
-            let (end, input) = parse_expression_handle_in(syntax_trees, input, context)?;
-            (end, input)
-        };
-        Ok((
-            exprs(syntax_trees).insert(ExpressionNode::Range(TableRangeExpression {
-                start,
-                end,
-                end_inclusive,
-            })),
-            input,
-        ))
-    }
-
-    fn range_separator(input: &Input<'_, '_>) -> Option<bool> {
+    pub(crate) fn range_separator(input: &Input<'_, '_>) -> Option<bool> {
         if input.at_punctuation(PunctuationKind::DotDotEqual) {
             Some(true)
         } else if input.at_punctuation(PunctuationKind::DotDot) {
@@ -1416,7 +964,7 @@ pub(crate) mod parse_postfix {
         }
     }
 
-    fn take_range_separator<'tokens, 'source>(
+    pub(crate) fn take_range_separator<'tokens, 'source>(
         input: Input<'tokens, 'source>,
         end_inclusive: bool,
     ) -> Result<Input<'tokens, 'source>, ParseError> {
@@ -1427,7 +975,7 @@ pub(crate) mod parse_postfix {
         }
     }
 
-    fn build_call_expression_handle(
+    pub(crate) fn build_call_expression_handle(
         syntax_trees: &mut SyntaxTrees,
         expression: ExpressionHandle,
         machine_arguments: Box<[StaticMachineArgument]>,
@@ -1971,26 +1519,16 @@ pub(crate) mod parse_postfix {
     }
 }
 pub(crate) mod primary {
-    use crate::grammar::expressions::context::ExpressionContext;
-    use crate::grammar::expressions::match_dispatch::parse_match_expression_handle;
-    use crate::grammar::expressions::parse_expression::parse_expression_handle_in;
-    use crate::grammar::expressions::parse_postfix::parse_argument_list_after_open_paren_handle;
-    use crate::grammar::expressions::parse_postfix::try_parse_static_machine_arguments;
     use crate::grammar::type_syntax::parse_type::parse_type_reference_handle;
-    use crate::storage::tables::{exprs, exprs_of};
-    use crate::tokens::token_cursor::{Input, ParseResult, parse_path_handle_span};
-    use numerics::literals::IntegerLiteral;
-    use source::{SourceSpan, Span};
+    use crate::storage::tables::exprs;
+    use crate::tokens::token_cursor::Input;
+    use source::SourceSpan;
     use syntax_trees::SyntaxTrees;
-    use syntax_trees::expression::{
-        ExpressionHandle, ExpressionNode, TableCallExpression, TableStructLiteral,
-        TableStructLiteralField,
-    };
-    use syntax_trees::identifier::Identifier;
+    use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
     use syntax_trees::types::TypeReferenceHandle;
-    use tokens::{KeywordKind, NumericLiteralKind, PunctuationKind, TokenKind};
+    use tokens::{PunctuationKind, TokenKind};
 
-    fn spanned(
+    pub(crate) fn spanned(
         syntax_trees: &mut SyntaxTrees,
         node: ExpressionNode,
         source_span: SourceSpan,
@@ -2000,245 +1538,7 @@ pub(crate) mod primary {
         expression
     }
 
-    pub(crate) fn parse_primary_expression_handle<'tokens, 'source>(
-        syntax_trees: &mut SyntaxTrees,
-        input: Input<'tokens, 'source>,
-        context: ExpressionContext,
-    ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-        if context.allows_type_expression() && starts_lifetime_reference_type(input) {
-            let start = input;
-            let (reference, rest) = parse_type_reference_handle(syntax_trees, input)?;
-            let expression = spanned(
-                syntax_trees,
-                ExpressionNode::TypeExpression(reference),
-                start.source_span_until(rest),
-            );
-            return Ok((expression, rest));
-        }
-        if input.at_keyword(KeywordKind::True) {
-            let source_span = input
-                .tokens
-                .first()
-                .map(|token| input.source_span(token))
-                .expect("recognized boolean literal has a source token");
-            let input = input.take_keyword(KeywordKind::True, "true")?;
-            let expression = spanned(syntax_trees, ExpressionNode::Boolean(true), source_span);
-            return Ok((expression, input));
-        }
-
-        if input.at_keyword(KeywordKind::False) {
-            let source_span = input
-                .tokens
-                .first()
-                .map(|token| input.source_span(token))
-                .expect("recognized boolean literal has a source token");
-            let input = input.take_keyword(KeywordKind::False, "false")?;
-            let expression = spanned(syntax_trees, ExpressionNode::Boolean(false), source_span);
-            return Ok((expression, input));
-        }
-
-        if input.at_keyword(KeywordKind::SelfValue) {
-            if context.allows_logical_subject() {
-                let source_span =
-                    input.source_span(input.tokens.first().expect("logical subject token"));
-                let input = input.take_keyword(KeywordKind::SelfValue, "self")?;
-                let member = syntax_trees
-                    .expressions
-                    .append_identifier_path_member(Identifier::new("self", source_span));
-                let expression = spanned(
-                    syntax_trees,
-                    ExpressionNode::Name(arena::HandleSpan::from_parts(member, 1)),
-                    source_span,
-                );
-                return Ok((expression, input));
-            }
-            return Err(input.error_here(
-                "implicit `self` is retired; name the explicit parameter or domain subject",
-            ));
-        }
-
-        if input.at_keyword(KeywordKind::Match) {
-            return parse_match_expression_handle(syntax_trees, input);
-        }
-
-        if input.at_contextual("zero_value") {
-            let after_name = input.take_contextual("zero_value")?;
-            if after_name.at_punctuation(PunctuationKind::Less) {
-                let after_less = after_name.take_punctuation(PunctuationKind::Less, "<")?;
-                let (type_reference, rest) = parse_type_reference_handle(syntax_trees, after_less)?;
-                let rest = rest.take_punctuation(PunctuationKind::Greater, ">")?;
-                let rest = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
-                let rest = rest.take_punctuation(PunctuationKind::RightParen, ")")?;
-                return Ok((
-                    exprs(syntax_trees).insert(ExpressionNode::ZeroValue(type_reference)),
-                    rest,
-                ));
-            }
-        }
-
-        if input.tokens.first().is_some_and(|token| {
-            matches!(
-                token.kind,
-                TokenKind::NumericLiteral(NumericLiteralKind::Integer(_))
-            )
-        }) {
-            let source_span = input
-                .tokens
-                .first()
-                .map(|token| input.source_span(token))
-                .expect("recognized integer literal has a source token");
-            let (literal, input) = input.take_integer_literal()?;
-            let expression = spanned(syntax_trees, ExpressionNode::Integer(literal), source_span);
-            return Ok((expression, input));
-        }
-
-        if input.tokens.first().is_some_and(|token| {
-            matches!(
-                token.kind,
-                TokenKind::NumericLiteral(NumericLiteralKind::Float(_))
-            )
-        }) {
-            let source_span = input.current_source_span();
-            let (value, input) = input.take_float_text()?;
-            let expression = spanned(syntax_trees, ExpressionNode::Float(value), source_span);
-            return Ok((expression, input));
-        }
-
-        if input.at_contextual("utf16") && input.at_contextual_then_string("utf16") {
-            let start = input;
-            let input = input.take_contextual("utf16")?;
-            let (value, input) = input.take_string()?;
-            let units: Vec<_> = value
-                .encode_utf16()
-                .map(|unit| {
-                    exprs(syntax_trees).insert(ExpressionNode::Integer(IntegerLiteral::from_value(
-                        i64::from(unit),
-                    )))
-                })
-                .collect();
-            let units = exprs(syntax_trees).insert_expression_handles(units);
-            let expression = syntax_trees
-                .expressions
-                .insert(ExpressionNode::ArrayLiteral(units));
-            exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
-            return Ok((expression, input));
-        }
-
-        if input
-            .tokens
-            .first()
-            .is_some_and(|token| token.kind == TokenKind::StringLiteral)
-        {
-            let (value, input) = input.take_string_bytes()?;
-            return Ok((
-                exprs(syntax_trees).insert(ExpressionNode::String(value)),
-                input,
-            ));
-        }
-
-        if input.at_punctuation(PunctuationKind::LeftParen) {
-            let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-            let (expression, input) =
-                parse_expression_handle_in(syntax_trees, input, context.grouped())?;
-            let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-            return Ok((expression, input));
-        }
-
-        if input.at_punctuation(PunctuationKind::LeftBracket) {
-            if context.allows_type_expression() && starts_fixed_array_type(input) {
-                let start = input;
-                let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
-                let expression = syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::TypeExpression(type_reference));
-                exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
-                return Ok((expression, input));
-            }
-            let start = input;
-            let mut input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
-            let mut values = Vec::new();
-
-            if !input.at_punctuation(PunctuationKind::RightBracket) {
-                loop {
-                    let (value, rest) = parse_expression_handle_in(
-                        syntax_trees,
-                        input,
-                        ExpressionContext::Default,
-                    )?;
-                    values.push(value);
-                    input = rest;
-                    let Some(next) = input.take_comma()? else {
-                        break;
-                    };
-                    input = next;
-                }
-            }
-
-            let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
-            let values = exprs(syntax_trees).insert_expression_handles(values);
-            let expression = syntax_trees
-                .expressions
-                .insert(ExpressionNode::ArrayLiteral(values));
-            exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
-            return Ok((expression, input));
-        }
-
-        if context.allows_struct_literal() && input.at_contextual("spawn") {
-            let after_spawn = input.take_contextual("spawn")?;
-            if after_spawn.at_punctuation(PunctuationKind::LeftBrace) {
-                return Err(input.error_here(
-                    "`spawn { ... }` is retired: start an ordinary named machine through an \
-                 admitted task-runtime capability (`runtime.start<Worker::run>(...)`) and \
-                 keep the returned linear `Task<T>`",
-                ));
-            }
-        }
-
-        if input.at_name_like() {
-            let start = input;
-            if let Some((application, rest)) = try_applied_requirement_head(syntax_trees, start) {
-                return parse_applied_requirement_call(syntax_trees, start, application, rest);
-            }
-            let (path, input) = parse_path_handle_span(input, |member| {
-                exprs(syntax_trees).append_identifier_path_member(member)
-            })?;
-
-            if context.allows_type_expression()
-                && input.at_punctuation(PunctuationKind::Less)
-                && let Some((type_reference, rest)) =
-                    try_generic_type_operand(syntax_trees, start, !context.allows_struct_literal())
-            {
-                let expression = syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::TypeExpression(type_reference));
-                exprs(syntax_trees).set_source_span(expression, start.source_span_until(rest));
-                return Ok((expression, rest));
-            }
-
-            if context.allows_struct_literal() && input.at_punctuation(PunctuationKind::LeftBrace) {
-                let members = exprs_of(syntax_trees).identifier_path_members(path);
-                let first = members.first().expect("constructor path has a head");
-                let last = members.last().expect("constructor path has a tail");
-                let mut source_span = first.source_span();
-                source_span.span.end = last.source_span().span.end;
-                let mut name = first.as_str(syntax_trees).to_owned();
-                for member in &members[1..] {
-                    name.push_str("::");
-                    name.push_str(member.as_str(syntax_trees));
-                }
-                let constructor_name = Identifier::new(name, source_span);
-                return parse_struct_literal_handle(syntax_trees, constructor_name, input, context);
-            }
-
-            let expression = exprs(syntax_trees).insert(ExpressionNode::Name(path));
-            exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
-            return Ok((expression, input));
-        }
-
-        Err(input.error_here("expected expression"))
-    }
-
-    fn try_applied_requirement_head<'tokens, 'source>(
+    pub(crate) fn try_applied_requirement_head<'tokens, 'source>(
         syntax: &mut SyntaxTrees,
         input: Input<'tokens, 'source>,
     ) -> Option<(TypeReferenceHandle, Input<'tokens, 'source>)> {
@@ -2279,42 +1579,7 @@ pub(crate) mod primary {
         accepted
     }
 
-    fn parse_applied_requirement_call<'tokens, 'source>(
-        syntax_trees: &mut SyntaxTrees,
-        input: Input<'tokens, 'source>,
-        application: TypeReferenceHandle,
-        rest: Input<'tokens, 'source>,
-    ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-        let start = input;
-        let receiver = syntax_trees
-            .expressions
-            .insert(ExpressionNode::TypeExpression(application));
-        exprs(syntax_trees).set_source_span(receiver, start.source_span_until(rest));
-        let rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
-        let (target, rest) = rest.take_identifier()?;
-        let (machine_arguments, rest) =
-            match try_parse_static_machine_arguments(syntax_trees, rest)? {
-                Some((machine_arguments, rest)) => (machine_arguments, rest),
-                None => (Box::default(), rest),
-            };
-        let rest = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
-        let ((arguments, evidence_arguments), rest) =
-            parse_argument_list_after_open_paren_handle(syntax_trees, rest)?;
-        let source = target.source_span();
-        let call = exprs(syntax_trees).insert(ExpressionNode::Call(TableCallExpression {
-            receiver,
-            target,
-            target_is_static: true,
-            machine_arguments,
-            arguments,
-            evidence_arguments,
-            operational_acknowledgement: Default::default(),
-        }));
-        exprs(syntax_trees).set_source_span(call, source);
-        Ok((call, rest))
-    }
-
-    fn try_generic_type_operand<'tokens, 'source>(
+    pub(crate) fn try_generic_type_operand<'tokens, 'source>(
         syntax: &mut SyntaxTrees,
         input: Input<'tokens, 'source>,
         allow_body_delimiter: bool,
@@ -2368,7 +1633,7 @@ pub(crate) mod primary {
         accepted
     }
 
-    fn starts_fixed_array_type(input: Input<'_, '_>) -> bool {
+    pub(crate) fn starts_fixed_array_type(input: Input<'_, '_>) -> bool {
         let mut bracket_depth = 0usize;
         let mut parenthesis_depth = 0usize;
         let mut brace_depth = 0usize;
@@ -2404,51 +1669,6 @@ pub(crate) mod primary {
             }
         }
         false
-    }
-
-    fn parse_struct_literal_handle<'tokens, 'source>(
-        syntax_trees: &mut SyntaxTrees,
-        constructor_name: Identifier,
-        mut input: Input<'tokens, 'source>,
-        context: ExpressionContext,
-    ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-        let start = input;
-        let type_name_span = constructor_name.source_span();
-        input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-        let mut fields = Vec::new();
-
-        while !input.at_punctuation(PunctuationKind::RightBrace) {
-            let (name, rest) = input.take_identifier()?;
-            input = rest.take_punctuation(PunctuationKind::Colon, ":")?;
-            let (value, rest) = parse_expression_handle_in(syntax_trees, input, context.value())?;
-            input = rest;
-            fields.push(TableStructLiteralField { name, value });
-
-            if input.at_punctuation(PunctuationKind::Comma) {
-                input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-                continue;
-            }
-        }
-
-        let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-        let fields = exprs(syntax_trees).insert_struct_fields(fields);
-        let expression = syntax_trees
-            .expressions
-            .insert(ExpressionNode::StructLiteral(TableStructLiteral {
-                application_type: Default::default(),
-                constructor_name,
-                fields,
-            }));
-        let literal_tail_span = start.source_span_until(input);
-        debug_assert_eq!(type_name_span.source_id, literal_tail_span.source_id);
-        exprs(syntax_trees).set_source_span(
-            expression,
-            SourceSpan::new(
-                type_name_span.source_id,
-                Span::new(type_name_span.span.start, literal_tail_span.span.end),
-            ),
-        );
-        Ok((expression, input))
     }
 
     pub(crate) fn starts_lifetime_reference_type(input: Input<'_, '_>) -> bool {

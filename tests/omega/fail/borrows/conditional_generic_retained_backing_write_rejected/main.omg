@@ -1,0 +1,13 @@
+// A quiet selected callback does not discharge a generic value's backing lifetime.
+public machine quiet(value: u32) -> u32 { value }
+public machine retain_value<T, const Callback: machine(value: u32) -> u32 suspends>(kept: T, value: u32) -> T
+suspends {
+    let ignored: u32 = suspend Callback(value);
+    kept
+}
+machine main() {
+    let mut backing: u32 = 89u32;
+    let retained: &u32 = retain_value<&u32, quiet>(&backing, 73u32);
+    backing = 99u32;
+    let observed: u32 = retained;
+}

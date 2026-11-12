@@ -104,7 +104,6 @@ machine build(builder: &mut Build) crashes Trap {
                 execution_purpose:
                     artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
                 pure_build_compilation: None,
-                toolchain_defaults: None,
                 root_path: &entry,
                 typed: input.typed,
                 pre_checks: input.pre_checks,

@@ -20,7 +20,6 @@ Provenance:
 
 mod build_source;
 pub use build_source::BuildSourceSelection;
-pub(crate) use build_source::is_build_prelude_source;
 
 use crate::PackageCompilationInputs;
 use crate::source::source_imports::{
@@ -352,21 +351,14 @@ impl ImmutableSourceParseCheckpoint {
         }
     }
 
-    pub fn with_toolchain_defaults(
+    pub fn with_toolchain_capture(
         mut self,
-        defaults: &crate::CompletedProviderDefaults,
+        capture: &crate::CapturedLocalSource,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let capture = defaults.toolchain_capture().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "toolchain source defaults have a different supplier kind",
-            )]
-        })?;
-        let _ =
-            defaults.source_seeds(crate::ProviderDefaultsAdmission::CapturedToolchain(capture))?;
         Arc::make_mut(&mut self.source_storage).admit_toolchain_capture(capture)?;
         if self.product_roots.is_none() {
             return Err(vec![Diagnostic::error(
-                "default source seeds must precede Product typing",
+                "toolchain capture admission must precede Product typing",
             )]);
         }
         Ok(self)

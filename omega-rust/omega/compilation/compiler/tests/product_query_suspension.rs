@@ -1,8 +1,5 @@
 //! Product queries pause the real Terminal Build before a description exists.
 
-#[path = "support/build_sequence.rs"]
-mod build_sequence;
-
 use compiler::{CheckedCompileRequest, CompilationSession};
 
 #[test]
@@ -18,7 +15,6 @@ fn schema_and_named_provider_queries_resume_the_original_build() {
     let mut invocation = session
         .begin_package_build(CheckedCompileRequest::new(&root, None))
         .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
-    build_sequence::prepare_package_root(&mut invocation);
     let mut queries = invocation.product_queries();
     let host = invocation.execution().unwrap().host().unwrap();
     let mut activation = host.start().unwrap();
@@ -129,7 +125,6 @@ fn admitted_build_helpers_keep_their_lexical_product_scope() {
         let mut invocation = CompilationSession::default()
             .begin_package_build(request)
             .unwrap_or_else(|failure| panic!("{fixture}: {:?}", failure.into_diagnostics()));
-        build_sequence::prepare_package_root(&mut invocation);
         let mut queries = invocation.product_queries();
         let host = invocation.execution().unwrap().host().unwrap();
         let mut activation = host.start().unwrap();
@@ -181,7 +176,6 @@ fn authored_product_query_retains_lexical_occurrence_and_pauses() {
     let mut invocation = session
         .begin_package_build(CheckedCompileRequest::new(&root, None))
         .expect("admit authored Build without completing Product sources");
-    build_sequence::prepare_package_root(&mut invocation);
     let execution = invocation.execution().expect("authored Build execution");
     let host = execution.host().expect("Terminal Build host");
     let mut activation = host.start().expect("one Build activation");

@@ -127,10 +127,10 @@ path = "tests/terminal_decode_once.rs"
 name = "retained_layout_match"
 path = "tests/retained_layout_match.rs"
 
-# Refused and adopted core Product speculation publish the same bytes.
+# A source compile publishes Psi without a separate core supplier activation.
 [[test]]
-name = "core_product_speculation"
-path = "tests/core_product_speculation.rs"
+name = "core_build_activation"
+path = "tests/core_build_activation.rs"
 
 # Checked source helpers retain access-view backing across ordinary invocations.
 [[test]]

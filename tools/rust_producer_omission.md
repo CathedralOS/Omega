@@ -54,7 +54,7 @@ The bootstrap compiler closure and its env surface audit clean today:
 
 ```bash
 mbx xtask rust-producer-omission \
-  --manifest bootstrap/5_omega/omega_compiler.epsilon.sources \
+  --manifest bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources \
   --steps tools/bootstrap/paths.sh \
   --steps tools/bootstrap/omega/compiler_env.sh \
   --require omitted
@@ -62,7 +62,7 @@ mbx xtask rust-producer-omission \
 
 ```powershell
 mbx xtask rust-producer-omission `
-  --manifest bootstrap/5_omega/omega_compiler.epsilon.sources `
+  --manifest bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources `
   --steps tools/bootstrap/paths.sh `
   --steps tools/bootstrap/omega/compiler_env.sh `
   --require omitted

@@ -1330,6 +1330,7 @@ impl PartialEq for ProgramIdentity {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+#[record(write_scope = crate::type_identity::write_under_own_numbering)]
 pub struct TypedTrees {
     pub identity: ProgramIdentity,
     pub product_declaration_frontier: Option<std::sync::Arc<TypedTrees>>,
@@ -1850,6 +1851,7 @@ pub use language_semantics::declaration_selection::{
 pub use names::{identity, name};
 pub use snapshot::TypedTreesSnapshot;
 pub use type_system::type_predicates::ProvenTypeContext;
+pub use type_system::type_predicates::StaticBooleanMemo;
 pub use type_system::{CaseMembershipTypeFacts, closed_numeric, types};
 pub use values::const_integer;
 pub use values::expression;

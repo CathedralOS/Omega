@@ -2288,6 +2288,11 @@ mod scalar_values {
                     }
                     match self.program.statement_table.transition_target(target) {
                         TransitionTargetNode::Value(source) => {
+                            if let Some(returned) =
+                                self.returned_machine_call(*source, symbols, values)
+                            {
+                                return returned;
+                            }
                             let role = if continuation {
                                 ExpressionRole::ContinuationReturn
                             } else {
@@ -2384,6 +2389,98 @@ mod scalar_values {
                         }
                         TransitionTargetNode::Terminal => None,
                     }
+                }
+            }
+
+            impl<'capture> NormalReturnCapture<'capture, '_> {
+                /*
+                    An arm that returns a call to another checked machine, as
+                    `true -> outside()` or `_ -> inside(value)` returning a
+                    nested machine's result, returns that machine's normal
+                    value. Its scalar arguments are literals or values already
+                    bound on this path, so the callee is captured under them.
+                    `None` means the arm is not such a call; `Some(None)`
+                    withholds the capture, as an unlowered return does.
+                */
+                fn returned_machine_call<Value: CapturedValue>(
+                    &mut self,
+                    source: ExpressionHandle,
+                    symbols: &[SymbolHandle],
+                    values: &CallValues<Value>,
+                ) -> Option<Option<CapturedReturns<Value>>> {
+                    let program = self.program;
+                    let typed_trees::expression::ExpressionNode::Call(call) =
+                        program.expression_table.expression(source)
+                    else {
+                        return None;
+                    };
+                    Some((|| {
+                        if call.receiver.is_valid()
+                            || !call.machine_arguments.is_empty()
+                            || !call.selects_only_nominal_route()
+                        {
+                            return None;
+                        }
+                        let entry = validation::call_target_entry_symbol(
+                            program,
+                            validation::call_target_symbol(program, call),
+                        );
+                        let machine = program.machine_holding_state(entry)?;
+                        if !machine.body_is_present
+                            || machine.supply_mode
+                                != language_semantics::MachineSupplyMode::CheckedBody
+                            || !machine.owned_data.is_empty()
+                        {
+                            return None;
+                        }
+                        let state = program.machine_states(machine).first()?;
+                        if state.symbol != entry {
+                            return None;
+                        }
+                        let parameters = program.state_parameters(state);
+                        let arguments = program.expression_table.expression_handles(call.arguments);
+                        if parameters.len() != arguments.len() {
+                            return None;
+                        }
+                        let mut target_symbols = Vec::with_capacity(parameters.len());
+                        let mut delivered = CallValues {
+                            bindings: Vec::with_capacity(parameters.len()),
+                            storage: Vec::new(),
+                            fields: Vec::new(),
+                        };
+                        for (parameter, argument) in parameters.iter().zip(arguments) {
+                            if parameter.relevance.is_erased()
+                                || parameter.is_const
+                                || parameter.is_mutable
+                                || !parameter.symbol.is_valid()
+                                || program
+                                    .primitive_type_reference(parameter.type_reference)
+                                    .is_none()
+                                || target_symbols.contains(&parameter.symbol)
+                            {
+                                return None;
+                            }
+                            let node = program.expression_table.expression(*argument);
+                            let value = match Value::literal(node) {
+                                Some(value) => Some(value),
+                                None => {
+                                    let typed_trees::expression::ExpressionNode::Name(path) = node
+                                    else {
+                                        return None;
+                                    };
+                                    let position =
+                                        symbols.iter().position(|symbol| *symbol == path.symbol)?;
+                                    values.bindings.get(position)?.clone()
+                                }
+                            };
+                            target_symbols.push(parameter.symbol);
+                            delivered.bindings.push(value);
+                        }
+                        let caller = std::mem::replace(&mut self.machine, machine);
+                        let returned = self.state(state, target_symbols, delivered);
+                        self.machine = caller;
+                        returned
+                    })())
                 }
             }
 
@@ -2732,7 +2829,7 @@ mod scalar_values {
             }
         }
 
-        pub(super) trait CapturedValue: Sized {
+        pub(super) trait CapturedValue: Sized + Clone {
             const REQUIRES_SELECTED_ARGUMENTS: bool;
             fn literal(expression: &ExpressionNode) -> Option<Self>;
             fn at_place(place: &CanonicalPlace, live: &LiveValues<'_, '_>) -> Option<Self>;

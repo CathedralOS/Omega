@@ -1273,7 +1273,7 @@
     ],
     "text": "requires",
     "source_path": "source/psi/parse/input.omg",
-    "implementation": "bootstrap/5_omega/parser.epsilon: finish_machine_parameters -> machine_header_end_token -> machine_header_keyword -> incomplete_root.",
+    "implementation": "bootstrap/interpreted/5_omega/parser.epsilon: finish_machine_parameters -> machine_header_end_token -> machine_header_keyword -> incomplete_root.",
     "role": "Source inspection and reference-model prediction. A native C verdict requires a completed observation."
   },
   "audit_producer_revision": "omega 0.1.0-dev (unrecorded; x86_64-pc-windows-msvc)",

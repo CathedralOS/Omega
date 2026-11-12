@@ -10,7 +10,7 @@
 . "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/seed_env.sh"
 
 # Bound Alpha-to-Beta edge subject. These are the same identities audited in
-# bootstrap/1_beta/AUDIT.md ("Bound subject") and independently decoded by
+# bootstrap/interpreted/1_beta/AUDIT.md ("Bound subject") and independently decoded by
 # tests/beta/compiler/root-audit.py. A digest here is an identity check that
 # the bytes being stamped are the audited ones; it is not a proof of the
 # compiler and does not replace reading that audit. Changing the source or
@@ -26,10 +26,10 @@ BETA_COMPILER_TAPE_SHA256=4b1572a5ce406fc5b194e047ac6c5c601c1860261933381443a08c
 require_beta_compiler_identity() {
   require_bound_identity "beta_compiler.beta" "$OMEGA_PATH_BETA_COMPILER_SOURCE" \
     "$BETA_COMPILER_SOURCE_SIZE" "$BETA_COMPILER_SOURCE_SHA256" \
-    "bootstrap/1_beta/AUDIT.md" || return $?
+    "bootstrap/interpreted/1_beta/AUDIT.md" || return $?
   require_bound_identity "beta_compiler_bytecode.tape" "$OMEGA_PATH_BETA_COMPILER_TAPE" \
     "$BETA_COMPILER_TAPE_SIZE" "$BETA_COMPILER_TAPE_SHA256" \
-    "bootstrap/1_beta/AUDIT.md" || return $?
+    "bootstrap/interpreted/1_beta/AUDIT.md" || return $?
 }
 
 materialize_beta_compiler() {

@@ -23,7 +23,7 @@ Governing contracts: [bootstrap contract](../../../bootstrap/CONTRACT.md),
 | Rust reference | Structurally complete, behaviorally open: 0 of 12 release rows closed when last measured (2026-09-24). Emitted binaries ran correctly; most failures were refusals to produce them. | [distance_to_completion](../measurements/distance_to_completion.md), [compiler_progress](../measurements/compiler_progress.md) — a month old; remeasure before relying on numbers |
 | C, Psi half (`source/psi/`) | Lexer, parser, multi-package resolver, typing, checking (difference-bound zones, arrivals, contracts, crash routes, termination, domains), ownership. 2,223,369 source bytes. No Terminal Psi production. | [source/psi/README.md](../../../source/psi/README.md) |
 | C, Omega half (`source/omega/`) | Request phases 0, 1, 2, 6 and the OCOUT encoder. 50,534 bytes. No realization, no backend. | [source/omega/README.md](../../../source/omega/README.md) |
-| D (`bootstrap/5_omega/`) | Parser covering the current C roots, a scalar `u8` compile slice, an Alpha encoder with labels/fixups, request phases 0/1/2/6. 569,920 bytes. | [bootstrap/5_omega/README.md](../../../bootstrap/5_omega/README.md) |
+| D (`bootstrap/interpreted/5_omega/`) | Parser covering the current C roots, a scalar `u8` compile slice, an Alpha encoder with labels/fixups, request phases 0/1/2/6. 569,920 bytes. | [bootstrap/interpreted/5_omega/README.md](../../../bootstrap/interpreted/5_omega/README.md) |
 | alpha_bootstrap backend in Rust | Not required and not present; Rust may report it as not implemented ([contract](../../../bootstrap/CONTRACT.md#selected-execution-chain)). | — |
 
 Rust is a comparator for everything up to Terminal Psi. Past Terminal Psi,
@@ -43,7 +43,7 @@ evaluator on Alpha). Recorded costs on macOS arm64:
 - Twelve small parser invocations: 2,951 s total, most of it Epsilon
   checking D itself ([omega-parser](../../../tests/bootstrap/omega-parser/README.md)).
 - The Epsilon edge accepts at most 4,194,252 bytes of source plus stdin
-  ([evaluator entry](../../../bootstrap/4_epsilon/EVALUATOR_ENTRY.md)). D is
+  ([evaluator entry](../../../bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md)). D is
   570 KB today and must grow to a full compiler; C's Psi half alone is
   already 2.2 MB, before Terminal Psi production, the backend and the
   library closure it imports. The cap is private capacity and can be
@@ -106,7 +106,7 @@ one layer to completion before the next exists.
 ### Why layers 8 and 9 are small
 
 Alpha has no host ABI or object format and has 256 registers, but its
-[`call` and `ret`](../../../bootstrap/0_alpha/SEMANTICS.md#5-transition-rules)
+[`call` and `ret`](../../../bootstrap/interpreted/0_alpha/SEMANTICS.md#5-transition-rules)
 use an explicit downward return-address stack. The compiler still needs a
 calling plan for parameters and results, activation-relative memory homes,
 preservation of values live across calls, and bounded, disjoint activation

@@ -9,8 +9,8 @@ to another independent tape and runs the Epsilon-written bootstrap compiler.
 No variant is selected by this experiment.
 
 The source construction starts from the checked-in native
-[Alpha seed](../0_alpha/README.md), the separately admitted
-[Beta compiler tape](../1_beta/AUDIT.md), and the host OS. It stamps that tape
+[Alpha seed](../interpreted/0_alpha/README.md), the separately admitted
+[Beta compiler tape](../interpreted/1_beta/AUDIT.md), and the host OS. It stamps that tape
 into Alpha, reconstructs Beta from its source, and uses the reconstructed Beta
 compiler to construct the Gamma evaluator from Beta source. Both tapes must
 match their bound artifacts exactly. The constructed Gamma evaluator then runs
@@ -88,7 +88,7 @@ artifact untouched. Successful compilation replaces it atomically.
 
 ## Meaning and storage
 
-[`../2_gamma/LANGUAGE.md`](../2_gamma/LANGUAGE.md) governs the source language.
+[`../2_gamma/LANGUAGE.md`](../interpreted/2_gamma/LANGUAGE.md) governs the source language.
 The compiler validates every function and both branches before publishing code.
 It supports wrapping words, checked scalar boundaries, immutable pairs,
 sequential grouped bindings, mutually visible functions, proper tail calls,
@@ -380,3 +380,98 @@ the tape has SHA-256
 The retained runtime fixture now includes that refusal as its 26th case. Earlier
 full and focused observations retain their own compiler identities; they are
 not reported as reruns on these final bytes.
+
+## Records and scoped references toward SourceUnit
+
+`--omega-storage` compiles the actual SourceId, SourceUnit and
+`source_unit_clear` declarations, followed by a small caller, and executes the
+result. The bootstrap compiler now has checked record storage, copy-value
+transport, field writes, scoped shared/mutable reference parameters, independent
+Unit completion and a bounded default-domain solver. Its detailed supported
+semantics and refusals remain in [the compiler contract](../interpreted/5_omega/README.md).
+This closes one actual successor helper; indexed SourceUnit append/read and the
+complete Omega compiler remain unfinished. The integrated compiler source grows
+from 645,486 to 706,044 bytes (60,558 bytes, about 9.4%), including the shared
+parser extensions. This is the audit cost of generic record/place support, not
+a claim that the complete construction is now smaller or optimal.
+
+The first successful source-owned clear observation took 234.069 seconds. It
+used compiler 699,956 bytes,
+`de2a5daf3598b488d91fdd5581a29a9354bdacad974fd1e0c0d467345b32f236`,
+and complete Epsilon source 702,129 bytes,
+`3f153e4867db19bfe543e3881129061a798ff51b64fe62826823f73b7c1173cd`.
+The exact 780-byte Omega program had SHA-256
+`dd163843c7ab778f828e1ae384a2bbb2e78fef125b036045b9c36ba70c6ed2d0`.
+Its 1,206-byte Alpha tape,
+`9226c731f5b9ede9eab633ffd240f3f07b9fe7dfea50fa406676f6478c8eb1a6`,
+executed with exit 42 and empty output. The caller first establishes a SourceUnit,
+sets length/retention fields, then checks the helper's three field updates.
+It does not yet execute a nonzero array-element preservation check.
+
+A separate focused storage invocation passed in 698.231 seconds: shared reads,
+copy independence under field mutation, zero/mutable scalar locals, thirteen
+refusal cases and compiler reuse. Its exact Epsilon source was 704,912 bytes,
+`5d505a3a9ba0b39e0887aad3810c4991141703082abb25be2737c29aec21e0cb`.
+All five tapes executed with exits 44, 45, 0, 2 and 59 and empty output.
+The 1,382-byte observation,
+`73fe5a3f8a033b3a2d5bb5293a54805a97cc83ca7fedffa2e7dd0ce7ed8fff2e`,
+also matched the existing independent Epsilon model byte for byte. That model
+was a development comparison, not part of the source-owned construction.
+Both observations used the already source-constructed Epsilon tape
+`5f12d53066179df5e92929ab7a41933a2ed3c0234400d9c7b3cda8718a469c12`.
+Later nested-literal parsing and additional refusal repairs have separate source
+identities; these observations are not promoted to validation of later bytes.
+
+Failures remain useful evidence: an initial Epsilon source check caught a local
+name shadowing a machine parameter; a later Omega refusal at byte 243 exposed
+an inherited scalar-only parameter flag check on `&mut SourceUnit`. Both were
+repaired without rewriting the actual helper. A prior unlocated refusal does
+not establish a cause. The Rust development comparator independently refused
+`SourceId { value: 77 as +Trapping }` because its domain pass did not use the
+field's expected carrier. This is a comparator limitation against the specified
+contextual landing rule, not evidence authorizing implicit qualification; the
+exact source remains retained while that separate compiler repair proceeds.
+
+On the later 706,044-byte compiler
+`9f6abccac3ceab338541d78a77e912388146a51e3d60f0ebd326013cec670baa`,
+the independent Epsilon model completed the retained storage fixture in 19.222
+seconds. Its complete source was 714,065 bytes,
+`77f05d47606f51828a04fc98e21999c13d540d15d7acfb0882b59684fe77d2e1`;
+the 5,162-byte observation had SHA-256
+`abea3e5f8b8e983f909974ccbaee614979c531027682a942eb54fb0cfc64726d`.
+All nine development-produced tapes executed with the expected exits
+42, 43, 44, 45, 46, 0, 2, 48 and 59. Sixteen refusals include a later overlapping
+read, nested invariant violation, carrier-invalid requirement bound, unsupported
+array equivalence and compiler reset. This is development evidence only;
+source-owned execution of this final expanded storage fixture is recorded separately.
+
+
+The final 59-invocation parser customer passed through the same source-built
+Epsilon executable in 2,396.104 seconds on Linux x86-64. The exact 744,089-byte
+source had SHA-256
+`b5c761c1711dbf9c210d5aab44fc4255c8e8bff85b787f79377ce4c1872df40c`,
+joining compiler `9f6abccac3ceab338541d78a77e912388146a51e3d60f0ebd326013cec670baa`
+with the 38,045-byte entry
+`50ec5053fd956e9291355246b64d741da8914130767538877e25599b33112385`.
+Native status was zero, stderr empty and the exact observation was
+`000000000041` (Epsilon Exit(0), then `A`). The retained checks include actual
+SourceUnit rows, borrow-before-cast ownership, nested and returned records,
+field calls preserving outer arguments, bounded-context refusal and reset.
+All compiler and fixture bytes were checked against Git
+`d1ebbb8e459e879f296a0abbb95ed963934aee77`; captured transport/runtime identities
+were unchanged after execution. No interrupted run or timeout supplied this result.
+
+Final source-owned storage acceptance also passed on that frozen compiler and
+Git revision: 1,750.770 seconds for the Epsilon invocation, native status zero,
+empty stderr, and the exact 5,162-byte observation shown above. Every retained
+refusal asserted an empty, unfinalized tape; all nine published artifacts then
+executed with their expected exits and empty output. The actual SourceUnit
+customer remained the same 780 bytes throughout. These wall times describe
+individual runs on a shared host, not a controlled performance comparison.
+
+The separately repaired Rust development comparator
+`37b4f2188d46c0e12096a3dcfc6af629d124706d6c6050dacfb9a99bc6e61518`
+subsequently accepted that unchanged SourceUnit source through checked lowering
+and CanonicalTerminalArtifact in 320.101 seconds. This supplies independent
+admission/lowering correspondence, not native/Psi runtime evidence or a semantic
+stage in the bootstrap chain.

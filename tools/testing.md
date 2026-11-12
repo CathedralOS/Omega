@@ -190,6 +190,12 @@ before optimized code generation. CLI-only requests do not prepare the harness.
 Relevant toolchain, host, jobs, flags and profile inputs are retained; credentials
 and the full process environment are never captured.
 
+Rust compiler preparation commands have a one-hour wall-clock limit. Checking
+and execution commands keep their 30-minute limit; fixture and Psi work limits are
+unchanged. Each command receipt records its limit and whether it timed out.
+A timed-out child is stopped and reaped, with cleanup errors and the original
+stdout and stderr retained for diagnosis.
+
 `--cli` and `--runner` cannot authenticate an arbitrary supplied executable and
 therefore refuse. Use the current-source builder. Cargo/mbx may reuse compatible
 objects, but it still checks the current source and emits the artifact receipts.
@@ -408,14 +414,15 @@ means observable behavior moved; `--record` re-pins the golden when the
 movement is intended.
 
 Pull requests no longer edit that file. The post-merge check publishes the
-ledger it measured as the asset `corpus_outcomes.txt` of the release
-`corpus-ledger`. When a copy is at `build/corpus-ledger/corpus_outcomes.txt`,
+ledger it measured on the project site, at
+<https://cathedralos.github.io/Omega/corpus/corpus_outcomes.txt>,
+with `measured.txt` beside it naming the commit it was measured at. When a copy is at `build/corpus-ledger/corpus_outcomes.txt`,
 `cargo xtask corpus` compares with it and says so; otherwise it compares with
 the file in the repository. `--record` and `--golden` are unaffected. Fetch
 the copy with:
 
 ```bash
-gh release download corpus-ledger --pattern corpus_outcomes.txt --dir build/corpus-ledger --clobber
+curl -fsSL --create-dirs -o build/corpus-ledger/corpus_outcomes.txt https://cathedralos.github.io/Omega/corpus/corpus_outcomes.txt
 ```
 
 ```bash
@@ -1630,8 +1637,11 @@ A Claude Code cloud session starts in a fresh container with nothing built, and
 `mbx build -p omega` there takes about 11 minutes (688 s measured on a 4-CPU
 container, 2026-11-11). The `Warm build` workflow builds main's compiler in a
 container set up like a session and publishes the build directory, about
-270 MB compressed, on the `warm-build-linux-x86_64` prerelease. The
-SessionStart hook in `.claude/settings.json` runs
+270 MB compressed, to the GitHub Container Registry as
+`ghcr.io/cathedralos/omega-warm-build:<slot>` (`primary` and `worker`), not as a
+release: releases are the product that installers resolve. A session's
+environment must allow `ghcr.io` and its blob host
+`pkg-containers.githubusercontent.com`. The SessionStart hook in `.claude/settings.json` runs
 `bash tools/warm_build.sh session-start`, which unpacks it into the primary
 checkout's `target/` and into `.agents/worktree/worker-1/target` before the
 session's first command. Measured on the same container with the archives CI

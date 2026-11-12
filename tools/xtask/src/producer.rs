@@ -4,6 +4,7 @@ use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::Duration;
 
 use serde_json::{Value, json};
 
@@ -233,7 +234,10 @@ fn build(
         .env("CARGO_PROFILE_TEST_OPT_LEVEL", "1")
         .env("CARGO_UNSTABLE_CHECKSUM_FRESHNESS", "true")
         .env("CARGO_BUILD_FINGERPRINT", "content");
-    let status = execution::run(&mut command, directory, name)?;
+    // A cold optimized build can outlast the selected programs. Give preparation
+    // its own bound without changing checking, runtime, or proof budgets.
+    let status =
+        execution::run_with_timeout(&mut command, directory, name, Duration::from_secs(3600))?;
     if !status.success() {
         return Err(format!("{name} failed; see retained build stderr"));
     }

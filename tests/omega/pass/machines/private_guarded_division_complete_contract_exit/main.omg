@@ -1,0 +1,42 @@
+// Expected exit: 0
+// Complete outer contracts require the guards to work for every input,
+// independently of the concrete calls made by main.
+machine quotient(left: i64, right: i64) -> i64
+requires true
+{
+    transition right != 0 && (left != (-9223372036854775808) || right != (-1)) {
+        true -> divided(left, right)
+        false -> 0
+    }
+    machine divided(left: i64, right: i64) -> i64 { left / right }
+}
+
+machine unsigned_quotient(divisor: u64) -> u64
+requires true
+{
+    let nonzero: bool = divisor != 0u64;
+    classify(nonzero, divisor)
+
+    machine classify(nonzero: bool, divisor: u64) -> u64 {
+        transition nonzero {
+            true -> divided(divisor)
+            false -> 0u64
+        }
+    }
+    machine divided(divisor: u64) -> u64 { 64u64 / divisor }
+}
+
+machine main() crashes Trap {
+    let ordinary: i64 = quotient(84, 7);
+    let zero: i64 = quotient(84, 0);
+    let excluded: i64 = quotient((-9223372036854775808), (-1));
+    let unsigned_ordinary: u64 = unsigned_quotient(8);
+    let unsigned_zero: u64 = unsigned_quotient(0);
+    transition ordinary == 12 && zero == 0 && excluded == 0
+        && unsigned_ordinary == 8 && unsigned_zero == 0
+    {
+        true -> {}
+        false -> bad()
+    }
+    machine bad() crashes Trap { crash Trap; }
+}

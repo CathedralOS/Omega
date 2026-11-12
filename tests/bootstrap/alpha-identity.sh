@@ -36,7 +36,7 @@ stamp_seed "$TMP/probe.tape" "$TMP/corrupt-seed" "$TMP/refused" \
   2>"$TMP/corrupt.err" || rc=$?
 [ "$rc" = 3 ] ||
   fail "corrupted seed: expected exit 3, got $rc"
-grep -q 'bootstrap/0_alpha/README.md' "$TMP/corrupt.err" ||
+grep -q 'bootstrap/interpreted/0_alpha/README.md' "$TMP/corrupt.err" ||
   fail "corrupted seed: refusal did not cite the retention inventory"
 [ ! -e "$TMP/refused" ] ||
   fail "corrupted seed: destination was written"
@@ -60,7 +60,7 @@ stamp_seed "$TMP/probe.tape" "$TMP/appended-seed" "$TMP/refused-appended" \
   2>"$TMP/appended.err" || rc=$?
 [ "$rc" = 3 ] ||
   fail "appended seed: expected exit 3, got $rc"
-grep -q 'bootstrap/0_alpha/README.md' "$TMP/appended.err" ||
+grep -q 'bootstrap/interpreted/0_alpha/README.md' "$TMP/appended.err" ||
   fail "appended seed: refusal did not cite the retention inventory"
 [ ! -e "$TMP/refused-appended" ] ||
   fail "appended seed: destination was written"
@@ -90,7 +90,7 @@ for other in alpha_arm64_macos alpha_x64_linux alpha_x64_windows.exe; do
     2>"$TMP/substitute-$other.err" || rc=$?
   [ "$rc" = 3 ] ||
     fail "substituted seed $other: expected exit 3, got $rc"
-  grep -q 'bootstrap/0_alpha/README.md' "$TMP/substitute-$other.err" ||
+  grep -q 'bootstrap/interpreted/0_alpha/README.md' "$TMP/substitute-$other.err" ||
     fail "substituted seed $other: refusal did not cite the retention inventory"
   [ ! -e "$TMP/refused-$other" ] ||
     fail "substituted seed $other: destination was written"
@@ -104,7 +104,7 @@ for other in alpha_arm64_macos alpha_x64_linux alpha_x64_windows.exe; do
   fi
   rc=0
   require_bound_identity "$other" "$TMP/corrupt-$other" \
-    "$OTHER_SIZE" "$OTHER_SHA256" "bootstrap/0_alpha/README.md" \
+    "$OTHER_SIZE" "$OTHER_SHA256" "bootstrap/interpreted/0_alpha/README.md" \
     2>"$TMP/corrupt-$other.err" || rc=$?
   [ "$rc" = 3 ] ||
     fail "corrupted $other: expected exit 3, got $rc"
@@ -115,7 +115,7 @@ for other in alpha_arm64_macos alpha_x64_linux alpha_x64_windows.exe; do
   head -c $((OTHER_SIZE - 1)) "$OTHER_SEED" > "$TMP/truncated-$other"
   rc=0
   require_bound_identity "$other" "$TMP/truncated-$other" \
-    "$OTHER_SIZE" "$OTHER_SHA256" "bootstrap/0_alpha/README.md" \
+    "$OTHER_SIZE" "$OTHER_SHA256" "bootstrap/interpreted/0_alpha/README.md" \
     2>/dev/null || rc=$?
   [ "$rc" = 3 ] ||
     fail "truncated $other: expected exit 3, got $rc"
@@ -125,7 +125,7 @@ for other in alpha_arm64_macos alpha_x64_linux alpha_x64_windows.exe; do
   printf 'tail' >> "$TMP/appended-$other"
   rc=0
   require_bound_identity "$other" "$TMP/appended-$other" \
-    "$OTHER_SIZE" "$OTHER_SHA256" "bootstrap/0_alpha/README.md" \
+    "$OTHER_SIZE" "$OTHER_SHA256" "bootstrap/interpreted/0_alpha/README.md" \
     2>/dev/null || rc=$?
   [ "$rc" = 3 ] ||
     fail "appended $other: expected exit 3, got $rc"

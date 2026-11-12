@@ -22,8 +22,10 @@ use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
 use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
+mod entry_inputs;
 mod guard_contradiction;
 mod ranges;
+mod references;
 mod type_parameters;
 mod value_parameters;
 
@@ -160,6 +162,7 @@ fn lower(machines: Vec<Machine>) -> Checked<structure_elaboration::Elaboration> 
         signatures.push(Signature {
             parameters,
             erased: machine.erased,
+            borrowed: Vec::new(),
             result: Some(machine.result.into()),
             requires: machine.requires,
             ensures: machine.ensures,
@@ -183,6 +186,7 @@ fn rejected(machines: Vec<Machine>) -> Vec<UnprovedObligation> {
         RouteVerdict::Rejected {
             unproved,
             unestablished,
+            ..
         } if unestablished.is_empty() => unproved,
         verdict => panic!("the program must be rejected: {verdict:?}"),
     }
@@ -1364,6 +1368,7 @@ fn elaborate_over(
         signatures.push(Signature {
             parameters: machine.parameters,
             erased: Vec::new(),
+            borrowed: Vec::new(),
             result: Some(machine.result),
             requires: machine.requires,
             ensures: Vec::new(),
@@ -2121,6 +2126,7 @@ fn the_verdict_rejects_a_program_with_an_unestablished_use() {
     let RouteVerdict::Rejected {
         unproved,
         unestablished,
+        ..
     } = judge(Ok(elaboration)).unwrap()
     else {
         panic!("a program that reads unestablished storage must be rejected");
@@ -2150,6 +2156,7 @@ fn the_verdict_rejects_a_closure_elaboration_refused_as_unestablished() {
     let RouteVerdict::Rejected {
         unproved,
         unestablished,
+        ..
     } = judge(Err(refused)).unwrap()
     else {
         panic!("an unestablished closure must be rejected");
@@ -4477,6 +4484,7 @@ fn a_value_consumed_while_its_window_is_open_rejects_naming_the_write_and_the_us
         let RouteVerdict::Rejected {
             unproved,
             unestablished,
+            ..
         } = judge(Ok(fresh)).unwrap()
         else {
             panic!("a value consumed inside an open window must be rejected");
@@ -4736,6 +4744,7 @@ fn a_store_to_a_sibling_field_does_not_close_a_window_of_another_clause() {
     let RouteVerdict::Rejected {
         unproved,
         unestablished,
+        ..
     } = judge(Ok(fresh)).unwrap()
     else {
         panic!("the window is still open at the call");
@@ -4930,6 +4939,7 @@ fn a_gated_local_established_field_by_field_is_a_value_once_its_requires_holds()
     let RouteVerdict::Rejected {
         unproved,
         unestablished,
+        ..
     } = judge(Ok(fresh)).unwrap()
     else {
         panic!("a gated value used before it is established must be rejected");
@@ -5584,6 +5594,7 @@ mod generic_bodies {
             signatures.push(Signature {
                 parameters,
                 erased: Vec::new(),
+                borrowed: Vec::new(),
                 result: Some(machine.result.into()),
                 requires: machine.requires,
                 ensures: machine.ensures,
@@ -5909,6 +5920,7 @@ fn crashing_below_ten(
     signatures.push(Signature {
         parameters: vec![u32_type().into()],
         erased: Vec::new(),
+        borrowed: Vec::new(),
         result: Some(u32_type().into()),
         requires: Vec::new(),
         ensures: Vec::new(),
@@ -5995,6 +6007,7 @@ fn crashing_at_zero(requires: Vec<Proposition>) -> (structure_elaboration::Elabo
     signatures.push(Signature {
         parameters: vec![u32_type().into()],
         erased: Vec::new(),
+        borrowed: Vec::new(),
         result: Some(u32_type().into()),
         requires,
         ensures: Vec::new(),
@@ -6046,6 +6059,7 @@ fn calling_a_zero_route(
     signatures.push(Signature {
         parameters: vec![u32_type().into()],
         erased: Vec::new(),
+        borrowed: Vec::new(),
         result: Some(u32_type().into()),
         requires,
         ensures: Vec::new(),
@@ -6066,6 +6080,7 @@ fn calling_a_zero_route(
     signatures.push(Signature {
         parameters: vec![u32_type().into()],
         erased: Vec::new(),
+        borrowed: Vec::new(),
         result: Some(u32_type().into()),
         requires: Vec::new(),
         ensures: Vec::new(),
@@ -6164,6 +6179,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
         signatures.push(Signature {
             parameters: vec![u32_type().into()],
             erased: Vec::new(),
+            borrowed: Vec::new(),
             result: Some(u32_type().into()),
             requires: Vec::new(),
             ensures: Vec::new(),
@@ -6184,6 +6200,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
         signatures.push(Signature {
             parameters: vec![u32_type().into()],
             erased: Vec::new(),
+            borrowed: Vec::new(),
             result: Some(u32_type().into()),
             requires: Vec::new(),
             ensures: Vec::new(),

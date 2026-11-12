@@ -26,7 +26,7 @@ It remains outside the default gate, with a 7,200-second host watchdog. This is
 one exact refusal control, not profiling infrastructure or a language limit.
 It must return status 2, empty stderr, and only the 40-byte DCOUT resource-12
 frame: payload coordinate and limit 16,777,212, requested 477,934,574.
-The [source-level count and capture argument](../../../bootstrap/3_delta/implementation/normalization/README.md#full-width-payload-refusal)
+The [source-level count and capture argument](../../../bootstrap/interpreted/3_delta/implementation/normalization/README.md#full-width-payload-refusal)
 derives that complete requested count independently of compiler output.
 This case tests whether compilation reaches canonical refusal within the
 selected evaluator, not whether the oversized artifact should be published.
@@ -162,7 +162,7 @@ must reject its own missing coverage at its expression start. Source lengths,
 SHA256 identities, literal coordinate anchors, and all 40 output bytes are
 fixed independently of compiler output.
 
-The [Delta language](../../../bootstrap/3_delta/LANGUAGE.md) defines an immutable exact-name coverage set local to each match and
+The [Delta language](../../../bootstrap/interpreted/3_delta/LANGUAGE.md) defines an immutable exact-name coverage set local to each match and
 permits arbitrary authored arm order. The separate global constructor limit
 admits at most 65,536 constructors. Consequently, a fresh 65,537th same-owner
 coverage member cannot arise: an extra pattern instead encounters constructor
@@ -285,7 +285,7 @@ that exceeded the selected evaluator's retired 40,265,318-pair provision; the
 current profile allocates 3,422,453,760 immutable pairs. This was
 heap exhaustion, not a canonical compiler `Incomplete` response.
 
-The [compact name representation](../../../bootstrap/3_delta/implementation/checking/names/README.md)
+The [compact name representation](../../../bootstrap/interpreted/3_delta/implementation/checking/names/README.md)
 uses one pair for each unary nonterminal node and preserves the existing
 branch/terminal representation. The same request compiled to 4,001,420 bytes
 with SHA256
@@ -341,7 +341,7 @@ compiles count too. Measured at scaled sizes on this host:
 Summing each family's fitted rate evaluated at its admitted extent projects
 417,063,339 pairs for a maximal-admitted-shape compile — 8.2× below the
 3,422,453,760-pair arena of the selected profile
-(`bootstrap/2_gamma/EVALUATOR_PROFILE.md`). The full-width reconstruction's
+(`bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md`). The full-width reconstruction's
 capture-chain regime is bounded separately: the documented
 `(origin, ancestor cut)` incidence count at `W = 65,535` (16,909,062
 captures) at the audited per-collection merge charge projects under the

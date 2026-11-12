@@ -398,3 +398,146 @@ pub(super) fn inspect_captures(artifact: &CanonicalTerminalArtifact) -> Result<(
     }
     Ok(())
 }
+
+/// Keep the acquisition join on the real helper's conditional contract. The
+/// executable helper and its ordinary wrapper already have independent retained
+/// applications; the wrapper need not duplicate its callee's local carry rows.
+pub(super) fn inspect_conditional_carry(
+    artifact: &CanonicalTerminalArtifact,
+) -> Result<(), String> {
+    use language_semantics::{
+        ScopedPermissionClaimIdentity as Claim, ScopedPermissionEventSource as Source,
+        ScopedPermissionProvenance as Provenance,
+    };
+    let module = artifact.semantic_module();
+    let (helper, crossing, arrival) = module
+        .machines
+        .iter()
+        .enumerate()
+        .find_map(|(helper, machine)| {
+            let application = machine.closed_reach_application.as_ref()?;
+            application
+                .conditional_carry
+                .iter()
+                .enumerate()
+                .find_map(|(crossing, row)| {
+                    row.claims
+                        .iter()
+                        .position(|claim| matches!(claim.provenance, Provenance::Joined { .. }))
+                        .map(|arrival| (helper, crossing, arrival))
+                })
+        })
+        .ok_or("conditional carry controls need a real acquired claim")?;
+    let requirement = &application_of(module, helper).conditional_carry[crossing];
+    let claim = &requirement.claims[arrival];
+    let Claim::Established {
+        machine_symbol,
+        state_symbol,
+        source: Source::Statement { statement_index },
+        ordinal,
+    } = &claim.claim_identity
+    else {
+        return Err("acquired claim lost its receiving statement identity".into());
+    };
+    let Provenance::Joined {
+        machine_symbol: acquisition_machine,
+        state_symbol: acquisition_state,
+        source:
+            Source::Call {
+                statement_index: acquisition_statement,
+                call_ordinal,
+                target_symbol,
+            },
+        ordinal: acquisition_ordinal,
+    } = &claim.provenance
+    else {
+        return Err("acquired claim lost its call-result join".into());
+    };
+    if machine_symbol != "retain_claim"
+        || state_symbol != "retain_claim::entry"
+        || acquisition_machine != machine_symbol
+        || acquisition_state != state_symbol
+        || acquisition_statement != statement_index
+        || *statement_index != 0
+        || *call_ordinal != 0
+        || acquisition_ordinal != ordinal
+        || target_symbol != "acquire::entry"
+        || requirement.condition.concrete
+        || requirement.condition.parameters != [0]
+    {
+        return Err(format!(
+            "acquired claim differs from its exact source scope: {claim:?}"
+        ));
+    }
+    let wrapper = module
+        .machines
+        .iter()
+        .find(|machine| {
+            machine
+                .closed_reach_application
+                .as_ref()
+                .is_some_and(|application| {
+                    module
+                        .identities
+                        .text(application.template_identity)
+                        .is_some_and(|identity| identity.contains("::forward_claim|"))
+                })
+        })
+        .ok_or("conditional carry controls need the renamed ordinary wrapper")?;
+    if !wrapper
+        .module_invocations()
+        .any(|call| call.inputs.callee == module.machines[helper].id)
+    {
+        return Err("ordinary wrapper lost its retained helper invocation".into());
+    }
+    let helper_callback = application_of(module, helper).parameter(0);
+    let wrapper_callback = wrapper
+        .closed_reach_application
+        .as_ref()
+        .unwrap()
+        .parameter(0);
+    if helper_callback != wrapper_callback {
+        return Err("ordinary wrapper changed the selected published callback".into());
+    }
+    for mutation in [
+        "removed claim",
+        "receiving ordinal",
+        "acquisition ordinal",
+        "acquisition target",
+    ] {
+        let mut bad = module.clone();
+        let claims = &mut application_of_mut(&mut bad, helper).conditional_carry[crossing].claims;
+        if mutation == "removed claim" {
+            claims.remove(arrival);
+        } else if mutation == "receiving ordinal" {
+            let Claim::Established { ordinal, .. } = &mut claims[arrival].claim_identity else {
+                unreachable!()
+            };
+            *ordinal += 1;
+        } else {
+            let Provenance::Joined {
+                source:
+                    Source::Call {
+                        call_ordinal,
+                        target_symbol,
+                        ..
+                    },
+                ..
+            } = &mut claims[arrival].provenance
+            else {
+                unreachable!()
+            };
+            if mutation == "acquisition ordinal" {
+                *call_ordinal += 1;
+            } else {
+                target_symbol.push_str("::other");
+            }
+        }
+        super::reject_module_at_ingress(
+            &bad,
+            mutation,
+            "closed callback contract lost its dependency or conditional carry commitment",
+        )?;
+    }
+    Ok(())
+}
