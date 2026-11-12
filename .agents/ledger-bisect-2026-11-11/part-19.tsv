@@ -1,0 +1,17 @@
+fixture	class	first_diagnostic	cluster_id
+pass/facts/finite_family_exclusive_result/call_result	fixed		
+pass/facts/finite_family_exclusive_result/const_name	fixed		
+pass/facts/finite_family_exclusive_result/field	fixed		
+pass/facts/finite_family_exclusive_result/local	fixed		
+pass/facts/finite_family_exclusive_result/match_join	fixed		
+pass/facts/finite_family_exclusive_result/other_machine	fixed		
+pass/facts/finite_family_exclusive_result/other_state	fixed		
+pass/facts/finite_family_exclusive_result/parameter	fixed		
+pass/facts/finite_family_exclusive_result/target_body	fixed		
+pass/facts/static_callback_reach_evidence_scope	fixed		
+pass/generics/runtime_captured_map_two_method_tuples	fixed		
+run/calls/nested_static_implementation_shadow	fixed		
+pass/layouts/runtime_plan_laid_integer_at_proved_write_exit	still_broken	IntegerAt store in machine `guarded_write` state `entry` assignment requires a value proven to fit 8-bit signed storage	plan_laid_integer_at_proved_write
+pass/atomics/selected_reference_atomic_provider	fixed		
+fail/layouts/plan_laid_policy_without_plan_machine	fixed		
+pass/proofs/exhaustive_nonreturn_contract	fixed		
