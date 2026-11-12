@@ -10287,6 +10287,7 @@ pub(crate) mod collection_bounds {
                     (BinaryOperator::Less, index, length),
                 ]
             };
+            eprintln!("IXDBG required {required:?}");
             required.into_iter().all(|(operator, left, right)| {
                 matches!(
                     judge.judge_observed_predicate(
@@ -40796,7 +40797,9 @@ pub(crate) mod specification_calls {
         ) {
             let proven = (|| {
                 let indexed = program.expression_table.indexed_node(expression)?;
+                eprintln!("IXDBG indexed ok");
                 let reference = caller.expression_type(program, indexed.collection)?;
+                eprintln!("IXDBG reference ok");
                 let array_extent = if crate::fixed_array_type_extent(program, reference).is_some() {
                     let parameters = caller
                         .parameters(program)
@@ -40811,13 +40814,27 @@ pub(crate) mod specification_calls {
                     );
                     match crate::resolved_projected_array_extent(program, reference, source) {
                         Ok(extent) => Some(extent),
-                        Err(_) => return None,
+                        Err(e) => { eprintln!("IXDBG extent err {e:?}"); return None },
                     }
                 } else {
                     None
                 };
+                eprintln!("IXDBG extent {:?}", array_extent.is_some());
+                {
+                    let node = program.expression_table.expression(indexed.collection);
+                    eprintln!("IXDBG node {node:?}");
+                    if let typed_trees::expression::ExpressionNode::Name(path) = node {
+                        eprintln!("IXDBG valid {} kind {:?}", path.symbol.is_valid(), path.symbol.is_valid().then(|| program.symbols.get(path.symbol).kind));
+                        eprintln!("IXDBG stp {} emb {} anon {:?} case {}", program.static_type_predicate_operands(indexed.collection).is_some(),
+                          crate::proof_contracts::proof_embeddings::integer_embedding_argument(program, indexed.collection).is_some(),
+                          super::super::proof_integer::anonymous_integer_value(program, indexed.collection),
+                          super::super::structural_terms::case_classifier(program, indexed.collection).is_some());
+                    }
+                }
                 let collection = caller.term(program, indexed.collection, prior_facts.captures)?;
+                eprintln!("IXDBG term {collection:?}");
                 let judge = prior_facts.structural_judge(program, caller, arguments)?;
+                eprintln!("IXDBG judge ok");
                 Some(super::super::collection_bounds::proves_observed_bounds(
                     program,
                     &judge,
@@ -40826,9 +40843,12 @@ pub(crate) mod specification_calls {
                     array_extent.as_ref(),
                     collection,
                     |source| {
+                        let t = caller.term(program, source, prior_facts.captures);
+                        let r = caller.expression_type(program, source);
+                        eprintln!("IXDBG operand {t:?} {:?}", r.is_some());
                         Some((
-                            caller.term(program, source, prior_facts.captures)?,
-                            caller.expression_type(program, source),
+                            t?,
+                            r,
                         ))
                     },
                 ))
