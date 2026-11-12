@@ -32750,6 +32750,17 @@ pub(crate) mod write_frames {
                 symbols: &'request TopLevelSymbols<'symbols>,
             }
 
+            // Whether `Evaluation::expression` evaluates `node`'s children in
+            // order and then only completes it, when its value is not observed.
+            fn evaluates_children_then_completes(node: &ExpressionNode) -> bool {
+                !matches!(node, ExpressionNode::Match(_) | ExpressionNode::Call(_))
+                    && !matches!(
+                        node,
+                        ExpressionNode::Binary(binary)
+                            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
+                    )
+            }
+
             impl Evaluation<'_, '_> {
                 fn observe(
                     &self,
@@ -32787,6 +32798,54 @@ pub(crate) mod write_frames {
                     Some(result)
                 }
 
+                /*
+                    `expression` for a node whose value is not observed and
+                    that evaluates its children in order, then completes. Such
+                    nodes, the operators of a long chain among them, are
+                    walked from a stack this method owns, children before
+                    parents; any other node is evaluated by `expression`.
+                */
+                fn plain_expressions(
+                    &self,
+                    expression: ExpressionHandle,
+                    context: &mut CollectedStatementPrefix,
+                    effects: &mut SlotRelationTransfer,
+                    inference: &mut FrameInference,
+                    prefix: &SlotRelationTransfer,
+                    capture: &mut Capture,
+                ) -> Option<()> {
+                    let mut pending = vec![(expression, false)];
+                    let mut node_children = Vec::new();
+                    while let Some((expression, children_done)) = pending.pop() {
+                        if children_done {
+                            capture_completed(expression, prefix, effects, capture);
+                            continue;
+                        }
+                        if !expression.is_valid()
+                            || self.program.static_type_context_is_unreachable(expression)
+                        {
+                            continue;
+                        }
+                        let node = expression_table(self.program).expression(expression);
+                        if (capture.value_requested && expression == capture.expression)
+                            || !evaluates_children_then_completes(node)
+                        {
+                            self.expression(
+                                expression, context, effects, inference, prefix, capture, None,
+                            )?;
+                            continue;
+                        }
+                        pending.push((expression, true));
+                        crate::queries::expression_traversal::executable_children(
+                            self.program,
+                            node,
+                            |child| node_children.push(child),
+                        );
+                        pending.extend(node_children.drain(..).rev().map(|child| (child, false)));
+                    }
+                    Some(())
+                }
+
                 fn expression(
                     &self,
                     expression: ExpressionHandle,
@@ -32810,6 +32869,11 @@ pub(crate) mod write_frames {
                         return Some(());
                     }
                     let node = expression_table(self.program).expression(expression);
+                    if observed.is_none() && evaluates_children_then_completes(node) {
+                        return self.plain_expressions(
+                            expression, context, effects, inference, prefix, capture,
+                        );
+                    }
                     match node {
                         ExpressionNode::Match(dispatch) => {
                             self.expression(
