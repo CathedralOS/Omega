@@ -1,0 +1,16 @@
+// The caller requires this number to stay positive.
+// A helper that leaves it at zero must be rejected.
+// Expected rejection: a declared lender must satisfy Issued when its borrowed leaf returns.
+public data Ticket [copy] { number: u64; }
+public domain Ticket::Issued requires self.number > 0;
+public data Output<T> { body: T; }
+machine read_issued(ticket: &Ticket in Issued) -> u64 { ticket.number }
+machine finish<'storage>(mut output: Output<&'storage mut Ticket in Issued>) -> u64 {
+    output.body.number = 0;
+    0
+}
+machine main() {
+    let mut old_ticket: Ticket in Issued = Ticket { number: 5 };
+    let output: Output<&mut Ticket in Issued> = Output { body: &mut old_ticket };
+    let ignored: u64 = finish(output);
+}
