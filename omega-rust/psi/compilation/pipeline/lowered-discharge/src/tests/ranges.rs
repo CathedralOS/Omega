@@ -354,3 +354,101 @@ fn a_guard_that_an_order_between_two_values_admits_leaves_its_arm_owing() {
         assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
     }
 }
+
+fn sized(sign: IntegerSign, bits: u16) -> ScalarType {
+    ScalarType::Integer(IntegerType::new(sign, bits).unwrap())
+}
+
+fn cast(operand: Expression, target: ScalarType) -> Expression {
+    expression(ExpressionKind::Cast(Box::new(operand)), Some(target))
+}
+
+/// `return (a as target) + addend`, over one formal of type `from`.
+fn after_a_cast(
+    from: ScalarType,
+    requires: Vec<Proposition>,
+    target: ScalarType,
+    addend: IntegerValue,
+) -> Machine {
+    Machine {
+        requires,
+        result: target,
+        ..machine(
+            vec![from],
+            vec![returns(strict(
+                Strict::Add,
+                cast(slot(0, from), target),
+                literal(target, addend),
+            ))],
+        )
+    }
+}
+
+#[test]
+fn a_widening_cast_keeps_its_operands_bounds_in_the_wider_carrier() {
+    // a: u8 gives (a as u32) <= 255: no obligation of its own, and the add
+    // fits exactly up to MAX - 255.
+    let u8_type = sized(IntegerSign::Unsigned, 8);
+    let program = |addend| after_a_cast(u8_type, Vec::new(), u32_type(), addend);
+    let (elaboration, result) = run(vec![program(IntegerValue::Unsigned(MAX - 255))]);
+    let all = verdicts(&elaboration, &result, 1, safety);
+    assert_eq!(all.len(), 1, "a widening owes nothing");
+    assert_kernel_accepted(&elaboration, 1, all[0].0, certificate(all[0].1));
+    let (elaboration, result) = run(vec![program(IntegerValue::Unsigned(MAX - 254))]);
+    assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
+}
+
+#[test]
+fn a_narrowing_cast_owes_representability_and_carries_the_bound_across() {
+    // requires a <= 200; (a as u8) + 55 fits u8 only because the cast's
+    // result is still at most 200.
+    let u8_type = sized(IntegerSign::Unsigned, 8);
+    let program = |limit, addend| {
+        after_a_cast(
+            u32_type(),
+            vec![at_most(1, limit)],
+            u8_type,
+            IntegerValue::Unsigned(addend),
+        )
+    };
+    let (elaboration, result) = run(vec![program(200, 55)]);
+    let all = verdicts(&elaboration, &result, 1, safety);
+    assert_eq!(all.len(), 2, "the cast and the add each owe one");
+    for (obligation, verdict) in all {
+        assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    }
+    // One more and the add can leave u8.
+    let (elaboration, result) = run(vec![program(200, 56)]);
+    let all = verdicts(&elaboration, &result, 1, safety);
+    assert!(all[0].1.is_ok(), "the cast itself still fits");
+    assert_unproved(all[1].1);
+    // 256 is not a u8: the cast itself is unproved.
+    let (elaboration, result) = run(vec![program(256, 0)]);
+    assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
+}
+
+#[test]
+fn a_cast_across_signs_needs_the_missing_side_only() {
+    // a: i32 as u32 needs 0 <= a; a: u32 as i32 needs a <= i32::MAX.
+    let signed = |value: i128| bound(i32_type(), IntegerValue::Signed(value));
+    let to_unsigned =
+        |requires| after_a_cast(i32_type(), requires, u32_type(), IntegerValue::Unsigned(0));
+    let (elaboration, result) = run(vec![to_unsigned(vec![Proposition::LessOrEqual(
+        signed(0),
+        formal(1, i32_type()),
+    )])]);
+    for (obligation, verdict) in verdicts(&elaboration, &result, 1, safety) {
+        assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    }
+    let (elaboration, result) = run(vec![to_unsigned(Vec::new())]);
+    assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
+
+    let to_signed =
+        |requires| after_a_cast(u32_type(), requires, i32_type(), IntegerValue::Signed(0));
+    let (elaboration, result) = run(vec![to_signed(vec![at_most(1, i32::MAX as u128)])]);
+    for (obligation, verdict) in verdicts(&elaboration, &result, 1, safety) {
+        assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    }
+    let (elaboration, result) = run(vec![to_signed(Vec::new())]);
+    assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
+}

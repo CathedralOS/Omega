@@ -44,7 +44,7 @@ is an integer of the context's type reached with no fractional intermediate,
 any other such tree (fractional anywhere, out of range, or under an operator
 with no anonymous meaning) being refused; builtin `Exact` integer
 arithmetic, bitwise operations, shifts and comparisons; `!`, `~`, `&&` and
-`||`; direct calls of other such machines with `requires` clauses over their
+`||`; `as` between two integer carriers ([Casts](#casts)); direct calls of other such machines with `requires` clauses over their
 formals and `ensures` clauses over their formals and `result`; `crashes Trap`
 and `crashes Abort` clauses with or without route guards over the formals;
 `crashes none`; an integer `!=` in a clause, read as `a < b or b < a`, the
@@ -57,8 +57,8 @@ call statement), where it becomes the block's no-normal invocation.
 Everything else is refused with `RefusalReason::Unsupported` and a detail
 naming the construct (`expression match`, `type reference`, `call no-normal
 call inside an expression`, ...): a reference, slice, loop, recursion
-through a cycle, generic, callable value, suspension, assembly, cast, float,
-domain or service reach is never skipped, approximated or passed through. A
+through a cycle, generic, callable value, suspension, assembly, float,
+domain, cast that names a domain, or service reach is never skipped, approximated or passed through. A
 refusal anywhere in the compilation refuses the whole compilation.
 
 ### What one compilation elaborates
@@ -226,6 +226,27 @@ or by the parameter's own refusal (findings 29 to 32).
 
 A contract clause that is the literal `true` adds no clause: it asks and
 promises nothing, as an absent `requires` or `ensures` does.
+
+### Casts
+
+`operand as T` is read when both the operand's type and `T` are builtin
+integers and neither carries a domain
+([domains](../../../../../wiki/spec/language/domains.md#carrier-casts): "The
+operand of a carrier cast must carry no domain."). Lowering emits the one
+exact conversion the two carriers determine: `IntegerWiden` when every
+operand value is representable in `T` (a wider carrier of the same sign, or
+unsigned to a wider signed one), and otherwise `IntegerExactCast` with an
+`OperationSafety` obligation ("exact widening, or narrowing with
+representability proved"). A cast to the operand's own carrier converts
+nothing and is its operand.
+
+The reader decides from what the typed trees record, never from the cast's
+spelling: a recast (`CastForm::Recast`), a cast with a domain symbol, a cast
+into a `Wrapping`, `Saturating` or `Trapping` type, a target that is a
+constrained type, and an operand with no carrier of its own (an anonymous
+literal or rational expression, which the
+[numeric landing rules](../../../../../wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics)
+land) are each refused as `Unsupported`.
 
 ### Records
 
@@ -657,7 +678,7 @@ interpreter loads and runs both.
 
 | Kind | Where | Created at |
 | --- | --- | --- |
-| `OperationSafety` | each `Exact` add, subtract, multiply, divide, remainder, shift (every primitive whose `integer_policy_bridge` has formation conditions) | the point before the operation |
+| `OperationSafety` | each `Exact` add, subtract, multiply, divide, remainder, shift (every primitive whose `integer_policy_bridge` has formation conditions), and each cast that is not a widening | the point before the operation |
 | `CallRequirement` | one per callee `requires` clause per call, clause = position in the callee's canonical `requires` | the point before the call |
 | `PublishedGuarantee` | one per `ensures` clause, the identity `ContractClause` carries | the entry block |
 | `NormalGuarantee` | one per `ensures` clause per normal exit edge, naming its `PublishedGuarantee` | that edge |

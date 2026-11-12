@@ -363,6 +363,13 @@ pub enum ExpressionKind {
     },
     Not(Box<Expression>),
     BitwiseNot(Box<Expression>),
+    /// `operand as T` between two integer carriers, neither carrying a
+    /// domain: the operand, then the one exact conversion to `result`.
+    /// `wiki/spec/language/domains.md`, "Carrier casts": "`value as T`
+    /// changes the carrier through a unique exact compiler-derived
+    /// transformation: exact widening, or narrowing with representability
+    /// proved. The denoted value does not change."
+    Cast(Box<Expression>),
     /// `&&` when `conjunction`, else `||`: the right operand runs only when
     /// the left does not decide the result.
     ShortCircuit {

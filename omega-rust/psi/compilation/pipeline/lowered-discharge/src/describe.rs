@@ -247,6 +247,14 @@ fn operation_safety(
                 "shift count in {owner} is not provably below the operand width for `{carrier}`"
             )
         }
+        // In the current checker's words, so a pinned fragment of its
+        // diagnostic matches; the operand's carrier is not named because
+        // the operation row holds only the operand's value identity.
+        OperationKind::IntegerExactCast { .. } => format!(
+            "Exact integer cast in {owner} to `{carrier}` is not provably representable; \
+             constrain the source with a range or dominating guard, or use a named Wrapping, \
+             Saturating, or Trapping conversion"
+        ),
         OperationKind::ExactIntegerDivide { .. } => partial("division"),
         OperationKind::ExactIntegerRemainder { .. } => partial("remainder"),
         _ => format!("cannot prove operation safety in {owner}"),

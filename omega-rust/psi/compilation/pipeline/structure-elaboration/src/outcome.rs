@@ -231,9 +231,9 @@ impl Walk<'_> {
             ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) | ExpressionKind::Slot(_) => {
                 Ok(true)
             }
-            ExpressionKind::Not(operand) | ExpressionKind::BitwiseNot(operand) => {
-                self.expression(machine, operand)
-            }
+            ExpressionKind::Not(operand)
+            | ExpressionKind::BitwiseNot(operand)
+            | ExpressionKind::Cast(operand) => self.expression(machine, operand),
             ExpressionKind::Field { base, .. }
             | ExpressionKind::Payload { base, .. }
             | ExpressionKind::IsCase { subject: base, .. } => self.expression(machine, base),

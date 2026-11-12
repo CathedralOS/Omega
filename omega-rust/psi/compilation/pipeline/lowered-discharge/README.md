@@ -24,7 +24,7 @@ operations; [prove.rs](src/prove.rs) is the one prover.
 
 | Kind | Goal | Hypotheses available at its point |
 | --- | --- | --- |
-| `OperationSafety` | Terminal semantics' canonical goal for the operation (`proof_bearing_scalar_leaf_semantics`): representability of an exact add, subtract or multiply, a defined division or remainder, a shift count in range | entry `requires`, result equations of the operations before it, callee `ensures` after earlier calls |
+| `OperationSafety` | Terminal semantics' canonical goal for the operation (`proof_bearing_scalar_leaf_semantics`): representability of an exact add, subtract, multiply or cast, a defined division or remainder, a shift count in range | entry `requires`, result equations of the operations before it, callee `ensures` after earlier calls |
 | `CallRequirement` | the callee's `requires` clause at that position, its scalar formals replaced by the call's scalar actuals and each field of a record formal by the one value that field of the record actual holds at the call | the same, before the call |
 | `NormalGuarantee` | this machine's `ensures` clause at that position, with `result` replaced by the value that exit returns | the same, on the exit edge |
 | `DataDomain` | one clause of a data type's `requires`, with `self` replaced by the values the place holds once the owing operation completes ([Data `requires`](#data-requires)); when a store or a zero establishment leaves it unproved, the same clause over what the place holds at each consumption point the [invariant window](#invariant-windows) reaches open | the same, before the operation or the consumption point |
@@ -572,7 +572,10 @@ that is a value, cites the result equation as its only definition and lands
 the other operand on the earlier equation that fixes it to a literal, and the
 kernel replays the step on the root's bound. This is the range propagation
 that [required automatic discharge](../../../../../wiki/spec/proofs/contracts.md#required-automatic-discharge)
-asks of every checker. An unsigned remainder is also below a divisor known
+asks of every checker. A cast's result takes its operand's bounds restated
+in the result's carrier (`IntegerCastBound`), and an exact cast's
+representability goal is the operand's bound, restated over its mathematical
+value, against the target carrier's limit. An unsigned remainder is also below a divisor known
 positive, whatever the divisor is. A
 comparison closes by chaining the two sides' bounds through a closed literal
 relation. An arithmetic safety goal closes through `IntegerAffineBound`, whose

@@ -55,9 +55,9 @@ pub(crate) type Unproven = &'static str;
 /// Whether this prover has rules for `goal`'s form at all, decided from the
 /// form alone. It mirrors `Prover::prove_direct`: truth and falsehood,
 /// conjunctions and disjunctions of covered parts, an implication whose
-/// conclusion is covered, integer orders and
-/// equalities, and an arithmetic bound of an add, subtract, multiply or
-/// left shift against a literal. Anything else the prover can only take from an equal
+/// conclusion is covered, integer orders and equalities, and an arithmetic
+/// bound of an add, subtract, multiply, left shift or single value against a
+/// literal. Anything else the prover can only take from an equal
 /// hypothesis, so a failure on it says nothing about the program: it is
 /// `UnprovedCause::NoRuleForGoalForm`, published `Incomplete`, not
 /// `NoDerivation`.
@@ -80,6 +80,7 @@ pub(crate) fn has_rules_for(goal: &Proposition) -> bool {
                         | IntegerMathTerm::Subtract(..)
                         | IntegerMathTerm::Multiply(..)
                         | IntegerMathTerm::ShiftLeft { .. }
+                        | IntegerMathTerm::MathValue { .. }
                 )
             };
             match (left, right) {
@@ -1269,6 +1270,9 @@ impl<'a> Prover<'a> {
             ScalarTerm::ExactIntegerSubtract { left, right, .. } => {
                 (left, right, direction.opposite(), false)
             }
+            ScalarTerm::IntegerWiden { .. } | ScalarTerm::IntegerExactCast { .. } => {
+                return self.cast_bound(axiom, subject, integer, expression, direction);
+            }
             _ => return self.chain_step(axiom, subject, integer, expression, direction),
         };
         let left_proof = self.evidence(left, direction).ok()?;
@@ -1550,6 +1554,9 @@ impl<'a> Prover<'a> {
             IntegerMathTerm::ShiftLeft { value, count } => {
                 let affine = self.shift_left_image(value, count, direction)?;
                 return self.land(affine, term, limit, direction);
+            }
+            IntegerMathTerm::MathValue { source_type, value } => {
+                return self.value_in_carrier(*source_type, *value, term, limit, direction);
             }
             _ => return Err("arithmetic goal over a single term"),
         };

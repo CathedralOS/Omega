@@ -133,6 +133,14 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
             }
             ExpressionNode::Binary(binary) => {
+                // A suffixed operator (`+%`, `+|`, `+!`) is another
+                // operation with another result; only the bare, Exact
+                // operator is in the subset
+                // (`wiki/spec/language/numeric_values.md`, "Policy
+                // operators").
+                if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact {
+                    return unserved("policy operator");
+                }
                 // What an operand expects from outside: an arithmetic or shift
                 // result has its (value) operand's type, `&&`/`||` operands
                 // are Boolean, comparison operands expect nothing. An
@@ -212,7 +220,7 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::ArrayLiteral(_) => return unserved("array literal"),
             ExpressionNode::Atomic(_) => return unserved("atomic"),
-            ExpressionNode::Cast(_) => return unserved("cast"),
+            ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, source),
             ExpressionNode::Float(_) => return unserved("float literal"),
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(_) => return unserved("index"),
@@ -358,6 +366,7 @@ pub(super) fn names_storage(expression: &Expression) -> bool {
         | ExpressionKind::Strict { .. }
         | ExpressionKind::Not(_)
         | ExpressionKind::BitwiseNot(_)
+        | ExpressionKind::Cast(_)
         | ExpressionKind::ShortCircuit { .. }
         | ExpressionKind::Call { .. } => false,
     }
@@ -518,6 +527,8 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             ) => a == b && both(a_left, b_left) && both(a_right, b_right),
             (ExpressionKind::Not(a), ExpressionKind::Not(b))
             | (ExpressionKind::BitwiseNot(a), ExpressionKind::BitwiseNot(b)) => both(a, b),
+            // The same operand converted to the same carrier.
+            (ExpressionKind::Cast(a), ExpressionKind::Cast(b)) => both(a, b),
             (
                 ExpressionKind::ShortCircuit {
                     conjunction: a,
@@ -635,6 +646,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::Strict { .. }
                 | ExpressionKind::Not(_)
                 | ExpressionKind::BitwiseNot(_)
+                | ExpressionKind::Cast(_)
                 | ExpressionKind::ShortCircuit { .. }
                 | ExpressionKind::Call { .. },
                 _,

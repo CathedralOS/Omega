@@ -687,6 +687,7 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)
+            | ExpressionKind::Cast(_)
             | ExpressionKind::ShortCircuit { .. } => {
                 Err(self.internal("a scalar operation has a record type"))
             }

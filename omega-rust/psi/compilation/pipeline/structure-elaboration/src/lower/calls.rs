@@ -99,6 +99,7 @@ impl Lowering<'_> {
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)
+            | ExpressionKind::Cast(_)
             | ExpressionKind::ShortCircuit { .. } => Ok(None),
         }
     }

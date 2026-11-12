@@ -24,6 +24,7 @@ serve is refused when it is set, never ignored.
 */
 
 mod calls;
+mod casts;
 mod contracts;
 mod expressions;
 mod machine;
@@ -398,6 +399,25 @@ mod tests {
                 terminal_check_tables::RefusalReason::Unsupported
             );
             assert_eq!(refusal.detail, expected);
+        }
+    }
+
+    #[test]
+    fn a_suffixed_operator_is_refused_before_its_operands_are_read() {
+        use numerics::arithmetic::ArithmeticDomain;
+        let typed = TypedTrees::default();
+        for policy in [
+            ArithmeticDomain::Wrapping,
+            ArithmeticDomain::Saturating,
+            ArithmeticDomain::Trapping,
+        ] {
+            let node = ExpressionNode::Binary(TableBinaryExpression {
+                policy,
+                left: ExpressionHandle::invalid(),
+                operator: BinaryOperator::Add,
+                right: ExpressionHandle::invalid(),
+            });
+            assert_eq!(refused(&typed, node), "expression policy operator");
         }
     }
 
