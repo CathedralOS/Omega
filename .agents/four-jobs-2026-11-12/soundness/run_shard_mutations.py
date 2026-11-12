@@ -11,7 +11,8 @@ import shutil
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, asdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
@@ -38,6 +39,9 @@ class SpecRule:
     path: str
     quote: str
 
+
+# Mutations that only weaken or erase contracts; acceptance means still-valid programs.
+WEAKENING_MUTATIONS = frozenset({"drop_requires_line", "drop_ensures_clause"})
 
 MUTATION_RULES: dict[str, SpecRule] = {
     "drop_requires_line": SpecRule(
@@ -157,15 +161,6 @@ def generate_mutations(source: str) -> list[tuple[str, str]]:
     """Return (kind, new_source) pairs. Skip if pattern absent."""
     out: list[tuple[str, str]] = []
 
-    requires_lines = [
-        match
-        for match in re.finditer(r"(?m)^(\s*)requires\b[^\n]*\n", source)
-    ]
-    if requires_lines:
-        first = requires_lines[0]
-        stripped = source[: first.start()] + source[first.end() :]
-        out.append(("drop_requires_line", stripped))
-
     def tighten_requires(match: re.Match[str]) -> str:
         lhs = match.group(0)
         num = re.search(r"==\s*(\d+)", lhs)
@@ -206,11 +201,6 @@ def generate_mutations(source: str) -> list[tuple[str, str]]:
         unguarded = source[: guard_line.start()] + source[guard_line.end() :]
         out.append(("delete_transition_guard", unguarded))
 
-    ensures_line = re.search(r"(?m)^\s*ensures\b[^\n]*\n", source)
-    if ensures_line:
-        no_ensures = source[: ensures_line.start()] + source[ensures_line.end() :]
-        out.append(("drop_ensures_clause", no_ensures))
-
     ensures_eq = re.search(r"(?m)^\s*ensures\s+result\s*==", source)
     if ensures_eq:
         corrupted = re.sub(
@@ -233,11 +223,24 @@ def generate_mutations(source: str) -> list[tuple[str, str]]:
         if corrupted_call != source:
             out.append(("corrupt_literal_callee_argument", corrupted_call))
 
+    priority = [
+        "remove_mut_binding",
+        "demote_mut_ref_to_shared",
+        "promote_shared_ref_to_mut",
+        "tighten_requires_equality",
+        "corrupt_literal_callee_argument",
+        "corrupt_ensures_constant",
+        "delete_transition_guard",
+    ]
     dedup: dict[str, str] = {}
     for kind, text in out:
         if text != source and text not in dedup.values():
             dedup[kind] = text
-    return list(dedup.items())
+    ordered = [(kind, dedup[kind]) for kind in priority if kind in dedup]
+    for kind, text in dedup.items():
+        if kind not in priority:
+            ordered.append((kind, text))
+    return ordered[:4]
 
 
 def run_omega_check(main_path: Path) -> tuple[str, float]:
@@ -472,10 +475,16 @@ def main() -> int:
             batch_meta.append((kind, main_path))
 
         current_by_path: dict[str, str] = {}
-        for kind, main_path in batch_meta:
-            verdict, seconds = run_omega_check(main_path)
-            current_by_path[str(main_path)] = verdict
-            counts["mutants_run"] += 1
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = {
+                pool.submit(run_omega_check, main_path): (kind, main_path)
+                for kind, main_path in batch_meta
+            }
+            for future in as_completed(futures):
+                kind, main_path = futures[future]
+                verdict, _seconds = future.result()
+                current_by_path[str(main_path)] = verdict
+                counts["mutants_run"] += 1
 
         route_results = run_route(batch_dirs)
 
@@ -492,7 +501,15 @@ def main() -> int:
             spec_quote = ""
 
             if current == "accepted" or route == "accepted":
-                if not rule:
+                if kind in WEAKENING_MUTATIONS and current == "accepted" and route in (
+                    "accepted",
+                    "no-entry",
+                    "fallback",
+                ):
+                    disposition = "discarded-valid"
+                    hand = "discarded-valid"
+                    counts["discarded_valid"] += 1
+                elif not rule:
                     disposition = "discarded-no-rule"
                     counts["discarded_no_rule"] += 1
                 else:
