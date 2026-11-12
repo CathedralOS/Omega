@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
+REPO = Path("/agent/repos/omega")
 PIN = "51e8c45c793007f211d0d9baee7de16767172444"
 ANCHOR = "741270df60f7"
 TOOLS = Path("/tmp/ledger_bisect_tools_2026_11_11")
@@ -17,7 +17,7 @@ if not TOOLS.is_dir():
 def run_test(witness: str) -> int:
     r = subprocess.run(
         ["bash", str(TOOLS / "bisect_witness.sh")],
-        cwd=REPO,
+        cwd=str(REPO),
         env={**dict(__import__("os").environ), "BISECT_WITNESS": witness},
     )
     return r.returncode
@@ -67,7 +67,6 @@ def restore_branch() -> None:
         ["git", "-C", str(REPO), "checkout", "-f", "work/ledger-bisect-part-10"],
         check=False,
     )
-    subprocess.run(["git", "-C", str(REPO), "reset", "--hard", PIN], check=False)
 
 
 def main() -> int:

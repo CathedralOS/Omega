@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
+REPO = Path("/agent/repos/omega")
 PIN = "51e8c45c793007f211d0d9baee7de16767172444"
 LEDGER_SRC = REPO / "tests/omega/corpus_outcomes.txt"
 LEDGER_PIN = Path("/tmp/pin_corpus_outcomes.txt")
@@ -103,8 +103,8 @@ def main() -> int:
         text=True,
         check=True,
     ).stdout.strip()
-    if head != PIN:
-        print(f"expected PIN {PIN[:12]}, got {head[:12]}", file=sys.stderr)
+    if not head.startswith(PIN[:12]):
+        print(f"note: snapshot taken at {head[:12]} (ledger frozen from PIN)", file=sys.stderr)
 
     frozen = subprocess.run(
         ["git", "-C", str(REPO), "show", f"{PIN}:tests/omega/corpus_outcomes.txt"],

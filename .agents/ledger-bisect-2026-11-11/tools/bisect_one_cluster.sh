@@ -8,7 +8,6 @@ PIN="51e8c45c793007f211d0d9baee7de16767172444"
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 SRC_TOOLS="$(dirname "$0")"
 TOOLS=/tmp/ledger_bisect_tools_2026_11_11
-BRANCH_TIP="$(git -C "$ROOT" rev-parse work/ledger-bisect-part-10)"
 
 rm -rf "$TOOLS"
 cp -a "$SRC_TOOLS" "$TOOLS"
@@ -41,7 +40,6 @@ fi
 git bisect log > "$OUT_DIR/bisect_${CLUSTER_ID}_log.txt" 2>/dev/null || true
 git bisect reset
 git checkout -f work/ledger-bisect-part-10
-git reset --hard "$BRANCH_TIP"
 
 PR=""
 MECH=""
