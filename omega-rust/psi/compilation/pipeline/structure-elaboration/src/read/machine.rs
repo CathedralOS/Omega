@@ -6,7 +6,7 @@ the driver that reads one body statement by statement.
 
 use language_semantics::{TerminationGuarantee, TerminationInterface};
 use semantic_vocabulary::{MachineId, ValueId};
-use symbols::{SymbolHandle, SymbolSet};
+use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
 use typed_trees::machine::{Machine, MachineBodyStatus, MachinePurpose};
@@ -23,6 +23,8 @@ use crate::body::{
 use crate::canonical::{self, Repeated};
 use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
 use source::SourceSpan;
+
+type SymbolSet = std::collections::HashSet<SymbolHandle, symbols::BuildSymbolHasher>;
 
 impl<'t> Program<'t> {
     /// Omission requests local inference; an authored clause remains complete
