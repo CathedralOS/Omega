@@ -1,0 +1,16 @@
+pass/atomics/runtime_stored_reference_atomic_events_exit	fixed on main		-
+pass/borrows/runtime_selected_reference_record_helper_exit	still broken	statement 8 mutates `first.value` while local borrow `first_input` is still active (borrowed at statement 4; its last use is at statement 9)	cluster_borrow
+pass/facts/write_only_indexed_reborrow_through_call_result_exit	fixed on main		-
+pass/facts/write_only_indexed_reborrow_through_const_name_exit	fixed on main		-
+pass/facts/write_only_indexed_reborrow_through_field_exit	fixed on main		-
+pass/facts/write_only_indexed_reborrow_through_local_exit	fixed on main		-
+pass/facts/write_only_indexed_reborrow_through_match_join_exit	fixed on main		-
+pass/recast/runtime_aggregate_slice_representation_recast_exit	fixed on main	statement 6 mutates `main.source` while local borrow `read` is still active (borrowed at statement 4; its last use is at statement 6)	-
+pass/slices/saved_byte_predicate_fields_disjoint_exit	fixed on main		-
+pass/borrow/runtime_write_only_exclusive_reference_owned_wrapper_exit	fixed on main	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(22), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }	cluster_ucf
+pass/borrows/incoming_reference_slot_replacement_exit	still broken	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(9), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }	cluster_ucf
+pass/borrows/runtime_owned_carrier_descriptor_replacement_exit	still broken	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(14), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }	cluster_ucf
+fail/calls/static_boundary_statement_misplaced_evidence	fixed on main	`RawSource::fill` expects 0 static invocation argument(s), got 2; explicit selection requires a named implementation as the final static argument	-
+fail/facts/four_variant_enum_payload_bound_through_call_result_rejected	fixed on main	cannot prove ensures contract for exit from extract_payload at statement 3: result >= 40 && result <= 80	-
+pass/generics/open_computed_quantity_result	still broken	index compatibility condition `index-equality:Indexed:forward_indexed::entry:call-1-0:Indexed<LeftIndex + RightIndex>==Indexed<X + Y>` is not established: actual `Indexed<LeftIndex + RightIndex>` and expected `Indexed<X + Y>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexAdd` licenses commutativity, associativity	cluster_index
+pass/borrows/runtime_partial_reference_partition_exit	still broken	terminal-artifact production failed: Lowering(OverlappingProjectedCustody { reason: "projected custody overlaps an earlier transfer or release", place: PlaceId(80), earlier: [FixedIndex(1)], requested: [FixedIndex(1)], observation: None })	cluster_overlap

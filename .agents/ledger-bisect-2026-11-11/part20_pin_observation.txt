@@ -1,0 +1,34 @@
+pass/atomics/runtime_stored_reference_atomic_events_exit checked 3155ms check-target:macos_arm64
+pass/borrow/runtime_write_only_exclusive_reference_owned_wrapper_exit rejected 3045ms check-target:macos_arm64
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(22), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/borrows/incoming_reference_slot_replacement_exit rejected 2873ms check-target:macos_arm64
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(9), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/borrows/runtime_owned_carrier_descriptor_replacement_exit rejected 2944ms check-target:macos_arm64
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(14), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/borrows/runtime_partial_reference_partition_exit rejected 2507ms check-target:macos_arm64
+	terminal-artifact production failed: Lowering(OverlappingProjectedCustody { reason: "projected custody overlaps an earlier transfer or release", place: PlaceId(80), earlier: [FixedIndex(1)], requested: [FixedIndex(1)], observation: None })
+pass/borrows/runtime_selected_reference_record_helper_exit rejected 10610ms check-target:macos_arm64
+	statement 8 mutates `first.value` while local borrow `first_input` is still active (borrowed at statement 4; its last use is at statement 9)
+	statement 7 mutates `first.value` while local borrow `first_input` is still active (borrowed at statement 4; its last use is at statement 8)
+	statement 16 mutates `first.value` while local borrow `first_input` is still active (borrowed at statement 8; its last use is at statement 20)
+	statement 17 mutates `third.value` while local borrow `third_input` is still active (borrowed at statement 10; its last use is at statement 20)
+	statement 19 mutates `second.value` while local borrow `second_input` is still active (borrowed at statement 9; its last use is at statement 20)
+	statement 13 mutates `first.value` while local borrow `first_input` is still active (borrowed at statement 7; its last use is at statement 15)
+pass/facts/write_only_indexed_reborrow_through_call_result_exit checked 3108ms check-target:macos_arm64
+pass/facts/write_only_indexed_reborrow_through_const_name_exit checked 3004ms check-target:macos_arm64
+pass/facts/write_only_indexed_reborrow_through_field_exit checked 3060ms check-target:macos_arm64
+pass/facts/write_only_indexed_reborrow_through_local_exit checked 2965ms check-target:macos_arm64
+pass/facts/write_only_indexed_reborrow_through_match_join_exit checked 3076ms check-target:macos_arm64
+pass/generics/open_computed_quantity_result rejected 7954ms check-target:macos_arm64
+	index compatibility condition `index-equality:Indexed:forward_indexed::entry:call-1-0:Indexed<LeftIndex + RightIndex>==Indexed<X + Y>` is not established: actual `Indexed<LeftIndex + RightIndex>` and expected `Indexed<X + Y>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexAdd` licenses commutativity, associativity
+	index compatibility condition `index-equality:Indexed:forward_indexed::entry:statement-0:Indexed<A + B>==Indexed<LeftIndex + RightIndex>` is not established: actual `Indexed<A + B>` and expected `Indexed<LeftIndex + RightIndex>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexAdd` licenses commutativity, associativity
+	index compatibility condition `index-equality:Indexed:forward_indexed::entry:exit-1:Indexed<X + Y>==Indexed<RightIndex + LeftIndex>` is not established: actual `Indexed<X + Y>` and expected `Indexed<RightIndex + LeftIndex>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexAdd` licenses commutativity, associativity
+	index compatibility condition `index-equality:Indexed:relay_indexed::entry:call-0-0:Indexed<X + Y>==Indexed<A + B>` is not established: actual `Indexed<X + Y>` and expected `Indexed<A + B>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexAdd` licenses commutativity, associativity
+	index compatibility condition `index-equality:Indexed:relay_indexed::entry:exit-0:Indexed<A + B>==Indexed<X + Y>` is not established: actual `Indexed<A + B>` and expected `Indexed<X + Y>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexAdd` licenses commutativity, associativity
+pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 7568ms check-target:macos_arm64
+	statement 6 mutates `main.source` while local borrow `read` is still active (borrowed at statement 4; its last use is at statement 6)
+pass/slices/saved_byte_predicate_fields_disjoint_exit checked 2983ms check-target:macos_arm64
+fail/calls/static_boundary_statement_misplaced_evidence rejected 955ms unexpected
+	`RawSource::fill` expects 0 static invocation argument(s), got 2; explicit selection requires a named implementation as the final static argument
+fail/facts/four_variant_enum_payload_bound_through_call_result_rejected rejected 2973ms unexpected
+	cannot prove ensures contract for exit from extract_payload at statement 3: result >= 40 && result <= 80

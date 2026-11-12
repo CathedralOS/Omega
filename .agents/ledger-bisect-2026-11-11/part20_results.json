@@ -1,0 +1,67 @@
+{
+  "pin": "51e8c45c793007f211d0d9baee7de16767172444",
+  "slice_indices": [20, 60, 100, 140, 180, 220],
+  "measurement": {
+    "fixed": 11,
+    "broken": 5,
+    "fixture_count": 16
+  },
+  "clusters": [
+    {
+      "id": "cluster_ucf",
+      "rows": 2,
+      "kind": "pass/run rejected",
+      "diagnostic": "native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(N), site: withheld",
+      "witness": "pass/borrows/incoming_reference_slot_replacement_exit",
+      "members": [
+        "pass/borrows/incoming_reference_slot_replacement_exit",
+        "pass/borrows/runtime_owned_carrier_descriptor_replacement_exit"
+      ],
+      "fixed_members": ["pass/borrow/runtime_write_only_exclusive_reference_owned_wrapper_exit"],
+      "breaking_commit": "60d14b27b1eb4a0f1084036996a33f4172adeb2d",
+      "pr": "2308",
+      "mechanism": "psi state-exit requires-window checking in domains_and_predicates.rs regressed native unsupported-control lowering for reference slot replacement witnesses",
+      "status": "bisected",
+      "good_commit": "77008b70bc89343c1dae968586e9572577bf4116",
+      "sanity": "PIN bad x3; good x3; deterministic (no flaky retries logged)"
+    },
+    {
+      "id": "cluster_borrow",
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "diagnostic": "statement 8 mutates first.value while local borrow first_input is still active",
+      "witness": "pass/borrows/runtime_selected_reference_record_helper_exit",
+      "members": ["pass/borrows/runtime_selected_reference_record_helper_exit"],
+      "breaking_commit": "2ad42b167126ed8c62f455689191969be8bac3c9",
+      "pr": "2219",
+      "mechanism": "psi call checking reuses stored-value facts in checks_contracts/flow_place, tightening borrow liveness for selected reference record helper",
+      "status": "bisected",
+      "good_commit": "77008b70bc89343c1dae968586e9572577bf4116",
+      "sanity": "PIN^1 bad; FIRST_BAD not ledger-only (#2219 touches 05 checked-tree flow)"
+    },
+    {
+      "id": "cluster_index",
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "diagnostic": "index compatibility condition index-equality not established (distinct normalized instances)",
+      "witness": "pass/generics/open_computed_quantity_result",
+      "members": ["pass/generics/open_computed_quantity_result"],
+      "breaking_commit": "",
+      "pr": "",
+      "mechanism": "",
+      "status": "pending"
+    },
+    {
+      "id": "cluster_overlap",
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "diagnostic": "terminal-artifact Lowering(OverlappingProjectedCustody)",
+      "witness": "pass/borrows/runtime_partial_reference_partition_exit",
+      "members": ["pass/borrows/runtime_partial_reference_partition_exit"],
+      "breaking_commit": "",
+      "pr": "",
+      "mechanism": "",
+      "status": "pending"
+    }
+  ]
+}
