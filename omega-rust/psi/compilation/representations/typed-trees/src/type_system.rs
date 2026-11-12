@@ -293,6 +293,14 @@ pub mod closed_numeric {
                             pending.push(Step::Cast(declaration.declared_type));
                             pending.push(Step::Enter(declaration.materialized_initializer));
                         }
+                        ExpressionNode::Member(_) if typed_owner.is_some() => {
+                            let (field_value, field_type) =
+                                closed_record_field(program, expression)?;
+                            active.push(expression);
+                            pending.push(Step::Leave(expression));
+                            pending.push(Step::Cast(field_type));
+                            pending.push(Step::Enter(field_value));
+                        }
                         ExpressionNode::Binary(binary)
                             if typed_owner.is_some() || builtin(expression) =>
                         {
@@ -348,6 +356,77 @@ pub mod closed_numeric {
         let mut value = values.pop()?;
         value.fractional_origin = fractional_origin;
         Some(value)
+    }
+
+    /*
+        A field read from a closed record is as closed as the field it names:
+        `OFFSET.amount` has the value the constant's initializer gave `amount`.
+        Follow the member chain down to its root, which is either the record
+        literal itself (a body that names a record constant holds the constant's
+        literal in place of the name) or the name of a constant, whose
+        materialized initializer is then the literal. Select the same fields in
+        that literal. The caller evaluates the selected field expression and
+        lands it in the field's declared type, as it does for a scalar
+        constant's name. Anything else (a case payload, another kind of
+        receiver, a field the literal does not spell exactly once) has no closed
+        value here.
+    */
+    fn closed_record_field(
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+    ) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
+        let mut fields = Vec::new();
+        let mut current = expression;
+        let mut value = loop {
+            if !program.expression_table.expression_is_valid(current) {
+                return None;
+            }
+            match program.expression_table.expression(current) {
+                ExpressionNode::Member(member) => {
+                    if !member.member_symbol.is_valid() || member.case_variant.is_some() {
+                        return None;
+                    }
+                    fields.push(member.member_symbol);
+                    current = member.receiver;
+                }
+                ExpressionNode::StructLiteral(_) => break current,
+                ExpressionNode::Name(path) => {
+                    break program
+                        .const_declaration_by_symbol(path.symbol)?
+                        .materialized_initializer;
+                }
+                _ => return None,
+            }
+        };
+        let mut field_type = None;
+        for field in fields.into_iter().rev() {
+            if !program.expression_table.expression_is_valid(value) {
+                return None;
+            }
+            let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(value)
+            else {
+                return None;
+            };
+            if literal.case_name.is_some() || literal.case_symbol.is_some() {
+                return None;
+            }
+            let definition = program.data_definition_by_symbol(literal.type_symbol)?;
+            let mut declared = program
+                .data_members(definition)
+                .iter()
+                .filter_map(|member| member.as_field())
+                .filter(|declared| declared.symbol == field);
+            let declared = declared.next().filter(|_| declared.next().is_none())?;
+            let mut selected = program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .filter(|selected| selected.field_symbol == field);
+            let selected = selected.next().filter(|_| selected.next().is_none())?;
+            value = selected.value;
+            field_type = Some(declared.type_reference);
+        }
+        Some((value, field_type?))
     }
 
     fn apply_numeric(

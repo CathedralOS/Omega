@@ -2353,6 +2353,14 @@ pub(in crate::checks) mod call_guarantees {
                     }
                     _ => return None,
                 };
+                let closed_field = matches!(
+                    program.expression_table.expression(occurrence),
+                    ExpressionNode::Member(_)
+                )
+                .then(|| program.closed_integer_value_in(occurrence, callable.owner_symbol()))
+                .flatten()
+                .filter(|closed| closed.primitive == Some(primitive))
+                .map(|closed| closed.value);
                 bindings.push(ScopedArithmeticBinding {
                     binder: binder.clone(),
                     value: match binder {
@@ -2391,6 +2399,15 @@ pub(in crate::checks) mod call_guarantees {
                                         program, occurrence, primitive,
                                     )
                                 })?
+                        }
+                        /*
+                            A field of a record constant is a closed integer,
+                            not a storage read: bind the value the constant's
+                            initializer gave it, in the carrier this occurrence
+                            is read at.
+                        */
+                        ScopedArithmeticBinder::Occurrence(_) if closed_field.is_some() => {
+                            ScopedArithmeticValue::Integer(closed_field?)
                         }
                         _ => value(occurrence, primitive)?,
                     },
