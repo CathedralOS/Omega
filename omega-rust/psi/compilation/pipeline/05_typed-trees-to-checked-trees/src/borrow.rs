@@ -4477,9 +4477,27 @@ mod loans {
                     _ => return Ok(None),
                 };
                 let contract = available!(call_view_return_contract(program, state_symbol, call));
+                // The contract substitutes only a result that is itself a type
+                // parameter. An evidence-bound call such as `Operations::forward`
+                // reached through a supertrait returns `Envelope<Value>`, whose
+                // nested `Value` stays the trait's parameter. A local that binds
+                // an opaque call's result directly has that result's complete
+                // checked type, so its loans are read from the local's type.
+                let opaque_target = !validation::call_target_has_checked_body_contract(
+                    program,
+                    validation::call_target_symbol(program, call),
+                );
+                let result_type = if opaque_target
+                    && access_limits.is_empty()
+                    && local_data.type_reference.is_valid()
+                {
+                    local_data.type_reference
+                } else {
+                    contract.return_type_reference(program)
+                };
                 let completed = TableLocalData {
                     initial_value: expression,
-                    type_reference: contract.return_type_reference(program),
+                    type_reference: result_type,
                     ..local_data.clone()
                 };
                 if let Some(loans) =
@@ -4553,7 +4571,7 @@ mod loans {
                             local_data,
                             expression,
                             target,
-                            contract.return_type_reference(program),
+                            result_type,
                         )
                         .ok_or("completed result reference permissions are unavailable")?,
                     );
