@@ -1399,7 +1399,9 @@ pub fn golden_row_quality_violations(diff: &str, observations_only: bool) -> Vec
                         "{GOLDEN}: {name} lost its recorded success but carries no `regressed-from:` token; write the row with cargo xtask corpus --record instead of editing it"
                     ));
                 }
-            } else if outcome == "rejected" || marked {
+            // A refusal the fixture authors and the runner matched is the row's
+            // success, exactly as `ledger_row_is_red` counts it.
+            } else if (outcome == "rejected" && ledger_row_is_red(body) != Some(false)) || marked {
                 violations.push(format!(
                     "{GOLDEN}: {name} is a pass/run fixture recorded as {outcome}; fix the fixture or compiler before recording; {REGRESSION_RECORDING}"
                 ));
@@ -2343,6 +2345,16 @@ struct Ledger;
         // An unmarked pass row is refused too: dropping the token is not a way round.
         let unmarked = "+++ b/l\n-pass/a/x checked 1ms\n+pass/a/x rejected 2ms @bbbbbbbbbbbb\n";
         assert_eq!(golden_row_quality_violations(unmarked, false).len(), 1);
+        // A matched authored refusal is green; an unmatched one is not.
+        let matched = "+++ b/l
+-pass/a/x rejected 1ms regressed-from:rejected+expected+native-rejection:match
++pass/a/x rejected 2ms expected native-rejection:match @bbbbbbbbbbbb
+";
+        assert!(golden_row_quality_violations(matched, false).is_empty());
+        let unmatched = "+++ b/l
++pass/a/x rejected 2ms unexpected native-rejection:mismatch @bbbbbbbbbbbb
+";
+        assert_eq!(golden_row_quality_violations(unmatched, false).len(), 1);
     }
 
     #[test]
