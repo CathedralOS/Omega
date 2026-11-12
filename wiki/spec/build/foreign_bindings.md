@@ -194,13 +194,42 @@ handling are retired together.
 ### Migration acceptance
 
 `BUILD-OWNED-NATIVE-BINDINGS` carries this decision through the existing table
-fixtures and library callers without weaker contracts. Native acceptance covers
+fixtures and library callers, preserving existing obligations and repairing
+under-specified customer contracts. Native acceptance covers
 a non-first table parameter, dispatch-only and also-passed tables, a separate
 receiver, and a non-UEFI table with a different layout on supported hosts. Reject
 wrong formal/field owners or applications, unreadable tables, non-address fields,
 incompatible argument mappings and tampered retained correspondence. Consume an
 artifact without source to establish that the retained identities and mapping
 suffice; a fresh source compilation alone does not exercise that contract.
+
+Table validity and operation-specific authority are separate obligations. Reject
+calls lacking the table provenance or function correspondence required by their
+admitted contract, and calls lacking authority over the affected resource even
+when the table is genuine. This does not require a new table-validity token or
+firmware issuance: program-constructed tables remain valid when their existing
+contracts establish the required facts.
+
+The migration includes repairing the UEFI allocation/release boundary in
+`source/library/std/targets/uefi_x86_64/handoff.omg`. A table borrow and raw
+address/page-count integers alone do not establish allocation ownership or
+permission to release it. Use existing [allocation](../resources/allocation.md)
+and [foreign-storage custody](foreign_storage.md) contracts to connect an issued
+allocation to its allocator, exact range and release rights. The actual foreign
+call must require the corresponding release authority, no conflicting live loans
+or undisposed contents, and an available service under its protocol contract.
+Successful release settles the allocation's return obligation; failure accounts
+for the actual disposition, returning custody when the allocation remains live.
+
+Acceptance includes successful release of an owned, releasable allocation and
+rejection of fabricated allocation authority, wrong-allocator release, mismatched
+address/count, double release, release with outstanding loans or live contents,
+and use after service invalidation. Exercise the underlying boundary as well as
+the public adapter: neither a direct leaf call nor Build selection may bypass
+these obligations. A safe wrapper around an unrestricted raw leaf is insufficient.
+Use existing qualification/custody and marshaling mechanisms, not new allocator
+intrinsics, UEFI-specific checks, or arbitrary field-extraction recipes in the
+binding.
 
 Supported interpreter routes must agree under `omega run --both`. Unsupported
 bindings must refuse explicitly without native fallback; implementing a new

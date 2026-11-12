@@ -56,7 +56,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions.
 
 - **BUILD-OWNED-NATIVE-BINDINGS.** Replace `via` with [Build-owned bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding).
-  - First **SEALED-INTRINSIC-CATALOG** (`sealed-runtime-providers`); migrate table/vtable, user-intrinsic, generic-trait and Windows `ProcessExit` sites. Replace positional table dispatch with typed bindings per [table acceptance](wiki/spec/build/foreign_bindings.md#migration-acceptance).
+  - First **SEALED-INTRINSIC-CATALOG** (`sealed-runtime-providers`); migrate table/vtable, user-intrinsic, generic-trait and Windows `ProcessExit` sites. Repair UEFI release custody and positional dispatch per [table acceptance](wiki/spec/build/foreign_bindings.md#migration-acceptance).
   Acceptance: PlaySoundW, ALSA, and AudioQueue bindings pass `omega run --both` on matching hosts, and `via` is removed.
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish retiring standalone `boundary requirement` declarations ([machines.md](wiki/spec/language/machines.md#supply)).
