@@ -538,60 +538,6 @@ if so with what provenance, or what interpreter code may do with it.
 Until answered, the interpreter declines this fixture and the native leg alone
 runs it.
 
-### Q24 - Where does the test group's in-memory filesystem keep its state between calls?
-
-Decision name: `test-group-filesystem-state`.
-
-**Customer.** The owner's ruling `test-group-virtual-filesystem` (2026-11-12),
-now in [testing](wiki/spec/build/testing.md#group-configuration-and-authority),
-makes the private in-memory filesystem a `std` provider for the whole
-`FilesystemService` slot, implementing every operation "over private state
-created empty for each test invocation". `TASKS.md` item `BUILD-TEST-GROUPS`
-needs it to run a virtual-filesystem test group on both engines. A test that
-calls `write_all(path, bytes)` and then `read_all(path, ...)` must read back
-what it wrote, so the files must live somewhere from one call to the next.
-
-**Gap.** These contracts were checked; together they leave a source provider
-nowhere to keep that state:
-
-- [Machines](wiki/spec/language/machines.md#static-declarations-and-explicit-state):
-  *"A boundary provider is therefore its satisfier machines, with no provider
-  value or private state; state that outlives a call is a value the service
-  returns and the caller passes back."*
-- `FilesystemService` (`source/library/std/filesystem.omg`) has no state
-  parameter: its operations take only paths, buffers, options and `File`
-  handles, and a satisfier "declares no parameter its requirement lacks". The
-  real providers keep their state in the operating system, behind
-  `PosixFilesystemHost` and `WindowsFilesystemHost`.
-- [Conformances](wiki/spec/language/conformances.md): an implementation name
-  "identifies a map of machines, not a type that can be borrowed as state. All
-  state remains explicit value arguments."
-- [Entry roots](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge):
-  static data "does not make mutable state ambient or freely shareable; an
-  exclusive owner may lend it explicitly". A provider has no parameter through
-  which an owner could lend it.
-- [Testing](wiki/spec/build/testing.md#scheduling-execution-and-outcomes)
-  resets "mock-provider state" per invocation (lifecycle step 4) but does not
-  say who owns that state or how a provider reaches it.
-
-**Question.**
-
-- **(a)** The runner owns the state. Each engine supplies a test-scoped host
-  service holding the per-invocation files, as the operating system does for
-  the real providers, and the `std` provider is ordinary satisfier machines
-  that invoke it. The interpreter and the native test runner each implement
-  that host service and create it empty for every invocation.
-- **(b)** A provider selected only for a test group may own private static
-  state, created empty for each invocation. This is an exception to the
-  machines rule quoted above.
-- **(c)** `FilesystemService` gains an explicit state parameter, as
-  `ClockOps<S>` does in [conformances](wiki/spec/language/conformances.md),
-  and real providers take a stateless argument. Every filesystem caller
-  changes.
-
-Until answered, test groups run only without services, and
-`BUILD-TEST-GROUPS` keeps its virtual-filesystem acceptance.
-
 ### Q25 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
 
 Decision name: `operating-system-library-name`. Raised by Jarod for Zac.
