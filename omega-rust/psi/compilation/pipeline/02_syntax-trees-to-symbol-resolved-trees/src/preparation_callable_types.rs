@@ -21,6 +21,7 @@ pub(super) fn nominal_contract(
     selection: &ConstantSelection<'_>,
     reference: TypeReferenceHandle,
     bound: &[String],
+    declarations: &[&SyntaxTrees],
 ) -> Result<Option<MachineParameterContract>, Diagnostic> {
     let (owner, member, arguments) = match syntax.type_references.type_reference(reference).clone()
     {
@@ -35,9 +36,18 @@ pub(super) fn nominal_contract(
                 return Ok(None);
             };
             if is_trait_owner(syntax, selection, &owner, bound)? {
-                return Err(Diagnostic::error(
-                    "a nominal callable type applies the trait before `::requirement`, not the requirement member",
-                ).with_source_span(base_name.source_span()));
+                let parameters = selection.generic_parameter_roles(
+                    syntax,
+                    declarations,
+                    &owner,
+                    &[SymbolKind::Trait],
+                );
+                if parameters.is_some_and(|parameters| !parameters.is_empty()) {
+                    return Err(Diagnostic::error(
+                        "a nominal callable type must supply its trait arguments before `::requirement`; member arguments do not supply the trait telescope",
+                    ).with_source_span(base_name.source_span()));
+                }
+                return Err(applied_member_not_implemented(&base_name));
             }
             return Ok(None);
         }
@@ -76,8 +86,7 @@ pub(super) fn nominal_contract(
                     .with_source_span(owner.source_span()));
             };
             if member.application.is_some() {
-                return Err(Diagnostic::error("a nominal callable type applies the trait before `::requirement`, not the requirement member")
-                    .with_source_span(name.source_span()));
+                return Err(applied_member_not_implemented(name));
             }
             (owner, name.clone(), application.arguments.into_vec())
         }
@@ -100,6 +109,16 @@ pub(super) fn nominal_contract(
         requirement,
         trait_arguments,
     }))
+}
+
+// An unapplied generic requirement retains its complete family contract. A
+// member application has its own telescope; never reinterpret those actuals as
+// trait arguments. Supporting that applied type remains compiler work.
+fn applied_member_not_implemented(member: &Identifier) -> Diagnostic {
+    Diagnostic::error(
+        "applying a nominal requirement member in a callable parameter type is not implemented",
+    )
+    .with_source_span(member.source_span())
 }
 
 fn is_trait_owner(

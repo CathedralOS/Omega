@@ -5023,6 +5023,7 @@ pub(crate) mod declared_types {
                             self.selection,
                             type_reference,
                             &bound,
+                            &self.declarations,
                         )? {
                             syntax.items.type_parameters_mut(parameter_span)[index].kind =
                                 TypeParameterKind::Machine {
@@ -5382,7 +5383,24 @@ pub(crate) mod declared_types {
         #[test]
         fn nominal_const_types_refuse_member_argument_reparenting() {
             let errors = normalized("trait Contract<T> { machine invoke(value: T) -> T; } machine retain<const Callback: Contract::invoke<u32>>() {}").unwrap_err();
-            assert!(format!("{errors:?}").contains("applies the trait before"));
+            assert!(
+                format!("{errors:?}")
+                    .contains("member arguments do not supply the trait telescope")
+            );
+            let syntax = normalized("trait Family { machine invoke<T>(value: T) -> T; } machine retain<const Callback: Family::invoke>() {}").unwrap();
+            let machine = syntax
+                .root_items()
+                .find_map(|item| match item {
+                    Item::Machine(machine) => Some(machine),
+                    _ => None,
+                })
+                .unwrap();
+            assert!(matches!(
+                syntax.items.type_parameters(machine.type_parameters)[0].kind,
+                TypeParameterKind::Machine { .. }
+            ));
+            let errors = normalized("trait Family { machine invoke<T>(value: T) -> T; } machine retain<const Callback: Family::invoke<u32>>() {}").unwrap_err();
+            assert!(format!("{errors:?}").contains("is not implemented"));
         }
 
         #[test]
