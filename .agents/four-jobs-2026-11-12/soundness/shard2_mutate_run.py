@@ -300,6 +300,7 @@ def main() -> int:
             continue
 
         text = src_main.read_text()
+        mutants_this_fixture = 0
         for kind, rule_hint, fn in MUTATORS:
             mutated = fn(text)
             if mutated is None:
@@ -308,6 +309,7 @@ def main() -> int:
                 )
                 continue
             stats["mutants_generated"] = stats.get("mutants_generated", 0) + 1
+            mutants_this_fixture += 1
             mid = mutant_id(fixture_rel, kind, 0)
             mdir = MUT_ROOT / mid
             copy_fixture_package(fixture_rel, mdir)
@@ -382,6 +384,12 @@ def main() -> int:
                     "seconds": f"{secs:.2f}",
                 }
             )
+
+        if mutants_this_fixture == 0:
+            stats["fixtures_no_mutation"] = stats.get("fixtures_no_mutation", 0) + 1
+            prog.setdefault("fixtures_no_mutation", []).append(fixture_rel)
+        else:
+            stats["fixtures_mutated"] = stats.get("fixtures_mutated", 0) + 1
 
         done.add(fixture_rel)
         prog["fixtures_done"] = list(done)

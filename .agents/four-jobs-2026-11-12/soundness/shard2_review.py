@@ -30,7 +30,11 @@ ROUTE_REJECT = {
 }
 
 
+ROUTE_NON_VERDICT = frozenset({"outside", "no-entry", "unreached"})
+
+
 def accepted_by(current: str, route: str) -> str:
+    """Fix4: only route=accepted counts as route acceptance."""
     cur = current == "accepted"
     ro = route == "accepted"
     if cur and ro:
@@ -40,6 +44,14 @@ def accepted_by(current: str, route: str) -> str:
     if ro:
         return "route"
     return "neither"
+
+
+def route_rejects(route: str) -> bool:
+    return route in ("rejected", "incomplete", "defect", "fallback")
+
+
+def current_rejects(current: str) -> bool:
+    return current in ("rejected", "stopped")
 
 
 def parse_route_output(out: str) -> tuple[str, str]:
@@ -231,6 +243,44 @@ SPEC_RULES = {
         "Entry obligations must hold for every admitted invocation; widening `<` to `<=` admits values that violate the original bound.",
     ),
 }
+
+
+CHECK_TIME_MARKERS = re.compile(
+    r"cannot prove|proof obligation|must be excluded before|requires a `mut` binding",
+    re.I,
+)
+RUNTIME_TRAP_MARKERS = re.compile(
+    r"crashes?\s|reaches\s+\w*[Tt]rap|runtime guard|crash route",
+    re.I,
+)
+
+
+def acceptance_mechanism(mut_path: Path) -> str:
+    """Fix4(b): whether acceptance is check-time or defers to runtime trap."""
+    out = run_checker_outputs(mut_path)
+    if out["omega_exit"] != 0 and out["current_verdict"] != "accepted":
+        return "rejected"
+    text = out["omega_out"] + "\n" + out["route_out"]
+    if RUNTIME_TRAP_MARKERS.search(text) and not CHECK_TIME_MARKERS.search(text):
+        return "runtime_trap"
+    if CHECK_TIME_MARKERS.search(text):
+        return "check_time_violation_unreported"
+    return "check_time_pass"
+
+
+def minimal_mutant_diff(orig: str, mut: str, max_lines: int = 25) -> str:
+    import difflib
+
+    return "\n".join(
+        difflib.unified_diff(
+            orig.splitlines(),
+            mut.splitlines(),
+            fromfile="original",
+            tofile="mutant",
+            lineterm="",
+            n=2,
+        )
+    )[:4000]
 
 
 def read_mutant_validity(

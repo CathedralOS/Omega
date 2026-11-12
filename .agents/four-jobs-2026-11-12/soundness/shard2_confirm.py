@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
-"""Post-process shard TSV into fix3 buckets and shard-S.md."""
+"""Post-process shard TSV (fix3 + fix4)."""
 from __future__ import annotations
 
 import csv
 import json
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from shard2_review import (
+    ROUTE_NON_VERDICT,
+    SPEC_RULES,
+    acceptance_mechanism,
     accepted_by,
+    current_rejects,
     is_known_q7_gap,
+    minimal_mutant_diff,
     read_mutant_validity,
-    removed_requires_clause,
-    requires_repeated_elsewhere,
+    route_rejects,
     run_checker_outputs,
 )
 
@@ -30,10 +34,21 @@ FINAL_BUCKETS = (
     "confirmed_hole",
     "known_gap_q7_mut",
     "disagreement_valid",
+    "valid_route_outside",
     "discarded_valid",
     "rejected_both",
     "timeout",
     "failed_run",
+)
+
+CHECK_TIME_RULE_KINDS = frozenset(
+    {
+        "remove_mut",
+        "drop_machine_requires",
+        "widen_requires_lt",
+        "ref_to_mut_ref",
+        "mut_ref_to_ref",
+    }
 )
 
 
@@ -44,18 +59,20 @@ def checker_accepts(cv: str, rv: str) -> bool:
 def both_reject(cv: str, rv: str) -> bool:
     if checker_accepts(cv, rv):
         return False
-    return cv in ("rejected", "stopped", "timeout", "error") and rv in (
-        "rejected",
-        "incomplete",
-        "defect",
-        "outside",
-        "fallback",
-        "no-entry",
-        "unreached",
-        "timeout",
-        "error",
-        "unknown",
-    )
+    if current_rejects(cv) and (route_rejects(rv) or rv in ROUTE_NON_VERDICT):
+        return True
+    if cv in ("timeout", "error") or rv in ("timeout", "error"):
+        return True
+    return current_rejects(cv) and rv in ("unknown", "error")
+
+
+def rule_heading(kind: str, rule_path: str) -> str:
+    for key, (path, heading, _) in SPEC_RULES.items():
+        if path == rule_path:
+            return heading
+    if kind == "remove_mut":
+        return "Owned local mutability"
+    return ""
 
 
 def classify_row(row: dict) -> dict:
@@ -71,6 +88,8 @@ def classify_row(row: dict) -> dict:
         "obligation_line": "",
         "rule_path": "",
         "rule_quote": "",
+        "rule_heading": "",
+        "acceptance_mechanism": "",
         "notes": row.get("route_rejection_detail", ""),
     }
 
@@ -101,44 +120,53 @@ def classify_row(row: dict) -> dict:
     base["obligation_line"] = oblig
     base["rule_path"] = rpath
     base["rule_quote"] = rquote
-
-    ab = accepted_by(cv, rv)
+    base["rule_heading"] = rule_heading(kind, rpath)
 
     if kind == "remove_mut" and invalid and oblig:
         bn = binding_from_remove(orig)
         if bn:
             q7, q7s = is_known_q7_gap(orig_path, bn, oblig)
             if q7 and checker_accepts(cv, rv):
+                mech = acceptance_mechanism(mut_path)
+                base["acceptance_mechanism"] = mech
                 base["review_bucket"] = "known_gap_q7_mut"
-                base["notes"] = f"Q7 hit: {q7s}; route hint: {base['notes']}"
-                base["rule_path"], _, base["rule_quote"] = (
-                    "wiki/spec/language/ownership.md",
-                    "",
-                    "modifying an established ordinary local's owned storage requires a `mut` binding",
+                base["notes"] = f"Q7: {q7s}"
+                base["rule_path"] = "wiki/spec/language/ownership.md"
+                base["rule_heading"] = "Owned local mutability"
+                base["rule_quote"] = (
+                    "modifying an established ordinary local's owned storage requires a `mut` binding"
                 )
                 return base
 
-    if kind in ("ref_to_mut_ref", "mut_ref_to_ref") and invalid and oblig:
-        bn = first_mut_binding(orig)
-        if bn:
-            q7, q7s = is_known_q7_gap(orig_path, bn, oblig)
-            if q7 and "mut" in reason.lower() and checker_accepts(cv, rv):
-                base["review_bucket"] = "known_gap_q7_mut"
-                base["notes"] = f"only missing `mut` on `{bn}`: {q7s}"
-                return base
+    if not invalid:
+        if rv in ROUTE_NON_VERDICT:
+            base["review_bucket"] = "valid_route_outside"
+            base["notes"] = f"valid mutant; route={rv} is not a checker verdict"
+            return base
+        if (cv == "accepted" and route_rejects(rv)) or (
+            rv == "accepted" and current_rejects(cv)
+        ):
+            base["review_bucket"] = "disagreement_valid"
+            base["notes"] = f"valid mutant; current={cv} route={rv}"
+            return base
+        if checker_accepts(cv, rv):
+            base["review_bucket"] = "discarded_valid"
+            return base
 
     if invalid and checker_accepts(cv, rv):
+        mech = acceptance_mechanism(mut_path)
+        base["acceptance_mechanism"] = mech
+        if mech == "runtime_trap":
+            base["review_bucket"] = "discarded_valid"
+            base["validity_reason"] += (
+                "; fix4: accepting checker appears to route violation to runtime trap"
+            )
+            return base
+        if kind not in CHECK_TIME_RULE_KINDS or not rquote:
+            base["review_bucket"] = "discarded_valid"
+            base["validity_reason"] += "; fix4: no check-time spec quote"
+            return base
         base["review_bucket"] = "confirmed_hole"
-        base["accepted_by"] = ab
-        return base
-
-    if not invalid and checker_accepts(cv, rv):
-        base["review_bucket"] = "discarded_valid"
-        return base
-
-    if not invalid and cv != rv:
-        base["review_bucket"] = "disagreement_valid"
-        base["notes"] = f"read valid; current={cv} route={rv}"
         return base
 
     if invalid and not checker_accepts(cv, rv):
@@ -156,14 +184,6 @@ def binding_from_remove(orig: str) -> str | None:
     return m.group(1) if m else None
 
 
-def remove_mut_name(orig: str) -> str | None:
-    return binding_from_remove(orig)
-
-
-def first_mut_binding(orig: str) -> str | None:
-    return binding_from_remove(orig)
-
-
 def write_tsv(rows: list[dict]) -> None:
     cols = [
         "fixture",
@@ -179,7 +199,9 @@ def write_tsv(rows: list[dict]) -> None:
         "validity_reason",
         "obligation_line",
         "rule_path",
+        "rule_heading",
         "rule_quote",
+        "acceptance_mechanism",
         "notes",
         "seconds",
     ]
@@ -189,40 +211,93 @@ def write_tsv(rows: list[dict]) -> None:
             f.write("\t".join(str(r.get(c, "")) for c in cols) + "\n")
 
 
+def reconcile_section(total_rows: int, reviewed: list[dict]) -> list[str]:
+    prog = json.loads(PROGRESS.read_text()) if PROGRESS.is_file() else {}
+    st = prog.get("stats", {})
+    fx_total = st.get("fixtures_total", 1130)
+    fx_done = len(prog.get("fixtures_done", []))
+    no_mut = st.get("fixtures_no_mutation", len(prog.get("fixtures_no_mutation", [])))
+    mutated = st.get("fixtures_mutated", fx_done - no_mut - st.get("fixtures_skipped_original_fails", 0))
+    skipped = st.get("fixtures_skipped_original_fails", 0)
+    by_fx = Counter(r["fixture"] for r in reviewed)
+    multi = [fx for fx, n in by_fx.items() if n > 1]
+    lines = [
+        "## Fixture / mutant reconciliation (fix4)",
+        "",
+        f"| | Count |",
+        f"| --- | ---: |",
+        f"| Fixtures in shard | {fx_total} |",
+        f"| Fixtures processed | {fx_done} |",
+        f"| Original check failed (skipped) | {skipped} |",
+        f"| No-mutation fixtures (all mutators N/A) | {no_mut} |",
+        f"| Mutated fixtures (≥1 mutant row) | {mutated} |",
+        f"| Mutant rows (TSV) | {total_rows} |",
+        "",
+    ]
+    if multi:
+        lines.append("Fixtures with more than one mutant row:")
+        for fx in sorted(multi)[:50]:
+            lines.append(f"- `{fx}` ({by_fx[fx]} rows)")
+        if len(multi) > 50:
+            lines.append(f"- … and {len(multi) - 50} more")
+    else:
+        lines.append("_No fixture with multiple rows in this slice._")
+    lines.append("")
+    return lines
+
+
+def confirmed_hole_writeup(confirmed: list[dict]) -> list[str]:
+    lines = ["## Confirmed holes (fix4 airtight)", ""]
+    if not confirmed:
+        lines.append("_None._")
+        return lines
+    for i, h in enumerate(confirmed, 1):
+        mp = REPO / h["mutant_path"]
+        orig = (REPO / h["fixture"]).read_text()
+        diff = minimal_mutant_diff(orig, mp.read_text())
+        lines.extend(
+            [
+                f"### {i}. `{h['fixture']}` ({h['mutation_kind']}, accepted_by={h['accepted_by']})",
+                "",
+                f"**(a) Check-time spec** (`{h['rule_path']}` › {h.get('rule_heading', '')})",
+                "",
+                f"> {h['rule_quote']}",
+                "",
+                f"**(b) Acceptance mechanism:** `{h.get('acceptance_mechanism', '')}` "
+                f"(must not be runtime-trap-only; route hint `{h.get('route_rejection_detail', '')[:120]}`)",
+                "",
+                "**(c) Minimal diff:**",
+                "",
+                "```diff",
+                diff,
+                "```",
+                "",
+                f"- Obligation line: `{h['obligation_line']}`",
+                f"- Mutant: `{h['mutant_path']}`",
+                "",
+            ]
+        )
+    return lines
+
+
 def hand_block(title: str, rows: list[dict], n: int = 5) -> list[str]:
     if not rows:
         return [f"## {title}", "", "_None._", ""]
     out = [f"## {title}", ""]
     for i, row in enumerate(rows[:n], 1):
-        mp = row.get("mutant_path", "")
-        lines = [f"### {i}. `{row['fixture']}` ({row['mutation_kind']})", ""]
-        if mp:
-            orig = (REPO / row["fixture"]).read_text()
-            mut = (REPO / mp).read_text()
-            ch = run_checker_outputs(REPO / mp)
-            lines.extend(
-                [
-                    f"- Bucket: `{row['review_bucket']}`; accepted_by: `{row.get('accepted_by')}`",
-                    f"- Validity (mutant read): {row.get('validity_reason', '')}",
-                    f"- Obligation: `{row.get('obligation_line', '')}`",
-                    f"- Route hint only: `{row.get('route_rejection_detail', row.get('notes', ''))[:200]}`",
-                    f"- omega exit {ch['omega_exit']}; route exit {ch['route_exit']}",
-                    "",
-                ]
-            )
-            if row["mutation_kind"] == "drop_machine_requires":
-                removed = removed_requires_clause(orig, mut) or "?"
-                dup = requires_repeated_elsewhere(orig, removed)
-                lines.append(f"- Removed requires: `{removed}`; restated elsewhere: `{dup or 'no'}`")
-                lines.append("")
-        else:
-            lines.append(f"- {row.get('validity_reason', '')}")
-            lines.append("")
-        out.extend(lines)
+        out.append(
+            f"### {i}. `{row['fixture']}` / {row['mutation_kind']} / {row['review_bucket']}"
+        )
+        out.append(f"- Validity read: {row.get('validity_reason', '')}")
+        out.append(f"- accepted_by: `{row.get('accepted_by')}`; route: `{row['route_verdict']}`")
+        out.append("")
     return out
 
 
 def main() -> None:
+    if not TSV.is_file():
+        print("missing", TSV)
+        return
     raw = list(csv.DictReader(TSV.open(), delimiter="\t"))
     reviewed = [classify_row(r) for r in raw]
     write_tsv(reviewed)
@@ -240,7 +315,7 @@ def main() -> None:
         "",
         f"PIN: `{PIN}`",
         "",
-        "## Bucket table (sums to mutant total)",
+        "## Bucket table",
         "",
         "| Bucket | Count |",
         "| --- | ---: |",
@@ -248,30 +323,14 @@ def main() -> None:
     for b in FINAL_BUCKETS:
         lines.append(f"| {b} | {bucket_counts.get(b, 0)} |")
     lines.append(f"| **Total mutants** | **{total}** |")
-
-    if PROGRESS.is_file():
-        prog = json.loads(PROGRESS.read_text())
-        st = prog.get("stats", {})
-        fx_done = len(prog.get("fixtures_done", []))
-        fx_total = st.get("fixtures_total", "?")
-        skipped = st.get("mutator_skipped_no_apply", 0)
-        lines.extend(
-            [
-                "",
-                f"- Fixtures covered: {fx_done} / {fx_total}",
-                f"- Mutator sites skipped (no-mutation, not in table): {skipped}",
-                f"- Mutants per fixture (mean): {total / fx_done:.2f}" if fx_done else "",
-            ]
-        )
-
-    lines.extend(["", "## Confirmed holes by kind", ""])
+    lines.extend(reconcile_section(total, reviewed))
+    lines.extend(["## Confirmed holes by kind", ""])
     for k, c in sorted(by_kind.items()):
         lines.append(f"- `{k}`: {c}")
     lines.extend(["", "## Confirmed holes by accepted_by", ""])
     for k, c in sorted(by_acc.items()):
         lines.append(f"- `{k}`: {c}")
-
-    lines.extend(hand_block("Hand check: 5 confirmed holes", confirmed))
+    lines.extend(confirmed_hole_writeup(confirmed))
     lines.extend(
         hand_block(
             "Hand check: 5 discarded-valid",
@@ -280,27 +339,25 @@ def main() -> None:
     )
     lines.extend(
         hand_block(
+            "Hand check: 5 valid-route-outside",
+            [r for r in reviewed if r["review_bucket"] == "valid_route_outside"],
+        )
+    )
+    lines.extend(
+        hand_block(
             "Hand check: 5 known-gap-q7-mut",
             [r for r in reviewed if r["review_bucket"] == "known_gap_q7_mut"],
         )
     )
+    lines.append("## Commands")
+    lines.append("")
+    lines.append("```bash")
+    lines.append("PYTHONUNBUFFERED=1 python3 .agents/four-jobs-2026-11-12/soundness/shard2_mutate_run.py")
+    lines.append("python3 .agents/four-jobs-2026-11-12/soundness/shard2_confirm.py")
+    lines.append("```")
 
-    lines.extend(
-        [
-            "",
-            "## Commands",
-            "",
-            "```bash",
-            "PYTHONUNBUFFERED=1 python3 .agents/four-jobs-2026-11-12/soundness/shard2_mutate_run.py",
-            "python3 .agents/four-jobs-2026-11-12/soundness/shard2_confirm.py",
-            "```",
-            "",
-        ]
-    )
-
-    MD.write_text("\n".join(lines))
+    MD.write_text("\n".join(lines) + "\n")
     print(bucket_counts)
-    print("confirmed", len(confirmed))
 
 
 if __name__ == "__main__":
