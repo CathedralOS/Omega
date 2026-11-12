@@ -2848,6 +2848,7 @@ pub(crate) mod results {
                         .fixture_module_mut()
                         .structural_types
                         .push(StructuralTypeDeclaration {
+                            requires: Vec::new(),
                             quotient_carrier: None,
                             id: structural_type,
                             identity: terminal_psi::TerminalIdentityIndex(0),

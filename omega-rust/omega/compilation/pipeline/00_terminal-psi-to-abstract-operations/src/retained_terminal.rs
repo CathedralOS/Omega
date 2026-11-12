@@ -556,13 +556,14 @@ mod native_providers {
                 ),
                 |adapter| terminal_psi::TargetMachineCallable::Machine(adapter.machine()),
             );
-            let semantic_call = crate::SelectedProgramEntryCall::bind(
-                artifact,
-                self.program_entry(),
-                &self.providers().selection,
-                &self.providers().intrinsic_executions,
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            let semantic_call =
+                crate::settlement::entry_settlement::bind_selected_program_entry_call(
+                    artifact,
+                    self.program_entry(),
+                    &self.providers().selection,
+                    &self.providers().intrinsic_executions,
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
             let scope = crate::artifact_admission::NativeScopePreparation::prepare(
                 artifact,
                 self.target_profile(),
@@ -665,7 +666,7 @@ mod native_providers {
                 {
                     continue;
                 }
-                match crate::optimization::target_family_member(
+                match terminal_installation::admitted_boundary_member(
                     module,
                     Some(&scope.targets),
                     boundary.id,

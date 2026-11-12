@@ -1,0 +1,19 @@
+data Descriptor { pages: u64; base: u64; flags: u8; tag: u8; pad: [u8; 6]; }
+machine stamp(bytes: &mut [u8; 32], offset: u64) -> u64
+requires offset <= 8
+{
+    let descriptor: &mut Descriptor = &mut bytes[offset] as &mut Descriptor;
+    let valid: bool = descriptor.pages <= 4503599627370495 &&
+        descriptor.base <= 18446744073709551615 - descriptor.pages * 4096;
+    descriptor.pages = descriptor.base;
+    transition valid {
+        true -> consume(descriptor)
+        _ -> 0
+    }
+    machine consume(descriptor: &Descriptor) -> u64
+    requires descriptor.pages <= 4503599627370495 &&
+        descriptor.base <= 18446744073709551615 - descriptor.pages * 4096
+    {
+        descriptor.base + descriptor.pages * 4096
+    }
+}

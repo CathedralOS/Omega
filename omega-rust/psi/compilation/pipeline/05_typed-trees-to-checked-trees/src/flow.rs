@@ -4197,6 +4197,7 @@ mod operator_calls {
                 *active_contexts,
                 &mutated_places,
                 FlowInvalidationSource::Statement { statement_index },
+                (caller_state_symbol, statement_index),
             );
             *active_constraints = crate::flow::project_constraint_refs_to_active_contexts(
                 &mut build.contexts.constraint_refs,
@@ -4913,7 +4914,7 @@ mod statements {
     use super::entry_origins::extend_invocation_observations;
     use super::exits::append_transition_flow_facts;
     use super::expression::append_statement_calls;
-    use super::mutation::close_storage_places_over_origins;
+    use super::mutation::close_storage_places_over_written_origins;
     use super::operand_contexts::binding_origin_is_stable;
     use super::reference_spans::appended_span_since;
     use super::reference_spans::filter_constraint_refs;
@@ -5355,6 +5356,57 @@ mod statements {
             } else {
                 storage_writes.clone()
             };
+            // Assignments and declarations take their destination from the
+            // branches above, which do not see the values that die inside the
+            // statement: the value an assignment displaces and unnamed
+            // temporaries. Their cleanup may store through exclusive references
+            // they held. `None` is an unknown footprint; a program that selects
+            // cleanup has one whenever no resolver can name the dying values.
+            let cleanup_writes = if statement.as_assignment().is_some()
+                || statement.as_local_data().is_some()
+            {
+                match build.call_frames {
+                    Some(frames) => {
+                        let frame = frames.statement_cleanup_write_frame(machine, statement);
+                        let cleanup =
+                            if frame.complete_paths().is_some_and(|paths| paths.is_empty()) {
+                                Some(Vec::new())
+                            } else {
+                                crate::flow::frame_storage_writes(
+                                    program,
+                                    machine.symbol,
+                                    state.symbol,
+                                    statement_index,
+                                    &frame,
+                                    build.call_frames,
+                                )
+                            };
+                        if ::validation::trace_flags::struct_trace() {
+                            eprintln!(
+                                "FLOW statement-cleanup-writes caller={} state={} statement={statement_index} frame={frame:?} places={cleanup:?}",
+                                machine.name, state.name
+                            );
+                        }
+                        cleanup
+                    }
+                    None if program.cleanup_selections().next().is_some() => None,
+                    None => Some(Vec::new()),
+                }
+            } else {
+                Some(Vec::new())
+            };
+            let with_cleanup = |writes: Option<Vec<validation::CanonicalPlace>>| {
+                let mut writes = writes?;
+                for place in cleanup_writes.as_ref()? {
+                    crate::shared::collections::push_unique(&mut writes, place.clone());
+                }
+                Some(writes)
+            };
+            let storage_writes = with_cleanup(storage_writes);
+            // The snapshot's binding rows answer inline-field queries, so a
+            // cleanup write to `counter.drops` must be among them, not only
+            // among the content rows.
+            let final_storage_writes = with_cleanup(final_storage_writes);
             let operand_writes = build
                 .control
                 .statements
@@ -5412,11 +5464,22 @@ mod statements {
                             )
                         })
                         .and_then(|origins| {
-                            close_storage_places_over_origins(
+                            let authored = statement
+                                .as_assignment()
+                                .and_then(|assignment| {
+                                    validation::canonical_place_from_expression(
+                                        program,
+                                        assignment.target,
+                                    )
+                                })
+                                .into_iter()
+                                .collect::<Vec<_>>();
+                            close_storage_places_over_written_origins(
                                 program,
                                 state,
                                 statement_index,
                                 places.clone(),
+                                &authored,
                                 &origins,
                             )
                         })
@@ -5540,6 +5603,7 @@ mod statements {
                     *active_contexts,
                     &mutated_places,
                     FlowInvalidationSource::Statement { statement_index },
+                    (state.symbol, statement_index),
                 );
                 *active_constraints = project_constraint_refs_to_active_contexts(
                     &mut build.contexts.constraint_refs,
@@ -5594,11 +5658,20 @@ mod statements {
                         .statements
                         .get(statement_fact)
                         .storage_snapshot;
+                    // Temporaries of the initializer die inside this statement;
+                    // their cleanup places join the declared local's rows.
+                    let written = cleanup_writes.as_ref().map(|cleanup| {
+                        let mut written = vec![destination.clone()];
+                        for place in cleanup {
+                            crate::shared::collections::push_unique(&mut written, place.clone());
+                        }
+                        written
+                    });
                     let snapshot = append_place_writes(
                         &mut build.control,
                         snapshot,
-                        Some(std::slice::from_ref(&destination)),
-                        Some(std::slice::from_ref(&destination)),
+                        written.as_deref(),
+                        written.as_deref(),
                     );
                     build
                         .control
@@ -5652,6 +5725,16 @@ mod statements {
                 active_contexts,
                 active_constraints,
             );
+            retire_statement_occurrence_facts(
+                program,
+                semantic,
+                domains,
+                build,
+                statement_index,
+                statement_fact,
+                active_contexts,
+                active_constraints,
+            );
             build
                 .control
                 .statements
@@ -5678,6 +5761,66 @@ mod statements {
         );
 
         state_calls
+    }
+
+    /*
+        A statement's by-value reads are snapshots only until it completes; then
+        the occurrence facts whose storage it wrote leave the active contexts.
+    */
+    #[allow(clippy::too_many_arguments)]
+    fn retire_statement_occurrence_facts(
+        program: &dyn ::validation::CheckingInput,
+        semantic: &mut FactPlan,
+        domains: &checked_trees::DomainFacts,
+        build: &mut FlowBuildContext,
+        statement_index: usize,
+        statement_fact: arena::Handle<checked_trees::FlowStatementFact>,
+        active_contexts: &mut arena::HandleSpan<FlowSemanticContextRef>,
+        active_constraints: &mut arena::HandleSpan<FlowConstraintRef>,
+    ) {
+        let completed = build
+            .control
+            .statements
+            .get(statement_fact)
+            .completed_writes;
+        let written_places = build
+            .control
+            .operand_origin_writes
+            .span_or_empty(completed)
+            .iter()
+            .map(|write| validation::CanonicalPlace {
+                root: write.root,
+                segments: build
+                    .control
+                    .operand_referent_segments
+                    .span_or_empty(write.segments)
+                    .to_vec(),
+            })
+            .collect::<Vec<_>>();
+        if written_places.is_empty() {
+            return;
+        }
+        let retained = crate::flow::retire_occurrence_contexts_after_statement(
+            program,
+            semantic,
+            domains,
+            &mut build.contexts.semantic_context_refs,
+            &mut build.invalidations.segments,
+            &mut build.invalidations.events,
+            *active_contexts,
+            &written_places,
+            FlowInvalidationSource::Statement { statement_index },
+        );
+        if retained == *active_contexts {
+            return;
+        }
+        *active_contexts = retained;
+        *active_constraints = project_constraint_refs_to_active_contexts(
+            &mut build.contexts.constraint_refs,
+            *active_constraints,
+            *active_contexts,
+            &build.contexts.semantic_context_refs,
+        );
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -5793,7 +5936,7 @@ mod storage_footprints {
     use checked_trees::{FlowControlFacts, FlowOperandFact};
     use typed_trees::machine::Machine;
     use validation::completed_storage::direct_referent_places;
-    use validation::completed_storage::reference_backing_places;
+    use validation::completed_storage::reference_write_backing_places;
     use validation::{CallFrameResolver, CanonicalPlace, CheckingInput};
 
     pub(super) fn assignment(
@@ -5824,15 +5967,17 @@ mod storage_footprints {
         if frames.assignment_replaces_reference_binding(machine, statement)? {
             return None;
         }
-        reference_backing_places(program, control, target, &[], &mut |_, _| None).map(|places| {
-            places
-                .into_iter()
-                .map(|place| CanonicalPlace {
-                    root: place.root,
-                    segments: place.segments,
-                })
-                .collect()
-        })
+        reference_write_backing_places(program, control, target, &[], &mut |_, _| None).map(
+            |places| {
+                places
+                    .into_iter()
+                    .map(|place| CanonicalPlace {
+                        root: place.root,
+                        segments: place.segments,
+                    })
+                    .collect()
+            },
+        )
     }
 }
 #[path = "flow_transfers.rs"]
@@ -6924,14 +7069,142 @@ mod domain {
                     | facts::PlaceRoot::Expression(_)
                     | facts::PlaceRoot::TypeReference(_) => {}
                 }
-                let fact_root = place.root;
+                matching_mutation_for_canonical_place(
+                    program,
+                    domain_dependencies,
+                    fact,
+                    place.root,
+                    semantic.place_segments.span_or_empty(place.segments),
+                    mutated_places,
+                )
+            }
+
+            /*
+                A by-value read records its facts on the read occurrence, not on its
+                storage. Inside its statement that occurrence is a snapshot: a sibling
+                operand's later write leaves it intact ("Scalar arguments retain their
+                evaluation snapshots", `state_contracts.md`). Once the statement
+                completes, the occurrence answers questions about the same storage
+                (contract provers match places by label), so it must also retire with
+                that storage's writes. This matcher resolves an occurrence root to the
+                storage place it read; any other root has no storage to resolve.
+            */
+            pub(in crate::flow) fn matching_mutation_for_occurrence_place<'a, 'b>(
+                program: &dyn ::validation::CheckingInput,
+                semantic: &FactPlan,
+                domain_dependencies: &'a DomainFacts,
+                fact: &Fact,
+                fact_place: facts::PlaceHandle,
+                mutated_places: &'b [CanonicalPlace],
+            ) -> Option<(&'b CanonicalPlace, &'a [facts::PlaceSegment])> {
+                if mutated_places.is_empty() {
+                    return None;
+                }
+                let place = semantic.places.get(fact_place);
+                let facts::PlaceRoot::Expression(expression) = place.root else {
+                    return None;
+                };
+                if !program.expression_table.expression_is_valid(expression) {
+                    return None;
+                }
+                let storage = validation::canonical_place_from_expression(program, expression)?;
+                if !matches!(storage.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid()) {
+                    return None;
+                }
+                let mut segments = storage.segments;
+                segments.extend_from_slice(semantic.place_segments.span_or_empty(place.segments));
+                matching_mutation_for_canonical_place(
+                    program,
+                    domain_dependencies,
+                    fact,
+                    storage.root,
+                    &segments,
+                    mutated_places,
+                )
+            }
+
+            /*
+                A write inside a statement retires the occurrence facts that earlier
+                statements left behind: those already alias their storage. Facts the
+                current statement recorded stay as its snapshots until it completes.
+            */
+            pub(in crate::flow) fn matching_mutation_for_settled_occurrence<'a, 'b>(
+                program: &dyn ::validation::CheckingInput,
+                semantic: &FactPlan,
+                domain_dependencies: &'a DomainFacts,
+                fact: &Fact,
+                fact_place: facts::PlaceHandle,
+                mutated_places: &'b [CanonicalPlace],
+                current_statement: (symbols::SymbolHandle, usize),
+            ) -> Option<(&'b CanonicalPlace, &'a [facts::PlaceSegment])> {
+                if fact_statement(fact.point) == Some(current_statement) {
+                    return None;
+                }
+                matching_mutation_for_occurrence_place(
+                    program,
+                    semantic,
+                    domain_dependencies,
+                    fact,
+                    fact_place,
+                    mutated_places,
+                )
+            }
+
+            fn fact_statement(
+                point: facts::ProgramPoint,
+            ) -> Option<(symbols::SymbolHandle, usize)> {
+                match point {
+                    facts::ProgramPoint::Statement {
+                        state_symbol,
+                        statement_index,
+                        ..
+                    }
+                    | facts::ProgramPoint::Call {
+                        state_symbol,
+                        statement_index,
+                        ..
+                    }
+                    | facts::ProgramPoint::CallRequires {
+                        state_symbol,
+                        statement_index,
+                        ..
+                    }
+                    | facts::ProgramPoint::CallEnsures {
+                        state_symbol,
+                        statement_index,
+                        ..
+                    }
+                    | facts::ProgramPoint::TransitionArm {
+                        state_symbol,
+                        statement_index,
+                        ..
+                    }
+                    | facts::ProgramPoint::Exit {
+                        state_symbol,
+                        statement_index,
+                        ..
+                    } => Some((state_symbol, statement_index)),
+                    facts::ProgramPoint::Global
+                    | facts::ProgramPoint::Definition { .. }
+                    | facts::ProgramPoint::Machine { .. }
+                    | facts::ProgramPoint::State { .. } => None,
+                }
+            }
+
+            fn matching_mutation_for_canonical_place<'a, 'b>(
+                program: &dyn ::validation::CheckingInput,
+                domain_dependencies: &'a DomainFacts,
+                fact: &Fact,
+                fact_root: facts::PlaceRoot,
+                fact_segments: &[facts::PlaceSegment],
+                mutated_places: &'b [CanonicalPlace],
+            ) -> Option<(&'b CanonicalPlace, &'a [facts::PlaceSegment])> {
                 if !mutated_places
                     .iter()
                     .any(|mutation| mutation.root == fact_root)
                 {
                     return None;
                 }
-                let fact_segments = semantic.place_segments.span_or_empty(place.segments);
                 let is_case_value = matches!(fact.payload, facts::FactPayload::CaseValue { .. });
                 let mut case_canonical: Option<CanonicalPlace> = None;
                 let dependency = match fact.payload {
@@ -7008,6 +7281,8 @@ mod domain {
         }
 
         pub(in crate::flow) use self::matching::matching_mutation_for_fact_place;
+        use self::matching::matching_mutation_for_occurrence_place;
+        pub(in crate::flow) use self::matching::matching_mutation_for_settled_occurrence;
 
         /*
             Query the same storage/dependent-domain invalidation law without publishing
@@ -7082,6 +7357,7 @@ mod domain {
             source: HandleSpan<FlowSemanticContextRef>,
             mutated_places: &[CanonicalPlace],
             invalidation_source: FlowInvalidationSource,
+            current_statement: (symbols::SymbolHandle, usize),
         ) -> HandleSpan<FlowSemanticContextRef> {
             if mutated_places.is_empty() {
                 return source;
@@ -7101,6 +7377,56 @@ mod domain {
                         fact,
                         place,
                         mutated_places,
+                    )
+                    .or_else(|| {
+                        matching_mutation_for_settled_occurrence(
+                            program,
+                            semantic,
+                            domain_dependencies,
+                            fact,
+                            place,
+                            mutated_places,
+                            current_statement,
+                        )
+                    })
+                },
+            )
+        }
+
+        /*
+            End of statement: retire every occurrence fact whose storage the completed
+            statement wrote, by any operand or nested call. See
+            `matching_mutation_for_occurrence_place`.
+        */
+        pub(crate) fn retire_occurrence_contexts_after_statement(
+            program: &dyn ::validation::CheckingInput,
+            semantic: &mut FactPlan,
+            domain_dependencies: &DomainFacts,
+            semantic_context_refs: &mut PagedArenaSet<FlowSemanticContextRef>,
+            invalidation_segments: &mut PagedArenaSet<PlaceSegment>,
+            invalidations: &mut PagedArenaSet<FlowInvalidationFact>,
+            source: HandleSpan<FlowSemanticContextRef>,
+            written_places: &[CanonicalPlace],
+            invalidation_source: FlowInvalidationSource,
+        ) -> HandleSpan<FlowSemanticContextRef> {
+            if written_places.is_empty() {
+                return source;
+            }
+            filter_contexts_after_mutations(
+                semantic,
+                semantic_context_refs,
+                invalidation_segments,
+                invalidations,
+                source,
+                invalidation_source,
+                |semantic, fact, place| {
+                    matching_mutation_for_occurrence_place(
+                        program,
+                        semantic,
+                        domain_dependencies,
+                        fact,
+                        place,
+                        written_places,
                     )
                 },
             )
@@ -7288,6 +7614,8 @@ mod domain {
     pub(in crate::flow) use invalidation::filter_contexts_after_mutations;
     pub(crate) use invalidation::filter_contexts_after_place_mutations;
     pub(in crate::flow) use invalidation::matching_mutation_for_fact_place;
+    pub(in crate::flow) use invalidation::matching_mutation_for_settled_occurrence;
+    pub(crate) use invalidation::retire_occurrence_contexts_after_statement;
 }
 #[path = "flow_mutation.rs"]
 mod mutation;
@@ -11733,17 +12061,18 @@ pub(crate) use domain::build_domain_facts;
 pub(crate) use domain::context_survives_place_mutations;
 pub(crate) use domain::filter_contexts_after_place_mutations;
 pub(crate) use domain::relative_place_segments_from_expression;
+pub(crate) use domain::retire_occurrence_contexts_after_statement;
 use exits::append_state_exit_facts;
 pub(crate) use exits::{exit_parameter_origins, state_exit_parameter_origins};
 pub(crate) use mutation::close_storage_places_over_aliases;
 pub(crate) use mutation::rebase_exact_local_place;
 pub(crate) use mutation::{OriginPrecision, origin_place, sole_local_referent_origin};
 pub(crate) use mutation::{
-    StateMutationSummaryCache, call_mutated_places, call_mutated_regions,
-    call_receiver_write_accesses, call_write_accesses, canonical_receiver_place_for_call_site,
-    family_data_binding_parameter, frame_storage_writes, linear_restoration_ceiling_regions,
-    place_from_origin_path, signature_ceiling_places, state_storage_writes,
-    statement_mutated_place, statement_storage_writes,
+    StateMutationSummaryCache, assignment_requires_exclusive_access, call_mutated_places,
+    call_mutated_regions, call_receiver_write_accesses, call_write_accesses,
+    canonical_receiver_place_for_call_site, family_data_binding_parameter, frame_storage_writes,
+    linear_restoration_ceiling_regions, place_from_origin_path, signature_ceiling_places,
+    state_storage_writes, statement_mutated_place, statement_storage_writes,
 };
 use operator_calls::{
     append_operator_statement_ensures, operator_statement_call_mutated_places,

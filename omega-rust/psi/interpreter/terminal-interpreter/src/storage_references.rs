@@ -3448,7 +3448,7 @@ impl TerminalExecution<'_> {
             if access == StructuralAccess::Owned {
                 field.canonical_leaf_type()
             } else {
-                field.borrowed_presentation_type(access, Some(expected))
+                terminal_semantics::borrowed_field_presentation(field, access, Some(expected))
             }
         })
     }

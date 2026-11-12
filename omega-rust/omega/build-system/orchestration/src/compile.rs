@@ -3,3 +3,4 @@
 pub(crate) mod build_execution;
 pub(crate) mod native_completion;
 pub(crate) mod source_compilation;
+pub(crate) mod test_execution;

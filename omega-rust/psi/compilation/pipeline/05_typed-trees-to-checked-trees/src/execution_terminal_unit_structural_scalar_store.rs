@@ -2324,6 +2324,7 @@ mod primitive {
             | ScalarExpression::StorageRead { .. }
             | ScalarExpression::ErasedParameter { .. }
             | ScalarExpression::StructuralParameterField { .. }
+            | ScalarExpression::StructuralLocalField { .. }
             | ScalarExpression::StructuralParameterIndexedRead { .. } => false,
         }
     }
@@ -3768,7 +3769,7 @@ fn closed_sum(
         && data.lifetime_parameters.is_empty()
         && program.data_type_parameters(data).is_empty()
         && data.quotient.is_none()
-        && data.where_facts.is_empty()
+        && data.requires_facts.is_empty()
         && !data.zero_gated
         && data.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
 }

@@ -53,6 +53,16 @@ or `trap`. This opts the fixture into execution regardless of its name and makes
 the native gate enforce that result even with `--record`. `trap` requires the
 target's trap signal/exception, not an arbitrary abnormal termination. These
 fixtures must bind the running host; missing execution fails the oracle.
+`expected_application_baseline.txt` names a sibling fixture, relative to the
+fixture's directory, whose application is the same program without this
+fixture's test-group registration. The runner compiles both to Terminal products
+for the fixture's first bound target and compares their Terminal machines:
+`application-baseline-machines:same` shows no registered test root joined the
+application's executable code, and `:differs` that the application retains
+machines its baseline lacks. `application-baseline-sections:` names every other
+module section that differs, without judging it. Terminal machines carry no
+source names, so the comparison is structural.
+
 `expected_stdout.txt` and `expected_stderr.txt` also opt a fixture into execution
 and independently constrain each engine's captured stream. Matching exits cannot
 excuse missing/different output, and `--record` cannot bless that result. Captures
@@ -110,28 +120,6 @@ shared/device ordering or foreign native execution.
 installation: Windows traps while the other authored targets return Unit. This
 is not acceptance of the complete Build companion or a grant of backing authority
 from family catalog membership.
-
-`--checked-interpreter` explicitly selects the checked-tree source oracle instead
-of Terminal. It uses the same reviewed fixture inputs, selected entry and
-explicit installed arguments, but owns its independent checked compilation rather than
-reusing a native report's Terminal artifact. No refusal or source spelling chooses
-this route. Remaining automatic entry-context construction must migrate under
-`EXPLICIT-ENTRY-STORAGE`; a root parameter alone grants no storage. It records
-`interpreter-engine:checked-tree`; its separate defaults
-are `corpus_checked_interpreted.txt` and, with `--both`,
-`corpus_checked_both_<target>.txt`. Until those goldens exist, use an explicit
-golden to expose fact moves without recording:
-
-```bash
-python3 tools/corpus_gate.py --checked-interpreter \
-  --golden tests/omega/corpus_outcomes.txt \
-  --filter pass/layouts/runtime_callee_integer_at_fitting_write_exit,pass/calls/runtime_guarded_reference_return_crash
-```
-
-The checked engine has no typed Trap outcome. Every execution error remains
-declined, including explicit crashes; diagnostic text cannot satisfy a trap
-oracle. Both engines enforce the same authored exit and stdout promises before
-recording. Trap probes remain declined until the checked API retains their kind.
 
 ## Reviewed interpreter migration debt
 

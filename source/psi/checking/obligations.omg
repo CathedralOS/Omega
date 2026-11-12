@@ -510,9 +510,9 @@ crashes Trap
         Checker::assume_guarantees(checker, syntax, resolution, typing, clauses, expression, value);
     }
 
-    // Establishing a value of data with `where` facts owes them, and a case
-    // value its case's own facts too: a construction over the values it
-    // writes, a payload-free case value (`Type::Case`) over zero fields.
+    // Establishing a value of data with `requires` facts owes them: a
+    // construction over the values it writes, a payload-free case value
+    // (`Type::Case`) over zero fields.
     machine construct(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping, row: TypeRow, checking: bool) {
         let constrained: bool = Checker::constrained(syntax, typing, type_handle);
         let binding: ValueBinding = NameResolution::value_binding(resolution, expression.left);

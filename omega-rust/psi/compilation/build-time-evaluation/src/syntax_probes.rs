@@ -603,6 +603,7 @@ pub(crate) fn extend_normalization_owners(
                         ConformanceMember::Machine(machine)
                         | ConformanceMember::Synthesized(machine)
                         | ConformanceMember::TraitDefault { machine, .. } => machine,
+                        ConformanceMember::Selection { .. } => continue,
                     };
                     pending.extend(machine.nested_machines.handles());
                 }

@@ -14,6 +14,7 @@ impl CompilationSession {
     pub(super) fn select_build_batch<Owner>(
         &mut self,
         builds: Vec<(Owner, PreparedPackageBuild)>,
+        mut frontier: Option<&mut Option<super::checking::typed_frontier::TypedFrontier>>,
     ) -> Vec<(Owner, SelectedCompileOutcome)> {
         let mut outcomes = Vec::with_capacity(builds.len());
         let mut applications = Vec::with_capacity(builds.len());
@@ -57,6 +58,7 @@ impl CompilationSession {
                     &rollback,
                     self.reuse(),
                     &mut self.selections,
+                    frontier.as_deref_mut(),
                 )
             });
             match checked {
@@ -99,6 +101,8 @@ impl CompilationSession {
                                             .built
                                             .computed_build_config
                                             .independent_components(),
+                                        tests: Vec::new(),
+                                        test_notes: Vec::new(),
                                     },
                                 ));
                                 continue;
@@ -118,6 +122,8 @@ impl CompilationSession {
                         SelectedCompileOutcome {
                             result: Err(CompileFailure::from(diagnostics.clone())),
                             independent_components: discovery,
+                            tests: Vec::new(),
+                            test_notes: Vec::new(),
                         },
                     ));
                     for (position, owner, member) in members {
@@ -127,6 +133,8 @@ impl CompilationSession {
                             SelectedCompileOutcome {
                                 result: Err(CompileFailure::from(diagnostics.clone())),
                                 independent_components: member.build().independent_components(),
+                                tests: Vec::new(),
+                                test_notes: Vec::new(),
                             },
                         ));
                     }
@@ -135,11 +143,25 @@ impl CompilationSession {
         }
         for (position, owner, source, target, inputs) in applications {
             let prepared = capture_beside_publication(&source, target, &inputs);
-            outcomes.push((
-                position,
-                owner,
-                crate::execution_settlement::select_product_target(&source, prepared),
-            ));
+            let mut outcome = crate::execution_settlement::select_product_target(&source, prepared);
+            if outcome.result.is_ok() {
+                match super::test_roots::select_test_roots(&source, target) {
+                    Ok(selection) => {
+                        outcome.test_notes = selection.notes;
+                        for root in selection.roots {
+                            let prepared =
+                                capture_beside_publication(&root.source, target, &inputs);
+                            let selected = crate::execution_settlement::select_product_target(
+                                &root.source,
+                                prepared,
+                            );
+                            outcome.tests.push((root.identity, selected.result));
+                        }
+                    }
+                    Err(diagnostics) => outcome.result = Err(CompileFailure::from(diagnostics)),
+                }
+            }
+            outcomes.push((position, owner, outcome));
         }
         outcomes.sort_unstable_by_key(|(position, _, _)| *position);
         let mut selected = Vec::with_capacity(outcomes.len());

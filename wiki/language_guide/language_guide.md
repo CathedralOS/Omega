@@ -1,14 +1,64 @@
 # Omega language guide
 
-Start with data and machines, then add ownership, contracts, and the services
-your program needs. Examples introduce one feature at a time; protocol sketches
-name the surrounding library operations they assume.
+Omega is a systems language in which the compiler checks, before the program
+runs, that arithmetic does not overflow, indexes are in bounds, invariants
+hold and a program touches only what it declared. This guide shows how to
+write it. Each chapter is short and starts from code.
 
-The [specification](../README.md) is the reference for complete rules. This guide
-describes the accepted language. Compiler support and remaining work are tracked
-in [implementation notes](../../omega-rust/README.md) and [TASKS.md](../../TASKS.md).
+The [specification](../README.md) has the complete rules; every chapter links
+to the part it summarizes. The guide describes the language as designed. What
+the compiler supports today is tracked in the
+[implementation notes](../../omega-rust/README.md) and [TASKS.md](../../TASKS.md).
 
-Suggested reading path:
+## Start here
+
+Read chapters 1 to 4 in order. They take about fifteen minutes and are enough
+to read most Omega code. Then read 5 to 7, and after that pick what you need.
+
+```omega
+data Counter
+requires count <= limit
+{
+    count: u32;
+    limit: u32;
+}
+
+machine bump(counter: &mut Counter) -> bool {
+    transition counter.count < counter.limit {
+        true -> advance(counter)
+        false -> false
+    }
+
+    machine advance(counter: &mut Counter) -> bool
+    requires counter.count < counter.limit
+    {
+        counter.count = counter.count + 1;
+        true
+    }
+}
+```
+
+That is a record with an invariant, a machine that takes it by mutable
+reference, a branch, and a nested machine whose `requires` is what makes the
+addition provably safe. Nothing here is checked at run time.
+
+## If you know another language
+
+| You expect | In Omega |
+| --- | --- |
+| Functions and methods | `machine`. No methods; the value is an ordinary parameter. |
+| `struct` and `enum` | `data` with fields, or `data` with `case`s. |
+| `for` and `while` | A machine that calls itself as its last action. |
+| `if` and `match` | `transition` and `match`. |
+| Exceptions or `?` | Return a sum and match on it. |
+| `impl Trait for Type` | A named implementation, `Name satisfies Trait<Type>`, passed explicitly. |
+| Closures and trait objects | A record holding machines, with `some S` for hidden state. |
+| Runtime bounds and overflow checks | A compile-time proof, or an operator such as `+!` that says what to do. |
+| Private fields | Public fields, with a domain controlling who may create and change values. |
+| `async` and `await` | `suspends` on the machine and `suspend` at the call. |
+| Global state, ambient I/O | Boundary traits chosen by the build. |
+
+## Chapters
 
 Core language:
 

@@ -13,15 +13,6 @@ pub(crate) mod access_views {
         use diagnostics::Diagnostic;
         use language_semantics::MachineSupplyMode;
 
-        const LAYOUT_SOURCE: &[u8] = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/core/layout.omg"
-        ));
-        const RUN_SOURCE: &[u8] = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/core/run.omg"
-        ));
-
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         pub enum AccessContentShape {
             Resident,
@@ -342,54 +333,27 @@ pub(crate) mod access_views {
                 let declaration = program
                     .machine_specialization(machine.symbol)
                     .map_or(machine.symbol, |application| application.template);
-                let Some(source) = program
+                use language_core::sealed_intrinsics::{
+                    PlacementContent, PlacementOperation, SealedIntrinsic,
+                };
+                let Some(template) = program.machine(declaration) else {
+                    return Ok(None);
+                };
+                let Some(SealedIntrinsic::PlacementLifecycle { operation, content }) = program
                     .symbols
-                    .symbol_source_span(declaration)
-                    .and_then(|span| program.symbols.source_file(span))
+                    .sealed_declaration(declaration, template.name.as_str())
                 else {
                     return Ok(None);
                 };
-                if source.origin != source::SourceOrigin::Toolchain
-                    || source.package_identity.is_some()
-                {
-                    return Ok(None);
-                }
-                let content = match source.path.strip_prefix(&source.package_root).ok() {
-                    Some(path)
-                        if path == std::path::Path::new("layout.omg")
-                            && source.source.as_bytes() == LAYOUT_SOURCE =>
-                    {
-                        AccessContentShape::Resident
-                    }
-                    Some(path)
-                        if path == std::path::Path::new("run.omg")
-                            && source.source.as_bytes() == RUN_SOURCE =>
-                    {
-                        AccessContentShape::Run
-                    }
-                    _ => return Ok(None),
+                let content = match content {
+                    PlacementContent::Resident => AccessContentShape::Resident,
+                    PlacementContent::Run => AccessContentShape::Run,
                 };
-                let operation = match program
-                    .normalized_hermetic_symbol_identity(declaration)
-                    .ok()
-                    .as_deref()
-                {
-                    Some(
-                        "toolchain::Access::initialize_from_profile"
-                        | "toolchain::Run::initialize_from_profile",
-                    ) => AccessLifecycleOperation::Initialize,
-                    Some(
-                        "toolchain::Access::extract_resident"
-                        | "toolchain::Run::extract_from_profile",
-                    ) => AccessLifecycleOperation::MoveOut,
-                    Some(
-                        "toolchain::Access::view_from_profile"
-                        | "toolchain::Access::view_mut_from_profile",
-                    ) => AccessLifecycleOperation::View,
-                    Some("toolchain::Run::relocate_from_profiles") => {
-                        AccessLifecycleOperation::Relocate
-                    }
-                    _ => return Ok(None),
+                let operation = match operation {
+                    PlacementOperation::Initialize => AccessLifecycleOperation::Initialize,
+                    PlacementOperation::MoveOut => AccessLifecycleOperation::MoveOut,
+                    PlacementOperation::View => AccessLifecycleOperation::View,
+                    PlacementOperation::Relocate => AccessLifecycleOperation::Relocate,
                 };
                 let malformed = |reason| {
                     Diagnostic::error(format!(
@@ -476,22 +440,23 @@ pub(crate) mod access_views {
                 if machine.attached_data_symbol.is_valid() {
                     return Ok(None);
                 }
-                let operation = match machine.name.as_str() {
-                    "read" => Self::Read,
-                    "write" => Self::Write,
+                use language_core::sealed_intrinsics::{PlacedPrimitiveOperation, SealedIntrinsic};
+                let operation = match program
+                    .symbols
+                    .sealed_declaration(machine.symbol, machine.name.as_str())
+                {
+                    Some(SealedIntrinsic::PlacedPrimitive(PlacedPrimitiveOperation::Read)) => {
+                        Self::Read
+                    }
+                    Some(SealedIntrinsic::PlacedPrimitive(PlacedPrimitiveOperation::Write)) => {
+                        Self::Write
+                    }
                     _ => return Ok(None),
                 };
                 let source = program
                     .symbols
                     .symbol_source_span(machine.symbol)
                     .and_then(|span| program.symbols.source_file(span));
-                if source.is_none_or(|file| {
-                    file.origin != source::SourceOrigin::Toolchain
-                        || file.path.strip_prefix(&file.package_root).ok()
-                            != Some(std::path::Path::new("layout.omg"))
-                }) {
-                    return Ok(None);
-                }
                 let invalid = || {
                     Diagnostic::error(format!(
                         "sealed placed {} primitive has an invalid declaration contract",
@@ -761,15 +726,11 @@ pub(crate) mod access_views {
                         "closed view has no exact toolchain template custody",
                     ));
                 }
-                let template_source = typed
-                    .symbols
-                    .symbol_source_span(view.template_symbol)
-                    .and_then(|span| typed.symbols.source_file(span));
-                if template_source.is_none_or(|file| {
-                    file.origin != source::SourceOrigin::Toolchain
-                        || file.path.strip_prefix(&file.package_root).ok()
-                            != Some(std::path::Path::new("layout.omg"))
-                }) {
+                if typed.symbols.sealed_intrinsic(view.template_symbol)
+                    != Some(
+                        language_core::sealed_intrinsics::SealedIntrinsic::PlacedAccessorTemplate,
+                    )
+                {
                     return Err(invalid(
                         "template does not belong to the sealed layout interface",
                     ));

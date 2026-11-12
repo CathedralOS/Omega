@@ -30,11 +30,13 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedApply {
     machine apply(chosen: &mut i64, other: &mut i64, visits: &mut u64) -> i64
+    requires visits == 0
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 
 X86Apply satisfies SelectedApply {
     machine apply(chosen: &mut i64, other: &mut i64, visits: &mut u64) -> i64
+    requires visits == 0
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -49,6 +51,7 @@ X86Apply satisfies SelectedApply {
 
 ArmApply satisfies SelectedApply {
     machine apply(chosen: &mut i64, other: &mut i64, visits: &mut u64) -> i64
+    requires visits == 0
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);

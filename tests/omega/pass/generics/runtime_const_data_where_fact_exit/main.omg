@@ -28,7 +28,7 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     main.buffer.used = 4;
     main.buffer.values[0] = 66;
-    Console::exit_process(main.buffer.values[0] as i32 + main.buffer.used as i32);
+    Console::exit_process((main.buffer.values[0] as i32) + main.buffer.used as i32);
 }
 
 // The entry owns ordinary local state; selection supplies no context.

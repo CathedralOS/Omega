@@ -623,6 +623,7 @@ mod tests {
                 Some(StructuralAccess::WriteOnlyBorrow),
             ]
             .map(|access| StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
@@ -642,6 +643,7 @@ mod tests {
     #[test]
     fn logical_copy_permission_changes_encoded_identity() {
         assert_distinct_encodings([false, true].map(|flag| StructuralTypeDeclaration {
+            requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
@@ -660,6 +662,7 @@ mod tests {
     #[test]
     fn declaration_owned_linearity_changes_encoded_identity() {
         assert_distinct_encodings([false, true].map(|flag| StructuralTypeDeclaration {
+            requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: flag,
             no_code_affine_cleanup: false,

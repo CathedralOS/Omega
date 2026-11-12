@@ -74,10 +74,11 @@ than silently translate them or enable a compatibility mode.
 
 Header clauses are delimited by the next clause or body, never by semicolons.
 Only a bodyless declaration or requirement has a final declaration semicolon.
-This includes nested `requires machine` contracts; see
+This includes nested `requires machine` hypotheses of mathematical
+declarations; see
 [machine header delimiters](state_contracts.md#machine-header-delimiters).
 
-A fixed operator token after `machine`, as in `machine + Vec2::add(...)`, binds
+A fixed operator token after `machine`, as in `machine + add(...)`, binds
 expression syntax to the same named machine. This is not a separate executable
 species or an alternate contract system. [Operator declarations](expressions.md#operator-declarations)
 owns token selection and family ownership; the ordinary supply rules below own
@@ -282,7 +283,14 @@ Pass them explicitly, including references, capabilities and lifetime-bearing
 values. Enclosing generic/static declaration bindings remain lexical context;
 resolution and specialization retain their exact identities without creating an
 implicit runtime environment. Nested contracts can use that static context and
-their own parameters, not another invocation's local values or live facts.
+their own parameters, not another invocation's local values or live facts by
+lexical ancestry. [Private entry inference](state_contracts.md#private-entry-inference)
+may discover conditions for a private helper only when it omits `requires`;
+every call proves those conditions. A written entry contract remains complete
+even when all currently visible callers happen to establish stronger facts.
+Exact checked calls may use [local summaries](state_contracts.md#local-call-summaries)
+within the fixed verification unit, through argument substitution rather than
+implicit runtime capture.
 
 An ordinary call resumes its continuation on normal return. A machine call in a
 terminal `transition` arm forwards its normal result as the current invocation's

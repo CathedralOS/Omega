@@ -158,7 +158,7 @@ public data DataItem [copy] {
     clause_count: u64 in Trapping;
     multiplicity: DataMultiplicity;
     // `boundary data` leaves its representation to a crossing: it declares
-    // no members and no `where` facts.
+    // no members and no `requires` facts.
     is_boundary: bool;
     is_public: bool;
     source_span: SourceSpan;
@@ -374,9 +374,9 @@ public data Statement [copy] {
 
 // One clause between a declaration's head and its body. `Reaches` names
 // services and `Invokes` a binding, both in `SyntaxTrees::members`; `Crashes`
-// records its cause; `Requires`, `Ensures` and each `Where` fact hold a fact
-// expression; `Suspends` and `Blocks` carry nothing more. `Satisfies` names
-// one exact trait requirement `Trait<arguments>::requirement`: the trait's
+// records its cause; `Requires` and `Ensures` facts hold a fact expression;
+// `Suspends` and `Blocks` carry nothing more. `Satisfies` names one exact
+// trait requirement `Trait<arguments>::requirement`: the trait's
 // path and then the requirement in `SyntaxTrees::members`, the trait's static
 // arguments in `SyntaxTrees::type_arguments`, an optional satisfier label
 // `as Name` and an optional binding payload `via value` as its expression.
@@ -393,7 +393,6 @@ public data ClauseKind [copy] {
     case Crashes;
     case Requires;
     case Ensures;
-    case Where;
     case Satisfies;
     case Terminates;
 }
@@ -897,7 +896,8 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedArrayElement;
     case ExpectedArrayElementEnd;
     case MissingBoundaryReachCeiling;
-    case RetiredWhereMachineRequirement;
+    // `where` in a clause position; `requires` replaced it.
+    case RetiredWhereClause;
     case RetiredDomainSubject;
     case RetiredCasePredicate;
 }

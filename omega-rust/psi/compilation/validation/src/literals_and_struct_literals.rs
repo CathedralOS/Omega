@@ -2059,7 +2059,7 @@ pub mod literals {
         pub(crate) mod destinations {
             use super::{
                 BinaryOperator, ExpressionHandle, ExpressionNode, PrimitiveType,
-                anonymous_numeric_value, has_anonymous_operator_meaning, integer_landing_warning,
+                anonymous_numeric_value, has_anonymous_operator_meaning, implicit_landing_error,
                 land_integer_value,
             };
             use crate::CheckingInput;
@@ -2231,7 +2231,19 @@ pub mod literals {
                 }
             }
 
-            pub(crate) fn anonymous_integer_landing_warnings(
+            /* Explicit integer landing (numeric_values.md#fractional-intermediate-diagnostics):
+            an anonymous calculation whose exact history holds a fractional
+            intermediate may land in an integer only through `as` around the
+            complete anonymous expression. Every other integer destination this
+            visitor reaches -- locals, fields, parameters, returns, transfers,
+            match joins and typed-operation peers -- is an implicit landing and
+            rejects. A proof-level `Int` peer has no cast spelling, so it keeps
+            the warning until OWNER_QUESTIONS.md settles its acknowledgement
+            form ("Explicit landing at a proof-level Int peer"). A cast acknowledges exactly its own
+            operand (and the arms that operand joins), never a sibling or an
+            enclosing call argument; final integrality, range and division by
+            zero are still decided by the cast's ordinary landing check. */
+            pub(crate) fn anonymous_integer_landing_errors(
                 program: &dyn CheckingInput,
             ) -> Vec<Diagnostic> {
                 let has_potential_fractional_origin = expression_table(program)
@@ -2245,7 +2257,7 @@ pub mod literals {
                     return Vec::new();
                 }
                 let mut warnings = Vec::new();
-                let mut warned = Vec::new();
+                let mut warned = explicitly_landed_operands(program);
                 visit_destination_trees(program, |destination, expression| {
                     if let Some(primitive) = program.primitive_type_reference(destination) {
                         append_integer_landing_warning(
@@ -2286,6 +2298,44 @@ pub mod literals {
                 warnings
             }
 
+            /* The operands an ordinary integer cast lands explicitly. A Match
+            operand contributes the arm results it joins, because the cast is
+            their landing too; nothing below an arithmetic operand is added, so
+            a typed operation inside the cast keeps its own implicit landing. */
+            fn explicitly_landed_operands(program: &dyn CheckingInput) -> Vec<ExpressionHandle> {
+                let mut acknowledged = Vec::new();
+                for (_, node) in expression_table(program).iter_expressions() {
+                    let ExpressionNode::Cast(cast) = node else {
+                        continue;
+                    };
+                    if cast.form.is_recast()
+                        || !cast.semantic_domain.is_empty()
+                        || !program
+                            .primitive_type_reference(cast.target_type)
+                            .is_some_and(|primitive| primitive.is_integer())
+                    {
+                        continue;
+                    }
+                    let mut pending = vec![cast.value];
+                    while let Some(expression) = pending.pop() {
+                        if acknowledged.contains(&expression) {
+                            continue;
+                        }
+                        acknowledged.push(expression);
+                        if let Some(dispatch) = program.expression_table.match_node(expression) {
+                            pending.extend(
+                                program
+                                    .expression_table
+                                    .match_arms(dispatch.arms)
+                                    .iter()
+                                    .map(|arm| arm.value),
+                            );
+                        }
+                    }
+                }
+                acknowledged
+            }
+
             fn append_integer_landing_warning(
                 program: &dyn CheckingInput,
                 primitive: Option<PrimitiveType>,
@@ -2316,9 +2366,14 @@ pub mod literals {
                 {
                     return;
                 }
-                let Some(warning) =
-                    integer_landing_warning(program, &evaluated, &integer, &[], &mut builtin)
-                else {
+                let Some(warning) = implicit_landing_error(
+                    program,
+                    &evaluated,
+                    &integer,
+                    primitive,
+                    &[],
+                    &mut builtin,
+                ) else {
                     return;
                 };
                 warnings.push(warning);
@@ -2497,8 +2552,12 @@ pub mod literals {
                 }
             }
         }
-        pub(crate) use destinations::anonymous_integer_landing_warnings;
+        pub(crate) use destinations::anonymous_integer_landing_errors;
 
+        /* Lands a complete anonymous expression. The returned diagnostic is
+        the implicit-landing error for a fractional history; a caller that
+        lands the operand of an explicit `as` discards it, every other caller
+        must report it. */
         pub fn land_anonymous_integer_expression(
             program: &dyn crate::CheckingInput,
             expression: ExpressionHandle,
@@ -2510,9 +2569,15 @@ pub mod literals {
                 evaluate_anonymous_value::<true>(program, expression, selected_arms, &mut builtin)?;
             let integer = value.value.to_integer_exact()?;
             let literal = land_integer_value(&integer, destination)?;
-            let warning =
-                integer_landing_warning(program, &value, &integer, selected_arms, &mut builtin);
-            Some((literal, warning))
+            let error = implicit_landing_error(
+                program,
+                &value,
+                &integer,
+                Some(destination),
+                selected_arms,
+                &mut builtin,
+            );
+            Some((literal, error))
         }
 
         pub fn evaluate_anonymous_numeric_comparison(
@@ -2609,10 +2674,11 @@ pub mod literals {
             None
         }
 
-        fn integer_landing_warning(
+        fn implicit_landing_error(
             program: &dyn crate::CheckingInput,
             evaluated: &AnonymousNumericValue,
             integer: &BigInt,
+            destination: Option<PrimitiveType>,
             selected_arms: &[(ExpressionHandle, ExpressionHandle)],
             builtin: &mut impl FnMut(ExpressionHandle) -> bool,
         ) -> Option<Diagnostic> {
@@ -2625,10 +2691,21 @@ pub mod literals {
                 selected_arms,
                 builtin,
             )?;
-            Some(Diagnostic::warning(format!(
-        "anonymous arithmetic preserves the exact fractional intermediate `{}` before landing as integer `{integer}`; type an operand if typed integer division was intended",
-        fractional.value,
-            )).with_source_span(program.expression_table.source_span(evaluated.fractional_origin)))
+            let span = program
+                .expression_table
+                .source_span(evaluated.fractional_origin);
+            let Some(destination) = destination else {
+                // A proof-level `Int` peer: see anonymous_integer_landing_errors.
+                return Some(Diagnostic::warning(format!(
+                    "anonymous arithmetic preserves the exact fractional intermediate `{}` before landing as proof integer `{integer}`",
+                    fractional.value,
+                )).with_source_span(span));
+            };
+            Some(Diagnostic::error(format!(
+                "anonymous arithmetic with the exact fractional intermediate `{}` cannot land implicitly as integer `{integer}` in `{}`; cast the complete anonymous expression with `as` to land its exact value, or type an operand if typed integer division was intended",
+                fractional.value,
+                destination.name(),
+            )).with_source_span(span))
         }
 
         pub fn land_integer_value(
@@ -2698,7 +2775,7 @@ pub mod literals {
         pub use typed_trees::closed_numeric::has_anonymous_operator_meaning;
         pub(crate) use typed_trees::closed_numeric::has_builtin_anonymous_operands;
     }
-    pub(crate) use integer_landing::anonymous_integer_landing_warnings;
+    pub(crate) use integer_landing::anonymous_integer_landing_errors;
     pub(crate) use integer_landing::{
         anonymous_numeric_value, evaluate_anonymous_numeric_equality,
     };
@@ -3089,7 +3166,7 @@ pub mod struct_literals {
             }
             program
                 .proof_facts
-                .span_or_empty(variant.where_facts)
+                .span_or_empty(variant.requires_facts)
                 .iter()
                 .all(|fact| {
                     fact.as_expression().is_some_and(|expression| {
@@ -3414,7 +3491,7 @@ pub mod struct_literals {
             data_definition: &DataDefinition,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
-            if data_definition.where_facts.is_empty() {
+            if data_definition.requires_facts.is_empty() {
                 return;
             }
             let declared = common_field_symbols(program, data_definition);
@@ -3427,7 +3504,7 @@ pub mod struct_literals {
                 statement_index,
                 literal,
                 data_definition.symbol,
-                data_definition.where_facts,
+                data_definition.requires_facts,
                 &declared,
                 &format!("data `{}`", literal.type_name.as_str()),
                 "the default domain",
@@ -3449,7 +3526,7 @@ pub mod struct_literals {
             variant: &typed_trees::data::DataVariant,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
-            if variant.where_facts.is_empty() {
+            if variant.requires_facts.is_empty() {
                 return;
             }
             let mut declared = common_field_symbols(program, data_definition);
@@ -3460,7 +3537,7 @@ pub mod struct_literals {
                     .map(|field| field.symbol),
             );
             let mut out_of_scope = Vec::new();
-            for fact in program.proof_facts.span_or_empty(variant.where_facts) {
+            for fact in program.proof_facts.span_or_empty(variant.requires_facts) {
                 if let Some(expression) = fact.as_expression() {
                     collect_out_of_scope_leaf_names(
                         program,
@@ -3489,7 +3566,7 @@ pub mod struct_literals {
                 statement_index,
                 literal,
                 data_definition.symbol,
-                variant.where_facts,
+                variant.requires_facts,
                 &declared,
                 &format!("data `{}` case `{case_name}`", literal.type_name.as_str()),
                 "the case constraint",

@@ -97,12 +97,31 @@ pub(crate) fn evaluate_one(
     let widths = binding_widths(typed, vocabulary.binding, entry.return_type)
         .map_err(|message| at(source_span, message))?;
     let custody = BuildTimeInvocationCustody::Source(source_span);
+    // The producer may retain scalar conditions whose values depend on this
+    // target; the invocation discharges them from these target facts.
+    let layout_target = target.layout_target_facts();
+    let address_model = target::TargetSemantics::close_address_model(target).map(|model| {
+        terminal_installation::ScalarAddressModel {
+            target: target.target_name().to_owned(),
+            carrier: model.carrier(),
+            semantics_version: model.semantics_version(),
+            commitment: model.commitment(),
+        }
+    });
     let measured = admission
         .evaluate_const_evaluable_program_machine_symbol_for_invocation_measured(
             program,
             producer.symbol,
             Vec::new(),
             custody,
+            Some(build_time_evaluation::InvocationTarget {
+                name: target.target_name(),
+                layout_target: layout_target.as_ref(),
+                carrier_layout: target
+                    .native_realization()
+                    .map(runtime_abi::target_carrier_layout),
+                address_model: address_model.as_ref(),
+            }),
         )
         .map_err(|message| {
             at(

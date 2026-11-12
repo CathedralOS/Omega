@@ -1326,36 +1326,39 @@ pub(crate) mod call_lowering {
             explicit_index = explicit_index.checked_add(1)?;
             if strips_erased_parameter(target)? {
                 if !is_boundary {
-                    if let Some(expected_type) =
-                        program.erased_scalar_observation_type(target.type_reference)
-                    {
-                        if let Some(lowered) = lower_erased_scalar_argument(
-                            state.symbol,
-                            statement_ordinal,
-                            program,
-                            operators,
-                            argument,
-                            parameters,
-                            authored_parameters,
-                            parameter_types,
-                            locals,
-                            expected_type,
-                            exact_integer_casts,
-                        ) {
-                            output.push((
+                    let lanes = program.erased_scalar_lanes(target.type_reference);
+                    if !lanes.is_empty() {
+                        for lane in &lanes {
+                            if let Some(lowered) = lower_erased_lane_argument(
+                                state.symbol,
+                                statement_ordinal,
+                                program,
+                                operators,
                                 argument,
-                                CheckedLocatedScalarExpression {
-                                    state: state.symbol,
-                                    statement_ordinal,
-                                    role: CheckedScalarExpressionRole::ErasedUnitCallArgument {
-                                        call_ordinal: u32::try_from(call_ordinal).ok()?,
-                                        erased_ordinal: u32::try_from(scalar_erased_index).ok()?,
+                                parameters,
+                                authored_parameters,
+                                parameter_types,
+                                locals,
+                                target.type_reference,
+                                lane,
+                                exact_integer_casts,
+                            ) {
+                                output.push((
+                                    argument,
+                                    CheckedLocatedScalarExpression {
+                                        state: state.symbol,
+                                        statement_ordinal,
+                                        role: CheckedScalarExpressionRole::ErasedUnitCallArgument {
+                                            call_ordinal: u32::try_from(call_ordinal).ok()?,
+                                            erased_ordinal: u32::try_from(scalar_erased_index)
+                                                .ok()?,
+                                        },
+                                        expression: lowered,
                                     },
-                                    expression: lowered,
-                                },
-                            ));
+                                ));
+                            }
+                            scalar_erased_index = scalar_erased_index.checked_add(1)?;
                         }
-                        scalar_erased_index = scalar_erased_index.checked_add(1)?;
                     } else if proof_only.contract_term_carrier(program, target.type_reference)
                         || validation::mathematical_applications::is_source_evidence_carrier(
                             program,
@@ -1548,50 +1551,6 @@ pub(crate) mod call_lowering {
         })
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn lower_call_scalar_argument(
-        erased: bool,
-        state_symbol: symbols::SymbolHandle,
-        before_statement: u32,
-        program: &dyn ::validation::CheckingInput,
-        operators: &CheckedOperatorFacts,
-        expression: ExpressionHandle,
-        parameters: &[StateParameter],
-        authored_parameters: &[StateParameter],
-        parameter_types: &[PrimitiveType],
-        locals: &[ScalarLocal],
-        expected_type: PrimitiveType,
-        exact_integer_casts: &[validation::ExactIntegerCastFact],
-    ) -> Option<CheckedScalarExpression> {
-        if erased {
-            lower_erased_scalar_argument(
-                state_symbol,
-                before_statement,
-                program,
-                operators,
-                expression,
-                parameters,
-                authored_parameters,
-                parameter_types,
-                locals,
-                expected_type,
-                exact_integer_casts,
-            )
-        } else {
-            lower_return_expression(
-                program,
-                operators,
-                expression,
-                parameters,
-                authored_parameters,
-                parameter_types,
-                locals,
-                expected_type,
-                exact_integer_casts,
-            )
-        }
-    }
-
     /*
         Form a proof-side observation contingent on final source admission of the
         actual's type, scope, borrow and callee precondition. A borrow names its
@@ -1637,6 +1596,94 @@ pub(crate) mod call_lowering {
             expected_type,
             exact_integer_casts,
         )
+    }
+
+    /*
+        Lower the actual of one erased scalar lane. A primitive lane keeps the
+        ordinary erased scalar observation. A record leaf is the matching lane
+        of the caller's own erased formal, the scalar the caller wrote at that
+        field of an immutable closed construction, or that field observed at
+        the place of a record local or runtime record formal. Nothing here
+        reads the record at run time. `validation::erased_actuals` owns which
+        of those a leaf is and refuses every other actual at source checking.
+    */
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn lower_erased_lane_argument(
+        state_symbol: symbols::SymbolHandle,
+        before_statement: u32,
+        program: &dyn ::validation::CheckingInput,
+        operators: &CheckedOperatorFacts,
+        expression: ExpressionHandle,
+        parameters: &[StateParameter],
+        authored_parameters: &[StateParameter],
+        parameter_types: &[PrimitiveType],
+        locals: &[ScalarLocal],
+        formal_type: typed_trees::types::TypeReferenceHandle,
+        lane: &typed_trees::proof_only::ErasedScalarLane,
+        exact_integer_casts: &[validation::ExactIntegerCastFact],
+    ) -> Option<CheckedScalarExpression> {
+        if lane.fields.is_empty() {
+            return lower_erased_scalar_argument(
+                state_symbol,
+                before_statement,
+                program,
+                operators,
+                expression,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                lane.primitive_type,
+                exact_integer_casts,
+            );
+        }
+        // Source checking has already refused an actual with no leaf source;
+        // the same owner names the source lowered here.
+        let leaf = validation::erased_actuals::resolve_leaf(
+            program,
+            state_symbol,
+            before_statement,
+            expression,
+            formal_type,
+            &lane.fields,
+            lane.primitive_type,
+            authored_parameters,
+        )
+        .ok()?;
+        match leaf {
+            validation::erased_actuals::ErasedLeaf::Formal { position } => {
+                Some(CheckedScalarExpression::ErasedParameter {
+                    position,
+                    primitive_type: lane.primitive_type,
+                })
+            }
+            validation::erased_actuals::ErasedLeaf::ParameterField { position, segments } => {
+                Some(CheckedScalarExpression::StructuralParameterField {
+                    observation: expression,
+                    parameter_position: position,
+                    path: super::structural_fields::structural_projection_path(program, &segments)?,
+                    primitive_type: lane.primitive_type,
+                })
+            }
+            validation::erased_actuals::ErasedLeaf::LocalField { symbol, segments } => {
+                Some(CheckedScalarExpression::StructuralLocalField {
+                    symbol,
+                    path: super::structural_fields::structural_projection_path(program, &segments)?,
+                    primitive_type: lane.primitive_type,
+                })
+            }
+            validation::erased_actuals::ErasedLeaf::Value(leaf) => lower_return_expression(
+                program,
+                operators,
+                leaf,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                lane.primitive_type,
+                exact_integer_casts,
+            ),
+        }
     }
 
     /*
@@ -2429,8 +2476,47 @@ pub(crate) mod call_lowering {
         let mut scalar_arguments = Vec::new();
         let mut proof_terms = Vec::new();
         for (argument, target_parameter) in arguments.iter().zip(target_parameters) {
+            let lanes = if target_parameter.relevance.is_erased() {
+                program.erased_scalar_lanes(target_parameter.type_reference)
+            } else {
+                Vec::new()
+            };
+            if !lanes.is_empty() {
+                for lane in &lanes {
+                    let ordinal = erased_ordinal;
+                    erased_ordinal = erased_ordinal.checked_add(1)?;
+                    scalar_arguments.push((
+                        *argument,
+                        CheckedLocatedScalarExpression {
+                            state,
+                            statement_ordinal,
+                            role: CheckedScalarExpressionRole::ErasedCallArgument {
+                                binding_ordinal,
+                                erased_ordinal: ordinal,
+                            },
+                            expression: lower_erased_lane_argument(
+                                state,
+                                statement_ordinal,
+                                program,
+                                operators,
+                                *argument,
+                                parameters,
+                                authored_parameters,
+                                parameter_types,
+                                locals,
+                                target_parameter.type_reference,
+                                lane,
+                                exact_integer_casts,
+                            )?,
+                        },
+                    ));
+                }
+                continue;
+            }
+            // Every erased formal with lanes was lowered above, so an erased
+            // formal reaching here can only be a contract-term carrier.
             let Some(expected_type) = (if target_parameter.relevance.is_erased() {
-                program.erased_scalar_observation_type(target_parameter.type_reference)
+                None
             } else {
                 program.primitive_type_reference(target_parameter.type_reference)
             }) else {
@@ -2469,31 +2555,18 @@ pub(crate) mod call_lowering {
                 });
                 continue;
             };
-            let role = if target_parameter.relevance.is_erased() {
-                let ordinal = erased_ordinal;
-                erased_ordinal = erased_ordinal.checked_add(1)?;
-                CheckedScalarExpressionRole::ErasedCallArgument {
-                    binding_ordinal,
-                    erased_ordinal: ordinal,
-                }
-            } else {
-                let ordinal = argument_ordinal;
-                argument_ordinal = argument_ordinal.checked_add(1)?;
-                CheckedScalarExpressionRole::CallArgument {
-                    binding_ordinal,
-                    argument_ordinal: ordinal,
-                }
-            };
+            let ordinal = argument_ordinal;
+            argument_ordinal = argument_ordinal.checked_add(1)?;
             scalar_arguments.push((
                 *argument,
                 CheckedLocatedScalarExpression {
                     state,
                     statement_ordinal,
-                    role,
-                    expression: lower_call_scalar_argument(
-                        target_parameter.relevance.is_erased(),
-                        state,
-                        statement_ordinal,
+                    role: CheckedScalarExpressionRole::CallArgument {
+                        binding_ordinal,
+                        argument_ordinal: ordinal,
+                    },
+                    expression: lower_return_expression(
                         program,
                         operators,
                         *argument,
@@ -3103,13 +3176,70 @@ pub(crate) mod contract_entry {
                 logical_captures: Vec::new(),
             }
             .boolean(expression, 0)?;
-            validation::has_builtin_bound_expression_meaning(
+            entry_predicate_has_meaning(program, machine, state, expression, 0).then_some(predicate)
+        }
+
+        /*
+            Every node of a captured entry guard needs its builtin meaning, except an
+            IEEE comparison: that selects the sealed Float operator, so it needs the
+            sealed declaration for its operands instead, and its operands still need
+            their own builtin meaning. `x.value < 0.0 && ready` is therefore read, while
+            a user-supplied comparison stays unread.
+        */
+        fn entry_predicate_has_meaning(
+            program: &dyn ::validation::CheckingInput,
+            machine: &Machine,
+            state: &typed_trees::state::State,
+            expression: ExpressionHandle,
+            depth: usize,
+        ) -> bool {
+            if validation::has_builtin_bound_expression_meaning(
                 program,
                 machine,
                 Some(state),
                 expression,
-            )
-            .then_some(predicate)
+            ) {
+                return true;
+            }
+            if depth >= 64 {
+                return false;
+            }
+            match program.expression_table.expression(expression) {
+                ExpressionNode::Binary(binary)
+                    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
+                {
+                    validation::has_builtin_binary_expression_meaning(
+                        program,
+                        machine,
+                        Some(state),
+                        expression,
+                    ) && [binary.left, binary.right].into_iter().all(|operand| {
+                        entry_predicate_has_meaning(program, machine, state, operand, depth + 1)
+                    })
+                }
+                ExpressionNode::Binary(binary) => {
+                    validation::sealed_float_comparison_declaration(
+                        program,
+                        machine,
+                        Some(state),
+                        expression,
+                        binary,
+                    )
+                    .is_some()
+                        && [binary.left, binary.right].into_iter().all(|operand| {
+                            validation::has_builtin_bound_expression_meaning(
+                                program,
+                                machine,
+                                Some(state),
+                                operand,
+                            )
+                        })
+                }
+                ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+                    entry_predicate_has_meaning(program, machine, state, unary.operand, depth + 1)
+                }
+                _ => false,
+            }
         }
 
         /*
@@ -3450,7 +3580,15 @@ pub(crate) mod contract_entry {
                                 | BinaryOperator::LessOrEqual
                                 | BinaryOperator::Greater
                                 | BinaryOperator::GreaterOrEqual
-                        ) && operator_is_builtin(self.operators, expression)
+                        ) =>
+                    {
+                        /*
+                            An IEEE comparison selects the sealed Float operator, which
+                            is not a builtin one; `float_comparison` authenticates that
+                            builtin-or-sealed meaning itself. Every other form still
+                            needs the builtin operator and its builtin meaning here.
+                        */
+                        let builtin = operator_is_builtin(self.operators, expression)
                             && self.machine.is_none_or(|machine| {
                                 validation::has_builtin_binary_expression_meaning(
                                     self.program,
@@ -3459,14 +3597,16 @@ pub(crate) mod contract_entry {
                                         .or_else(|| self.program.machine_states(machine).first()),
                                     expression,
                                 )
-                            }) =>
-                    {
+                            });
                         if !matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
                             let operands = [
                                 self.comparison_operand(binary.left, depth + 1)?,
                                 self.comparison_operand(binary.right, depth + 1)?,
                             ];
                             let ieee = operands.iter().any(ComparisonOperand::is_ieee);
+                            if !ieee && !builtin {
+                                return None;
+                            }
                             if ieee
                                 || operands.iter().any(ComparisonOperand::is_integer)
                                 || matches!(
@@ -3484,6 +3624,9 @@ pub(crate) mod contract_entry {
                                     self.integer_comparison(expression, operands)
                                 };
                             }
+                        }
+                        if !builtin {
+                            return None;
                         }
                         let left = Box::new(self.boolean(binary.left, depth + 1)?);
                         let right = Box::new(self.boolean(binary.right, depth + 1)?);
@@ -4175,16 +4318,8 @@ pub(crate) mod contract_entry {
                 return None;
             }
             Some(
-                self.parameters[..position]
-                    .iter()
-                    .filter(|parameter| {
-                        parameter.relevance.is_erased()
-                            && self
-                                .program
-                                .erased_scalar_observation_type(parameter.type_reference)
-                                .is_some()
-                    })
-                    .count(),
+                self.program
+                    .erased_scalar_lane_base(self.parameters, position),
             )
         }
 
@@ -4234,6 +4369,7 @@ pub(crate) mod contract_entry {
                     }
                 }
                 CheckedScalarExpression::Local { .. }
+                | CheckedScalarExpression::StructuralLocalField { .. }
                 | CheckedScalarExpression::StructuralSequenceLength { .. }
                 | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
                 CheckedScalarExpression::RepresentationView { operand, .. } => {
@@ -5115,10 +5251,23 @@ pub(crate) mod expression_plans {
                     let Ok(argument_ordinal) = u32::try_from(target_position) else {
                         continue;
                     };
-                    let Some(target_type) = (if target_parameter.relevance.is_erased() {
+                    // A transition argument row is keyed by its authored
+                    // position, so it carries one erased scalar lane. Source
+                    // checking refuses a nested machine whose erased record
+                    // formal has several.
+                    let lanes = if target_parameter.relevance.is_erased() {
                         planner
                             .program
-                            .erased_scalar_observation_type(target_parameter.type_reference)
+                            .erased_scalar_lanes(target_parameter.type_reference)
+                    } else {
+                        Vec::new()
+                    };
+                    let lane = match lanes.as_slice() {
+                        [lane] => Some(lane),
+                        _ => None,
+                    };
+                    let Some(target_type) = (if target_parameter.relevance.is_erased() {
+                        lane.map(|lane| lane.primitive_type)
                     } else {
                         planner
                             .program
@@ -5171,11 +5320,24 @@ pub(crate) mod expression_plans {
                         }
                         continue;
                     };
-                    let Some(expression) =
-                        crate::values::scalar::call_lowering::lower_call_scalar_argument(
-                            target_parameter.relevance.is_erased(),
-                            planner.state.symbol,
-                            planner.statement_ordinal,
+                    let lowered = match lane {
+                        Some(lane) => {
+                            crate::values::scalar::call_lowering::lower_erased_lane_argument(
+                                planner.state.symbol,
+                                planner.statement_ordinal,
+                                planner.program,
+                                planner.operators,
+                                *argument,
+                                planner.scalar_parameters,
+                                planner.parameters,
+                                planner.parameter_types,
+                                planner.locals,
+                                target_parameter.type_reference,
+                                lane,
+                                planner.exact_integer_casts,
+                            )
+                        }
+                        None => crate::values::scalar::scalar_lowering::lower_return_expression(
                             planner.program,
                             planner.operators,
                             *argument,
@@ -5185,8 +5347,9 @@ pub(crate) mod expression_plans {
                             planner.locals,
                             target_type,
                             planner.exact_integer_casts,
-                        )
-                    else {
+                        ),
+                    };
+                    let Some(expression) = lowered else {
                         continue;
                     };
                     let role = if continuation {
@@ -6181,21 +6344,60 @@ pub(crate) mod primitive_reference_read {
         {
             return None;
         }
-        let position = parameters[..authored_position]
-            .iter()
-            .filter(|candidate| {
-                candidate.relevance.is_erased()
-                    && program
-                        .erased_scalar_observation_type(candidate.type_reference)
-                        .is_some()
-            })
-            .count();
+        let position = program.erased_scalar_lane_base(parameters, authored_position);
         Some((
             ScalarExpression::ErasedParameter {
                 position,
                 primitive_type,
             },
             program.arithmetic_domain_for_type_reference(parameter.type_reference),
+        ))
+    }
+
+    /*
+        A field read below an erased record formal names that leaf's erased
+        scalar lane. The formal owns no structural slot, so the read never
+        becomes a structural observation; a path that is not exactly one lane
+        of the formal has no observation at all.
+    */
+    pub(crate) fn erased_leaf_observation(
+        program: &dyn ::validation::CheckingInput,
+        parameters: &[StateParameter],
+        authored_position: usize,
+        path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+        primitive_type: PrimitiveType,
+        leaf_type: typed_trees::types::TypeReferenceHandle,
+    ) -> Option<(ScalarExpression, numerics::arithmetic::ArithmeticDomain)> {
+        let parameter = parameters.get(authored_position)?;
+        if !parameter.relevance.is_erased() || parameter.is_const || parameter.is_mutable {
+            return None;
+        }
+        let names = path
+            .iter()
+            .filter_map(|segment| match segment {
+                checked_trees::CheckedStructuralPredicatePathSegment::Referent => None,
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+                    Some(Some(identity.name.as_str()))
+                }
+                _ => Some(None),
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let lanes = program.erased_scalar_lanes(parameter.type_reference);
+        let lane = lanes.iter().position(|lane| {
+            lane.primitive_type == primitive_type
+                && lane.fields.len() == names.len()
+                && lane
+                    .fields
+                    .iter()
+                    .zip(&names)
+                    .all(|(field, name)| program.symbols.name(*field) == *name)
+        })?;
+        Some((
+            ScalarExpression::ErasedParameter {
+                position: program.erased_scalar_lane_base(parameters, authored_position) + lane,
+                primitive_type,
+            },
+            program.arithmetic_domain_for_type_reference(leaf_type),
         ))
     }
 
@@ -7070,15 +7272,8 @@ pub(crate) mod result_contract {
                 }
                 program.primitive_type_reference(parameter.type_reference)?;
                 if parameter.relevance.is_erased() {
-                    let erased_position = self.parameters[..position]
-                        .iter()
-                        .filter(|parameter| {
-                            parameter.relevance.is_erased()
-                                && program
-                                    .primitive_type_reference(parameter.type_reference)
-                                    .is_some()
-                        })
-                        .count();
+                    let erased_position =
+                        program.erased_scalar_lane_base(self.parameters, position);
                     return Some((erased_position, parameter.type_reference, true));
                 }
                 let scalar_position = scalar_position_count(program, &self.parameters[..position]);
@@ -8449,6 +8644,18 @@ pub(crate) mod scalar_lowering {
                             primitive_type,
                         );
                     }
+                } else if authored_parameters
+                    .get(usize::try_from(parameter_position).ok()?)
+                    .is_some_and(|parameter| parameter.relevance.is_erased())
+                {
+                    return crate::values::scalar::primitive_reference_read::erased_leaf_observation(
+                        program,
+                        authored_parameters,
+                        usize::try_from(parameter_position).ok()?,
+                        &path,
+                        primitive_type,
+                        reference,
+                    );
                 }
                 let expression = if primitive_type == PrimitiveType::Bool {
                     CheckedScalarExpression::Boolean(Box::new(

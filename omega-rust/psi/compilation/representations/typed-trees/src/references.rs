@@ -668,6 +668,7 @@ pub(crate) mod source_occurrences {
                 program
                     .expression_table
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: leaf,
                         right: leaf,
                         operator: BinaryOperator::Add,
@@ -1268,6 +1269,9 @@ pub(crate) struct ProgramApplicationOccurrences {
     pub types: Vec<TypeOccurrence>,
     pub requirement_applications: Vec<TypeOccurrence>,
     pub conformance_applications: Vec<StaticMachineApplicationHandle>,
+    /// Every static application written in its own lexical owner, including
+    /// ordinary generic calls that bind evidence without a direct selection.
+    pub invocation_applications: Vec<StaticMachineApplicationHandle>,
 }
 
 pub(crate) fn collect_program_application_occurrences(
@@ -1276,10 +1280,12 @@ pub(crate) fn collect_program_application_occurrences(
     let mut occurrences = TypeOccurrences::default();
     visit_program(program, &mut occurrences);
     let conformance_applications = occurrences.conformance_applications(program);
+    let invocation_applications = occurrences.invocation_applications(program);
     ProgramApplicationOccurrences {
         types: occurrences.types,
         requirement_applications: occurrences.requirement_applications,
         conformance_applications,
+        invocation_applications,
     }
 }
 
@@ -1321,6 +1327,17 @@ impl TypeOccurrences {
         program
             .expression_table
             .static_machine_applications()
+            .filter_map(|(handle, source)| {
+                (source.conformance_selection.is_some() && self.applications.contains(&handle))
+                    .then_some(handle)
+            })
+            .collect()
+    }
+
+    fn invocation_applications(&self, program: &TypedTrees) -> Vec<StaticMachineApplicationHandle> {
+        program
+            .expression_table
+            .static_machine_applications()
             .filter_map(|(handle, _)| self.applications.contains(&handle).then_some(handle))
             .collect()
     }
@@ -1356,7 +1373,7 @@ impl TypedReferences for TypeOccurrences {
         for handle in [call.application(), call.selection_application()] {
             if handle.is_valid() {
                 let source = program.static_machine_application(handle);
-                if source.lexical_owner == self.owner && source.conformance_selection.is_some() {
+                if source.lexical_owner == self.owner {
                     self.applications.insert(handle);
                 }
             }
@@ -1982,6 +1999,32 @@ fn visit_symbol(retained: &mut impl TypedReferences, symbol: SymbolHandle) {
     retained.extend([symbol]);
 }
 
+/// A domain's establishment routes name the trait requirement or exact machine
+/// that may issue a value into the domain. Lowering and the checker resolve
+/// those names from the domain itself, not from any expression, so a reached
+/// domain reaches its issuers: a program narrowed to what it reaches must
+/// still hold the trait a route names.
+fn visit_domain_establishment_routes(
+    retained: &mut impl TypedReferences,
+    routes: &[language_semantics::DomainEstablishmentRoute],
+) {
+    for route in routes {
+        match *route {
+            language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+                trait_definition: owner,
+                requirement,
+            }
+            | language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
+                boundary_trait: owner,
+                requirement,
+            } => retained.extend([owner, requirement]),
+            language_semantics::DomainEstablishmentRoute::ExactMachine { machine } => {
+                retained.extend([machine]);
+            }
+        }
+    }
+}
+
 fn visit_callable_symbol(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
@@ -2446,6 +2489,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             visit_type_reference(program, retained, *argument);
         }
         visit_proof_facts(program, retained, domain.facts);
+        visit_domain_establishment_routes(retained, &domain.establishment_routes);
     }
 
     for application in &program.applied_domain_applications {
@@ -2459,6 +2503,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         }
         visit_type_reference(program, retained, application.theory.target_type);
         visit_proof_facts(program, retained, application.theory.facts);
+        visit_domain_establishment_routes(retained, &application.theory.establishment_routes);
         if let Some(selection) = &application.theory.cleanup_selection {
             visit_cleanup_selection(program, retained, selection);
         }
@@ -2683,7 +2728,7 @@ fn visit_data(
     if let Some(selection) = &data.cleanup_selection {
         visit_cleanup_selection(program, retained, selection);
     }
-    visit_proof_facts(program, retained, data.where_facts);
+    visit_proof_facts(program, retained, data.requires_facts);
     for member in program.data_members(data) {
         match member {
             crate::data::DataMember::Field(field) => {
@@ -2693,7 +2738,7 @@ fn visit_data(
                 for field in program.data_payload_fields(variant) {
                     visit_type_reference(program, retained, field.type_reference);
                 }
-                visit_proof_facts(program, retained, variant.where_facts);
+                visit_proof_facts(program, retained, variant.requires_facts);
             }
         }
     }
@@ -3081,6 +3126,14 @@ fn visit_call_expression(
     for operator in crate::operator::named_expression_call_candidates(program, call) {
         visit_symbol(retained, operator.symbol);
     }
+    // Overload selection runs after the walk, so the walk keeps every member
+    // of a named machine family the call may select.
+    if let Some(path) = crate::operator::named_expression_call_family_path(program, call) {
+        let reference = program.expression_table.source_span(expression);
+        for member in crate::operator::named_call_family_members(program, &path, reference) {
+            visit_symbol(retained, member);
+        }
+    }
     visit_symbol(retained, call.static_machine_parameter);
     if call.authored_machine_application.is_valid() {
         visit_symbol(
@@ -3180,6 +3233,13 @@ fn visit_statement(
             for operator in crate::operator::named_statement_call_candidates(program, call) {
                 visit_symbol(retained, operator.symbol);
             }
+            if let Some(path) = crate::operator::named_statement_call_family_path(program, call) {
+                for member in
+                    crate::operator::named_call_family_members(program, &path, call.source_span)
+                {
+                    visit_symbol(retained, member);
+                }
+            }
             visit_symbol(retained, call.static_machine_parameter);
             if call.authored_machine_application.is_valid() {
                 visit_symbol(
@@ -3218,6 +3278,14 @@ fn visit_statement(
         }
         StatementNode::LocalData(local) => {
             visit_type_reference(program, retained, local.type_reference);
+            for field in program.expression_table.match_fields(local.pattern_fields) {
+                if field.field_symbol.is_valid() {
+                    visit_symbol(retained, field.field_symbol);
+                }
+            }
+            if local.pattern_subject.is_valid() {
+                visit_symbol(retained, local.pattern_subject);
+            }
         }
         StatementNode::Assignment(assignment) => {
             if retained.derived_declaration_references() {
@@ -3250,6 +3318,15 @@ fn visit_statement(
                     visit_symbol(retained, path.symbol);
                     visit_symbol(retained, path.receiver_symbol);
                     visit_symbol(retained, path.head_symbol);
+                }
+                if let Some((name, reference)) =
+                    crate::operator::named_transition_family_path(program, target)
+                {
+                    for member in
+                        crate::operator::named_call_family_members(program, name, reference)
+                    {
+                        visit_symbol(retained, member);
+                    }
                 }
             }
         }

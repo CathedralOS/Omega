@@ -621,6 +621,7 @@ pub(crate) mod bodies {
                 } else {
                     let equality =
                         exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: subject,
                             operator: BinaryOperator::Equal,
                             right: value,
@@ -654,6 +655,7 @@ pub(crate) mod bodies {
                     return right;
                 }
                 exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                     left,
                     operator: BinaryOperator::And,
                     right,
@@ -1032,6 +1034,7 @@ pub(crate) mod bodies {
                             initial_value,
                             is_mutable: false,
                             relevance: language_core::BindingRelevance::Relevant,
+                            pattern_fields: Default::default(),
                         }));
                     let handle = items(syntax_trees).append_statement_handle(capture);
                     statements.push(handle);

@@ -251,6 +251,7 @@ pub(crate) mod attached_unit {
                     &machine.result,
                     &signature.erased_scalar_parameters,
                     &crate::scalar_lowering::contracts::ContractViewNamespace {
+                        locals: &[],
                         scalar_applications: shared.scalar_applications,
                         constant_values: &checked.typed.constant_recipe_closure.values,
                         parameters: &view_roster,
@@ -1460,6 +1461,7 @@ pub(crate) mod attached_unit {
                         contract_service_reach,
                         service_reach,
                         states: _,
+                        declaration_requirements,
                     } = source;
                     Ok(Plan {
                         machine: *machine,
@@ -1474,6 +1476,8 @@ pub(crate) mod attached_unit {
                         contract_service_reach: *contract_service_reach,
                         service_reach: *service_reach,
                         states,
+                        // Split states keep their set positions.
+                        declaration_requirements: declaration_requirements.clone(),
                     })
                 }
 
@@ -10888,7 +10892,8 @@ pub(crate) mod attached_unit {
                                 "source invocation requirement needs its invocation evidence owner",
                             );
                         }
-                        if state.requires.is_empty()
+                        let declaration_requires = plan.declaration_requirements(state);
+                        if (state.requires.is_empty() && declaration_requires.is_empty())
                             || (position == 0 && !entry_reentered)
                             || !live_states[position]
                         {
@@ -10942,6 +10947,11 @@ pub(crate) mod attached_unit {
                     | checked_trees::CheckedStateContractRequirement::SourceFact(_) => None,
                 }
                             })
+                            .chain(
+                                declaration_requires
+                                    .iter()
+                                    .map(|clause| Some(clause.clone())),
+                            )
                             .collect::<Vec<_>>();
                         // A state's `requires` cites its own parameter positions; the roster
                         // pairs them with the terminal places each block view carried at
@@ -10954,6 +10964,7 @@ pub(crate) mod attached_unit {
                 &state_values[position],
                 &state_erased[position],
                 &crate::scalar_lowering::contracts::ContractViewNamespace {
+                    locals: &[],
                     scalar_applications: catalogs.scalar_applications,
                     constant_values: &checked.typed.constant_recipe_closure.values,
                     result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,

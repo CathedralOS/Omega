@@ -247,7 +247,7 @@ pub(crate) mod data {
                 })
             })
             .transpose()?,
-        where_facts: lower_proof_facts(lowerer, data_definition.where_facts)?,
+        requires_facts: lower_proof_facts(lowerer, data_definition.requires_facts)?,
         zero_gated: data_definition.zero_gated,
         retired_identities: data_definition.retired_identities.clone(),
         members: HandleSpan::empty(),
@@ -340,7 +340,7 @@ pub(crate) mod data {
                     symbol: variant.symbol,
                     name: lower_name(&variant.name),
                     payload: HandleSpan::empty(),
-                    where_facts: lower_proof_facts(lowerer, variant.where_facts)?,
+                    requires_facts: lower_proof_facts(lowerer, variant.requires_facts)?,
                     retired_payload_identities: variant.retired_payload_identities.clone(),
                 };
                 let payload_fields = lowerer
@@ -764,6 +764,7 @@ pub(crate) mod machine {
             service_reach_row: machine.service_reach_row,
             service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
             admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
+            declares_no_crash_route: machine.declares_no_crash_route,
             suspends_keyword_source_spans: machine.suspends_keyword_source_spans.clone(),
             blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
             lifetime_parameters: lower_names(&machine.lifetime_parameters),

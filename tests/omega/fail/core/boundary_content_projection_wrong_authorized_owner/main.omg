@@ -2,7 +2,6 @@
 // The initial account enters only through the selected admitted InitialSupply
 // invocation after its provider has obtained a successful fresh allocation.
 use omega::language::core::content;
-use omega::language::core::external_binding;
 
 public data ByteUnit {}
 public data Buffer [linear] { pointer: addr; }
@@ -53,21 +52,6 @@ public boundary trait NativeBytes {
     machine allocate(count: u64, width: u64) -> addr reaches;
     machine release(buffer: Buffer in Buffer::Owned) reaches;
 }
-public data LibSystemBytes {}
-public macos_arm64 machine calloc_binding() -> ForeignBinding<17, 7, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "libSystem.B.dylib", symbol: "_calloc",
-    } }
-}
-public macos_arm64 machine free_binding() -> ForeignBinding<17, 5, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "libSystem.B.dylib", symbol: "_free",
-    } }
-}
-macos_arm64 boundary machine LibSystemBytes::allocate(count: u64, width: u64) -> addr
-satisfies NativeBytes::allocate via calloc_binding();
-macos_arm64 boundary machine LibSystemBytes::release(buffer: Buffer in Buffer::Owned)
-satisfies NativeBytes::release via free_binding();
 InitialSupplyProvider satisfies InitialSupply {
     machine acquire() -> Buffer reaches NativeBytes crashes Trap
     ensures result.pointer != 0 {

@@ -865,7 +865,7 @@ pub(crate) mod conformance_blocks {
         own implementation's rows. A default body that names a row outside its
         trait's surface is rejected here, where that implementation is known: the
         trait author cannot see what a particular implementation adds.
-        A member sealed onto the existing machine it forwards to remains that ordinary machine: it has no
+        A machine named by a selection row remains that ordinary machine: it has no
         enclosing conformance context and may be shared by several blocks.
     */
     pub(crate) fn route_conformance_requirement_calls(
@@ -1321,22 +1321,35 @@ pub(crate) mod conformance_blocks {
                                 .iter()
                                 .find(|machine| machine.symbol == authored.realization_machine)
                         });
-                    member
+                    let qualifiers = member
                         .into_iter()
                         .flat_map(|machine| program.machine_trait_conformances(machine.satisfies))
                         .filter(|edge| {
                             edge.requirement.as_ref() == Some(&authored.requirement_name)
                         })
-                        .filter_map(|edge| {
-                            requirements
-                                .iter()
-                                .any(|requirement| {
-                                    requirement.declaring_trait == edge.symbol
-                                        && requirement.requirement_name == authored.requirement_name
-                                })
-                                .then_some(edge.symbol)
+                        .map(|edge| edge.symbol)
+                        .collect::<Vec<_>>();
+                    let inherited = qualifiers
+                        .iter()
+                        .copied()
+                        .filter(|qualifier| {
+                            requirements.iter().any(|requirement| {
+                                requirement.declaring_trait == *qualifier
+                                    && requirement.requirement_name == authored.requirement_name
+                            })
                         })
-                        .collect::<Vec<_>>()
+                        .collect::<Vec<_>>();
+                    // A member's own `satisfies Trait::name` names the slot
+                    // it fills. When every such qualifier names a trait
+                    // outside this implementation's requirement closure, the
+                    // member fills no slot here; an empty list would instead
+                    // read as unqualified and let an equal name substitute a
+                    // different requirement owner.
+                    if inherited.is_empty() {
+                        qualifiers
+                    } else {
+                        inherited
+                    }
                 });
             let candidates = requirements
                 .iter()

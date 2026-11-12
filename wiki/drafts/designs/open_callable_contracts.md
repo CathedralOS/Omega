@@ -23,8 +23,8 @@ Delete this record when the implementation and acceptance are complete.
 
 ## Decisions
 
-- A callable contract is the signature and clauses of a `requires machine`
-  requirement, a trait member or a callable type. Its meaning does not depend
+- A callable contract is the signature and clauses of a callable type, a trait
+  member or a machine-shaped logical hypothesis. Its meaning does not depend
   on where it is written.
 - Omitted `reaches` and omitted `crashes` are open: no bound is authored and
   the selected operation's published reach or crash routes are retained.
@@ -76,24 +76,8 @@ and publishes the selected machine's reach and crash routes. No callable type
 or boundary requirement in `source`, `samples` or `tests/omega` omits either
 clause.
 
-## Agreed direction, specified separately
+## Follow-on
 
-This decision is the first step of one mechanism for selecting code: a
-parameter is a typed value and `const` says the selection is known at compile
-time. The following are agreed in direction and are not yet normative:
-
-- `<const F: machine(...)>` replaces `<machine F>` with
-  `requires machine F(...);` for executable callbacks.
-- `<const K: Keyed<Card>>` replaces `<K satisfies Keyed<Card>>`. `satisfies`
-  stays for declarations. `K::key(card)` stays the call spelling on a static
-  record, for any static record value, and `(keys.key)(card)` on a runtime
-  one.
-- A requirement path is a type, as in `<const H: HookProcedure::call>`, and
-  stays distinct from a structurally equal callable. A path in type position
-  resolves by the kind of its left-hand name.
-- A contract is shared through a transparent alias. Whether the existing alias
-  form accepts a callable type needs confirming.
-- Forwarded requirement inference, logical hypotheses and checked-body
-  defaults are kept. A binder that names a declaration without permission to
-  call it needs its own spelling.
-- Callables as runtime-capable generic indices are out of scope.
+The rest of the mechanism this decision began, a static code parameter as a
+typed value with `const`, is ratified in
+[typed static parameters](typed_static_parameters.md).

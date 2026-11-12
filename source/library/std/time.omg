@@ -2,7 +2,7 @@
 // TimeHost seam (rung 6) per TASKS_TIME.md D1-D7/D9/D13.
 //
 // `Duration` is a normalized span: whole seconds plus subsecond nanoseconds,
-// whose data `where` carries the normalization invariant at construction
+// whose data `requires` carries the normalization invariant at construction
 // and mutation boundaries — ZII zero IS the zero duration.
 // Everything here is a pure `[copy]` value with no authority; clock
 // READS live on the `Time` capability (a later rung), never on these types.

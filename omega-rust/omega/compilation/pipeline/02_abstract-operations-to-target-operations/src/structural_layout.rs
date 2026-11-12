@@ -1096,7 +1096,7 @@ pub(crate) fn runtime_borrowed_projection(
         regions.path,
         declarations,
         expected.map(|declaration| declaration.id),
-        |field| field.borrowed_presentation_type(access, expected),
+        |field| terminal_semantics::borrowed_field_presentation(field, access, expected),
     )?;
     let indices = regions.selector_runs(leaf_indices);
     Ok((selected, shape, offset, indices))
@@ -1206,6 +1206,7 @@ mod placed_geometry_tests {
         .into_iter()
         .enumerate()
         .map(|(position, shape)| StructuralTypeDeclaration {
+            requires: Vec::new(),
             id: StructuralTypeId::new(position as u64 + 1).unwrap(),
             identity: TerminalIdentityIndex(position as u32 + 1),
             owns_linear_claim: false,
@@ -1250,6 +1251,7 @@ mod placed_geometry_tests {
         let accessor = StructuralTypeId::new(2).unwrap();
         let field = StructuralFieldId::new(1).unwrap();
         let accessor_declaration = StructuralTypeDeclaration {
+            requires: Vec::new(),
             quotient_carrier: None,
             id: accessor,
             identity: TerminalIdentityIndex(2),
@@ -1267,6 +1269,7 @@ mod placed_geometry_tests {
             },
         };
         let root_declaration = StructuralTypeDeclaration {
+            requires: Vec::new(),
             quotient_carrier: None,
             id: root,
             identity: TerminalIdentityIndex(1),

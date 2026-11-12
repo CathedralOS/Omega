@@ -10,3 +10,16 @@ xtask = "run --package xtask --"
 # emits for Omega programs. An explicit RUSTFLAGS still overrides it.
 [target.'cfg(target_arch = "x86_64")']
 rustflags = ["-C", "target-cpu=x86-64-v3"]
+
+# Every Cargo command in this repository uses content (checksum) freshness, the
+# method the corpus producer and CI require. Cargo stores the freshness method in
+# each unit's fingerprint and rebuilds a unit whose method changed. With a
+# per-command setting, `mbx xtask` rebuilt xtask's proc-macro dependencies under
+# timestamp freshness and the producer's runner build then rebuilt all 212 runner
+# units from scratch, about eleven minutes on every corpus invocation. One method
+# for every command lets the runner reuse `mbx build -p omega` and itself.
+[unstable]
+checksum-freshness = true
+
+[build]
+fingerprint = "content"

@@ -523,6 +523,17 @@ mod contracts {
                         parameters.iter().map(|parameter| parameter.name.as_str()),
                     )
                 {
+                    // This is the one place the reserved result is told apart
+                    // from a parameter or local spelled `result`: the source
+                    // rule is a spelling, decided here once. Record the
+                    // decision as the contract owner's identity so later
+                    // stages need not repeat the spelling test; the symbol
+                    // stays invalid, as every existing reader expects.
+                    if let ExpressionNode::Name(resolved) =
+                        expression_table.expression_mut(expression)
+                    {
+                        resolved.reserved_result_of = state_symbol;
+                    }
                     return;
                 }
                 assign_name_symbol(
@@ -874,7 +885,7 @@ mod domain_facts {
                 .span_or_empty(definition.members)
                 .iter()
                 .filter_map(|member| match member {
-                    DataMember::Variant(variant) if !variant.where_facts.is_empty() => {
+                    DataMember::Variant(variant) if !variant.requires_facts.is_empty() => {
                         let mut scope = resolved_declarations(program)
                             .data_payload_fields
                             .span_or_empty(variant.payload)
@@ -890,7 +901,7 @@ mod domain_facts {
                             .collect::<Vec<_>>();
                         scope.extend(inherited);
                         Some((
-                            variant.where_facts,
+                            variant.requires_facts,
                             scope,
                             Some(definition.type_parameters),
                             true,
@@ -900,7 +911,7 @@ mod domain_facts {
                 })
                 .collect::<Vec<_>>();
             once((
-                definition.where_facts,
+                definition.requires_facts,
                 local_symbols,
                 Some(definition.type_parameters),
                 true,
@@ -982,7 +993,7 @@ mod domain_facts {
             .map(|definition| {
                 let facts = resolved_declarations(program)
                     .proof_facts
-                    .span_or_empty(definition.where_facts);
+                    .span_or_empty(definition.requires_facts);
                 let mut saw_membership = false;
                 let mut memberships_admit_zero = true;
                 for fact in facts {
@@ -1015,7 +1026,7 @@ mod domain_facts {
                     .is_some_and(|variant| {
                         resolved_declarations(program)
                             .proof_facts
-                            .span_or_empty(variant.where_facts)
+                            .span_or_empty(variant.requires_facts)
                             .iter()
                             .any(|fact| match fact {
                                 ProofFact::Expression(expression) => {
@@ -1139,7 +1150,7 @@ mod domain_facts {
 
     /*
         One proof-surface expression walk: declaration predicates (membership
-        values and `where` facts) carry their declaration's generic scope, its
+        values and `requires` facts) carry their declaration's generic scope, its
         lexical subjects, and the domain roster through every child visit. The
         walk carries that context instead of re-threading it through each
         recursive call.

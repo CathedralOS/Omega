@@ -18,6 +18,7 @@ lookup is one index.
 | --- | --- | --- |
 | `values` | `ValueId` | One evaluated scalar: its type, its single origin, and for a callable selector the machines it may select. A write never changes it. |
 | `knowledge` | `KnowledgeId` | A proposition over value identities, the point it is available from, its one justification and its premises. It never becomes false. |
+| `propositions` | `PropositionId` | The proposition each knowledge row states. Machine-local, minted by `push`: Terminal Psi keeps contract propositions inline and has no proposition table. |
 | `places` | `ExactPlaceId` | A root place, or a parent place plus one typed segment (field, case, fixed index, runtime index named by its captured selector value), with its sorted children and the writes to it. |
 | `roots` | `PlaceId` | The `ExactPlaceId` of each root place. |
 | `writes` | `WriteId` | The forward write log: a value, an installed reference, unknown contents, or a hole. |
@@ -32,7 +33,9 @@ root `PlaceId` are the lowered form's own identities, so the checker and the
 emitted product name the same things. `ExactPlaceId`, `KnowledgeId`,
 `WriteId`, `ReferentSetId`, `SelectionSetId` and `InvocationId` belong to this
 crate because the lowered form has no identity for those concepts (its
-`PlaceId` names roots only).
+`PlaceId` names roots only). `PropositionId` is reused from the vocabulary, but
+here it is machine-local and indexes `MachineTables::propositions`, not the
+module's named proposition declarations.
 
 References and callables are keyed differently because the lowered form holds
 them differently. A reference is a structural place, so the places it may
@@ -63,12 +66,19 @@ value row.
 
 ## What a lane may add
 
-A construct-family lane changes this crate in exactly two places:
+A construct-family lane changes this crate in exactly two places (a closed
+`RefusalReason` variant, cited the same way, is the one further addition a
+lane has made):
 
 - **An obligation kind:** a variant of `obligations::ObligationKind`, whose doc
   comment quotes the specification sentence that creates it, and a row in the
   table below.
 - **A summary term:** a field of `edges::Summary`, cited the same way.
+
+A justification (`values::Justification`) is neither. A lane does not add or
+reuse one for a second meaning: a new reason a knowledge row can hold is a
+change to this contract, made in a pull request of its own whose variant
+quotes the specification sentence it stands for, as the existing ones do.
 
 A lane never adds a table, a second identity for an existing concept, a map
 keyed by an identity, or a field holding a name, a printed expression, a path
@@ -79,6 +89,52 @@ Every checking step returns `Checked<T>`: a row, or a `Refusal` carrying a
 closed `RefusalReason`, the machine and the lowered `Construct` it concerns.
 There is no way to return "nothing". A construct the lane does not serve is
 refused as `Unsupported`, never accepted by default.
+
+Three reasons are verdicts about the program and the rest are about the
+checker. `Unproved` means an obligation's evidence did not check.
+`Unestablished` means a place is read, copied, passed or returned on a path
+on which nothing established it. A local declared without an initializer is
+zero-constructed (`local-without-initializer`), so for plain storage that is
+the zeroed storage of a gated type
+([dependent values](../../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
+"Otherwise the type is gated: construction or checked qualification must
+establish the domain before observation."); it is a structural judgment over the
+write log and the graph, with no obligation row and no certificate, and the
+places foundation lane added it as a reason, not as a table. The lane's two
+structural judgments over a sum report through the same reason: a case
+payload named where its case is not established on every path
+(structural_access.md: "Each `Case` step requires source admission to
+establish the selected case for the same root and prefix at the read's
+observation epoch"), and a dispatch that has no edge for a declared case
+([patterns](../../../../../../wiki/spec/language/patterns.md): "Missing
+runtime coverage is a compile error, not an implicit trap or fallthrough").
+`Unsupported`
+means the checker does not serve the construct and says nothing about the
+program.
+
+## What the tables cannot say yet
+
+Each was met by a lane, reported, and read from the lowered form instead of
+being added here.
+
+- **Where a copy's contents came from.** `Content` has no "what that other
+  place held". A whole copy logs `Overwritten` and the checker reads the
+  source from the operation at the row.
+- **Which case a construction established.** No `Content` form names a
+  case, so a case literal logs `Overwritten` on its root and the checker
+  reads `result_case` from the establishing operation at the row.
+- **That a sum holds a case on an edge.** A `StructuralCase` terminator has
+  no Boolean value, and knowledge names values only, so the case selected on
+  one of its edges is not a knowledge row. It lives in the structural payload
+  judgment of `lowered-discharge`. What such an edge *binds* is over values
+  (each payload parameter equals the value its payload leaf holds) and is a
+  knowledge row justified as `Justification::DispatchBinding`.
+- **A domain debt on a data type's `requires`.** `ObligationKind::DomainDebt`
+  names its domain by a `DomainSemanticId`; a data `requires` clause has no
+  such identity (its clauses ride in `Elaboration::domains`, by type and
+  position). An invariant window on one is therefore the opening write's
+  `DataDomain` row, followed to its consumption points by
+  `lowered-discharge`, and not a conserved row here.
 
 ## Obligation kinds
 
@@ -91,9 +147,11 @@ refused as `Unsupported`, never accepted by default.
 | `EstablishmentDebt` | conserved | [dependent values](../../../../../../wiki/spec/language/dependent_values.md#invariant-windows): "may open initial target-establishment debt before a valid target value exists" |
 | `CallRequirement` | question | [fact validity](../../../../../../wiki/spec/terminal-psi/fact_validity.md): "one exact obligation for every callee `requires` clause" |
 | `OperationSafety` | question | [control flow](../../../../../../wiki/spec/terminal-psi/control_flow.md): "Each partial operation still proves its own safety" |
+| `DataDomain` | question | [data and literals](../../../../../../wiki/spec/language/data_and_literals.md): "Construction and every restoring write prove the owning default-domain clauses." One per (operation, clause of a data type's `requires`), at a construction, a zero establishment and a store into a field of that type or of a type containing it; [structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md#complete-record-construction): "The obligation binds the initializer or replacement SSA value, never the old field contents." |
 | `ArrivalInvariant` | question | control flow: "one obligation for every actual incoming edge" |
-| `NormalGuarantee` | question | control flow: "All normal returns ... must establish the published guarantees." |
-| `CrashCoverage` | question | [calls and outcomes](../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#crash): "proves every site guard ... and checks same-cause coverage" |
+| `NormalGuarantee` | question | control flow: "All normal returns ... must establish the published guarantees." One per (normal return edge, clause); names its `PublishedGuarantee`. |
+| `PublishedGuarantee` | question | the same sentence: the per-clause identity in `ContractClause`, holding when every return edge's `NormalGuarantee` for the clause holds (vacuously with no return). |
+| `CrashCoverage` | question | [calls and outcomes](../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#crash): "proves every site guard ... and checks same-cause coverage". Its `CrashSite` is a block with a no-successor terminator ("closed causes on distinct no-successor terminators") or a call operation whose callee may return and crash ("Surviving crash routes are derived from the pinned callee contract using exact actuals") |
 | `WellFoundedness` | question | control flow: "a shared well-foundedness question" |
 | `RankComparison` | question | control flow: "comparison obligations for every internal edge" |
 
@@ -115,28 +173,32 @@ refused as `Unsupported`, never accepted by default.
 
 ## Open
 
-- **Text inside propositions.** A knowledge row points at the module's
-  proposition table (`PropositionId`). `semantic_vocabulary::Proposition` is
+- **Text inside propositions.** A knowledge row points at its machine's
+  `propositions` table (`PropositionId`). `semantic_vocabulary::Proposition` is
   reused unchanged, and its `ContentConservation` variant still reaches text
   keys: `ContentAlgebra::parameter`, `ContentPlaceSegment::{Case, Field}` and
   `ContentProjectionScalar` hold `String`s. Route one (scalars) uses none of
   them. The lane that adds content knowledge replaces them with typed
   identities first; this crate does not wrap or copy them.
-- **A second place form inside propositions.** `Proposition`'s structural
-  variants (`StructuralIdentity`, `StructuralCaseMembership`, IEEE and
-  byte-sequence fields) name storage as `PlaceId` plus
-  `Vec<CanonicalStructuralPathSegment>`, beside this crate's `ExactPlaceId`.
-  Knowledge here is over values, and a storage observation enters as the value
-  a read produced, so route one needs neither. The records-and-fields lane
-  must choose one form before it adds knowledge about places; it must not keep
-  both.
+- **A second place form inside propositions: decided, values only.**
+  `Proposition`'s structural variants (`StructuralIdentity`,
+  `StructuralCaseMembership`, IEEE and byte-sequence fields) name storage as
+  `PlaceId` plus `Vec<CanonicalStructuralPathSegment>`, beside this crate's
+  `ExactPlaceId`. The places foundation lane chose one form
+  (`wiki/drafts/designs/places_foundation_lane.md`, "One route, no second
+  carrier"): knowledge never names a place. A storage observation enters as the value its
+  read produced, and what the read equals is one more equation between values,
+  derived from the stores the lowered operations make (`lowered-discharge`,
+  `places.rs`), which the write log must restate. No lane uses
+  a structural `Proposition` variant in a knowledge row; a contract clause
+  that could only be stated as one is refused.
 - **Contract propositions have no table.** Terminal Psi keeps a machine's
   `requires` and `ensures` inline in its `MachineContract`; its only
   `PropositionId` table is named proposition declarations. `Summary`
   therefore names no proposition: a callee clause is its machine and
-  position. Two places still assume a module proposition table: a
-  knowledge row's `proposition` (`lowered-discharge` mints its proposition
-  in lockstep with the row, in its own output) and `CrashRoute::guards`.
+  position. Knowledge rows index this crate's own machine-local
+  `propositions` table. `CrashRoute::guards` still assumes a module
+  proposition table.
   A body-derived result relation has no `MachineContract` slot; the lane
   that publishes `SummaryBasis::BodyDerived` decides where it lives.
 - **No carry term in `Summary`.** The design record lists carry as a summary

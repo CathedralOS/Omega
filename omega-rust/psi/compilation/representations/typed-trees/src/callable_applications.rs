@@ -6816,22 +6816,21 @@ pub(crate) mod trait_scopes {
             use crate::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
             let occurrences = crate::references::collect_program_application_occurrences(self);
             let mut scopes = Vec::new();
-            for invocation in occurrences.conformance_applications {
+            for invocation in occurrences.invocation_applications {
                 let record = self.static_machine_application(invocation).clone();
                 let Some(machine) = self.machine_by_symbol(record.binding_declaration) else {
                     continue;
                 };
+                // Any refinement clause changes the callable the bound supplies:
+                // contracts, termination, suspension, blocking or reach. A
+                // selected requirement call reads its contract from this
+                // invocation scope, so each refined bound needs one prepared.
                 let bounds = machine
                     .conformance_bounds
                     .iter()
                     .filter(|bound| {
                         self.trait_definition_by_symbol(bound.trait_symbol)
-                            .is_some_and(|declaration| {
-                                declaration
-                                    .refinement_clauses
-                                    .iter()
-                                    .any(|clause| !clause.signature.contracts.is_empty())
-                            })
+                            .is_some_and(|declaration| !declaration.refinement_clauses.is_empty())
                     })
                     .cloned()
                     .collect::<Vec<_>>();

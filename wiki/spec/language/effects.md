@@ -11,7 +11,7 @@ in [values](../resources/authority.md); implementation trust is recorded by
 | --- | --- |
 | `reaches A + B` | Bounds service reach by the named boundary services and their boundary parents. |
 | `reaches none` | Explicitly bounds service reach by the empty set. |
-| `invokes handler` | May synchronously enter that binding before returning. |
+| `invokes handler` | May synchronously enter that callback or inbound entry before returning. |
 | `suspends` | May park the current activation. |
 | `blocks` | May occupy its worker while waiting. |
 | `crashes Cause` with route guards | May leave without a successor or cleanup under a covered guard. |
@@ -41,6 +41,24 @@ ceiling. `reaches A + B` permits a body reaching only `A`; `reaches none` reject
 any nonempty derived service row. The keyword with no value is malformed.
 Omission requests inference and is distinct from an explicit empty clause. Reach does not count local mutation as a service,
 and empty reach promises neither termination nor absence of blocking or crashes.
+
+A derived reach that exceeds its ceiling rejects at the call that contributes
+the excess. The diagnostic names that call, the identities its requirement
+declares, and the ceiling. A boundary call contributes what its requirement
+declares and not the called trait's name, so a ceiling that names the slot
+does not cover its operations:
+
+```omega
+boundary trait WallClock: ClockOps<NoState> {}     // now: reaches TimeObservation
+
+machine stamp_now(entry: &mut Entry) reaches WallClock {
+    entry.at = WallClock::now(&mut none);    // Rejected: contributes TimeObservation.
+}
+```
+
+When the ceiling names the called trait and omits what the call contributes,
+the diagnostic says so and lists the identities to name: here,
+`reaches TimeObservation`.
 
 All machine clauses have no clause-ending semicolon. A following clause or body
 delimits the current clause. A bodyless declaration still has its final
@@ -99,7 +117,7 @@ its inherited constraints.
 
 Named decision: `open-callable-contracts`, settled 2026-11-09. It subsumes
 `explicit-callable-reach`. A callable contract is the signature and clauses of
-a `requires machine` requirement, a trait member or a callable type. It has one
+a callable type, a trait member or a machine-shaped logical hypothesis. It has one
 meaning wherever it is written:
 
 | Omitted clause | Meaning in a callable contract |
@@ -107,6 +125,7 @@ meaning wherever it is written:
 | `reaches` | Open. No service bound is authored; the selected operation's published reach is retained as a dependency. |
 | `crashes` | Open. No crash bound is authored; the selected operation's published guarded crash routes are retained. |
 | `suspends`, `blocks` | Does not suspend; does not block. |
+| `invokes` | Enters no callback or inbound [entry](#direct-synchronous-invocation). |
 | `terminates` | No termination promise. |
 
 A contract that omits `reaches` or `crashes` is open. An open contract admits
@@ -330,7 +349,7 @@ This is the reach row of
 [static binder contract dependencies](#static-binder-contract-dependencies).
 A static callable invocation contributes the selected operation's reach
 dependency automatically. Structural and nominal machine binders use the same
-rule. A call such as `S::apply` through `S satisfies ElementStep<T>` contributes
+rule. A call such as `S::apply` through `const S: ElementStep<T>` contributes
 a projection keyed by that evidence binder, the exact requirement member and
 its substitutions. Different members of one conformance retain distinct rows.
 Evidence selects an implementation; it does not attach operations to a data type.
@@ -406,6 +425,7 @@ target and the current consumer set contribute nothing.
 | `terminates` | own progress AND binder promises | no guarantee | no promise | the guarantee once every binder premise is discharged by a selected published promise |
 | suspension carry | conditions over the suspension term | derived | derived | discharged where substitution removes the suspension |
 | result relations | proof-only relation per binder, composed along value flow | authored claim or none | the requirement's guarantee bounds it | the selected published relation under the authored claim |
+| write frame | union of fixed paths and binder frames applied to their argument places | infer | defer to the selection | fixed paths plus the selected published frame |
 
 One rule produces that table. Omission derives the answer wherever derivation
 cannot widen a public surface without an author's hand. Suspension and
@@ -418,10 +438,13 @@ appears, so it stays authored. Reach infers on a body and defers on a
 requirement: a body cannot reach beyond the authority it holds, and an
 authored ceiling remains available for a narrower promise. An explicit empty value, `reaches none`, `crashes none`,
 `suspends false` or `blocks false`, promises the empty value and rejects any
-body or selection that violates it. Boundary requirements and runtime callable
+body or selection that violates it. A
+[write frame](dependent_values.md#mutation-frames) infers on a body and defers
+on a requirement for the reason reach does, and has no authored form.
+Boundary requirements and runtime callable
 types have no body to infer from and no static selection to defer to, so they
 write `reaches` and `crashes` and take the published-surface defaults for the
-other axes.
+other axes; their write frame is the signature's ceiling.
 
 The axes exchange facts without sharing an algebra. A disproved crash route may
 use the facts a preceding callback's requirement establishes; a false suspension
@@ -491,9 +514,9 @@ field selection, a call, or a first-class value of the unapplied relation, and
 it does not introduce a `requires` projection.
 
 ```omega
-public machine forward<machine F>(x: u64) -> u64
-requires machine F(value: u64) -> u64
-    ensures result >= value;
+public machine forward<const F: machine(value: u64) -> u64 ensures result >= value>(
+    x: u64
+) -> u64
 ensures F::ensures(x, result)
 {
     F(x)
@@ -521,7 +544,7 @@ operational axis is a finite Boolean OR of a fixed contribution and exact
 callback-binder projections,
 bounded by the respective requirement permissions. The compiler derives this
 summary from checked calls; there is no authored effect variable or new marker.
-Forwarded [callback requirements](generics.md#forwarded-callback-requirements)
+Inferred [callable parameter types](generics.md#inferred-callable-parameter-types)
 retain the same exact origins and substitutions.
 
 A public generic declares `suspends` and/or `blocks` whenever its body under
@@ -556,9 +579,7 @@ suspend. A narrower originating callback contract can state that guarantee
 directly.
 
 ```omega
-public machine apply<machine F>(value: u32) -> u32
-requires machine F(value: u32) -> u32
-    suspends;
+public machine apply<const F: machine(value: u32) -> u32 suspends>(value: u32) -> u32
 suspends
 {
     suspend F(value)
@@ -657,12 +678,83 @@ callback requirement.
 
 ## Direct synchronous invocation
 
-`invokes` retains direct edges that transitive reach intentionally forgets.
-Parameter paths distinguish separate bindings satisfying the same trait. A trait
-identity may name an internally selected binding when no parameter path exists.
-Bodyful machines infer these edges, including forwarding through local helpers;
-exported implementations check them against their published ceiling. Bodyless
-omission permits no synchronous entry.
+Named decision: `invokes-entry-ceiling`, ratified 2026-11-10.
+
+`invokes` bounds synchronous entry: before the machine returns, control may
+arrive at the named callback or inbound entry, through any number of
+intermediate calls. It retains the edges that transitive reach intentionally
+forgets. It does not list the services a provider calls to do its work.
+
+```omega
+public boundary trait Registrar {
+    machine execute<const Callback: Handler::read>() -> u64
+        reaches none
+        crashes none
+        invokes Handler;                  // may run Callback before returning
+
+    machine register<const Callback: Handler::read>()
+        reaches none
+        crashes none;                     // keeps it; enters nothing
+}
+
+public boundary trait FilesystemService {
+    machine read(file: File, buffer: &mut [u8], count: u64) -> IoResult
+        blocks
+        reaches FilesystemContentRead
+        crashes none;                     // host calls are the provider's business
+}
+```
+
+| Edge | Counted by `invokes` |
+| --- | --- |
+| Call of a callable argument or a statically bound callback | Yes. |
+| Call of a stored callable | Yes, on the operation that calls it. |
+| Arrival at a binding to an `EnvironmentToProgram` [slot](../build/entry_roots.md#slots), build-bound or runtime-installed | Yes. |
+| Call to a `ProgramToProvider` slot, whoever authored its provider | No. It is part of the provider's realization inventory. |
+| Storing a callable, or registering a future root | No. Storage is storage; registration creates a root. |
+| Scheduled delivery, an interrupt, a new activation | No. It is not synchronous. |
+
+A call to a `ProgramToProvider` slot is not itself an entry. Entry demands
+reached through it still propagate: the callee's published `invokes` joins the
+caller's, as its reach does. Application code that supplies an ordinary slot is
+a service dependency; authorship adds no entry.
+
+A row names a parameter path or a requirement identity. Parameter paths
+distinguish separate bindings satisfying the same trait. A requirement
+identity names a callback binding that has no parameter path, such as a
+previously registered handler. Route and direction decide what a row may name,
+not declaration kind.
+
+| Context | Omitted `invokes` | Authored clause |
+| --- | --- | --- |
+| Checked body, including public APIs | Infer and publish its entries, including forwarding through local helpers. | Bound the derived entries. |
+| Bodyless requirement, boundary or not | No synchronous entry. | Bound the entries of every admitted implementation. |
+| Runtime callable type | The callable enters nothing further. | Bound the entries the callable may make. |
+
+Omission on a callable type describes the callable, not its holder: a machine
+that calls its callable argument has an `invokes` demand on that argument. A
+row that no selected provider uses is a broader ceiling, not an error.
+
+A provider's possible calls to `ProgramToProvider` slots are its realization
+inventory. A checked body derives it; a native leaf has none. It is retained
+with the component's
+[outgoing requirements](../build/component_publication.md#selection-and-component-closure)
+and is outside the satisfied requirement's interface identity, so a provider
+that calls a different host slot changes no portable contract. It remains an
+input to artifact dependencies, admission, stack planning and the replacement
+envelope.
+
+Composition makes two checks, and neither replaces the other. Every entry
+reachable through the selected providers' possible edges fits the calling
+requirement's `invokes`. The complete realized graph of possible edges,
+inventory included, is acyclic under the rule below. Both rerun when a provider
+is replaced. For a native binding the clause, or its omission, is the claim
+that [foreign admission](../build/foreign_bindings.md#operational-coherence)
+accepts for that exact binding; unknown native behavior is not an empty claim.
+
+No `invokes` clause, present or absent, establishes that an unfinished
+invariant is safe to expose. Access, observation and custody checks apply to
+every downstream call, entry or not.
 
 An invoked handler retains its exact identity in the synchronous call graph and
 contributes its explicit reach and selected concrete operational envelope to the
@@ -810,8 +902,8 @@ surviving components. Process exit is a distinct outcome, not an `Abort` route.
 ## Published identity and installation rows
 
 Deterministic normalizers own published service rows, reach and operational
-dependencies, invocation contracts, suspension/blocking ceilings, and crash
-buckets. Proof may discharge legality or enable optimization; it cannot shrink
+dependencies, invocation contracts, suspension/blocking ceilings, crash
+buckets, and write frames. Proof may discharge legality or enable optimization; it cannot shrink
 an authored export, rewrite its guards, or change interface identity.
 Specializing a published reach or operational dependency is contract
 substitution, not proof-based shrinking of an authored opaque ceiling.

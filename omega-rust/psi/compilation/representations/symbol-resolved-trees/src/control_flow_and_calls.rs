@@ -52,6 +52,9 @@ pub mod calls {
             pub blocks: bool,
             pub contracts: HandleSpan<SignatureContract>,
             pub terminates_guarantee: bool,
+            /// The signature wrote `crashes none`, which publishes no contract
+            /// row; an omitted clause on a requirement defers instead.
+            pub declares_no_crash_route: bool,
         }
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -152,6 +155,9 @@ pub mod control_flow {
             pub service_reach_row: language_semantics::ServiceReachRowId,
             pub service_reach_is_installation_bound: bool,
             pub admitted_same_stack_bytes: u64,
+            /// The header wrote `crashes none`; see the syntax trees' field
+            /// of the same name.
+            pub declares_no_crash_route: bool,
             pub suspends_keyword_source_spans: Vec<source::SourceSpan>,
             pub blocks_keyword_source_spans: Vec<source::SourceSpan>,
             pub compiler_selection_partition: Option<
@@ -304,6 +310,7 @@ pub mod control_flow {
                 service_reach_row: Default::default(),
                 service_reach_is_installation_bound: false,
                 admitted_same_stack_bytes: 0,
+                declares_no_crash_route: false,
                 suspends_keyword_source_spans: Vec::new(),
                 blocks_keyword_source_spans: Vec::new(),
                 compiler_selection_partition: None,
@@ -524,6 +531,9 @@ pub mod control_flow {
             pub type_is_inferred: bool,
             pub is_operand_capture: bool,
             pub relevance: language_core::BindingRelevance,
+            /// The fields a record pattern names, each bound or waived;
+            /// empty unless `role` is `RecordPattern`.
+            pub pattern_fields: HandleSpan<crate::expression::TableMatchField>,
         }
 
         deref_to_storage!(LocalData => LocalDataStorage);
@@ -962,6 +972,14 @@ pub mod control_flow {
                         } else {
                             crate::expression::ExpressionHandle::invalid()
                         };
+                        let pattern_fields = if transplant.copy_expression_handles {
+                            expressions.copy_pattern_fields(
+                                transplant.source_expressions,
+                                local_data.pattern_fields,
+                            )
+                        } else {
+                            local_data.pattern_fields
+                        };
                         self.insert(StatementNode::LocalData(TableLocalData {
                             role: local_data.role,
                             symbol: local_data.symbol,
@@ -972,6 +990,7 @@ pub mod control_flow {
                             type_is_inferred: local_data.type_is_inferred,
                             is_operand_capture: local_data.is_operand_capture,
                             relevance: local_data.relevance,
+                            pattern_fields,
                         }))
                     }
                     Statement::Transition(transition) => {
@@ -1216,6 +1235,9 @@ pub mod control_flow {
             pub type_is_inferred: bool,
             pub is_operand_capture: bool,
             pub relevance: language_core::BindingRelevance,
+            /// The fields a record pattern names, each bound or waived;
+            /// empty unless `role` is `RecordPattern`.
+            pub pattern_fields: HandleSpan<crate::expression::TableMatchField>,
         }
 
         #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]

@@ -143,6 +143,7 @@ pub(crate) mod statements {
             let value = match update {
                 AtomicUpdate::Fetch { operand, operator } => {
                     exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: result,
                         operator,
                         right: operand,
@@ -156,6 +157,7 @@ pub(crate) mod statements {
                     let prior_for_subtract = result_reference(syntax_trees, &binding.name);
                     let difference =
                         exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: replacement,
                             operator: BinaryOperator::Subtract,
                             right: prior_for_subtract,
@@ -163,17 +165,20 @@ pub(crate) mod statements {
                     let prior_for_compare = result_reference(syntax_trees, &binding.name);
                     let comparison =
                         exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: prior_for_compare,
                             operator: BinaryOperator::Equal,
                             right: expected,
                         }));
                     let replacement_delta =
                         exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: comparison,
                             operator: BinaryOperator::Multiply,
                             right: difference,
                         }));
                     exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: result,
                         operator: BinaryOperator::Add,
                         right: replacement_delta,
@@ -269,7 +274,9 @@ pub(crate) mod statements {
             syntax_trees: &mut SyntaxTrees,
             input: Input<'tokens, 'source>,
         ) -> Option<(HandleSpan<StatementHandle>, Input<'tokens, 'source>)> {
-            use syntax_trees::expression::{ExpressionNode, TableMemberExpression};
+            use syntax_trees::expression::{
+                ExpressionNode, MatchFieldAction, TableMatchField, TableMemberExpression,
+            };
 
             if !input.at_keyword(KeywordKind::Let) {
                 return None;
@@ -335,20 +342,34 @@ pub(crate) mod statements {
                 return None;
             }
 
-            let mut marker_name = String::from("__destructure");
-            for (field, _) in &fields {
-                marker_name.push('#');
-                marker_name.push_str(field.as_str(syntax_trees));
-            }
+            /*
+                The marker local carries the pattern itself: every field the
+                author named, bound or waived, in authored order. Its name
+                says nothing, so coverage is decided on this roster once the
+                subject's type has given each entry its field.
+            */
+            let roster = fields
+                .iter()
+                .map(|(field, binding)| TableMatchField {
+                    component: language_core::PatternComponent::Fields,
+                    member: field.clone(),
+                    action: match binding {
+                        Some(binding) => MatchFieldAction::Bind(binding.clone()),
+                        None => MatchFieldAction::Waive,
+                    },
+                })
+                .collect::<Vec<_>>();
+            let pattern_fields = exprs(syntax_trees).insert_match_fields(roster);
             let marker = syntax_trees
                 .statements
                 .insert(StatementNode::LocalData(TableLocalData {
                     role: language_core::LocalBindingRole::RecordPattern,
-                    name: Identifier::generated(marker_name),
+                    name: Identifier::generated("__destructure"),
                     type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
                     initial_value: value,
                     is_mutable: false,
                     relevance: language_core::BindingRelevance::Relevant,
+                    pattern_fields,
                 }));
             let marker = items(syntax_trees).append_statement_handle(marker);
             let mut statements = crate::storage::handle_spans::HandleSpanBuilder::new();
@@ -375,6 +396,7 @@ pub(crate) mod statements {
                             initial_value: member,
                             is_mutable: false,
                             relevance: language_core::BindingRelevance::Relevant,
+                            pattern_fields: Default::default(),
                         }));
                 statements.push(items(syntax_trees).append_statement_handle(statement));
             }
@@ -606,6 +628,7 @@ pub(crate) mod statements {
                     initial_value,
                     is_mutable,
                     relevance,
+                    pattern_fields: Default::default(),
                 },
                 input,
             ))
@@ -704,6 +727,7 @@ pub(crate) mod statements {
                     trees
                         .expressions
                         .insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left,
                             operator,
                             right,
@@ -723,6 +747,7 @@ pub(crate) mod statements {
                     trees
                         .expressions
                         .insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: destination,
                             operator: BinaryOperator::Equal,
                             right: zero,
@@ -785,6 +810,7 @@ pub(crate) mod statements {
                                 initial_value,
                                 is_mutable: true,
                                 relevance: Default::default(),
+                                pattern_fields: Default::default(),
                             },
                         )));
                     }
@@ -825,6 +851,7 @@ pub(crate) mod statements {
                 trees
                     .expressions
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left,
                         operator,
                         right,
@@ -2325,6 +2352,7 @@ pub(crate) mod statements {
                 let (right, input) = parse_expression_handle(syntax_trees, input)?;
                 let value =
                     exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: read_target,
                         operator,
                         right,

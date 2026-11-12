@@ -42,6 +42,7 @@ pub enum PackagePolicyRowKind {
     AssumedBindingContract,
     ServiceAudit,
     NativeBinding,
+    ComponentAssumption,
 }
 
 impl PackagePolicyRowKind {
@@ -73,6 +74,7 @@ impl PackagePolicyRowKind {
             Self::AssumedBindingContract => (23, "assumed_binding_contract"),
             Self::ServiceAudit => (24, "service_audit"),
             Self::NativeBinding => (25, "native_binding"),
+            Self::ComponentAssumption => (26, "component_assumption"),
         }
     }
 
@@ -96,7 +98,8 @@ impl PackagePolicyRowKind {
             | Self::RestrictedBuildRequest
             | Self::AssumedBindingContract
             | Self::ServiceAudit
-            | Self::NativeBinding => true,
+            | Self::NativeBinding
+            | Self::ComponentAssumption => true,
             Self::Header
             | Self::RepresentationTarget
             | Self::PublicTrait

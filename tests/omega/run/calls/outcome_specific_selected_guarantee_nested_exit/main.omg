@@ -45,7 +45,7 @@ machine helper() -> i32 {
     }
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches Console {
     transition { _ -> second(main) }
 
     machine second(main: &mut Main) {
@@ -68,5 +68,5 @@ machine Main::main(main: &mut Main) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

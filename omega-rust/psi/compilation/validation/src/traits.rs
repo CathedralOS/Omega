@@ -1536,6 +1536,7 @@ pub(crate) mod conformance {
                 entry_state,
                 &application,
                 requirement,
+                None,
                 diagnostics,
             );
 
@@ -2180,6 +2181,46 @@ pub(crate) mod conformance {
         })
         }
 
+        /// A requirement that wrote `crashes none` admits only crash-free
+        /// members (generics.md, "`crashes none` admitting only crash-free
+        /// members"): callers through it, and a generic body checked against
+        /// it, assume the call never crashes. The member must therefore
+        /// publish an empty crash ceiling. A crash route it states breaks the
+        /// requirement. An inline member that states none is held to the empty
+        /// ceiling by `machine_publishes_crash_ceiling`, so its body is
+        /// checked like any `crashes none` body. A member declared elsewhere
+        /// that leaves its routes to inference makes no such promise and is
+        /// refused. An omitted `crashes` on the requirement defers to the
+        /// member's routes instead, and is not judged here.
+        fn validate_crash_free_member(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            trait_definition: &TraitDefinition,
+            requirement: &StateSignature,
+            diagnostics: &mut Vec<Diagnostic>,
+        ) {
+            if !requirement.declares_no_crash_route {
+                return;
+            }
+            let member = || {
+                format!(
+                    "machine `{}` satisfies `{}::{}`, which declares `crashes none`",
+                    machine.name, trait_definition.name, requirement.name
+                )
+            };
+            if program.machine_declares_crash(machine) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{}, but it publishes a crash route; a member of a `crashes none` requirement must be crash-free",
+                    member()
+                )));
+            } else if !program.machine_publishes_crash_ceiling(machine) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{}, but it leaves its crash routes to inference; write `crashes none` on it so its body is checked crash-free",
+                    member()
+                )));
+            }
+        }
+
         pub(crate) fn validate_applied_trait_signature(
             program: &dyn crate::CheckingInput,
             service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -2187,6 +2228,7 @@ pub(crate) mod conformance {
             state: &State,
             application: &AppliedTraitScope<'_>,
             requirement: &StateSignature,
+            selecting: Option<&typed_trees::trait_definition::Conformance>,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
             let trait_definition = application.declaration;
@@ -2204,6 +2246,13 @@ pub(crate) mod conformance {
                     return;
                 }
             };
+            validate_crash_free_member(
+                program,
+                callable_machine,
+                trait_definition,
+                requirement,
+                diagnostics,
+            );
             let callable_state = if callable_machine.symbol == machine.symbol {
                 state
             } else {
@@ -2528,6 +2577,7 @@ pub(crate) mod conformance {
                 &actual_type_parameters,
                 application,
                 requirement,
+                selecting,
                 diagnostics,
             );
             validate_trait_effect_ceiling(
@@ -6609,6 +6659,7 @@ pub(crate) mod named_implementations {
                         state,
                         &application,
                         requirement,
+                        Some(conformance),
                         diagnostics,
                     );
                     crate::proof_contracts::contract_entailment::check_law_conformance(

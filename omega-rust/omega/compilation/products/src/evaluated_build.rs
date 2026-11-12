@@ -11,7 +11,6 @@ use package_compilation::build_execution::build_value::EvaluatedBuildSettings;
 use provider_planning::ProviderSelection;
 use provider_planning::program_entry::RootBinding;
 use representation_planning::OpaqueRepresentationSelection;
-use trust_model::AuthoredComponentAssumptionAcceptance;
 
 #[derive(Clone)]
 pub struct EvaluatedBuild {
@@ -40,7 +39,9 @@ pub struct BuildConfig {
     pub root_bindings: Vec<RootBinding>,
     pub behavior_exclusions: Vec<AuthoredBehaviorExclusion>,
     pub service_audits: Vec<ServiceAuditRegistration>,
-    pub accepted_component_assumptions: Vec<AuthoredComponentAssumptionAcceptance>,
+    // Registered test groups (wiki/spec/build/testing.md). They select test
+    // roots beside the application; they never become application roots.
+    pub test_groups: Vec<build_time_evaluation::test_groups::TestGroupRegistration>,
 }
 
 pub struct ProviderDeployment {
@@ -95,7 +96,7 @@ impl BuildConfig {
             root_bindings,
             behavior_exclusions,
             service_audits,
-            accepted_component_assumptions,
+            test_groups,
         } = self;
         settings == &other.settings
             && grants == &other.grants
@@ -122,7 +123,7 @@ impl BuildConfig {
             && root_bindings == &other.root_bindings
             && behavior_exclusions == &other.behavior_exclusions
             && service_audits == &other.service_audits
-            && accepted_component_assumptions == &other.accepted_component_assumptions
+            && test_groups == &other.test_groups
     }
 
     pub fn program_roots(&self) -> Vec<symbols::SymbolHandle> {
@@ -140,13 +141,6 @@ impl BuildConfig {
         self.grants
             .iter()
             .map(|grant| grant.selector.clone())
-            .collect()
-    }
-
-    pub fn accepted_component_assumption_digests(&self) -> std::collections::BTreeSet<[u8; 32]> {
-        self.accepted_component_assumptions
-            .iter()
-            .map(|acceptance| acceptance.digest)
             .collect()
     }
 

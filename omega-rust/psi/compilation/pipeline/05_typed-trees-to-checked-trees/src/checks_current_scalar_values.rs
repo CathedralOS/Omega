@@ -2608,30 +2608,7 @@ mod entry_fields {
                 } else {
                     parameter.type_reference
                 };
-                let mut pending = vec![(reference, Vec::new(), 0usize)];
-                while let Some((reference, path, depth)) = pending.pop() {
-                    if depth >= 64 {
-                        continue;
-                    }
-                    let declared = self
-                        .program
-                        .type_reference_table
-                        .unconstrained_type_reference(reference);
-                    if self
-                        .program
-                        .access_view_plan_for_type_reference(declared)
-                        .is_some()
-                        || self
-                            .program
-                            .access_view_field_plan_for_type_reference(declared)
-                            .is_some()
-                        || matches!(self.program.type_reference_table.type_reference(declared),
-                            typed_trees::types::TypeReferenceNode::Named { symbol, .. }
-                                if self.program.symbols.builtin_type_atom(*symbol)
-                                    .is_some_and(|atom| atom.is_atomic()))
-                    {
-                        continue;
-                    }
+                for (path, reference) in record_value_leaves(self.program, reference) {
                     let identity = format!(
                         "state:{:?}:parameter:{:?}:field:{path:?}",
                         self.state.symbol, parameter.symbol
@@ -2666,62 +2643,28 @@ mod entry_fields {
                         }
                         continue;
                     }
-                    if let Some(carrier) = super::integer_carrier(self.program, reference) {
-                        if !path.is_empty() {
-                            self.fields.push(ScalarField::for_owner(
-                                parameter.symbol,
-                                CapturedScalarField {
-                                    path: path
-                                        .iter()
-                                        .map(|symbol| ScalarProjection::Field(*symbol))
-                                        .collect(),
-                                    carrier,
-                                    value: entry_value(
-                                        self.program,
-                                        reference,
-                                        path.last().copied(),
-                                        ScopedArithmeticValue::Atom {
-                                            identity,
-                                            unsigned: super::unsigned(carrier),
-                                        },
-                                    ),
-                                },
-                            ));
-                        }
-                        continue;
-                    }
-                    let reference = self
-                        .program
-                        .type_reference_table
-                        .unconstrained_type_reference(reference);
-                    if matches!(
-                        self.program.type_reference_table.type_reference(reference),
-                        typed_trees::types::TypeReferenceNode::Reference { .. }
-                    ) {
-                        continue;
-                    }
-                    let Some(data) =
-                        self.program
-                            .data_application_definition(reference)
-                            .or_else(|| {
-                                self.program
-                                    .type_reference_table
-                                    .type_head_symbol(reference)
-                                    .and_then(|symbol| {
-                                        self.program.data_definition_by_symbol(symbol)
-                                    })
-                            })
-                    else {
-                        continue;
-                    };
-                    for member in self.program.data_members(data) {
-                        if let typed_trees::data::DataMember::Field(field) = member
-                            && !field.relevance.is_erased()
-                        {
-                            let mut child = path.clone();
-                            child.push(field.symbol);
-                            pending.push((field.type_reference, child, depth + 1));
-                        }
+                    if let Some(carrier) = super::integer_carrier(self.program, reference)
+                        && !path.is_empty()
+                    {
+                        self.fields.push(ScalarField::for_owner(
+                            parameter.symbol,
+                            CapturedScalarField {
+                                path: path
+                                    .iter()
+                                    .map(|symbol| ScalarProjection::Field(*symbol))
+                                    .collect(),
+                                carrier,
+                                value: entry_value(
+                                    self.program,
+                                    reference,
+                                    path.last().copied(),
+                                    ScopedArithmeticValue::Atom {
+                                        identity,
+                                        unsigned: super::unsigned(carrier),
+                                    },
+                                ),
+                            },
+                        ));
                     }
                 }
                 let Some(frames) = frames else { continue };
@@ -2803,6 +2746,135 @@ mod entry_fields {
         replace this record, so an open invariant window acquires no live bound from
         this entry evidence. These are declaration facts, never a proposed rank range.
     */
+    /*
+        The readable value leaves of one record type, in declaration order: every
+        scalar or fixed collection reached through non-erased fields. Access views,
+        atomics and reference leaves are separate authorities and are not walked;
+        a reference leaf needs its own load evidence before its referent is read.
+    */
+    pub(super) fn record_value_leaves(
+        program: &dyn validation::CheckingInput,
+        reference: typed_trees::types::TypeReferenceHandle,
+    ) -> Vec<(
+        Vec<symbols::SymbolHandle>,
+        typed_trees::types::TypeReferenceHandle,
+    )> {
+        let mut leaves = Vec::new();
+        let mut pending = vec![(reference, Vec::new(), 0usize)];
+        while let Some((reference, path, depth)) = pending.pop() {
+            if depth >= 64 {
+                continue;
+            }
+            let declared = program
+                .type_reference_table
+                .unconstrained_type_reference(reference);
+            if program
+                .access_view_plan_for_type_reference(declared)
+                .is_some()
+                || program
+                    .access_view_field_plan_for_type_reference(declared)
+                    .is_some()
+                || matches!(program.type_reference_table.type_reference(declared),
+                    typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                        if program.symbols.builtin_type_atom(*symbol)
+                            .is_some_and(|atom| atom.is_atomic()))
+                || matches!(
+                    program.type_reference_table.type_reference(declared),
+                    typed_trees::types::TypeReferenceNode::Reference { .. }
+                )
+            {
+                continue;
+            }
+            let data = program.data_application_definition(declared).or_else(|| {
+                program
+                    .type_reference_table
+                    .type_head_symbol(declared)
+                    .and_then(|symbol| program.data_definition_by_symbol(symbol))
+            });
+            let Some(data) = data.filter(|_| super::integer_carrier(program, reference).is_none())
+            else {
+                leaves.push((path, reference));
+                continue;
+            };
+            for member in program.data_members(data) {
+                if let typed_trees::data::DataMember::Field(field) = member
+                    && !field.relevance.is_erased()
+                {
+                    let mut child = path.clone();
+                    child.push(field.symbol);
+                    pending.push((field.type_reference, child, depth + 1));
+                }
+            }
+        }
+        leaves
+    }
+
+    impl CurrentScalarValues<'_> {
+        /*
+            A readable record view bound by `let` reads its referent's current
+            contents, as a scalar reference does. A leaf that no source row
+            supplied receives this store's own observed identity, exactly as
+            `observed_scalar` does for a scalar referent: it asserts no equality
+            with the source bytes, only that later reads of the same view leaf
+            see the same contents until the storage graph reports an overlapping
+            write. It carries no declared field or data bound either: a recast
+            view's type invariants hold only once that view is established. Recast views therefore carry saved guards on their fields
+            without a recast-specific case; rows copied from a source record keep
+            their source identity and are not replaced.
+        */
+        pub(super) fn seed_view_fields(
+            &mut self,
+            local: &typed_trees::statement::TableLocalData,
+            ordinal: usize,
+        ) {
+            if local.is_mutable {
+                return;
+            }
+            let Some(shell) = validation::reference_shell(self.program, local.type_reference)
+            else {
+                return;
+            };
+            if !shell.access.is_readable()
+                || super::integer_carrier(self.program, shell.referee).is_some()
+            {
+                return;
+            }
+            for (path, reference) in record_value_leaves(self.program, shell.referee) {
+                let Some(carrier) = super::integer_carrier(self.program, reference) else {
+                    continue;
+                };
+                if path.is_empty() {
+                    continue;
+                }
+                let projection = path
+                    .iter()
+                    .map(|symbol| ScalarProjection::Field(*symbol))
+                    .collect::<Vec<_>>();
+                if self.fields.iter().any(|field| {
+                    field.owner == local.symbol
+                        && same_projection(self.occurrence(), &field.path, &projection)
+                }) {
+                    continue;
+                }
+                let identity = format!(
+                    "state:{:?}:store:{ordinal}:view:{:?}:field:{path:?}",
+                    self.state.symbol, local.symbol
+                );
+                self.fields.push(ScalarField::for_owner(
+                    local.symbol,
+                    CapturedScalarField {
+                        path: projection,
+                        carrier,
+                        value: ScopedArithmeticValue::Atom {
+                            identity,
+                            unsigned: super::unsigned(carrier),
+                        },
+                    },
+                ));
+            }
+        }
+    }
+
     pub(super) fn entry_value(
         program: &dyn validation::CheckingInput,
         reference: typed_trees::types::TypeReferenceHandle,
@@ -2815,7 +2887,7 @@ mod entry_fields {
         if let Some(field) = field {
             let owner = program.symbols.get(field).parent;
             if let Some(data) = program.data_definition_by_symbol(owner)
-                && let Some(intervals) = validation::data_where_field_intervals(program, data)
+                && let Some(intervals) = validation::data_requires_field_intervals(program, data)
                 && let Some((_, lo, hi)) = intervals.iter().find(|(symbol, ..)| *symbol == field)
             {
                 if let Some(lo) = lo {
@@ -4843,6 +4915,19 @@ impl<'program> CurrentScalarValues<'program> {
                 StatementNode::LocalData(local) if !local.role.has_ordinary_initializer() => {}
                 StatementNode::LocalData(local) => {
                     values.retire_operand_effects(local.initial_value);
+                    // An unnamed temporary of the initializer dies inside this
+                    // statement, and its cleanup may write a tracked place. The
+                    // statement snapshot carries those writes; only a statement
+                    // that has any pays for the walk.
+                    if frames.is_none_or(|frames| {
+                        frames
+                            .statement_cleanup_write_frame(machine, statement)
+                            .complete_paths()
+                            .is_none_or(|paths| !paths.is_empty())
+                    }) {
+                        let at = values.statement_snapshot(ordinal);
+                        values.retire_unpreserved(at);
+                    }
                     let actuals = values.capture_call_actuals(local.initial_value);
                     let value = values.capture(program, machine, state, local.initial_value);
                     let conditions = values.capture_conditions(local.initial_value, 0);
@@ -4860,6 +4945,7 @@ impl<'program> CurrentScalarValues<'program> {
                         0,
                     );
                     values.replace_scalar_fields(local.symbol, &[], scalar_fields);
+                    values.seed_view_fields(local, ordinal);
                     values.capture_record_fields(local.symbol, &[], local.initial_value);
                     if integer_carrier(program, local.type_reference).is_none() {
                         values.assume_aggregate_call_ensures(

@@ -126,6 +126,7 @@ machine build(builder: &mut Build) crashes Trap {
                             as Box<dyn package_compilation::RestrictedBuildGrants>
                     }),
                     snapshot: None,
+                    dependency_activation: false,
                 },
                 artifact_only: false,
                 prior_checks: Vec::new(),

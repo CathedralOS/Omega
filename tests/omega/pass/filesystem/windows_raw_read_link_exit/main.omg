@@ -4,7 +4,6 @@
 // byte prefix without NUL, and validate all Unicode before copying any prefix.
 use omega_language_std::windows_filesystem_host;
 use omega_language_std::console;
-use omega::language::core::external_binding;
 use omega::language::core::filesystem_authority;
 
 domain [u16; 19]::FixtureLink requires self[18] == 0;
@@ -18,15 +17,6 @@ boundary trait FixtureSymlink {
     requires flags == 2
     reaches FilesystemNamespaceMutation blocks;
 }
-windows_x86_64 machine fixture_symlink_binding() -> ForeignBinding<12, 19, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName {
-        library: "kernel32.dll", export: "CreateSymbolicLinkW"
-    } }
-}
-windows_x86_64 machine fixture_symlink(link: &[u16; 19] in FixtureLink, target: &[u16; 64] in FixtureTarget, flags: u32) -> u8
-satisfies FixtureSymlink::create via fixture_symlink_binding()
-requires flags == 2
-blocks;
 
 data Main { buffer: [u8; 64]; }
 machine Main::main(main: &mut Main)

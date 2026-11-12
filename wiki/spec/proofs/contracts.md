@@ -14,6 +14,15 @@ conclusions, a caller establishes the assumptions under the exact argument
 substitution. Naming a condition does not prove it; failed proof search does
 not prove its negation.
 
+Ordinary calls also follow [local call summaries](../language/state_contracts.md#local-call-summaries):
+an exact checked call in the same fixed verification unit may expose additional
+checked body-derived facts. Outside that unit, additional semantic guarantees
+must be authored in the published contract. A written `ensures` remains an
+obligation and a minimum guarantee; local precision neither rewrites it nor
+strengthens an abstract requirement. Existing published operational and ownership
+information keeps its own rules. A written `requires` is complete, including on
+private helpers, under [entry inference](../language/state_contracts.md#private-entry-inference).
+
 The same [call-precondition rule](../language/machines.md#call-preconditions)
 also governs forming a mathematical result term, even if none of the callee's
 conclusions is used. Proof-to-proof calls have no exemption. Named calls and
@@ -98,6 +107,14 @@ automatically executable call. The same checked contract may serve
 runtime, compile-time, or proof use when its types and reach permit it. A fact-only
 invocation emits no runtime call or work.
 
+Law, lemma and theorem describe uses of ordinary declarations, not separate
+source declaration kinds. In a trait schema, a requirement declared with
+`machine` always contributes a selected callable field, including a resultless
+requirement with `ensures`. To carry mathematical evidence instead, declare an
+ordinary field of that evidence type or state a schema validity constraint.
+Its identity follows the declared type, not the initializer's spelling or
+runtime erasure; see [record elaboration](../language/conformances.md#implementations-are-operation-records).
+
 Traits bundle mathematical operations, witnesses, and checked laws. A named
 conformance supplies the complete bundle. Its name, expected shape, or nearby
 facts cannot supply a missing law or select an implementation. Preserve the
@@ -135,12 +152,15 @@ materialized without a checked computation or realization. The
 distinction; no new domain atom or runtime provider search stands in for it.
 
 Runtime integer/address values enter mathematical integer arithmetic through the
-total `embed` projection, retaining exact carrier range. Removing a policy
+total `embed` projection, retaining exact carrier range. This includes the
+unbounded computational carriers `i` and `u`; it does not depend on a chosen
+storage representation. Removing a policy
 domain with `as` instead leaves Exact carrier arithmetic and retains
 representability obligations. Trapping arithmetic, including the `!`
 [policy operators](../language/numeric_values.md#policy-operators), does not
-form a proof term; the normal return of a `!` operation establishes that its
-result equals the exact mathematical result. Floats project to
+form a proof term; the normal return of a `!` operation establishes its
+operation-specific mathematical denotation. For division that denotation is
+integer quotient, not rational `/`. Floats project to
 [FloatMeaning](../terminal-psi/mathematical_values.md#floatmeaning), preserving
 signed zero, infinity, and NaN rather than pretending every float is rational.
 
@@ -167,7 +187,10 @@ term to justify its own formation. Removing the policy domain with a cast or
 Integer/address embedding is injective within its exact source carrier and
 preserves that carrier's range. It neither mutates the source nor creates runtime
 storage. Computed operands preserve their selected policy: embedding a wrapped
-sum does not turn it into unbounded addition. A call interpreted denotationally
+sum does not turn it into unbounded addition. Subsequent mathematical operations
+use their own declared meanings: `embed(7u32) / 2` is rational `7/2`, whereas
+`embed(7u32 / 2u32)` is integer `3`. These are typed values, not a return to
+anonymous literal inference. A call interpreted denotationally
 needs a checked observation-free, reach-free, crash-free, terminating invocation,
 not merely a same-spelled mathematical operation.
 
@@ -178,7 +201,7 @@ the requirement must guarantee service-free invocation. Under
 omission permits the selected implementation's row; today's pure selections
 cannot justify proof use in an otherwise open generic body.
 
-Builtin fixed-integer equality and order have the same meaning as the relation
+Builtin computational-integer equality and order, including `i` and `u`, have the same meaning as the relation
 between the operands' exact `embed` projections, including operands with different
 widths or signedness. This characterizes the comparison; authors need no explicit
 embedding or cast to compare admitted runtime integer values. Each projection
@@ -203,6 +226,32 @@ Target-relative bounds retain the exact observation dependency. An exclusive
 one-past address bound may be representable in proof mathematics without fitting
 the runtime address carrier.
 
+Named decisions `unbounded-computational-integers`,
+`mathematical-exact-division` and `explicit-landing-proof-int-peer` are specified
+under [numeric values](../language/numeric_values.md#unbounded-computational-integers).
+Mathematical `/` admits `Nat`, `Int` and `Rat` by exact rational inclusions,
+and anonymous operands by their complete exact rational value. Its result is
+always `Rat`; the divisor's nonzero premise is established before forming the
+term. Constant folding and expected result types do not change that result type.
+An anonymous integral final value can land in mathematical `Int` or `Nat`
+without fractional-history acknowledgment; a typed `Rat` needs explicit exact
+narrowing for an integer-only use. Other mathematical promotions are not implied.
+
+For admitted computational division, the proof correspondence is
+`embed(a / b) == integer::quotient(embed(a), embed(b))`, subject to the source
+operation's policy and formation conditions. Computational remainder similarly
+corresponds to `integer::remainder`. The signed quotient truncates toward zero;
+its remainder is zero or has the dividend's sign. These operations remain
+available for number-theoretic reasoning; neither is mathematical rational `/`.
+For an overflow-policy result, apply that policy to the operation-specific
+integer denotation rather than to a rational division expression.
+
+Each nested term retains its formation obligation: neither cancellation in
+`x / x` nor multiplication by zero establishes an unproved nonzero divisor.
+The desired conclusion cannot justify its own formation. The same semantics
+apply to symbolic variables, generic selections and closed constants; a
+constant-only arithmetic shortcut does not implement this contract.
+
 For mathematical primitive result `M` and result-carrier bounds `[MIN, MAX]`,
 the selected catalog supplies these denotations after primitive definedness:
 
@@ -212,6 +261,12 @@ the selected catalog supplies these denotations after primitive definedness:
 | Wrapping | Embedded result equals width-specific wrapping of `M`. |
 | Saturating | Embedded result equals `M` clamped to the carrier. |
 | Trapping | A normal return embeds to `M`; the exact primitive trap predicate governs failure. |
+
+Here `M` is the selected primitive's integer denotation: for computational
+division it is truncating quotient, even though source mathematical `/` returns
+a rational. Unbounded `i`/`u` have no upper representability bound; `u` retains
+nonnegativity. This table does not supply a modulus, finite endpoint or overflow
+policy for an unbounded type.
 
 The trap predicate is not a generic range test: division includes zero and
 signed minimum divided by -1, while shift counts and floats follow their own
@@ -480,7 +535,7 @@ arguments and results to the base through proved compatibility with no
 conversion:
 
 ```omega
-Reindexed<const A: u64, const B: u64, Base satisfies Ranked<Buffer<A>>>
+Reindexed<const A: u64, const B: u64, const Base: Ranked<Buffer<A>>>
 satisfies Ranked<Buffer<B>>
 requires A == B;
 {
@@ -636,6 +691,91 @@ normalization licenses, derivation/checker version, and trust/deferral closure.
 Deterministic normalization owns identity; stronger proof search may establish
 more claims but cannot rename them. Terminal obligations follow the
 [fact-validity rules](../terminal-psi/fact_validity.md).
+
+## Required automatic discharge
+
+Named decision: `required-automatic-discharge`, settled 2026-11-10;
+[the design draft](../../drafts/designs/required_automatic_discharge.md)
+records the conformance work. An unproved obligation rejects, so what a
+checker proves unaided decides which programs it accepts. Every conforming
+checker therefore discharges one stated set of obligations, the floor, with no
+cited lemma and no hint. A checker may discharge more; it may not discharge
+less.
+
+```omega
+machine get(items: &[u8], i: u64, n: u64) -> u8
+requires i < n
+requires n <= items.len
+{
+    items[i]             // floor: i < items.len by order reasoning
+}
+
+machine area(count: u32, size: u32) -> u32
+requires count <= 1000
+requires size <= 1000
+{
+    count * size         // floor: the product is at most 1,000,000
+}
+```
+
+The floor is defined by what is derivable, not by a search algorithm.
+
+**Premises.** The facts valid at the obligation's program point under
+[fact validity](../terminal-psi/fact_validity.md): the enclosing machine's
+entry requirements, the default- and named-domain predicates of established
+subjects, branch and pattern facts on the path, the guarantees of completed
+calls, the exact definitions of locals, and each integer subject's carrier
+bounds.
+
+**Order reasoning.** An order atom compares two integer terms with `<`, `<=`
+or `==`, where each term is a literal, a subject, or a subject plus or minus a
+literal, read as mathematical integers. A subject is an exact value or place,
+including a projection such as `items.len`. A goal that is an order atom, or
+an inequality `!=` implied by a strict one, is in the floor when it follows in
+integer arithmetic from the order atoms among the premises. The checker is
+complete for this class: transitivity through any number of atoms, equality
+substitution, adding one literal to both sides, the step between `a < b` and
+`a + 1 <= b`, and contradiction of an unreachable path.
+
+**Range propagation.** Each integer value defined by add, subtract, multiply,
+divide, remainder, shift or cast receives bounds from its operands' bounds,
+once, in definition order, by the arithmetic of
+[`IntegerAffineBound`](../terminal-psi/integer_certificates.md#integeraffinebound).
+An operand's bounds are the tightest literal bounds order reasoning gives it.
+The resulting bounds are premises for order reasoning. A
+[canonical scalar goal](../terminal-psi/integer_certificates.md#canonical-scalar-goals),
+such as an exact operation's representability or a nonzero divisor, is in the
+floor when these bounds establish it.
+
+**Case splits.** A disjunctive premise whose atoms share a subject with the
+goal is split, and the goal is in the floor when it is in the floor in every
+arm, for up to 64 arm combinations per obligation.
+
+**Outcomes.**
+
+| Obligation | Result |
+| --- | --- |
+| In the floor | Accepted by every conforming checker under every proof-work policy. Failing to accept it is a checker defect, not a resource diagnostic. |
+| An order goal that does not follow from the order atoms in scope | Rejected as "does not follow from the premises in scope", with a satisfying assignment of the premises that violates the goal. That is a statement about the premises, not about the program. |
+| Anything else not established | Reported as not established. The author adds a premise, branches, cites a lemma, or relies on automation beyond the floor. Exhausted search is reported as a resource diagnostic. |
+
+**Cost.** Order reasoning and range propagation are polynomial in the size of
+the machine body, so the floor has no search allowance and is not governed by
+the [proof-work policy](../build/configuration.md#proof-work-policy). Its work
+is still charged as compiler work.
+
+**Evidence.** A floor discharge produces the same kernel-checked certificates
+as any other proof, from the
+[elementary rules](../terminal-psi/integer_certificates.md#elementary-certificate-rules).
+The floor fixes what must be found, not how it is represented.
+
+**Beyond the floor.** General linear combinations, nonlinear facts other than
+propagated ranges, and quantified or window facts are outside it. A checker
+may still prove them, under the proof-work policy. Source that relies on that
+is accepted only by checkers that find the proof, so a checker can be asked to
+restrict automatic discharge to the floor with
+[`--floor-only`](../build/command_line.md#checker-conformance), which reports
+every obligation that needed more.
 
 ## Certified elaboration and review
 

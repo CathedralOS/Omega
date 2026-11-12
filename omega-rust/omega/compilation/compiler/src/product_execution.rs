@@ -445,6 +445,8 @@ impl RequestedTerminalCompilation {
                         rollback,
                         subsystem,
                         settlement,
+                        tests: Vec::new(),
+                        test_notes: Vec::new(),
                     },
                 )));
             }
@@ -487,6 +489,30 @@ fn admit_permissions(
         permissions
             .validate(&input)
             .map_err(CompilationProductError::TrustAdmission)?;
+    } else {
+        // Without accepted root rows nothing has accepted a deployed
+        // component's environmental premise; ordinary compilation never
+        // creates that acceptance as a side effect.
+        let demands = checked.providers().component_assumption_demands();
+        if !demands.is_empty() {
+            return Err(CompilationProductError::TrustAdmission(
+                demands
+                    .iter()
+                    .map(|demand| {
+                        Diagnostic::error(format!(
+                            "independent component package {} assumes {}, which no accepted lock row of the consuming project covers; review it with omega update",
+                            demand
+                                .component
+                                .digest()
+                                .iter()
+                                .map(|byte| format!("{byte:02x}"))
+                                .collect::<String>(),
+                            demand.bound_rows.join(", "),
+                        ))
+                    })
+                    .collect(),
+            ));
+        }
     }
     Ok(())
 }

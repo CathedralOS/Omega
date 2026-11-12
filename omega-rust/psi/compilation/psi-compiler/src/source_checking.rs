@@ -674,6 +674,27 @@ pub struct SelectedCheckedSource {
 
 impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
+        self.check_keeping_typed_frontier(None)
+    }
+
+    /*
+        The same check, also copying out the frozen typed trees Psi 05 judged.
+
+        Psi 04's output is moved into Psi 05 and is gone when that stage
+        rejects, so a caller that wants to run a second checker on a rejected
+        program has nothing to give it. With `frontier` supplied, the trees
+        are cloned into it before Psi 05 takes them. The slot is filled exactly
+        when Psi 04 completed (or a retained judgment supplied its trees), no
+        matter what this function then returns; it stays `None` when the
+        request was refused earlier. It normally holds Psi 05's exact input. If
+        the lifecycle-plan step between the two stages refuses, it holds Psi
+        04's output, which Psi 05 never saw. `check` passes no slot and clones
+        nothing.
+    */
+    pub fn check_keeping_typed_frontier(
+        self,
+        mut frontier: Option<&mut Option<typed_trees::FrozenTypedTrees>>,
+    ) -> Result<CheckedSource, Vec<Diagnostic>> {
         let mut program = self.program;
         let representations = self.admission.representations.admit(&program)?;
         let slice_key = {
@@ -754,6 +775,9 @@ impl CheckRequest<'_> {
                 RETAINED_LAYOUT_MATCH_HITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
             record_whole_program_reuse();
+            if let Some(frontier) = frontier.as_deref_mut() {
+                *frontier = Some(prior.judgment.judged_typed_trees().clone());
+            }
             let outcome = typed_trees_to_checked_trees::reuse_retained_check(
                 &prior.judgment,
                 &checking,
@@ -774,11 +798,19 @@ impl CheckRequest<'_> {
             let retained_input = self.retain.then(|| (Arc::new(program.clone()), admission));
             let (program, preparation) =
                 typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
+            let prepared = frontier.is_some().then(|| program.clone());
             let program = build_time_evaluation::retain_access_lifecycle_plans(
                 program,
                 self.admission.declarations,
                 self.admission.layout_scopes,
-            )?;
+            );
+            if let Some(frontier) = frontier {
+                *frontier = match &program {
+                    Ok(program) => Some(program.clone()),
+                    Err(_) => prepared,
+                };
+            }
+            let program = program?;
             let prior_dependency_bodies: Vec<_> = self
                 .previous
                 .iter()

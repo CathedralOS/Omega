@@ -73,6 +73,27 @@ pub fn check_source(
     }
 }
 
+/// `check_source` for a caller that also needs the typed trees the checker
+/// judged: the same Build stepping, completed through the session's
+/// `check_keeping_typed_frontier`. A failure before the Build returns is
+/// reported as stopping before the typed frontier.
+pub fn check_source_keeping_typed_frontier(
+    compiler: &mut CompilationSession,
+    request: CheckedCompileRequest,
+) -> compiler::TypedFrontierCheck {
+    compiler::checked::run_on_compile_thread(|| {
+        let mut prepared = compiler.begin_source_compilation(request)?;
+        let returned = execute_prepared_source_build(&mut prepared)?;
+        Ok::<_, CompileFailure>(compiler.check_keeping_typed_frontier(
+            compiler::TypedFrontierRequest::Source {
+                source: prepared,
+                returned,
+            },
+        ))
+    })
+    .unwrap_or_else(compiler::TypedFrontierCheck::StoppedBeforeTypedFrontier)
+}
+
 pub fn produce_source(
     compiler: &mut CompilationSession,
     mut request: CheckedCompileRequest,

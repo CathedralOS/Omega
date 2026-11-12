@@ -4,6 +4,10 @@ use and remain valid on every path to it." Knowledge never becomes false, so
 availability is only this question, answered on the lowered graph: block
 dominators from the edge table, and order within a block from the position
 of each operation.
+
+The same graph answers where a point lies and which blocks enter a block,
+which is what following a place's writes backwards from a read needs
+(`places`).
 */
 
 use semantic_vocabulary::{BlockId, MachineId};
@@ -21,8 +25,10 @@ pub(crate) struct Graph {
     dominators: Vec<Vec<bool>>,
     /// Block and index of each operation, indexed by `OperationId - 1`.
     operations: Vec<Option<(BlockId, usize)>>,
-    /// How many edges enter each block, indexed by `BlockId - 1`.
-    incoming: Vec<usize>,
+    /// The source block of each edge that enters a block, indexed by
+    /// `BlockId - 1`; a block with two edges from one source lists it twice.
+    predecessors: Vec<Vec<BlockId>>,
+    entry: BlockId,
     tables_edges: Vec<(BlockId, Destination)>,
 }
 
@@ -61,6 +67,7 @@ impl Graph {
             }
         }
         let mut predecessors = vec![Vec::new(); count];
+        let mut sources = vec![Vec::new(); count];
         let mut tables_edges = Vec::with_capacity(tables.edges.len());
         for (_, edge) in tables.edges.iter() {
             if let Destination::Block(target) = edge.destination {
@@ -68,6 +75,7 @@ impl Graph {
                     .get_mut(index(target.get()))
                     .ok_or_else(|| refuse("edge enters a block past the end"))?
                     .push(index(edge.source.get()));
+                sources[index(target.get())].push(edge.source);
             }
             tables_edges.push((edge.source, edge.destination));
         }
@@ -113,7 +121,8 @@ impl Graph {
             machine,
             dominators,
             operations,
-            incoming: predecessors.iter().map(Vec::len).collect(),
+            predecessors: sources,
+            entry: lowered.entry,
             tables_edges,
         })
     }
@@ -127,9 +136,30 @@ impl Graph {
         }
     }
 
+    pub(crate) fn entry(&self) -> BlockId {
+        self.entry
+    }
+
+    pub(crate) fn block_count(&self) -> usize {
+        self.predecessors.len()
+    }
+
+    /// One past the largest operation identity the machine holds.
+    pub(crate) fn operation_count(&self) -> usize {
+        self.operations.len()
+    }
+
+    /// The source block of every edge that enters `block`.
+    pub(crate) fn predecessors(&self, block: BlockId) -> Checked<&[BlockId]> {
+        self.predecessors
+            .get(index(block.get()))
+            .map(Vec::as_slice)
+            .ok_or_else(|| self.refuse(Construct::Block(block)))
+    }
+
     /// Block and position of a point: the entry is before every operation,
     /// an operation's normal successor is after it, an edge after them all.
-    fn locate(&self, point: ProgramPoint) -> Checked<(BlockId, usize)> {
+    pub(crate) fn locate(&self, point: ProgramPoint) -> Checked<(BlockId, usize)> {
         match point {
             ProgramPoint::BlockEntry(block) => Ok((block, 0)),
             ProgramPoint::AfterOperation(operation) => self
@@ -171,7 +201,7 @@ impl Graph {
             let Destination::Block(target) = destination else {
                 return Ok(false);
             };
-            if self.incoming.get(index(target.get())) != Some(&1) {
+            if self.predecessors.get(index(target.get())).map(Vec::len) != Some(1) {
                 return Ok(false);
             }
             return self.block_dominates(*target, used_block);

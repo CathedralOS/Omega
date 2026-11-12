@@ -2080,6 +2080,19 @@ pub(crate) mod declaration_tables {
             rows.next().is_none().then_some((implementation, row))
         }
 
+        /// Whether `machine` is the inline member of a conformance row whose
+        /// requirement wrote `crashes none`.
+        pub fn realizes_crash_free_requirement(&self, machine: symbols::SymbolHandle) -> bool {
+            let Some((_, row)) = self.owned_conformance_realization(machine) else {
+                return false;
+            };
+            self.trait_definition_by_symbol(row.declaring_trait)
+                .and_then(|declaring| {
+                    self.trait_machine_signature_by_symbol(declaring, row.requirement)
+                })
+                .is_some_and(|requirement| requirement.declares_no_crash_route)
+        }
+
         pub fn owned_conformance_requirement_scope(
             &self,
             realization: symbols::SymbolHandle,
@@ -2424,7 +2437,15 @@ pub(crate) mod declaration_tables {
                     return Vec::new();
                 }
                 let source = self.static_machine_application(selection_application);
-                if source.lexical_owner != owner || source.registration_operation != requirement {
+                // A constant has no body of its own: its initializer runs in an
+                // evaluation entry generated from the constant, which wraps the
+                // same call. The call's application still names the constant as
+                // the scope it was written in, and that is the same owner.
+                let owned_by_caller = source.lexical_owner == owner
+                    || (self.symbols.get(source.lexical_owner).kind == symbols::SymbolKind::Const
+                        && self.symbols.get(owner).kind == symbols::SymbolKind::Machine
+                        && self.symbols.get(owner).generated_from == source.lexical_owner);
+                if !owned_by_caller || source.registration_operation != requirement {
                     return Vec::new();
                 }
                 let Some(selection) = &source.conformance_selection else {
@@ -4802,8 +4823,21 @@ pub(crate) mod trait_and_machine_tables {
                 })
         }
 
+        /*
+            A machine's `crashes` clause is a ceiling its body and calls are
+            checked against, instead of a request to infer the routes, when
+            anything fixes that ceiling: a public or bodyless declaration, an
+            authored route, or `crashes none`. The last leaves no contract row
+            to find, so a private body that wrote it is told from one that
+            omitted the clause by `declares_no_crash_route` alone. A member
+            that realizes a trait requirement which wrote `crashes none` is
+            held to that empty ceiling too: generics.md, "`crashes none`
+            admitting only crash-free members".
+        */
         pub fn machine_publishes_crash_ceiling(&self, machine: &machine::Machine) -> bool {
             machine.is_public
+                || machine.declares_no_crash_route
+                || self.realizes_crash_free_requirement(machine.symbol)
                 || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
                 || self.machine_contracts(machine).iter().any(|contract| {
                     matches!(
@@ -5821,6 +5855,160 @@ pub(crate) mod type_reference_queries {
             }
             let primitive = self.primitive_type_reference(*referee)?;
             (primitive != types::PrimitiveType::Addr).then_some(primitive)
+        }
+
+        /*
+            A nominal whose values a contract can name field by field: a
+            checked-shape, non-generic declaration with no quotient and no laid
+            layout, access view or wire schema that would give its fields a
+            representation the proof side cannot read structurally.
+        */
+        pub fn closed_contract_nominal(&self, definition: &crate::data::DataDefinition) -> bool {
+            definition.supply_mode == language_core::DataSupplyMode::CheckedShape
+                && definition.quotient.is_none()
+                && self.data_type_parameters(definition).is_empty()
+                && !self
+                    .plan_laid_layouts
+                    .iter()
+                    .any(|plan| plan.data_symbol == definition.symbol)
+                && !self
+                    .access_view_plans
+                    .iter()
+                    .any(|plan| plan.data_symbol == definition.symbol)
+                && !self
+                    .wire_schemas()
+                    .iter()
+                    .any(|schema| schema.name == definition.name)
+        }
+
+        /*
+            The erased scalar lanes of one erased binding type, in declaration
+            order. A primitive, or a shared reference to one, is a single lane
+            with an empty path. A closed record of runtime-relevant scalar
+            fields (nested records included), by value or behind a shared
+            reference, contributes one lane per scalar leaf, so a contract can
+            name `record.field` without the record acquiring a runtime field,
+            address, read or cleanup. Every other type has no lanes: arrays,
+            sums, erased fields and proof-only carriers stay with the
+            contract-term lane or are refused by its admission.
+
+            This is the only owner of the expansion. Erased formal positions,
+            parameter plans and call-site actuals all index the lanes it
+            returns; none re-derives the leaf order.
+        */
+        pub fn erased_scalar_lanes(
+            &self,
+            reference: types::TypeReferenceHandle,
+        ) -> Vec<crate::proof_only::ErasedScalarLane> {
+            if let Some(primitive_type) = self.erased_scalar_observation_type(reference) {
+                return vec![crate::proof_only::ErasedScalarLane {
+                    fields: Vec::new(),
+                    primitive_type,
+                }];
+            }
+            if !reference.is_valid() {
+                return Vec::new();
+            }
+            let record = match self.type_reference_table.type_reference(reference) {
+                types::TypeReferenceNode::Reference {
+                    access: language_core::ReferenceAccess::Shared,
+                    referee,
+                    ..
+                } => *referee,
+                types::TypeReferenceNode::Reference { .. } => return Vec::new(),
+                _ => reference,
+            };
+            let mut lanes = Vec::new();
+            let mut prefix = Vec::new();
+            let mut visiting = Vec::new();
+            if self.collect_erased_record_lanes(record, &mut prefix, &mut visiting, &mut lanes) {
+                lanes
+            } else {
+                Vec::new()
+            }
+        }
+
+        fn collect_erased_record_lanes(
+            &self,
+            reference: types::TypeReferenceHandle,
+            prefix: &mut Vec<symbols::SymbolHandle>,
+            visiting: &mut Vec<symbols::SymbolHandle>,
+            lanes: &mut Vec<crate::proof_only::ErasedScalarLane>,
+        ) -> bool {
+            if !reference.is_valid() {
+                return false;
+            }
+            let types::TypeReferenceNode::Named { symbol, .. } =
+                self.type_reference_table.type_reference(reference)
+            else {
+                return false;
+            };
+            if visiting.contains(symbol) {
+                return false;
+            }
+            let Some(definition) = self.data_definition_by_symbol(*symbol) else {
+                return false;
+            };
+            let members = self.data_members(definition);
+            if !self.closed_contract_nominal(definition)
+                || crate::data::DataDefinition::shape_kind_from_members(members)
+                    != crate::data::DataShapeKind::Record
+            {
+                return false;
+            }
+            visiting.push(*symbol);
+            let mut admitted = true;
+            for member in members {
+                let crate::data::DataMember::Field(field) = member else {
+                    admitted = false;
+                    break;
+                };
+                if field.relevance.is_erased() {
+                    admitted = false;
+                    break;
+                }
+                prefix.push(field.symbol);
+                if let Some(primitive_type) = self.primitive_type_reference(field.type_reference) {
+                    if primitive_type == types::PrimitiveType::Addr {
+                        admitted = false;
+                    } else {
+                        lanes.push(crate::proof_only::ErasedScalarLane {
+                            fields: prefix.clone(),
+                            primitive_type,
+                        });
+                    }
+                } else {
+                    admitted = self.collect_erased_record_lanes(
+                        field.type_reference,
+                        prefix,
+                        visiting,
+                        lanes,
+                    );
+                }
+                prefix.pop();
+                if !admitted {
+                    break;
+                }
+            }
+            visiting.pop();
+            admitted
+        }
+
+        /*
+            Dense index of the first erased scalar lane owned by the parameter at
+            `position`: the lanes of every erased formal authored before it.
+        */
+        pub fn erased_scalar_lane_base(
+            &self,
+            parameters: &[crate::signature::StateParameter],
+            position: usize,
+        ) -> usize {
+            parameters
+                .iter()
+                .take(position)
+                .filter(|parameter| parameter.relevance.is_erased())
+                .map(|parameter| self.erased_scalar_lanes(parameter.type_reference).len())
+                .sum()
         }
 
         pub fn display_type_reference(&self, type_reference: types::TypeReferenceHandle) -> String {

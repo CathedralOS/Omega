@@ -7178,6 +7178,7 @@ pub(crate) mod structural_byte_sequence_store {
                             "owned byte type identity overflow",
                         ))?;
                     types.push(StructuralTypeDeclaration {
+                        requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
                         no_code_affine_cleanup: false,
@@ -7236,6 +7237,7 @@ pub(crate) mod structural_byte_sequence_store {
             ))?;
         let id = structural_type_id(identity);
         types.push(StructuralTypeDeclaration {
+            requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
@@ -7279,6 +7281,7 @@ pub(crate) mod structural_byte_sequence_store {
                 ))?,
         );
         types.push(StructuralTypeDeclaration {
+            requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,

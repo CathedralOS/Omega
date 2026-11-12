@@ -182,6 +182,7 @@ impl PackageBuildSession {
                     .evaluation_sponsor
                     .or_else(|| Some(self.evaluation_sponsor.clone())),
                 restricted_grants: execution.restricted_grants,
+                dependency_activation: execution.dependency_activation,
             },
             ..compiler::CheckedCompileRequest::new(entry, Some(profile.target_name()))
         })

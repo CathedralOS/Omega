@@ -466,6 +466,7 @@ pub(crate) mod contracts {
                             );
                             chain_expression = exprs(syntax_trees).insert(ExpressionNode::Binary(
                                 TableBinaryExpression {
+                                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                     left: chain_expression,
                                     operator,
                                     right: membership,
@@ -603,6 +604,7 @@ pub(crate) mod contracts {
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: value,
                         operator: BinaryOperator::GreaterOrEqual,
                         right: start,
@@ -611,6 +613,7 @@ pub(crate) mod contracts {
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: value,
                         operator: if end_inclusive {
                             BinaryOperator::LessOrEqual
@@ -620,6 +623,7 @@ pub(crate) mod contracts {
                         right: end,
                     }));
             exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                 left: lower,
                 operator: BinaryOperator::And,
                 right: upper,
@@ -692,6 +696,10 @@ pub(crate) mod contracts {
             pub return_type: syntax_trees::types::TypeReferenceHandle,
             pub admitted_same_stack_bytes: u64,
             pub same_stack_clause_span: Option<source::SourceSpan>,
+            /// The header wrote `crashes none`. That clause publishes no
+            /// contract row, so this is the only record that the empty crash
+            /// set was authored rather than omitted.
+            pub declares_no_crash_route: bool,
         }
 
         type RankedSubjects = (
@@ -754,6 +762,13 @@ pub(crate) mod contracts {
                         ranking_view_arguments = clause_view_arguments;
                         ranking_range = clause_range;
                         continue;
+                    }
+                    if input.at_retired_ranking_block() {
+                        return Err(input.error_here(
+                            "the `terminates { decreases ...; }` block form is retired (decision 23): \
+                 attach the ranking witness to the guarantee as `terminates by \
+                 <subjects> [-> View] [in <range>]`",
+                        ));
                     }
                     terminates_guarantee = true;
                     continue;
@@ -1026,6 +1041,7 @@ pub(crate) mod contracts {
                     return_type,
                     admitted_same_stack_bytes,
                     same_stack_clause_span,
+                    declares_no_crash_route: crashes_none_declared,
                 },
                 input,
             ))
@@ -1349,6 +1365,8 @@ pub(crate) mod contracts {
             pub blocks: bool,
             pub contracts: HandleSpan<CapabilityContract>,
             pub terminates_guarantee: bool,
+            /// The signature wrote `crashes none` (see `MachineClauses`).
+            pub declares_no_crash_route: bool,
         }
 
         pub(crate) fn parse_signature_clauses<'tokens, 'source>(
@@ -1556,6 +1574,7 @@ pub(crate) mod contracts {
                     blocks,
                     contracts: super::publish_capability_contracts(syntax_trees, contracts),
                     terminates_guarantee,
+                    declares_no_crash_route: crashes_none_declared,
                 },
                 input,
             ))
@@ -1891,6 +1910,7 @@ pub(crate) mod parameters {
                     blocks: clauses.blocks,
                     contracts: clauses.contracts,
                     terminates_guarantee: clauses.terminates_guarantee,
+                    declares_no_crash_route: clauses.declares_no_crash_route,
                     ..crate::grammar::parameters::parse_parameters::blank_state_signature()
                 };
                 let parameter =
@@ -2651,6 +2671,7 @@ pub(crate) mod parameters {
                 contracts: HandleSpan::empty(),
                 default_body: HandleSpan::empty(),
                 terminates_guarantee: false,
+                declares_no_crash_route: false,
             }
         }
     }

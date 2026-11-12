@@ -27,6 +27,7 @@ The source clause family separates a public promise from implementation evidence
 ```omega
 terminates
 terminates by remaining
+terminates by remaining -> Nat::Descending
 terminates by items -> Slice::Length
 terminates by index -> Nat::IncreasingTo(limit) in 0..=limit
 ```
@@ -86,8 +87,9 @@ interface that closes from published evidence without inspecting private measure
 ## Ranking
 
 `terminates by subject -> View` selects a well-founded ranking theory. The view
-may be descending naturals, an increasing value approaching a fixed bound,
-proper subtree, or a lexicographic product. An unbounded increasing view is not
+may be descending naturals, written `Nat::Descending`, an increasing value
+approaching a fixed bound, written `Nat::IncreasingTo(limit)`, a proper
+subtree, or a lexicographic product. An unbounded increasing view is not
 well-founded. Authors need not synthesize subtraction to express a bounded
 increasing cursor; the view owns normalization.
 

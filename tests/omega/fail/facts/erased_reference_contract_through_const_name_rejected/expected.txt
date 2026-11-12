@@ -1,2 +1,4 @@
-cannot prove requires contract for call keep
+cannot prove requires contract for call keep from
 witness == 7
+cannot prove requires contract for call keep_record from
+record.value == 7

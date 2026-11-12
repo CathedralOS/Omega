@@ -581,7 +581,9 @@ mod calls {
                     }
                     argument.application = application;
                 }
-                Some(BuildOperation::AssumedBindingContract) => {
+                Some(
+                    BuildOperation::AssumedBindingContract | BuildOperation::TestGroupRegistration,
+                ) => {
                     assign_assumed_binding_argument_symbol(symbols, argument);
                 }
                 Some(BuildOperation::RepresentationSelection) => {

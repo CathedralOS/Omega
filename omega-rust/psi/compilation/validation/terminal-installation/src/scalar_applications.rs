@@ -1249,6 +1249,7 @@ pub(crate) mod abi_storage_tests {
                 module
                     .structural_types
                     .push(terminal_psi::StructuralTypeDeclaration {
+                        requires: Vec::new(),
                         id: StructuralTypeId::new(ordinal as u64 + 1).unwrap(),
                         identity: identities.intern(&format!("storage-{ordinal}")),
                         quotient_carrier: None,
@@ -1555,7 +1556,11 @@ pub(crate) mod closure {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct AdmittedScalarApplications {
-        terminal: TerminalPsiIdentity,
+        // The exact code these values were observed on. Invocation code keeps
+        // its process-local scope here, so an admission formed for one
+        // build-time invocation never matches a portable artifact or another
+        // invocation that happens to share the semantic identity.
+        code: terminal_codec::TerminalExecutionIdentity,
         product_formation: bool,
         primary: CompletedScalarScope,
         supplemental: Vec<ScalarScopeInputs>,
@@ -1576,7 +1581,10 @@ pub(crate) mod closure {
         }
 
         pub fn terminal(&self) -> TerminalPsiIdentity {
-            self.terminal
+            self.code.semantic()
+        }
+        pub fn execution_identity(&self) -> &terminal_codec::TerminalExecutionIdentity {
+            &self.code
         }
         pub fn primary(&self) -> &ScalarScopeInputs {
             &self.primary.inputs
@@ -1593,7 +1601,7 @@ pub(crate) mod closure {
     }
 
     pub struct ScalarApplicationClosure<'artifact> {
-        artifact: TerminalArtifactView<'artifact>,
+        artifact: terminal_codec::TerminalExecutionView<'artifact>,
         primary: String,
         scopes: Vec<(String, bool)>,
         ranges: Vec<bool>,
@@ -1613,6 +1621,13 @@ pub(crate) mod closure {
 
     impl<'artifact> ScalarApplicationClosure<'artifact> {
         pub fn new(artifact: TerminalArtifactView<'artifact>, primary: &str) -> Self {
+            Self::source(artifact.into(), primary)
+        }
+
+        fn source(
+            artifact: terminal_codec::TerminalExecutionView<'artifact>,
+            primary: &str,
+        ) -> Self {
             let catalog = &artifact.module().scalar_applications;
             let applications = catalog.proof_scope.applications();
             let mut owners = Vec::new();
@@ -1658,7 +1673,7 @@ pub(crate) mod closure {
         }
 
         fn with_scopes(
-            artifact: TerminalArtifactView<'artifact>,
+            artifact: terminal_codec::TerminalExecutionView<'artifact>,
             primary: &str,
             scopes: Vec<(String, bool)>,
             kind: ScalarClosureKind,
@@ -1678,10 +1693,11 @@ pub(crate) mod closure {
         }
 
         pub fn for_invocation(
-            artifact: TerminalArtifactView<'artifact>,
+            artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>,
             primary: &str,
             roots: &[terminal_psi::ProofDeclarationId],
         ) -> Self {
+            let artifact = artifact.into();
             let mut declarations = Vec::with_capacity(roots.len());
             for &root in roots {
                 if !declarations.contains(&root) {
@@ -1702,7 +1718,7 @@ pub(crate) mod closure {
         ) -> Result<Self, String> {
             demand.require_artifact(artifact)?;
             Ok(Self::with_scopes(
-                artifact,
+                artifact.into(),
                 &demand.target,
                 vec![(demand.target.clone(), false)],
                 ScalarClosureKind::AbiStorage(demand.scope.clone()),
@@ -1714,7 +1730,7 @@ pub(crate) mod closure {
                 self.kind,
                 ScalarClosureKind::Invocation(_) | ScalarClosureKind::AbiStorage(_)
             ) {
-                self = Self::new(self.artifact, &self.primary);
+                self = Self::source(self.artifact, &self.primary);
             }
             self.kind = ScalarClosureKind::Deployment;
             for scope in scopes {
@@ -1937,7 +1953,7 @@ pub(crate) mod closure {
                 .primary_result
                 .ok_or("scalar closure has no primary value scope")?;
             Ok(AdmittedScalarApplications {
-                terminal: self.artifact.identity(),
+                code: self.artifact.custody_identity(),
                 product_formation: !matches!(
                     self.kind,
                     ScalarClosureKind::Invocation(_) | ScalarClosureKind::AbiStorage(_)
@@ -2049,8 +2065,11 @@ impl CallingAbiStorageDemand {
         Ok(self)
     }
 
-    fn require_artifact(&self, artifact: TerminalArtifactView<'_>) -> Result<(), String> {
-        if self.terminal != artifact.identity() {
+    fn require_artifact<'artifact>(
+        &self,
+        artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>,
+    ) -> Result<(), String> {
+        if self.terminal != artifact.into().identity() {
             return Err("ABI storage demand belongs to another Terminal artifact".into());
         }
         Ok(())
@@ -2074,7 +2093,7 @@ pub(crate) enum EntryResult {
 }
 
 pub struct ScalarApplicationObservations<'artifact> {
-    artifact: TerminalArtifactView<'artifact>,
+    artifact: terminal_codec::TerminalExecutionView<'artifact>,
     targets: &'artifact AdmittedTargetMachineSelections,
     providers: &'artifact AdmittedProviderSelections,
     layouts: AdmittedTargetLayouts,
@@ -2110,13 +2129,14 @@ impl ScalarApplicationValues {
 
 impl<'artifact> ScalarApplicationObservations<'artifact> {
     pub fn new(
-        artifact: TerminalArtifactView<'artifact>,
+        artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>,
         targets: &'artifact AdmittedTargetMachineSelections,
         providers: &'artifact AdmittedProviderSelections,
         target_layout: &crate::LayoutTargetFacts,
     ) -> Result<Self, String> {
+        let artifact = artifact.into();
         if artifact.identity() != targets.terminal_psi()
-            || artifact.identity() != providers.terminal_psi()
+            || artifact.custody_identity() != *providers.execution_identity()
         {
             return Err("scalar observations name a different Terminal artifact".into());
         }
@@ -2149,7 +2169,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         })
     }
 
-    pub fn artifact(&self) -> TerminalArtifactView<'artifact> {
+    pub fn artifact(&self) -> terminal_codec::TerminalExecutionView<'artifact> {
         self.artifact
     }
 

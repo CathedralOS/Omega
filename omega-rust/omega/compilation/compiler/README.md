@@ -486,8 +486,7 @@ owner, package, template and closed-coordinate join as target-provider publicati
 unused inherited instances remain part of that roster. Native authority review,
 callback settlement and emitted evidence consume this normalized selection.
 Private native-input records omit source-issued checked specialization rows and
-reload reconstructs them from Terminal. Source checking, review and the optional
-checked interpreter retain their own source-side facts; external applications,
+reload reconstructs them from Terminal. Source checking and review retain their own source-side facts; external applications,
 intrinsic leaves and installation reach are separate custody.
 
 Provider-dependent Product constants currently reject with an explicit
@@ -510,11 +509,8 @@ after production. This is still a
 checked-tree realization seam; moving it out of the coordinator does not
 complete the separate task of installing providers behind Terminal Psi.
 
-Boundary calls remain canonical in checked trees. Only the optional checked-tree
-oracle prepares its reference dispatch table through
-[checked interpreter dispatch](tests/support/checked_interpreter_dispatch/mod.rs)
-immediately before execution. Ordinary compilation does not build or retain
-those receiver/requirement/entry-state associations. Neither selection nor
+Boundary calls remain canonical in checked trees. Ordinary compilation does
+not build or retain receiver/requirement/entry-state dispatch associations. Neither selection nor
 evaluation fabricates replacement source calls. Terminal
 publication borrows the checked program directly. Package review reads the same
 authored boundary calls and independently checks their write frames.

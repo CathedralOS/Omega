@@ -2044,6 +2044,7 @@ pub(crate) mod structural_encoding {
             let mut encodings = Vec::new();
             for copyable in [false, true] {
                 let declaration = StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,

@@ -1,0 +1,31 @@
+// A requirement that omits `crashes` defers to the selection, and the
+// application keeps the selected routes its own facts do not disprove.
+// `Trapping::apply` traps only when `value == 0`; `advance` requires
+// `start >= 1`, which disproves that route, so `advance<Trapping>` keeps its
+// `crashes none`.
+// Twin: `fail/traits/omitted_requirement_crashes_reach_generic_caller`, which
+// lacks the `requires`.
+// Expected exit: 0
+trait Step {
+    machine apply(value: u32) -> u32;
+}
+Trapping satisfies Step {
+    machine apply(value: u32) -> u32
+    crashes Trap value == 0
+    {
+        transition value == 0 { true -> bad() false -> value }
+        machine bad() -> u32 crashes Trap { crash Trap; }
+    }
+}
+machine advance<Selected satisfies Step>(start: u32) -> u32
+requires start >= 1
+crashes none
+{
+    Selected::apply(start)
+}
+machine main() crashes Trap {
+    let value: u32 = advance<Trapping>(3);
+    transition value == 3 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

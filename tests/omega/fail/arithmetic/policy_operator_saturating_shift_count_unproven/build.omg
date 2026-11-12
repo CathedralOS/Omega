@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "policy_operator_saturating_shift_count_unproven");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+}

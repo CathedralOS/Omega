@@ -3052,7 +3052,13 @@ pub mod expression_owners {
                     None,
                 ));
             }
-            let (_, signature) = program.machine_parameter_signature(state_symbol)?;
+            // A callable binder keeps its contract under the binder itself. Read
+            // it from there: a binder on a bodyless trait requirement has no
+            // machine row, so a search through machines never finds it and its
+            // nested `requires` and `ensures` clauses are left without types.
+            let signature = program
+                .retained_static_machine_contract(state_symbol)?
+                .signature();
             Some(environment_from_parameters(
                 state_symbol,
                 program.state_signature_parameters(signature),
@@ -3403,7 +3409,7 @@ pub mod expression_owners {
                         }),
                 );
                 let mut reached = Vec::new();
-                for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+                for fact in program.proof_facts.span_or_empty(definition.requires_facts) {
                     reached.extend(super::indexing::proof_fact_reachable_expressions(
                         program, fact,
                     ));
@@ -3418,7 +3424,7 @@ pub mod expression_owners {
                         }
                         typed_trees::data::DataMember::Variant(variant) => {
                             let mut payload_reached = Vec::new();
-                            for fact in program.proof_facts.span_or_empty(variant.where_facts) {
+                            for fact in program.proof_facts.span_or_empty(variant.requires_facts) {
                                 payload_reached.extend(
                                     super::indexing::proof_fact_reachable_expressions(
                                         program, fact,
@@ -4741,13 +4747,13 @@ pub mod expression_owners {
             let marker = program
                 .expression_table
                 .insert(ExpressionNode::Boolean(true));
-            let where_facts = program
+            let requires_facts = program
                 .proof_facts
                 .insert_many([ProofFact::Expression(marker), ProofFact::Expression(marker)]);
             program.push_data_definition(DataDefinition {
                 symbol: a,
                 name: Identifier::from("A"),
-                where_facts,
+                requires_facts,
                 ..Default::default()
             });
             program.push_data_definition(DataDefinition {
@@ -9963,6 +9969,7 @@ pub mod relevance {
             validate_unresolved_erased_generic_uses(program, diagnostics);
             validate_erased_binding_qualifiers(program, diagnostics);
             validate_erased_runtime_scalar_formals(program, diagnostics);
+            crate::erased_actuals::validate(program, diagnostics);
         }
 
         fn validate_erased_runtime_scalar_formals(
@@ -9980,10 +9987,28 @@ pub mod relevance {
                         {
                             continue;
                         }
-                        if program
-                            .erased_scalar_observation_type(parameter.type_reference)
-                            .is_some()
-                        {
+                        let lanes = program.erased_scalar_lanes(parameter.type_reference);
+                        // A contract over a record's `bool` field is read by
+                        // the Boolean vocabulary, which names a formal's
+                        // structural slot; an erased record has none.
+                        if let Some(lane) = lanes.iter().find(|lane| {
+                            !lane.fields.is_empty()
+                                && lane.primitive_type == typed_trees::types::PrimitiveType::Bool
+                        }) {
+                            diagnostics.push(Diagnostic::error(format!(
+                                "machine `{}::{}` erased parameter `{}` is a record with `bool` field `{}`; an erased record carries integer and float fields only, so pass that field as its own erased `bool` parameter",
+                                machine.name,
+                                state.name,
+                                parameter.name,
+                                lane.fields
+                                    .iter()
+                                    .map(|field| program.symbols.name(*field))
+                                    .collect::<Vec<_>>()
+                                    .join("."),
+                            )));
+                            continue;
+                        }
+                        if !lanes.is_empty() {
                             continue;
                         }
                         if proof_only.contract_term_carrier(program, parameter.type_reference)

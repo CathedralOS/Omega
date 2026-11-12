@@ -570,6 +570,15 @@ pub fn review_fixture(
     profiles: &[TargetProfile],
     product: compiler::CompilationProduct,
 ) -> Result<ReviewedFixtureCompilation, Vec<Diagnostic>> {
+    review_fixture_recording(discovered, profiles, product, None)
+}
+
+fn review_fixture_recording(
+    discovered: DiscoveredFixture,
+    profiles: &[TargetProfile],
+    product: compiler::CompilationProduct,
+    mut record: Option<&mut Option<FrontierRecord>>,
+) -> Result<ReviewedFixtureCompilation, Vec<Diagnostic>> {
     let DiscoveredFixture {
         authored_root_path,
         root_path,
@@ -671,10 +680,7 @@ pub fn review_fixture(
         root.inputs = inputs.clone().with_semantic_role_discovery(true);
         let build = orchestration::prepare_package(session.compiler(), discovery, &mut completed)
             .map_err(|error| error.failure.into_diagnostics())?;
-        let preliminary = session
-            .compiler()
-            .check_package_build(build)
-            .map_err(|error| error.into_diagnostics())?;
+        let preliminary = check_package(session.compiler(), build, record.as_deref_mut())?;
         for (owner, _) in inputs.packages() {
             let required =
                 dangerous_service_acceptance::required_dangerous_services(&preliminary, owner);
@@ -734,74 +740,107 @@ fn clone_fixture_occurrences(
         .collect()
 }
 
+/*
+Explicit fixture consent stands in for the consuming project's lock: it accepts
+the exact checked root rows of the named kinds, never a copied digest. Assumed
+binding consent accepts the root's assumed binding contracts;
+`accepted_component_assumptions.txt` accepts the environmental premises of the
+independent components the root deploys (component_publication.md, "Consumer
+acceptance and Build attenuation"). Terminal permission rows join either, as a
+lock retains them beside these rows.
+*/
 fn assumed_fixture_permissions(
     authored_project_root: &Path,
     profile: TargetProfile,
     preliminary: &compiler::CheckedCompilation,
 ) -> Result<Option<compiler::TerminalPermissionAcceptance>, Vec<Diagnostic>> {
-    let consent = authored_project_root.join("accepted_assumed_bindings.txt");
-    let permissions = if consent.is_file() {
-        let text = fs::read_to_string(&consent)
-            .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-        if text.trim() != "Accept this fixture's exact checked root assumed binding contract rows."
-        {
-            return Err(vec![Diagnostic::error(
-                "invalid explicit assumed-binding fixture consent",
-            )]);
-        }
-        let package = preliminary.sources().package_identity().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "assumed-binding fixture consent requires a root package",
-            )]
-        })?;
-        let policy =
-            package_evidence::project_checked_package_policy(preliminary, profile, package)?;
-        let mut rows: Vec<_> =
-            policy
-                .acceptance_rows_with_limits(
-                    package_evidence::record::PackagePolicyRowLimits::default(),
-                )
-                .map_err(|error| vec![Diagnostic::error(error.to_string())])?
-                .0
-                .into_iter()
-                .filter(|row| {
-                    matches!(
-                        row.kind(),
-                        package_evidence::record::PackagePolicyRowKind::AssumedBindingContract
-                            | package_evidence::record::PackagePolicyRowKind::TerminalPermission
-                    )
-                })
-                .map(|row| {
-                    (
-                        optimization_core::digest_encoder::content_identity(row.key_bytes()),
-                        row.into_canonical_text(),
-                    )
-                })
-                .collect();
-        if preliminary
+    use package_evidence::record::PackagePolicyRowKind;
+    let assumed = fixture_consent(
+        authored_project_root,
+        "accepted_assumed_bindings.txt",
+        "Accept this fixture's exact checked root assumed binding contract rows.",
+    )?;
+    let components = fixture_consent(
+        authored_project_root,
+        "accepted_component_assumptions.txt",
+        "Accept this fixture's exact checked root component assumption rows.",
+    )?;
+    if !assumed && !components {
+        return Ok(None);
+    }
+    if assumed
+        && preliminary
             .execution()
             .plans()
             .assumed_bindings()
             .is_empty()
-        {
-            return Err(vec![Diagnostic::error(
-                "assumed-binding fixture consent names no assumed contracts",
-            )]);
-        }
-        rows.sort_unstable_by_key(|(key, _)| *key);
-        Some(
-            package_evidence::permission_acceptance::TerminalPermissionAcceptance {
-                schema_version: package_evidence::record::PACKAGE_POLICY_ROW_VERSION,
-                package,
-                target: profile,
-                rows,
-            },
-        )
-    } else {
-        None
-    };
+    {
+        return Err(vec![Diagnostic::error(
+            "assumed-binding fixture consent names no assumed contracts",
+        )]);
+    }
+    if components
+        && preliminary
+            .providers()
+            .component_assumption_demands()
+            .is_empty()
+    {
+        return Err(vec![Diagnostic::error(
+            "component-assumption fixture consent names no component assumptions",
+        )]);
+    }
+    let package = preliminary.sources().package_identity().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "fixture permission consent requires a root package",
+        )]
+    })?;
+    let policy = package_evidence::project_checked_package_policy(preliminary, profile, package)?;
+    let mut rows: Vec<_> = policy
+        .acceptance_rows_with_limits(package_evidence::record::PackagePolicyRowLimits::default())
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])?
+        .0
+        .into_iter()
+        .filter(|row| match row.kind() {
+            PackagePolicyRowKind::TerminalPermission => true,
+            PackagePolicyRowKind::AssumedBindingContract => assumed,
+            PackagePolicyRowKind::ComponentAssumption => components,
+            _ => false,
+        })
+        .map(|row| {
+            (
+                optimization_core::digest_encoder::content_identity(row.key_bytes()),
+                row.into_canonical_text(),
+            )
+        })
+        .collect();
+    rows.sort_unstable_by_key(|(key, _)| *key);
+    Ok(Some(
+        package_evidence::permission_acceptance::TerminalPermissionAcceptance {
+            schema_version: package_evidence::record::PACKAGE_POLICY_ROW_VERSION,
+            package,
+            target: profile,
+            rows,
+        },
+    ))
+}
 
-    Ok(permissions)
+fn fixture_consent(
+    authored_project_root: &Path,
+    file: &str,
+    sentence: &str,
+) -> Result<bool, Vec<Diagnostic>> {
+    let consent = authored_project_root.join(file);
+    if !consent.is_file() {
+        return Ok(false);
+    }
+    let text =
+        fs::read_to_string(&consent).map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+    if text.trim() != sentence {
+        return Err(vec![Diagnostic::error(format!(
+            "invalid explicit fixture consent in `{file}`"
+        ))]);
+    }
+    Ok(true)
 }
 
 /// The explicit source-tree oracle consumes the same retained Product plan.
@@ -810,6 +849,15 @@ pub fn check_fixture(
     prepared: &mut ReviewedFixtureCompilation,
     target: &str,
     rollback: compiler::OptimizationRollback,
+) -> Result<compiler::CheckedCompilation, Vec<Diagnostic>> {
+    check_fixture_recording(prepared, target, rollback, None)
+}
+
+fn check_fixture_recording(
+    prepared: &mut ReviewedFixtureCompilation,
+    target: &str,
+    rollback: compiler::OptimizationRollback,
+    record: Option<&mut Option<FrontierRecord>>,
 ) -> Result<compiler::CheckedCompilation, Vec<Diagnostic>> {
     if prepared.package_inputs.is_some() {
         let profile =
@@ -829,11 +877,7 @@ pub fn check_fixture(
             &mut prepared.completed,
         )
         .map_err(|error| error.failure.into_diagnostics())?;
-        prepared
-            .session
-            .compiler()
-            .check_package_build(build)
-            .map_err(|error| error.into_diagnostics())
+        check_package(prepared.session.compiler(), build, record)
     } else {
         let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(target));
         request.build = prepared.execution.take().ok_or_else(|| {
@@ -842,9 +886,18 @@ pub fn check_fixture(
             )]
         })?;
         request.optimization_rollback = rollback;
-        orchestration::check_source(prepared.session.compiler(), request)
-            .result
-            .map_err(|error| error.into_diagnostics())
+        match record {
+            None => orchestration::check_source(prepared.session.compiler(), request)
+                .result
+                .map_err(|error| error.into_diagnostics()),
+            Some(record) => record_frontier_check(
+                orchestration::check_source_keeping_typed_frontier(
+                    prepared.session.compiler(),
+                    request,
+                ),
+                record,
+            ),
+        }
     }
 }
 
@@ -940,4 +993,157 @@ fn dangerous_service_bindings(
         )?);
     }
     Ok(bindings)
+}
+
+/// The last answer the typed-frontier seam gave during one fixture's review
+/// and check. Review and check return on the first failing step, so a failure
+/// belongs to the check recorded here only when that check itself rejected.
+enum FrontierRecord {
+    Reached {
+        frontier: Box<compiler::TypedFrontier>,
+        rejected: bool,
+    },
+    Stopped,
+}
+
+fn check_package(
+    session: &mut compiler::CompilationSession,
+    build: compiler::PackageBuild,
+    record: Option<&mut Option<FrontierRecord>>,
+) -> Result<compiler::CheckedCompilation, Vec<Diagnostic>> {
+    match record {
+        None => session
+            .check_package_build(build)
+            .map_err(|error| error.into_diagnostics()),
+        Some(record) => record_frontier_check(
+            session.check_keeping_typed_frontier(compiler::TypedFrontierRequest::Package(build)),
+            record,
+        ),
+    }
+}
+
+fn record_frontier_check(
+    check: compiler::TypedFrontierCheck,
+    record: &mut Option<FrontierRecord>,
+) -> Result<compiler::CheckedCompilation, Vec<Diagnostic>> {
+    match check {
+        compiler::TypedFrontierCheck::Reached { frontier, verdict } => {
+            let (rejected, result) = match verdict {
+                compiler::CurrentCheckerVerdict::Accepted(checked) => (false, Ok(*checked)),
+                compiler::CurrentCheckerVerdict::Rejected(failure) => {
+                    (true, Err(failure.into_diagnostics()))
+                }
+            };
+            *record = Some(FrontierRecord::Reached { frontier, rejected });
+            result
+        }
+        compiler::TypedFrontierCheck::StoppedBeforeTypedFrontier(failure) => {
+            *record = Some(FrontierRecord::Stopped);
+            Err(failure.into_diagnostics())
+        }
+    }
+}
+
+/// One fixture's ordinary review and check, with the Product's frozen typed
+/// trees whenever Psi 04 completed. This is what a harness comparing a second
+/// checker calls: it sees rejected programs as well as accepted ones.
+pub enum FixtureFrontierCheck {
+    /// The current checker accepted and fixture review finished.
+    Accepted {
+        frontier: Box<compiler::TypedFrontier>,
+        checked: Box<compiler::CheckedCompilation>,
+    },
+    /// Psi 04 completed and the current checker then rejected the program.
+    Rejected {
+        frontier: Box<compiler::TypedFrontier>,
+        diagnostics: Vec<Diagnostic>,
+    },
+    /// The current checker accepted, then this harness's own fixture
+    /// acceptance (entry, service or permission policy) refused. The trees
+    /// are the accepted check's.
+    ReviewRefused {
+        frontier: Box<compiler::TypedFrontier>,
+        diagnostics: Vec<Diagnostic>,
+    },
+    /// No typed frontier exists: discovery, the Build, Psi 00 through 03 or
+    /// Psi 04 itself failed.
+    StoppedBeforeTypedFrontier(Vec<Diagnostic>),
+}
+
+/// Discover, review and check `main` as `check_fixture` does, on
+/// `preferred_target` when the fixture binds it and on its first bound target
+/// otherwise, keeping the typed frontier of the last check that ran.
+pub fn check_fixture_keeping_typed_frontier(
+    main: &Path,
+    preferred_target: &str,
+) -> FixtureFrontierCheck {
+    let mut record = None;
+    let checked = (|| {
+        let snapshot = fixture_build_snapshot(main)?;
+        let discovered = discover_fixture(
+            main,
+            package_compilation::BuildExecutionInputs {
+                snapshot,
+                ..Default::default()
+            },
+        )?;
+        let target = discovered
+            .targets
+            .iter()
+            .find(|target| target.as_str() == preferred_target)
+            .or_else(|| discovered.targets.first())
+            .cloned();
+        let profile = TargetProfile::from_omega_target_name(target.as_deref())
+            .map_err(|error| vec![error])?;
+        let mut prepared = review_fixture_recording(
+            discovered,
+            &[profile],
+            compiler::CompilationProduct::Check,
+            Some(&mut record),
+        )?;
+        check_fixture_recording(
+            &mut prepared,
+            profile.target_name(),
+            Default::default(),
+            Some(&mut record),
+        )
+    })();
+    match (checked, record) {
+        (
+            Ok(checked),
+            Some(FrontierRecord::Reached {
+                frontier,
+                rejected: false,
+            }),
+        ) => FixtureFrontierCheck::Accepted {
+            frontier,
+            checked: Box::new(checked),
+        },
+        (
+            Err(diagnostics),
+            Some(FrontierRecord::Reached {
+                frontier,
+                rejected: true,
+            }),
+        ) => FixtureFrontierCheck::Rejected {
+            frontier,
+            diagnostics,
+        },
+        (
+            Err(diagnostics),
+            Some(FrontierRecord::Reached {
+                frontier,
+                rejected: false,
+            }),
+        ) => FixtureFrontierCheck::ReviewRefused {
+            frontier,
+            diagnostics,
+        },
+        (Err(diagnostics), Some(FrontierRecord::Stopped) | None) => {
+            FixtureFrontierCheck::StoppedBeforeTypedFrontier(diagnostics)
+        }
+        (Ok(_), _) => FixtureFrontierCheck::StoppedBeforeTypedFrontier(vec![Diagnostic::error(
+            "the fixture check succeeded without recording its typed frontier",
+        )]),
+    }
 }

@@ -195,7 +195,7 @@ parallel endpoint registry or self-authored trust metadata language.
 ## Operational coherence
 
 The satisfied requirement supplies the public reach, suspension, blocking,
-guarded-crash, and synchronous-invocation ceilings. A checked realization derives
+guarded-crash, and synchronous-entry ceilings. A checked realization derives
 its behavior; an opaque realization supplies admitted facts and must refine
 every ceiling. A Build locator expression does not repeat or weaken those clauses. A wrapper can
 refine behavior or reduce trust expenditure but cannot erase abstract service
@@ -206,8 +206,9 @@ Without selected finite-wait evidence, response analysis reports
 `NoFiniteGuarantee(Edge(edge), UnboundedWait)`. The selected executor must satisfy
 thread/apartment affinity. Synchronous callbacks obey the direct acyclic
 [`invokes` graph](private_callbacks.md#registration-and-lifetime), not a graph
-inferred from the provider's binary. An unconstrained invocation ceiling cannot
-establish acyclicity. Over-approximation may reject uses; under-approximation of
+inferred from the provider's binary. A native binding's `invokes` clause, or
+its omission, is its admitted claim about synchronous entry; its host calls
+need no row. An unconstrained invocation ceiling cannot establish acyclicity. Over-approximation may reject uses; under-approximation of
 an opaque provider is an unsound admitted claim.
 
 Execution placement is ordinary provider/executor selection, not a foreign-call

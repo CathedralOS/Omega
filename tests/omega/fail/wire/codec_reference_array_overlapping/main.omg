@@ -1,7 +1,9 @@
 use omega::language::core::wire;
 use omega::language::core::reflect;
-// Encoding through an owned reference field preserves a disjoint index bound.
-// Expected exit: 0
+// Negative twin of pass/wire/codec_reference_array_exit: the reference field
+// now borrows `index` itself, so encoding overwrites it and the guard's index
+// read can no longer be proven within `items`. The guard reads `items[index]`
+// first, so the access is evaluated whether or not `written` changed.
 
 data Packet { #0 value: u64; }
 data Value { #0 value: u64; }
@@ -15,7 +17,7 @@ machine main() crashes Trap {
     let mut buffer: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let counters: [Counter; 1] = [Counter { slot: &mut index }];
     PacketCodec::encode(&sample, &mut buffer, counters[0].slot);
-    transition written == 4 && items[index] == 7 {
+    transition items[index] == 7 && written == 4 {
         true -> done()
         _ -> bad()
     }

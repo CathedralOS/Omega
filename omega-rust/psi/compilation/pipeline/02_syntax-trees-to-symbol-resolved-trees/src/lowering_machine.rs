@@ -1588,6 +1588,7 @@ fn lower_lexical_machine_parts(
         service_reach_row: language_semantics::ServiceReachRowId::NULL,
         service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
         admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
+        declares_no_crash_route: machine.declares_no_crash_route,
         suspends_keyword_source_spans: machine.suspends_keyword_source_spans.clone(),
         blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
         compiler_selection_partition,
@@ -2181,9 +2182,27 @@ fn lower_machine_states(
 }
 
 /*
-    Only the closed core map may declare implicit compiler-intrinsic supply.
-    Typed validation must authenticate the owned row, exact public relation,
-    complete scalar signature and numeric meaning before it can be consumed.
+    The sealed intrinsic catalog row this authored declaration matches, if
+    any. Lowering reads the catalog before the machine has a symbol, from the
+    same toolchain file and declaration path the symbol table later reports.
+*/
+fn sealed_intrinsic(
+    lowerer: &Lowerer,
+    syntax_trees: &SyntaxTrees,
+    machine: &syntax::item::Machine,
+) -> Option<language_core::sealed_intrinsics::SealedIntrinsic> {
+    let file = lowerer
+        .sources
+        .as_ref()?
+        .get(machine.name.source_span().source_id)?;
+    symbols::sealed_intrinsic_at(file, machine.name.as_str(syntax_trees))
+}
+
+/*
+    A core `NativeFloats` member declares implicit compiler-intrinsic supply
+    only in its exact bodyless single-relation shape. Typed validation must
+    still authenticate the exact public relation, complete scalar signature
+    and numeric meaning before it can be consumed.
 */
 fn is_sealed_float_provider_member(
     lowerer: &Lowerer,
@@ -2198,24 +2217,8 @@ fn is_sealed_float_provider_member(
         && machine.attached_data.is_none()
         && edge.via.is_none()
         && !edge.via_expression.is_valid()
-        && machine
-            .name
-            .as_str(syntax_trees)
-            .starts_with("NativeFloats::")
-        && lowerer
-            .sources
-            .as_ref()
-            .and_then(|sources| sources.get(machine.name.source_span().source_id))
-            .is_some_and(|file| {
-                file.origin == source::SourceOrigin::Toolchain
-                    && file
-                        .path
-                        .strip_prefix(&file.package_root)
-                        .ok()
-                        .is_some_and(|relative| {
-                            relative == std::path::Path::new("float_provider.omg")
-                        })
-            })
+        && sealed_intrinsic(lowerer, syntax_trees, machine)
+            == Some(language_core::sealed_intrinsics::SealedIntrinsic::NativeFloatOperation)
 }
 
 /*
@@ -2228,15 +2231,8 @@ fn compiler_owned_boundary(
     syntax: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> bool {
-    lowerer.sources.as_ref()
-        .and_then(|sources| sources.get(machine.name.source_span().source_id))
-        .is_some_and(|file| {
-            file.origin == source::SourceOrigin::Toolchain
-                && file.package_identity.is_none()
-                && file.path.strip_prefix(&file.package_root).ok()
-                    == Some(std::path::Path::new("static_interrupt.omg"))
-                && language_core::static_interrupts::StaticInterruptOperation::from_core_declaration(
-                    machine.name.as_str(syntax), file.source.as_bytes(),
-                ).is_some()
-        })
+    matches!(
+        sealed_intrinsic(lowerer, syntax, machine),
+        Some(language_core::sealed_intrinsics::SealedIntrinsic::StaticInterrupt(_))
+    )
 }

@@ -267,6 +267,48 @@ pub mod provider_choices {
                     .copied()
                     .filter(|(_, row)| row.covers_requirements())
                     .collect::<Vec<_>>();
+                // A slot the target realizes from its declared table is not
+                // selectable: neither a Build override nor a package default
+                // may choose or replace it, and an unsupported entry leaves
+                // the slot unchosen so a reaching program rejects.
+                if applicable
+                    .iter()
+                    .any(|(_, row)| row.target_realization().is_some())
+                {
+                    if let Some(index) = explicit {
+                        errors.push(Error::SelectedTargetRealization {
+                            tier: Tier::Override,
+                            declaration: index,
+                            slot,
+                        });
+                        continue;
+                    }
+                    if let Some(&index) = slot_defaults.first() {
+                        errors.push(Error::SelectedTargetRealization {
+                            tier: Tier::Default,
+                            declaration: index,
+                            slot,
+                        });
+                        continue;
+                    }
+                    let realized = covering
+                        .iter()
+                        .copied()
+                        .filter(|(_, row)| row.target_realization() == Some(true))
+                        .collect::<Vec<_>>();
+                    match realized.as_slice() {
+                        [] => {}
+                        [(candidate, _)] => choices.push(Choice {
+                            candidate: *candidate,
+                            reason: Reason::TargetRealization,
+                        }),
+                        rows => errors.push(Error::AmbiguousCandidates {
+                            slot,
+                            candidates: rows.iter().map(|(index, _)| *index).collect(),
+                        }),
+                    }
+                    continue;
+                }
                 let selected = if let Some(index) = explicit {
                     Some((
                         Tier::Override,
@@ -418,6 +460,12 @@ pub mod provider_choices {
         fn receiver_count(&self) -> usize;
         fn supplies_receiver(&self, demanded: &Self) -> Option<bool>;
         fn shares_receiver(&self, other: &Self) -> Option<bool>;
+        /// `Some(true)` when the selected target's declared realization table
+        /// realizes this candidate's slot, `Some(false)` when the table
+        /// declares it unsupported, `None` for an ordinary selectable candidate.
+        fn target_realization(&self) -> Option<bool> {
+            None
+        }
     }
 
     pub trait Declaration<Slot, Provider> {
@@ -437,6 +485,7 @@ pub mod provider_choices {
         Override(Vec<usize>),
         Default(Vec<usize>),
         UniqueCoveringCandidate,
+        TargetRealization,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -490,6 +539,11 @@ pub mod provider_choices {
             slot: Slot,
             candidates: Vec<usize>,
         },
+        SelectedTargetRealization {
+            tier: Tier,
+            declaration: usize,
+            slot: Slot,
+        },
         OverlappingChoices {
             first: usize,
             second: usize,
@@ -515,6 +569,7 @@ pub mod provider_choices {
             target: &'static str,
             keyed: bool,
             contracts_known: bool,
+            realized: Option<bool>,
         }
         impl Candidate for Map {
             type Slot = u32;
@@ -530,6 +585,9 @@ pub mod provider_choices {
             }
             fn build_keyed(&self) -> bool {
                 self.keyed
+            }
+            fn target_realization(&self) -> Option<bool> {
+                self.realized
             }
             fn has_requirements(&self) -> bool {
                 !self.required.is_empty()
@@ -589,6 +647,59 @@ pub mod provider_choices {
                 target: "",
                 keyed: false,
                 contracts_known: true,
+                realized: None,
+            }
+        }
+        fn realized(slot: u32, provider: u32, supported: bool) -> Map {
+            Map {
+                realized: Some(supported),
+                ..map(slot, provider, &[1], &[1])
+            }
+        }
+
+        #[test]
+        fn a_target_realized_slot_is_chosen_by_its_table_not_by_a_rival() {
+            let maps = [map(1, 10, &[1], &[1]), realized(1, 20, true)];
+            let outcome = choose::<_, Selected>(&maps, "host", &[], &[]);
+            assert_eq!(
+                outcome.choices,
+                [Choice {
+                    candidate: 1,
+                    reason: Reason::TargetRealization
+                }]
+            );
+            assert!(outcome.errors.is_empty());
+        }
+
+        #[test]
+        fn an_unsupported_target_realization_leaves_the_slot_unchosen() {
+            let maps = [map(1, 10, &[1], &[1]), realized(1, 20, false)];
+            let outcome = choose::<_, Selected>(&maps, "host", &[], &[]);
+            assert!(outcome.choices.is_empty());
+            assert!(outcome.errors.is_empty());
+        }
+
+        #[test]
+        fn build_and_default_selections_of_a_target_realized_slot_reject() {
+            let maps = [map(1, 10, &[1], &[1]), realized(1, 20, true)];
+            let chosen = Selected {
+                slot: 1,
+                provider: 10,
+            };
+            for (defaults, overrides, tier) in [
+                (&[][..], std::slice::from_ref(&chosen), Tier::Override),
+                (std::slice::from_ref(&chosen), &[][..], Tier::Default),
+            ] {
+                let outcome = choose(&maps, "host", defaults, overrides);
+                assert!(outcome.choices.is_empty());
+                assert_eq!(
+                    outcome.errors,
+                    [Error::SelectedTargetRealization {
+                        tier,
+                        declaration: 0,
+                        slot: 1
+                    }]
+                );
             }
         }
         fn keyed(slot: u32, provider: u32, required: &[u32], rows: &[u32]) -> Map {
@@ -809,6 +920,7 @@ mod product {
                         | super::BuildOperation::ServiceAudit
                         | super::BuildOperation::AssumedBindingContract
                         | super::BuildOperation::WireCompatibilityRequest
+                        | super::BuildOperation::TestGroupRegistration
                 ),
                 Self::Entry(_) | Self::ProviderReadiness(_) => false,
             }
@@ -926,6 +1038,9 @@ mod product {
         BoundarySubject,
         Provider,
         Requirement,
+        // An ordinary (non-boundary) trait machine requirement: the exact
+        // identity a test group registers (wiki/spec/build/testing.md).
+        TestRequirement,
         Data,
         Representation,
         WireCompatibilityFact,
@@ -943,6 +1058,7 @@ mod product {
                 (Self::AssumedBindingContract, 0 | 1) | (Self::NativeBinding, 0) => {
                     Some(Role::Requirement)
                 }
+                (Self::TestGroupRegistration, 0) => Some(Role::TestRequirement),
                 (Self::RepresentationSelection, 0) | (Self::WireCompatibilityRequest, 0..=3) => {
                     Some(Role::Data)
                 }
@@ -958,9 +1074,10 @@ mod product {
                 Self::ProviderSelection
                 | Self::RepresentationSelection
                 | Self::AssumedBindingContract => count == 2,
-                Self::ServiceExclusion | Self::ServiceAudit | Self::BoundaryAcceptance => {
-                    count == 1
-                }
+                Self::ServiceExclusion
+                | Self::ServiceAudit
+                | Self::BoundaryAcceptance
+                | Self::TestGroupRegistration => count == 1,
                 Self::WireCompatibilityRequest => count >= 5,
                 _ => false,
             }
@@ -1781,6 +1898,9 @@ pub enum BuildOperation {
     IncludedSourceHandoff,
     LogWriteLine,
     NativeBinding,
+    // `builder.tests.group<Requirement>()` (wiki/spec/build/testing.md): one
+    // exact trait machine requirement registered as a test group.
+    TestGroupRegistration,
 }
 pub fn is_unresolved_provider_selection_call(
     target: &str,
@@ -1805,10 +1925,11 @@ impl BuildOperation {
                 | Self::WireCompatibilityRequest
                 | Self::RepresentationSelection
                 | Self::AssumedBindingContract
+                | Self::TestGroupRegistration
         )
     }
 
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::ProviderReadiness,
         Self::ProviderSelection,
         Self::AssumedBindingContract,
@@ -1822,6 +1943,7 @@ impl BuildOperation {
         Self::IncludedSourceHandoff,
         Self::LogWriteLine,
         Self::NativeBinding,
+        Self::TestGroupRegistration,
     ];
 
     pub const fn authored_spelling(self) -> &'static str {
@@ -1839,6 +1961,7 @@ impl BuildOperation {
             Self::WireCompatibilityRequest => "require_wire_compatibility",
             Self::IncludedSourceHandoff => "include_source",
             Self::LogWriteLine => "write_line",
+            Self::TestGroupRegistration => "group",
         }
     }
 
@@ -1881,6 +2004,9 @@ impl BuildOperation {
                 AuthoredDeclarationSelectionIntrinsic::BuildIncludedSourceHandoff
             }
             Self::LogWriteLine => AuthoredDeclarationSelectionIntrinsic::BuildLogWriteLine,
+            Self::TestGroupRegistration => {
+                AuthoredDeclarationSelectionIntrinsic::BuildTestGroupRegistration
+            }
         }
     }
 }
@@ -1905,6 +2031,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildRepresentationSelection,
     BuildServiceExclusion,
     BuildServiceAudit,
+    BuildTestGroupRegistration,
     BuildOptimizationSelection,
     BuildOptimizationReportRequest,
     BuildBoundaryAcceptance,

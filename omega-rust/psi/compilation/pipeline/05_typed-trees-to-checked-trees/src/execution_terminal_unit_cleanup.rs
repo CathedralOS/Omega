@@ -3494,6 +3494,7 @@ pub(super) mod temporary_actions {
                 erased_scalar_parameters: Vec::new(),
                 erased_proof_parameters: Vec::new(),
                 requires: Vec::new(),
+                declaration_requires: None,
                 entry_claims: Vec::new(),
                 operations: Vec::new(),
                 place_loans: Vec::new(),
@@ -3520,6 +3521,7 @@ pub(super) mod temporary_actions {
                 contract_service_reach: Default::default(),
                 service_reach: Default::default(),
                 states: vec![body],
+                declaration_requirements: Vec::new(),
             }
         }
 

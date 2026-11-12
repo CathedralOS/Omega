@@ -32,16 +32,13 @@ inference and specialization rules; an entry predicate does not make an unknown
 value static. Repeated predicate clauses in one scope conjoin their obligations.
 `ensures` remains the distinct normal-completion guarantee and proof obligation.
 
-`requires machine Step(...)` declares a structural callable requirement;
-`requires machine Handler satisfies Trait::requirement` declares a nominal one.
-They declare originating contracts. A wrapper with an explicitly kinded machine
-binder may instead [infer the exact requirements it forwards](generics.md#forwarded-callback-requirements);
-direct invocation shape does not invent a contract. A nested callable's own
-`requires`, `ensures` and operational clauses belong to that callable. Its declaration-ending semicolon closes that
-complete contract before subsequent clauses resume the enclosing declaration.
-There are no clause-ending semicolons; see
-[header delimiters](#machine-header-delimiters). Nested premises are not flattened
-into the enclosing machine's entry requirements.
+A static callable parameter states its contract as its type:
+`const Step: machine(...)` is structural and
+`const Handler: Trait::requirement` is nominal under
+[typed static parameters](generics.md#typed-static-parameters). Both are
+originating contracts. A `const Step: machine` parameter may instead
+[have its exact type inferred](generics.md#inferred-callable-parameter-types);
+neither form guesses a contract from an invocation's shape.
 
 Assembly removes the grouping word rather than replacing it with another
 `requires`: `asm requires ready ...` has one entry requirement, and
@@ -65,33 +62,36 @@ then resume the same declaration.
 
 A bodyless machine declaration or requirement ends with one semicolon after its
 complete header. That terminator belongs to the declaration, not whichever
-clause happens to come last. A nested `requires machine` is such a declaration:
-its semicolon closes the nested contract and subsequent clauses belong to the
-enclosing declaration.
+clause happens to come last.
+
+A callable parameter's clauses sit inside its type, so an executable machine
+header has no nested declaration to terminate:
 
 ```omega
-machine invoke<machine Step>() -> u64
-requires machine Step() -> u64
-    terminates;
+machine invoke<const Step: machine() -> u64 terminates>() -> u64
 crashes Trap
 {
     Step()
 }
 ```
 
-Here `terminates` belongs to `Step`, and `crashes Trap` belongs to `invoke`.
-To put a crash ceiling on `Step`, put that clause before its declaration
-terminator. A callback with several operational axes writes them together:
+Here `terminates` belongs to the type of `Step`, and `crashes Trap` belongs to
+`invoke`. To put a crash ceiling on `Step`, write that clause in its type. A
+callable type with several operational axes writes them together:
 
 ```omega
-requires machine Target() -> u64
+const Target: machine() -> u64
     suspends
     blocks
-    terminates;
+    terminates
 ```
 
-No extra semicolon is needed after a termination clause to end that callable.
-An additional same-level terminator rejects; it is not a compatibility spelling.
+A machine-shaped `requires machine` hypothesis in a
+[mathematical declaration](../proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+is a nested bodyless declaration: its semicolon closes the nested contract and
+subsequent clauses belong to the enclosing declaration. No extra semicolon is
+needed after its last clause, and an additional same-level terminator rejects;
+it is not a compatibility spelling.
 [Nested callable families](generics.md#nested-contracts-and-proof-families) still
 have one terminator per bodyless declaration: closing an inner requirement and
 then its enclosing bodyless requirement legitimately needs two declaration
@@ -121,10 +121,11 @@ calls. Every arrival establishes the target's requirements and declared domains
 under actual argument substitution. Nesting does not assume the parent's entry
 requirements again, import its return guarantees, or supply facts invalidated
 by mutation. Live caller facts can discharge a nested helper's requirements;
-body inference must justify any inferred private requirements on every arrival,
-not grant them from lexical ancestry. Every invocation retains both sides of
-its own contract. A recursive contract is not its own proof; induction follows
-the well-founded obligations in [termination](termination.md).
+inferred requirements are permitted only under [private entry inference](#private-entry-inference)
+and must be justified on every arrival, not granted from lexical ancestry.
+Every invocation retains both sides of its own contract. A recursive contract
+is not its own proof; induction follows the well-founded obligations in
+[termination](termination.md).
 
 Arrival substitution is simultaneous and identity-based. Scalar arguments retain
 their evaluation snapshots; facts about referenced storage must survive writes
@@ -134,6 +135,96 @@ omitted to preserve a convenient invariant. A join merges facts; predecessors
 supplying one value agree on its exact declared domain set under
 [literals and expected types](domains.md#literals-and-expected-types). A minimum collection length is not
 an exact extent, and declaration initializers are not recurring loop invariants.
+
+## Local call summaries
+
+Named decision: `callee-result-body-summary`, settled 2026-11-11.
+An exact checked call inside the same fingerprinted verification unit may use
+the callee's written contract plus checked body-derived result and state facts.
+A written `ensures` is a minimum guarantee, not an instruction to forget stronger
+local facts. For a machine whose two normal-return branches both yield `false`,
+the local summary establishes `result == false` without an authored postcondition.
+
+Across a verification-unit boundary, ordinary calls use the published contract.
+Additional semantic result/state guarantees needed by independent clients are
+authored, not automatically exported from the body. Published contracts also
+retain the existing inferred reach, write frames, ownership, borrow-origin,
+validity and callback dependencies; this rule does not reduce them to authored
+header text. Explicit compile-time evaluation and mathematical definitions keep
+their existing admission and computation rules.
+
+An abstract requirement, unknown callable or replaceable boundary uses its
+interface contract even if a possible implementation is checked in the same
+unit. Generic bodies must work for every admitted selection. Applicable facts
+about a retained exact callable selection need checked evidence and the same
+unit boundary; predicted targets, specialization against convenient current
+implementations and optimizer inlining grant no extra source proof premises.
+Authored [callback-result forwarding](effects.md#callback-result-relations)
+continues to expose relationships through the interface without opening its body.
+
+### Verification-unit boundary
+
+Unit membership is a deterministic part of the checking input, fixed before
+proof checking and retained with its fingerprint in the checked artifact.
+The checker exposes the grouping it used and which call edges cross it.
+Importing available source, sharing a compiler process, changing optimization
+or inlining must not silently enlarge a unit. Moving a helper across that
+boundary may require an authored contract; an optimization cannot make an
+otherwise unprovable source program valid.
+
+Using a body-derived fact records a dependency on that exact checked body and
+the summaries it uses. Changing those dependencies invalidates affected local
+proofs. A client relying only on a published postcondition does not acquire a
+dependency on an unrelated incidental result constant. Existing separately
+published operational summaries retain their own dependency rules.
+
+Summaries describe formal parameters, entry-state storage, outcomes and results,
+including exact place paths, versions and alias/custody conditions. Derive and
+check a reusable summary against the body; each call substitutes its evaluated
+actual arguments and establishes the entry conditions. Call-specific facts do
+not become unconditional callee guarantees. Every relevant path and normal
+return participates, and recursive groups need checked invariants or induction:
+assuming a proposed summary around a cycle is not a proof.
+
+## Private entry inference
+
+Named decision: `nested-helper-caller-facts`, settled 2026-11-11.
+A private checked helper that omits `requires` may infer entry conditions for
+routine safety obligations. A helper computing `n - 1` on `u32` can require
+`n > 0` in its local summary. Every ordinary, terminal and recursive arrival
+proves that inferred condition under its exact actual-argument substitution.
+Passing the helper as a callable also checks the effective requirement against
+the receiving contract; no conversion may hide a narrower accepted input set.
+
+An authored `requires` is complete, including on a private helper. Inference
+cannot silently conjoin further entry conditions to make the body check.
+For `requires n <= 7`, subtraction of one must therefore handle zero or be
+rejected; the author may state the missing positive bound explicitly.
+`requires true` insists on every otherwise valid input. Declared parameter
+types, domains and other existing entry obligations still apply.
+
+A public machine or implementation checked against a declared requirement must
+handle all inputs its published or originating contract admits. Omitting a
+clause does not authorize inferred narrowing there. Stronger local output facts
+do not change this input obligation. Every declared `ensures` remains an
+independent obligation on the body, even when inference describes different
+actual behavior.
+
+### Required local inference
+
+The routine baseline retains constants, copied-value relationships, simple
+arithmetic relations and bounds, branch/case facts, and facts preserved by
+provably non-overlapping writes. Exact local helper calls transport these facts
+through checked summaries rather than losing them merely because code was
+extracted. The [delivery cases](../../drafts/designs/local_inference_and_contracts.md#acceptance)
+pin the required cases; this is not automatic discovery of arbitrary contracts,
+recursive invariants or termination measures.
+
+When discovery cannot supply a needed fact, an authored contract or proof may
+supply it. Existing proof-work and `Incomplete` rules govern bounded or
+unsupported cases. No missing fact is assumed, no runtime guard fallback is
+introduced, and inference cannot invent domains, permissions, ownership authority
+or a different arithmetic policy.
 
 ## Unreachable branches
 
@@ -279,3 +370,5 @@ targets and inputs; an empty write summary alone does not prove repeatability.
 
 Source proof search may be incomplete. Failure to infer an invariant, normalize
 a term, or prove a supported implication grants no fact and is not a refutation.
+The [required automatic discharge](../proofs/contracts.md#required-automatic-discharge)
+names the obligations every checker proves unaided.

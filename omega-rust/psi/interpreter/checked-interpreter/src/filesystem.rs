@@ -289,7 +289,6 @@ pub(crate) mod filesystem_operation_attempts {
 }
 
 pub(crate) mod evaluator_filesystem {
-    pub(crate) use crate::filesystem_real as real;
 
     use crate::interpreter::evaluator::filesystem::preparation::PreparedByteOutput;
     use crate::interpreter::evaluator::{EvalResult, Evaluator};
@@ -325,13 +324,12 @@ pub(crate) mod evaluator_filesystem {
     }
 
     pub(crate) mod filesystem_calls {
-        use super::real::real_fs;
         use crate::interpreter::evaluator::Evaluator;
         use crate::interpreter::evaluator::{
             EvalResult, FilesystemEvaluationHaltKind, FilesystemHostOperation,
             FilesystemHostResultKind, FilesystemObservationProvider, FilesystemOperationAttempt,
             FilesystemOperationAttemptOutcome, FilesystemOperationResult, Halt,
-            MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES, PreparedFilesystemCall, Value,
+            PreparedFilesystemCall, Value,
         };
 
         #[macro_export]
@@ -352,15 +350,6 @@ pub(crate) mod evaluator_filesystem {
     };
 }
 
-        pub(crate) fn checked_observation_evidence_total(
-            current: usize,
-            additional: usize,
-        ) -> Option<usize> {
-            current
-                .checked_add(additional)
-                .filter(|total| *total <= MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES)
-        }
-
         impl<'program> Evaluator<'program> {
             pub(crate) fn evaluate_filesystem_operation(
                 &mut self,
@@ -369,13 +358,7 @@ pub(crate) mod evaluator_filesystem {
             ) -> EvalResult<Value> {
                 self.charge_filesystem_operation_attempt()?;
                 let attempt_index = self.filesystem_operation_attempts.len();
-                let provider = match self.real_fs.as_ref() {
-                    None => FilesystemObservationProvider::Virtual,
-                    Some(filesystem) if filesystem.is_scoped() => {
-                        FilesystemObservationProvider::RealScoped
-                    }
-                    Some(_) => FilesystemObservationProvider::RealUnscoped,
-                };
+                let provider = FilesystemObservationProvider::Virtual;
                 self.filesystem_operation_attempts
                     .push(FilesystemOperationAttempt::pending(
                         operation.operation_tag(),
@@ -385,13 +368,6 @@ pub(crate) mod evaluator_filesystem {
                 let mut outcome = (|| {
                     let call = prepare(self)?;
                     let logical_handle_plan = call.logical_handle_plan();
-                    let captured = self.real_fs.as_ref().is_some_and(|filesystem| {
-                        filesystem.call_uses_captured_input(&call, &logical_handle_plan)
-                    });
-                    if captured {
-                        self.filesystem_operation_attempts[attempt_index].provider =
-                            FilesystemObservationProvider::Captured;
-                    }
                     call.validate_output_carriers()?;
                     self.validate_incremental_logical_handle_inputs(
                         attempt_index,
@@ -401,11 +377,7 @@ pub(crate) mod evaluator_filesystem {
                     self.reject_rooted_final_path_result(attempt_index, &call)?;
                     let live_handle_lease =
                         self.reserve_prepared_live_filesystem_handle(&logical_handle_plan)?;
-                    let value = if captured {
-                        self.serve_captured_filesystem_call(call, &logical_handle_plan)?
-                    } else {
-                        self.serve_filesystem_call(call)?
-                    };
+                    let value = self.serve_filesystem_call(call)?;
                     Ok((value, logical_handle_plan, live_handle_lease))
                 })();
                 if let Some(message) = self.filesystem_observation_resource_halt.take() {
@@ -460,8 +432,7 @@ pub(crate) mod evaluator_filesystem {
                                 Some(FilesystemOperationAttemptOutcome::EvaluationHalted(kind));
                             return Err(halt);
                         }
-                        let post_error =
-                            real_fs(self).map_or(self.virtual_errno, |filesystem| filesystem.errno);
+                        let post_error = self.virtual_errno;
                         let observation_result = self.filesystem_operation_attempts[attempt_index]
                             .logical_handle_output
                             .map_or(FilesystemOperationResult::Scalar(result), |output| {
@@ -495,9 +466,6 @@ pub(crate) mod evaluator_filesystem {
                 &mut self,
                 call: PreparedFilesystemCall,
             ) -> EvalResult<Value> {
-                if self.real_fs.is_some() {
-                    return self.try_real_filesystem_call(call);
-                }
                 let result: i64 = prepared_filesystem_call_dispatch!(
                     self, call;
                     literal {
@@ -2039,37 +2007,10 @@ pub(crate) mod evaluator_filesystem {
     }
 
     pub(crate) mod observations {
-        use crate::interpreter::evaluator::filesystem::filesystem_calls::checked_observation_evidence_total;
-        use crate::interpreter::evaluator::{
-            EvalResult, Evaluator, Halt, MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES,
-            STAT_OUTPUT_BYTES, trap,
-        };
-        use crate::{
-            FilesystemMetadataField, FilesystemMetadataObservation,
-            FilesystemRootedPathOperandResolution,
-        };
+        use crate::interpreter::evaluator::{EvalResult, Evaluator, STAT_OUTPUT_BYTES, trap};
+        use crate::{FilesystemMetadataField, FilesystemMetadataObservation};
 
         impl<'program> Evaluator<'program> {
-            pub(crate) fn record_prepared_filesystem_rooted_path_operand_resolution(
-                &mut self,
-                attempt_index: usize,
-                resolution: FilesystemRootedPathOperandResolution,
-            ) -> EvalResult<()> {
-                let Some(next_total) = checked_observation_evidence_total(
-                    self.filesystem_observation_evidence_bytes,
-                    resolution.relative_path().len(),
-                ) else {
-                    return Err(Halt::Resource(format!(
-                        "filesystem observation evidence exceeded its {MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES}-byte operand-evidence ceiling"
-                    )));
-                };
-                self.filesystem_observation_evidence_bytes = next_total;
-                self.filesystem_operation_attempts[attempt_index]
-                    .rooted_path_operand_resolutions
-                    .push(resolution);
-                Ok(())
-            }
-
             pub(crate) fn canonical_metadata_carrier(
                 &self,
                 observation: FilesystemMetadataObservation,
@@ -2132,7 +2073,7 @@ pub(crate) mod evaluator_filesystem {
         pub(crate) use logical_handle_plans::{
             PreparedFilesystemLogicalHandleOutput, PreparedFilesystemLogicalHandlePlan,
         };
-        pub(crate) use prepared_calls::{PreparedFilesystemCall, PreparedFilesystemPath};
+        pub(crate) use prepared_calls::PreparedFilesystemCall;
         pub(crate) use prepared_outputs::{PreparedByteOutput, PreparedTransferCount};
 
         use crate::interpreter::evaluator::{EvalResult, FilesystemHostOperation, Halt, trap};
@@ -2299,7 +2240,6 @@ pub(crate) mod evaluator_filesystem {
         }
 
         pub(crate) mod prepared_calls {
-            use crate::FilesystemRootedPathOperandResolution;
             use crate::interpreter::evaluator::filesystem::preparation::MAX_FILESYSTEM_TRANSFER_BYTES;
             use crate::interpreter::evaluator::filesystem::preparation::logical_handle_plans::{
                 FilesystemLogicalHandleResultSuccess, FilesystemLogicalHandleRetirementSuccess,
@@ -2316,7 +2256,6 @@ pub(crate) mod evaluator_filesystem {
                 check_byte_len, check_filesystem_arity, checked_filesystem_transfer_count,
                 checked_relative_component, rooted_package_build_operation_refusal,
             };
-            use crate::interpreter::evaluator::filesystem::real::real_fs;
             use crate::interpreter::evaluator::{
                 EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation,
                 FilesystemLogicalHandleKind, Frame, Halt, Value, rooted_build_path_parts, trap,
@@ -2325,28 +2264,12 @@ pub(crate) mod evaluator_filesystem {
 
             pub(crate) enum PreparedFilesystemPath {
                 Native(Vec<u8>),
-                Captured {
-                    root: crate::FilesystemGrantRootIdentity,
-                    relative: Vec<u8>,
-                },
             }
 
             impl PreparedFilesystemPath {
-                pub(crate) fn captured(
-                    &self,
-                ) -> Option<(crate::FilesystemGrantRootIdentity, &[u8])> {
-                    match self {
-                        Self::Native(_) => None,
-                        Self::Captured { root, relative } => Some((*root, relative)),
-                    }
-                }
-
                 pub(crate) fn into_native(self) -> EvalResult<Vec<u8>> {
                     match self {
                         Self::Native(bytes) => Ok(bytes),
-                        Self::Captured { .. } => {
-                            trap("captured input path cannot enter a native provider")
-                        }
                     }
                 }
             }
@@ -2356,7 +2279,6 @@ pub(crate) mod evaluator_filesystem {
                 fn deref(&self) -> &[u8] {
                     match self {
                         Self::Native(bytes) => bytes,
-                        Self::Captured { relative, .. } => relative,
                     }
                 }
             }
@@ -2559,67 +2481,6 @@ pub(crate) mod evaluator_filesystem {
             }
 
             impl PreparedFilesystemCall {
-                pub(crate) fn has_captured_path(&self) -> bool {
-                    match self {
-                        Self::Create { path, .. }
-                        | Self::Open { path, .. }
-                        | Self::OpenCreate { path, .. }
-                        | Self::Remove { path }
-                        | Self::CreateDir { path, .. }
-                        | Self::RemoveDir { path }
-                        | Self::SetPermissions { path, .. }
-                        | Self::ReadLink { path, .. }
-                        | Self::Canonicalize { path, .. }
-                        | Self::OpenPathHandle { path, .. }
-                        | Self::RemoveName { path }
-                        | Self::RemoveDirName { path }
-                        | Self::ReadMetadata { path, .. }
-                        | Self::ReadSymlinkMetadata { path, .. }
-                        | Self::ChangeOwner { path, .. }
-                        | Self::ChangeOwnerNoFollow { path, .. }
-                        | Self::CreateDirName { name: path, .. }
-                        | Self::Symlink { link: path, .. } => path.captured().is_some(),
-                        Self::Rename { from, to } => {
-                            from.captured().is_some() || to.captured().is_some()
-                        }
-                        Self::HardLink { original, link } => {
-                            original.captured().is_some() || link.captured().is_some()
-                        }
-                        Self::CreateHardLink { link, existing, .. } => {
-                            link.captured().is_some() || existing.captured().is_some()
-                        }
-                        Self::Read { .. }
-                        | Self::Write { .. }
-                        | Self::ReadAt { .. }
-                        | Self::WriteAt { .. }
-                        | Self::Close { .. }
-                        | Self::Seek { .. }
-                        | Self::OpenAt { .. }
-                        | Self::UnlinkAt { .. }
-                        | Self::SetFilePermissions { .. }
-                        | Self::ReadDir { .. }
-                        | Self::FindFirst { .. }
-                        | Self::FindNext { .. }
-                        | Self::FindClose { .. }
-                        | Self::CloseHandle { .. }
-                        | Self::GetOsfHandle { .. }
-                        | Self::FinalPathNameByHandle { .. }
-                        | Self::SetFileTime { .. }
-                        | Self::LockFileEx { .. }
-                        | Self::UnlockFile { .. }
-                        | Self::GetLastError
-                        | Self::ReadFileMetadata { .. }
-                        | Self::SetLen { .. }
-                        | Self::SetFileTimes { .. }
-                        | Self::Sync { .. }
-                        | Self::SyncData { .. }
-                        | Self::Duplicate { .. }
-                        | Self::LockFile { .. }
-                        | Self::ChangeFileOwner { .. }
-                        | Self::Errno => false,
-                    }
-                }
-
                 pub(crate) fn validate_output_carriers(&self) -> EvalResult<()> {
                     match self {
                         Self::Read { buffer, .. }
@@ -3009,16 +2870,6 @@ pub(crate) mod evaluator_filesystem {
                 fn path(&mut self) -> EvalResult<PreparedFilesystemPath> {
                     let (operand_ordinal, value) = self.value()?;
                     let Some((root, relative)) = rooted_build_path_parts(&value)? else {
-                        if self.evaluator.rooted_build_paths_required
-                            && real_fs(self.evaluator).is_some_and(
-                                crate::interpreter::evaluator::filesystem::real::RealFs::is_scoped,
-                            )
-                        {
-                            return Err(Halt::Trap(
-                    "package build filesystem paths must come from BuildSource::resolve or BuildOutput::resolve"
-                        .to_owned(),
-                ));
-                        }
                         return match value {
                             Value::Str(text) => {
                                 let text = text.borrow();
@@ -3039,29 +2890,10 @@ pub(crate) mod evaluator_filesystem {
                         };
                     };
                     validate_build_relative_path(&relative)?;
-                    let provider_path = {
-                        let filesystem = self.evaluator.real_fs.as_ref().ok_or_else(|| {
-                            Halt::Trap(
-                                "rooted build path requires a scoped real filesystem".to_owned(),
-                            )
-                        })?;
-                        filesystem
-                            .prepare_rooted_path(root, &relative)
-                            .ok_or_else(|| {
-                                Halt::Trap(
-                                    "rooted build path names no compiler-supplied grant root"
-                                        .to_owned(),
-                                )
-                            })?
-                    };
-                    let resolution =
-                        FilesystemRootedPathOperandResolution::new(operand_ordinal, root, relative);
-                    self.evaluator
-                        .record_prepared_filesystem_rooted_path_operand_resolution(
-                            self.attempt_index,
-                            resolution,
-                        )?;
-                    Ok(provider_path)
+                    // Build-time evaluation supplies only the virtual filesystem; a
+                    // rooted path needs a scoped host grant no caller can provide here.
+                    let _ = (operand_ordinal, root);
+                    trap("rooted build path requires a scoped real filesystem")
                 }
 
                 fn mutable_bytes(&mut self) -> EvalResult<PreparedByteOutput> {

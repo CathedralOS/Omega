@@ -18,9 +18,9 @@
   persist compiler-private native derivation proposals without replaying source
   joins. `settlement`, `callback_settlement`, and `entry_settlement` validate
   boundary applications, comparisons, callback placements, and `ProgramEntry`
-  sidecars, while `optimization` constructs `VerifiedPsiOptimizationUnit` and
-  `lowering` (`lowering_scalars`, `lowering_storage`) lowers each machine into
-  `AbstractOperationPlan`.
+  sidecars, and `lowering` (`lowering_scalars`, `lowering_storage`) lowers each
+  machine into `AbstractOperationPlan`, retained with its admitted selections as
+  the `VerifiedPsiOptimizationInput` that Omega 01 builds its unit from.
 */
 
 /*
@@ -41,18 +41,17 @@
   build-evaluated target selections, calling plans, and provider evidence from
   `provider-admission` and `terminal-installation`. Produces
   `AdmittedNativeRealization`, `VerifiedNativeArtifactInput`,
-  `VerifiedPsiOptimizationUnit`, and `AbstractOperationPlan` for Omega Stage 01
+  `VerifiedPsiOptimizationInput`, and `AbstractOperationPlan` for Omega Stage 01
   (`01_abstract-operations-to-abstract-operations`) and Omega Stage 02
   (`02_abstract-operations-to-target-operations`).
 */
 mod artifact_admission;
 mod lowering;
 mod native_execution_scope;
-pub(crate) use native_execution_scope::native_admission;
-mod optimization;
 use ::provider_admission as providers;
 pub use ::provider_admission::AdmittedInstalledEntryExecution;
 pub use ::provider_admission::provider_admission;
+pub(crate) use native_execution_scope::native_admission;
 mod retained_terminal;
 mod settlement;
 pub use installation_evidence::{
@@ -85,12 +84,9 @@ pub(crate) use artifact_admission::ArtifactLoweringError;
 pub use artifact_admission::{
     ArtifactSections, NativeExecutionSelection, NativeScalarApplications,
     TerminalAccessViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
+    lower_module_with_evidence,
 };
 pub use lowering::LoweringError;
-pub use optimization::{
-    VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
-    VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
-};
 pub use providers::provider_installation::SelectedProviderAdapter;
 pub use providers::provider_installation::{
     AdmittedProviderInstallation, ProviderInstallationError,
@@ -103,6 +99,9 @@ pub(crate) use settlement::callback_settlement::{
 pub use settlement::entry_settlement::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError, SelectedProgramEntryCall,
     ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
+};
+pub use verified_optimization_input::{
+    ObligationEvidence, VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput,
 };
 
 #[cfg(test)]

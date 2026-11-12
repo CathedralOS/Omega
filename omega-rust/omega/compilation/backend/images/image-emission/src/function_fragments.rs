@@ -14587,6 +14587,7 @@ mod source {
                 shape: StructuralTypeShape,
             ) -> StructuralTypeDeclaration {
                 StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     id,
                     identity,
                     shape,
@@ -21645,10 +21646,13 @@ mod structural {
                 if argument.structural_type == source_type {
                     return true;
                 }
-                argument.access == StructuralAccess::SharedBorrow
-                    && argument.path.last() == Some(&StructuralPathSegment::Referent)
+                argument.path.last() == Some(&StructuralPathSegment::Referent)
                     && scalar(argument.structural_type).is_some_and(|target| {
-                        terminal_semantics::scalar_reference_view_is_total(source_scalar, target)
+                        terminal_semantics::scalar_reference_view_admits(
+                            argument.access,
+                            source_scalar,
+                            target,
+                        )
                     })
             }
         }
@@ -22033,13 +22037,23 @@ mod structural {
                     source_scalar,
                     &types
                 ));
+                // Every f32 bit pattern is a u32 and back, so the recasts spec's
+                // `&mut float_bits as &mut u32` publishes the same original home.
+                let mut exclusive = argument.clone();
+                exclusive.access = StructuralAccess::MutableBorrow;
+                assert!(argument_matches_source(
+                    &exclusive,
+                    source_type,
+                    source_scalar,
+                    &types
+                ));
                 for mutation in 0..6 {
                     let mut changed = argument.clone();
                     match mutation {
                         0 => changed.root_structural_type = view_type,
                         1 => changed.structural_type = StructuralTypeId::new(3).unwrap(),
                         2 => changed.structural_type = StructuralTypeId::new(4).unwrap(),
-                        3 => changed.access = StructuralAccess::MutableBorrow,
+                        3 => changed.access = StructuralAccess::Owned,
                         4 => changed.path.clear(),
                         _ => {
                             changed.path.pop();

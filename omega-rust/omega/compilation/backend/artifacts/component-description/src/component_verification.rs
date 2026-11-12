@@ -31,11 +31,27 @@ const VERIFICATION_PROFILE_DOMAIN: &[u8] = b"omega-component-verification-profil
 pub struct ComponentVerificationRequest {
     pub expected_subject: TerminalPsiIdentity,
     pub accepted_schemas: BTreeSet<u32>,
-    pub accepted_assumptions: BTreeSet<[u8; 32]>,
+    pub accepted_assumptions: AcceptedComponentAssumptions,
+}
+
+/*
+Which environmental premises the verifier may admit (component_publication.md,
+"Consumer acceptance and Build attenuation"). A standalone verifier names the
+exact accepted digests. Product compilation instead verifies everything else
+about the description and leaves the description's own roster pending: the
+consuming project's lock acceptance owns that decision, and root Product
+admission compares the canonical component-assumption rows against it before
+any artifact is produced. Pending is never acceptance; it only moves the
+comparison to the owner that holds the consumer's reviewed rows.
+*/
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AcceptedComponentAssumptions {
+    Exact(BTreeSet<[u8; 32]>),
+    PendingConsumerAcceptance,
 }
 
 impl ComponentVerificationRequest {
-    pub fn profile_identity(&self) -> [u8; 32] {
+    fn profile_identity(&self, roster: &[[u8; 32]]) -> [u8; 32] {
         let mut digest =
             crate::digest_encoder::DomainDigestEncoder::new(VERIFICATION_PROFILE_DOMAIN);
         digest.raw(&self.expected_subject.vocabulary_marker.get().to_le_bytes());
@@ -44,8 +60,16 @@ impl ComponentVerificationRequest {
         for schema in &self.accepted_schemas {
             digest.raw(&schema.to_le_bytes());
         }
-        digest.u64(self.accepted_assumptions.len() as u64);
-        for assumption in &self.accepted_assumptions {
+        let pending: BTreeSet<[u8; 32]>;
+        let accepted = match &self.accepted_assumptions {
+            AcceptedComponentAssumptions::Exact(accepted) => accepted,
+            AcceptedComponentAssumptions::PendingConsumerAcceptance => {
+                pending = roster.iter().copied().collect();
+                &pending
+            }
+        };
+        digest.u64(accepted.len() as u64);
+        for assumption in accepted {
             digest.raw(assumption);
         }
         digest.finish()
@@ -266,6 +290,48 @@ impl VerifiedComponent {
 
     pub fn assumptions(&self) -> &[[u8; 32]] {
         &self.description.assumptions
+    }
+
+    /*
+    The readable meaning a consumer reviews for each roster assumption: the
+    exact identities of the entry, outgoing and custody rows that the
+    verifier accepted as bound by it (for example
+    `port-write:<service>:<port>:<value>`). The digest alone is not a reviewable
+    record, so the acceptance row keeps both.
+    */
+    pub fn assumption_meanings(&self) -> Vec<([u8; 32], Vec<&str>)> {
+        let mut bound: Vec<([u8; 32], &str)> = Vec::new();
+        for entry in &self.description.entries {
+            if let EntryEvidence::AssumptionBound(digest) = entry.evidence {
+                bound.push((digest, entry.identity.as_str()));
+            }
+        }
+        for row in &self.description.outgoing {
+            if let OutgoingEvidence::PhysicalMechanism(digest)
+            | OutgoingEvidence::AssumptionBound(digest) = row.evidence
+            {
+                bound.push((digest, row.identity.as_str()));
+            }
+        }
+        for row in &self.description.custody {
+            if let CustodyEvidence::AssumptionBound(digest) = row.evidence {
+                bound.push((digest, row.identity.as_str()));
+            }
+        }
+        self.description
+            .assumptions
+            .iter()
+            .map(|assumption| {
+                let mut identities: Vec<&str> = bound
+                    .iter()
+                    .filter(|(digest, _)| digest == assumption)
+                    .map(|(_, identity)| *identity)
+                    .collect();
+                identities.sort_unstable();
+                identities.dedup();
+                (*assumption, identities)
+            })
+            .collect()
     }
 
     pub const fn realization_identity(&self) -> Option<&[u8; 32]> {
@@ -491,7 +557,9 @@ pub fn verify_component(
         ));
     }
     for assumption in &description.assumptions {
-        if !request.accepted_assumptions.contains(assumption) {
+        if let AcceptedComponentAssumptions::Exact(accepted) = &request.accepted_assumptions
+            && !accepted.contains(assumption)
+        {
             return Err(ComponentVerificationRejection::UnacceptedAssumption(
                 *assumption,
             ));
@@ -517,7 +585,7 @@ pub fn verify_component(
     let mut digest =
         crate::digest_encoder::DomainDigestEncoder::new(VERIFIED_COMPONENT_CLOSURE_DOMAIN);
     digest.raw(&description_identity);
-    digest.raw(&request.profile_identity());
+    digest.raw(&request.profile_identity(&description.assumptions));
     let closure = digest.finish();
 
     Ok(VerifiedComponent {

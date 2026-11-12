@@ -4334,10 +4334,12 @@ mod result_domains {
                         .map(|base| (base.root, base.segments.clone()))
                         .unwrap_or((PlaceRoot::Expression(returned), Vec::new()));
                     segments.extend_from_slice(&path);
+                    // Same wording as the declared-place refusal below: a machine
+                    // exits from its single entry state, so naming that state
+                    // (usually the generated `entry`) adds nothing the reader wrote.
                     diagnostics.push(Diagnostic::error(format!(
-                        "cannot prove default-domain field requirement for return from {}, state {}, at statement {}: {} requires {}",
+                        "cannot prove default-domain field requirement for return from {} at statement {}: {} requires {}",
                         crate::published::labels::machine_name(program, exit.machine_symbol),
-                        crate::published::labels::symbol_name(program, exit.state_symbol),
                         exit.statement_index,
                         facts::canonical_place_label_from_parts(program, root, &segments),
                         crate::published::labels::symbol_name(program, domain_symbol),
@@ -4436,8 +4438,9 @@ mod result_domains {
         }
 
         /*
-            The default-domain field facts a state assumes on entry for its exclusive
-            referents: each such parameter's `StateParameterDomain` field facts.
+            The default-domain facts a state assumes on entry for its exclusive
+            referents: each such parameter's `StateParameterDomain` facts for its
+            fields and for the domains its type spells on the referent itself.
             These are exactly the rows the state-transition arrival check re-proves
             (checks/contracts/arrivals.rs); no second obligation vocabulary exists.
         */
@@ -4465,12 +4468,32 @@ mod result_domains {
                 else {
                     continue;
                 };
-                let rows: Vec<_> =
-                    validation::field_domains::declared_type_domain_rows(program, carrier)
-                        .into_iter()
-                        .filter(|row| !row.transfer && !row.path.is_empty())
-                        .map(|row| (row.path, row.domain_symbol, row.semantic_domain))
-                        .collect();
+                let carrier_rows =
+                    validation::field_domains::declared_type_domain_rows(program, carrier);
+                let mut rows: Vec<_> = carrier_rows
+                    .iter()
+                    .filter(|row| !row.transfer && !row.path.is_empty())
+                    .map(|row| (row.path.clone(), row.domain_symbol, row.semantic_domain))
+                    .collect();
+                /*
+                    The domains the parameter's own type spells on its referent
+                    (`row: &mut u64 in IssuedIndex`) are entry facts too, and
+                    every caller relies on them after the call exactly as on a
+                    field's. Leaving them out let `row = 1` return without the
+                    issuer's establishment. The carrier's own default domains
+                    stay with the data-invariant check that already re-proves
+                    them at return.
+                */
+                for row in validation::field_domains::declared_type_domain_rows(program, referee) {
+                    let carried_by_type = carrier_rows.iter().any(|base| {
+                        base.path.is_empty()
+                            && base.domain_symbol == row.domain_symbol
+                            && base.semantic_domain == row.semantic_domain
+                    });
+                    if row.path.is_empty() && !row.transfer && !carried_by_type {
+                        rows.push((row.path, row.domain_symbol, row.semantic_domain));
+                    }
+                }
                 referents.push((parameter.symbol, rows));
             }
             let mut requirements = Vec::new();
@@ -6491,7 +6514,7 @@ mod scalars {
 
                 Comparisons against that window are decided by cancelling the shared
                 linear terms, then reading only the residual against parameter bounds or
-                an unwritten field's `where` facts.
+                an unwritten field's `requires` facts.
                 A negative dividend does not have this window: the product can sit
                 strictly above the dividend. Wrapping or saturating carriers are not
                 exact truncating division and stay on the interval path.
@@ -6533,7 +6556,7 @@ mod scalars {
             /*
                 A linear unknown. Two field spellings of the same root and member are one
                 atom even when their expression handles differ, so cancellation still sees
-                them. The retained place is only how the field's `where` interval is read.
+                them. The retained place is only how the field's `requires` interval is read.
             */
             #[derive(Clone, Copy)]
             enum LinearAtom {
@@ -6954,7 +6977,7 @@ mod scalars {
                 }
 
                 /*
-                    One field of a parameter, unread by this state. Its `where` facts are
+                    One field of a parameter, unread by this state. Its `requires` facts are
                     what every store preserves, so they bound the field here without
                     replaying a mutable arrival.
                 */

@@ -20,6 +20,7 @@ description alone.
 */
 
 use super::checking::compile_thread::run_on_compile_thread;
+use super::checking::typed_frontier::{TypedFrontierCheck, TypedFrontierRequest};
 use super::checking::{
     SourceCompilation, begin_package_build_worker, prepare_checked_source,
     prepare_source_compilation,
@@ -106,7 +107,7 @@ impl CompilationSession {
     ) -> CheckedCompileOutcome {
         run_on_compile_thread(|| {
             Ok::<_, CompileFailure>(
-                self.select_completed_source(source, returned)
+                self.select_completed_source(source, returned, None)
                     .finish_check(),
             )
         })
@@ -123,7 +124,7 @@ impl CompilationSession {
             source.require_product_policy(&product)?;
             let root = source.root().to_path_buf();
             let selected = self
-                .select_completed_source(source, returned)
+                .select_completed_source(source, returned, None)
                 .result
                 .map_err(|failure| {
                     crate::CompilationProductError::Production(failure.into_diagnostics())
@@ -147,12 +148,37 @@ impl CompilationSession {
         })
     }
 
+    /// Run the session's ordinary check and also return the frozen typed trees
+    /// the current checker judged, whether it accepted them or not.
+    ///
+    /// A package request takes `check_package_build`'s path and a source request
+    /// takes `complete_source_check`'s; the verdict is what that call returns.
+    /// The only difference is one slot that Psi fills when Psi 04 completes.
+    pub fn check_keeping_typed_frontier(
+        &mut self,
+        request: TypedFrontierRequest,
+    ) -> TypedFrontierCheck {
+        let mut frontier = None;
+        let result = run_on_compile_thread(|| match request {
+            TypedFrontierRequest::Package(build) => {
+                self.check_package_build_selecting(build, Some(&mut frontier))
+            }
+            TypedFrontierRequest::Source { source, returned } => {
+                self.select_completed_source(source, returned, Some(&mut frontier))
+                    .finish_check()
+                    .result
+            }
+        });
+        TypedFrontierCheck::join(frontier, result)
+    }
+
     fn select_completed_source(
         &mut self,
         source: SourceCompilation,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
+        frontier: Option<&mut Option<super::checking::typed_frontier::TypedFrontier>>,
     ) -> SelectedCompileOutcome {
-        let mut outcome = match source.select(returned, &mut self.selections) {
+        let mut outcome = match source.select(returned, &mut self.selections, frontier) {
             Ok(outcome) => outcome,
             Err(failure) => return refusal(failure),
         };
@@ -323,5 +349,7 @@ fn refusal(failure: CompileFailure) -> SelectedCompileOutcome {
     SelectedCompileOutcome {
         result: Err(failure),
         independent_components: IndependentComponentDiscovery::default(),
+        tests: Vec::new(),
+        test_notes: Vec::new(),
     }
 }

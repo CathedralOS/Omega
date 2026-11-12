@@ -433,6 +433,7 @@ pub(crate) mod tests {
                 member_symbols,
                 head_symbol: root_symbol,
                 symbol: field_symbol,
+                reserved_result_of: SymbolHandle::invalid(),
             }));
         let index = program.expression_table.insert(ExpressionNode::Integer(
             numerics::literals::IntegerLiteral::from_value(0),
@@ -623,7 +624,7 @@ pub(crate) mod tests {
             properties: typed_trees::data::DataProperties::default(),
             quotient: None,
             cleanup_selection: None,
-            where_facts: Default::default(),
+            requires_facts: Default::default(),
             zero_gated: false,
             retired_identities: Vec::new(),
             conformance_bounds: Vec::new(),
@@ -642,7 +643,7 @@ pub(crate) mod tests {
             properties: typed_trees::data::DataProperties::default(),
             quotient: None,
             cleanup_selection: None,
-            where_facts: Default::default(),
+            requires_facts: Default::default(),
             zero_gated: false,
             retired_identities: Vec::new(),
             conformance_bounds: Vec::new(),
@@ -675,6 +676,7 @@ pub(crate) mod tests {
             service_reach_row: Default::default(),
             service_reach_is_installation_bound: false,
             admitted_same_stack_bytes: 0,
+            declares_no_crash_route: false,
             suspends_keyword_source_spans: Vec::new(),
             blocks_keyword_source_spans: Vec::new(),
             body_is_present: true,
@@ -737,6 +739,7 @@ pub(crate) mod tests {
                     member_symbols: HandleSpan::empty(),
                     head_symbol: main_parameter_symbol,
                     symbol: main_parameter_symbol,
+                    reserved_result_of: SymbolHandle::invalid(),
                 }));
         let member_expression =
             program
@@ -893,6 +896,7 @@ pub(crate) mod tests {
                         member_symbols,
                         head_symbol: root_symbol,
                         symbol: root_symbol,
+                        reserved_result_of: SymbolHandle::invalid(),
                     }));
             if indexed {
                 let index = program.expression_table.insert(ExpressionNode::Integer(

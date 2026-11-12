@@ -14,6 +14,8 @@
 //! - `cargo xtask worktree status` — list all worktrees, their active topic, state, and cache.
 //! - `cargo xtask worktree acquire [<lane>-<topic>]` — claim an idle `worker-N` slot (or
 //!   recycle one into `worker-N`), reset it to `origin/main` in place, and print its path.
+//!   In a cloud session the slot starts at the commit its restored build was published
+//!   for instead; see [`acquire_base`].
 //! - `cargo xtask worktree release [worker-N]` — reset a finished slot to `origin/main`
 //!   and clear its topic while keeping its warm `target/` cache.
 //! - `cargo xtask worktree clean` — reset idle `worker-N` slots and remove legacy
@@ -344,8 +346,12 @@ fn refusal_for(main_root: &Path, wt: &WorktreeInfo) -> Option<&'static str> {
 }
 
 fn reset_slot_to_main(worktree_path: &Path) -> bool {
+    reset_slot_to(worktree_path, "origin/main")
+}
+
+fn reset_slot_to(worktree_path: &Path, commit: &str) -> bool {
     let checkout_ok = Command::new("git")
-        .args(["checkout", "--detach", "origin/main"])
+        .args(["checkout", "--detach", commit])
         .current_dir(worktree_path)
         .stdin(Stdio::null())
         .status()
@@ -357,6 +363,85 @@ fn reset_slot_to_main(worktree_path: &Path) -> bool {
         .status()
         .is_ok_and(|s| s.success());
     checkout_ok && clean_ok
+}
+
+/// The commit a restored build was published for, read from the manifest
+/// `tools/warm_build.sh restore` leaves at `target/.warm-build.txt`.
+fn published_build_commit(manifest: &str) -> Option<&str> {
+    let commit = manifest.lines().find_map(|l| l.strip_prefix("commit="))?;
+    let commit = commit.trim();
+    (commit.len() == 40 && commit.bytes().all(|b| b.is_ascii_hexdigit())).then_some(commit)
+}
+
+fn is_ancestor(main_root: &Path, commit: &str, of: &str) -> bool {
+    Command::new("git")
+        .args(["merge-base", "--is-ancestor", commit, of])
+        .current_dir(main_root)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+/// The commit `acquire` starts a slot at, announced on stderr when it is not
+/// `origin/main`.
+///
+/// A cloud session is a fresh container whose only built compiler is the one
+/// the SessionStart hook restored, and that build is reused only at the commit
+/// it was published for: a few commits later, with a foundation crate changed,
+/// the first build takes as long as a cold one (about 11 minutes on 4 CPUs
+/// against under a minute). So in a cloud session a slot holding a restored
+/// build starts at that build's commit, and the worker rebases onto main only
+/// when the task needs something newer; the merge queue integrates the rest.
+///
+/// The SessionStart hook creates `worker-1` at that commit. Once the slot has
+/// moved (released to main, or checked out elsewhere), its `target/` holds a
+/// later build and no longer matches the stamp, so it resets to `origin/main`.
+/// Everywhere else, and for a slot with no restored build, the base stays
+/// `origin/main`: a local slot's `target/` was built by the previous task there
+/// and is already close to main. A published commit that is not an ancestor of
+/// `origin/main` is never used, so work cannot start from a commit main dropped.
+fn acquire_base(main_root: &Path, slot_path: &Path, head: &str, cloud_session: bool) -> String {
+    let main = "origin/main".to_owned();
+    if !cloud_session {
+        return main;
+    }
+    // mbx may have turned `target` into a link; the manifest is read through it.
+    let Ok(manifest) = fs::read_to_string(slot_path.join("target/.warm-build.txt")) else {
+        return main;
+    };
+    let Some(commit) = published_build_commit(&manifest) else {
+        return main;
+    };
+    if commit != head {
+        return main;
+    }
+    let main_oid = rev_parse(main_root, "origin/main").unwrap_or_default();
+    if commit == main_oid {
+        return main;
+    }
+    let slot = slot_path.file_name().unwrap_or_default().to_string_lossy();
+    if !is_ancestor(main_root, commit, "origin/main") {
+        eprintln!(
+            "worktree acquire: `{slot}` holds a build restored for {}, which is not an ancestor of origin/main in this clone; starting at origin/main, so the first build recompiles what differs",
+            &commit[..12]
+        );
+        return main;
+    }
+    let behind = Command::new("git")
+        .args(["rev-list", "--count", &format!("{commit}..origin/main")])
+        .current_dir(main_root)
+        .stdin(Stdio::null())
+        .output()
+        .ok()
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
+        .unwrap_or_default();
+    eprintln!(
+        "worktree acquire: `{slot}` starts at {}, the commit its restored build was published for; origin/main is {}, {behind} commit(s) ahead. Rebase onto origin/main only if the task needs something newer",
+        &commit[..12],
+        &main_oid[..main_oid.len().min(12)]
+    );
+    commit.to_owned()
 }
 
 /// One record of `git worktree list --porcelain`.
@@ -569,6 +654,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
             let _pool = lock_pool(&main_root).map_err(report_error)?;
             let items = list_worktrees(&main_root).map_err(report_error)?;
+            let cloud_session = std::env::var("CLAUDE_CODE_REMOTE").is_ok_and(|v| v == "true");
+            let base = |slot: &WorktreeInfo, path: &Path| {
+                acquire_base(&main_root, path, &slot.head, cloud_session)
+            };
 
             // 1. If a worker-N slot already carries this topic and is clean, reuse it in place.
             if let Some(t) = topic
@@ -584,7 +673,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                     );
                     return Err(1);
                 }
-                if !reset_slot_to_main(&existing.path) {
+                if !reset_slot_to(&existing.path, &base(existing, &existing.path)) {
                     return Err(1);
                 }
                 println!("{}", existing.path.display());
@@ -608,7 +697,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 if refusal_for(&main_root, slot).is_some() {
                     continue;
                 }
-                if reset_slot_to_main(&slot.path) {
+                if reset_slot_to(&slot.path, &base(slot, &slot.path)) {
                     write_topic(&slot.git_dir, topic).map_err(report_error)?;
                     eprintln!(
                         "worktree acquire: assigned `{}` (topic: {})",
@@ -651,7 +740,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                     .stdin(Stdio::null())
                     .status()
                     .is_ok_and(|s| s.success());
-                if move_ok && reset_slot_to_main(&slot_path) {
+                if move_ok && reset_slot_to(&slot_path, &base(donor, &slot_path)) {
                     write_topic(&donor.git_dir, topic).map_err(report_error)?;
                     eprintln!(
                         "worktree acquire: promoted `{}` -> `{}` (topic: {})",
@@ -918,8 +1007,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ListedWorktree, lock_pool_at, parse_worktree_list, read_topic, reset_refusal,
-        worktree_git_dir, write_topic,
+        ListedWorktree, acquire_base, lock_pool_at, parse_worktree_list, published_build_commit,
+        read_topic, reset_refusal, worktree_git_dir, write_topic,
     };
     use std::fs;
     use std::path::Path;
@@ -1023,6 +1112,98 @@ mod tests {
         assert!(read_topic(&moved_git_dir).is_err());
         let error = write_topic(&moved_git_dir, Some("tools-refused")).unwrap_err();
         assert!(error.contains("cannot update worktree topic"));
+    }
+
+    // A cloud slot still at the commit its restored build was published for
+    // stays there, because that is the only commit the build is reused at.
+    // Every other case keeps `origin/main`: a local session, a slot with no
+    // restored build, a slot that has moved since, and a published commit that
+    // main does not contain.
+    #[test]
+    fn a_cloud_slot_starts_at_its_restored_builds_commit() {
+        struct Scratch(std::path::PathBuf);
+        impl Drop for Scratch {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        fn git(root: &Path, arguments: &[&str]) -> String {
+            let output = Command::new("git")
+                .args([
+                    "-c",
+                    "user.name=Worktree test",
+                    "-c",
+                    "user.email=worktree@example.invalid",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "-c",
+                    "core.hooksPath=/nonexistent",
+                ])
+                .args(arguments)
+                .current_dir(root)
+                .stdin(Stdio::null())
+                .output()
+                .expect("run temporary repository command");
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            String::from_utf8_lossy(&output.stdout).trim().to_owned()
+        }
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let scratch = Scratch(std::env::temp_dir().join(format!(
+            "omega-worktree-base-{}-{unique}",
+            std::process::id(),
+        )));
+        let repository = scratch.0.join("repository");
+        fs::create_dir_all(&repository).unwrap();
+        git(&repository, &["init"]);
+        git(&repository, &["commit", "--allow-empty", "-m", "published"]);
+        let published = git(&repository, &["rev-parse", "HEAD"]);
+        git(
+            &repository,
+            &["commit", "--allow-empty", "-m", "newer main"],
+        );
+        git(
+            &repository,
+            &["update-ref", "refs/remotes/origin/main", "HEAD"],
+        );
+        git(&repository, &["checkout", "--orphan", "elsewhere"]);
+        git(
+            &repository,
+            &["commit", "--allow-empty", "-m", "not on main"],
+        );
+        let off_main = git(&repository, &["rev-parse", "HEAD"]);
+
+        let slot = scratch.0.join("worker-1");
+        fs::create_dir_all(slot.join("target")).unwrap();
+        let manifest = slot.join("target/.warm-build.txt");
+        let restore = |commit: &str| {
+            fs::write(
+                &manifest,
+                format!("schema=omega-warm-build-v2\ncommit={commit}\n"),
+            )
+            .unwrap();
+        };
+
+        let base = |head: &str, cloud| acquire_base(&repository, &slot, head, cloud);
+        assert_eq!(base(&published, true), "origin/main");
+        restore(&published);
+        assert_eq!(base(&published, true), published);
+        assert_eq!(base(&published, false), "origin/main");
+        // The slot moved after the restore, so its build is no longer the stamp's.
+        assert_eq!(base(&off_main, true), "origin/main");
+        restore(&off_main);
+        assert_eq!(base(&off_main, true), "origin/main");
+        restore("not-a-commit");
+        assert_eq!(base("not-a-commit", true), "origin/main");
+
+        assert_eq!(published_build_commit("slot=worker\n"), None);
+        assert_eq!(published_build_commit("commit=abc123\n"), None);
     }
 
     // Only one pool command holds the lock at a time; the next one gets it once

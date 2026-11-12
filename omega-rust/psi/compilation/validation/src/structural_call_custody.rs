@@ -70,7 +70,7 @@ pub(crate) mod declaration_predicates {
             };
             let Some(predicates) = program
                 .proof_facts
-                .span_or_empty(definition.where_facts)
+                .span_or_empty(definition.requires_facts)
                 .iter()
                 .map(|fact| spelling.boolean(*fact.as_expression()?))
                 .collect::<Option<Vec<_>>>()
@@ -456,14 +456,14 @@ pub(crate) mod declaration_predicates {
             arena::HandleSpan<typed_trees::domain::ProofFact>,
         ),
     > {
-        std::iter::once((None, definition.where_facts)).chain(
+        std::iter::once((None, definition.requires_facts)).chain(
             program
                 .data_members(definition)
                 .iter()
                 .filter_map(move |member| {
                     let case = member.as_variant()?;
                     (!crate::impossible_variant(program, case))
-                        .then_some((Some(case), case.where_facts))
+                        .then_some((Some(case), case.requires_facts))
                 }),
         )
     }
@@ -1553,7 +1553,7 @@ pub(crate) mod declaration_predicates {
                         symbol: symbols[position],
                         name: Identifier::from(names[position]),
                         members,
-                        where_facts: if bad == Some(position) {
+                        requires_facts: if bad == Some(position) {
                             unsupported
                         } else if own_facts[position] {
                             facts
@@ -1673,7 +1673,7 @@ pub(crate) mod declaration_predicates {
                     .clone();
                 alias.symbol = symbols[2];
                 alias.members = HandleSpan::empty();
-                alias.where_facts = program
+                alias.requires_facts = program
                     .proof_facts
                     .insert_many([ProofFact::Membership(ProofMembershipFact::default())]);
                 program.retain_data_application_definition(references[3], alias, true);
@@ -1791,7 +1791,7 @@ pub(crate) mod declaration_predicates {
             ) -> bool {
                 if visited.contains(&StorageDefinitionIdentity::of(definition))
                     || !{
-                        *own_evaluations += usize::from(!definition.where_facts.is_empty());
+                        *own_evaluations += usize::from(!definition.requires_facts.is_empty());
                         definition_own_facts_carried(program, operators, definition)
                     }
                 {
@@ -1925,6 +1925,7 @@ pub(crate) mod declaration_predicates {
                 program
                     .expression_table
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: operands[0],
                         operator: BinaryOperator::Equal,
                         right: operands[1],
@@ -1937,7 +1938,7 @@ pub(crate) mod declaration_predicates {
                 symbol: pair,
                 name: Identifier::from("Pair"),
                 members: pair_members,
-                where_facts: pair_facts,
+                requires_facts: pair_facts,
                 ..Default::default()
             });
             let mut payload_fields = HandleSpan::empty();
@@ -2110,7 +2111,7 @@ pub(crate) mod declaration_predicates {
                 ));
             program.proof_facts.span_mut_or_empty(facts)[0] = ProofFact::Expression(predicate);
             let definition = program.unique_data_definition_by_symbol(envelope).unwrap();
-            assert!(definition.where_facts.is_empty());
+            assert!(definition.requires_facts.is_empty());
             assert!(
                 !declaration_facts_carried(&program, &CheckedOperatorFacts::default(), definition),
                 "an unrelated Envelope marker store must not bypass the nested complete-domain fence"
@@ -2161,8 +2162,8 @@ pub(crate) mod declaration_predicates {
             let (mut program, state, envelope, pair_facts) = fixture();
             let root_span = program.roots.data_definitions;
             for definition in program.tables.data_definitions.span_mut_or_empty(root_span) {
-                if definition.where_facts == pair_facts {
-                    definition.where_facts = HandleSpan::empty();
+                if definition.requires_facts == pair_facts {
+                    definition.requires_facts = HandleSpan::empty();
                 }
             }
             let parameter = program.state_parameters(&state)[0].clone();
@@ -2198,6 +2199,7 @@ pub(crate) mod declaration_predicates {
                         )));
                 membership.push(program.expression_table.insert(ExpressionNode::Binary(
                     TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: subject,
                         operator: BinaryOperator::CaseMembership,
                         right: selected,
@@ -2208,6 +2210,7 @@ pub(crate) mod declaration_predicates {
                 program
                     .expression_table
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: membership[0],
                         operator: BinaryOperator::Or,
                         right: membership[1],
@@ -2220,7 +2223,7 @@ pub(crate) mod declaration_predicates {
                 if definition.symbol == envelope {
                     definition.predicate_subject_symbol = parameter.symbol;
                     definition.predicate_subject_type = referee;
-                    definition.where_facts = facts;
+                    definition.requires_facts = facts;
                 }
             }
             let array = program

@@ -1,0 +1,1 @@
+mutates `cell.counter` while local borrow `exclusive` is still active

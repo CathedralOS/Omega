@@ -560,6 +560,7 @@ mod tests {
             ),
         ] {
             module.structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 id,
                 identity: TerminalIdentityIndex::ABSENT,

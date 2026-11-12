@@ -1,0 +1,5 @@
+partial wrapping division in machine `minimum_quotient`
+partial wrapping remainder in machine `minimum_quotient`
+partial saturating division in machine `minimum_quotient`
+partial saturating remainder in machine `minimum_quotient`
+the divisor must be proven nonzero

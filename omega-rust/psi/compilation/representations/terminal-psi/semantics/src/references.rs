@@ -390,6 +390,56 @@ pub(crate) mod reference_origins {
             pub sources: Vec<ReferenceCallSource>,
         }
 
+        impl ReferenceCallSource {
+            /// The origin suffix a returned reference projects from its actual
+            /// argument, or `None` when that storage cannot be the declared
+            /// referent. `source_root` is the argument's resolved storage type.
+            ///
+            /// The returned reference keeps exactly the storage its argument lent.
+            /// An argument may lend a scalar under another carrier: an exclusive
+            /// loan of a restricted field stays a place loan, so its recast is not
+            /// materialized before the call. The origin then records the presented
+            /// view over the stored carrier, as an established reference view does,
+            /// so later reads and writes still address the original backing.
+            pub fn projected_origin_suffix<'types>(
+                &self,
+                types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+                source_root: StructuralTypeId,
+                expected: StructuralTypeId,
+                access: terminal_psi::StructuralAccess,
+            ) -> Option<std::borrow::Cow<'_, [ReferenceOriginProjection]>> {
+                let endpoint = reference_origin_type(types.clone(), source_root, &self.suffix)?;
+                if self.extent != ReferenceOriginExtent::Projected || endpoint == expected {
+                    return Some(std::borrow::Cow::Borrowed(&self.suffix));
+                }
+                let scalar = |identity| {
+                    crate::structural_declaration(types.clone(), identity)
+                        .filter(|declaration| declaration.scalar_restriction.is_none())
+                        .and_then(|declaration| match declaration.shape {
+                            terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) => {
+                                Some(scalar)
+                            }
+                            _ => None,
+                        })
+                };
+                if !crate::scalar_reference_view_admits(
+                    access,
+                    scalar(endpoint)?,
+                    scalar(expected)?,
+                ) {
+                    return None;
+                }
+                let mut suffix = self.suffix.clone();
+                suffix.push(ReferenceOriginProjection::Exact(
+                    StructuralPathSegment::RepresentationView {
+                        structural_type: expected,
+                        stored_scalar: None,
+                    },
+                ));
+                Some(std::borrow::Cow::Owned(suffix))
+            }
+        }
+
         pub fn bind_reference_call_results<'types>(
             types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
             contract: ReferenceCallContract<'_>,
@@ -923,6 +973,7 @@ pub(crate) mod reference_origins {
                 ]
                 .into_iter()
                 .map(|(id, shape)| StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     id,
                     identity: TerminalIdentityIndex(1),
@@ -3223,6 +3274,7 @@ pub(crate) mod reference_storage_geometry {
         #[test]
         fn sum_image_offsets_and_array_extent_share_the_selected_tag_geometry() {
             let declaration = |value, shape| StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
@@ -3384,6 +3436,7 @@ pub(crate) mod reference_storage_geometry {
         fn extent_discovery_visits_unknown_siblings_but_respects_storage_and_erasure() {
             let application = |value| ScalarApplicationId::new(value).unwrap();
             let declaration = |value, shape| StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
@@ -3490,6 +3543,7 @@ pub(crate) mod reference_storage_geometry {
             let dependency = ScalarApplicationId::new(1).unwrap();
             let mut types = [
                 StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
@@ -3501,6 +3555,7 @@ pub(crate) mod reference_storage_geometry {
                     shape: StructuralTypeShape::PrimitiveScalar(scalar(64)),
                 },
                 StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
@@ -3549,6 +3604,7 @@ pub(crate) mod reference_storage_geometry {
         fn canonical_parent_keeps_authored_child_width_and_codec() {
             let types = [
                 StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,
@@ -3573,6 +3629,7 @@ pub(crate) mod reference_storage_geometry {
                     },
                 },
                 StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,
@@ -3608,6 +3665,7 @@ pub(crate) mod reference_storage_geometry {
         #[test]
         fn fragmented_fields_do_not_hide_the_record_extent_or_invent_a_scalar_address() {
             let types = [StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
@@ -4334,6 +4392,53 @@ pub(crate) mod reference_views {
             .is_some_and(|pair| !pair.requires_landing())
     }
 
+    /// Whether a reference with `access` may present `stored` scalar storage as
+    /// `presented` (wiki/spec/layouts/recasts.md#shared-and-mutable-views).
+    ///
+    /// A recast keeps the same backing, so the judgment follows the operations
+    /// the view enables: a shared reader needs every stored value to read as a
+    /// valid presented value, a write-only view needs every presented value to
+    /// leave valid stored bits, and a mutable view needs both. Owned values are
+    /// never reinterpreted in place. Domain handback obligations on the lender
+    /// stay with the checker; this judges only representation validity.
+    pub fn scalar_reference_view_admits(
+        access: StructuralAccess,
+        stored: ScalarType,
+        presented: ScalarType,
+    ) -> bool {
+        let reads = || scalar_reference_view_is_total(stored, presented);
+        let writes = || scalar_reference_view_is_total(presented, stored);
+        match access {
+            StructuralAccess::Owned => stored == presented,
+            StructuralAccess::SharedBorrow => reads(),
+            StructuralAccess::WriteOnlyBorrow => writes(),
+            StructuralAccess::MutableBorrow => reads() && writes(),
+        }
+    }
+
+    /// The leaf contract an inline field presents to a borrow with `access`
+    /// that expects `expected`. Every Terminal consumer (native target lowering
+    /// and the Psi interpreter) resolves borrowed field leaves here, so a
+    /// cross-carrier scalar view of a field has one admission rule.
+    pub fn borrowed_field_presentation(
+        field: &terminal_psi::StructuralFieldType,
+        access: StructuralAccess,
+        expected: Option<&StructuralTypeDeclaration>,
+    ) -> Option<terminal_psi::StructuralFieldType> {
+        let presentation = field.borrowed_presentation_type(access, expected)?;
+        if let Some(expected) = expected
+            && presentation != terminal_psi::StructuralFieldType::Structural(expected.id)
+            && expected.scalar_restriction.is_none()
+            && let StructuralTypeShape::PrimitiveScalar(presented) = expected.shape
+            && let Some(StructuralTypeShape::PrimitiveScalar(stored)) =
+                presentation.canonical_leaf_shape()
+            && scalar_reference_view_admits(access, stored, presented)
+        {
+            return Some(terminal_psi::StructuralFieldType::Structural(expected.id));
+        }
+        Some(presentation)
+    }
+
     pub fn scalar_reference_view_value(
         source: ScalarType,
         target: ScalarType,
@@ -4398,16 +4503,117 @@ pub(crate) mod reference_views {
         {
             return true;
         }
-        if *access != StructuralAccess::SharedBorrow {
-            return false;
-        }
         let Some(StructuralTypeShape::PrimitiveScalar(target)) =
             crate::structural_shape(types, *referent)
         else {
             return false;
         };
         matches!(source_shape, StructuralTypeShape::PrimitiveScalar(source)
-            if scalar_reference_view_is_total(*source, *target))
+            if scalar_reference_view_admits(*access, *source, *target))
+    }
+    #[cfg(test)]
+    mod scalar_view_admission_tests {
+        use super::*;
+        use semantic_vocabulary::{IntegerSign, IntegerType, StructuralTypeId};
+        use terminal_psi::{StructuralFieldType, TerminalIdentityIndex};
+
+        fn integer(sign: IntegerSign, bits: u16) -> ScalarType {
+            ScalarType::Integer(IntegerType::new(sign, bits).expect("fixed integer"))
+        }
+
+        fn primitive(raw: u64, scalar: ScalarType) -> StructuralTypeDeclaration {
+            StructuralTypeDeclaration {
+                requires: Vec::new(),
+                id: StructuralTypeId::new(raw).expect("type identity"),
+                identity: TerminalIdentityIndex(raw as u32),
+                owns_linear_claim: false,
+                copyable: true,
+                no_code_affine_cleanup: true,
+                descriptor_cleanup: true,
+                quotient_carrier: None,
+                scalar_restriction: None,
+                shape: StructuralTypeShape::PrimitiveScalar(scalar),
+            }
+        }
+
+        // `&mut pair.start as &mut u32` over an i32 field: every bit pattern is
+        // valid in both carriers, so every borrow access admits the view, but an
+        // owned value is never reinterpreted in place.
+        #[test]
+        fn equal_width_integer_views_admit_every_borrow() {
+            let signed = integer(IntegerSign::Signed, 32);
+            let unsigned = integer(IntegerSign::Unsigned, 32);
+            for access in [
+                StructuralAccess::SharedBorrow,
+                StructuralAccess::MutableBorrow,
+                StructuralAccess::WriteOnlyBorrow,
+            ] {
+                assert!(scalar_reference_view_admits(access, signed, unsigned));
+                assert!(scalar_reference_view_admits(access, unsigned, signed));
+            }
+            assert!(!scalar_reference_view_admits(
+                StructuralAccess::Owned,
+                signed,
+                unsigned
+            ));
+        }
+
+        // Every bool reads as a valid u8, but a u8 write of 2 would leave invalid
+        // bool storage: only the direction the view's operations need is admitted.
+        #[test]
+        fn one_way_views_admit_only_the_operations_they_keep_valid() {
+            let byte = integer(IntegerSign::Unsigned, 8);
+            let boolean = ScalarType::Boolean;
+            assert!(scalar_reference_view_admits(
+                StructuralAccess::SharedBorrow,
+                boolean,
+                byte
+            ));
+            assert!(!scalar_reference_view_admits(
+                StructuralAccess::MutableBorrow,
+                boolean,
+                byte
+            ));
+            assert!(!scalar_reference_view_admits(
+                StructuralAccess::WriteOnlyBorrow,
+                boolean,
+                byte
+            ));
+            assert!(scalar_reference_view_admits(
+                StructuralAccess::WriteOnlyBorrow,
+                byte,
+                boolean
+            ));
+            assert!(!scalar_reference_view_admits(
+                StructuralAccess::SharedBorrow,
+                byte,
+                boolean
+            ));
+        }
+
+        #[test]
+        fn borrowed_fields_present_only_admitted_scalar_views() {
+            let signed = StructuralFieldType::Scalar(integer(IntegerSign::Signed, 32));
+            let unsigned = primitive(7, integer(IntegerSign::Unsigned, 32));
+            assert_eq!(
+                borrowed_field_presentation(
+                    &signed,
+                    StructuralAccess::MutableBorrow,
+                    Some(&unsigned)
+                ),
+                Some(StructuralFieldType::Structural(unsigned.id))
+            );
+            let boolean = StructuralFieldType::Scalar(ScalarType::Boolean);
+            let byte = primitive(8, integer(IntegerSign::Unsigned, 8));
+            assert_eq!(
+                borrowed_field_presentation(&boolean, StructuralAccess::SharedBorrow, Some(&byte)),
+                Some(StructuralFieldType::Structural(byte.id))
+            );
+            assert_eq!(
+                borrowed_field_presentation(&boolean, StructuralAccess::MutableBorrow, Some(&byte)),
+                Some(boolean)
+            );
+        }
     }
 }
 pub(crate) mod resident_references {

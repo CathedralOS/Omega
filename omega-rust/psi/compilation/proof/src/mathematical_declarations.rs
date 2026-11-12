@@ -6838,6 +6838,7 @@ mod mathematical_signature {
                                 .iter()
                                 .map(|(domain, _)| *domain)
                                 .collect::<Vec<_>>(),
+                            self.level_binders.len() as u32 + self.generalized_levels,
                         )
                     }
                     .map_err(|error| {
@@ -7531,7 +7532,7 @@ mod mathematical_signature {
                                 "source induction requires a shared integer vocabulary".into(),
                             ));
                         };
-                        let proof = theory.predicate_from_assumptions(&mut self.arena, &mut self.declarations, goal, &assumptions)
+                        let proof = theory.predicate_from_assumptions(&mut self.arena, &mut self.declarations, goal, &assumptions, self.level_binders.len() as u32 + self.generalized_levels)
                 .map_err(|error| self.refuse(format!("source induction case arithmetic is unsupported: {error:?}")))?
                 .ok_or_else(|| self.refuse("source induction case has no checked derivation from its exact constraints and child hypotheses".into()))?;
                         let mut ty = goal;
@@ -10229,6 +10230,7 @@ mod mathematical_signature {
                                 &mut declarations,
                                 goal,
                                 &assumptions,
+                                0,
                             )
                             .unwrap()
                             .unwrap();
@@ -10966,7 +10968,7 @@ mod mathematical_signature {
                 let mut source_cases = Vec::new();
                 let mut schemes = Vec::new();
                 let rosters = if variants.is_empty() {
-                    vec![(SymbolHandle::invalid(), Vec::new(), data.where_facts)]
+                    vec![(SymbolHandle::invalid(), Vec::new(), data.requires_facts)]
                 } else {
                     variants
                         .iter()
@@ -10974,7 +10976,7 @@ mod mathematical_signature {
                             (
                                 case.symbol,
                                 self.program.data_payload_fields(case).to_vec(),
-                                case.where_facts,
+                                case.requires_facts,
                             )
                         })
                         .collect()
@@ -11011,7 +11013,7 @@ mod mathematical_signature {
                         Vec::new()
                     };
                     if !case_symbol.is_valid() {
-                        for fact in self.program.proof_facts.span_or_empty(data.where_facts) {
+                        for fact in self.program.proof_facts.span_or_empty(data.requires_facts) {
                             let Some(expression) = fact.as_expression().copied() else {
                                 return Err(self.refuse(
                             "source indexed constraint has no relevant proposition denotation yet"

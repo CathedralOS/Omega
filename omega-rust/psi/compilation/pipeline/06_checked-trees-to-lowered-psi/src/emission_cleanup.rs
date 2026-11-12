@@ -581,12 +581,145 @@ pub(crate) mod affine_cleanup {
             Terminator,
         };
 
-        #[derive(Clone, Debug, PartialEq, Eq)]
-        struct MovedRoot {
-            place: PlaceId,
-            paths: BTreeSet<Vec<StructuralPathSegment>>,
+        use frontier::{Frontier, MovedRoot};
+
+        /// What one program point knows about storage roots that had content
+        /// moved out of them. The fields are private to this module so that every
+        /// read of a root goes through [`Frontier::root`], which refuses a root
+        /// whose arriving paths disagree.
+        mod frontier {
+            use super::{LoweringError, PlaceId, StructuralPathSegment, unsupported};
+            use std::collections::BTreeSet;
+
+            const DISPUTED: &str = "projected transfer histories disagree at a control join";
+
+            #[derive(Clone, Debug, PartialEq, Eq)]
+            pub(super) struct MovedRoot {
+                pub(super) place: PlaceId,
+                pub(super) paths: BTreeSet<Vec<StructuralPathSegment>>,
+            }
+
+            #[derive(Clone, Debug, Default, PartialEq, Eq)]
+            pub(super) struct Frontier {
+                /// Roots with moved-out paths, ordered by place.
+                moved: Vec<MovedRoot>,
+                /// Roots that reached a join with different moved-out paths. A
+                /// join only has to agree about a root that is used again, so a
+                /// disagreement is kept here instead of refusing the join. The
+                /// root stays unusable until an operation or block parameter
+                /// establishes it afresh. Ordered by place.
+                disputed: Vec<PlaceId>,
+            }
+
+            impl Frontier {
+                /// Refuses a root whose arrivals disagree.
+                fn settled(&self, place: PlaceId) -> Result<(), LoweringError> {
+                    if self.disputed.binary_search(&place).is_ok() {
+                        return unsupported(DISPUTED);
+                    }
+                    Ok(())
+                }
+
+                fn dispute(&mut self, place: PlaceId) {
+                    if let Err(position) = self.disputed.binary_search(&place) {
+                        self.disputed.insert(position, place);
+                    }
+                }
+
+                /// The moved-out paths of `place`, `None` when the root is whole.
+                /// Any use of a root must ask here first: a disputed root has no
+                /// single answer, so the use is refused.
+                pub(super) fn root(
+                    &self,
+                    place: PlaceId,
+                ) -> Result<Option<&MovedRoot>, LoweringError> {
+                    self.settled(place)?;
+                    Ok(self.moved.iter().find(|root| root.place == place))
+                }
+
+                pub(super) fn root_mut(
+                    &mut self,
+                    place: PlaceId,
+                ) -> Result<Option<&mut MovedRoot>, LoweringError> {
+                    self.settled(place)?;
+                    Ok(self.moved.iter_mut().find(|root| root.place == place))
+                }
+
+                /// The moved-out paths of `place`, starting an empty record when
+                /// the root was whole.
+                pub(super) fn root_or_open(
+                    &mut self,
+                    place: PlaceId,
+                ) -> Result<&mut MovedRoot, LoweringError> {
+                    self.settled(place)?;
+                    let position = match self.moved.binary_search_by_key(&place, |root| root.place)
+                    {
+                        Ok(position) => position,
+                        Err(position) => {
+                            self.moved.insert(
+                                position,
+                                MovedRoot {
+                                    place,
+                                    paths: BTreeSet::new(),
+                                },
+                            );
+                            position
+                        }
+                    };
+                    Ok(&mut self.moved[position])
+                }
+
+                /// Records the first moved-out path of a root that was whole.
+                pub(super) fn open(&mut self, place: PlaceId, path: Vec<StructuralPathSegment>) {
+                    self.moved.push(MovedRoot {
+                        place,
+                        paths: BTreeSet::from([path]),
+                    });
+                    self.moved.sort_by_key(|root| root.place);
+                }
+
+                /// Drops the moved-out paths of a root whose region has ended or
+                /// been restored. A disputed root stays disputed.
+                pub(super) fn close(&mut self, place: PlaceId) {
+                    self.moved.retain(|root| root.place != place);
+                }
+
+                /// A new value now lives at `place`, so nothing about the value
+                /// that was there before applies, including a dispute.
+                pub(super) fn establish(&mut self, place: PlaceId) {
+                    self.close(place);
+                    self.disputed.retain(|disputed| *disputed != place);
+                }
+
+                /// Merges another arrival at the same block and reports whether
+                /// this frontier changed. Roots both arrivals describe alike are
+                /// kept; every other root becomes disputed.
+                pub(super) fn join(&mut self, arrival: &Self) -> bool {
+                    let before = self.disputed.len();
+                    for place in &arrival.disputed {
+                        self.dispute(*place);
+                    }
+                    for root in &arrival.moved {
+                        if !self.moved.contains(root) {
+                            self.dispute(root.place);
+                        }
+                    }
+                    let unmatched = self
+                        .moved
+                        .iter()
+                        .filter(|root| !arrival.moved.contains(root))
+                        .map(|root| root.place)
+                        .collect::<Vec<_>>();
+                    for place in unmatched {
+                        self.dispute(place);
+                    }
+                    let disputed = &self.disputed;
+                    self.moved
+                        .retain(|root| disputed.binary_search(&root.place).is_err());
+                    self.disputed.len() != before
+                }
+            }
         }
-        type Frontier = Vec<MovedRoot>;
 
         pub(crate) fn owned_extractions(
             parameters: &[StructuralParameterDeclaration],
@@ -756,9 +889,9 @@ pub(crate) mod affine_cleanup {
                     _ => None,
                 }))
                 .collect::<Vec<_>>();
-            let mut incoming = vec![None; blocks.len()];
+            let mut incoming: Vec<Option<Frontier>> = vec![None; blocks.len()];
             let entry = block_position(blocks, entry)?;
-            incoming[entry] = Some(Vec::new());
+            incoming[entry] = Some(Frontier::default());
             // Keep each saved frontier through every possible join comparison.
             // Once its block is processed and no predecessor can arrive again,
             // its paths are scratch storage with no remaining reader.
@@ -771,12 +904,19 @@ pub(crate) mod affine_cleanup {
                 lifetimes.close_unused_roots();
             }
             let mut ready = VecDeque::from([entry]);
+            let mut queued = vec![false; blocks.len()];
+            queued[entry] = true;
             let mut completed = blocks
                 .iter()
                 .map(|block| block.terminator.clone())
                 .collect::<Vec<_>>();
+            // A block is completed again whenever a later arrival disputes a root
+            // it had taken as settled. Disputes only grow, so this ends, and each
+            // pass starts over from the block's original cleanup roster.
             while let Some(position) = ready.pop_front() {
+                queued[position] = false;
                 let mut frontier = incoming[position].clone().expect("queued frontier");
+                completed[position] = blocks[position].terminator.clone();
                 for operation in &blocks[position].operations {
                     observe(&frontier, operation, &roots, types)?;
                     for argument in operands(&operation.kind) {
@@ -787,16 +927,12 @@ pub(crate) mod affine_cleanup {
                         .find(|(identity, _)| *identity == operation.id)
                     {
                         if extraction.path.is_empty() {
-                            if frontier.iter().any(|root| root.place == extraction.place) {
+                            if frontier.root(extraction.place)?.is_some() {
                                 return unsupported(
                                     "whole extraction consumes a partially transferred root",
                                 );
                             }
-                            frontier.push(MovedRoot {
-                                place: extraction.place,
-                                paths: BTreeSet::from([Vec::new()]),
-                            });
-                            frontier.sort_by_key(|root| root.place);
+                            frontier.open(extraction.place, Vec::new());
                         } else {
                             remove_path(&mut frontier, extraction.place, &extraction.path)?;
                         }
@@ -810,7 +946,7 @@ pub(crate) mod affine_cleanup {
                         field,
                         ..
                     } = &operation.kind
-                        && frontier.iter().any(|root| root.place == *destination)
+                        && frontier.root(*destination)?.is_some()
                     {
                         let root_type = roots
                             .iter()
@@ -829,10 +965,10 @@ pub(crate) mod affine_cleanup {
                         .ok_or(LoweringError::Unsupported(
                             "restoration has no exact storage projection",
                         ))?;
-                        restore_path(&mut frontier, *destination, &restored.path);
+                        restore_path(&mut frontier, *destination, &restored.path)?;
                     }
                     if let Some(result) = operation.result.structural() {
-                        frontier.retain(|root| root.place != result.place);
+                        frontier.establish(result.place);
                     }
                 }
                 let mut successors = Vec::new();
@@ -874,11 +1010,10 @@ pub(crate) mod affine_cleanup {
                         path,
                         cases,
                     } => {
-                        if frontier.iter().any(|root| {
-                            root.place == *source
-                                && root.paths.iter().any(|moved| {
-                                    terminal_semantics::structural_paths_may_overlap(moved, path)
-                                })
+                        if frontier.root(*source)?.is_some_and(|root| {
+                            root.paths.iter().any(|moved| {
+                                terminal_semantics::structural_paths_may_overlap(moved, path)
+                            })
                         }) {
                             return unsupported("case inspection overlaps a transferred subtree");
                         }
@@ -901,7 +1036,7 @@ pub(crate) mod affine_cleanup {
                         cleanup_actions,
                         ..
                     } => {
-                        if frontier.iter().any(|root| root.place == *source) {
+                        if frontier.root(*source)?.is_some() {
                             return unsupported(
                                 "structural return consumes a partially transferred root",
                             );
@@ -920,29 +1055,27 @@ pub(crate) mod affine_cleanup {
                 }
                 for (edge, target, mut outgoing) in successors {
                     for completion in completions.at(edge) {
-                        normalize_completed_frontier(&mut outgoing, completion);
+                        normalize_completed_frontier(&mut outgoing, completion)?;
                     }
                     let target = block_position(blocks, target)?;
-                    outgoing.retain(|root| {
-                        !blocks[target]
-                            .structural_parameters
-                            .iter()
-                            .any(|parameter| parameter.place == root.place)
-                    });
-                    match &incoming[target] {
-                        Some(previous) if *previous != outgoing => {
-                            return unsupported(
-                                "projected transfer histories disagree at a control join",
-                            );
+                    for parameter in &blocks[target].structural_parameters {
+                        outgoing.establish(parameter.place);
+                    }
+                    let changed = match &mut incoming[target] {
+                        Some(previous) => previous.join(&outgoing),
+                        first @ None => {
+                            *first = Some(outgoing);
+                            true
                         }
-                        Some(_) => {}
-                        None => {
-                            if let Some(lifetimes) = &mut key_lifetimes {
-                                lifetimes.discover(target);
-                            }
-                            incoming[target] = Some(outgoing);
-                            ready.push_back(target);
+                    };
+                    if changed && !queued[target] {
+                        queued[target] = true;
+                        // A block queued again is pending again, so the saved
+                        // frontiers it can still reach stay alive until it is done.
+                        if let Some(lifetimes) = &mut key_lifetimes {
+                            lifetimes.discover(target);
                         }
+                        ready.push_back(target);
                     }
                 }
                 if let Some(lifetimes) = &mut key_lifetimes {
@@ -1089,8 +1222,8 @@ pub(crate) mod affine_cleanup {
             path: &[StructuralPathSegment],
         ) -> Result<(), LoweringError> {
             if let Some(earlier) = frontier
-                .iter()
-                .filter(|root| root.place == place)
+                .root(place)?
+                .into_iter()
                 .flat_map(|root| &root.paths)
                 .find(|earlier| terminal_semantics::structural_paths_may_overlap(earlier, path))
             {
@@ -1124,13 +1257,14 @@ pub(crate) mod affine_cleanup {
             place: PlaceId,
             path: &[StructuralPathSegment],
         ) -> Result<(), LoweringError> {
+            let root = frontier.root_mut(place)?;
             if path.is_empty() {
-                if frontier.iter().any(|root| root.place == place) {
+                if root.is_some() {
                     return unsupported("whole transfer consumes a partially transferred root");
                 }
                 return Ok(());
             }
-            if let Some(root) = frontier.iter_mut().find(|root| root.place == place) {
+            if let Some(root) = root {
                 if let Some(earlier) = root.paths.iter().find(|earlier| {
                     earlier.starts_with(path) || path.starts_with(earlier.as_slice())
                 }) {
@@ -1144,11 +1278,7 @@ pub(crate) mod affine_cleanup {
                 }
                 root.paths.insert(path.to_vec());
             } else {
-                frontier.push(MovedRoot {
-                    place,
-                    paths: BTreeSet::from([path.to_vec()]),
-                });
-                frontier.sort_by_key(|root| root.place);
+                frontier.open(place, path.to_vec());
             }
             Ok(())
         }
@@ -1156,7 +1286,7 @@ pub(crate) mod affine_cleanup {
         fn normalize_completed_frontier(
             frontier: &mut Frontier,
             completion: &super::super::selected_continuations::CompletedCleanupFrontier,
-        ) {
+        ) -> Result<(), LoweringError> {
             use super::super::selected_continuations::CompletedCleanupKind;
             let selected = &completion.region;
             let paths = match &completion.kind {
@@ -1170,45 +1300,37 @@ pub(crate) mod affine_cleanup {
                     })
                     .collect(),
             };
-            let position = frontier
-                .iter()
-                .position(|root| root.place == selected.place)
-                .unwrap_or_else(|| {
-                    frontier.push(MovedRoot {
-                        place: selected.place,
-                        paths: BTreeSet::new(),
-                    });
-                    frontier.len() - 1
-                });
-            let root = &mut frontier[position];
+            let root = frontier.root_or_open(selected.place)?;
             for path in paths {
                 if !root.paths.iter().any(|earlier| path.starts_with(earlier)) {
                     root.paths.retain(|earlier| !earlier.starts_with(&path));
                     root.paths.insert(path);
                 }
             }
-            frontier.sort_by_key(|root| root.place);
+            Ok(())
         }
 
-        fn restore_path(frontier: &mut Frontier, place: PlaceId, path: &[StructuralPathSegment]) {
-            let Some(position) = frontier.iter().position(|root| root.place == place) else {
-                return;
+        fn restore_path(
+            frontier: &mut Frontier,
+            place: PlaceId,
+            path: &[StructuralPathSegment],
+        ) -> Result<(), LoweringError> {
+            let Some(root) = frontier.root_mut(place)? else {
+                return Ok(());
             };
-            if path.is_empty() {
-                frontier.remove(position);
-                return;
+            if !path.is_empty() {
+                root.paths.retain(|hole| {
+                    hole.len() < path.len()
+                        || !terminal_semantics::structural_paths_select_same_location(
+                            path,
+                            &hole[..path.len()],
+                        )
+                });
             }
-            let root = &mut frontier[position];
-            root.paths.retain(|hole| {
-                hole.len() < path.len()
-                    || !terminal_semantics::structural_paths_select_same_location(
-                        path,
-                        &hole[..path.len()],
-                    )
-            });
-            if root.paths.is_empty() {
-                frontier.remove(position);
+            if path.is_empty() || root.paths.is_empty() {
+                frontier.close(place);
             }
+            Ok(())
         }
 
         fn residuals(
@@ -1259,16 +1381,17 @@ pub(crate) mod affine_cleanup {
                     require_available(frontier, cleanup.place, &cleanup.path)?;
                 }
                 let first_new_action = actions.len();
+                // Every cleanup action ends or reshapes the region of the root it
+                // names, so each one first has to know that root's moved paths.
+                let moved = frontier.root(action.place())?;
                 match action {
-                    TerminalAffineCleanupAction::DiscardRoot(place)
-                        if frontier.iter().any(|root| root.place == *place) =>
-                    {
+                    TerminalAffineCleanupAction::DiscardRoot(place) if moved.is_some() => {
                         if !placeholders.insert(*place) {
                             return unsupported("duplicate scheduled whole cleanup");
                         }
-                        let root = frontier.iter().find(|root| root.place == *place).ok_or(
-                            LoweringError::Unsupported("scheduled partial cleanup root is absent"),
-                        )?;
+                        let root = moved.ok_or(LoweringError::Unsupported(
+                            "scheduled partial cleanup root is absent",
+                        ))?;
                         let structural_type = declared_root_type(roots, *place)?;
                         let selected = StructuralAffineDiscard {
                             place: *place,
@@ -1283,20 +1406,15 @@ pub(crate) mod affine_cleanup {
                         actions.push(TerminalAffineCleanupAction::RetireHome(*place));
                     }
                     TerminalAffineCleanupAction::DiscardResidual(selected)
-                        if frontier.iter().any(|root| {
-                            root.place == selected.place
-                                && root.paths.iter().any(|path| {
-                                    path.len() > selected.path.len()
-                                        && path.starts_with(&selected.path)
-                                })
+                        if moved.is_some_and(|root| {
+                            root.paths.iter().any(|path| {
+                                path.len() > selected.path.len() && path.starts_with(&selected.path)
+                            })
                         }) =>
                     {
-                        let root = frontier
-                            .iter()
-                            .find(|root| root.place == selected.place)
-                            .ok_or(LoweringError::Unsupported(
-                                "scheduled partial cleanup root is absent",
-                            ))?;
+                        let root = moved.ok_or(LoweringError::Unsupported(
+                            "scheduled partial cleanup root is absent",
+                        ))?;
                         actions.extend(
                             residuals(root, selected, types)?
                                 .into_iter()
@@ -1309,13 +1427,13 @@ pub(crate) mod affine_cleanup {
                     match completed {
                         TerminalAffineCleanupAction::RetireHome(place)
                         | TerminalAffineCleanupAction::DiscardRoot(place) => {
-                            frontier.retain(|root| root.place != *place);
+                            frontier.close(*place);
                         }
                         TerminalAffineCleanupAction::InvokeNominal(cleanup)
                             if !cleanup.retains_descendants =>
                         {
                             if cleanup.path.is_empty() {
-                                frontier.retain(|root| root.place != cleanup.place);
+                                frontier.close(cleanup.place);
                             } else {
                                 remove_path(frontier, cleanup.place, &cleanup.path)?;
                             }
@@ -1327,9 +1445,7 @@ pub(crate) mod affine_cleanup {
                     }
                 }
                 if let TerminalAffineCleanupAction::DiscardResidual(selected) = action
-                    && let Some(root) = frontier
-                        .iter_mut()
-                        .find(|root| root.place == selected.place)
+                    && let Some(root) = frontier.root_mut(selected.place)?
                 {
                     root.paths.retain(|path| !path.starts_with(&selected.path));
                     root.paths.insert(selected.path.clone());

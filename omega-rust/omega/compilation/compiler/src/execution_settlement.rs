@@ -291,6 +291,13 @@ pub(crate) fn check_terminal_task_activations(
 pub(crate) struct SelectedCompileOutcome {
     pub(crate) result: Result<SelectedProductTarget, CompileFailure>,
     pub(crate) independent_components: compilation_products::IndependentComponentDiscovery,
+    // Separately selected test roots over the same checked source, in roster
+    // order (wiki/spec/build/testing.md). Empty when no enabled group exists.
+    pub(crate) tests: Vec<(
+        compilation_products::TestRootIdentity,
+        Result<SelectedProductTarget, CompileFailure>,
+    )>,
+    pub(crate) test_notes: Vec<compilation_products::TestRosterEntry>,
 }
 
 impl SelectedCompileOutcome {
@@ -396,7 +403,6 @@ fn prepare_target_provider_selection(
     deployment: Result<(), Vec<Diagnostic>>,
     timings: &mut CompileTimings,
 ) -> Result<provider_planning::CheckedProviderSelection, Vec<Diagnostic>> {
-    let build_config = &source.computed_build_config.config;
     let code = crate::terminal::retain_calling_program(source, timings)?;
     let calling = provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
@@ -409,7 +415,6 @@ fn prepare_target_provider_selection(
         selected_target_profile,
         package_inputs,
         prepared_providers,
-        &build_config.accepted_component_assumption_digests(),
         boundary_calling_plan_realizations,
         code,
     )
@@ -516,5 +521,7 @@ pub(crate) fn select_product_target(
             .and_then(|prepared| SelectedProductTarget::select(source, prepared))
             .map_err(CompileFailure::from),
         independent_components: source.computed_build_config.independent_components(),
+        tests: Vec::new(),
+        test_notes: Vec::new(),
     }
 }

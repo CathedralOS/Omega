@@ -794,12 +794,7 @@ pass/build/captured_named_input_required_output checked 4189ms published:files/n
 pass/build/captured_source_generated_constant checked 7215ms published:files/generated.omg @6e42425cd720
 pass/build/checked_context_core_identity_exit rejected 475ms interpreter:unchecked @6e42425cd720
 	Terminal Build: Execution(ScalarApplicationEvaluation("ordinary execution requires admission of retained scalar conditions"))
-pass/build/component_assumption_acceptance checked 2006ms @6e42425cd720
-pass/build/component_assumption_mechanism checked 1858ms @6e42425cd720
 pass/build/component_assumption_policy_accepted checked 2092ms @6e42425cd720
-pass/build/component_assumption_policy_changed checked 2171ms @6e42425cd720
-pass/build/component_assumption_policy_missing checked 2112ms @6e42425cd720
-pass/build/component_assumption_reborrow checked 1884ms @6e42425cd720
 pass/build/component_assumption_user_declaration checked 1883ms @6e42425cd720
 pass/build/component_declaration_scalar_conditions_exit built 2156ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/build/conditional_root_binding built 3895ms terminal-runtime.build:unrequested terminal-inspections:match @6e42425cd720

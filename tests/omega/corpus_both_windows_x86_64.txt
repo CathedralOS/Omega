@@ -591,12 +591,7 @@ pass/build/captured_named_input_required_output checked 5487ms published:files/n
 pass/build/captured_source_generated_constant checked 6219ms published:files/generated.omg @5f668826adf3+wt
 pass/build/checked_context_core_identity_exit rejected 143ms interpreter:unchecked @5f668826adf3+wt
 	closed conformance `NativePlacement satisfies PlacementLifecycle` member `initialize` does not identify one exact inherited overload; qualify the declaring trait and match the complete parameter/result-domain signature
-pass/build/component_assumption_acceptance checked 2319ms @5f668826adf3+wt
-pass/build/component_assumption_mechanism checked 2638ms @5f668826adf3+wt
 pass/build/component_assumption_policy_accepted checked 2546ms @5f668826adf3+wt
-pass/build/component_assumption_policy_changed checked 2582ms @5f668826adf3+wt
-pass/build/component_assumption_policy_missing checked 2977ms @5f668826adf3+wt
-pass/build/component_assumption_reborrow checked 3244ms @5f668826adf3+wt
 pass/build/component_assumption_user_declaration checked 3109ms @5f668826adf3+wt
 pass/build/conditional_root_binding built 2970ms @5f668826adf3+wt
 pass/build/const_index_dependency_order_exit rejected 250ms interpreter:unchecked @5f668826adf3+wt
@@ -3946,24 +3941,15 @@ pass/facts/open_index_distributivity_through_other_machine_exit built 8222ms exi
 pass/facts/open_index_distributivity_through_other_state_exit built 7918ms exit:0 interpreter-exit:0 interpreter:agrees @af2cbd5e6837
 pass/facts/open_index_distributivity_through_parameter_exit built 8411ms exit:0 interpreter-exit:0 interpreter:agrees @af2cbd5e6837
 pass/facts/open_index_distributivity_through_target_body_exit built 7988ms exit:0 interpreter-exit:0 interpreter:agrees @af2cbd5e6837
-pass/facts/open_record_const_implementation_through_call_result_exit rejected 3500ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_const_name_exit rejected 449ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_field_exit rejected 3359ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_local_exit rejected 2508ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_match_join_exit rejected 2467ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_other_machine_exit rejected 2417ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_other_state_exit rejected 2235ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_parameter_exit rejected 1918ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_target_body_exit rejected 2015ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
+pass/facts/open_record_const_implementation_through_call_result_exit built 35162ms exit:0 interpreter-exit:0 interpreter:agrees @a793933cb958
+pass/facts/open_record_const_implementation_through_const_name_exit built 33774ms exit:0 interpreter-exit:0 interpreter:agrees @a793933cb958
+pass/facts/open_record_const_implementation_through_field_exit built 31733ms exit:0 interpreter-exit:0 interpreter:agrees @a793933cb958
+pass/facts/open_record_const_implementation_through_local_exit built 31218ms exit:0 interpreter-exit:0 interpreter:agrees @a793933cb958
+pass/facts/open_record_const_implementation_through_match_join_exit built 26631ms exit:0 interpreter-exit:0 interpreter:agrees @a793933cb958
+pass/facts/open_record_const_implementation_through_other_machine_exit built 30459ms exit:0 interpreter-exit:0 interpreter:agrees @a793933cb958
+pass/facts/open_record_const_implementation_through_other_state_exit built 20558ms exit:0 interpreter-exit:0 interpreter:agrees @a793933cb958
+pass/facts/open_record_const_implementation_through_parameter_exit built 24179ms exit:0 interpreter-exit:0 interpreter:agrees @a793933cb958
+pass/facts/open_record_const_implementation_through_target_body_exit built 23046ms exit:0 interpreter-exit:0 interpreter:agrees @a793933cb958
 pass/facts/outcome_structural_evidence_through_call_result_exit built 2547ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5f668826adf3+wt
 pass/facts/outcome_structural_evidence_through_const_name_exit built 2789ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5f668826adf3+wt
 pass/facts/outcome_structural_evidence_through_field_exit built 2713ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5f668826adf3+wt
@@ -7375,6 +7361,14 @@ run/arithmetic/fixed_integer_operand_after_pressure built 6922ms exit:70 stdout:
 run/arithmetic/fixed_integer_operand_join built 6303ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @5f668826adf3+wt
 run/arithmetic/float_structural_initializer_selection built 11795ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/arithmetic/pinned_dividend_across_console_calls built 7878ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5f668826adf3+wt
+run/arithmetic/policy_operator_division_matches_policy_domains built 160659ms exit:70 interpreter-exit:70 interpreter:agrees @279079cabde3
+run/arithmetic/policy_operator_exact_result_fact built 262299ms exit:70 interpreter-exit:70 interpreter:agrees @bbdd9fe6f61f
+run/arithmetic/policy_operator_minimum_quotient_traps built 45128ms exit:-1073741795 interpreter:trapped @c08c4d97d44d
+run/arithmetic/policy_operator_minimum_remainder_traps built 42557ms exit:-1073741795 interpreter:trapped @c08c4d97d44d
+run/arithmetic/policy_operator_shift_count_traps built 118756ms exit:-1073741795 interpreter:trapped @f68e4a615c25
+run/arithmetic/policy_operator_target_body built 93188ms exit:70 interpreter-exit:70 interpreter:agrees @f68e4a615c25
+run/arithmetic/policy_operator_zero_divisor_traps built 44851ms exit:-1073741795 interpreter:trapped @c08c4d97d44d
+run/arithmetic/policy_operators_match_policy_domains built 84264ms exit:70 interpreter-exit:70 interpreter:agrees @a7dc8e823f6e
 run/borrows/affine_produced_membership_move built 3298ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/borrows/call_result_mutable_window_field_exit rejected 10509ms interpreter:unchecked @5f668826adf3+wt
 	cannot plan contextual call cleanup against the executable hook roster: machine `Main::main`, state `call_length`, statement 0, call 0: completed operand `feature_pair(&mut main.measurements[0..2], 0.0)` (Handle { arena_index: 8960, generation: 1 }) has no selected normal death
@@ -7445,7 +7439,7 @@ run/calls/scalar_guard_after_borrow_parameters_exit built 12643ms exit:0 interpr
 run/calls/selected_provider_range_arguments rejected 18906ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:failed @5f668826adf3+wt
 	artifact control retargeted boundary with copied declaration refused for another reason: MalformedStructuralFoundation("checked boundary declaration differs from its exact declaration owner")
 run/calls/static_boundary_terminal_arguments built 3592ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-run/calls/table_report_call_survival built 17493ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5f668826adf3+wt
+run/calls/table_report_call_survival built 62168ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @92e9c0cfab0b
 run/contained_health_loop_command_branch built 17538ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5f668826adf3+wt
 run/contracts/captured_bound_unused_mutation built 6299ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/contracts/qualified_result_forwarding_exit built 14052ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -7457,6 +7451,7 @@ run/domains/checked_provider_issued_field built 4860ms exit:0 interpreter-exit:0
 run/domains/checked_provider_issued_root built 4510ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/domains/completed_membership_after_earlier_guarantee built 4336ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/domains/current_record_predicate_captures built 2735ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+run/domains/domain_cast_accounting_exit built 23402ms exit:0 interpreter-exit:0 interpreter:agrees @92e9c0cfab0b
 run/domains/fixed_byte_array_content_observations_exit rejected 1974ms interpreter:unchecked @5f668826adf3+wt
 	cleanup effect dependency in `main` has no exact structural residual disposition in state `entry` at statement 7
 run/domains/fixed_byte_array_empty_observations_exit rejected 2003ms interpreter:unchecked @5f668826adf3+wt
@@ -7525,6 +7520,7 @@ run/domains/structural_qualification_cast_transitions built 2623ms exit:0 interp
 run/domains/structural_qualification_cast_values built 2317ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/domains/structural_qualification_nested_values built 2362ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/domains/vacuous_tag_call_arguments built 2972ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+run/domains/wide_array_literal_membership_exit built 5599ms exit:0 interpreter-exit:0 interpreter:agrees @4c0bff834db8
 run/domains/zero_field_call_formation_exit built 2381ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/dyn_finite_family_runtime_dispatch built 7048ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 run/facts/double_indexed_rmw_through_call_result_traps built 4919ms exit:-1073741795 interpreter:trapped @5f668826adf3+wt

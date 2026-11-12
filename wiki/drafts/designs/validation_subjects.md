@@ -65,7 +65,10 @@ package is the "real" one.
    dependency graph with type and data references, which the Q2 audit did not
    traverse.
 4. Add `Build::validate`, the workspace default, and full validation of the
-   admitted revision in install, update and audit.
+   admitted revision in install, update and audit. How `Build::validate`
+   names a dependency, and how a bundled library becomes a subject, waits on
+   the owner question for `validation-subjects` (`Build::validate` naming) in
+   [OWNER_QUESTIONS.md](../../../OWNER_QUESTIONS.md).
 5. Run the acceptance cases, measure which bodies are checked, including
    preparation and update steps, then switch the consumer default.
 
