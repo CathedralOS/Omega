@@ -18,8 +18,20 @@ done
 for w in "${WITNESSES[@]}"; do
   SAFE="${w//\//_}"
   if [[ -f "$OUT_DIR/${SAFE}.json" ]]; then
-    st=$(python3 -c "import json; print(json.load(open('$OUT_DIR/${SAFE}.json')).get('status',''))")
-    if [[ "$st" == bisected || "$st" == never_good_since_fixture_add ]]; then
+    if python3 - "$OUT_DIR/${SAFE}.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+PIN = "51e8c45c793007f211d0d9baee7de16767172444"
+LEDGER_ONLY = {"f3612364ffbb9489d7be1409397df6867fcbebc6"}
+j = json.load(open(p))
+st = j.get("status", "")
+brk = (j.get("breaking_commit") or "")[:12]
+if st in ("bisected", "never_good_since_fixture_add") and brk not in (PIN[:12],) and brk[:12] not in {x[:12] for x in LEDGER_ONLY}:
+    raise SystemExit(0)
+raise SystemExit(1)
+PY
+    then
+      st=$(python3 -c "import json; print(json.load(open('$OUT_DIR/${SAFE}.json')).get('status',''))")
       echo "=== skip $w (already $st) ==="
       continue
     fi

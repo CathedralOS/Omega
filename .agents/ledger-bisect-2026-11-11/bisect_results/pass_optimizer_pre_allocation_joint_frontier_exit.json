@@ -1,8 +1,0 @@
-{
-  "witness": "pass/optimizer/pre_allocation_joint_frontier_exit",
-  "breaking_commit": "f3612364ffbb9489d7be1409397df6867fcbebc6",
-  "pr": "2228",
-  "mechanism": "tests: record four case-payload rows that already check (#2228)",
-  "status": "bisected",
-  "rc": 0
-}
