@@ -40,7 +40,7 @@ Members: `fail/generics/grouped_decimal_const_suffix_rejected`
 | 1 | fail wrong reason | const parameter `Value` of `Indexed` has an ineligible index type: indices require finite structural values wi | `fail/constants/predicate_constant_generic_static_index_fence` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
 Members: `fail/constants/predicate_constant_generic_static_index_fence`
 
-| 1 | fail wrong reason | division by zero in closed const argument: the divisor is provably zero, which always traps at runtime. Remove | `fail/generics/grouped_decimal_const_zero_division_rejected` | `` |  |  | pending |  |
+| 1 | fail wrong reason | division by zero in closed const argument: the divisor is provably zero, which always traps at runtime. Remove | `fail/generics/grouped_decimal_const_zero_division_rejected` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
 Members: `fail/generics/grouped_decimal_const_zero_division_rejected`
 
 | 1 | fail wrong reason | indexed-domain selected constant has canonical type `named(name(nominal\\(package-owner\\(32:2a7c1be4c2f9cc4e1 | `fail/modules/packaged_structured_const_wrong_carrier` | `` |  |  | pending |  |
