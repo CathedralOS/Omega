@@ -8,8 +8,10 @@ import shutil
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
-PIN_LEDGER = REPO / "tests/omega/corpus_outcomes.txt"
+import os
+
+REPO = Path(os.environ["OMEGA_REPO"]) if os.environ.get("OMEGA_REPO") else Path(__file__).resolve().parents[3]
+PIN_LEDGER = Path(os.environ["PIN_LEDGER"]) if os.environ.get("PIN_LEDGER") else REPO / "tests/omega/corpus_outcomes.txt"
 TOOLS = Path(__file__).resolve().parent
 
 
