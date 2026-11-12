@@ -13017,6 +13017,11 @@ pub(crate) mod exit_predicates {
         {
             return false;
         }
+        static TRACE_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let trace = std::env::var("OMEGA_TRACE_EXIT_PREDICATE")
+            .ok()
+            .is_some_and(|filter| !filter.is_empty() && machine.name.contains(&filter))
+            && TRACE_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 16;
         let mut query = ExitPredicate {
             site: StructuralPrefixSite {
                 state: state.symbol,
@@ -13034,11 +13039,19 @@ pub(crate) mod exit_predicates {
             ranks,
             seen: false,
             proven: true,
+            trace,
         };
-        super::structural_prefix::observe_runtime_state_prefix(program, machine, state, &mut query)
-            .is_some()
-            && query.seen
-            && query.proven
+        let formed = super::structural_prefix::observe_runtime_state_prefix(
+            program, machine, state, &mut query,
+        )
+        .is_some();
+        if trace {
+            eprintln!(
+                "EXIT_PREDICATE machine={} formed={formed} seen={} proven={}",
+                machine.name, query.seen, query.proven
+            );
+        }
+        formed && query.seen && query.proven
     }
 
     pub(crate) struct ExitPredicate<'a> {
@@ -13049,6 +13062,7 @@ pub(crate) mod exit_predicates {
         ranks: &'a checked_trees::CheckedRankArrivalPlan,
         seen: bool,
         proven: bool,
+        trace: bool,
     }
 
     impl StructuralPrefixVisitor for ExitPredicate<'_> {
@@ -13065,15 +13079,32 @@ pub(crate) mod exit_predicates {
         }
 
         fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
-            self.proven &= self.proves_observation(observation).unwrap_or(false);
+            let result = self.proves_observation(observation);
+            if self.trace {
+                eprintln!("EXIT_OBSERVATION result={result:?}");
+            }
+            self.proven &= result.unwrap_or(false);
         }
     }
 
     impl ExitPredicate<'_> {
         fn proves_observation(&self, observation: PrefixObservation<'_, '_>) -> Option<bool> {
             let (program, machine, state, mut judge, environment) = observation;
+            macro_rules! require {
+                ($value:expr, $reason:expr) => {
+                    match $value {
+                        Some(value) => value,
+                        None => {
+                            if self.trace {
+                                eprintln!("EXIT_GATE machine={} refusal={}", machine.name, $reason);
+                            }
+                            return None;
+                        }
+                    }
+                };
+            }
             judge.retain_runtime_induction(self.ranks);
-            let entry = program.machine_states(machine).first()?;
+            let entry = require!(program.machine_states(machine).first(), "no entry state");
             let mut parameters = Vec::new();
             for (formal, parameter) in self
                 .contract
@@ -13096,6 +13127,12 @@ pub(crate) mod exit_predicates {
                                 parameter.type_reference,
                             )))
                 {
+                    if self.trace {
+                        eprintln!(
+                            "EXIT_GATE machine={} refusal=parameter declaration correspondence formal={formal:?} actual={parameter:?}",
+                            machine.name
+                        );
+                    }
                     return None;
                 }
                 if !crate::value_custody::source_liveness::expression_uses_symbol(
@@ -13105,11 +13142,16 @@ pub(crate) mod exit_predicates {
                 ) {
                     continue;
                 }
-                let (_, current) = self
-                    .origins
-                    .iter()
-                    .find(|(original, _)| *original == parameter.symbol)?;
-                let current = program.state_parameter_by_symbol(state, *current)?;
+                let (_, current) = require!(
+                    self.origins
+                        .iter()
+                        .find(|(original, _)| *original == parameter.symbol),
+                    "no exact parameter origin"
+                );
+                let current = require!(
+                    program.state_parameter_by_symbol(state, *current),
+                    "no current state parameter"
+                );
                 if parameter.is_mutable
                     || current.is_mutable
                     || parameter.is_const
@@ -13117,20 +13159,43 @@ pub(crate) mod exit_predicates {
                     || crate::reference_shell(program, parameter.type_reference).is_some()
                     || current.type_reference != parameter.type_reference
                 {
+                    if self.trace {
+                        eprintln!(
+                            "EXIT_GATE machine={} refusal=parameter snapshot eligibility entry={parameter:?} current={current:?}",
+                            machine.name
+                        );
+                    }
                     return None;
                 }
-                let value = judge.captured_parameter_projection(
-                    current.symbol,
-                    &[],
-                    ContentPlaceVersion::Current,
-                )?;
+                let value = require!(
+                    judge.captured_parameter_projection(
+                        current.symbol,
+                        &[],
+                        ContentPlaceVersion::Current,
+                    ),
+                    "no captured parameter projection"
+                );
                 parameters.push((formal.symbol, value));
+            }
+            if self.trace {
+                eprintln!(
+                    "EXIT_PARAMETERS machine={} bindings={parameters:?} returned={:?}",
+                    machine.name, self.returned
+                );
             }
             let paths = judge.normal_return_paths(
                 self.returned,
                 environment,
                 (machine, state, state.return_type),
-            )?;
+            );
+            if self.trace {
+                eprintln!(
+                    "EXIT_PATHS machine={} paths={:?}",
+                    machine.name,
+                    paths.as_ref().map(Vec::len)
+                );
+            }
+            let paths = paths?;
             if paths.is_empty() {
                 return None;
             }
@@ -13144,8 +13209,19 @@ pub(crate) mod exit_predicates {
                     self.contract.type_bindings,
                     Some(&path.value),
                     0,
-                )?;
-                let result = path.judge.judge_observed_predicate(predicate, 0);
+                );
+                if self.trace {
+                    eprintln!(
+                        "EXIT_BOUND machine={} value={:?} predicate={predicate:?}",
+                        machine.name, path.value
+                    );
+                }
+                let predicate = predicate?;
+                let result = path.judge.judge_observed_predicate(predicate.clone(), 0);
+                if self.trace {
+                    eprintln!("EXIT_JUDGMENT machine={} result={result:?}", machine.name);
+                    path.judge.trace_exit_identity(&predicate);
+                }
                 if !matches!(result, StructuralJudgment::Proven) {
                     return Some(false);
                 }
@@ -49705,6 +49781,102 @@ pub(crate) mod structural_judgment {
             ) -> StructuralJudgment {
                 let mut remaining = IDENTITY_QUERY_WORK_LIMIT;
                 self.judge_identity_with_budget(left, right, depth, &mut remaining)
+            }
+
+            pub(crate) fn trace_exit_identity(&self, predicate: &StructuralTerm) {
+                let StructuralTerm::Identity { left, right, .. } = predicate.semantic_value()
+                else {
+                    eprintln!("EXIT_IDENTITY no explicit identity predicate");
+                    return;
+                };
+                fn shape(value: &StructuralTerm) -> String {
+                    let text = match value {
+                        StructuralTerm::ObservedValue {
+                            observed_type,
+                            value,
+                            descriptor,
+                        } => {
+                            format!(
+                                "Observed(type={observed_type:?}, descriptor={descriptor:?}, value={value:?})"
+                            )
+                        }
+                        StructuralTerm::Application {
+                            result_type,
+                            target,
+                            selections,
+                            arguments,
+                            ..
+                        } => {
+                            format!(
+                                "Application(type={result_type:?}, target={target:?}, selections={selections:?}, arguments={arguments:?})"
+                            )
+                        }
+                        other => format!("{other:?}"),
+                    };
+                    text.chars().take(2400).collect()
+                }
+                let left = (**left).clone();
+                let right = (**right).clone();
+                let mut remaining = IDENTITY_QUERY_WORK_LIMIT;
+                let availability = [
+                    self.identity_value_is_available(&left),
+                    self.identity_value_is_available(&right),
+                ];
+                let direct = self.judge_data_identity(left.clone(), right.clone(), 1);
+                let original =
+                    self.exact_identity_congruence(left.clone(), right.clone(), 1, &mut remaining);
+                eprintln!(
+                    "EXIT_IDENTITY availability={availability:?} direct={direct:?} original={original:?} remaining={remaining} left={} right={}",
+                    shape(&left),
+                    shape(&right)
+                );
+                let mut left_forms_budget = 64;
+                let mut right_forms_budget = 64;
+                let left_forms = self.data_identity_forms(left.clone(), 1, &mut left_forms_budget);
+                let right_forms =
+                    self.data_identity_forms(right.clone(), 1, &mut right_forms_budget);
+                remaining = IDENTITY_QUERY_WORK_LIMIT;
+                let before = self.typed_identity_path(&left_forms, &right_forms, 0, &mut remaining);
+                eprintln!(
+                    "EXIT_IDENTITY_FORMS counts={}/{} budgets={left_forms_budget}/{right_forms_budget} before_normalization={before} remaining={remaining}",
+                    left_forms.len(),
+                    right_forms.len()
+                );
+                for (side, forms) in [("left", &left_forms), ("right", &right_forms)] {
+                    for (index, value) in forms.iter().take(8).enumerate() {
+                        eprintln!(
+                            "EXIT_IDENTITY_FORM side={side} index={index} available={} value={}",
+                            self.identity_value_is_available(value),
+                            shape(value)
+                        );
+                    }
+                }
+                remaining = IDENTITY_QUERY_WORK_LIMIT;
+                match self.normalize_identity_values([left, right], 1, &mut remaining) {
+                    Err(reason) => {
+                        eprintln!("EXIT_IDENTITY_NORMALIZED refusal={reason} remaining={remaining}")
+                    }
+                    Ok(IdentityNormalization::Proven) => {
+                        eprintln!("EXIT_IDENTITY_NORMALIZED proven remaining={remaining}")
+                    }
+                    Ok(IdentityNormalization::Values([left, right])) => {
+                        let congruence = self.exact_identity_congruence(
+                            left.clone(),
+                            right.clone(),
+                            1,
+                            &mut remaining,
+                        );
+                        eprintln!(
+                            "EXIT_IDENTITY_NORMALIZED congruence={congruence:?} remaining={remaining} left={} right={}",
+                            shape(&left),
+                            shape(&right)
+                        );
+                    }
+                }
+                eprintln!(
+                    "EXIT_IDENTITY_REPEATED result={:?}",
+                    self.judge_observed_predicate(predicate.clone(), 0)
+                );
             }
 
             fn judge_identity_with_budget(
