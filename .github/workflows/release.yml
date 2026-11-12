@@ -29,7 +29,7 @@ jobs:
       tag: ${{ steps.prepare.outputs.tag }}
       version: ${{ steps.prepare.outputs.version }}
       commit: ${{ steps.prepare.outputs.commit }}
-      matrix: ${{ steps.prepare.outputs.matrix }}
+      matrix: ${{ steps.runners.outputs.matrix }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -44,6 +44,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python tools/release/github_release.py prepare
+      - name: Replace the retired macOS runner
+        id: runners
+        env:
+          MATRIX: ${{ steps.prepare.outputs.matrix }}
+        run: |
+          # The pinned source names macos-14, which GitHub no longer starts
+          # (its jobs are cancelled at once). macos-15 is the same arm64 host
+          # target; only the runner label changes, never the release source.
+          echo "matrix=${MATRIX//\"macos-14\"/\"macos-15\"}" >> "$GITHUB_OUTPUT"
 
   build:
     needs: prepare
