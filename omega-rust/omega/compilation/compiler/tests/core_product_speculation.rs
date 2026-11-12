@@ -79,3 +79,15 @@ fn refused_core_product_speculation_publishes_the_adopted_bytes() {
         "repeat compiles differ"
     );
 }
+
+#[test]
+fn source_compile_has_no_core_provider_defaults_activation() {
+    let before = artifacts::compile_timings::counters::provider_defaults_execution_count();
+    let bytes = terminal_bytes("no-core-defaults");
+    assert!(!bytes.is_empty(), "the program publishes its Psi artifact");
+    assert_eq!(
+        artifacts::compile_timings::counters::provider_defaults_execution_count() - before,
+        0,
+        "canonical float realizations need no core provider-default Build activation"
+    );
+}
