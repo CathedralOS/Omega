@@ -9,6 +9,7 @@ if [[ -d /tmp/ledger-bisect-tools ]]; then
 fi
 LOG="${3:-$ROOT/.agents/ledger-bisect-2026-11-11/work/find_good_${WITNESS//\//_}.log}"
 cd "$ROOT"
+export REPO_ROOT="$ROOT"
 export BISECT_WITNESS="$WITNESS"
 "$DIR/prepare_bisect_pin.sh" "$WITNESS" "$PIN" "$ROOT/.agents/ledger-bisect-2026-11-11/work/pin_observed.txt"
 mapfile -t COMMITS < <(git rev-list --first-parent "$PIN")
