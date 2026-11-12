@@ -88,6 +88,10 @@ outcome changes, not the number of fixes or files. Main checks the claim after
 merge. Work that turns no existing row green is allowed but must say what it unlocks:
 `Gate: <release-gate> | red rows: 0 | unlocks: <rows or capability>`.
 
+The same PRs carry one line saying what proved the change:
+`Proof: <tests on the change> | blast: <n> fixtures | <clean, or what the rows that moved turned out to be>`.
+`check-rules` refuses a blast larger than the corpus gate itself allows.
+
 ## Law of completion
 
 We are capable of taking an uncompilable sample through every necessary compiler
@@ -249,8 +253,11 @@ mbx xtask check-boundary
 The only pre-merge check is `admission` (rules and formatting, about a
 minute); `main` is checked after every merge.
 
-Never run an unfiltered corpus sweep locally (`mbx xtask corpus` enforces a
-200-fixture local selection budget).
+Name the fixtures your change targets, ten at most: `mbx xtask corpus` adds the
+ring around them (twins and neighbours by name), prints each record as it
+finishes, and has no time caps. A clean blast ends pre-merge testing; one that
+is not clean is an investigation of those rows at the base commit, never a wider
+run. A sweep (`--sweep`) is a background checkpoint, not a pre-merge step.
 
 Builds, corpus runs and compiled programs from every local agent share one
 machine. Before the first build on a host you share with its owner or with

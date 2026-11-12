@@ -100,10 +100,20 @@ the finite `tests/omega` facts fixture, is a photograph of that object.
 Changing the fact, the bound, or the operation so a place passes is repainting
 that photograph: a different object, and a green check on it is not done.
 
-1. **Run one focused validation ([Law of completion](../../../AGENTS.md#law-of-completion)):**
-   - Run affected crate unit tests and one `cargo xtask corpus --filter` over
-     the rows and samples this change targets. No broad sweeps or before/after
-     comparisons against main; the nightly sweep covers main afterwards.
+1. **Prove what you built, then the ring around it ([Law of completion](../../../AGENTS.md#law-of-completion)):**
+   - Prove the change itself: the unit tests of the crates you touched.
+   - Run `cargo xtask corpus --filter <fixtures>` naming only the fixtures
+     this change targets, ten at most. You already know which they are. The
+     gate adds the ring around them (each one's twin in the other tiers and
+     its neighbours by name) and prints every record as it finishes.
+   - A clean blast ends pre-merge testing. Land.
+   - A blast that is not clean is an investigation of those rows: run the
+     command the gate prints, the same fixtures at the base commit, to learn
+     whether your change moved them. Never widen the run.
+   - A full run is a checkpoint (`--sweep`, in the background, on request or
+     nightly), not a step toward landing one change.
+   - Put the result in the PR body: `Proof: <tests on the change> | blast: <n>
+     fixtures | <clean, or what the rows that moved turned out to be>`.
 2. **Leave the ledger alone:** Do not run `corpus --record` or edit
    `tests/omega/corpus_outcomes.txt`; the post-merge check writes it. Ensure no
    leftover `omega.lock` or `build/` directories sit inside `tests/omega/`

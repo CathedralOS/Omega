@@ -156,7 +156,7 @@ goldens='tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.t
 # produces timeouts that look like recorded evidence.
 before=$(git hash-object $goldens 2>/dev/null | tr '\n' ' ')
 recording=1
-record_output=$(OMEGA_CORPUS_JOBS=${OMEGA_CORPUS_JOBS:-3} OMEGA_CORPUS_FIXTURE_SECS=${OMEGA_CORPUS_FIXTURE_SECS:-900} \
+record_output=$(OMEGA_CORPUS_JOBS=${OMEGA_CORPUS_JOBS:-3} \
   python3 tools/corpus_gate.py --filter "$filter" $legs --record 2>&1)
 gate_status=$?
 printf '%s\n' "$record_output" | tail -5
