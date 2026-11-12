@@ -747,7 +747,10 @@ fn an_unused_generic_machine_is_judged_as_its_own_check_form() {
     };
     // The closure (the empty entry) and the generic form, both accepted.
     assert_eq!(
-        parts("generic_machine", "machine keep<T>(value: u64) -> u64 { value }"),
+        parts(
+            "generic_machine",
+            "machine keep<T>(value: u64) -> u64 { value }"
+        ),
         [Verdict::Accepted(1), Verdict::Accepted(1)]
     );
     // One check per listed alternative; the body can overflow in each.
