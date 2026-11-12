@@ -480,9 +480,14 @@ fn evaluated_via_binding(
 ) -> Option<ProviderBinding> {
     let table = evaluated_bindings?;
     let row = table.exact(machine.symbol, clause.symbol, clause.requirement_symbol)?;
-    if selected_target != Some(row.evaluated().target().target_name())
-        || table.target() != Some(row.evaluated().target())
-    {
+    // The row must have been evaluated for the scope deriving it. A
+    // target-authored leaf is evaluated under its own target, so its row
+    // serves that target's scope whichever target this operation emits; an
+    // untargeted leaf is evaluated under the table's target only, so it
+    // cannot serve another scope. Requiring the table's target as well would
+    // drop every authored leaf from each declared but unemitted scope, such
+    // as windows_x86_64's `via` ProcessExit.
+    if selected_target != Some(row.evaluated().target().target_name()) {
         return None;
     }
     Some(row.evaluated().provider_binding())

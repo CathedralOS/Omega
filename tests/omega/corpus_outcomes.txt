@@ -2598,10 +2598,10 @@ fail/build/terminal_calling_policy_rejected_normal rejected 12265ms expected @09
 	calling policy rejected the boundary: normal Terminal rejection
 fail/build/terminal_calling_policy_unrelated_constant rejected 42791ms expected @48b63d6be857
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 5
-fail/build/uefi_context_cleanup_service_excluded rejected 17462ms expected @d25b32be7ef5
+fail/build/uefi_context_cleanup_service_excluded rejected 22015ms expected @427b27afa101
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: service `CleanupAudit` is reachable in Terminal machine 6, reached through machine `entry_start` (Terminal machine 1) at call to boundary `named-callable(path(nominal\\(package-owner\\(32:3200aad415c3a7f5b7804aab4d6dbedec95346b5922de07fbd3cf1f283d802e6\\)\\,path\\(CleanupAudit::finish\\)\\)),parameters(),result-dispatch())` (block 13, operation 17)
-fail/build/uefi_context_precondition_unestablished rejected 9238ms expected @2b6a974e0879
+fail/build/uefi_context_precondition_unestablished rejected 21334ms expected @427b27afa101
 	cannot prove requires contract for call selected_continuation from entry_start: entry_storage.phase == 17 (needs fact `context.phase == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/build/uefi_entry_counterfeit_roots rejected 16651ms expected @ccdb99ca2214
 	target root slot `uefi_x86_64::ProgramEntry` requires visible parameter 0 (image) to have exact type `Extent[in Granted]`, but entry machine `launch` declares `Extent[in Granted]`
@@ -2620,15 +2620,15 @@ fail/build/uefi_program_entry_missing_storage_roots rejected 3862ms expected @cc
 	target schema `ProgramStorageApplication` exposes exactly image and initial-storage roots, but `launch` declares 0 visible parameters
 fail/build/uefi_program_entry_wrong_calling_policy rejected 18493ms expected @ccdb99ca2214
 	calling policy accepted an invalid plan: value 0 uses a register from the wrong architecture
-fail/build/uefi_storage_entry_counterfeit rejected 9339ms expected @2b6a974e0879
+fail/build/uefi_storage_entry_counterfeit rejected 21596ms expected @427b27afa101
 	cannot prove requires contract for call forward_roots from FirmwareBootstrap::enter: image in Extent::Granted in state `enter`
 	cannot prove requires contract for call forward_roots from FirmwareBootstrap::enter: storage in Extent::Granted in state `enter`
-fail/build/uefi_storage_entry_reused_root rejected 8769ms expected @2b6a974e0879
+fail/build/uefi_storage_entry_reused_root rejected 19846ms expected @427b27afa101
 	cannot use `image` in machine `FirmwareBootstrap::enter` state `enter` (statement 3) after `image` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `image` first
 	cannot use `storage` in machine `FirmwareBootstrap::enter` state `enter` (statement 3) after `storage` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `storage` first
-fail/build/uefi_storage_entry_unadmitted_provider rejected 9726ms expected @2b6a974e0879
+fail/build/uefi_storage_entry_unadmitted_provider rejected 22108ms expected @427b27afa101
 	selected compiler intrinsic `<selected target>::UnadmittedEntryProvider::satisfies::ProgramStorageEntry` for Terminal boundary `named-callable(path(nominal\\(toolchain-owner\\,path\\(ProgramStorageEntry::enter\\)\\)),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(Extent\\\\\\)\\\\\\)\\)\\)\\,declared-domain\\(name\\(toolchain:product::Extent::Granted\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(Extent\\\\\\)\\\\\\)\\)\\)\\,declared-domain\\(name\\(toolchain:product::Extent::Granted\\)\\)\\)\\)),result-dispatch())` has no closed native catalog identity
-fail/build/uefi_storage_entry_undeclared_port rejected 9069ms expected @2b6a974e0879
+fail/build/uefi_storage_entry_undeclared_port rejected 19666ms expected @427b27afa101
 	machine `selected_continuation` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
 fail/build/unexecuted_service_audit_requires_boundary rejected 4628ms expected @4815ea579d91
 	Build declaration operand does not resolve to one visible product declaration of the required kind: `Ordinary` (BoundarySubject)
@@ -15906,7 +15906,8 @@ fail/layouts/demanded_partial_target_layout rejected 14219ms expected @ccdb99ca2
 	native execution input: TargetFamily("native storage extent demand: UnclosedTargetLayout(StructuralTypeId(27))")
 fail/layouts/direct_encoded_assignment_requires_fit rejected 1260ms expected @ccdb99ca2214
 	IntegerAt store in machine `Main::main` state `main` assignment requires a value proven to fit 8-bit signed storage
-fail/layouts/direct_unselected_ordinary_layout_contract checked 7649ms @11582c84f057
+fail/layouts/direct_unselected_ordinary_layout_contract rejected 9552ms expected @427b27afa101
+	constant checking: scalar predicate is false: requires contract for call demand_four from LinuxX8664LayoutDemandLayout::demand_layout: size_of() == 4
 fail/layouts/encoded_foreign_view_preserves_value_facts rejected 2145ms expected @911f6617ba9e
 	cannot establish assignment invariants: source storage interpretation is unavailable
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `ForeignByte` are not representation-compatible
@@ -16214,8 +16215,10 @@ fail/layouts/unselected_ordinary_provider_body_type rejected 11500ms expected @4
 	machine `LinuxX8664LayoutDemandLayout::demand_layout` state `demand_layout` local `impossible` stores a boolean into a `u64` local, which holds a numeric value
 fail/layouts/unselected_ordinary_provider_crash_ceiling rejected 33719ms expected @4815ea579d91
 	machine `LinuxX8664LayoutDemandLayout::demand_layout` has an uncovered Trap crash at statement 1; publish a same-cause `crashes` route whose guard covers this site
-fail/layouts/unselected_target_callback_layout_underflow checked 13243ms @1454826b5aed
-fail/layouts/unselected_target_helper_layout_underflow checked 12791ms @1454826b5aed
+fail/layouts/unselected_target_callback_layout_underflow rejected 7883ms expected regressed-from:checked @427b27afa101
+	constant checking: scalar range condition 0: bounds [-2, -2] lie outside [0, 18446744073709551615]
+fail/layouts/unselected_target_helper_layout_underflow rejected 6682ms expected regressed-from:checked @427b27afa101
+	constant checking: scalar range condition 0: bounds [-2, -2] lie outside [0, 18446744073709551615]
 fail/layouts/unselected_target_layout_contract rejected 4334ms unexpected @ccdb99ca2214
 	constant checking: scalar predicate is false: requires contract for call impossible from scoped: size_of() == 0
 fail/layouts/unused_generic_concrete_integer_at_requires_fit rejected 2574ms expected @ccdb99ca2214
@@ -20686,7 +20689,7 @@ pass/build/terminal_nested_input_contents checked 6990ms check-target:macos_arm6
 pass/build/terminal_private_callback_calling checked 194553ms check-target:macos_arm64 callback-body-controls:match terminal-inspections:match @dd80ecfff375
 pass/build/terminal_project_requests checked 6659ms check-target:macos_arm64 terminal-runtime.requests:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/terminal_result_custody checked 20950ms check-target:macos_arm64 terminal-runtime.shared:unrequested terminal-runtime.distinct:unrequested terminal-runtime.selected:unrequested terminal-runtime.empty:unrequested terminal-runtime.number:unrequested terminal-inspections:match @ccdb99ca2214
-pass/build/uefi_context_cleanup_entry checked 9300ms check-target:uefi_x86_64 @2b6a974e0879
+pass/build/uefi_context_cleanup_entry checked 24584ms check-target:uefi_x86_64 @427b27afa101
 pass/build/uefi_entry_schema_same_leaf rejected 19219ms check-target:uefi_x86_64 regressed-from:rejected+expected+check-target:uefi_x86_64+native-rejection:match @8ae4ed44ee3e
 	native artifact physical program entry failed: semantic entry requires an explicitly selected checked physical adapter
 pass/build/uefi_image_residence_observation checked 18769ms check-target:uefi_x86_64 @111da0c8f06a
@@ -20696,12 +20699,12 @@ pass/build/uefi_os_handoff_invocation rejected 23582ms check-target:uefi_x86_64 
 pass/build/uefi_private_entry_stack checked 18488ms check-target:uefi_x86_64 @ccdb99ca2214
 pass/build/uefi_provisioned_context_roots rejected 13136ms check-target:uefi_x86_64 @8ae4ed44ee3e
 	native artifact physical program entry failed: semantic entry requires an explicitly selected checked physical adapter
-pass/build/uefi_selected_context_entry checked 9239ms check-target:uefi_x86_64 @2b6a974e0879
-pass/build/uefi_selected_context_target_entry checked 9677ms check-target:uefi_x86_64 @2b6a974e0879
+pass/build/uefi_selected_context_entry checked 24786ms check-target:uefi_x86_64 @427b27afa101
+pass/build/uefi_selected_context_target_entry checked 25456ms check-target:uefi_x86_64 @427b27afa101
 pass/build/uefi_selected_physical_entry checked 16382ms check-target:uefi_x86_64 @ccdb99ca2214
-pass/build/uefi_selected_storage_entry checked 9811ms check-target:uefi_x86_64 @2b6a974e0879
-pass/build/uefi_selected_storage_target_entry checked 9689ms check-target:uefi_x86_64 @2b6a974e0879
-pass/build/uefi_suspended_context_service_exclusion checked 9838ms check-target:uefi_x86_64 @2b6a974e0879
+pass/build/uefi_selected_storage_entry checked 24465ms check-target:uefi_x86_64 @427b27afa101
+pass/build/uefi_selected_storage_target_entry checked 22457ms check-target:uefi_x86_64 @427b27afa101
+pass/build/uefi_suspended_context_service_exclusion checked 23509ms check-target:uefi_x86_64 @427b27afa101
 pass/build/unit_statement_preserves_prefix checked 3413ms check-target:macos_arm64 @ccdb99ca2214
 pass/calling/calling_count_boundaries_exit checked 21112ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/ambient_receiver_scalar_return_exit checked 17047ms check-target:macos_arm64 @ccdb99ca2214
@@ -27742,7 +27745,7 @@ pass/providers/module_named_operator_result_domain_satisfaction checked 96373ms 
 pass/providers/named_boundary_applied_issuance checked 2394ms @ccdb99ca2214
 pass/providers/named_boundary_issuance_ordinary_guarantee checked 2294ms @ccdb99ca2214
 pass/providers/named_boundary_mutable_issuance checked 2612ms @ccdb99ca2214
-pass/providers/named_foreign_record_result_contract checked 38756ms check-target:uefi_x86_64 @a4f3937d72ab
+pass/providers/named_foreign_record_result_contract checked 21516ms check-target:uefi_x86_64 @427b27afa101
 pass/providers/named_provider_namespace_independence_exit checked 3059ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/nested_binding_borrowed_call_exit checked 4311ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/occurrence_region_binding_exit checked 15753ms check-target:macos_arm64 @a4f3937d72ab
