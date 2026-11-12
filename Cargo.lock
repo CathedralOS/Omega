@@ -1875,6 +1875,7 @@ dependencies = [
  "arena",
  "backend-plan",
  "build-time-evaluation",
+ "build-time-values",
  "calling-conventions",
  "checked-trees",
  "component-description",

@@ -31,7 +31,6 @@ without reopening any source context.
 */
 
 use crate::provider_planning::entry_state;
-pub use build_time_evaluation::product_entries::RootBinding;
 use build_time_evaluation::product_entries::{
     validate_source_compatibility, visible_entry_parameters,
 };
@@ -39,6 +38,7 @@ use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::product_operand::ProductEntryDeclaration;
 use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
+pub use language_semantics::declaration_selection::RootBinding;
 pub use package_compilation::program_entry_semantic_binding_role;
 
 mod discovery;
