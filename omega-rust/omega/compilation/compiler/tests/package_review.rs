@@ -1688,10 +1688,9 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
     let context_path = scratch.join("native-binding-context.txt");
     std::fs::write(&context_path, &binding_context).unwrap();
     let source_selection = proposal.providers().selection.clone();
-    assert!(
-        proposal.providers().direct_boundary_leaves.is_empty(),
-        "a direct Build binding needs no forwarding machine or synthesized leaf"
-    );
+    // Std can retain unrelated direct imports. Keep these source-free records
+    // so the final reached registrar can still be checked for an extra stub.
+    let direct_boundary_leaves = proposal.providers().direct_boundary_leaves.clone();
     // Native completion now has only recovered semantic inputs, not a source
     // compiler that could supply a missing declaration or calling decision.
     drop(std::mem::take(prepared.session.compiler()));
@@ -1760,6 +1759,31 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
             .find(|declaration| declaration.id == boundary)
             .unwrap();
         let requirement = module.identities.text(declaration.identity).unwrap();
+        let source = &declaration
+            .declaration
+            .as_ref()
+            .expect("the executed registrar retains its checked declaration")
+            .source;
+        let semantic = module
+            .identities
+            .text(source.semantic_declaration)
+            .expect("the registrar has its canonical semantic declaration");
+        let callable = module
+            .identities
+            .text(source.callable)
+            .expect("the registrar has its complete checked callable");
+        assert!(
+            direct_boundary_leaves.iter().all(|leaf| {
+                !leaf
+                    .plan
+                    .rows
+                    .iter()
+                    .any(|row| leaf.plan.identities.text(row.requirement_identity) == requirement)
+                    && !(leaf.declaration_identity == semantic
+                        && leaf.callable_identity == callable)
+            }),
+            "the reached bare native registrar must not acquire a forwarding-machine leaf"
+        );
         let (plan, row) = source_selection
             .selected_requirement_row(requirement)
             .expect("the reached closed registrar must retain its exact native binding");
