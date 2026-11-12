@@ -561,10 +561,13 @@ pub(crate) mod seeded_continuation {
         ) -> Result<(Self, DeferredResolvedFrontier), Vec<Diagnostic>> {
             let (source, frontier) = extension
                 .rebase_for_typed_continuation(self.typed.authored_declaration_selections())?;
-            let typed = lower_seeded_extension(source, self).map_err(|reason| {
-                vec![Diagnostic::error(format!(
+            // A source diagnostic found while typing the extension belongs to
+            // the author as written; only a retained-base mismatch is internal.
+            let typed = lower_seeded_extension(source, self).map_err(|reason| match reason {
+                SeededContinuationError::Lowering(diagnostic) => vec![diagnostic],
+                reason => vec![Diagnostic::error(format!(
                     "authored declaration typing could not extend its retained source: {reason:?}"
-                ))]
+                ))],
             })?;
             Ok((typed, frontier))
         }

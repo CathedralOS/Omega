@@ -100,6 +100,7 @@ impl TerminalPermissionAcceptance {
             )]);
         }
         let rows = input.declarations.rows(input, self.target, self.package)?;
+        let mut unaccepted_components = Vec::new();
         let mut rows: Vec<_> = rows
             .into_iter()
             .filter(|row| {
@@ -107,13 +108,38 @@ impl TerminalPermissionAcceptance {
                     row.kind(),
                     PackagePolicyRowKind::TerminalPermission
                         | PackagePolicyRowKind::AssumedBindingContract
+                        | PackagePolicyRowKind::ComponentAssumption
                 )
             })
             .map(|row| {
+                let component = row.kind() == PackagePolicyRowKind::ComponentAssumption;
                 let key = optimization_core::digest_encoder::content_identity(row.key_bytes());
-                (key, row.into_canonical_text())
+                let text = row.into_canonical_text();
+                if component
+                    && !self
+                        .rows
+                        .iter()
+                        .any(|accepted| accepted == &(key, text.clone()))
+                {
+                    unaccepted_components.push(text.clone());
+                }
+                (key, text)
             })
             .collect();
+        // A component's environmental premise is the consumer's decision
+        // (component_publication.md, "Consumer acceptance and Build
+        // attenuation"); name each one the lock does not hold exactly.
+        if !unaccepted_components.is_empty() {
+            return Err(unaccepted_components
+                .into_iter()
+                .map(|meaning| {
+                    Diagnostic::error(format!(
+                        "the consuming project has not accepted this independent component assumption; review it with omega update: {}",
+                        meaning.trim_end()
+                    ))
+                })
+                .collect());
+        }
         rows.sort_unstable_by_key(|(key, _)| *key);
         if rows != self.rows {
             return Err(vec![Diagnostic::error(

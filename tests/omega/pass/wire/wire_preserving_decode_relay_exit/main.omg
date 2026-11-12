@@ -72,8 +72,15 @@ machine preserving_encode(
     machine refused(written: &mut u64) { written = 0; }
 }
 
+// The decoded remainder borrows `buffer`, so the relay states receive the
+// output sink exclusively and the input only as a shared view; an exclusive
+// `&mut Main` beside a view into its own buffer would alias.
 data Main {
     buffer: [u8; 3];
+    sink: Sink;
+}
+
+data Sink {
     output: [u8; 3];
     written: u64;
 }
@@ -92,66 +99,66 @@ machine Main::main(main: &mut Main) reaches Console {
         let decoded: DecodeResult<Relayed<LocalMessage>> =
             preserving_decode(main.buffer[0..3]);
         transition decoded {
-            DecodeResult::Sound { value } -> inspect(main, value)
+            DecodeResult::Sound { value } -> inspect(&mut main.sink, &main.buffer, value)
             DecodeResult::Invalid -> refused(main)
         }
     }
-    machine inspect(main: &mut Main, relayed: Relayed<LocalMessage>) {
+    machine inspect(sink: &mut Sink, input: &[u8; 3], relayed: Relayed<LocalMessage>) {
         transition relayed.value.value == 41
             && relayed.remainder.codec_identity == 7
             && relayed.remainder.bytes_and_ordering.len == 2 {
-            true -> tail_first(main, relayed, 0)
-            false -> disagreement(main)
+            true -> tail_first(sink, input, relayed, 0)
+            false -> disagreement(sink, input)
         }
     }
-    machine tail_first(main: &mut Main, relayed: Relayed<LocalMessage>, i: u64) {
+    machine tail_first(sink: &mut Sink, input: &[u8; 3], relayed: Relayed<LocalMessage>, i: u64) {
         transition i < relayed.remainder.bytes_and_ordering.len {
-            true -> tail_first_byte(main, relayed.remainder.bytes_and_ordering[i], relayed)
-            false -> disagreement(main)
+            true -> tail_first_byte(sink, input, relayed.remainder.bytes_and_ordering[i], relayed)
+            false -> disagreement(sink, input)
         }
     }
-    machine tail_first_byte(main: &mut Main, b: u8, relayed: Relayed<LocalMessage>) {
+    machine tail_first_byte(sink: &mut Sink, input: &[u8; 3], b: u8, relayed: Relayed<LocalMessage>) {
         transition b == 171 {
-            true -> tail_second(main, relayed, 1)
-            false -> disagreement(main)
+            true -> tail_second(sink, input, relayed, 1)
+            false -> disagreement(sink, input)
         }
     }
-    machine tail_second(main: &mut Main, relayed: Relayed<LocalMessage>, i: u64) {
+    machine tail_second(sink: &mut Sink, input: &[u8; 3], relayed: Relayed<LocalMessage>, i: u64) {
         transition i < relayed.remainder.bytes_and_ordering.len {
-            true -> tail_second_byte(main, relayed.remainder.bytes_and_ordering[i], relayed)
-            false -> disagreement(main)
+            true -> tail_second_byte(sink, input, relayed.remainder.bytes_and_ordering[i], relayed)
+            false -> disagreement(sink, input)
         }
     }
-    machine tail_second_byte(main: &mut Main, b: u8, relayed: Relayed<LocalMessage>) {
+    machine tail_second_byte(sink: &mut Sink, input: &[u8; 3], b: u8, relayed: Relayed<LocalMessage>) {
         transition b == 205 {
-            true -> relay(main, relayed)
-            false -> disagreement(main)
+            true -> relay(sink, input, relayed)
+            false -> disagreement(sink, input)
         }
     }
-    machine relay(main: &mut Main, relayed: Relayed<LocalMessage>) {
-        preserving_encode(&relayed, &mut main.output, &mut main.written);
-        transition main.written == 3 && main.output[0] == 41
-            && main.output[1] == 171 && main.output[2] == 205 {
-            true -> update_known(main, relayed)
-            false -> relay_disagreement(main)
+    machine relay(sink: &mut Sink, input: &[u8; 3], relayed: Relayed<LocalMessage>) {
+        preserving_encode(&relayed, &mut sink.output, &mut sink.written);
+        transition sink.written == 3 && sink.output[0] == 41
+            && sink.output[1] == 171 && sink.output[2] == 205 {
+            true -> update_known(sink, input, relayed)
+            false -> relay_disagreement(sink, input)
         }
     }
-    machine update_known(main: &mut Main, relayed: Relayed<LocalMessage>) {
+    machine update_known(sink: &mut Sink, input: &[u8; 3], relayed: Relayed<LocalMessage>) {
         // Known semantics can change independently; the opaque ordered tail
         // remains borrowed from the original input without reinterpretation.
         let updated: Relayed<LocalMessage> = Relayed {
             value: LocalMessage { value: 42 },
             remainder: relayed.remainder,
         };
-        preserving_encode(&updated, &mut main.output, &mut main.written);
-        transition main.written == 3 && main.output[0] == 42
-            && main.output[1] == 171 && main.output[2] == 205
-            && main.buffer[0] == 41 && main.buffer[1] == 171 && main.buffer[2] == 205 {
-            true -> wrong_codec(main, updated)
-            false -> known_disagreement(main)
+        preserving_encode(&updated, &mut sink.output, &mut sink.written);
+        transition sink.written == 3 && sink.output[0] == 42
+            && sink.output[1] == 171 && sink.output[2] == 205
+            && input[0] == 41 && input[1] == 171 && input[2] == 205 {
+            true -> wrong_codec(sink, input, updated)
+            false -> known_disagreement(sink, input)
         }
     }
-    machine wrong_codec(main: &mut Main, relayed: Relayed<LocalMessage>) {
+    machine wrong_codec(sink: &mut Sink, input: &[u8; 3], relayed: Relayed<LocalMessage>) {
         // The public envelope is forgeable. Its codec identity is checked by
         // this authored encoder before it writes any output byte.
         let wrong_policy: Relayed<LocalMessage> = Relayed {
@@ -161,20 +168,20 @@ machine Main::main(main: &mut Main) reaches Console {
                 bytes_and_ordering: relayed.remainder.bytes_and_ordering,
             },
         };
-        preserving_encode(&wrong_policy, &mut main.output, &mut main.written);
-        transition main.written == 0 && main.output[0] == 42
-            && main.output[1] == 171 && main.output[2] == 205 {
-            true -> good(main)
-            false -> foreign_accepted(main)
+        preserving_encode(&wrong_policy, &mut sink.output, &mut sink.written);
+        transition sink.written == 0 && sink.output[0] == 42
+            && sink.output[1] == 171 && sink.output[2] == 205 {
+            true -> good(sink, input)
+            false -> foreign_accepted(sink, input)
         }
     }
-    machine good(main: &mut Main)               { Console::exit_process(70); }
-    machine refused(main: &mut Main)            { Console::exit_process(71); }
-    machine disagreement(main: &mut Main)       { Console::exit_process(72); }
-    machine relay_disagreement(main: &mut Main) { Console::exit_process(73); }
-    machine known_disagreement(main: &mut Main) { Console::exit_process(74); }
-    machine invalid_accepted(main: &mut Main)    { Console::exit_process(75); }
-    machine foreign_accepted(main: &mut Main)    { Console::exit_process(76); }
+    machine good(sink: &mut Sink, input: &[u8; 3])               { Console::exit_process(70); }
+    machine refused(main: &mut Main)                              { Console::exit_process(71); }
+    machine disagreement(sink: &mut Sink, input: &[u8; 3])       { Console::exit_process(72); }
+    machine relay_disagreement(sink: &mut Sink, input: &[u8; 3]) { Console::exit_process(73); }
+    machine known_disagreement(sink: &mut Sink, input: &[u8; 3]) { Console::exit_process(74); }
+    machine invalid_accepted(main: &mut Main)                     { Console::exit_process(75); }
+    machine foreign_accepted(sink: &mut Sink, input: &[u8; 3])   { Console::exit_process(76); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

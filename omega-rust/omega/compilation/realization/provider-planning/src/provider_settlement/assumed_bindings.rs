@@ -6,9 +6,9 @@
 // preserving diagnostic ordering without retaining the checked program.
 
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
-use build_time_evaluation::assumed_bindings::AssumedBindingContract;
 use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AssumedBindingContract;
 
 pub(crate) struct PreparedAssumedBindings {
     pub coordinates: Result<Vec<effects::AssumedBindingContractSelection>, Vec<Diagnostic>>,

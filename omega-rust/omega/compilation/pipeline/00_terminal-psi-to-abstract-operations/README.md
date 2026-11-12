@@ -61,7 +61,7 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   cleanup, callbacks, native metadata and dynamic-table address roots retain
   their existing demand and per-block diagnostic order. Explicit artifact
   inspection and independent ownership validation still cover the full catalog.
-- [optimization.rs](src/optimization.rs): verified optimization-unit construction and proof questions.
+- The admitted handoff to Omega 01 is `VerifiedPsiOptimizationInput` in [verified-input](../../representations/abstract-operations/verified-input/src/lib.rs); Omega 01 builds its optimization unit from it.
 - `provider_installation`: exact selected-adapter and installation custody.
 - [callback_settlement.rs](src/callback_settlement.rs): rejoin a produced
   callback's Terminal interface to its exact selected calling application.

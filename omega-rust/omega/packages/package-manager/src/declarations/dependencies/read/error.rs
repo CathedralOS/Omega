@@ -63,13 +63,13 @@ impl fmt::Display for DependencyProjectionError {
                 "package build machine's first parameter must be `builder: &mut Build`",
             ),
             Self::UnsupportedDependencyShape => formatter.write_str(
-                "automatic dependency editing requires unconditional direct `Build::depend(builder, Source::...)` or `Build::depend_as(builder, alias, Source::...)` statements in the root build entry; dependency helpers, state transitions, `builder.target`, `depend_when`, and `depend_as_when` are not dependency declaration forms",
+                "automatic dependency editing requires unconditional direct `_ = Build::dependency(builder, dependency::from_source(Source::...));` registrations, or a `let mut name: DependencyDescription = dependency::from_source(Source::...);` local directly followed by `dependency::with_alias(&mut name, \"alias\");` and `_ = Build::dependency(builder, name);`, in the root build entry; dependency helpers, conditional registrations, state transitions, and reused descriptions are not editable dependency declaration forms",
             ),
             Self::WrongDependencyReceiver => formatter.write_str(
                 "dependency request must use a static Build call with the root build machine's first parameter as its first operand",
             ),
             Self::WrongDependencyArguments => formatter.write_str(
-                "`Build::depend` must have a builder operand followed by one source argument and `Build::depend_as` must have a builder operand followed by one direct alias literal followed by one source argument; neither accepts generic, evidence, operational, or discard modifiers",
+                "`Build::dependency` and `Build::build_dependency` take the builder operand followed by one description, either `dependency::from_source(Source::...)` or the aliased description local just configured by `dependency::with_alias`, and accept no generic, evidence, or operational modifiers",
             ),
             Self::AliasNotString => {
                 formatter.write_str("dependency alias must be a direct string literal")

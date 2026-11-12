@@ -45,7 +45,7 @@ impl<'t> Program<'t> {
         let generated = self.typed.symbols.get(target).generated_from;
         if generated.is_valid()
             && generated == application.registration_operation
-            && self.selects_implementations_only(generated)
+            && self.closes_rigid_parameters_only(generated)
         {
             return Ok(());
         }
@@ -99,12 +99,15 @@ impl<'t> Program<'t> {
     }
 
     /// Whether every generic parameter of `declared`, a machine or its entry
-    /// state, is an implementation parameter. Only such a declaration's
-    /// generated machines are read: selecting an implementation changes
-    /// which machine a call names and nothing else, while a type or value
-    /// argument changes the body's types and operations, which is the
-    /// generics lane's to serve.
-    fn selects_implementations_only(&self, declared: SymbolHandle) -> bool {
+    /// state, is an implementation, value or type parameter. Only such a
+    /// declaration's generated machines are read. Each is a closed machine:
+    /// selecting an implementation changes which machine a call names,
+    /// binding a value parameter puts a literal where the body named the
+    /// binder, and a type argument puts a concrete type where it named the
+    /// parameter. What such a machine still holds that the subset does not
+    /// serve (a type equation in a clause, for one) is refused where it is
+    /// read.
+    fn closes_rigid_parameters_only(&self, declared: SymbolHandle) -> bool {
         let owner = match self.typed.symbols.get(declared).kind {
             SymbolKind::State => self.typed.symbols.get(declared).parent,
             _ => declared,
@@ -115,7 +118,12 @@ impl<'t> Program<'t> {
             let parameters = self.typed.machine_type_parameters(machine);
             (!parameters.is_empty() || !machine.conformance_bounds.is_empty())
                 && parameters.iter().all(|parameter| {
-                    parameter.kind == typed_trees::data::TypeParameterKind::Implementation
+                    matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Implementation
+                            | typed_trees::data::TypeParameterKind::Const { .. }
+                            | typed_trees::data::TypeParameterKind::Type
+                    )
                 })
                 && machine.lifetime_parameters.is_empty()
         })
@@ -249,6 +257,12 @@ impl<'t> Program<'t> {
                 Ok(None) => {}
                 Err(_) => return unserved("implementation parameter child with no requirement"),
             }
+            // A call of another generic machine at this body's own type
+            // parameters, `same<T>(left, right)`: held to that machine's
+            // contract at them.
+            if let Some(arguments) = self.type_arguments(id, call)? {
+                return self.generic_call(id, slots, call, arguments, source);
+            }
         }
         self.applies_nothing(
             id,
@@ -315,8 +329,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
-        if !call.machine_arguments.is_empty()
-            || call.build_selection.is_valid()
+        if call.build_selection.is_valid()
             || call.quotient_operation.is_some()
             || call.private_layout_operation.is_some()
             || call.layout_query.is_some()
@@ -331,7 +344,20 @@ impl<'t> Program<'t> {
         {
             return unserved("requirement dispatch with another call feature");
         }
-        if dispatch.contract_signature.is_valid() || !dispatch.requirement.is_valid() {
+        if !dispatch.requirement.is_valid() {
+            return unserved("requirement dispatch with no requirement");
+        }
+        // The member's value parameters, bound by this call's static
+        // arguments (`Implementation::value<7>(x)`).
+        let declared =
+            self.declared_requirement(id, dispatch.declaring_trait, dispatch.requirement)?;
+        let binders = self.requirement_binders(id, declared)?;
+        let value_arguments = self.static_value_arguments(id, &binders, call)?;
+        // Stage 04 records the requirement's signature at those arguments
+        // beside the dispatch. The route states that contract itself, from
+        // the requirement and the literals (`requirement_signature`), so the
+        // record is not read; without value arguments nothing explains one.
+        if dispatch.contract_signature.is_valid() && value_arguments.is_empty() {
             return unserved("requirement dispatch through a separate contract signature");
         }
         // Only a call through a parameter: a member named through the
@@ -349,23 +375,6 @@ impl<'t> Program<'t> {
                         == dispatch.evidence_parameter => {}
             _ => return unserved("requirement dispatch not bound to its parameter"),
         }
-        // The member takes no static argument of its own.
-        if call.authored_machine_application.is_valid() {
-            let application = self
-                .typed
-                .expression_table
-                .static_machine_application(call.authored_machine_application);
-            if !application.arguments.is_empty()
-                || !application.selected_machine_arguments.is_empty()
-                || !application.input_selections.is_empty()
-                || !application.bindings.is_empty()
-                || !application.lifetime_bindings.is_empty()
-                || application.conformance_selection.is_some()
-                || application.callable_contract_source.is_valid()
-            {
-                return unserved("requirement dispatch with static arguments");
-            }
-        }
         let arguments = self
             .typed
             .expression_table
@@ -373,10 +382,19 @@ impl<'t> Program<'t> {
         if !dispatch.realization_machine.is_valid() {
             return unserved("requirement dispatch with no realization");
         }
-        if dispatch.realization_state != call.target_symbol {
+        // The call targets the member that realizes the requirement, or,
+        // when the call binds value parameters, the machine stage 04
+        // generated from that member for them.
+        let target = if dispatch.realization_state == call.target_symbol {
+            dispatch.realization_machine
+        } else if !value_arguments.is_empty()
+            && self.typed.symbols.get(call.target_symbol).generated_from
+                == dispatch.realization_state
+        {
+            call.target_symbol
+        } else {
             return unserved("requirement dispatch that targets another machine");
-        }
-        let target = dispatch.realization_machine;
+        };
         let read = self.call(id, slots, target, arguments, source)?;
         if let ExpressionKind::Call { callee, .. } = &read.kind {
             self.selections.push(crate::Selected {
@@ -385,9 +403,200 @@ impl<'t> Program<'t> {
                 declaring_trait: dispatch.declaring_trait,
                 requirement: dispatch.requirement,
                 implementation: *callee,
+                value_arguments,
             });
         }
         Ok(read)
+    }
+
+    /// The literals a call's static arguments bind `binders` to, a
+    /// requirement's value parameters in declaration order. Each argument
+    /// must be one integer literal and nothing else, as the call site
+    /// records it (`StaticMachineArgument::const_literal`), and there must be
+    /// exactly one per parameter; the application may apply nothing more.
+    /// With no value parameter the call may carry no static argument.
+    fn static_value_arguments(
+        &self,
+        id: MachineId,
+        binders: &[(SymbolHandle, semantic_vocabulary::ScalarType)],
+        call: &TableCallExpression,
+    ) -> Checked<Vec<semantic_vocabulary::ScalarTerm>> {
+        use typed_trees::expression::StaticMachineArgument;
+        use typed_trees::static_applications::StaticMachineBindingValue;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let table = &self.typed.expression_table;
+        let (application, arguments, bindings) = if call.authored_machine_application.is_valid() {
+            (
+                Some(table.static_machine_application(call.authored_machine_application)),
+                table.static_machine_application_arguments(call.authored_machine_application),
+                table.static_machine_application_bindings(call.authored_machine_application),
+            )
+        } else {
+            (None, &[][..], &[][..])
+        };
+        if let Some(application) = application
+            && (!application.selected_machine_arguments.is_empty()
+                || !application.input_selections.is_empty()
+                || !application.lifetime_bindings.is_empty()
+                || application.conformance_selection.is_some()
+                || application.callable_contract_source.is_valid())
+        {
+            return unserved("requirement call with a static application feature");
+        }
+        // The call's own list, when it keeps one, is the application's.
+        if !call.machine_arguments.is_empty() && call.machine_arguments[..] != *arguments {
+            return unserved("requirement call whose static arguments differ from its application");
+        }
+        if arguments.len() != binders.len() || bindings.len() != binders.len() {
+            return unserved("requirement call with static arguments");
+        }
+        if bindings
+            .iter()
+            .any(|binding| !matches!(binding.value, StaticMachineBindingValue::Const(_)))
+        {
+            return unserved("requirement call that binds something other than a constant");
+        }
+        let mut literals = Vec::with_capacity(binders.len());
+        for (argument, (_, scalar_type)) in arguments.iter().zip(binders) {
+            let Some(literal) = &argument.const_literal else {
+                return unserved("value argument that is not an integer literal");
+            };
+            let only_a_literal = StaticMachineArgument {
+                const_literal: Some(literal.clone()),
+                ..StaticMachineArgument::default()
+            };
+            if *argument != only_a_literal {
+                return unserved("value argument that is not only an integer literal");
+            }
+            let (value, scalar_type) = self.literal(id, literal, Some(*scalar_type))?;
+            literals.push(semantic_vocabulary::ScalarTerm::Integer { scalar_type, value });
+        }
+        Ok(literals)
+    }
+
+    /// The types a call in a generic check form's entry applies its callee's
+    /// type parameters at, in the callee's declaration order, when the call
+    /// is a type application: every binding of its static application gives
+    /// one type parameter of the callee a type. `None` for any other call.
+    /// Each type must be one of the entry's own rigid type parameters: a
+    /// generic machine applied at a concrete type inside a generic body is
+    /// not generated by stage 04 and has no closed machine to call.
+    fn type_arguments(
+        &mut self,
+        id: MachineId,
+        call: &TableCallExpression,
+    ) -> Checked<Option<Vec<crate::body::ValueType>>> {
+        use typed_trees::static_applications::StaticMachineBindingValue;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        if !call.authored_machine_application.is_valid() {
+            return Ok(None);
+        }
+        let typed = self.typed;
+        let table = &typed.expression_table;
+        let bindings = table.static_machine_application_bindings(call.authored_machine_application);
+        if bindings.is_empty()
+            || bindings
+                .iter()
+                .any(|binding| !matches!(binding.value, StaticMachineBindingValue::Type(_)))
+        {
+            return Ok(None);
+        }
+        let application = table.static_machine_application(call.authored_machine_application);
+        if !application.selected_machine_arguments.is_empty()
+            || !application.input_selections.is_empty()
+            || !application.lifetime_bindings.is_empty()
+            || application.conformance_selection.is_some()
+            || application.callable_contract_source.is_valid()
+        {
+            return unserved("type application with another static feature");
+        }
+        let owner = match typed.symbols.get(call.target_symbol).kind {
+            SymbolKind::State => typed.symbols.get(call.target_symbol).parent,
+            SymbolKind::Machine => call.target_symbol,
+            other => return unserved(symbol_kind(other)),
+        };
+        let Some(callee) = typed.machine_by_symbol(owner) else {
+            return unserved("type application of something that is not a machine");
+        };
+        let parameters = typed.machine_type_parameters(callee);
+        if parameters.len() != bindings.len() {
+            return unserved("type application that does not bind every parameter");
+        }
+        let mut arguments = Vec::with_capacity(parameters.len());
+        for parameter in parameters {
+            let mut bound = bindings
+                .iter()
+                .filter(|binding| binding.parameter == parameter.symbol);
+            let (Some(binding), None) = (bound.next(), bound.next()) else {
+                return unserved("type parameter without exactly one binding");
+            };
+            let StaticMachineBindingValue::Type(type_reference) = &binding.value else {
+                return unserved("type parameter bound to something other than a type");
+            };
+            let argument = self.value_type(id, *type_reference)?;
+            if !matches!(argument, crate::body::ValueType::Rigid(_)) {
+                return unserved("generic call at a concrete type inside a generic body");
+            }
+            arguments.push(argument);
+        }
+        Ok(Some(arguments))
+    }
+
+    /// The entry of a generic check form calling another generic machine at
+    /// its own type parameters: a direct call of that machine's contract at
+    /// them (`application`).
+    fn generic_call(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: &TableCallExpression,
+        type_arguments: Vec<crate::body::ValueType>,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        if call.installed_interrupt_operation.is_some()
+            || call.static_requirement_dispatch.is_some()
+            || call.build_selection.is_valid()
+            || call.quotient_operation.is_some()
+            || call.private_layout_operation.is_some()
+            || call.layout_query.is_some()
+            || call.native_code_layout.is_some()
+            || call.receiver.is_valid()
+            || call.requirement_application.is_valid()
+            || call.exact_coercion_target.is_valid()
+            || call.static_machine_parameter.is_valid()
+            || !call.evidence_arguments.is_empty()
+            || call.operational_acknowledgement.acknowledges_suspend
+            || call.operational_acknowledgement.acknowledges_block
+        {
+            return unserved("type application with another call feature");
+        }
+        self.direct_selection(
+            id,
+            call.target_symbol,
+            call.authored_call_selection,
+            call.authored_call_binding,
+        )?;
+        // A call names its callee's entry state; the machine is that
+        // state's parent, and must have exactly that one state.
+        let machine = match self.typed.symbols.get(call.target_symbol).kind {
+            SymbolKind::Machine => call.target_symbol,
+            SymbolKind::State => {
+                let parent = self.typed.symbols.get(call.target_symbol).parent;
+                let (_, state) = self.declaration(id, parent)?;
+                if state.symbol != call.target_symbol {
+                    return unserved("state other than the entry");
+                }
+                parent
+            }
+            other => return unserved(symbol_kind(other)),
+        };
+        let callee = self.application(machine, type_arguments)?;
+        let arguments = self
+            .typed
+            .expression_table
+            .expression_handles(call.arguments);
+        self.call_of(id, slots, callee, arguments, source)
     }
 
     /// The entry of a generic check form calling through a rigid
@@ -401,8 +610,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
-        if !call.machine_arguments.is_empty()
-            || call.build_selection.is_valid()
+        if call.build_selection.is_valid()
             || call.quotient_operation.is_some()
             || call.private_layout_operation.is_some()
             || call.layout_query.is_some()
@@ -416,22 +624,10 @@ impl<'t> Program<'t> {
         {
             return unserved("implementation parameter call with another call feature");
         }
-        if call.authored_machine_application.is_valid() {
-            let application = self
-                .typed
-                .expression_table
-                .static_machine_application(call.authored_machine_application);
-            if !application.arguments.is_empty()
-                || !application.selected_machine_arguments.is_empty()
-                || !application.input_selections.is_empty()
-                || !application.bindings.is_empty()
-                || !application.lifetime_bindings.is_empty()
-                || application.conformance_selection.is_some()
-                || application.callable_contract_source.is_valid()
-            {
-                return unserved("implementation parameter call with static arguments");
-            }
-        }
+        // The requirement's value parameters, bound by this call's static
+        // arguments: the call is held to the requirement's contract at them.
+        let binders = self.requirement_binders(id, requirement)?;
+        let value_arguments = self.static_value_arguments(id, &binders, call)?;
         // The author named this child of the parameter, and nothing rebound
         // it.
         match call.authored_call_binding {
@@ -440,7 +636,7 @@ impl<'t> Program<'t> {
                     && binding.original == call.target_symbol => {}
             _ => return unserved("implementation parameter call not bound to its requirement"),
         }
-        let callee = self.requirement(requirement)?;
+        let callee = self.requirement(requirement, &value_arguments)?;
         let arguments = self
             .typed
             .expression_table
@@ -487,10 +683,46 @@ impl<'t> Program<'t> {
                 ));
             }
         };
+        self.visible_to(id, machine)?;
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
         let callee = self.machine(machine)?;
         self.call_of(id, slots, callee, arguments, source)
+    }
+
+    /// Refuses a call from machine `id` to a machine of another package that
+    /// is not public. Which package a declaration belongs to is the package
+    /// of the source file its symbol was declared in, as for subjects
+    /// (`subjects`); a declaration with no source file cannot be placed and
+    /// is refused. The typed trees can hold such a call: the current checker
+    /// rejects it after them, where a product selects the callee, so a
+    /// reader that took every resolved call as permitted would accept a
+    /// program that reaches into a dependency's private machine.
+    fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let Some(declaration) = self.typed.machine_by_symbol(callee) else {
+            return unserved("target is not a machine declaration");
+        };
+        if declaration.is_public {
+            return Ok(());
+        }
+        let symbols = &self.typed.symbols;
+        // A machine stage 04 generated belongs where its declaration does.
+        let package = |symbol: SymbolHandle| {
+            let symbol = crate::template_of(self.typed, symbol).unwrap_or(symbol);
+            symbol
+                .is_valid()
+                .then(|| symbols.symbol_provenance_source_span(symbol))
+                .flatten()
+                .and_then(|span| symbols.source_file(span))
+                .map(|file| (file.origin, file.package_identity))
+        };
+        let caller = self.symbols.get(id).copied().and_then(package);
+        match (caller, package(callee)) {
+            (Some(caller), Some(callee)) if caller == callee => Ok(()),
+            (Some(_), Some(_)) => unserved("private machine of another package"),
+            _ => unserved("call between declarations without a source file"),
+        }
     }
 
     /// The call of `callee`, a machine or a requirement already read.
@@ -539,6 +771,15 @@ impl<'t> Program<'t> {
                 id,
                 Construct::Machine,
                 Unserved::Typing("argument types"),
+            ));
+        }
+        // A value a call returns is the result of an operation, and no
+        // operation of the lowered form has a result of a rigid type.
+        if matches!(signature.result, Some(crate::body::ValueType::Rigid(_))) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("call that returns a value of a type parameter"),
             ));
         }
         Ok(Expression {

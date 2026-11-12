@@ -740,74 +740,107 @@ fn clone_fixture_occurrences(
         .collect()
 }
 
+/*
+Explicit fixture consent stands in for the consuming project's lock: it accepts
+the exact checked root rows of the named kinds, never a copied digest. Assumed
+binding consent accepts the root's assumed binding contracts;
+`accepted_component_assumptions.txt` accepts the environmental premises of the
+independent components the root deploys (component_publication.md, "Consumer
+acceptance and Build attenuation"). Terminal permission rows join either, as a
+lock retains them beside these rows.
+*/
 fn assumed_fixture_permissions(
     authored_project_root: &Path,
     profile: TargetProfile,
     preliminary: &compiler::CheckedCompilation,
 ) -> Result<Option<compiler::TerminalPermissionAcceptance>, Vec<Diagnostic>> {
-    let consent = authored_project_root.join("accepted_assumed_bindings.txt");
-    let permissions = if consent.is_file() {
-        let text = fs::read_to_string(&consent)
-            .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-        if text.trim() != "Accept this fixture's exact checked root assumed binding contract rows."
-        {
-            return Err(vec![Diagnostic::error(
-                "invalid explicit assumed-binding fixture consent",
-            )]);
-        }
-        let package = preliminary.sources().package_identity().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "assumed-binding fixture consent requires a root package",
-            )]
-        })?;
-        let policy =
-            package_evidence::project_checked_package_policy(preliminary, profile, package)?;
-        let mut rows: Vec<_> =
-            policy
-                .acceptance_rows_with_limits(
-                    package_evidence::record::PackagePolicyRowLimits::default(),
-                )
-                .map_err(|error| vec![Diagnostic::error(error.to_string())])?
-                .0
-                .into_iter()
-                .filter(|row| {
-                    matches!(
-                        row.kind(),
-                        package_evidence::record::PackagePolicyRowKind::AssumedBindingContract
-                            | package_evidence::record::PackagePolicyRowKind::TerminalPermission
-                    )
-                })
-                .map(|row| {
-                    (
-                        optimization_core::digest_encoder::content_identity(row.key_bytes()),
-                        row.into_canonical_text(),
-                    )
-                })
-                .collect();
-        if preliminary
+    use package_evidence::record::PackagePolicyRowKind;
+    let assumed = fixture_consent(
+        authored_project_root,
+        "accepted_assumed_bindings.txt",
+        "Accept this fixture's exact checked root assumed binding contract rows.",
+    )?;
+    let components = fixture_consent(
+        authored_project_root,
+        "accepted_component_assumptions.txt",
+        "Accept this fixture's exact checked root component assumption rows.",
+    )?;
+    if !assumed && !components {
+        return Ok(None);
+    }
+    if assumed
+        && preliminary
             .execution()
             .plans()
             .assumed_bindings()
             .is_empty()
-        {
-            return Err(vec![Diagnostic::error(
-                "assumed-binding fixture consent names no assumed contracts",
-            )]);
-        }
-        rows.sort_unstable_by_key(|(key, _)| *key);
-        Some(
-            package_evidence::permission_acceptance::TerminalPermissionAcceptance {
-                schema_version: package_evidence::record::PACKAGE_POLICY_ROW_VERSION,
-                package,
-                target: profile,
-                rows,
-            },
-        )
-    } else {
-        None
-    };
+    {
+        return Err(vec![Diagnostic::error(
+            "assumed-binding fixture consent names no assumed contracts",
+        )]);
+    }
+    if components
+        && preliminary
+            .providers()
+            .component_assumption_demands()
+            .is_empty()
+    {
+        return Err(vec![Diagnostic::error(
+            "component-assumption fixture consent names no component assumptions",
+        )]);
+    }
+    let package = preliminary.sources().package_identity().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "fixture permission consent requires a root package",
+        )]
+    })?;
+    let policy = package_evidence::project_checked_package_policy(preliminary, profile, package)?;
+    let mut rows: Vec<_> = policy
+        .acceptance_rows_with_limits(package_evidence::record::PackagePolicyRowLimits::default())
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])?
+        .0
+        .into_iter()
+        .filter(|row| match row.kind() {
+            PackagePolicyRowKind::TerminalPermission => true,
+            PackagePolicyRowKind::AssumedBindingContract => assumed,
+            PackagePolicyRowKind::ComponentAssumption => components,
+            _ => false,
+        })
+        .map(|row| {
+            (
+                optimization_core::digest_encoder::content_identity(row.key_bytes()),
+                row.into_canonical_text(),
+            )
+        })
+        .collect();
+    rows.sort_unstable_by_key(|(key, _)| *key);
+    Ok(Some(
+        package_evidence::permission_acceptance::TerminalPermissionAcceptance {
+            schema_version: package_evidence::record::PACKAGE_POLICY_ROW_VERSION,
+            package,
+            target: profile,
+            rows,
+        },
+    ))
+}
 
-    Ok(permissions)
+fn fixture_consent(
+    authored_project_root: &Path,
+    file: &str,
+    sentence: &str,
+) -> Result<bool, Vec<Diagnostic>> {
+    let consent = authored_project_root.join(file);
+    if !consent.is_file() {
+        return Ok(false);
+    }
+    let text =
+        fs::read_to_string(&consent).map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+    if text.trim() != sentence {
+        return Err(vec![Diagnostic::error(format!(
+            "invalid explicit fixture consent in `{file}`"
+        ))]);
+    }
+    Ok(true)
 }
 
 /// The explicit source-tree oracle consumes the same retained Product plan.

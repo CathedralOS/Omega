@@ -58,6 +58,7 @@ mod semantic_analyses;
 mod specialization;
 pub mod validation;
 mod value_ranges;
+mod verified_unit;
 
 pub(crate) use optimization_core::codec_bytes;
 pub(crate) use specialization::{
@@ -110,9 +111,10 @@ use optimization_core::{
     OptimizationExecutionPhase, OptimizationSelections, OptimizationWorkBudget,
     PsiOptimizationSelectionProjection,
 };
-use terminal_psi_to_abstract_operations::{
-    VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
-    VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
+use verified_optimization_input::VerifiedPsiOptimizationInput;
+pub use verified_unit::{
+    VerifiedPsiOptimizationUnit, VerifiedPsiOptimizationUnitBuildError,
+    build_verified_psi_optimization_unit,
 };
 
 use crate::pass_manager::{OptimizationRunError, run_registries};

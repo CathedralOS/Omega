@@ -2850,8 +2850,7 @@ pub(crate) mod program {
                 return Err(reject());
             }
             let expected = TerminalRuntimeSupplies::from(primary.providers());
-            if self.program.identity
-                != terminal_codec::TerminalExecutionIdentity::portable(admission.terminal())
+            if self.program.identity != *admission.execution_identity()
                 || installation.target_machines.as_ref() != Some(primary.targets())
                 || installation.provider_selections.as_ref() != Some(primary.providers())
                 || installation.target_layouts.as_deref() != Some(primary.layouts())
@@ -2881,10 +2880,7 @@ pub(crate) mod program {
             let application = request.admission.application();
             let installation = installation.ok_or_else(reject)?;
             let expected_providers = TerminalRuntimeSupplies::from(observations.providers());
-            if self.program.identity
-                != terminal_codec::TerminalExecutionIdentity::portable(
-                    observations.artifact().identity(),
-                )
+            if self.program.identity != observations.artifact().custody_identity()
                 || installation.target_machines.as_ref() != Some(observations.targets())
                 || installation.provider_selections.as_ref() != Some(observations.providers())
                 || installation.supplies != expected_providers.supplies

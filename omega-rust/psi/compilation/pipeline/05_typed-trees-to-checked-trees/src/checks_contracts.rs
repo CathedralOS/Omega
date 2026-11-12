@@ -1980,8 +1980,7 @@ mod direct {
                         (ExpressionNode::Member(a), ExpressionNode::Member(b)) => {
                             a.member == b.member
                                 && a.case_variant == b.case_variant
-                                && a.member_symbol.is_valid()
-                                && a.member_symbol == b.member_symbol
+                                && self.same_member_selection(a, b)
                                 && equal(a.receiver, b.receiver, remaining)
                         }
                         (ExpressionNode::Indexed(a), ExpressionNode::Indexed(b)) => {
@@ -2052,6 +2051,36 @@ mod direct {
                         }
                         _ => false,
                     }
+                }
+
+                /*
+                    A declared field selects its member symbol. A collection measure such as
+                    `fields.len` has no field symbol: it denotes the same value exactly when
+                    both sides apply the same measure to collections whose receivers already
+                    compare equal, so `context.fields.len` in a caller premise matches the
+                    callee's `context.fields.len`. A field and a measure never match.
+                */
+                fn same_member_selection(
+                    &self,
+                    left: &typed_trees::expression::TableMemberExpression,
+                    right: &typed_trees::expression::TableMemberExpression,
+                ) -> bool {
+                    if left.member_symbol.is_valid() || right.member_symbol.is_valid() {
+                        return left.member_symbol == right.member_symbol;
+                    }
+                    let measure = |member: &typed_trees::expression::TableMemberExpression| {
+                        let receiver = validation::expression_place_type_reference(
+                            self.program,
+                            member.receiver,
+                            &[],
+                        )?;
+                        validation::collection_operations::collection_measure_member(
+                            self.program,
+                            member,
+                            validation::collection_operations::MeasureReceiver::Declared(receiver),
+                        )
+                    };
+                    measure(left).is_some_and(|measure_left| measure(right) == Some(measure_left))
                 }
 
                 fn expression_is_reference_loan(&self, expression: ExpressionHandle) -> bool {

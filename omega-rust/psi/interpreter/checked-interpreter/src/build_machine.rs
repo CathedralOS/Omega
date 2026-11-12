@@ -12,28 +12,6 @@ use crate::interpreter::evaluator::{
 use symbols::SymbolHandle;
 
 impl Evaluator<'_> {
-    pub(crate) fn try_component_assumption_acceptance(
-        &mut self,
-        target: SymbolHandle,
-        arguments: &[ExpressionHandle],
-        frame: &mut Frame,
-    ) -> EvalResult<Option<Value>> {
-        if !target.is_valid()
-            || !self.exact_build_facet_method("Build", "accept_component_assumption", target)
-        {
-            return Ok(None);
-        }
-        let [builder, digest] = arguments else {
-            return Err(Halt::Trap(
-                "component assumption acceptance takes an explicit Build argument and one digest spelling".to_owned(),
-            ));
-        };
-        let builder = self.eval_argument(*builder, frame)?;
-        self.require_root_build_argument(self.deref_cell(builder), "accept_component_assumption")?;
-        self.eval_expression(*digest, frame)?;
-        Ok(Some(Value::Unit))
-    }
-
     pub(crate) fn try_build_facet_routes(
         &mut self,
         target: SymbolHandle,
@@ -68,10 +46,7 @@ impl Evaluator<'_> {
         if let Some(value) = self.try_required_output_path_call(target, arguments, frame)? {
             return Ok(Some(value));
         }
-        if let Some(value) = self.try_build_log_write_line_call(target, arguments, frame)? {
-            return Ok(Some(value));
-        }
-        self.try_component_assumption_acceptance(target, arguments, frame)
+        self.try_build_log_write_line_call(target, arguments, frame)
     }
 
     pub(crate) fn try_build_product_description_call(

@@ -7,7 +7,7 @@
 // verdict.
 machine build(builder: &mut Build) {
     Build::application(builder, "crash_exclusion");
-    Build::depend(builder, Source::Path { location: "assert-kit" });
+    let assert_kit_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "assert-kit" }));
     Build::select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssert>(builder, linux_arm64);
     Build::select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssert>(builder, linux_x86_64);
     Build::select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssert>(builder, macos_arm64);

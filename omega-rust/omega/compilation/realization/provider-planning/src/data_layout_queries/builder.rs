@@ -22,6 +22,7 @@ mod semantic_ranges;
 mod tests;
 mod type_reference_layouts;
 
+use crate::data_layout_queries::OpaqueCarrierSelection;
 use crate::data_layout_queries::builder::generic_bindings::{
     GenericLayoutBinding, binding_for_type, fixed_array_length,
 };
@@ -40,14 +41,13 @@ use checked_trees::typed_trees::types::{
     TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use diagnostics::Diagnostic;
-use representation_selections::OpaqueRepresentationSelection;
 use symbols::{BuiltinType, SymbolHandle};
 use target::NativeTarget;
 
 pub fn build_layout_plan(
     program: &TypedTrees,
     target: impl Into<crate::data_layout_queries::LayoutTarget>,
-    opaque_representation_selections: &[OpaqueRepresentationSelection],
+    opaque_representation_selections: &[OpaqueCarrierSelection],
 ) -> Result<LayoutPlan, Diagnostic> {
     build_layout_plan_for_roots(
         program,
@@ -60,7 +60,7 @@ pub fn build_layout_plan(
 pub fn build_layout_plan_for_roots(
     program: &TypedTrees,
     target: impl Into<crate::data_layout_queries::LayoutTarget>,
-    opaque_representation_selections: &[OpaqueRepresentationSelection],
+    opaque_representation_selections: &[OpaqueCarrierSelection],
     roots: impl IntoIterator<Item = SymbolHandle>,
 ) -> Result<LayoutPlan, Diagnostic> {
     let roots = roots.into_iter().collect::<Vec<_>>();
@@ -95,7 +95,7 @@ pub fn build_layout_plan_for_roots(
 pub fn layout_type_reference(
     program: &TypedTrees,
     target: impl Into<crate::data_layout_queries::LayoutTarget>,
-    opaque_representation_selections: &[OpaqueRepresentationSelection],
+    opaque_representation_selections: &[OpaqueCarrierSelection],
     type_reference: TypeReferenceHandle,
 ) -> Result<TypeLayout, Diagnostic> {
     LayoutBuilder::new(
@@ -110,7 +110,7 @@ pub fn layout_type_reference(
 pub fn try_layout_type_reference(
     program: &TypedTrees,
     target: impl Into<crate::data_layout_queries::LayoutTarget>,
-    opaque_representation_selections: &[OpaqueRepresentationSelection],
+    opaque_representation_selections: &[OpaqueCarrierSelection],
     type_reference: TypeReferenceHandle,
 ) -> Result<Option<TypeLayout>, Diagnostic> {
     let mut builder = LayoutBuilder::new(
@@ -140,7 +140,7 @@ struct LayoutBuilder<'program> {
     repeated_fields: Vec<RepeatedFieldLayout>,
     private_callback_demands: Vec<TargetClosedPrivateCallbackDemand>,
     data_layout_identities: Vec<TargetClosedDataLayoutIdentity>,
-    opaque_representation_selections: &'program [OpaqueRepresentationSelection],
+    opaque_representation_selections: &'program [OpaqueCarrierSelection],
     opaque_representation_demand: OpaqueRepresentationDemand,
     generic_instance_signatures: Vec<(SymbolHandle, String)>, // one monomorphized instance per generic data definition symbol
     trait_definitions: &'program [TraitDefinition],
@@ -204,7 +204,7 @@ impl<'program> LayoutBuilder<'program> {
     fn new(
         program: &'program TypedTrees,
         target: crate::data_layout_queries::LayoutTarget,
-        opaque_representation_selections: &'program [OpaqueRepresentationSelection],
+        opaque_representation_selections: &'program [OpaqueCarrierSelection],
         opaque_representation_demand: OpaqueRepresentationDemand,
     ) -> Self {
         let (target, layout_profile) = target.into_parts();

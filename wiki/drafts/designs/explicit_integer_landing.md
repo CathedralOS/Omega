@@ -2,12 +2,15 @@
 
 Ratified 2026-11-06. Compiler migration and acceptance belong to
 **OPERATOR-MACHINE-SUPPLY** in [TASKS.md](../../../TASKS.md).
-Implemented for fixed-integer destinations: body validation, static
-evaluation and Psi 02 const arguments reject implicit landing, and `as`
-acknowledges its complete operand
+The fixed-integer implementation records body validation, static evaluation and
+Psi 02 const arguments rejecting implicit landing, with `as` acknowledging its complete operand
 (`tests/omega/{pass,fail}/arithmetic/*integer_landing*`,
-`fail/arithmetic/implicit_fractional_const_landing`). Proof-level `Int` peers
-still warn pending [an owner question](../../../OWNER_QUESTIONS.md#q1---does-explicit-landing-apply-at-a-proof-level-int-peer).
+`fail/arithmetic/implicit_fractional_const_landing`). The 2026-11-11 decisions
+`explicit-landing-proof-int-peer` and `unbounded-computational-integers` extend
+the policy to computational `i`/`u` and exempt mathematical `Int`/`Nat`.
+The [arithmetic design](computational_and_mathematical_integers.md) records the
+linked exact-division change and remaining delivery requirements; no new
+compiler or fixture outcome is claimed here.
 
 Anonymous arithmetic remains exact mathematical arithmetic. A fractional
 intermediate can cancel to an integer, so `(5 / 2) * 2` has value `5` while
@@ -19,18 +22,28 @@ expression to land its exact final value.
 ## Decision
 
 [Numeric landing](../../spec/language/numeric_values.md#fractional-intermediate-diagnostics)
-rejects implicit integer landing after a fractional intermediate.
+rejects implicit computational integer landing after a fractional intermediate,
+including at unbounded `i` and `u` destinations.
 `((5 / 2) * 2) as u32` acknowledges that intermediate and lands as `5`.
 The complete value must be integral, representable and satisfy the destination's
-predicate and authority obligations. `as` cannot truncate, saturate, repair a
+predicate and authority obligations. An unbounded destination has no finite
+upper range obligation; `u` still requires nonnegativity. `as` cannot truncate, saturate, repair a
 zero divisor or bypass an earlier argument/typed-operation landing.
 
 Keep fractional-origin tracking through cancellation. Do not compare against a
 hypothetical typed evaluation or distinguish `5` from `5.0`. Existing fractional
 literal origins use the same tracking; decimal spelling is not an exemption.
-Already-typed arithmetic, exact cross-carrier coercions, floating landing,
-remainder formation and proof-level mathematical operations retain their rules.
-This adds no syntax or arithmetic mode.
+Already-typed computational arithmetic, exact cross-carrier coercions and floating
+landing retain their rules. Mathematical `Int` and `Nat` landing checks final
+integrality, plus nonnegativity for `Nat`, without fractional-history
+acknowledgment. Typed rationals require explicit exact narrowing for integer-only
+uses. Mathematical `/` admits anonymous rational operands directly and always
+returns `Rat`; integer quotient remains explicitly named. These rules follow
+types and selected operations, never the surrounding proof clause.
+
+Preserve fractional origins until the source admission check, but do not add
+that history to an admitted value's identity. A typed `i` value never becomes
+anonymous rational arithmetic through simplification or inlining.
 
 ## Implementation route
 
@@ -51,7 +64,8 @@ This adds no syntax or arithmetic mode.
    independent arm combinations. Do not replace an exact final value with a
    range merely to produce a diagnostic.
 4. Sweep locals, fields, parameters, returns, transfers, match joins, constants,
-   const arguments, extents, indices and proof integer peers. Anonymous numeric
+   const arguments, extents and indices. Add `i`/`u` computational destinations
+   and mathematical integer peers as distinct acceptance cases. Anonymous numeric
    comparisons yielding Boolean have no integer landing to acknowledge.
    Cast outputs and named typed values never become anonymous again.
 5. Migrate intentional exact calculations in the existing corpus and samples
@@ -76,6 +90,10 @@ This adds no syntax or arithmetic mode.
 | `let x: u32 = ((1 / 3 + 1 / 6) * 1000) as u32;` | Accept `500` without rearranging the formula. |
 | `let x: u32 = ((5.0 / 2) * 2) as u32;` | Accept `5`; removing the cast rejects just as for `5`. |
 | `let x: u32 = (0.5 * 4096) as u32;` | Accept `2048`; preserve the literal's fractional origin at implicit landing. |
+| Anonymous `(5 / 2) * 2` at an `i` or `u` destination | Reject implicit landing; a complete explicit cast admits `5`. |
+| Anonymous `(5 / 2) * 2` at mathematical `Int` or `Nat` | Accept `5` without acknowledgment. |
+| Mathematical `/` with anonymous `(1 / 2 * 4)` divisor | Admit rational division without an intermediate integer landing. |
+| An integral value already typed `Rat` at an integer-only use | Require explicit exact narrowing; do not make it anonymous again. |
 
 Also retain controls for cancellation to zero, typed generic operations,
 floating destinations, qualified targets, exact typed `f64`-to-`i32` casts,

@@ -11,7 +11,7 @@ PayloadLayout<const Marker: u64> satisfies FixedLayout<Payload> {
     }
 }
 data Envelope<T> [copy] { value: u64; pointer: &T; }
-data Readback<'held, T> [copy] { value: u64; pointer: &'held T; }
+data Readback<'held, T> [copy] { value: u64; pointer: &'held T; selected_first: bool; }
 EnvelopeLayout<T> satisfies FixedLayout<Envelope<T> > {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
         let mut entries: [FieldEntry; 64];
@@ -20,21 +20,21 @@ EnvelopeLayout<T> satisfies FixedLayout<Envelope<T> > {
         LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
     }
 }
-machine update<'source, 'storage, const Marker: u64>(pointer: &'source LayoutStorage<Payload, PayloadLayout<Marker> >, storage: &'storage u64) -> Readback<'storage, LayoutStorage<Payload, PayloadLayout<Marker> > > {
+machine update<'source, 'storage, const Marker: u64>(pointer: &'source LayoutStorage<Payload, PayloadLayout<Marker> >, storage: &'storage u64, selected_first: bool) -> Readback<'storage, LayoutStorage<Payload, PayloadLayout<Marker> > > {
     let mut record: LayoutStorage<Envelope<LayoutStorage<Payload, PayloadLayout<Marker> > >, EnvelopeLayout<LayoutStorage<Payload, PayloadLayout<Marker> > > >;
     record.pointer = pointer;
     record.value = 7u64;
     let loaded: &'source LayoutStorage<Payload, PayloadLayout<Marker> > = record.pointer;
-    Readback { value: record.value, pointer: loaded }
+    Readback { value: record.value, pointer: loaded, selected_first: selected_first }
 }
 // Place: match_join. The complete returned carrier crosses a match join; both arms execute.
 machine observe<'source, 'storage>(pointer: &'source LayoutStorage<Payload, PayloadLayout<7u64> >, storage: &'storage u64) -> bool {
     let choose_first: bool = storage == 23u64;
     let result: Readback<'source, LayoutStorage<Payload, PayloadLayout<7u64> > > = match choose_first {
-        true -> update<7u64>(pointer, storage)
-        false -> update<7u64>(pointer, storage)
+        true -> update<7u64>(pointer, storage, true)
+        false -> update<7u64>(pointer, storage, false)
     };
-    result.value == 7u64 && result.pointer.value == 43u64
+    result.value == 7u64 && result.pointer.value == 43u64 && result.selected_first == choose_first
 }
 machine main() crashes Trap {
     let mut pointee: LayoutStorage<Payload, PayloadLayout<7u64> >;

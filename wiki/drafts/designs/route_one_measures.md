@@ -54,7 +54,7 @@ this record is withdrawn in favor of migrating in place."
 | Clause | Today | Evidence |
 | --- | --- | --- |
 | Clearly smaller than what it replaces | **Not decidable yet; leans against** | The route is 11,461 lines (7,141 production code) at `#2317`'s head. It replaces 792,766 lines in name (`main`). For the programs it handles it can replace almost none, because those programs need most of the old code to check the library ([measure 1](#1-lines-against-the-code-it-would-retire)). Construct rows so far added 8 to 858 production code lines each ([measure 4](#4-lines-added-per-construct-row)). |
-| Reach agreement on the widened subset | **Fails today; causes are classified** | On the 121 programs the unscreened sweep lowers, run at `#2317`'s head: 101 agree and 20 disagree. 12 are prover gaps, 6 are current-checker errors and 2 wait on owner question Q6. `#2317`'s own two-way probe (quoted) has 135 of 223 agreeing and 13 `fail/` programs wrongly accepted through one scope error. No disagreement needs a second route. Agreement needs those prover rules and a ruling on Q6. It also needed every checked machine elaborated, not only the entry's closure; that is done since ([measure 7](#7-steps-that-drop-without-a-refusal)). |
+| Reach agreement on the widened subset | **Fails today; causes are classified** | On the 121 programs the unscreened sweep lowers, run at `#2317`'s head: 101 agree and 20 disagree. 12 are prover gaps, 6 are current-checker errors and 2 wait on owner question `callee-result-body-summary`. `#2317`'s own two-way probe (quoted) has 135 of 223 agreeing and 13 `fail/` programs wrongly accepted through one scope error. No disagreement needs a second route. Agreement needs those prover rules and a ruling on `callee-result-body-summary`. It also needed every checked machine elaborated, not only the entry's closure; that is done since ([measure 7](#7-steps-that-drop-without-a-refusal)). |
 | Prove two-value relations through one certificate route | **Passes** | `i < len`-style order steps, the correlated unsigned subtract and branch facts all reach the kernel as one certificate form. On the unscreened subset, 1 obligation at the `#2305` measurement head and 3 of the 121 programs' obligations at `#2317`'s head needed a relation, and each was kernel-checked. A relation through a multiply (`value * value >= value`) is still unproved ([measure 2](#2-verdict-agreement)). |
 
 The four targets the record set beside the stop rule:
@@ -181,19 +181,33 @@ is renamed on each return edge. All 45 reach a verdict there.
 | Relation through a multiply (`ensures result >= value` from `value * value`) | prover gap | 1 (`nonlinear_square_positive_operand_exit`) |
 | Boolean `ensures result == value` on a return through a nested state | prover gap | 1 (`normal_return_expression_statement_sequence_exit`) |
 | A nested machine with no `requires` divides or multiplies using its caller's path facts | current-checker error | 6 (`private_division_exact_pair_exit`, `_excluded_exit`, `private_division_signed_remainder_exit`, `runtime_boolean_divisor_state_exit`, `runtime_transitive_product_exit`, `runtime_boolean_guarded_product_exit`) |
-| Callee result with no result-naming `ensures` | waits on Q6 | 2 (`boolean_result_all_normal_returns_exit`, `constant_boolean_return_join_exit`) |
+| Callee result with no result-naming `ensures` | waits on `callee-result-body-summary` | 2 (`boolean_result_all_normal_returns_exit`, `constant_boolean_return_join_exit`) |
 
 - **Prover gaps.** In the programs I read (the bitwise, Boolean-return and
   remainder rows), each unproved obligation is true. The contradictory-guard
   and multiply rows are classified by `#2317`'s family readings, which name
   them.
+- **The contradictory-guard row since then.** Run one program at a time
+  with the harness below at `main` `8ae4ed44e`: the three programs whose
+  guard contradicts a literal bound are accepted, and
+  `contradictory_relational_branch_exit` is rejected with one unproved
+  subtraction. With the prover's guard refutation
+  ([lowered discharge](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md),
+  "Two orders between values") it is accepted, all 8 obligations judged by
+  the mathematical core. That needed no kernel rule. The other rows were
+  not rerun.
 - **Current-checker errors.** These follow `#2317`'s reading of
   `machines.md`: a nested declaration has its own contract and cannot use
   another invocation's live facts. For example, `machine divided(left, right)
   -> i64 { left / right }` has no `requires`, so it is not valid under its
   own contract.
-- **Q6.** It is `OWNER_QUESTIONS.md`'s `callee-result-body-summary`, added
-  by `#2317`.
+- **Q6 in that measurement.** This was the then-open
+  `callee-result-body-summary`, added by `#2317`. The 2026-11-11 settlement
+  permits [checked local summaries](../../spec/language/state_contracts.md#local-call-summaries)
+  and omitted private entry inference, while authored preconditions remain
+  complete. The recorded classifications above are historical; the
+  [acceptance plan](local_inference_and_contracts.md#acceptance) requires
+  reconciliation of the affected rows, not a claim that they were rerun here.
 - **Matching `#2317`'s families.** Every cause matches one of `#2317`'s
   families, and none is new. So `#2317`'s token screen missed none of these
   causes, though it can still have missed programs.
@@ -434,7 +448,7 @@ without the kernel.
   program that lowers only at `#2317` was not found here; `#2317`'s own probe
   covers part of that.
 - **Native execution.** The harness runs no native code.
-- **`Build::depend` fixtures, `facts/`, `pending/` and `fail/`** were left out
+- **`Build::dependency` fixtures, `facts/`, `pending/` and `fail/`** were left out
   of the unscreened sweep.
 - **Coverage at the current head.** The coverage build is from the `#2305`
   measurement head. Psi 05, validation and Psi 06 differ from `main`
@@ -459,7 +473,7 @@ workspace dev profile on `omega-linux`, so times differ from those.
 - **`main`:** `82d2ea5d5`.
 
 **Unscreened sweep.** Every `tests/omega/{run,pass}/**/main.omg` outside
-`facts/` whose `build.omg` does not call `Build::depend`: 3,486 fixtures,
+`facts/` whose `build.omg` does not call `Build::dependency`: 3,486 fixtures,
 155 `run/` and 3,331 `pass/`. One process per fixture, `timeout 300 nice -n 19`,
 three at a time:
 

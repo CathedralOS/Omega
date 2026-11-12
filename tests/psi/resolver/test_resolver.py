@@ -115,17 +115,13 @@ def contract_returned_value(contract: int) -> tuple[int, int, int]:
 
 
 def data_subject(item: int) -> tuple[int, int, int]:
+    """`self` in a data declaration's default-domain `requires`."""
     return (20, item, 0)
 
 
 def domain_subject(handle: int) -> tuple[int, int, int]:
     """A domain's subject binder in its predicates."""
     return (16, handle, 0)
-
-
-def data_subject(item: int) -> tuple[int, int, int]:
-    """`self` in a data declaration's default-domain `requires`."""
-    return (19, item, 0)
 
 
 def byte_predicate(tag: int) -> tuple[int, int, int]:
@@ -160,7 +156,7 @@ CASE = 6
 
 BUILTIN_SPELLINGS = (
     "bool", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "addr",
-    "f32", "f64", "Slice", "Result", "SyscallResult", "Terminal", "Never",
+    "f32", "f64", "Slice", "SyscallResult", "Terminal", "Never",
     "UInt", "Int", "AtomicBool", "AtomicU32", "AtomicU64",
 )
 
@@ -1463,8 +1459,6 @@ def main() -> None:
          UNSUPPORTED_OPERATOR_TOKEN, b"[]"),
         ("unsupported-nominal-machine-contract", b"machine apply<machine F>(x: u8) requires machine F satisfies T::r; {}",
          UNSUPPORTED_MACHINE_CONTRACT, b"requires machine F satisfies T::r;"),
-        ("unsupported-contract-guarantee", b"machine apply<machine F>(x: u8) requires machine F(value: u8) -> u8 ensures result > 0; {}",
-         UNSUPPORTED_MACHINE_CONTRACT, b"requires machine F(value: u8) -> u8 ensures result > 0;"),
         ("unsupported-evidence-binder", b"machine m<T, O satisfies Order<T>>() {}",
          UNSUPPORTED_GENERIC_PARAMETER, b"O satisfies Order<T>"),
         ("unsupported-proposition-binder", b"machine m<proposition R>() {}",
@@ -1570,7 +1564,7 @@ def main() -> None:
         (builtin("u64"),),
         (parameter(0), NOT_A_NAME, NOT_A_NAME, parameter(0)),
     )
-    rejected(program, "terminates-unknown-subject", b'machine f(n: u64) terminates by m {}', UNKNOWN_NAME, b"m", length=1)
+    rejected(program, "terminates-unknown-subject", b'machine f(n: u64) terminates by m {}', UNKNOWN_NAME, b"m", 3)
     # A machine formal carries the entry subject its arrivals pass it, read
     # from the body bindings while resolution runs (clauses.omg).
     accepted(
@@ -1732,7 +1726,7 @@ def main() -> None:
     accepted(
         program,
         "membership-in-a-declared-domain-binds",
-        b"domain u8::Small(v) requires v < 4;\nmachine f(o: u8) -> bool { o in Small }",
+        b"domain u8::Small requires self < 4;\nmachine f(o: u8) -> bool { o in Small }",
         (builtin("u8"), builtin("u8"), builtin("bool")),
         None,
         (path_domain(0),),
@@ -1742,14 +1736,14 @@ def main() -> None:
     accepted(
         program,
         "domain-predicates-name-their-subject",
-        b"domain u64::Small(value)\nrequires value < 8;\ndomain [u8]::Text(bytes)\nrequires valid_utf8(bytes);",
+        b"domain u64::Small\nrequires self < 8;\ndomain [u8]::Text\nrequires valid_utf8(self);",
         (builtin("u64"), builtin("u8"), SLICE_ROW),
         (domain_subject(0), NOT_A_NAME, NOT_A_NAME, byte_predicate(1), domain_subject(1), NOT_A_NAME),
     )
     rejected(
         program,
         "domain-predicates-see-only-their-subject",
-        b"domain u64::Small(value)\nrequires other < 8;",
+        b"domain u64::Small\nrequires other < 8;",
         UNKNOWN_NAME,
         b"other",
     )
@@ -1917,7 +1911,7 @@ def main() -> None:
         ("duplicate-constant", b"const N: u64 = 1;\nconst N: u64 = 2;", b"N", 2),
         ("duplicate-owned-constant", b"const A::N: u64 = 1;\nconst A::N: u64 = 2;", b"N", 2),
         ("duplicate-proposition", b"proposition P;\nproposition P;", b"P", 2),
-        ("duplicate-domain", b"domain u64::Small(v) requires v < 4;\ndomain u64::Small;", b"Small", 2),
+        ("duplicate-domain", b"domain u64::Small requires self < 4;\ndomain u64::Small;", b"Small", 2),
     ):
         rejected(program, name, source, DUPLICATE_DECLARATION, spelling, occurrence)
     rejected_units(
@@ -1973,7 +1967,7 @@ def main() -> None:
     accepted(
         program,
         "declared-domain-qualifier",
-        b"domain u64::Small(value) requires value < 4;\nmachine f(x: u64 in Small) {}",
+        b"domain u64::Small requires self < 4;\nmachine f(x: u64 in Small) {}",
         (builtin("u64"), in_domain(builtin("u64"), 0)),
     )
     accepted(
@@ -1985,7 +1979,7 @@ def main() -> None:
     accepted(
         program,
         "slice-carrier-domain",
-        b"domain [u8]::Path(path);\nmachine open(path: &[u8] in Path) {}",
+        b"domain [u8]::Path;\nmachine open(path: &[u8] in Path) {}",
         (builtin("u8"), SLICE_ROW, builtin("u8"), in_domain(SLICE_ROW, 0), REFERENCE_ROW),
     )
     accepted(
@@ -1997,7 +1991,7 @@ def main() -> None:
     accepted(
         program,
         "indexed-domain",
-        b"domain<const Capacity: u64> u64::AtMost<Capacity>(value) requires value <= Capacity;\n"
+        b"domain<const Capacity: u64> u64::AtMost<Capacity> requires self <= Capacity;\n"
         b"data Buffer { length: u64 in AtMost; }",
         (builtin("u64"), builtin("u64"), generic(0), in_domain(builtin("u64"), 0)),
     )
@@ -2021,7 +2015,7 @@ def main() -> None:
     accepted(
         program,
         "alias-constituents-and-routes",
-        b"domain i32::Positive(v) requires v > 0;\ndomain i32::Small(v) requires v < 10;\n"
+        b"domain i32::Positive requires self > 0;\ndomain i32::Small requires self < 10;\n"
         b"domain i32::Both = Positive & i32::Small;\n"
         b"trait Issues { machine issue() -> u64; }\nmachine mint() -> u64 { 1 }\n"
         b"domain u64::Issued established by Issues::issue, mint;",
@@ -2322,7 +2316,7 @@ def main() -> None:
     accepted_units(
         program,
         "public-domain-across-packages",
-        ((1, b"limits", b"public domain u64::Small(value) requires value < 4;"),
+        ((1, b"limits", b"public domain u64::Small requires self < 4;"),
          (0, b"", b"use geo::limits;\nmachine f(x: u64 in Small) {}")),
         (builtin("u64"), in_domain(builtin("u64"), 0)),
         packages=app_geometry,
@@ -2331,7 +2325,7 @@ def main() -> None:
     rejected_units(
         program,
         "private-domain-across-packages",
-        ((1, b"limits", b"domain u64::Small(value) requires value < 4;"),
+        ((1, b"limits", b"domain u64::Small requires self < 4;"),
          (0, b"", b"use geo::limits;\nmachine f(x: u64 in Small) {}")),
         UNKNOWN_DOMAIN,
         1,

@@ -4189,6 +4189,35 @@ mod entry_paths {
                     self.scalar(left, depth + 1)?,
                     self.scalar(right, depth + 1)?,
                 ),
+                /*
+                    An IEEE comparison keeps its own operator. The negated kinds
+                    are not the reversed relations (`!(x < y)` holds for NaN while
+                    `x >= y` does not), so they stay a logical negation.
+                */
+                Boolean::ScalarIeeeFloatComparison { kind, left, right } => {
+                    use checked_trees::CheckedIeeeFloatComparisonKind as Kind;
+                    let (operator, negated) = match kind {
+                        Kind::Equal => (BinaryOperator::Equal, false),
+                        Kind::NotEqual => (BinaryOperator::NotEqual, false),
+                        Kind::LessThan => (BinaryOperator::Less, false),
+                        Kind::LessOrEqual => (BinaryOperator::LessOrEqual, false),
+                        Kind::NotLessThan => (BinaryOperator::Less, true),
+                        Kind::NotLessOrEqual => (BinaryOperator::LessOrEqual, true),
+                    };
+                    let comparison = binary(
+                        operator,
+                        self.scalar(left, depth + 1)?,
+                        self.scalar(right, depth + 1)?,
+                    );
+                    if negated {
+                        Expression::Unary {
+                            operator: UnaryOperator::LogicalNot as u8,
+                            operand: Box::new(comparison),
+                        }
+                    } else {
+                        comparison
+                    }
+                }
                 _ => return None,
             })
         }
@@ -4209,6 +4238,25 @@ mod entry_paths {
                 Scalar::IntegerLiteral { literal } => Some(Expression::Integer(
                     literal.decimal_value_bignum()?.to_string(),
                 )),
+                /*
+                    Route identities spell a float literal as its source text. The
+                    shortest round-trip spelling of the evaluated bits (`0.0`,
+                    `2.5`) is how such literals are ordinarily written; any other
+                    spelling of the same value only fails to match, which widens
+                    the route rather than erasing it.
+                */
+                Scalar::IeeeFloatLiteral { value } => {
+                    let (format, bits) = match *value {
+                        semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
+                            (numerics::literals::FloatFormat::F32, u64::from(bits))
+                        }
+                        semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
+                            (numerics::literals::FloatFormat::F64, bits)
+                        }
+                    };
+                    numerics::literals::FloatLiteral::from_bits(format, bits)
+                        .map(|literal| Expression::Float(literal.text().to_owned()))
+                }
                 Scalar::Boolean(condition) => self.boolean(condition, depth + 1),
                 _ => None,
             }

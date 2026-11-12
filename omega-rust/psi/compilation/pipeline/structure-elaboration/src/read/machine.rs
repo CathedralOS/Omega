@@ -44,23 +44,72 @@ impl<'t> Program<'t> {
             }
         }
         let id = self.next_identity()?;
-        let (signature, names) = self.signature(id, symbol)?;
-        self.symbols.push(symbol);
-        self.signatures.push(signature);
-        self.names.push(names);
+        let reading = if self.rigid && self.symbols.is_empty() {
+            Reading::GenericEntry
+        } else {
+            Reading::Closed
+        };
+        self.read_machine(id, symbol, reading)?;
         Ok(id)
     }
 
-    /// The first machine of a conformance witness: the requirement's
-    /// signature and contract, on a body the caller supplies.
-    pub fn witnessed(
+    /// Reads the signature of `symbol` as machine `id` and records it. The
+    /// scope of whichever machine was being read is put back afterwards: a
+    /// callee is discovered in the middle of its caller's body.
+    fn read_machine(
         &mut self,
+        id: MachineId,
+        symbol: SymbolHandle,
+        reading: Reading,
+    ) -> Checked<()> {
+        let outer = std::mem::take(&mut self.scope);
+        let read = self.signature(id, symbol, &reading);
+        let scope = std::mem::replace(&mut self.scope, outer);
+        let (signature, names, value_parameters) = read?;
+        self.symbols.push(symbol);
+        self.signatures.push(signature);
+        self.names.push(names);
+        self.value_parameters.push(value_parameters);
+        self.value_arguments.push(Vec::new());
+        self.scopes.push(scope);
+        Ok(())
+    }
+
+    /// The `MachineId` that stands for the generic machine `symbol` applied
+    /// at `arguments`, the types a call in a generic check form's entry
+    /// gives its type parameters, in declaration order: its signature and
+    /// contract at those types, and no body. The machine's own body is
+    /// checked once as the entry of its own generic check form, so here it
+    /// is only what its callers are held to, like a requirement.
+    pub(super) fn application(
+        &mut self,
+        symbol: SymbolHandle,
+        arguments: Vec<ValueType>,
+    ) -> Checked<MachineId> {
+        if let Some((id, _)) = self
+            .applied
+            .iter()
+            .find(|(id, applied)| self.symbols.get(*id) == Some(&symbol) && *applied == arguments)
+        {
+            return Ok(*id);
+        }
+        let id = self.next_identity()?;
+        self.read_machine(id, symbol, Reading::Applied(arguments.clone()))?;
+        self.applied.push((id, arguments));
+        self.requirements.push(id);
+        self.applications.push(id);
+        Ok(id)
+    }
+
+    /// The requirement `requirement` as `declaring_trait` declares it.
+    pub(super) fn declared_requirement(
+        &self,
+        id: MachineId,
         declaring_trait: SymbolHandle,
         requirement: SymbolHandle,
-    ) -> Checked<MachineId> {
-        let id = self.next_identity()?;
+    ) -> Checked<&'t StateSignature> {
         let typed = self.typed;
-        let declared = typed
+        typed
             .trait_definition_by_symbol(declaring_trait)
             .and_then(|declaration| {
                 typed
@@ -74,11 +123,27 @@ impl<'t> Program<'t> {
                     Construct::Machine,
                     Unserved::Machine("requirement that its trait does not declare"),
                 )
-            })?;
-        let (signature, names) = self.requirement_signature(id, declared)?;
+            })
+    }
+
+    /// The first machine of a conformance witness: the requirement's
+    /// signature and contract at `arguments`, the literals of its value
+    /// parameters, on a body the caller supplies.
+    pub fn witnessed(
+        &mut self,
+        declaring_trait: SymbolHandle,
+        requirement: SymbolHandle,
+        arguments: &[semantic_vocabulary::ScalarTerm],
+    ) -> Checked<MachineId> {
+        let id = self.next_identity()?;
+        let declared = self.declared_requirement(id, declaring_trait, requirement)?;
+        let (signature, names) = self.requirement_signature(id, declared, arguments)?;
         self.symbols.push(requirement);
         self.signatures.push(signature);
         self.names.push(names);
+        self.value_parameters.push(0);
+        self.value_arguments.push(arguments.to_vec());
+        self.scopes.push(Vec::new());
         Ok(id)
     }
 
@@ -89,20 +154,31 @@ impl<'t> Program<'t> {
 
     /// The `MachineId` that stands for a trait requirement in a generic
     /// check form: its signature and contract, read as any machine's, and
-    /// no body.
-    pub(super) fn requirement(&mut self, declared: &'t StateSignature) -> Checked<MachineId> {
+    /// no body. A requirement with value parameters is one machine per
+    /// tuple of literals a call binds them to (`arguments`), because its
+    /// contract differs with them.
+    pub(super) fn requirement(
+        &mut self,
+        declared: &'t StateSignature,
+        arguments: &[semantic_vocabulary::ScalarTerm],
+    ) -> Checked<MachineId> {
         let symbol = declared.symbol;
         for position in 1..=self.symbols.len() as u64 {
             let id = MachineId::new(position).expect("positions start at 1");
-            if self.symbols.get(id) == Some(&symbol) {
+            if self.symbols.get(id) == Some(&symbol)
+                && self.value_arguments.get(id).map(Vec::as_slice) == Some(arguments)
+            {
                 return Ok(id);
             }
         }
         let id = self.next_identity()?;
-        let (signature, names) = self.requirement_signature(id, declared)?;
+        let (signature, names) = self.requirement_signature(id, declared, arguments)?;
         self.symbols.push(symbol);
         self.signatures.push(signature);
         self.names.push(names);
+        self.value_parameters.push(0);
+        self.value_arguments.push(arguments.to_vec());
+        self.scopes.push(Vec::new());
         self.requirements.push(id);
         Ok(id)
     }
@@ -176,11 +252,12 @@ impl<'t> Program<'t> {
         Ok((machine, state))
     }
 
-    fn machine_shape(&self, id: MachineId, machine: &Machine) -> Checked<()> {
+    fn machine_shape(&self, id: MachineId, machine: &Machine, reading: &Reading) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
-        // The entry of a generic check form keeps its implementation
-        // parameters, each rigid; every other machine is closed.
-        let generic_entry = self.rigid && self.symbols.is_empty();
+        // The entry of a generic check form keeps its parameters, each
+        // rigid; a generic machine it calls is read at the call's type
+        // arguments; every other machine is closed.
+        let generic_entry = matches!(reading, Reading::GenericEntry);
         if machine.lexical_region_origin.is_some() {
             return unserved("lexical region origin");
         }
@@ -232,16 +309,38 @@ impl<'t> Program<'t> {
             return unserved("generic parameters");
         }
         // An implementation parameter binds no type and no value: the body
-        // only calls through it. Every other binder kind would put a rigid
-        // type or value into the lowered form, which has no row for one.
+        // only calls through it. A value parameter (`const Units: u64`) is a
+        // value of a known carrier, read as a formal no caller passes
+        // (`value_binders`). A type parameter would put a value of a rigid
+        // type into the lowered form, which has no row for one.
         let parameters = self.typed.machine_type_parameters(machine);
         if parameters.is_empty() != machine.type_parameters.is_empty() {
             return unserved("type parameter span");
         }
-        let implementations_only = parameters.iter().all(|parameter| {
-            parameter.kind == typed_trees::data::TypeParameterKind::Implementation
-        });
-        if !parameters.is_empty() && !(generic_entry && implementations_only) {
+        let served = match reading {
+            Reading::Closed => parameters.is_empty(),
+            // A type parameter is opaque here: a value of it can be named,
+            // passed and returned, and nothing selects on it. One declared
+            // `[linear]` must be used exactly once, which this route does
+            // not judge, so only the default and `[copy]` are read.
+            Reading::GenericEntry => parameters.iter().all(|parameter| match parameter.kind {
+                typed_trees::data::TypeParameterKind::Implementation
+                | typed_trees::data::TypeParameterKind::Const { .. } => true,
+                typed_trees::data::TypeParameterKind::Type => {
+                    parameter.bounds.multiplicity != language_core::Multiplicity::Linear
+                }
+                _ => false,
+            }),
+            // Applied at one type argument per parameter, all type
+            // parameters.
+            Reading::Applied(arguments) => {
+                parameters.len() == arguments.len()
+                    && parameters.iter().all(|parameter| {
+                        parameter.kind == typed_trees::data::TypeParameterKind::Type
+                    })
+            }
+        };
+        if !served {
             return unserved("generic parameters");
         }
         if !machine.declared_type_equations.is_empty()
@@ -257,13 +356,88 @@ impl<'t> Program<'t> {
         Ok(())
     }
 
+    /// The value parameters of a generic check form's entry, in declaration
+    /// order: each `const` binder with its carrier type. generics.md, "Value
+    /// binders and const requirements": a `const Count: u32` binds a value
+    /// that "must be statically known within the compiled specialization",
+    /// so the unspecialized body knows only its carrier and what the
+    /// `requires` say of it. Only an integer carrier is served.
+    fn value_binders(&self, id: MachineId, machine: &Machine) -> Checked<Vec<ValueBinder>> {
+        let mut binders = Vec::new();
+        for parameter in self.typed.machine_type_parameters(machine) {
+            let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            else {
+                continue;
+            };
+            if !parameter.symbol.is_valid() {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Spelling("value parameter without a symbol"),
+                ));
+            }
+            let scalar_type = self.scalar_type(id, type_reference)?;
+            if !matches!(scalar_type, semantic_vocabulary::ScalarType::Integer(_)) {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Parameter("value parameter that is not an integer"),
+                ));
+            }
+            binders.push(ValueBinder {
+                symbol: parameter.symbol,
+                name: parameter.name.as_str().to_owned(),
+                scalar_type,
+            });
+        }
+        Ok(binders)
+    }
+
     fn signature(
         &mut self,
         id: MachineId,
         symbol: SymbolHandle,
-    ) -> Checked<(Signature, MachineNames)> {
+        reading: &Reading,
+    ) -> Checked<(Signature, MachineNames, usize)> {
         let (machine, state) = self.declaration(id, symbol)?;
-        self.machine_shape(id, machine)?;
+        // The entry of a generic check form keeps its value parameters as
+        // formals; `machine_shape` refuses them on every other machine.
+        let binders = match reading {
+            Reading::GenericEntry => self.value_binders(id, machine)?,
+            Reading::Closed | Reading::Applied(_) => Vec::new(),
+        };
+        self.machine_shape(id, machine, reading)?;
+        // What each type parameter stands for while this machine is read.
+        self.scope = match reading {
+            Reading::Closed => Vec::new(),
+            Reading::GenericEntry => self
+                .typed
+                .machine_type_parameters(machine)
+                .iter()
+                .enumerate()
+                .filter(|(_, parameter)| {
+                    parameter.kind == typed_trees::data::TypeParameterKind::Type
+                })
+                .map(|(position, parameter)| {
+                    let rigid = terminal_check_tables::values::RigidType(position as u32);
+                    (parameter.symbol, ValueType::Rigid(rigid))
+                })
+                .collect(),
+            Reading::Applied(arguments) => self
+                .typed
+                .machine_type_parameters(machine)
+                .iter()
+                .map(|parameter| parameter.symbol)
+                .zip(arguments.iter().copied())
+                .collect(),
+        };
+        if self.scope.iter().any(|(binder, _)| !binder.is_valid()) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Spelling("type parameter without a symbol"),
+            ));
+        }
         if !state.contracts.is_empty() {
             return Err(refuse(
                 id,
@@ -281,6 +455,8 @@ impl<'t> Program<'t> {
                 declares_no_crash_route: machine.declares_no_crash_route,
                 is_public: machine.is_public,
             },
+            &binders,
+            &[],
         )?;
         // Diagnostics name the declaration the author wrote, not a clone
         // stage 04 generated from it.
@@ -289,26 +465,84 @@ impl<'t> Program<'t> {
             .unwrap_or(machine);
         names.machine = authored.name.as_str().to_owned();
         names.state = state.name.as_str().to_owned();
-        Ok((signature, names))
+        Ok((signature, names, binders.len()))
+    }
+
+    /// The value parameters of a trait requirement, in declaration order,
+    /// each with its carrier. Any other kind of parameter is refused: a
+    /// requirement over a type parameter has no lowered form yet.
+    pub(super) fn requirement_binders(
+        &self,
+        id: MachineId,
+        requirement: &StateSignature,
+    ) -> Checked<Vec<(SymbolHandle, semantic_vocabulary::ScalarType)>> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        let parameters = self
+            .typed
+            .data_type_parameters
+            .span_or_empty(requirement.type_parameters);
+        if parameters.is_empty() != requirement.type_parameters.is_empty() {
+            return unserved("type parameter span");
+        }
+        let mut binders = Vec::with_capacity(parameters.len());
+        for parameter in parameters {
+            let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            else {
+                return unserved("generic parameters");
+            };
+            if !parameter.symbol.is_valid() {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Spelling("value parameter without a symbol"),
+                ));
+            }
+            let scalar_type = self.scalar_type(id, type_reference)?;
+            if !matches!(scalar_type, semantic_vocabulary::ScalarType::Integer(_)) {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Parameter("value parameter that is not an integer"),
+                ));
+            }
+            binders.push((parameter.symbol, scalar_type));
+        }
+        Ok(binders)
     }
 
     /// A trait requirement's signature and contract. The typed trees hold a
-    /// requirement as a bare signature, not as a machine.
+    /// requirement as a bare signature, not as a machine. `arguments` are
+    /// the literals of its value parameters, in declaration order: its
+    /// clauses are read with each binder standing for its literal, so the
+    /// contract is the one a call with those static arguments is held to.
     fn requirement_signature(
         &mut self,
         id: MachineId,
         requirement: &'t StateSignature,
+        arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
         if requirement.spelling.is_some() {
             return unserved("operator spelling");
         }
-        if !requirement.lifetime_parameters.is_empty()
-            || !requirement.type_parameters.is_empty()
-            || !requirement.conformance_bounds.is_empty()
+        if !requirement.lifetime_parameters.is_empty() || !requirement.conformance_bounds.is_empty()
         {
             return unserved("generic parameters");
         }
+        let binders = self.requirement_binders(id, requirement)?;
+        if binders.len() != arguments.len()
+            || binders
+                .iter()
+                .zip(arguments)
+                .any(|((_, scalar_type), literal)| literal.scalar_type() != *scalar_type)
+        {
+            return unserved("value arguments that are not the requirement's parameters");
+        }
+        let bound: Vec<_> = binders
+            .iter()
+            .map(|(symbol, _)| *symbol)
+            .zip(arguments.iter().cloned())
+            .collect();
         if requirement.is_default || !requirement.native_callback_parameters.is_empty() {
             return unserved("default or native-callback requirement");
         }
@@ -335,6 +569,8 @@ impl<'t> Program<'t> {
             Declarer::Requirement {
                 declares_no_crash_route: requirement.declares_no_crash_route,
             },
+            &[],
+            &bound,
         )?;
         names.machine = requirement.name.as_str().to_owned();
         Ok((signature, names))
@@ -343,6 +579,10 @@ impl<'t> Program<'t> {
     /// The formals, result and clauses of one callable. `owner` is the
     /// symbol its reserved `result` is recorded against. `declared` says
     /// whose clauses they are, for what an absent `crashes` row means.
+    /// `binders` are the value parameters a generic check form leaves rigid:
+    /// each is a scalar formal after the authored ones, which a clause names
+    /// by the binder's symbol like any formal. `bound` are the value
+    /// parameters this reading has bound to literals instead.
     fn contract(
         &mut self,
         id: MachineId,
@@ -351,6 +591,8 @@ impl<'t> Program<'t> {
         return_type: typed_trees::types::TypeReferenceHandle,
         contracts: arena::HandleSpan<typed_trees::signature::SignatureContract>,
         declared: Declarer,
+        binders: &[ValueBinder],
+        bound: &[(SymbolHandle, semantic_vocabulary::ScalarTerm)],
     ) -> Checked<(Signature, MachineNames)> {
         let typed = self.typed;
         let formals = span(&typed.state_parameters, formals, id, "parameter span")?;
@@ -366,6 +608,16 @@ impl<'t> Program<'t> {
                 homed: false,
             });
         }
+        for binder in binders {
+            let value_type = ValueType::Scalar(binder.scalar_type);
+            parameters.push(value_type);
+            slots.push(Slot {
+                symbol: binder.symbol,
+                value_type,
+                assignable: false,
+                homed: false,
+            });
+        }
         let result = self.result_type(id, return_type)?;
         // The result pseudo-value is the value right after the scalar
         // formals (`Signature::result`), owned by the machine's one state:
@@ -373,7 +625,7 @@ impl<'t> Program<'t> {
         // contract's reserved `result`.
         let scalar_formals = parameters
             .iter()
-            .filter(|parameter| parameter.scalar().is_some())
+            .filter(|parameter| parameter.declared().is_some())
             .count();
         let result_value = ValueId::new(scalar_formals as u64 + 1).ok_or_else(|| {
             refuse(
@@ -384,6 +636,7 @@ impl<'t> Program<'t> {
         })?;
         let entry = ClauseScope {
             slots: &slots,
+            bound,
             owner,
             result: ResultTerm::Absent("result in an entry clause"),
             subject: None,
@@ -403,6 +656,7 @@ impl<'t> Program<'t> {
                 // (`result.field`), which a later slice serves from the
                 // result place.
                 Some(ValueType::Record(_)) => ResultTerm::Absent("result of a record machine"),
+                Some(ValueType::Rigid(_)) => ResultTerm::Absent("result of a rigid type"),
                 None => ResultTerm::Absent("result of a Unit machine"),
             },
             ..entry
@@ -423,9 +677,18 @@ impl<'t> Program<'t> {
             }
             let facts = span(&typed.proof_facts, contract.facts, id, "fact span")?;
             match contract.kind {
+                // A clause that is the literal `true` states nothing: it
+                // asks nothing of a caller and promises nothing, so it adds
+                // no clause, as an absent `requires` or `ensures` adds none.
+                // So does a clause closed type equations decide as true:
+                // `requires T == u32 || T == u64` in the machine generated
+                // for `u32`.
                 SignatureContractKind::Requires => {
                     for fact in facts {
                         let expression = self.fact(id, fact)?;
+                        if self.states_nothing(id, expression)? {
+                            continue;
+                        }
                         requires.push(self.clause(id, &required, expression)?);
                         requires_text.push(self.clause_text(&slots, expression));
                     }
@@ -433,6 +696,9 @@ impl<'t> Program<'t> {
                 SignatureContractKind::Ensures => {
                     for fact in facts {
                         let expression = self.fact(id, fact)?;
+                        if self.states_nothing(id, expression)? {
+                            continue;
+                        }
                         ensures.push(self.clause(id, &exit, expression)?);
                         ensures_text.push(self.clause_text(&slots, expression));
                     }
@@ -524,6 +790,7 @@ impl<'t> Program<'t> {
             formals: formals
                 .iter()
                 .map(|formal| formal.name.as_str().to_owned())
+                .chain(binders.iter().map(|binder| binder.name.clone()))
                 .collect(),
             requires: requires_text,
             ensures: ensures_text,
@@ -539,6 +806,44 @@ impl<'t> Program<'t> {
             },
             names,
         ))
+    }
+
+    /// Whether the type parameter `rigid` of `machine` is declared `[copy]`.
+    fn copies(&self, machine: &Machine, rigid: terminal_check_tables::values::RigidType) -> bool {
+        self.typed
+            .machine_type_parameters(machine)
+            .get(rigid.0 as usize)
+            .is_some_and(|parameter| {
+                parameter.bounds.multiplicity == language_core::Multiplicity::Unrestricted
+            })
+    }
+
+    /// Whether a clause states nothing: it is the Boolean literal `true`,
+    /// or closed type equations decide it as true. One they decide as false
+    /// is refused: the application is outside the family its declaration
+    /// admits, and nothing about its body would mean anything.
+    fn states_nothing(
+        &self,
+        id: MachineId,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Checked<bool> {
+        if expression.is_valid()
+            && matches!(
+                self.typed.expression_table.expression(expression),
+                typed_trees::expression::ExpressionNode::Boolean(true)
+            )
+        {
+            return Ok(true);
+        }
+        match self.static_truth(expression) {
+            Some(true) => Ok(true),
+            Some(false) => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("type equation that is false for this application"),
+            )),
+            None => Ok(false),
+        }
     }
 
     fn formal(&mut self, id: MachineId, formal: &StateParameter) -> Checked<ValueType> {
@@ -585,22 +890,39 @@ impl<'t> Program<'t> {
                 statements: Vec::new(),
             });
         }
-        let (_, state) = self.declaration(id, symbol)?;
+        let (machine, state) = self.declaration(id, symbol)?;
+        self.scope = self.scopes.get(id).cloned().unwrap_or_default();
         let formals = span(
             &typed.state_parameters,
             state.parameters,
             id,
             "parameter span",
         )?;
+        // A generic check form's value parameters are the formals after the
+        // authored ones, as its signature was read.
+        let binders = match self.value_parameters.get(id) {
+            Some(0) | None => Vec::new(),
+            Some(_) => self.value_binders(id, machine)?,
+        };
+        if formals.len() + binders.len() != signature.parameters.len() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("formals that differ from the signature's"),
+            ));
+        }
         let mut slot_names: Vec<String> = formals
             .iter()
             .map(|formal| formal.name.as_str().to_owned())
+            .chain(binders.iter().map(|binder| binder.name.clone()))
             .collect();
         let mut slots: Vec<Slot> = formals
             .iter()
+            .map(|formal| formal.symbol)
+            .chain(binders.iter().map(|binder| binder.symbol))
             .zip(&signature.parameters)
-            .map(|(formal, value_type)| Slot {
-                symbol: formal.symbol,
+            .map(|(symbol, value_type)| Slot {
+                symbol,
                 value_type: *value_type,
                 assignable: false,
                 homed: false,
@@ -620,8 +942,20 @@ impl<'t> Program<'t> {
         }
         let mut body = Vec::with_capacity(statements.len());
         let mut completed = false;
+        // Set once an arm whose guard closed type equations decide as true
+        // has completed the machine: the arms after it are the branches of
+        // other types, which no value of this application reaches. They are
+        // left unread, because they are typed under an equation that is
+        // false here (`threshold<u32>` still holds the arm that returns a
+        // `u64`).
+        let mut statically_completed = false;
+        self.static_truths.clear();
         let mut position = 0;
         while let Some(statement) = statements.get(position) {
+            if statically_completed && matches!(statement, StatementNode::Transition(_)) {
+                position += 1;
+                continue;
+            }
             if completed {
                 return Err(refuse(
                     id,
@@ -647,7 +981,11 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::Assignment(assignment) => self.assignment(id, &slots, assignment)?,
                 StatementNode::Call(call) => {
-                    Statement::Evaluate(self.call_statement(id, &slots, call)?)
+                    let called = self.call_statement(id, &slots, call)?;
+                    if !call.discards_result {
+                        undiscarded(id, &called)?;
+                    }
+                    Statement::Evaluate(called)
                 }
                 StatementNode::Expression(expression) => {
                     let expected = if last {
@@ -677,7 +1015,10 @@ impl<'t> Program<'t> {
                                 target: Target::Value(expression),
                             }
                         }
-                        (false, _) | (true, None) => Statement::Evaluate(expression),
+                        (false, _) | (true, None) => {
+                            undiscarded(id, &expression)?;
+                            Statement::Evaluate(expression)
+                        }
                     }
                 }
                 StatementNode::LocalData(local)
@@ -691,6 +1032,9 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::LocalData(local) => {
                     let (slot, statement) = self.local(id, &slots, local)?;
+                    if let Some(truth) = self.static_truth(local.initial_value) {
+                        self.static_truths.push((local.symbol, truth));
+                    }
                     slots.push(slot);
                     slot_names.push(local.name.as_str().to_owned());
                     statement
@@ -705,8 +1049,27 @@ impl<'t> Program<'t> {
                     dispatch
                 }
                 StatementNode::Transition(transition) => {
+                    // An arm whose guard closed type equations decide: a
+                    // false one is the branch of another type and is left
+                    // unread; a true one is taken unconditionally.
+                    let decided = match transition.guard {
+                        typed_trees::statement::TransitionGuardNode::When(guard) => {
+                            self.static_truth(guard)
+                        }
+                        typed_trees::statement::TransitionGuardNode::Always => None,
+                    };
+                    if decided == Some(false) {
+                        position += 1;
+                        continue;
+                    }
                     let (guard, target) =
                         self.transition(id, &slots, transition, signature.result)?;
+                    let guard = if decided == Some(true) {
+                        statically_completed = true;
+                        None
+                    } else {
+                        guard
+                    };
                     completed = guard.is_none();
                     Statement::Arm {
                         guard,
@@ -729,6 +1092,28 @@ impl<'t> Program<'t> {
             for statement in &body {
                 bindings(statement, &slot_names, &mut names.bindings);
                 value_exits(statement, &mut names.exits);
+            }
+        }
+        // ownership.md, "Property declarations": "every use of `T` receives
+        // the property fixed by `T`'s declaration". A value of a type
+        // parameter not declared `[copy]` may be used at most once, and
+        // this route has no judgment of moves, so a body that names such a
+        // slot twice anywhere is refused, whichever paths the two uses are
+        // on.
+        let mut uses = vec![0_usize; slots.len()];
+        for statement in &body {
+            statement_slot_uses(statement, &mut uses);
+        }
+        for (slot, uses) in slots.iter().zip(&uses) {
+            if let ValueType::Rigid(rigid) = slot.value_type
+                && *uses > 1
+                && !self.copies(machine, rigid)
+            {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Expression("second use of a value of a type parameter"),
+                ));
             }
         }
         Ok(Body {
@@ -859,4 +1244,118 @@ enum Declarer {
     Requirement {
         declares_no_crash_route: bool,
     },
+}
+
+/// One value parameter of a generic check form: the binder's symbol, which
+/// is what a name in the body or a clause resolves to, its spelling for
+/// diagnostics, and its carrier.
+struct ValueBinder {
+    symbol: SymbolHandle,
+    name: String,
+    scalar_type: semantic_vocabulary::ScalarType,
+}
+
+/// How a machine's declaration is read.
+enum Reading {
+    /// No generic parameter: every machine of a concrete module.
+    Closed,
+    /// The entry of a generic check form, its parameters rigid.
+    GenericEntry,
+    /// A generic machine at the type arguments of one call in a generic
+    /// check form's entry, in declaration order.
+    Applied(Vec<ValueType>),
+}
+
+/// Counts, per slot, how often `statement` names it.
+fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
+    let target = |target: &Target, uses: &mut [usize]| {
+        if let Target::Value(value) = target {
+            expression_slot_uses(value, uses);
+        }
+    };
+    match statement {
+        Statement::Bind { value, .. } | Statement::Store { value, .. } => {
+            expression_slot_uses(value, uses);
+        }
+        Statement::Evaluate(value) => expression_slot_uses(value, uses),
+        Statement::Arm {
+            guard, target: arm, ..
+        } => {
+            if let Some(guard) = guard {
+                expression_slot_uses(guard, uses);
+            }
+            target(arm, uses);
+        }
+        Statement::Dispatch { arms, default, .. } => {
+            for (_, arm, _) in arms {
+                target(arm, uses);
+            }
+            if let Some((arm, _)) = default {
+                target(arm, uses);
+            }
+        }
+        Statement::Declare { .. } => {}
+    }
+}
+
+fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
+    match &expression.kind {
+        ExpressionKind::Slot(slot) => {
+            if let Some(count) = uses.get_mut(*slot) {
+                *count += 1;
+            }
+        }
+        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) => {}
+        ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
+            for (_, field) in fields {
+                expression_slot_uses(field, uses);
+            }
+        }
+        ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
+            expression_slot_uses(base, uses);
+        }
+        ExpressionKind::IsCase { subject, .. } => expression_slot_uses(subject, uses),
+        ExpressionKind::Match {
+            subject,
+            arms,
+            default,
+        } => {
+            expression_slot_uses(subject, uses);
+            for (_, arm) in arms {
+                expression_slot_uses(arm, uses);
+            }
+            if let Some(default) = default {
+                expression_slot_uses(default, uses);
+            }
+        }
+        ExpressionKind::Strict { left, right, .. }
+        | ExpressionKind::ShortCircuit { left, right, .. } => {
+            expression_slot_uses(left, uses);
+            expression_slot_uses(right, uses);
+        }
+        ExpressionKind::Not(operand) | ExpressionKind::BitwiseNot(operand) => {
+            expression_slot_uses(operand, uses);
+        }
+        ExpressionKind::Call { arguments, .. } => {
+            for argument in arguments {
+                expression_slot_uses(argument, uses);
+            }
+        }
+    }
+}
+
+/// A statement evaluated for effect leaves no value behind. One that has a
+/// value and is not the machine's final value is a defect the route hands
+/// back, never a statement it reads past. `wiki/spec/language/effects.md`:
+/// "A non-Unit call result cannot be silently discarded. Intentional discard
+/// is `_ = call();`".
+fn undiscarded(id: MachineId, statement: &Expression) -> Checked<()> {
+    if statement.result.is_some() {
+        return Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Statement("expression statement that discards its value"),
+        ));
+    }
+    Ok(())
 }

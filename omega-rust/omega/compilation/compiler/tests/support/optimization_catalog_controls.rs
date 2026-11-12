@@ -1,13 +1,12 @@
 //! Replay source-produced type catalogs through the public optimizer entrance.
+use abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit;
 use optimization_unit::PsiOptimizationUnit;
 use optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_psi_structural_catalog,
 };
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::StructuralTypeShape;
-use terminal_psi_to_abstract_operations::{
-    ArtifactSections, build_verified_psi_optimization_unit, lower_artifact,
-};
+use terminal_psi_to_abstract_operations::{ArtifactSections, lower_artifact};
 
 pub(super) fn prepared_unit(
     artifact: &CanonicalTerminalArtifact,

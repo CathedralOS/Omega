@@ -4220,6 +4220,7 @@ mod reads {
         FlowStatementFact,
     };
     use diagnostics::Diagnostic;
+    use symbols::SymbolHandle;
     use typed_trees::expression::{ExpressionHandle, ExpressionNode};
     use typed_trees::statement::StatementNode;
     use validation::CanonicalPlace;
@@ -4340,6 +4341,14 @@ mod reads {
     /*
         Each loan live at the statement's entry whose last use is this statement,
         with the last step that still holds it there.
+
+        A match transition reads its subject through the generated alias
+        `__transition_subject#N`, whose initializer is the subject local itself;
+        an observation of that alias is an observation of the local. A loan held
+        under a payload path of the local (a view inside a case) ends at the
+        local's final observation like a whole-local loan, unless a later step in
+        the same statement observes a name the arm's pattern bound: that binding
+        carries the payload, so the carried-loan rules keep the parent alive.
     */
     pub(super) fn final_holds_in_statement(
         program: &dyn ::validation::CheckingInput,
@@ -4383,33 +4392,154 @@ mod reads {
                         program.state_by_symbol(state.state_symbol)?,
                         loan.owner_symbol,
                     )?;
-                    if !matches!(
+                    /*
+                        Ending the source path skips every later statement, so a later
+                        arm's read is no use on this path; only the state's exit
+                        cleanup could still read an owned local. A reference local, or
+                        a local whose cleanup runs no code, holds nothing past its
+                        final observation here.
+                    */
+                    let reference = matches!(
                         program
                             .type_reference_table
                             .type_reference(local.type_reference),
                         typed_trees::types::TypeReferenceNode::Reference { .. }
-                    ) {
+                    );
+                    if !reference
+                        && !validation::has_no_code_cleanup_contents(program, local.type_reference)
+                    {
                         return None;
                     }
                 }
                 if (!ends_source_path && loan.last_use_statement_index != statement.statement_index)
-                    || !loan.owner_path.is_empty()
                     || destination_root == Some(loan.owner_symbol)
                 {
                     return None;
                 }
-                occurrences
+                let checked_state = program.state_by_symbol(state.state_symbol)?;
+                let observes_owner = |root: Option<SymbolHandle>| {
+                    root.is_some_and(|root| {
+                        root == loan.owner_symbol
+                            || transition_subject_aliases(
+                                program,
+                                checked_state,
+                                root,
+                                loan.owner_symbol,
+                            )
+                    })
+                };
+                let observations = occurrences
                     .iter()
                     .enumerate()
                     .filter(|(_, occurrence)| {
                         matches!(&occurrence.step, StatementStep::Observe { place, .. }
-                            if place.root.as_symbol() == Some(loan.owner_symbol))
+                            if observes_owner(place.root.as_symbol()))
                     })
-                    .map(|(position, _)| holds[position])
+                    .map(|(position, _)| position)
+                    .collect::<Vec<_>>();
+                let last_observation = *observations.last()?;
+                if !loan.owner_path.is_empty()
+                    && !payload_released_by_transition(
+                        program,
+                        statement_node,
+                        occurrences,
+                        last_observation,
+                    )
+                {
+                    return None;
+                }
+                observations
+                    .iter()
+                    .map(|position| holds[*position])
                     .max()
                     .map(|held_until| (handle, held_until))
             })
             .collect()
+    }
+
+    /*
+        The whole local a match transition's generated subject alias reads in its
+        place (`let __transition_subject#N = owner` or `= &owner`). The alias has
+        no storage of its own: observations and payload projections through it are
+        observations and projections of `owner`.
+    */
+    fn transition_subject_owner(
+        program: &dyn ::validation::CheckingInput,
+        state: &typed_trees::state::State,
+        alias: SymbolHandle,
+    ) -> Option<SymbolHandle> {
+        let (_, local) = program.state_local_declaration(state, alias)?;
+        if !local.name.as_str().starts_with("__transition_subject#") {
+            return None;
+        }
+        let mut initializer = local.initial_value;
+        if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(initializer) {
+            initializer = borrow.target;
+        }
+        match program.expression_table.expression(initializer) {
+            ExpressionNode::Name(path)
+                if path.symbol.is_valid()
+                    && path.symbol == path.head_symbol
+                    && program
+                        .expression_table
+                        .name_path_members(path.members)
+                        .len()
+                        == 1 =>
+            {
+                Some(path.symbol)
+            }
+            _ => None,
+        }
+    }
+
+    fn transition_subject_aliases(
+        program: &dyn ::validation::CheckingInput,
+        state: &typed_trees::state::State,
+        alias: SymbolHandle,
+        owner: SymbolHandle,
+    ) -> bool {
+        transition_subject_owner(program, state, alias) == Some(owner)
+    }
+
+    /*
+        A payload-path loan of a dispatched local ends with the dispatch only in
+        a transition arm, and only when no step after the subject's final
+        observation reads a name the arm's patterns bound. Such a read transports
+        the payload (and its loan) into the arm's target, where the carried-loan
+        checks own it.
+    */
+    fn payload_released_by_transition(
+        program: &dyn ::validation::CheckingInput,
+        statement_node: &StatementNode,
+        occurrences: &[StatementOccurrence],
+        last_observation: usize,
+    ) -> bool {
+        let StatementNode::Transition(transition) = statement_node else {
+            return false;
+        };
+        let bound = program
+            .statement_table
+            .transition_patterns(transition.patterns)
+            .iter()
+            .flat_map(|pattern| {
+                program
+                    .expression_table
+                    .match_fields(pattern.pattern.fields)
+            })
+            .filter_map(|field| match &field.action {
+                typed_trees::expression::MatchFieldAction::Bind(name) => Some(name.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        occurrences[last_observation + 1..]
+            .iter()
+            .all(|occurrence| {
+                !matches!(&occurrence.step, StatementStep::Observe { place, .. }
+                if place.root.as_symbol().is_some_and(|root| {
+                    let name = program.symbols.name(root);
+                    bound.contains(&name)
+                }))
+            })
     }
 
     /*
@@ -6115,6 +6245,16 @@ mod statements {
                     facts,
                     loan_occurrences,
                     &destinations,
+                    &access,
+                    loan_handle,
+                    stated_premises,
+                    bound_lookup,
+                ) && !super::place_access::holder_access_interferes(
+                    program,
+                    facts,
+                    loan_occurrences,
+                    &destinations,
+                    &mutated_place,
                     &access,
                     loan_handle,
                     stated_premises,
@@ -11392,6 +11532,66 @@ mod place_access {
             )
             .non_interfering
         })
+    }
+
+    /*
+        A write whose destination crosses a stored reference reaches its
+        backing through the place that holds the reference:
+        `carrier.destination = 11` writes the referent by way of the slot
+        `carrier.destination`, and `parent = 9` by way of the local `parent`.
+        A live loan of that holder, or of a place enclosing it, still observes
+        everything the holder reaches, so the write must also be judged against
+        the loan at the holder's own coordinates. Only a loan whose path ends at
+        or above the written path qualifies; a deeper loan names part of the
+        referent, which the backing comparison already judges. A write through
+        the loan itself is the loan's own access.
+    */
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn holder_access_interferes<'p>(
+        program: &'p dyn ::validation::CheckingInput,
+        facts: &CheckFacts,
+        loan_occurrences: &LoanOccurrences<'_>,
+        backings: &[ResolvedAlias],
+        written: &validation::CanonicalPlace,
+        kind: &BorrowAccessKind,
+        loan_handle: Handle<BorrowLoanFact>,
+        premises: &[StatedOrderingPremise],
+        bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    ) -> bool {
+        let borrow = &facts.borrow;
+        let loan = borrow.loans.get(loan_handle);
+        let segments = borrow.loan_segments(loan);
+        if loan.incoming_reference.is_valid()
+            || loan.root != written.root
+            || segments.len() > written.segments.len()
+            || !backings.iter().any(|backing| !backing.lineage.is_empty())
+            || backings
+                .iter()
+                .any(|backing| backing.retains_loan(facts, loan_occurrences, loan_handle))
+        {
+            return false;
+        }
+        let holder = CapturedPlace {
+            root: written.root,
+            segments: written.segments[..segments.len()].to_vec(),
+            ..Default::default()
+        };
+        let loan_place = CapturedPlace {
+            root: loan.root,
+            segments: segments.to_vec(),
+            ..Default::default()
+        };
+        !captured_place_compatibility(
+            program,
+            borrow,
+            &holder,
+            kind,
+            &loan_place,
+            &loan.kind,
+            premises,
+            bound_lookup,
+        )
+        .non_interfering
     }
 }
 pub(crate) use overlap::{

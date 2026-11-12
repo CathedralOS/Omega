@@ -21837,6 +21837,11 @@ pub(crate) mod captured_predicates {
                     ..Default::default()
                 });
                 bindings.push((field.name.to_string(), value));
+            } else if predicate_names_symbol(program, predicate, field.symbol) {
+                // A field the predicate reads must be judged at its current value. Left
+                // unbound, it would stand for the declaration's own field and let the
+                // data's `requires` prove itself after a write the judge cannot see into.
+                return false;
             }
         }
         if let Some(term) = current_projection_predicate(
@@ -21854,14 +21859,7 @@ pub(crate) mod captured_predicates {
             return true;
         }
         let subject_demanded = definition.predicate_subject_symbol.is_valid()
-            && crate::queries::expression_traversal::visit_pre_order(
-                program,
-                vec![predicate],
-                |_, node| {
-                    matches!(node, typed_trees::expression::ExpressionNode::Name(path)
-                    if path.symbol == definition.predicate_subject_symbol)
-                },
-            );
+            && predicate_names_symbol(program, predicate, definition.predicate_subject_symbol);
         if subject_demanded {
             let subject = judge.captured_data_subject(place, definition, |field| {
                 predicate_field_place(program, place, definition, field)
@@ -21898,6 +21896,18 @@ pub(crate) mod captured_predicates {
             false,
         );
         matches!(judgment, StructuralJudgment::Proven)
+    }
+
+    fn predicate_names_symbol(
+        program: &dyn crate::CheckingInput,
+        predicate: ExpressionHandle,
+        symbol: symbols::SymbolHandle,
+    ) -> bool {
+        crate::queries::expression_traversal::visit_pre_order(
+            program,
+            vec![predicate],
+            |_, node| matches!(node, typed_trees::expression::ExpressionNode::Name(path) if path.symbol == symbol),
+        )
     }
 
     fn current_projection_predicate(
@@ -49320,6 +49330,9 @@ pub(crate) mod structural_judgment {
                         Ok(IdentityNormalization::Values(values)) => values,
                         Err(_) => return StructuralJudgment::Unknown,
                     };
+                if self.identity_disjoint(left.clone(), right.clone(), depth + 1) {
+                    return StructuralJudgment::Refuted;
+                }
                 let direct = self.exact_identity_congruence(
                     left.clone(),
                     right.clone(),
@@ -49340,6 +49353,61 @@ pub(crate) mod structural_judgment {
                     StructuralJudgment::Proven
                 } else {
                     StructuralJudgment::Unknown
+                }
+            }
+
+            /// Id between two values is empty when their resolved forms are
+            /// distinct cases of one data carrier, distinct integers, or the same
+            /// case with a disjoint payload field. This is the inductive
+            /// constructor law, not an executable equality: floats are never
+            /// compared here because IEEE equality does not decide identity.
+            fn identity_disjoint(
+                &self,
+                left: StructuralTerm,
+                right: StructuralTerm,
+                depth: usize,
+            ) -> bool {
+                if depth >= 32 {
+                    return false;
+                }
+                let left = self.resolve_at(left, depth + 1).into_semantic_value();
+                let right = self.resolve_at(right, depth + 1).into_semantic_value();
+                match (&left, &right) {
+                    (StructuralTerm::Integer(left), StructuralTerm::Integer(right)) => {
+                        left != right
+                    }
+                    (
+                        StructuralTerm::Constructor {
+                            identity: identity_l,
+                            fields: fields_l,
+                            ..
+                        },
+                        StructuralTerm::Constructor {
+                            identity: identity_r,
+                            fields: fields_r,
+                            ..
+                        },
+                    ) => {
+                        if !identity_l.same_carrier(*identity_r) {
+                            return false;
+                        }
+                        if identity_l != identity_r {
+                            return true;
+                        }
+                        fields_l.iter().any(|(name, value_l)| {
+                            fields_r
+                                .iter()
+                                .find(|(candidate, _)| candidate == name)
+                                .is_some_and(|(_, value_r)| {
+                                    self.identity_disjoint(
+                                        value_l.clone(),
+                                        value_r.clone(),
+                                        depth + 1,
+                                    )
+                                })
+                        })
+                    }
+                    _ => false,
                 }
             }
 
@@ -73542,14 +73610,18 @@ pub(crate) mod structural_judgment {
                             }
                             _ => true,
                         };
-                    match crate::completed_storage::at_snapshot(
+                    // `sources_at_snapshot` keeps "untouched since entry" (`Incoming`)
+                    // apart from "the graph cannot resolve this place" (`None`). Only the
+                    // first lets a reader keep the entry value; an unresolved place may
+                    // have changed, so it is invalidated and must be observed again.
+                    match crate::completed_storage::sources_at_snapshot(
                         self.program,
                         graph,
                         at.snapshot,
                         place,
                         crate::completed_storage::StoredObservation::Contents,
                     ) {
-                        None => false,
+                        None => true,
                         Some(crate::completed_storage::StoredOperand::Alternatives(
                             alternatives,
                         )) => alternatives.iter().any(invalidates),

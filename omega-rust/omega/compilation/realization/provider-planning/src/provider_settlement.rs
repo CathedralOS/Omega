@@ -5,8 +5,8 @@ descriptions for `Independent` provider selections.
 
 `settle_checked_providers` attaches the evaluated `BoundaryCallingPlanRealization`
 rows to the prepared product providers, independently verifies attached
-component descriptions under the build's admission profile (`COMPONENT_DESCRIPTION_SCHEMA_V3`
-and accepted assumption digests), runs whole-map provider selection against the
+component descriptions under the build's admission profile (`COMPONENT_DESCRIPTION_SCHEMA_V3`,
+with each description's assumptions pending the consumer's lock acceptance), runs whole-map provider selection against the
 canonical Terminal artifact, validates synchronous invocation cycles, extracts
 normalized external binding rows, and validates assumed bindings and semantic
 completion roles.
@@ -33,8 +33,8 @@ use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
 use crate::{CompositionMode, ProviderSelection, SelectedProviderReviewProvenance};
 use component_description::{
-    COMPONENT_DESCRIPTION_SCHEMA_V3, ComponentVerificationRequest, VerifiedComponent,
-    verify_component,
+    AcceptedComponentAssumptions, COMPONENT_DESCRIPTION_SCHEMA_V3, ComponentVerificationRequest,
+    VerifiedComponent, verify_component,
 };
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
@@ -76,6 +76,40 @@ pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
         Vec<package_compilation::IndependentComponentDescription>,
     pub verified_independent_components:
         Vec<std::sync::Arc<component_description::VerifiedComponent>>,
+}
+
+/// One environmental premise a verified independent component still needs the
+/// consuming project to accept: the component's package, the roster digest,
+/// and the exact identities of the description rows bound by it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComponentAssumptionDemand {
+    pub component: PackageKeyIdentity,
+    pub assumption: [u8; 32],
+    pub bound_rows: Vec<String>,
+}
+
+impl<Rows> ProviderSettlement<Rows> {
+    /*
+    Settlement verifies the attached descriptions in the same order it retains
+    them, so each verified component pairs with the description, and the
+    package, it came from.
+    */
+    pub fn component_assumption_demands(&self) -> Vec<ComponentAssumptionDemand> {
+        self.independent_component_descriptions
+            .iter()
+            .zip(&self.verified_independent_components)
+            .flat_map(|(description, component)| {
+                component
+                    .assumption_meanings()
+                    .into_iter()
+                    .map(|(assumption, rows)| ComponentAssumptionDemand {
+                        component: description.package(),
+                        assumption,
+                        bound_rows: rows.into_iter().map(str::to_owned).collect(),
+                    })
+            })
+            .collect()
+    }
 }
 
 impl ProviderSettlement<crate::DeferredProviderRows> {
@@ -161,7 +195,6 @@ pub fn settle_checked_providers(
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     prepared_providers: Result<crate::target_machines::PreparedProductProviders, Vec<Diagnostic>>,
-    accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
@@ -183,11 +216,10 @@ pub fn settle_checked_providers(
         .collect();
     let provider_publication = prepared.publication;
     let completion_roles = prepared.completion_roles;
-    let independent_components =
-        verify_independent_components(package_inputs, accepted_component_assumptions)?
-            .into_iter()
-            .map(std::sync::Arc::new)
-            .collect::<Vec<_>>();
+    let independent_components = verify_independent_components(package_inputs)?
+        .into_iter()
+        .map(std::sync::Arc::new)
+        .collect::<Vec<_>>();
     let prepared_assumptions = prepared.assumptions;
     let assumptions = prepared_assumptions.coordinates?;
     let profile = planning_target.unwrap_or_else(target::TargetProfile::host);
@@ -382,26 +414,32 @@ pub fn verify_selected_compositions_are_realized(
     }
 }
 
+/*
+Product compilation verifies each attached description in full except for the
+consumer's decision on its environmental premises. Those stay pending here and
+surface as `component_assumption` acceptance rows of the root Product
+occurrence: the consuming project's lock retains the reviewed rows, and root
+admission rejects any fresh row the lock does not hold before production
+(component_publication.md, "Consumer acceptance and Build attenuation").
+*/
 fn verification_request(
     description: &IndependentComponentDescription,
-    accepted_assumptions: &BTreeSet<[u8; 32]>,
 ) -> ComponentVerificationRequest {
     ComponentVerificationRequest {
         expected_subject: description.expected_subject(),
         accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V3]),
-        accepted_assumptions: accepted_assumptions.clone(),
+        accepted_assumptions: AcceptedComponentAssumptions::PendingConsumerAcceptance,
     }
 }
 
 pub(crate) fn verify_independent_component_descriptions<'a>(
     descriptions: impl IntoIterator<Item = &'a IndependentComponentDescription>,
-    accepted_assumptions: &BTreeSet<[u8; 32]>,
     package_name: impl Fn(PackageKeyIdentity) -> Option<&'a str>,
 ) -> Result<Vec<VerifiedComponent>, Vec<Diagnostic>> {
     let mut components = Vec::new();
     let mut diagnostics = Vec::new();
     for description in descriptions {
-        let request = verification_request(description, accepted_assumptions);
+        let request = verification_request(description);
         match verify_component(description.description(), &request) {
             Ok(component) => components.push(component),
             Err(rejection) => {
@@ -421,14 +459,12 @@ pub(crate) fn verify_independent_component_descriptions<'a>(
 
 fn verify_independent_components(
     package_inputs: Option<&PackageCompilationInputs>,
-    accepted_assumptions: &BTreeSet<[u8; 32]>,
 ) -> Result<Vec<VerifiedComponent>, Vec<Diagnostic>> {
     let Some(package_inputs) = package_inputs else {
         return Ok(Vec::new());
     };
     verify_independent_component_descriptions(
         package_inputs.independent_component_descriptions(),
-        accepted_assumptions,
         |package| package_inputs.package_name(package),
     )
 }

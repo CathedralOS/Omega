@@ -9,7 +9,9 @@ spellings (`operator_spelling`), compiler-owned layout query names
 (`data_layout_queries`), evaluated constant values (`constant_value`), and core
 surface operation descriptors (`activation_storage`, `descriptor_tables`,
 `layout_storage`, `static_interrupts`), and the sealed intrinsic catalog of
-bundled declarations that receive compiler custody (`sealed_intrinsics`).
+bundled declarations that receive compiler custody (`sealed_intrinsics`), and
+the separate catalog of core declarations checking recognizes by identity
+without granting custody (`core_vocabulary`).
 */
 
 /*
@@ -29,6 +31,7 @@ We neither parse nor judge a program, and we depend on `compiler_storage` and
 #![forbid(unsafe_code)]
 
 pub mod atomic;
+pub mod core_vocabulary;
 pub mod inline_assembly;
 pub mod sealed_intrinsics;
 mod source_semantics;
@@ -389,6 +392,16 @@ pub mod static_interrupts {
             Self::BeginCompletion,
             Self::FinishCompletion,
         ];
+
+        /// The core service an operation must reach, as vocabulary.
+        pub const fn required_service(self) -> Option<crate::core_vocabulary::CoreVocabulary> {
+            match self {
+                Self::Install => {
+                    Some(crate::core_vocabulary::CoreVocabulary::MachineControlService)
+                }
+                Self::Context | Self::BeginCompletion | Self::FinishCompletion => None,
+            }
+        }
 
         pub const fn required_service_identity(self) -> Option<&'static str> {
             match self {

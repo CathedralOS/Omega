@@ -1,1 +1,1 @@
-machine `corrupt` state `entry` assignment stores a value not provably within its data's `requires` facts
+this write left the `requires` facts of `buffer` (data `Buffer`) unproved

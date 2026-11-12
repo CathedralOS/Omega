@@ -25,23 +25,13 @@ pub mod test_groups {
     }
 }
 pub mod assumed_bindings {
-    use symbols::SymbolHandle;
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct AssumedBindingContract {
-        pub required: SymbolHandle,
-        pub supplied: SymbolHandle,
-        pub selecting_machine: SymbolHandle,
-        pub source_span: source::SourceSpan,
-    }
+    pub use language_semantics::declaration_selection::AssumedBindingContract;
 }
 pub mod native_bindings {
     use diagnostics::Diagnostic;
     use language_semantics::declaration_selection::{
         BuildOperation, ExecutedNativeBinding, ProductDeclarationRequest, ProductOperandRole,
-        ProductTarget,
     };
-    use semantic_vocabulary::{NativeBindingLocator, PackageKeyIdentity};
     use symbols::SymbolHandle;
     use typed_trees::product_operand::native_binding_formation;
     use typed_trees::{
@@ -49,17 +39,7 @@ pub mod native_bindings {
         product_operand::{resolve_build_request_author, resolve_product_path},
     };
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct NativeBindingSelection {
-        pub subject: SymbolHandle,
-        pub requirement: SymbolHandle,
-        pub target: ProductTarget,
-        pub locator: NativeBindingLocator,
-        pub producer: language_semantics::declaration_selection::NativeBindingProducer,
-        pub source_occurrence_digest: [u8; 32],
-        pub supplier_package: PackageKeyIdentity,
-        pub source_span: source::SourceSpan,
-    }
+    pub use language_semantics::declaration_selection::NativeBindingSelection;
 
     fn requirement(
         typed: &TypedTrees,

@@ -1,0 +1,19 @@
+[package]
+name = "verified-optimization-input"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "verified_optimization_input"
+path = "src/lib.rs"
+
+[dependencies]
+abstract-operations = { path = ".." }
+effects = { path = "../../../backend/plans/effects" }
+installation-evidence = { path = "../../../backend/runtime/installation-evidence" }
+provider-admission = { path = "../../../realization/provider-admission" }
+semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-installation = { path = "../../../../../psi/compilation/validation/terminal-installation" }
+terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }

@@ -62,8 +62,8 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
    close stdin with `< /dev/null` on manual background runs).
 2. **Witness the failure first:** Run the target witness (`omega run --both` or
    `cargo xtask sample-gate --facts --filter <fact>`).
-3. **Cut a refusal down with small probes:** Isolate the failing construct,
-   decide from the governing spec in `wiki/spec/` whether the refusal is a
+3. **Read the spec, then cut the refusal down:** Read the governing page in
+   `wiki/spec/` first. Isolate the failing construct, decide from that spec whether the refusal is a
    language rule or a compiler precision/lowering gap, and check
    `git log <base>..origin/main -- <files>` so you do not duplicate an in-flight
    repair.
@@ -101,12 +101,10 @@ the finite `tests/omega` facts fixture, is a photograph of that object.
 Changing the fact, the bound, or the operation so a place passes is repainting
 that photograph: a different object, and a green check on it is not done.
 
-1. **Run focused validation & sweep the full root-cause family ([testing.md](../../../tools/testing.md)):**
-   - Do not stop at a 1-off fixture win: identify all pinned regressions in
-     `tests/omega/corpus_outcomes.txt` (`--list-pinned-regressions`) and failing
-     programs in `samples/` (`cargo xtask sample-gate`) that were blocked by
-     the same mechanism or migration gap, and validate the whole family together.
-   - Run affected crate unit tests and `cargo xtask corpus --filter <fact_and_family_fixtures>`.
+1. **Run one focused validation ([Spec first, land first](../../../AGENTS.md#spec-first-land-first)):**
+   - Run affected crate unit tests and one `cargo xtask corpus --filter` over
+     the rows and samples this change targets. No broad sweeps or before/after
+     comparisons against main; the nightly sweep covers main afterwards.
 2. **Commit code and fixture files BEFORE `--record`:**
    - Ensure no leftover `omega.lock` or `build/` directories sit inside
      `tests/omega/` fixtures (never delete `tests/omega/pass/build/`).
@@ -142,6 +140,8 @@ that photograph: a different object, and a green check on it is not done.
    - **When running standalone with no coordinator:** Self-audit the full diff
      against [coordinator-review](../coordinator-review/SKILL.md), then run
      `cargo xtask land <pr> --expected-head $(git rev-parse HEAD)`.
+   - **In a cloud session** where `cargo xtask land` cannot run: mark the PR
+     ready and squash-merge it as soon as the focused run passes.
 3. **Chain the next requirement on the warm worktree:** Once landed, continue the
    parent capability's next remaining requirement on the same warm worktree
    (`git fetch origin main && git checkout --detach origin/main && git clean -fd`).

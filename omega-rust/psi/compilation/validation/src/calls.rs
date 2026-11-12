@@ -18326,6 +18326,20 @@ pub(crate) mod write_frames {
                 .data_application_definition(handle)
                 .or_else(|| program.closed_data_definition(handle))
             {
+                /*
+                    A lifetime-only dependency is a hold on caller storage even when
+                    no field spells a reference: a retained-custody carrier such as
+                    `Pending<'source> { slot: u64 }` keeps its backing loan through
+                    that lifetime alone. Such a value can carry a caller borrow, so
+                    it is not an isolated proof value. The type is asked, not the
+                    definition, because a closed instance drops its lifetime list.
+                */
+                if proof_values
+                    && crate::borrow_contracts::retained_lifetime_owner_paths(program, handle)
+                        .is_some_and(|paths| !paths.is_empty())
+                {
+                    return false;
+                }
                 return definition_isolated!(definition, proof_values);
             }
             match program.type_reference_table.type_reference(handle) {
@@ -20691,6 +20705,15 @@ pub(crate) mod write_frames {
                     if !root.is_valid() {
                         return Err("retained view resolves to no original storage declaration");
                     }
+                    // A write through an element of a fixed sub-range view
+                    // (`view = &mut items[1..3]; view[0].value = ..`) reaches
+                    // the origin as `items[1..3][0].value`. The coordinate
+                    // names exact storage, `items[1].value`, so every
+                    // consumer types and relates the same element whichever
+                    // view spelled it. Paths that do not fold exactly (a
+                    // runtime index into the window, a whole-window write)
+                    // stay as recorded and keep their existing refusals.
+                    let path = fold_fixed_element_window_path(path);
                     let coordinate = StorageCoordinate {
                         place: CanonicalPlace {
                             root,
@@ -20702,6 +20725,27 @@ pub(crate) mod write_frames {
                     };
                     Ok(coordinate)
                 }
+            }
+
+            fn fold_fixed_element_window_path(path: Vec<PlaceSegment>) -> Vec<PlaceSegment> {
+                use crate::value_custody::places::{WindowedSegment, fold_fixed_element_windows};
+                let is_window = |segment: &PlaceSegment| {
+                    matches!(segment, PlaceSegment::FixedRange { .. })
+                        && *segment != crate::field_domains::WHOLE_ELEMENT_EXTENT
+                };
+                if !path.iter().any(is_window) {
+                    return path;
+                }
+                fold_fixed_element_windows(path.iter().map(|segment| match segment {
+                    PlaceSegment::FixedRange { start, end } if is_window(segment) => {
+                        WindowedSegment::Window {
+                            start: *start,
+                            end: Some(*end),
+                        }
+                    }
+                    segment => WindowedSegment::Segment(*segment),
+                }))
+                .unwrap_or(path)
             }
 
             pub(crate) fn retained_view_predecessor(

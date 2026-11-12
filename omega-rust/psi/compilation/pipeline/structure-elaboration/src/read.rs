@@ -59,6 +59,29 @@ pub(crate) struct Program<'t> {
     pub requirements: Vec<MachineId>,
     /// Every call through an implementation parameter read so far.
     pub selections: Vec<crate::Selected>,
+    /// What each type parameter in scope stands for while one machine's
+    /// signature or body is read: a type parameter of a generic check
+    /// form's entry is rigid, and a type parameter of a generic machine the
+    /// entry calls is the type the call applies it at. A type that names
+    /// such a parameter by its symbol is that type (`value_type`). Empty
+    /// while a closed machine is read.
+    scope: Vec<(SymbolHandle, ValueType)>,
+    /// `scope` of each machine, pushed with its signature and restored
+    /// when its body is read.
+    scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
+    /// The generic machines a generic check form's entry calls at its own
+    /// type parameters, each read once per tuple of type arguments as its
+    /// contract with no body (`Elaboration::applications`).
+    pub applications: Vec<MachineId>,
+    /// The type arguments each of those was read at.
+    applied: Vec<(MachineId, Vec<ValueType>)>,
+    /// The locals of the body being read whose value is decided statically
+    /// by closed type equations (`static_truth`), by the local's symbol.
+    static_truths: Vec<(SymbolHandle, bool)>,
+    /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
+    /// pushed with each machine's signature.
+    pub value_parameters: IdTable<MachineId, usize>,
+    pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
@@ -120,6 +143,13 @@ impl<'t> Program<'t> {
             rigid,
             requirements: Vec::new(),
             selections: Vec::new(),
+            scope: Vec::new(),
+            scopes: IdTable::default(),
+            applications: Vec::new(),
+            applied: Vec::new(),
+            static_truths: Vec::new(),
+            value_parameters: IdTable::default(),
+            value_arguments: IdTable::default(),
             records: IdTable::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
@@ -404,6 +434,7 @@ mod tests {
             subject: None,
             formal_fields: false,
             slots: &[],
+            bound: &[],
             owner,
             result: ResultTerm::Named(result, u32_type),
         };
@@ -690,6 +721,7 @@ mod tests {
             subject: None,
             formal_fields: false,
             slots: &slots,
+            bound: &[],
             owner: SymbolHandle::invalid(),
             result: ResultTerm::Absent("result in an entry clause"),
         };

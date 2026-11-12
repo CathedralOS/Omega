@@ -177,6 +177,7 @@ impl Program<'_> {
             }
             let value_type = self.value_type(id, local.type_reference)?;
             let home = match value_type {
+                ValueType::Rigid(_) => return unserved("local of a rigid type"),
                 ValueType::Record(_) => None,
                 ValueType::Scalar(_) => Some(
                     self.typed
