@@ -447,11 +447,13 @@ otherwise request N times the machine.
 
 ### The corpus in CI
 
-Every pull request that is not a draft, and every merge-queue entry, runs the
+Every pull request that is not a draft runs the
 corpus rows its diff can affect against this ledger, and the job fails when a
 row gets worse: a pass/run row that stops checking, a fail row that is
 accepted, or a fail row that loses its pinned reason. A row main already lost
-is not charged to the pull request. Each night a sweep measures the whole
+is not charged to the pull request. A merge-queue entry does not run the rows
+again; it reuses its pull request's verdict, so the hosted runners go to the
+two required checks. Each night a sweep measures the whole
 corpus on main and opens one ledger-only pull request recording every row that
 moved, with accepted fail rows listed first as soundness alerts. Both are
 described in [tools/ci/README.md](ci/README.md#corpus-gate) and implemented by

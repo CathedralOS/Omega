@@ -34,6 +34,17 @@ pub use layout_plan::{
     LayoutPlan, TargetClosedDataLayoutIdentity, TargetClosedPrivateCallbackDemand, TypeLayout,
 };
 
+// A boundary-opaque data type is laid out as the carrier the authoritative
+// build selected for it. Layout needs only that pairing, so callers project it
+// from their selection records here; the conformance application, lifecycle
+// and commitments of a selection stay with the source-side owners that check
+// them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OpaqueCarrierSelection {
+    pub opaque: symbols::SymbolHandle,
+    pub carrier_type: checked_trees::typed_trees::types::TypeReferenceHandle,
+}
+
 pub(crate) mod sizing {
     use crate::data_layout_queries::{TypeLayout, type_layout};
     use checked_trees::typed_trees::types::PrimitiveType;

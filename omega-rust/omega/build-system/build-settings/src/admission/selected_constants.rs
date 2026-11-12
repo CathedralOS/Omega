@@ -30,7 +30,7 @@ pub(crate) struct SelectedConstantEvaluation {
     target_bodies: Vec<build_time_evaluation::SelectedBuildTimeTargetBody>,
     target_profile: target::TargetProfile, // Target profile under which deferred `size_of`/`align_of` layout queries fold.
     selection: typed_trees::references::DeclarationSelection, // Projected Build declaration roots that own folds.
-    opaque_representation_selections: Vec<representation_planning::OpaqueRepresentationSelection>, // Empty during Build admission.
+    opaque_carriers: Vec<provider_planning::data_layout_queries::OpaqueCarrierSelection>, // Empty during Build admission.
 }
 
 impl SelectedConstantEvaluation {
@@ -51,7 +51,7 @@ impl SelectedConstantEvaluation {
             layouts: &super::target_layout_queries::TargetLayoutQueries {
                 target: self.target_profile,
                 applications: None,
-                opaque_representations: &self.opaque_representation_selections,
+                opaque_representations: &self.opaque_carriers,
             },
         }
         .evaluate()
@@ -73,7 +73,15 @@ impl SelectedConstantEvaluation {
             target_bodies: selected_constant_target_bodies(context, target_profile)?,
             target_profile,
             selection: typed_trees::references::DeclarationSelection::from_program(typed),
-            opaque_representation_selections: opaque_representation_selections.to_vec(),
+            opaque_carriers: opaque_representation_selections
+                .iter()
+                .map(
+                    |selection| provider_planning::data_layout_queries::OpaqueCarrierSelection {
+                        opaque: selection.opaque(),
+                        carrier_type: selection.carrier_type(),
+                    },
+                )
+                .collect(),
         };
         for (expression, origin, requirement, policy) in uses {
             let Some((_, plan)) =

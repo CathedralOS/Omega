@@ -8,6 +8,8 @@ use psi::checks::checks;
 use psi::source::source;
 use psi::syntax::syntax;
 use psi::types::types;
+use psi::resolution::resolution;
+use psi::checking::obligations;
 
 // A result's possible backing is separate from its logical proof subject.
 // Groups and their edge spans are immutable after publication. Transporting

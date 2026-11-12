@@ -28,12 +28,12 @@ pub(crate) struct TargetLayoutQueries<'selection> {
     pub(crate) applications:
         Option<&'selection [build_time_evaluation::LayoutApplicationTargetInput]>,
     pub(crate) opaque_representations:
-        &'selection [representation_planning::OpaqueRepresentationSelection],
+        &'selection [provider_planning::data_layout_queries::OpaqueCarrierSelection],
 }
 
 pub(crate) struct TargetLayoutMeasurements<'selection> {
     target: target::TargetProfile,
-    opaque_representations: &'selection [representation_planning::OpaqueRepresentationSelection],
+    opaque_representations: &'selection [provider_planning::data_layout_queries::OpaqueCarrierSelection],
     layout_program: Option<TypedTrees>,
 }
 

@@ -31,6 +31,7 @@ use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
 use provider_planning::calling_policy_plans::{
     CallingPolicyProviderInputs, CallingProgram, CallingSourcePreparation,
+    PreparedOpaqueReviewSelection,
 };
 use std::sync::Arc;
 
@@ -85,10 +86,18 @@ fn capture_source_preparation(
             .provider_inventory
             .services_for(&source.program)
             .map_err(|error| vec![error])?,
-        &source
+        source
             .computed_build_config
             .config
-            .opaque_representation_selections,
+            .opaque_representation_selections
+            .iter()
+            .map(|selection| PreparedOpaqueReviewSelection {
+                application: selection.portable_application(&source.program.typed),
+                opaque: selection.opaque(),
+                carrier: selection.carrier(),
+                conformance: selection.application().declaration,
+            })
+            .collect(),
         CallingPolicyProviderInputs {
             body_declarations: source
                 .provider_inventory
