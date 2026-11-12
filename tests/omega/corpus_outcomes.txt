@@ -19193,6 +19193,9 @@ fail/text/borrowed_byte_snapshot_reseated_descriptor rejected 7358ms expected re
 	cannot prove requires contract for call snapshot from copy: other.len <= 16 (needs fact `text.len <= 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `observed.len <= 16`
 fail/text/borrowed_byte_snapshot_unbounded rejected 3887ms expected @911f6617ba9e
 	cannot prove requires contract for call snapshot from copy: text.len <= 16 (needs fact `text.len <= 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/text/bounded_ascii_write_self_edge_breaks_class rejected 2504ms expected @0a304d8dfff8
+	cannot prove requires contract for call write from write: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[__hoist_2]; bytes is part of [u8; N]::Ascii) in state `entry`
+	cannot prove default-domain field requirement for call replace from Main::main::main: parameter bytes requires [u8; N]::Ascii
 fail/text/bounded_carrier_growth_overflow_rejected rejected 32263ms expected @911f6617ba9e
 	cannot prove requires contract for call append from main: [111, 109, 101, 103, 97].len <= 16 - buffer.used (needs fact `bytes.len <= 16 - buffer.used` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/text/byte_field_snapshot_domain_widening rejected 8818ms expected @ccdb99ca2214
@@ -19822,16 +19825,14 @@ pass/arithmetic/reused_fixed_integer_operands_exit checked 40953ms check-target:
 pass/arithmetic/reused_masked_shift_count_exit checked 27896ms check-target:macos_arm64 @4815ea579d91
 pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit checked 33509ms check-target:macos_arm64 @98e7c79bee30
 pass/arithmetic/runtime_bitwise_high_ops_exit checked 17205ms check-target:macos_arm64 @ccdb99ca2214
-pass/arithmetic/runtime_boolean_alias_shift_count_exit rejected 1394ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	shift count in machine `calculate` state `entry` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+pass/arithmetic/runtime_boolean_alias_shift_count_exit checked 7606ms check-target:macos_arm64 @0a304d8dfff8
 pass/arithmetic/runtime_boolean_divisor_state_exit checked 3856ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_boolean_field_shift_count_exit checked 3542ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_boolean_guarded_bit_value_exit rejected 1385ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	exact arithmetic in machine `calculate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	shift count in machine `calculate` state `entry` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
 pass/arithmetic/runtime_boolean_guarded_product_exit checked 8015ms check-target:macos_arm64 @04c53f019837
-pass/arithmetic/runtime_boolean_state_shift_count_exit rejected 1168ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	shift count in machine `calculate` state `entry` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+pass/arithmetic/runtime_boolean_state_shift_count_exit checked 7654ms check-target:macos_arm64 @0a304d8dfff8
 pass/arithmetic/runtime_bounded_dividend_remainder_exit checked 3905ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_bounded_unsigned_sum_chain_exit checked 15823ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_bounded_unsigned_sum_field_and_call_exit checked 16203ms check-target:macos_arm64 @ccdb99ca2214
@@ -21555,8 +21556,7 @@ pass/control_flow/runtime_indexed_case_dispatch_exit checked 50126ms check-targe
 pass/control_flow/runtime_indexed_edge_regions_exit checked 17358ms check-target:macos_arm64 @602404d45977
 pass/control_flow/runtime_integer_literal_dispatch_exit checked 12133ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_later_state_shared_array_loan checked 3086ms check-target:macos_arm64 @ccdb99ca2214
-pass/control_flow/runtime_local_record_array_byte_render_exit rejected 251352ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @e1cfe02f1a9b
-	cannot prove requires contract for call emit_line from prepare_line: line in [u8; N]::Ascii (invalidated by prior mutation of line[__hoist_13]; line is part of [u8; N]::Ascii) in state `entry`
+pass/control_flow/runtime_local_record_array_byte_render_exit checked 25975ms check-target:macos_arm64 @0a304d8dfff8
 pass/control_flow/runtime_loop_patterns_exit checked 11002ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_mutable_bounded_byte_formatter_exit checked 19847ms check-target:macos_arm64 @61d32e24eb90
 pass/control_flow/runtime_namespace_local_state_loan checked 3983ms check-target:macos_arm64 @ccdb99ca2214
