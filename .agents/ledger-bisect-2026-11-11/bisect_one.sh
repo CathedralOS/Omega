@@ -19,7 +19,7 @@ python3 "$ROOT/.agents/ledger-bisect-2026-11-11/tools/pin_snapshot.py" "$WITNESS
 
 run_test_at() {
   local rev="$1"
-  git -c submodule.recurse=false checkout --detach "$rev" >/dev/null 2>&1 || return 125
+  git -c submodule.recurse=false checkout -f --detach "$rev" >/dev/null 2>&1 || return 125
   export BISECT_TOOLS_ROOT="/tmp/ledger_bisect_tools"
   nice -n 19 "$SCRIPT"
   return $?
