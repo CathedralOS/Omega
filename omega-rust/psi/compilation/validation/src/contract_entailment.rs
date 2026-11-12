@@ -16535,7 +16535,7 @@ pub(crate) mod inductive_judgment {
                     eprintln!(
                         "ENTAILDBG inductive machine={} arm_guard={} fact={} visible={}",
                         machine.name,
-                        arm.guard_display,
+                        arm.guard_display.as_deref().unwrap_or("<always>"),
                         program.expression_table.display_name(*fact),
                         arm.fully_visible,
                     );
@@ -16556,28 +16556,28 @@ pub(crate) mod inductive_judgment {
             }
             if let Some(guard) = constant_false_arm {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic on the transition arm guarded by `{}`",
+                "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic{}",
                 machine.name,
                 program.expression_table.display_name(*fact),
-                guard
+                arm_clause(&guard)
             )));
             } else if let Some(guard) = refuted_arm {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` ensures contract proof fact `{}` is disproved on the transition arm guarded by `{}`: the arm's facts entail its negation",
+                "machine `{}` ensures contract proof fact `{}` is disproved{}: the arm's facts entail its negation",
                 machine.name,
                 program.expression_table.display_name(*fact),
-                guard
+                arm_clause(&guard)
             )));
             } else if let Some(ref guard) = unknown_arm
                 && goal_always_in_language
                 && machine_fully_visible
             {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` cannot prove ensures contract proof fact `{}` on the transition arm guarded by `{}`",
-                machine.name,
-                program.expression_table.display_name(*fact),
-                guard
-            )));
+                    "machine `{}` cannot prove ensures contract proof fact `{}`{}",
+                    machine.name,
+                    program.expression_table.display_name(*fact),
+                    arm_clause(guard)
+                )));
             } else if unknown_arm.is_none() {
                 proven.push(*fact);
             }
@@ -16630,7 +16630,20 @@ pub(crate) mod inductive_judgment {
         engine: Engine<'program>,
         vacuous: bool,
         fully_visible: bool,
-        guard_display: String,
+        // `None` for a body with one unguarded arm: there is no guard to name.
+        guard_display: Option<String>,
+    }
+
+    /*
+        The clause that says which transition arm a refused guarantee sits on.
+        A body that is a single unguarded arm has no guard, so the message
+        names the machine and the fact and stops there.
+    */
+    fn arm_clause(guard: &Option<String>) -> String {
+        guard
+            .as_ref()
+            .map(|guard| format!(" on the transition arm guarded by `{guard}`"))
+            .unwrap_or_default()
     }
 
     fn prepare_arm<'program>(
@@ -16642,18 +16655,20 @@ pub(crate) mod inductive_judgment {
         arm: &TransitionArm,
         preceding: &[TransitionArm],
     ) -> Option<JudgedArm<'program>> {
-        let guard_display = match arm.guard {
-            Some(guard) => program.expression_table.display_name(guard),
-            None if preceding.is_empty() => "<always>".to_owned(),
-            None => preceding
-                .iter()
-                .filter_map(|arm| arm.guard)
-                .map(|guard| failed_guard_display(program, guard))
-                .collect::<Vec<_>>()
-                .join(" && "),
-        };
-
         let mut engine = Engine::with_result_atom(program, machine, root);
+        let guard_display = match arm.guard {
+            Some(guard) => Some(guard_arm_display(&engine, guard, true)),
+            None if preceding.is_empty() => None,
+            None => Some(
+                preceding
+                    .iter()
+                    .filter_map(|arm| arm.guard)
+                    .map(|guard| guard_arm_display(&engine, guard, false))
+                    .collect::<Vec<_>>()
+                    .join(" && "),
+            )
+            .filter(|guards| !guards.is_empty()),
+        };
         if preceding.iter().any(|arm| arm.guard.is_none()) {
             return Some(JudgedArm {
                 engine,
@@ -16761,19 +16776,40 @@ pub(crate) mod inductive_judgment {
         ))
     }
 
-    fn failed_guard_display(program: &dyn crate::CheckingInput, guard: ExpressionHandle) -> String {
-        if let Some(binary) = program.expression_table.binary_node(guard)
-            && binary.operator == BinaryOperator::Equal
-            && let ExpressionNode::Boolean(polarity) =
-                program.expression_table.expression(binary.right)
-        {
-            return format!(
-                "{} == {}",
-                program.expression_table.display_name(binary.left),
-                !polarity
-            );
+    /// Names an arm by the condition the author wrote. An arm `true -> ...` of
+    /// `transition n > 0 { ... }` tests `subject == true`; the parser may also
+    /// capture the subject in a generated immutable local and test
+    /// `__transition_subject#N == true`. Either way the diagnostic shows `n > 0`
+    /// (or `!(n > 0)`), never the internal name. `holds` is false for a
+    /// preceding arm whose guard failed on the way to this one.
+    fn guard_arm_display(engine: &Engine<'_>, guard: ExpressionHandle, holds: bool) -> String {
+        let table = &engine.program.expression_table;
+        let (condition, holds) = match table.binary_node(guard) {
+            Some(binary) if binary.operator == BinaryOperator::Equal => {
+                match table.expression(binary.right) {
+                    ExpressionNode::Boolean(polarity) => (binary.left, holds == *polarity),
+                    _ => (guard, holds),
+                }
+            }
+            _ => (guard, holds),
+        };
+        let condition = match table.expression(condition) {
+            ExpressionNode::Name(name)
+                if table
+                    .display_name(condition)
+                    .starts_with("__transition_subject#") =>
+            {
+                engine
+                    .immutable_local_initializer(name.symbol)
+                    .unwrap_or(condition)
+            }
+            _ => condition,
+        };
+        if holds {
+            table.display_name(condition)
+        } else {
+            format!("!({})", table.display_name(condition))
         }
-        format!("!({})", program.expression_table.display_name(guard))
     }
 
     fn self_call_arguments(
