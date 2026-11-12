@@ -47,14 +47,16 @@ def main():
                         help="execute actual lexer predicates and typed runtime control checks")
     parser.add_argument("--omega-storage", action="store_true",
                         help="execute actual SourceUnit clear and record/reference controls")
+    parser.add_argument("--omega-utf8", action="store_true",
+                        help="execute the actual UTF-8 decoder and checked arithmetic controls")
     parser.add_argument("--compiler-only", action="store_true",
                         help="stop after compiler construction, rebuilds, and differential controls")
     args = parser.parse_args()
     if args.seconds is None:
-        args.seconds = 7200 if args.omega_control or args.omega_storage else 3600
+        args.seconds = 7200 if args.omega_control or args.omega_storage or args.omega_utf8 else 3600
     if args.seconds <= 0:
         parser.error("--seconds must be positive")
-    if args.compiler_only and (args.omega or args.omega_values or args.omega_control or args.omega_storage):
+    if args.compiler_only and (args.omega or args.omega_values or args.omega_control or args.omega_storage or args.omega_utf8):
         parser.error("--compiler-only and Omega customers select incompatible scopes")
     mode = "accelerated" if args.accelerated else "reference"
     work = test.ROOT / "build" / ("source-gamma-" + mode)
@@ -111,6 +113,8 @@ def main():
         test.omega_control_customer(work, args.seconds)
     if args.omega_storage:
         test.omega_storage_customer(work, args.seconds)
+    if args.omega_utf8:
+        test.omega_utf8_customer(work, args.seconds)
     print(f"{mode} construction and requested customers passed", flush=True)
 
 

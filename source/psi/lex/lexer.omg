@@ -53,7 +53,7 @@ machine decode_scalar(source: &SourceUnit, index: u64 in Trapping) -> DecodedSca
 
     machine first(source: &SourceUnit, index: u64 in Trapping) -> DecodedScalar {
         let source_byte: u8 = source_unit_byte_or_nul(source, index);
-        let byte0: u32 in Trapping = source_byte as u32 in Trapping;
+        let byte0: u32 in Trapping = (source_byte as u32) as +Trapping;
         transition byte0 < 128 {
             true -> ascii(byte0)
             _ -> two_lead(source, index, byte0)
@@ -61,7 +61,7 @@ machine decode_scalar(source: &SourceUnit, index: u64 in Trapping) -> DecodedSca
     }
 
     machine ascii(byte0: u32 in Trapping) -> DecodedScalar {
-        DecodedScalar { scalar: byte0, width: 1, valid: true }
+        DecodedScalar { scalar: byte0, width: 1 as +Trapping, valid: true }
     }
 
     machine two_lead(source: &SourceUnit, index: u64 in Trapping, byte0: u32 in Trapping) -> DecodedScalar {
@@ -81,7 +81,7 @@ machine decode_scalar(source: &SourceUnit, index: u64 in Trapping) -> DecodedSca
 
     machine two_tail(source: &SourceUnit, index1: u64 in Trapping, byte0: u32 in Trapping) -> DecodedScalar {
         let source_byte: u8 = source_unit_byte_or_nul(source, index1);
-        let byte1: u32 in Trapping = source_byte as u32 in Trapping;
+        let byte1: u32 in Trapping = (source_byte as u32) as +Trapping;
         transition byte1 >= 128 && byte1 <= 191 {
             true -> two_value(byte0, byte1)
             _ -> invalid()
@@ -90,7 +90,7 @@ machine decode_scalar(source: &SourceUnit, index: u64 in Trapping) -> DecodedSca
 
     machine two_value(byte0: u32 in Trapping, byte1: u32 in Trapping) -> DecodedScalar {
         let scalar: u32 in Trapping = (byte0 - 192) * 64 + (byte1 - 128);
-        DecodedScalar { scalar: scalar, width: 2, valid: true }
+        DecodedScalar { scalar: scalar, width: 2 as +Trapping, valid: true }
     }
 
     machine three_lead(source: &SourceUnit, index: u64 in Trapping, byte0: u32 in Trapping) -> DecodedScalar {
@@ -117,8 +117,8 @@ machine decode_scalar(source: &SourceUnit, index: u64 in Trapping) -> DecodedSca
     ) -> DecodedScalar {
         let first_tail: u8 = source_unit_byte_or_nul(source, index1);
         let second_tail: u8 = source_unit_byte_or_nul(source, index2);
-        let byte1: u32 in Trapping = first_tail as u32 in Trapping;
-        let byte2: u32 in Trapping = second_tail as u32 in Trapping;
+        let byte1: u32 in Trapping = (first_tail as u32) as +Trapping;
+        let byte2: u32 in Trapping = (second_tail as u32) as +Trapping;
         transition byte2 >= 128 && byte2 <= 191 {
             true -> three_second(byte0, byte1, byte2)
             _ -> invalid()
@@ -164,7 +164,7 @@ machine decode_scalar(source: &SourceUnit, index: u64 in Trapping) -> DecodedSca
         let scalar: u32 in Trapping = (byte0 - 224) * 4096
             + (byte1 - 128) * 64
             + (byte2 - 128);
-        DecodedScalar { scalar: scalar, width: 3, valid: true }
+        DecodedScalar { scalar: scalar, width: 3 as +Trapping, valid: true }
     }
 
     machine four_lead(source: &SourceUnit, index: u64 in Trapping, byte0: u32 in Trapping) -> DecodedScalar {
@@ -194,9 +194,9 @@ machine decode_scalar(source: &SourceUnit, index: u64 in Trapping) -> DecodedSca
         let first_tail: u8 = source_unit_byte_or_nul(source, index1);
         let second_tail: u8 = source_unit_byte_or_nul(source, index2);
         let third_tail: u8 = source_unit_byte_or_nul(source, index3);
-        let byte1: u32 in Trapping = first_tail as u32 in Trapping;
-        let byte2: u32 in Trapping = second_tail as u32 in Trapping;
-        let byte3: u32 in Trapping = third_tail as u32 in Trapping;
+        let byte1: u32 in Trapping = (first_tail as u32) as +Trapping;
+        let byte2: u32 in Trapping = (second_tail as u32) as +Trapping;
+        let byte3: u32 in Trapping = (third_tail as u32) as +Trapping;
         transition byte2 >= 128 && byte2 <= 191
             && byte3 >= 128 && byte3 <= 191 {
             true -> four_second(byte0, byte1, byte2, byte3)
@@ -274,11 +274,11 @@ machine decode_scalar(source: &SourceUnit, index: u64 in Trapping) -> DecodedSca
             + (byte1 - 128) * 4096
             + (byte2 - 128) * 64
             + (byte3 - 128);
-        DecodedScalar { scalar: scalar, width: 4, valid: true }
+        DecodedScalar { scalar: scalar, width: 4 as +Trapping, valid: true }
     }
 
     machine invalid() -> DecodedScalar {
-        DecodedScalar { scalar: 0, width: 0, valid: false }
+        DecodedScalar { scalar: 0 as +Trapping, width: 0 as +Trapping, valid: false }
     }
 }
 

@@ -43,10 +43,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 20,461 lines / 749,173 bytes with SHA-256
-`4b94fda7d672b3b27173077cdf57075824c0ecc6c56275338936a9c65b39a896`.
+manifest materializes 20,790 lines / 764,081 bytes with SHA-256
+`2d7602e4e1e63822be65b950ccb4170c9dfddcc6de8344f9ab0729209133a681`.
 The manifest itself is 1,339 bytes, SHA-256
-`0cf9a9b5b49beecd4ad6e309876651ee3fb4dd01609efa11148edf591d4f80e7`;
+`7325b74b8f01b5427fb8d74f9e027926542486ce6478cf454787c0cd18ede6fd`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -78,7 +78,7 @@ A signature census runs before bodies resolve calls or transfers. Unsupported
 overload families refuse; identical admitted signatures reject as duplicates
 regardless of binder spelling. Every body and arm is checked, including those
 unreachable from the selected entry. Machine clauses, receivers,
-other runtime carriers/policies, arithmetic beyond the bounded unsigned addition below, non-Boolean dynamic
+other runtime carriers/policies, arithmetic beyond the checked unsigned families below, non-Boolean dynamic
 subjects, and ordinary calls to nested declarations remain explicit coverage
 boundaries. Nested declarations use canonical `machine`; the retired `state`
 alias is no longer accepted. The spelling `state` remains an ordinary identifier.
@@ -95,7 +95,7 @@ negative, and wider intermediates return `Incomplete`; division never silently
 truncates. Anonymous remainder and width-dependent bitwise/shift operations
 also return `Incomplete`. Typed operations need their own checked lowering.
 A direct out-of-range `u8` literal and division by zero reject. Full rational
-folding, explicit landing, and typed runtime operations remain work.
+folding, broader explicit landing, and other typed runtime operations remain work.
 
 Private static storage separates parameter, local, pending-argument and
 expression-scratch cells within a 16 MiB arena `[0x02000000, 0x03000000)`,
@@ -113,7 +113,15 @@ signed comparison, preserving unsigned order. Decimal literals currently cover
 `0..4294967295`; larger `u64` spellings remain explicitly
 unsupported. Plain `u64` addition by a nonnegative literal is admitted when
 checked upper bounds prove the complete result at most 2147483647. The emitted
-word addition is then exact; unproved or wider arithmetic remains unsupported. Comparisons retain carrier/policy identity rather
+word addition is then exact; unproved plain arithmetic remains unsupported.
+Qualified `u32 in Trapping` supports addition, subtraction and multiplication;
+qualified `u64 in Trapping` supports addition and subtraction. Each selected
+core operator checks overflow or underflow and realizes an abnormal Alpha Trap.
+The qualified operand selects the family; a same-carrier plain peer is allowed,
+and a receiving annotation never inserts qualification. `u64` multiplication
+and the remaining runtime operators decline explicitly. Named checked-value
+variants retain the selected realization; operands evaluate once, left to right,
+with private scratch preserving a captured left value across a right-hand call. Comparisons retain carrier/policy identity rather
 than treating every word as interchangeable. Ordinary arguments, locals and
 results never acquire or drop a domain implicitly: `as +Trapping` and
 `as -Trapping` express the supported domain changes. Core comparisons admit a
@@ -123,7 +131,7 @@ identity/anonymous landing and exact `u8` to `u32` widening. Other casts and
 context-dependent domain inference inside compound expressions refuse explicitly.
 
 This closed slice projects the primitive operators and the fixed core policy
-comparison family specified by [numeric values](../../../wiki/spec/language/numeric_values.md#policy-domains);
+comparison and arithmetic families specified by [numeric values](../../../wiki/spec/language/numeric_values.md#policy-domains);
 it does not claim general
 operator-declaration or package/core admission. Imports, custom operators and
 user domains remain unsupported. The core Trapping comparison family publishes
@@ -194,7 +202,8 @@ root cannot be rebound. Nested transfers may forward the enclosing invocation's
 original incoming reference as a bare matching parameter; its whole referent
 loan remains live while later arguments evaluate. A local-backed reference
 cannot enter this path, so repeated tail transfers cannot outlive reused local
-storage. Ordinary bare reference forwarding, escaping/stored references, implicit
+storage. Ordinary calls also accept a bare matching incoming reference and
+retain the same argument-order loan and mutation range. Escaping/stored references, implicit
 shared lending and lifetime syntax decline. Mutation through a shared reference rejects. All these checks finish before
 any executable bytes are published.
 
