@@ -1,6 +1,6 @@
 # Rust producer omission audit
 
-`cargo xtask rust-producer-omission` decides whether a produced closure's
+`mbx xtask rust-producer-omission` decides whether a produced closure's
 declared dependency set omits the Rust producer (`omega-rust/`), per the
 contract in [omega-rust/README.md](../omega-rust/README.md#readme):
 
@@ -43,15 +43,17 @@ declaration defect, not an audit false-negative.
 | `checkout-derived-path` | spells `..` traversal, an absolute path, `CARGO_MANIFEST_DIR`/`OUT_DIR`, or reaches `source/library` through checkout-relative traversal |
 | `canonical-spelling` | is not a canonical relative POSIX path (same byte rules as `source_closure.py`) |
 
-Exit status: `0` = omitted, `1` = producer present (or `--require`
-mismatch), `2` = malformed input.
+Exit status: `0` = expected verdict matched (omitted by default), `1` = verdict
+mismatch, `2` = malformed input. With `--require present`, findings produce
+status zero. Record subjects contain canonical absolute input paths so they
+remain independently locatable when invoked from a different directory.
 
 ## Example
 
-The Omega compiler D closure and its env surface audit clean today:
+The bootstrap compiler closure and its env surface audit clean today:
 
 ```bash
-cargo xtask rust-producer-omission \
+mbx xtask rust-producer-omission \
   --manifest bootstrap/5_omega/omega_compiler.epsilon.sources \
   --steps tools/bootstrap/paths.sh \
   --steps tools/bootstrap/omega/compiler_env.sh \
@@ -59,7 +61,7 @@ cargo xtask rust-producer-omission \
 ```
 
 ```powershell
-cargo xtask rust-producer-omission `
+mbx xtask rust-producer-omission `
   --manifest bootstrap/5_omega/omega_compiler.epsilon.sources `
   --steps tools/bootstrap/paths.sh `
   --steps tools/bootstrap/omega/compiler_env.sh `

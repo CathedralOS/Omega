@@ -37,6 +37,8 @@ fn audit(manifests: &[PathBuf], steps: &[PathBuf], root: &Path) -> Result<Value,
         return Err("declared root is not a directory".into());
     }
     let mut findings = Vec::new();
+    let mut canonical_manifests = Vec::new();
+    let mut canonical_steps = Vec::new();
     let mut member_count = 0;
     let mut step_count = 0;
     for manifest in manifests {
@@ -49,6 +51,7 @@ fn audit(manifests: &[PathBuf], steps: &[PathBuf], root: &Path) -> Result<Value,
             .next()
             .is_some_and(|line| closure_header(line.trim()));
         let canonical = manifest.canonicalize().map_err(|e| e.to_string())?;
+        canonical_manifests.push(canonical.clone());
         let base = canonical.parent().ok_or("manifest has no parent")?;
         for (index, line) in text.lines().enumerate() {
             let line = line.trim();
@@ -104,7 +107,9 @@ fn audit(manifests: &[PathBuf], steps: &[PathBuf], root: &Path) -> Result<Value,
         }
     }
     for path in steps {
-        for (index, line) in regular_text(path)?.lines().enumerate() {
+        let text = regular_text(path)?;
+        canonical_steps.push(path.canonicalize().map_err(|e| e.to_string())?);
+        for (index, line) in text.lines().enumerate() {
             let line = line.trim();
             if line.is_empty() || line.starts_with('#') {
                 continue;
@@ -146,7 +151,7 @@ fn audit(manifests: &[PathBuf], steps: &[PathBuf], root: &Path) -> Result<Value,
     }
     Ok(json!({
         "schema": "ReleaseRecordSubstrateV1",
-        "subject": {"manifests": manifests, "steps": steps, "root": root},
+        "subject": {"manifests": canonical_manifests, "steps": canonical_steps, "root": root},
         "member_count": member_count, "step_count": step_count,
         "checks": ["canonical-spelling", "producer-artifact", "producer-build-step", "checkout-derived-path"],
         "result": if findings.is_empty() { "omitted" } else { "present" },
@@ -308,7 +313,7 @@ mod tests {
             "--root".into(),
             fixture.0.display().to_string(),
             "--manifest".into(),
-            member.display().to_string(),
+            fixture.0.join(".").join("members").display().to_string(),
             "--record".into(),
             record.display().to_string(),
             "--require".into(),
@@ -317,6 +322,10 @@ mod tests {
         assert_eq!(execute(&args), Ok(true));
         let result: Value = serde_json::from_str(&fs::read_to_string(record).unwrap()).unwrap();
         assert_eq!(result["result"], "present");
+        assert_eq!(
+            result["subject"]["manifests"][0],
+            member.canonicalize().unwrap().display().to_string()
+        );
         *args.last_mut().unwrap() = "omitted".into();
         assert_eq!(execute(&args), Ok(false));
         assert!(execute(&[]).is_err());
