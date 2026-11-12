@@ -5440,7 +5440,10 @@ mod reference_retirement {
             A match transition's `__transition_subject#N` over a local is the case
             that needs it.
         */
-        fn aliases_established_home(&self, initializer: typed_trees::expression::ExpressionHandle) -> bool {
+        fn aliases_established_home(
+            &self,
+            initializer: typed_trees::expression::ExpressionHandle,
+        ) -> bool {
             let mut target = initializer;
             if let typed_trees::expression::ExpressionNode::Borrow(borrow) =
                 self.program.expression_table.expression(target)
@@ -5454,7 +5457,12 @@ mod reference_retirement {
             };
             path.symbol.is_valid()
                 && path.symbol == path.head_symbol
-                && self.program.expression_table.name_path_members(path.members).len() == 1
+                && self
+                    .program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    == 1
                 && self.owner_home_established(path.symbol)
         }
 

@@ -4220,9 +4220,9 @@ mod reads {
         FlowStatementFact,
     };
     use diagnostics::Diagnostic;
+    use symbols::SymbolHandle;
     use typed_trees::expression::{ExpressionHandle, ExpressionNode};
     use typed_trees::statement::StatementNode;
-    use symbols::SymbolHandle;
     use validation::CanonicalPlace;
 
     use super::details::active_loan_detail;
@@ -4480,7 +4480,11 @@ mod reads {
             ExpressionNode::Name(path)
                 if path.symbol.is_valid()
                     && path.symbol == path.head_symbol
-                    && program.expression_table.name_path_members(path.members).len() == 1 =>
+                    && program
+                        .expression_table
+                        .name_path_members(path.members)
+                        .len()
+                        == 1 =>
             {
                 Some(path.symbol)
             }
@@ -4517,19 +4521,25 @@ mod reads {
             .statement_table
             .transition_patterns(transition.patterns)
             .iter()
-            .flat_map(|pattern| program.expression_table.match_fields(pattern.pattern.fields))
+            .flat_map(|pattern| {
+                program
+                    .expression_table
+                    .match_fields(pattern.pattern.fields)
+            })
             .filter_map(|field| match &field.action {
                 typed_trees::expression::MatchFieldAction::Bind(name) => Some(name.as_str()),
                 _ => None,
             })
             .collect::<Vec<_>>();
-        occurrences[last_observation + 1..].iter().all(|occurrence| {
-            !matches!(&occurrence.step, StatementStep::Observe { place, .. }
+        occurrences[last_observation + 1..]
+            .iter()
+            .all(|occurrence| {
+                !matches!(&occurrence.step, StatementStep::Observe { place, .. }
                 if place.root.as_symbol().is_some_and(|root| {
                     let name = program.symbols.name(root);
-                    bound.iter().any(|bound| *bound == name)
+                    bound.contains(&name)
                 }))
-        })
+            })
     }
 
     /*
