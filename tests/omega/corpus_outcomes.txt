@@ -1276,6 +1276,9 @@ fail/borrows/direct_reference_array_range_narrowing rejected 3638ms expected @91
 	cannot prove ensures contract for exit from Main::read at statement 2: result >= 0 && result <= 50
 fail/borrows/dispatch_boundary_returning_sibling_escape rejected 3545ms expected @54cd60288b4c
 	machine `invalid` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/borrows/dispatch_subject_view_carried_with_owner rejected 5849ms expected @7a830f5ac74c
+	state `keep` receives `main` while local borrow `decoded` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+	statement 3 mutates `main.buffer[1]` while local borrow `decoded` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 fail/borrows/dropped_reference_qualification_after_alias_write rejected 1980ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from corrupt at statement 0: ticket in Ticket::Issued
 fail/borrows/dropped_reference_qualification_carrier_write rejected 2356ms expected @ccdb99ca2214
@@ -19803,9 +19806,8 @@ fail/wire/reflection_callback_not_unique rejected 6760ms expected @4815ea579d91
 	generic machine `visit_runtime_fields` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Machine slot `Visitor` has no proposal
 fail/wire/reflection_foreign_query_without_delegation rejected 10297ms expected @4815ea579d91
 	typed field visitation requires its subject owner; delegate an owning operation instead of reflecting a foreign carrier
-fail/wire/returned_preserving_remainder_input_write rejected 15050ms expected @66914f73c885
+fail/wire/returned_preserving_remainder_input_write rejected 18806ms expected @7a830f5ac74c
 	state `inspect` receives `main` while local borrow `decoded` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
-	state `refused` receives `main` while local borrow `decoded` is still active
 	statement 5 mutates `main.buffer[1]` while local borrow `decoded` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
 fail/wire/same_named_data_is_not_the_core_fixed_vec rejected 13523ms expected @1e29a538216e
 	machine `SelectedCodec::member` requires type predicate does not hold for the supplied arguments
@@ -20158,6 +20160,7 @@ pass/borrows/copied_intermediate_descriptor_snapshot_exit checked 2903ms check-t
 pass/borrows/copied_scalar_field_with_restricted_peer checked 1179ms check-target:macos_arm64 @867738eb9535+wt
 pass/borrows/data_copy_property checked 3567ms @ccdb99ca2214
 pass/borrows/disjoint_branch_closure_with_grandchild checked 3747ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/dispatch_subject_view_released_exit checked 7454ms check-target:macos_arm64 @7a830f5ac74c
 pass/borrows/dynamic_window_return_custody_exit checked 3289ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/enum_selected_view_reference_exit checked 16593ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/erased_input_before_returned_reference_exit checked 7151ms check-target:macos_arm64 @7e859cc5b918
@@ -28773,7 +28776,7 @@ pass/wire/systems_wire_protocol_exit checked 43709ms check-target:macos_arm64 @6
 pass/wire/wire_compatibility_migration_across_shapes checked 40783ms check-target:macos_arm64 @1e29a538216e
 pass/wire/wire_data_reserved_field checked 3922ms check-target:macos_arm64 @ccdb99ca2214
 pass/wire/wire_field_numbers checked 56196ms @1e29a538216e
-pass/wire/wire_preserving_decode_relay_exit checked 51143ms check-target:macos_arm64 @1e29a538216e
+pass/wire/wire_preserving_decode_relay_exit checked 23146ms check-target:macos_arm64 @7a830f5ac74c
 pass/wire/wire_retired_field checked 4022ms @ccdb99ca2214
 pass/write_only/returned_destination_transport_exit checked 3655ms check-target:macos_arm64 @ccdb99ca2214
 pass/write_only/state_forwarded_scalar_store_exit checked 13290ms check-target:macos_arm64 @ccdb99ca2214
