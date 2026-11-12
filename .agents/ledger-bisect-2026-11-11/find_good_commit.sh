@@ -40,7 +40,7 @@ for c in "${candidates[@]}"; do
   fi
 done
 
-for c in $(git rev-list --first-parent -n 80 759c80404428); do
+for c in $(git rev-list --first-parent -n 200 759c80404428); do
   [[ -n "${seen[$c]:-}" ]] && continue
   seen[$c]=1
   if test_commit "$c"; then

@@ -9,10 +9,10 @@ export BISECT_REPO_ROOT="$ROOT/.agents/ledger-bisect-wt"
 if [[ ! -d "$BISECT_REPO_ROOT/.git" ]]; then
   git worktree add -f "$BISECT_REPO_ROOT" work/ledger-bisect-part-4
 fi
+PIN=51e8c45c793007f211d0d9baee7de16767172444
 cd "$BISECT_REPO_ROOT"
-git fetch origin work/ledger-bisect-part-4
-git checkout -f work/ledger-bisect-part-4
-git reset --hard origin/work/ledger-bisect-part-4
+git fetch origin "$PIN" 2>/dev/null || git fetch origin
+git checkout -f "$PIN"
 python3 <<'PY'
 import json
 import os
