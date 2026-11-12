@@ -55,7 +55,9 @@ The crate is organized along that lifecycle:
 - `admission/` checks the `Build` program and its target helpers before any
   effect occurs (`checking.rs`, `target_helpers.rs`), pre-evaluates selected
   scalar constants and provider demands (`selected_constants.rs`,
-  `provider_execution.rs`), and seals the private checkpoint (`program.rs`).
+  `provider_execution.rs`), answers their layout queries with the selected
+  target's geometry (`target_layout_queries.rs`), and seals the private
+  checkpoint (`program.rs`).
 - `activation.rs` and `activation/` own the step-by-step `TerminalBuildActivation`
   that `orchestration` drives (`preparation.rs`, `project.rs`,
   `provider_installation.rs`, `scalar_completion.rs`, `source_join.rs`,
@@ -71,6 +73,9 @@ The crate is organized along that lifecycle:
   interpreter's root structural parameter after normal return.
 - `calling_policy_execution.rs` executes retained Terminal calling-policy
   machines on canonical ABI signatures without re-entering the source compiler.
+- `via_binding_evaluation.rs` runs each ordinary source `via` producer once, for
+  Build admission and for the compiler's Product preparation, and hands the
+  result to provider planning to retain.
 */
 
 mod activation;
@@ -79,6 +84,7 @@ mod build_evaluation;
 mod calling_policy_execution;
 pub mod host;
 pub mod settings;
+mod via_binding_evaluation;
 
 pub use activation::scalar_completion;
 
@@ -97,7 +103,7 @@ pub use build_evaluation::{
 };
 pub use build_output::BuildStagedOutputEntryKind;
 pub use build_time_evaluation::WireCompatibilityDemand;
-pub use calling_policy_execution::evaluate_terminal_calling_policy;
+pub use calling_policy_execution::{CALLING_POLICY_EVALUATOR, evaluate_terminal_calling_policy};
 pub use compilation_products::{BuildConfig, ComputedBuildConfig};
 pub use effects::AuthoredBehaviorExclusion;
 pub use package_compilation::build_execution::{
@@ -120,3 +126,4 @@ pub use provider_planning::program_entry::{
     program_entry_semantic_binding_role, selected_program_entry_machine,
 };
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
+pub use via_binding_evaluation::evaluate_checked_via_bindings;

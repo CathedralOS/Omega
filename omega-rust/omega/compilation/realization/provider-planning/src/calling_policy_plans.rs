@@ -10,14 +10,17 @@ helper candidates once beside the shared Terminal publication. `plan_computation
 publishes per-target plans from that owned preparation and canonical storage
 without reopening Source, while `selected_providers` applies the canonical
 invocation-scoped provider choice and `calling_program` owns finite invocation
-accounting and carries Build evaluation's executor.
+accounting and carries Build evaluation's two executors
+(`CallingPolicyEvaluator`).
 
 We also fold the source-free policy activation request (`policy_invocation`) and
 dependency-ready calling-plan scalar completion (`scalar_completion`) directly
 into this module entrypoint. Receiving admission precedes the compiler-evaluation
 floor, and both policy invocation and default ABI description use the same
 dependency-ready scalar evaluator and supplied provider custody without
-reopening Source or inheriting Product grants.
+reopening Source or inheriting Product grants. Scalar completion decides which
+target scopes and applications to close; the evaluator that runs each scope's
+conditions is Build evaluation's, supplied by the caller.
 */
 
 mod boundary_signatures;
@@ -101,9 +104,35 @@ pub struct TerminalCallingPolicyInvocation<'input> {
     pub admission: TerminalCallingPolicyAdmission,
 }
 
-pub type CallingPolicyEvaluator = fn(
+pub type CallingPolicyExecutor = fn(
     TerminalCallingPolicyInvocation<'_>,
 ) -> Result<(ValidatedBoundaryEntryPlan, WorkUsage), String>;
+
+/// Runs one target scope's retained scalar conditions: the observations to
+/// evaluate under, the scope whose values are wanted, the applications
+/// requested there, the scope's address model, and the work meter to charge.
+pub type CallingScalarEvaluator =
+    for<'artifact> fn(
+        &mut terminal_installation::ScalarApplicationObservations<'artifact>,
+        &str,
+        &[semantic_vocabulary::ScalarApplicationId],
+        Option<&terminal_installation::ScalarAddressModel>,
+        &mut psi_work::WorkMeter,
+    )
+        -> Result<terminal_installation::ScalarConditionSelection<'artifact>, String>;
+
+/// Build evaluation's executors, supplied by the compiler coordinator.
+///
+/// Provider planning prepares calling-policy invocations and decides which
+/// scalar applications a calling signature needs, but it does not run
+/// build-time evaluation itself. Both runs go through these two functions:
+/// `policy` executes a retained calling-policy machine, and
+/// `scalar_conditions` evaluates the scalar conditions of one target scope.
+#[derive(Debug, Clone, Copy)]
+pub struct CallingPolicyEvaluator {
+    pub policy: CallingPolicyExecutor,
+    pub scalar_conditions: CallingScalarEvaluator,
+}
 
 pub(super) mod scalar_completion {
     use psi_work::WorkMeter;
@@ -127,6 +156,7 @@ pub(super) mod scalar_completion {
         primary: target::TargetProfile,
         request: CallingScalarScope<'_>,
         providers: &AdmittedProviderSelections,
+        evaluate: super::CallingScalarEvaluator,
         meter: &mut WorkMeter,
     ) -> Result<AdmittedScalarApplications, String> {
         let (mut closure, requested) = match &request {
@@ -182,15 +212,14 @@ pub(super) mod scalar_completion {
                         commitment: model.commitment(),
                     }
                 });
-            let conditions =
-                build_time_evaluation::evaluate_scalar_applications_with_address_model(
-                    &mut observations,
-                    primary.target_name(),
-                    demand,
-                    address_model.as_ref(),
-                    meter,
-                )
-                .map_err(|error| format!("calling scalar conditions: {error}"))?;
+            let conditions = evaluate(
+                &mut observations,
+                primary.target_name(),
+                demand,
+                address_model.as_ref(),
+                meter,
+            )
+            .map_err(|error| format!("calling scalar conditions: {error}"))?;
             closure.close_scope(observations, conditions, Ok(address_model))?;
         }
         closure.finish()
