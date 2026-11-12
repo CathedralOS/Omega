@@ -300,7 +300,13 @@ checks the addition as `u32` and as `u64`, whichever a caller uses. Checking the
 body once per listed alternative, each with `T` fixed to that type, satisfies
 this rule for a finite family; the list is closed, so those checks cover every
 admissible use. An open `T` has no such list and uses only what its bounds
-promise. Type parameters remain static even when their admissible set has
+promise.
+
+A type equation in a contract guards what follows it, as a case test does:
+in `(T == u8 && result == 0u8) || (T == u16 && result == 0u16)`, each
+conjunct after `T == u8` is typed with `T` fixed to `u8`. Conjuncts are read
+left to right; a disjunct whose type equation is false for the instantiation
+holds vacuously. Type parameters remain static even when their admissible set has
 several alternatives. No runtime type objects or RTTI are introduced.
 
 A [case-dependent default domain](data_and_literals.md#case-constraints) can

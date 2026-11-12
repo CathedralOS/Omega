@@ -429,48 +429,6 @@ Until answered, `via ForeignBinding::CompilerIntrinsic` stays accepted at
 these sites, and BUILD-OWNED-NATIVE-BINDINGS keeps its `CompilerIntrinsic`
 retirement.
 
-### Q12 - Is a contract conjunct beside a type equation typed under that equation?
-
-Decision name: `contract-conjunct-under-type-equation`.
-
-**Customer.** `core::integer::min<T>` and `max<T>`, `core::float::min<T>` and
-`max<T>` in the bundled library, which publish their value per alternative:
-
-```omega
-public machine min<T>() -> T
-requires T == u8 || T == u16 || ...
-ensures (T == u8 && result == 0u8) || (T == u16 && result == 0u16) || ...
-```
-
-`result` has type `T`, and `result == 0u8` compares it with a `u8`.
-`tests/omega/pass/core/integer_query_public_refinement_exit` relies on a
-caller of `min<u32>` learning `result == 0u32` from this clause.
-
-**Gap.** [Static type equality](wiki/spec/language/generics.md#static-type-equality)
-states the rule for branches of a body, quoted in Q16. No sentence states it
-for a conjunction inside `requires` or `ensures`: whether `result == 0u8` is
-checked as a `u8` comparison because `T == u8` stands beside it, and what the
-disjunct `(T == u8 && result == 0u8)` means in `min<u32>`, where its second
-conjunct compares a `u32` with a `u8`.
-[Data and literals](wiki/spec/language/data_and_literals.md) uses the same
-shape in a data `requires` (`Command<T>`) without stating the rule either.
-
-The current checker accepts it: on `main` at `182a33b42` a machine `least<T>`
-with `requires T == u8 || T == u32 ensures (T == u8 && result == 0u8) || (T ==
-u32 && result == 0u32)` checks, with `least<u32>` called.
-
-**Question.**
-
-- **(a)** Is each conjunct typed under the type equations conjoined with it,
-  left to right, and is a disjunct whose equation is false for the
-  application vacuous there, never ill-typed? Then the library's clauses mean
-  what they are used for, and the specification should say so for contracts
-  and data `requires`.
-- **(b)** Or must such a contract be written another way, and which?
-
-Until answered the lowered-form checker reads no contract with a type
-equation, so `core::integer::min` is not served by it.
-
 ### Q19 - May two machines' guarantees each name the other in a specification call when both bodies are plain definitions?
 
 Decision name: `mutual-specification-call-guarantees`.
