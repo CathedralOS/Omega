@@ -21,7 +21,7 @@ Lexical scan (brace-depth `let` scope, comments stripped). Reference carriers (`
 
 ## Spot-check (20 random hits)
 
-Sample seed `20261112`. **20 / 20** confirmed real Q7 violations on re-read (non-`mut` `let`, writable borrow or field/index store).
+Sample seed `20261112`. Each sampled row was re-read in source (binding declaration plus violation line). **20 / 20** are real Q7 sites (non-`mut` `let`, writable borrow or owned field/index store).
 
 - `tests/omega/pass/drops/runtime_nominal_state_loan_alias_exit/main.omg`:36 `room` — **real**: non-`mut` local lent with `&mut`/`&write`
   - `let loan: &mut Room = &mut room;`
