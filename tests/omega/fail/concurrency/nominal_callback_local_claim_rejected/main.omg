@@ -31,7 +31,7 @@ public machine retain_claim<const Callback: CallbackContract<u32>::invoke>(
     consume(claimed_receipt)
 }
 
-public machine forward_claim<const Renamed: CallbackContract<u32>::invoke>(
+public machine forward_claim<const Renamed: machine>(
     value: u32
 ) -> u32 suspends {
     suspend retain_claim<Renamed>(value)
