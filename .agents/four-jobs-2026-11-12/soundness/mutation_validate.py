@@ -74,70 +74,113 @@ def current_accepts(omega: str, cur: str) -> bool:
     return False
 
 
-def classify_drop_requires(
-    original: str, mutant: str, omega: str, cur: str, route: str
-) -> Validation:
-    removed: list[str] = []
+def removed_requires_clauses(original: str, mutant: str) -> list[str]:
+    out: list[str] = []
     for m in REQUIRES_RE.finditer(original):
         clause = m.group(1).strip()
         if clause not in mutant:
-            removed.append(clause)
+            out.append(clause)
+    return out
+
+
+def transition_restates_fact(mutant: str, clause: str) -> tuple[bool, str, str]:
+    """Return whether a transition line restates the removed requires (fix2: quote both)."""
+    norm = re.sub(r"\s+", " ", clause.strip())
+    for ln in mutant.splitlines():
+        s = ln.strip()
+        if not s.startswith("transition"):
+            continue
+        tnorm = re.sub(r"\s+", " ", s)
+        if norm in tnorm or tnorm in norm:
+            return True, clause, s
+        # Same conjuncts in different order (weak check).
+        parts = [p.strip() for p in re.split(r"&&|\|\|", norm) if p.strip()]
+        if parts and all(p in tnorm for p in parts):
+            return True, clause, s
+    return False, clause, ""
+
+
+def route_uninformative(route: str, route_reason: str) -> bool:
+    if route in ("outside", "no-entry", "unreached", "missing", "timeout", "error"):
+        return True
+    low = route_reason.lower()
+    return low.startswith("unsupported") or "unsupported:" in low
+
+
+def classify_drop_requires(
+    original: str,
+    mutant: str,
+    omega: str,
+    cur: str,
+    route: str,
+    route_reason: str = "",
+) -> Validation:
+    removed = removed_requires_clauses(original, mutant)
     if not removed:
         return Validation("discarded-valid", None, None, None, None, "no removed requires")
 
-    # Map removed clause to machine body that lost it.
-    for clause in removed:
-        idx = original.find(f"requires {clause}")
-        if idx < 0:
+    if not current_accepts(omega, cur):
+        return Validation("rejected-both", None, None, None, None, "")
+
+    if route_uninformative(route, route_reason):
+        return Validation(
+            "discarded-valid",
+            None,
+            None,
+            None,
+            None,
+            f"route uninformative ({route}): {route_reason or route}",
+        )
+
+    clause = removed[0]
+    restated, req_q, trans_q = transition_restates_fact(mutant, clause)
+    if restated:
+        return Validation(
+            "discarded-valid",
+            None,
+            None,
+            None,
+            trans_q,
+            f"requires duplicated in transition | requires: {req_q} | transition: {trans_q}",
+        )
+
+    if route == "rejected" and route_reason:
+        low = route_reason.lower()
+        if "unproved" in low or "obligation" in low or "diagnostic" in low:
+            obl = first_non_comment_code_line(mutant, ("/", "[", "transition", "call"))
+            return Validation(
+                "confirmed-hole",
+                "proofs/contracts.md",
+                "Before importing a callee's conclusions, a caller establishes the assumptions under the exact argument substitution.",
+                "## Machines and bundles",
+                obl or route_reason[:200],
+                f"route proof failure: {route_reason[:300]}",
+            )
+
+    # Body still uses facts from removed requires without restating them.
+    for ln in mutant.splitlines():
+        s = ln.strip()
+        if s.startswith("//") or not s:
             continue
-        body_start = original.find("{", idx)
-        if body_start < 0:
-            continue
-        depth = 0
-        body_end = None
-        for i, ch in enumerate(original[body_start:], start=body_start):
-            if ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-                if depth == 0:
-                    body_end = i
-                    break
-        if body_end is None:
-            continue
-        body = original[body_start + 1 : body_end]
-        for line in body.splitlines():
-            ls = line.strip()
-            if not ls or ls.startswith("//"):
-                continue
-            if "[" in ls or "/" in ls or re.search(r"\b\w+\s*\(", ls):
-                tokens = re.findall(r"\b([A-Za-z_][A-Za-z0-9_.\[\]]+)\b", clause)
-                if any(t.split(".")[0] in ls for t in tokens):
-                    if clause in body:
-                        return Validation(
-                            "discarded-valid",
-                            None,
-                            None,
-                            None,
-                            None,
-                            "requires fact duplicated in body",
-                        )
-                    if current_accepts(omega, cur):
-                        return Validation(
-                            "confirmed-hole",
-                            "proofs/contracts.md",
-                            "Before importing a callee's conclusions, a caller establishes the assumptions under the exact argument substitution.",
-                            "## Machines and bundles",
-                            ls,
-                            f"dropped requires: {clause}",
-                        )
+        if "[" in s or re.search(r"\b\w+\s*\(", s):
+            if any(tok in s for tok in re.findall(r"\w+", clause)[:4]):
+                if clause not in s:
+                    return Validation(
+                        "confirmed-hole",
+                        "proofs/contracts.md",
+                        "A written `requires` is complete, including on private helpers, under entry inference.",
+                        "## Machines and bundles",
+                        s,
+                        f"dropped requires: {clause}",
+                    )
+
     return Validation(
         "discarded-valid",
         None,
         None,
         None,
         None,
-        "dropped requires not tied to a body obligation",
+        "current accepts; no proven missing entry obligation",
     )
 
 
@@ -151,21 +194,35 @@ def first_dropped_mut_binding(original: str, mutant: str) -> str | None:
 
 
 def binding_write_obligation(name: str, src: str) -> str | None:
-    """Return a source line showing illegal write/&mut on a non-mut binding (no shadowing)."""
+    """Illegal write/&mut/&write on the same binding (fix2: no shadowing)."""
     lines = src.splitlines()
-    declared: dict[str, bool] = {}
+    mut_at_decl: bool | None = None
+    shadow_depth = 0
     for ln in lines:
         m = LET_BIND_RE.search(ln)
         if m:
-            declared[m.group(2)] = m.group(1) is not None
+            bname = m.group(2)
+            is_mut = m.group(1) is not None
+            if bname == name:
+                if mut_at_decl is None:
+                    mut_at_decl = is_mut
+                else:
+                    shadow_depth += 1
+            continue
+        if shadow_depth:
+            continue
+        if mut_at_decl is not False:
+            continue
         stripped = ln.strip()
         if stripped.startswith("//"):
             continue
-        if re.search(rf"\b{re.escape(name)}\s*=", ln) and not declared.get(name, True):
+        if re.search(rf"\b{re.escape(name)}\s*=", ln):
             return stripped
-        if re.search(rf"&mut\s+{re.escape(name)}\b", ln):
+        if re.search(rf"&mut\s+{re.escape(name)}\b", ln) or re.search(
+            rf"&write\s+{re.escape(name)}\b", ln
+        ):
             return stripped
-        if re.search(rf"{re.escape(name)}\.", ln) and "=" in ln and not declared.get(name, True):
+        if re.search(rf"{re.escape(name)}\.", ln) and "=" in ln:
             return stripped
     return None
 
@@ -276,6 +333,8 @@ def classify_shared_mutations(
         obl = mut_ref_obligation(original, mutant)
         if not obl:
             return Validation("discarded-valid", None, None, None, None, "no illegal &mut introduced")
+    if obl.startswith("//"):
+        return Validation("discarded-valid", None, None, None, obl, "obligation is comment only")
     return Validation("confirmed-hole", path, quote, heading, obl, "")
 
 
@@ -292,6 +351,8 @@ def classify_generic(
     obl = first_non_comment_code_line(mutant, ("&mut", "[", "/", "="))
     if not obl:
         return Validation("discarded-valid", None, None, None, None, "no concrete obligation line")
+    if obl.startswith("//"):
+        return Validation("discarded-valid", None, None, None, obl, "obligation is comment only")
     return Validation("confirmed-hole", path, quote, heading, obl, "")
 
 
@@ -302,6 +363,7 @@ def classify_row(
     omega: str,
     cur: str,
     route: str,
+    route_reason: str = "",
 ) -> Validation:
     kind_report = "remove_mut" if kind == "drop_mut" else kind
     original = original_path.read_text()
@@ -319,7 +381,7 @@ def classify_row(
     )
 
     if kind == "drop_requires":
-        v = classify_drop_requires(original, mutant, omega, cur, route)
+        v = classify_drop_requires(original, mutant, omega, cur, route, route_reason)
     elif kind in ("drop_mut", "remove_mut"):
         v = classify_remove_mut(original, mutant, omega, cur, route)
     elif kind == "break_ensures":
@@ -335,7 +397,9 @@ def classify_row(
         if not obl:
             return Validation("discarded-valid", None, None, None, None, "no call under widened requires")
         path, heading, quote = SPEC_BY_KIND["widen_requires"]
-        return Validation("confirmed-hole", path, quote, heading, obl, "")
+        if obl.startswith("//"):
+        return Validation("discarded-valid", None, None, None, obl, "obligation is comment only")
+    return Validation("confirmed-hole", path, quote, heading, obl, "")
     elif kind == "drop_guard":
         if not current_accepts(omega, cur):
             return Validation("rejected-both", None, None, None, None, "")
@@ -343,7 +407,9 @@ def classify_row(
         if not obl or "if " in obl:
             return Validation("discarded-valid", None, None, None, None, "guard removal benign")
         path, heading, quote = SPEC_BY_KIND["drop_guard"]
-        return Validation("confirmed-hole", path, quote, heading, obl, "")
+        if obl.startswith("//"):
+        return Validation("discarded-valid", None, None, None, obl, "obligation is comment only")
+    return Validation("confirmed-hole", path, quote, heading, obl, "")
     else:
         v = classify_generic(kind_report, original, mutant, omega, cur, route)
 

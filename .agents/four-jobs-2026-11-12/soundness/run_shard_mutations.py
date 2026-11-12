@@ -200,8 +200,9 @@ def run_omega_check(main: Path) -> tuple[str, float]:
     return "rejected", elapsed
 
 
-def parse_route(stdout: str) -> tuple[str, str]:
+def parse_route(stdout: str) -> tuple[str, str, str]:
     current = route = "missing"
+    reason = ""
     for line in stdout.splitlines():
         if not line.startswith("program\t"):
             continue
@@ -211,10 +212,20 @@ def parse_route(stdout: str) -> tuple[str, str]:
                 current = f.split("=", 1)[1]
             if f.startswith("route="):
                 route = f.split("=", 1)[1]
-    return current, route
+        # Trailing fields after route verdict carry refusal detail.
+        for i, f in enumerate(fields):
+            if f.startswith("route="):
+                tail = [x for x in fields[i + 1 :] if x.strip()]
+                if tail:
+                    reason = " ".join(tail)[:500]
+                break
+    for line in stdout.splitlines():
+        if line.startswith("diagnostic\t") or line.startswith("fallback\t"):
+            reason = (reason + " | " + line).strip(" |")[:500]
+    return current, route, reason
 
 
-def run_route(main: Path) -> tuple[str, str, float]:
+def run_route(main: Path) -> tuple[str, str, str, float]:
     start = time.monotonic()
     try:
         proc = subprocess.run(
@@ -226,18 +237,18 @@ def run_route(main: Path) -> tuple[str, str, float]:
             stdin=subprocess.DEVNULL,
         )
     except subprocess.TimeoutExpired:
-        return "timeout", "timeout", time.monotonic() - start
+        return "timeout", "timeout", "timeout", time.monotonic() - start
     elapsed = time.monotonic() - start
     if proc.returncode != 0 and not proc.stdout:
-        return "error", "error", elapsed
-    cur, route = parse_route(proc.stdout)
-    return cur, route, elapsed
+        return "error", "error", "error", elapsed
+    cur, route, reason = parse_route(proc.stdout)
+    return cur, route, reason, elapsed
 
 
 def append_tsv(row: list[str]) -> None:
     header = (
         "original_fixture\tmutation_kind\tmutant_path\tomega_verdict\t"
-        "route_current_verdict\troute_verdict\tseconds\tcandidate\n"
+        "route_current_verdict\troute_verdict\troute_reason\tseconds\tcandidate\n"
     )
     if not TSV_PATH.exists():
         TSV_PATH.write_text(
@@ -267,7 +278,10 @@ def main() -> int:
         counts["generated"] += len(muts)
         for mut in muts:
             mpath = materialize_mutant(main, mut)
-            cur_v, route_v, route_s = run_route(mpath)
+            try:
+                cur_v, route_v, route_reason, route_s = run_route(mpath)
+            except Exception as exc:
+                cur_v, route_v, route_reason, route_s = "error", "error", str(exc)[:200], 0.0
             omg_v = "skipped"
             omg_s = 0.0
             needs_omega = (
@@ -299,6 +313,7 @@ def main() -> int:
                     omg_v,
                     cur_v,
                     route_v,
+                    route_reason.replace("\t", " ").replace("\n", " "),
                     f"{max(omg_s, route_s):.2f}",
                     "yes" if candidate else "no",
                 ]
