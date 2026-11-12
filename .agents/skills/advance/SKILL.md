@@ -105,18 +105,10 @@ that photograph: a different object, and a green check on it is not done.
    - Run affected crate unit tests and one `cargo xtask corpus --filter` over
      the rows and samples this change targets. No broad sweeps or before/after
      comparisons against main; the nightly sweep covers main afterwards.
-2. **Commit code and fixture files BEFORE `--record`:**
-   - Ensure no leftover `omega.lock` or `build/` directories sit inside
-     `tests/omega/` fixtures (never delete `tests/omega/pass/build/`).
-   - Commit all `.rs`, `.omg`, and `expected.txt` changes first so `git status`
-     is clean, then run:
-     ```bash
-     cargo xtask corpus --record --filter <affected_fixtures>
-     ```
-   - Inspect `git diff -- tests/omega/corpus_outcomes.txt` and verify every
-     `pass/` or `run/` row is `checked`/`built`, every `fail/` row is
-     `rejected ... expected`, and no row carries a `+wt` stamp or
-     `regressed-from:` marker.
+2. **Leave the ledger alone:** Do not run `corpus --record` or edit
+   `tests/omega/corpus_outcomes.txt`; the post-merge check writes it. Ensure no
+   leftover `omega.lock` or `build/` directories sit inside `tests/omega/`
+   fixtures (never delete `tests/omega/pass/build/`).
 3. **Update `TASKS.md`:** Delete the completed bullet or clause
    from `TASKS.md` outright (never rewrite into `"preserving / keeping / now
    passes"` history prose), and run `cargo xtask check-rules --base origin/main`.

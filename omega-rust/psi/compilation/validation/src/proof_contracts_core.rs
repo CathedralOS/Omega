@@ -5710,7 +5710,6 @@ pub mod immutable_integer_bounds {
 
 pub mod instruction_effects {
     use language_core::inline_assembly::AsmRegisterOperation;
-    use std::path::Path;
     use symbols::SymbolHandle;
     use typed_trees::proposition::PropositionBody;
     use typed_trees::types::PrimitiveType;
@@ -5720,15 +5719,15 @@ pub mod instruction_effects {
         symbol: SymbolHandle,
     ) -> Option<facts::InstructionEffectOperation> {
         let declaration = program.proposition_definition_by_symbol(symbol)?;
-        if !declaration.is_public
-            || !matches!(declaration.body, PropositionBody::Primitive)
-            || !program
-                .symbol_toolchain_relative_path(symbol)
-                .is_some_and(|path| path == Path::new("assembly_model.omg"))
-        {
+        if !declaration.is_public || !matches!(declaration.body, PropositionBody::Primitive) {
             return None;
         }
-        if declaration.name.as_str() == "atomic_release_written" {
+        use language_core::core_vocabulary::{AssemblyEffect, CoreVocabulary};
+        let Some(CoreVocabulary::AssemblyEffect(effect)) = program.symbols.core_vocabulary(symbol)
+        else {
+            return None;
+        };
+        if effect == AssemblyEffect::AtomicReleaseWritten {
             use typed_trees::proposition::PropositionBinderKind;
             use typed_trees::types::TypeReferenceNode;
             let [cell, value] = program.proposition_binders(declaration) else {
@@ -5762,10 +5761,10 @@ pub mod instruction_effects {
         if !program.proposition_binders(declaration).is_empty() {
             return None;
         }
-        let operation = match declaration.name.as_str() {
-            "port_written" => AsmRegisterOperation::PortWrite,
-            "model_specific_written" => AsmRegisterOperation::ModelSpecificWrite,
-            _ => return None,
+        let operation = match effect {
+            AssemblyEffect::PortWritten => AsmRegisterOperation::PortWrite,
+            AssemblyEffect::ModelSpecificWritten => AsmRegisterOperation::ModelSpecificWrite,
+            AssemblyEffect::AtomicReleaseWritten => return None,
         };
         let expected = operation.input_carriers();
         let parameters = program.proposition_parameters(declaration);

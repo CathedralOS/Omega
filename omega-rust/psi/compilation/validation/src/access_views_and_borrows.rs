@@ -16,7 +16,6 @@ pub mod access_views {
 
     pub(crate) mod access_custody {
         use crate::CheckingInput;
-        use std::path::Path;
 
         use diagnostics::Diagnostic;
         use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport};
@@ -646,8 +645,8 @@ pub mod access_views {
                     .symbol_source_span(definition.symbol)
                     .and_then(|span| program.symbols.source_file(span))
                     .is_some_and(|source| {
-                        source.origin == source::SourceOrigin::Toolchain
-                            && source.path.ends_with(Path::new("core/layout.omg"))
+                        symbols::core_source_at(source)
+                            == Some(language_core::core_vocabulary::CoreSource::Layout)
                     })
         }
 

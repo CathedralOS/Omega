@@ -175,15 +175,40 @@ fn an_obligation_on_a_branch_its_guard_rules_out_closes_by_contradiction() {
 }
 
 #[test]
-fn a_contradiction_between_two_values_alone_is_not_yet_derived() {
-    // requires a <= b; when b < a -> a - 100. The branch is unreachable, and
-    // chaining the two relations gives `b < b`. The kernel gives a closed
-    // false relation the denotation `Falsehood` only between two literals,
-    // so with no literal endpoint there is no derivation to emit. This pins
-    // the gap (README, "What the integer rules do not reach"); it is not the
-    // intended verdict.
-    let dead = strict(Strict::Subtract, slot(0, u32_type()), unsigned(100));
-    let guard = compare(Strict::Less, slot(1, u32_type()), slot(0, u32_type()));
-    let (elaboration, result) = run(vec![branching(vec![relate(false, 1, 2)], guard, dead)]);
-    assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
+fn an_order_between_two_values_rules_out_the_guard_that_contradicts_it() {
+    // requires a <= b; when b < a -> a - 100. Chaining the two orders gives
+    // only `b < b`, which no kernel rule calls false without a literal. The
+    // guard's own value does it: the arm knows `c == true`, and `c == false`
+    // denotes `a <= b`, which is known, so `true == false` follows.
+    let dead = || strict(Strict::Subtract, slot(0, u32_type()), unsigned(100));
+    let guard = |operation| compare(operation, slot(1, u32_type()), slot(0, u32_type()));
+    for (strict_requirement, operation) in [
+        (false, Strict::Less),
+        // `a < b` proves the negation `a <= b` of `b < a` by weakening.
+        (true, Strict::Less),
+        (true, Strict::LessOrEqual),
+    ] {
+        let requires = vec![relate(strict_requirement, 1, 2)];
+        let (elaboration, result) = run(vec![branching(requires, guard(operation), dead())]);
+        let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
+        // Every step is a rule the mathematical core derives.
+        assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    }
+}
+
+#[test]
+fn a_guard_that_an_order_between_two_values_admits_leaves_its_arm_owing() {
+    let dead = || strict(Strict::Subtract, slot(0, u32_type()), unsigned(100));
+    let guard = |operation| compare(operation, slot(1, u32_type()), slot(0, u32_type()));
+    for (requires, operation) in [
+        // `a <= b` and `b <= a` hold together when the two are equal.
+        (vec![relate(false, 1, 2)], Strict::LessOrEqual),
+        // An order the other way agrees with `b < a`.
+        (vec![relate(false, 2, 1)], Strict::Less),
+        // With no requirement nothing contradicts it.
+        (Vec::new(), Strict::Less),
+    ] {
+        let (elaboration, result) = run(vec![branching(requires, guard(operation), dead())]);
+        assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
+    }
 }

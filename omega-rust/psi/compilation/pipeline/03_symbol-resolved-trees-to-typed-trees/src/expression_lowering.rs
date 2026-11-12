@@ -486,13 +486,8 @@ pub(crate) mod expression {
                 .iter()
                 .find(|data| {
                     data.name.as_str() == "CodeLayout"
-                        && program.symbols.symbol_source_origin(data.symbol)
-                            == Some(source::SourceOrigin::Toolchain)
-                        && program
-                            .symbols
-                            .symbol_source_span(data.symbol)
-                            .and_then(|span| program.symbols.source_file(span))
-                            .is_some_and(|file| file.path.ends_with("core/code_layout.omg"))
+                        && program.symbols.core_source(data.symbol)
+                            == Some(language_core::core_vocabulary::CoreSource::CodeLayout)
                 })
                 .map(|data| data.symbol)
                 .ok_or_else(|| {
