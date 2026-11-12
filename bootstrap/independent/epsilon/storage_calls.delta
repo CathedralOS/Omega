@@ -1,0 +1,263 @@
+; Receiver and state calls keep a place/store/output ABI. Calls to existing
+; pure functions bridge their outcome at the call boundary, not in their body.
+(def epsilon_delta_stored_call_finish ((target EpsilonDeltaStoredCallTarget)
+  (values Bytes) (store Bytes) (output Bytes)) Bytes
+  (match target
+    ((EpsilonDeltaStoredPureCall name)
+      (epsilon_emit_call "epsilon_compiled_from_pure" (epsilon_emit_spaced
+        (epsilon_emit_call name values) (epsilon_emit_spaced store output))))
+    ((EpsilonDeltaStoredReceiverCall name receiver)
+      (epsilon_emit_call name (epsilon_emit_spaced receiver
+        (epsilon_emit_spaced values (epsilon_emit_spaced store output)))))
+    ((EpsilonDeltaStoredStateCall name captures homes arguments)
+      (let retained Bytes (epsilon_emit_call "epsilon_compiled_retain_state"
+        (epsilon_emit_spaced "ep_floor" (epsilon_emit_spaced arguments
+          (epsilon_emit_spaced homes (epsilon_emit_spaced "(SomeEpsilonRuntimePlace ep_receiver)" store)))))
+        (epsilon_emit_call name (epsilon_emit_spaced "ep_receiver" (epsilon_emit_spaced captures
+          (epsilon_emit_spaced values (epsilon_emit_spaced retained output)))))))
+    (EpsilonDeltaStoredReadByte (epsilon_emit_call "epsilon_evaluator_read_input" (epsilon_emit_spaced store output)))
+    (EpsilonDeltaStoredWriteByte (epsilon_emit_call "epsilon_compiled_write_byte"
+      (epsilon_emit_spaced values (epsilon_emit_spaced store output))))
+    (EpsilonDeltaStoredExit (epsilon_emit_call "EpsilonEvaluatorExit" (epsilon_emit_spaced values output)))))
+
+(def epsilon_delta_stored_scalar_argument ((context EpsilonDeltaContext)
+  (target EpsilonDeltaStoredCallTarget) (parameters EpsilonParameterList)
+  (expression EpsilonExpression) (rest EpsilonExpressionList) (values Bytes)
+  (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (let coordinate Int (epsilon_expression_start expression)
+    (match (epsilon_delta_stored_expression context expression store output)
+      ((EpsilonDeltaCompiled text)
+        (match (epsilon_delta_stored_arguments context target parameters rest
+          (epsilon_emit_spaced values (epsilon_delta_stored_scalar_variable target coordinate))
+          (epsilon_emit_generated "store" coordinate) (epsilon_emit_generated "output" coordinate))
+          ((EpsilonDeltaCompiled continuation)
+            (EpsilonDeltaCompiled (epsilon_emit_stored_scalar_then coordinate text continuation)))
+          ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+          ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+          ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+      ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+      ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+      ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))
+
+(def epsilon_delta_stored_enum_argument ((context EpsilonDeltaContext)
+  (target EpsilonDeltaStoredCallTarget) (parameter EpsilonParameter)
+  (parameters EpsilonParameterList) (expression EpsilonExpression)
+  (rest EpsilonExpressionList) (values Bytes) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (let coordinate Int (epsilon_expression_start expression)
+    (match (epsilon_delta_stored_arguments context target parameters rest
+      (epsilon_emit_spaced values (epsilon_emit_generated "enum" coordinate)) store output)
+      ((EpsilonDeltaCompiled continuation)
+        (epsilon_delta_argument_then context parameter expression continuation))
+      ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+      ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+      ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))
+
+(def epsilon_delta_stored_argument ((context EpsilonDeltaContext)
+  (target EpsilonDeltaStoredCallTarget) (parameter EpsilonParameter)
+  (parameters EpsilonParameterList) (expression EpsilonExpression)
+  (rest EpsilonExpressionList) (values Bytes) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match parameter
+    ((EpsilonParameterSyntax start end name typeValue)
+      (match typeValue
+        ((EpsilonNamedType typeStart typeEnd owner)
+          (epsilon_delta_stored_enum_argument context target parameter parameters expression rest values store output))
+        ((EpsilonI32Type typeStart typeEnd)
+          (epsilon_delta_stored_scalar_argument context target parameters expression rest values store output))
+        ((EpsilonU8Type typeStart typeEnd)
+          (epsilon_delta_stored_scalar_argument context target parameters expression rest values store output))
+        ((EpsilonNeverType typeStart typeEnd) (EpsilonDeltaUnsupported typeStart))
+        ((EpsilonArrayType typeStart typeEnd element extent) (EpsilonDeltaUnsupported typeStart))
+        ((EpsilonViewType typeStart typeEnd element)
+          (epsilon_delta_stored_value_argument context target parameters expression rest values store output))))))
+
+(def epsilon_delta_stored_arguments ((context EpsilonDeltaContext)
+  (target EpsilonDeltaStoredCallTarget) (parameters EpsilonParameterList)
+  (arguments EpsilonExpressionList) (values Bytes) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match parameters
+    (NoEpsilonParameters
+      (match arguments
+        (NoEpsilonExpressions (EpsilonDeltaCompiled (epsilon_delta_stored_call_finish target values store output)))
+        ((MoreEpsilonExpressions expression rest) (EpsilonDeltaInternal (epsilon_expression_start expression)))))
+    ((MoreEpsilonParameters parameter remainingParameters)
+      (match arguments
+        (NoEpsilonExpressions (EpsilonDeltaInternal (epsilon_parameter_start parameter)))
+        ((MoreEpsilonExpressions expression rest)
+          (epsilon_delta_stored_argument context target parameter remainingParameters expression rest values store output))))))
+
+(def epsilon_delta_stored_scalar_variable ((target EpsilonDeltaStoredCallTarget)
+  (coordinate Int)) Bytes
+  (match target
+    ((EpsilonDeltaStoredPureCall name) (epsilon_emit_generated "scalar" coordinate))
+    ((EpsilonDeltaStoredReceiverCall name receiver) (epsilon_emit_generated "value" coordinate))
+    ((EpsilonDeltaStoredStateCall name captures homes arguments) (epsilon_emit_generated "value" coordinate))
+    (EpsilonDeltaStoredReadByte (epsilon_emit_generated "scalar" coordinate))
+    (EpsilonDeltaStoredWriteByte (epsilon_emit_generated "scalar" coordinate))
+    (EpsilonDeltaStoredExit (epsilon_emit_generated "scalar" coordinate))))
+
+(def epsilon_delta_stored_value_argument ((context EpsilonDeltaContext)
+  (target EpsilonDeltaStoredCallTarget) (parameters EpsilonParameterList)
+  (expression EpsilonExpression) (rest EpsilonExpressionList) (values Bytes)
+  (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (let coordinate Int (epsilon_expression_start expression)
+    (match (epsilon_delta_stored_expression context expression store output)
+      ((EpsilonDeltaCompiled text)
+        (match (epsilon_delta_stored_arguments context target parameters rest
+          (epsilon_emit_spaced values (epsilon_emit_generated "value" coordinate))
+          (epsilon_emit_generated "store" coordinate) (epsilon_emit_generated "output" coordinate))
+          ((EpsilonDeltaCompiled continuation)
+            (EpsilonDeltaCompiled (epsilon_emit_stored_value_then coordinate text continuation)))
+          ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+          ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+          ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+      ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+      ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+      ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))
+
+(def epsilon_delta_stored_home_list ((source EpsilonSourceView)
+  (parameters EpsilonParameterList)) Bytes
+  (match parameters
+    (NoEpsilonParameters "NoEpsilonCompiledHomes")
+    ((MoreEpsilonParameters parameter rest)
+      (match parameter
+        ((EpsilonParameterSyntax start end name typeValue)
+          (epsilon_emit_call "MoreEpsilonCompiledHomes"
+            (epsilon_emit_spaced (epsilon_delta_home_name source name)
+              (epsilon_delta_stored_home_list source rest))))))))
+
+(def epsilon_delta_stored_argument_list ((arguments EpsilonExpressionList)) Bytes
+  (match arguments
+    (NoEpsilonExpressions "NoEpsilonCompiledArguments")
+    ((MoreEpsilonExpressions expression rest)
+      (epsilon_emit_call "MoreEpsilonCompiledArguments"
+        (epsilon_emit_spaced (epsilon_emit_generated "value" (epsilon_expression_start expression))
+          (epsilon_delta_stored_argument_list rest))))))
+
+(def epsilon_delta_stored_state_call ((context EpsilonDeltaContext)
+  (state EpsilonState) (arguments EpsilonExpressionList)
+  (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match context
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+      (match declaration
+        ((EpsilonMachineDeclaration start end name inputs returnType body)
+          (let machineParameters EpsilonParameterList (epsilon_machine_input_parameters inputs)
+            (match state
+              ((EpsilonStateSyntax stateStart stateEnd stateName parameters stateBody)
+                (let captures Bytes (epsilon_emit_spaced "ep_floor"
+                  (epsilon_delta_stored_parameter_names source machineParameters 1))
+                  (epsilon_delta_stored_arguments context
+                    (EpsilonDeltaStoredStateCall (epsilon_delta_state_name source state)
+                      captures (epsilon_delta_stored_home_list source machineParameters)
+                      (epsilon_delta_stored_argument_list arguments))
+                    parameters arguments "" store output))))))
+        ((EpsilonDataDeclaration start end name members) (EpsilonDeltaInternal start))
+        ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaInternal start))))))
+
+(def epsilon_delta_stored_data_call ((context EpsilonDeltaContext)
+  (target EpsilonDeclaration) (base EpsilonExpression) (arguments EpsilonExpressionList)
+  (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match (epsilon_call_head_core base)
+    ((EpsilonFieldExpression start end receiver member)
+      (match (epsilon_delta_stored_place context receiver)
+        ((EpsilonDeltaPlaceCompiled typeValue place)
+          (match target
+            ((EpsilonMachineDeclaration targetStart targetEnd name inputs returnType body)
+              (match (epsilon_delta_machine_runtime inputs body)
+                (EpsilonDeltaPureRuntime
+                  (epsilon_delta_stored_arguments context
+                    (EpsilonDeltaStoredPureCall (epsilon_compiled_function_name (epsilon_delta_context_source context) name))
+                    (epsilon_machine_input_parameters inputs) arguments "" store output))
+                (EpsilonDeltaStoredRuntime
+                  (epsilon_delta_stored_arguments context
+                    (EpsilonDeltaStoredReceiverCall
+                      (epsilon_compiled_function_name (epsilon_delta_context_source context) name) place)
+                    (epsilon_machine_input_parameters inputs) arguments "" store output))))
+            ((EpsilonDataDeclaration targetStart targetEnd name members) (EpsilonDeltaInternal targetStart))
+            ((EpsilonBoundaryDeclaration targetStart targetEnd name members) (EpsilonDeltaInternal targetStart))))
+        ((EpsilonDeltaPlaceUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaPlaceInternal offset) (EpsilonDeltaInternal offset))))
+    ((EpsilonIntegerExpression start end literal) (EpsilonDeltaInternal start))
+    ((EpsilonCharacterExpression start end literal) (EpsilonDeltaInternal start))
+    ((EpsilonStringExpression start end literal) (EpsilonDeltaInternal start))
+    ((EpsilonTrueExpression start end) (EpsilonDeltaInternal start))
+    ((EpsilonFalseExpression start end) (EpsilonDeltaInternal start))
+    ((EpsilonNameExpression start end name) (EpsilonDeltaInternal start))
+    ((EpsilonQualifiedExpression start end owner member supplied) (EpsilonDeltaInternal start))
+    ((EpsilonGroupedExpression start end inner) (EpsilonDeltaInternal start))
+    ((EpsilonCallExpression start end inner supplied) (EpsilonDeltaInternal start))
+    ((EpsilonIndexExpression start end inner index) (EpsilonDeltaInternal start))
+    ((EpsilonSliceExpression start end inner low high) (EpsilonDeltaInternal start))
+    ((EpsilonNegateExpression start end operand) (EpsilonDeltaInternal start))
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd left right) (EpsilonDeltaInternal start))))
+
+(def epsilon_delta_stored_resolved_call ((context EpsilonDeltaContext)
+  (expression EpsilonExpression) (base EpsilonExpression) (arguments EpsilonExpressionList)
+  (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match context
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+      (match (epsilon_find_resolved_callable_reference_normalized expression callables)
+        (NoEpsilonResolvedCallableReference (EpsilonDeltaInternal (epsilon_expression_start expression)))
+        ((OneEpsilonResolvedCallableReference callable)
+          (match callable
+            ((EpsilonResolvedUnqualifiedMachineCallable target)
+              (match target
+                ((EpsilonMachineDeclaration start end name inputs returnType body)
+                  (epsilon_delta_stored_arguments context
+                    (EpsilonDeltaStoredPureCall (epsilon_compiled_function_name source name))
+                    (epsilon_machine_input_parameters inputs) arguments "" store output))
+                ((EpsilonDataDeclaration start end name members) (EpsilonDeltaInternal start))
+                ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaInternal start))))
+            ((EpsilonResolvedDataMachineCallable owner target)
+              (epsilon_delta_stored_data_call context target base arguments store output))
+            ((EpsilonResolvedBoundaryMachineCallable owner member)
+              (epsilon_delta_stored_boundary_call context member base arguments store output))
+            ((EpsilonResolvedConstructorCallable owner member)
+              (EpsilonDeltaUnsupported (epsilon_expression_start expression)))))))))
+
+(def epsilon_delta_stored_call ((context EpsilonDeltaContext)
+  (expression EpsilonExpression) (base EpsilonExpression) (arguments EpsilonExpressionList)
+  (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match context
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+      (match (epsilon_control_find_state_application expression control)
+        (NoEpsilonStateApplicationReference
+          (epsilon_delta_stored_resolved_call context expression base arguments store output))
+        ((OneEpsilonStateApplicationReference target state progress)
+          (match progress
+            (EpsilonStateApplicationResolved (EpsilonDeltaInternal (epsilon_expression_start expression)))
+            (EpsilonStateApplicationComplete
+              (epsilon_delta_stored_state_call context state arguments store output))))))))
+
+; The complete Epsilon judgment seals Console before lowering. Only its three
+; implemented primitive leaves lower; write_line remains explicitly unsupported.
+(def epsilon_delta_stored_boundary_call ((context EpsilonDeltaContext)
+  (member EpsilonBoundaryMachine) (base EpsilonExpression)
+  (arguments EpsilonExpressionList) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match (epsilon_call_head_core base)
+    ((EpsilonFieldExpression start end receiver name)
+      (match (epsilon_delta_stored_place context receiver)
+        ((EpsilonDeltaPlaceUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaPlaceInternal offset) (EpsilonDeltaInternal offset))
+        ((EpsilonDeltaPlaceCompiled typeValue place)
+          (match member
+            ((EpsilonBoundaryMachineSyntax memberStart memberEnd memberName parameters returnType)
+              (let source EpsilonSourceView (epsilon_delta_context_source context)
+                (if (epsilon_name_is_read_byte source memberName)
+                  (epsilon_delta_stored_arguments context EpsilonDeltaStoredReadByte parameters arguments "" store output)
+                  (if (epsilon_name_is_write_byte source memberName)
+                    (epsilon_delta_stored_arguments context EpsilonDeltaStoredWriteByte parameters arguments "" store output)
+                    (if (epsilon_name_is_exit_process source memberName)
+                      (epsilon_delta_stored_arguments context EpsilonDeltaStoredExit parameters arguments "" store output)
+                      (EpsilonDeltaUnsupported memberStart))))))))))
+    ((EpsilonIntegerExpression start end literal) (EpsilonDeltaInternal start))
+    ((EpsilonCharacterExpression start end literal) (EpsilonDeltaInternal start))
+    ((EpsilonStringExpression start end literal) (EpsilonDeltaInternal start))
+    ((EpsilonTrueExpression start end) (EpsilonDeltaInternal start))
+    ((EpsilonFalseExpression start end) (EpsilonDeltaInternal start))
+    ((EpsilonNameExpression start end name) (EpsilonDeltaInternal start))
+    ((EpsilonQualifiedExpression start end owner name supplied) (EpsilonDeltaInternal start))
+    ((EpsilonGroupedExpression start end inner) (EpsilonDeltaInternal start))
+    ((EpsilonCallExpression start end inner supplied) (EpsilonDeltaInternal start))
+    ((EpsilonIndexExpression start end inner index) (EpsilonDeltaInternal start))
+    ((EpsilonSliceExpression start end inner low high) (EpsilonDeltaInternal start))
+    ((EpsilonNegateExpression start end inner) (EpsilonDeltaInternal start))
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd left right) (EpsilonDeltaInternal start))))

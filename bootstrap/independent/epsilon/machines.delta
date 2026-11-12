@@ -95,7 +95,10 @@
   (returnType EpsilonOptionalType) (body EpsilonMachineBody)) EpsilonDeltaCompilation
   (match (epsilon_delta_return_type returnType)
     ((EpsilonDeltaCompiled unused)
-      (epsilon_delta_plain_machine context name (epsilon_machine_input_parameters inputs) body))
+      (match (epsilon_delta_machine_runtime inputs body)
+        (EpsilonDeltaPureRuntime
+          (epsilon_delta_plain_machine context name (epsilon_machine_input_parameters inputs) body))
+        (EpsilonDeltaStoredRuntime (epsilon_delta_stored_machine context name inputs body))))
     ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
     ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
     ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))

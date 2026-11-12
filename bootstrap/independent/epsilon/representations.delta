@@ -21,3 +21,29 @@
   (EpsilonDeltaEvaluateBoth)
   (EpsilonDeltaShortOnTrue)
   (EpsilonDeltaShortOnFalse))
+
+; The module names its runtime requirement separately from expression fragments.
+; Pure arithmetic/cases keep the small ABI; receiver effects use the shared store.
+(data EpsilonDeltaRuntime
+  (EpsilonDeltaPureRuntime)
+  (EpsilonDeltaStoredRuntime))
+
+(data EpsilonDeltaProgramCompilation
+  (EpsilonDeltaProgramCompiled EpsilonDeltaRuntime Bytes)
+  (EpsilonDeltaProgramRejected EpsilonRejectReason Int)
+  (EpsilonDeltaProgramUnsupported Int)
+  (EpsilonDeltaProgramInternal Int))
+
+; A compiled place retains its checked leaf type with native target syntax.
+(data EpsilonDeltaPlaceCompilation
+  (EpsilonDeltaPlaceCompiled EpsilonType Bytes)
+  (EpsilonDeltaPlaceUnsupported Int)
+  (EpsilonDeltaPlaceInternal Int))
+
+(data EpsilonDeltaStoredCallTarget
+  (EpsilonDeltaStoredPureCall Bytes)
+  (EpsilonDeltaStoredReceiverCall Bytes Bytes)
+  (EpsilonDeltaStoredStateCall Bytes Bytes Bytes Bytes)
+  (EpsilonDeltaStoredReadByte)
+  (EpsilonDeltaStoredWriteByte)
+  (EpsilonDeltaStoredExit))
