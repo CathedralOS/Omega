@@ -1,0 +1,19 @@
+fixture	class	first_diagnostic	cluster_id
+fail/facts/foreign_reference_result_through_call_result_rejected	fixed_on_main	normal call `fill` (Handle { arena_index: 13523, generation: 1 }) in machine `select` state `entry` statement 0: completed call result has no complete reference set	15
+fail/facts/foreign_reference_result_through_const_name_rejected	fixed_on_main	normal call `fill` (Handle { arena_index: 13527, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set	15
+fail/facts/foreign_reference_result_through_field_rejected	fixed_on_main	normal call `fill` (Handle { arena_index: 13526, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set	15
+fail/facts/foreign_reference_result_through_local_rejected	fixed_on_main	normal call `fill` (Handle { arena_index: 13523, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set	15
+fail/facts/foreign_reference_result_through_match_join_rejected	fixed_on_main	normal call `fill` (Handle { arena_index: 13525, generation: 1 }) in machine `first_choice` state `entry` statement 1: completed call result has no complete reference set	15
+fail/facts/foreign_reference_result_through_other_machine_rejected	fixed_on_main	normal call `fill` (Handle { arena_index: 13525, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set	15
+fail/facts/foreign_reference_result_through_other_state_rejected	fixed_on_main	normal call `fill` (Handle { arena_index: 13523, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set	15
+fail/facts/foreign_reference_result_through_parameter_rejected	fixed_on_main	normal call `fill` (Handle { arena_index: 13525, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set	15
+fail/facts/foreign_reference_result_through_target_body_rejected	fixed_on_main	normal call `fill` (Handle { arena_index: 13523, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set	15
+pass/facts/fixed_layout_byte_roundtrip_through_target_body_exit	still_broken	normal call `decode` (Handle { arena_index: 13643, generation: 1 }) in machine `roundtrip` state `entry` statement 6: completed call result has no complete reference set	15
+fail/build/retained_domain_and_service_rows_invalid_index	fixed_on_main	domain constraint `Below` for the const leaf value is false; failed domain `Below`	55
+fail/domains/logical_subject_false_constant	fixed_on_main	domain constraint `Small` for the const leaf value is false; failed domain `u64::Small`	55
+fail/facts/scoped_scalar_initializer_through_const_name_rejected	fixed_on_main	domain constraint `BelowIndex` for the const leaf value is false; failed domain `BelowIndex`	55
+pass/recast/runtime_inline_slice_view_mutable_write_exit	fixed_on_main		95
+pass/recast/runtime_interior_slice_view_mutable_write_exit	fixed_on_main		95
+pass/facts/resident_backing_plain_ram_exit	still_broken	cannot prove default-domain field requirement for call check from main::entry: parameter pair requires Pair::Label	135
+fail/arithmetic/indexed_divisor_copied_selector_storage_write	fixed_on_main	division by zero in machine `quotient` state `entry` return value: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.	175
+pass/host/process_exit_selected_frontier	fixed_on_main		215
