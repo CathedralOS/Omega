@@ -6,7 +6,7 @@ Measured commit (PIN): `51e8c45c793007f211d0d9baee7de16767172444`
 
 - Prior-report slice indices (index % 40 == 6): 6, 46, 86, 126, 166, 206
 - Rows re-measured: 28 (fixed on main: 13, still broken: 15)
-- PIN clusters (by first diagnostic): 4 (bisected: 3)
+- PIN clusters (by first diagnostic): 4 (bisected: 4)
 
 ## PIN clusters
 
@@ -18,10 +18,10 @@ Members: `pass/borrows/runtime_boundary_range_view_exit`, `pass/borrows/runtime_
 | 2 | pass/run regression | terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-UNUSED | `pass/layouts/declaration_only_initializer_formation` | `674184316eba` | 1631 | psi: reject unsafe constant calls before execution (#1631) — source/psi/constant_evaluation/admission.rs, omega-rust/psi | bisected (deterministic; resolved first bad after bisect_skip_ambiguity) |
 Members: `pass/layouts/declaration_only_initializer_formation`, `pass/terminal_psi/inspection_scalar_library`
 
-| 1 | pass/run regression | authored Operator declaration selection occurrence 9690 (`*` in tests/omega/pass/expressions/match_o | `pass/expressions/match_operand_anonymous_operation_exit` | `2174c0d10bb1` | 1313 | compiler: choose product providers over terminal demand (#1313) — omega-rust/omega/compilation/driver/src/execution_sett | bisected (sanity(g=0,b=125)) |
+| 1 | pass/run regression | authored Operator declaration selection occurrence 9690 (`*` in tests/omega/pass/expressions/match_o | `pass/expressions/match_operand_anonymous_operation_exit` | `c33344e50059` | 1022 | psi: preserve generic native contracts through checking and execution (#1022) — omega-rust/omega/compilation/driver/src/ | bisected (deterministic) |
 Members: `pass/expressions/match_operand_anonymous_operation_exit`
 
-| 1 | pass/run regression | checked machine `related_reflexive` cannot establish proposition ensure `boolean:value == value` in  | `pass/proofs/proposition_relation_hierarchy_compile` | `` |  |  | pending |
+| 1 | pass/run regression | checked machine `related_reflexive` cannot establish proposition ensure `boolean:value == value` in  | `pass/proofs/proposition_relation_hierarchy_compile` | `6326c6ae7aa9` | 2166 | psi: spell empty rows as reaches none and ratify binder contract dependencies (#2166) — omega-rust/omega/compilation/com | bisected (deterministic) |
 Members: `pass/proofs/proposition_relation_hierarchy_compile`
 
 ## Fixed on main (slice rows)

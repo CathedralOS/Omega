@@ -1,13 +1,14 @@
 {
   "witness": "pass/proofs/proposition_relation_hierarchy_compile",
-  "breaking_commit": "c33344e50059e6a1295e76610801b726fdb11ee5",
-  "pr": "1022",
-  "mechanism": "psi: preserve generic native contracts through checking and execution (#1022) \u2014 omega-rust/omega/compilation/driver/src/checked/checking/product_selections.rs, omega-rust/omega/compilation/products/src/checked_compilation.rs, omega-rust/omega/compilation/products/src/package_build.rs",
+  "breaking_commit": "6326c6ae7aa971cc2f8eeb749f0e13385e3f85b5",
+  "pr": "2166",
+  "mechanism": "psi: spell empty rows as reaches none and ratify binder contract dependencies (#2166) \u2014 omega-rust/omega/compilation/compiler/tests/terminal_effect_readiness.rs, omega-rust/omega/packages/build-declarations/src/prelude.rs, omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/contracts_a",
   "status": "bisected",
-  "bisect_exit": 0,
-  "good_commit": "c64728d90e83036051d52fb69961b786423230c6",
+  "bisect_exit": 2,
+  "good_commit": "e7ed4ce90e4f97eb694e159ad263aebbc290b9de",
+  "bad_range_end": "51e8c45c793",
   "good_end_rc": 0,
-  "bad_pin_rc": 125,
-  "stability": "sanity(g=0,b=125)",
-  "method": "pin_frozen_ledger_v2"
+  "bad_pin_rc": 1,
+  "stability": "deterministic",
+  "method": "pin_frozen_narrow_v2"
 }
