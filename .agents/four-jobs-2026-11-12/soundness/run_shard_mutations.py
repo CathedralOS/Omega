@@ -452,13 +452,6 @@ def main() -> int:
         if fixture in done:
             continue
         main_src = REPO / fixture
-        original_verdict, _ = run_omega_check(main_src)
-        if original_verdict != "accepted":
-            done.add(fixture)
-            counts["fixtures_processed"] = len(done)
-            save_progress(done, counts)
-            continue
-
         source = read_text(main_src)
         mutations = generate_mutations(source)
         counts["mutants_generated"] += len(mutations)
