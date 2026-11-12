@@ -1194,6 +1194,56 @@ pub(crate) mod parse_postfix {
         }
     }
 
+    /*
+        Names and applied members have the same scoped syntax in static operands
+        and type positions. Keep each application's arguments on its own path
+        component; namespace resolution later decides whether it names a type,
+        requirement, or executable selection. Operand delimiters belong to the caller.
+    */
+    pub(crate) fn parse_static_name_selection<'tokens, 'source>(
+        syntax_trees: &mut SyntaxTrees,
+        input: Input<'tokens, 'source>,
+    ) -> Result<Option<(StaticMachineArgument, Input<'tokens, 'source>)>, ParseError> {
+        let Ok((first, mut input)) = input.take_identifier() else {
+            return Ok(None);
+        };
+        let mut path = vec![first];
+        while input.at_punctuation(PunctuationKind::ColonColon) {
+            let after_separator = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+            let Ok((member, rest)) = after_separator.take_identifier() else {
+                return Ok(None);
+            };
+            path.push(member);
+            input = rest;
+        }
+        let application = if let Some((mut application, rest)) =
+            try_parse_static_symbol_application(syntax_trees, input)?
+        {
+            input = rest;
+            if input.at_punctuation(PunctuationKind::ColonColon) {
+                let next = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+                let Some((member, rest)) = parse_static_name_selection(syntax_trees, next)? else {
+                    return Ok(None);
+                };
+                application.member = exprs(syntax_trees).insert_static_member(member);
+                input = rest;
+            }
+            Some(application)
+        } else {
+            None
+        };
+        Ok(Some((
+            StaticMachineArgument {
+                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+                path: path.into_boxed_slice(),
+                application,
+                const_literal: None,
+                evidence_projection: None,
+            },
+            input,
+        )))
+    }
+
     fn try_parse_static_argument<'tokens, 'source>(
         syntax_trees: &mut SyntaxTrees,
         mut input: Input<'tokens, 'source>,
@@ -1224,44 +1274,15 @@ pub(crate) mod parse_postfix {
                 }),
             }
         } else {
-            let mut path = vec![first];
-            while input.at_punctuation(PunctuationKind::ColonColon) {
-                let after_separator = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
-                let Ok((member, rest)) = after_separator.take_identifier() else {
-                    return Ok(None);
-                };
-                path.push(member);
-                input = rest;
-            }
-
+            let Some((argument, rest)) = parse_static_name_selection(syntax_trees, authored)?
+            else {
+                return Ok(None);
+            };
+            input = rest;
             if input.at_punctuation(PunctuationKind::LeftBracket) || input.at_contextual("in") {
                 return parse_static_type_argument(syntax_trees, authored).map(Some);
             }
-            let application = if let Some((application, rest)) =
-                try_parse_static_symbol_application(syntax_trees, input)?
-            {
-                input = rest;
-                let mut application = application;
-                if input.at_punctuation(PunctuationKind::ColonColon) {
-                    let next = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
-                    let Some((member, rest)) = try_parse_static_argument(syntax_trees, next)?
-                    else {
-                        return Ok(None);
-                    };
-                    application.member = exprs(syntax_trees).insert_static_member(member);
-                    input = rest;
-                }
-                Some(application)
-            } else {
-                None
-            };
-            StaticMachineArgument {
-                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
-                path: path.into_boxed_slice(),
-                application,
-                const_literal: None,
-                evidence_projection: None,
-            }
+            argument
         };
 
         if input.at_punctuation(PunctuationKind::GreaterGreater)

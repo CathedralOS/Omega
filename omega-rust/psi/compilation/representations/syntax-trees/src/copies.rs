@@ -499,6 +499,11 @@ pub(crate) mod body_copies {
                         arguments,
                     })
                 }
+                TypeReferenceNode::StaticSelection(selection) => {
+                    let selection = self.copy_static_machine_argument(other, selection);
+                    self.type_references
+                        .insert(TypeReferenceNode::StaticSelection(selection))
+                }
                 TypeReferenceNode::ConstExpression(expression) => {
                     let expression = self.copy_expression_handle(other, *expression);
                     self.type_references

@@ -951,6 +951,13 @@ pub mod item {
             self.state_storage.traits.get(handle)
         }
 
+        pub fn type_parameter_entries(&self) -> impl Iterator<Item = &TypeParameter> {
+            self.declaration_storage
+                .type_parameters
+                .iter()
+                .map(|(_, parameter)| parameter)
+        }
+
         pub fn type_parameters(&self, span: HandleSpan<TypeParameter>) -> &[TypeParameter] {
             self.declaration_storage.type_parameters.span_or_empty(span)
         }

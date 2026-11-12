@@ -624,8 +624,33 @@ pub(crate) mod type_syntax {
                 ));
             }
 
+            let authored = input;
+            let checkpoint = syntax_trees.append_checkpoint();
             let (base_name, input) = parse_static_name(input)?;
-            parse_named_type_reference(syntax_trees, base_name, input, allow_trailing_domain)
+            let (reference, rest) =
+                parse_named_type_reference(syntax_trees, base_name, input, allow_trailing_domain)?;
+            if !rest.at_punctuation(PunctuationKind::ColonColon) {
+                return Ok((reference, rest));
+            }
+            // An application followed by a member cannot be flattened into the
+            // ordinary Generic node: Trait<T>::member and Trait::member<T>
+            // apply different declarations. Reuse the scoped selection syntax.
+            syntax_trees.rewind_appended(checkpoint);
+            let Some((selection, rest)) =
+                crate::grammar::expressions::parse_postfix::parse_static_name_selection(
+                    syntax_trees,
+                    authored,
+                )?
+            else {
+                return Err(authored.error_here("expected a scoped type selection"));
+            };
+            let reference =
+                type_refs(syntax_trees).insert(TypeReferenceNode::StaticSelection(selection));
+            if allow_trailing_domain {
+                apply_in_domain_suffix(syntax_trees, reference, rest)
+            } else {
+                Ok((reference, rest))
+            }
         }
 
         pub(crate) fn parse_named_type_reference<'tokens, 'source>(
