@@ -96,15 +96,60 @@ def run_checker_outputs(main: Path) -> dict:
     }
 
 
-def requires_repeated_elsewhere(orig: str, removed: str) -> str | None:
-    pred = removed.removeprefix("requires").strip().rstrip(";")
-    if not pred:
+def predicate_atoms(requires_line: str) -> list[str]:
+    req = requires_line.removeprefix("requires").strip().rstrip(";")
+    return [p.strip() for p in re.split(r"\s+&&\s+", req) if p.strip()]
+
+
+def extract_machine_body(source: str, machine_name: str) -> str | None:
+    pat = re.compile(
+        rf"machine\s+{re.escape(machine_name)}\b[^{{]*\{{",
+        re.MULTILINE,
+    )
+    m = pat.search(source)
+    if not m:
         return None
-    for line in orig.splitlines():
+    i = m.end()
+    depth = 1
+    start = i
+    while i < len(source) and depth:
+        if source[i] == "{":
+            depth += 1
+        elif source[i] == "}":
+            depth -= 1
+        i += 1
+    return source[start : i - 1] if depth == 0 else None
+
+
+def requires_repeated_inside_machine(
+    mut: str, removed: str, machine_name: str
+) -> tuple[str, str] | None:
+    """
+    Transition/guard inside the machine restating the removed entry fact (fix5 clarification).
+    Caller-only facts outside the machine do not count.
+    """
+    body = extract_machine_body(mut, machine_name)
+    if not body:
+        return None
+    atoms = predicate_atoms(removed)
+    if not atoms:
+        return None
+    for line in body.splitlines():
         s = line.strip()
-        if s.startswith("requires") and s != removed.strip():
-            if pred in s:
-                return s
+        if not s or s.startswith("//"):
+            continue
+        if not (
+            s.startswith("if ")
+            or s.startswith("requires")
+            or " requires " in s
+            or s.startswith("reaches")
+        ):
+            continue
+        matched = [a for a in atoms if a in s]
+        if len(matched) >= min(2, len(atoms)) or (
+            len(atoms) == 1 and matched
+        ):
+            return removed.strip(), s
     return None
 
 
@@ -315,11 +360,11 @@ def probe_drop_requires_subtype(mut_path: Path, orig_path: Path, removed: str) -
     mut = mut_path.read_text()
     info = machine_after_requires_drop(orig, mut, removed)
     if not info:
-        return "unchecked", "could not locate machine for probe"
+        return "probe-not-built", "could not locate machine for probe"
     name, params = info
     bad = violating_argument(removed)
     if not bad:
-        return "unchecked", "could not synthesize violating argument"
+        return "probe-not-built", "could not synthesize violating argument"
     arity = len([p for p in params.split(",") if p.strip()]) or 1
     args = [bad] + ["0"] * max(0, arity - 1)
     call = f"{name}({', '.join(args[:arity])})"
@@ -341,7 +386,7 @@ def probe_drop_requires_subtype(mut_path: Path, orig_path: Path, removed: str) -
         return "inferred-entry", note
     if mut_ok and probe_ok:
         return "unchecked", note
-    return "unchecked", note + "; mutant not accepted on re-check"
+    return "probe-not-built", note + "; mutant not accepted on re-check"
 
 
 def minimal_mutant_diff(orig: str, mut: str, max_lines: int = 25) -> str:
@@ -370,6 +415,26 @@ def read_mutant_validity(
         removed = removed_requires_clause(orig, mut)
         if not removed:
             return True, "requires removed but diff not parsed", "", "", ""
+        info = machine_after_requires_drop(orig, mut, removed or "")
+        if info:
+            mname, _ = info
+            inside = requires_repeated_inside_machine(mut, removed, mname)
+            if inside:
+                rem, inner = inside
+                return (
+                    False,
+                    (
+                        f"valid: header `{rem}` removed but same fact restated inside "
+                        f"machine `{mname}` at `{inner}` (not caller-only)"
+                    ),
+                    inner,
+                    "wiki/spec/language/machines.md",
+                    (
+                        "A written entry contract remains complete even when callers "
+                        "establish stronger facts; here the machine body still establishes "
+                        "the fact internally."
+                    ),
+                )
         fail = drop_requires_failing_line(orig, mut, removed)
         if not fail:
             return (
