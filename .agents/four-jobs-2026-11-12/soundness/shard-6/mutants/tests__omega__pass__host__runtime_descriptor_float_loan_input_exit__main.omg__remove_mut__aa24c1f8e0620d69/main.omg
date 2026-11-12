@@ -1,0 +1,37 @@
+use omega::language::core::float_operations;
+
+public boundary trait FloatIo {
+    machine read(descriptor: i32, value: &mut f32, count: u64) -> i64 reaches blocks;
+    machine write(descriptor: i32, value: &f32, count: u64) -> i64 reaches;
+}
+data Main { }
+
+machine receive(value: &mut f32) -> i64 reaches FloatIo blocks {
+    transition { _ -> block read(value) }
+    machine read(value: &mut f32) -> i64 {
+        block FloatIo::read(0, value, 4)
+    }
+}
+
+machine Main::main(main: &mut Main) reaches FloatIo blocks crashes Trap {
+    let value: f32 = 100.0f32;
+    let no_bytes: i64 = block FloatIo::read(0, &mut value, 0);
+    let unchanged: bool = value == 100.0f32;
+    let moved: i64 = block receive(&mut value);
+    let saved: f32 = value;
+    let at_end: i64 = block FloatIo::read(0, &mut value, 4);
+    let written: i64 = FloatIo::write(1, &value, 4);
+    transition no_bytes == 0 && unchanged && moved == 4 && at_end == 0 && written == 4
+        && value == saved && value > 0.0f32 && value < 1.0f32 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches FloatIo blocks crashes Trap {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}
