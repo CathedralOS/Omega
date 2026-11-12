@@ -36,13 +36,12 @@ Report cluster 8’s prior “breaking” `f3612364ffbb9489d7be1409397df6867fcbe
 | --- | --- | ---: | --- |
 | **good** (bisect) | `4d6278c81b8360d8100cef23e2100be18ddf32a7` | #1759 | exit **0**, status `checked` (3 fixtures × 3 reruns) |
 | **first-bad** | `60cb5e1f79dd05465f77775990e46bcc2e789470` | #1721 | exit **1**, status `incomplete` (AddressBridge class; 3×3) |
-| diagnostic-class edge | `33cefbc6c241048ff6f6c583acc5aca9b0176ec5` | #2238 | parent `rejected` (125) → child `incomplete` (1); not a bisect “good” |
 
 **Parent check:** `60cb5e1f79dd05465f77775990e46bcc2e789470^1` = `4d6278c81b8360d8100cef23e2100be18ddf32a7` (matches part 30).
 
 At **#1721** the trio stops matching PIN-expected `checked` (exit **1** incomplete, not exit **0**). Tie-break does **not** show exit **125** `rejected` at `60cb5e1f79dd05465f77775990e46bcc2e789470` with a fresh target (reconciles part 30’s good parent; first-failure **class** here is incomplete).
 
-**#2238 is not the bisect first-bad**; it is the first commit on the `cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2` → `33cefbc6c241048ff6f6c583acc5aca9b0176ec5` edge where corpus status flips **`rejected` → `incomplete`** (NativeFloats rejection → AddressBridge incomplete).
+**Dropped #2238 “rejected → incomplete” label:** with fresh targets, `cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2` and `33cefbc6c241048ff6f6c583acc5aca9b0176ec5` already show the same PIN-broken **`incomplete`** class as `#1721` (exit **1** on all three members). The earlier parent-`rejected` reading at `cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2` was a **shared-target** artifact (same as false `125` at `60ee163d4f0f5f8b9349ecf253660a917917a7c7`).
 
 ### Tie-break runs (log: `/opt/cursor/artifacts/part8-tiebreak.log`)
 
@@ -58,6 +57,8 @@ Method: fixed PIN ledger in `/tmp/pin_corpus_outcomes_51e8c45.txt`; `BISECT_CARG
 
 **`60ee163d4f0f5f8b9349ecf253660a917917a7c7`** (ledger stamp; one run per member, fresh target) — all `exit=0 status=checked`. The prior report’s **`exit=125`** at this SHA used the **shared** target dir, not a commit-scoped build tree.
 
+**`cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2`** and **`33cefbc6c241048ff6f6c583acc5aca9b0176ec5`** (one run per member, fresh target, 2026-11-12) — all six lines `exit=1 status=incomplete` (AddressBridge `classified_make` … authored result domains). No status change on the `#2238` parent/child edge under correct methodology.
+
 ### Earlier walk samples (shared target — superseded for good/bad)
 
 | commit (40 hex) | exit | status (import_alias) |
@@ -65,50 +66,6 @@ Method: fixed PIN ledger in `/tmp/pin_corpus_outcomes_51e8c45.txt`; `BISECT_CARG
 | `7399f90b98d974e4ee7f8d5c823fae5dd28fc8b2` (fixture add) | **125** | `rejected` |
 | `643ff5441c15ea62815109514a8047194d7397a0` | **1** | `incomplete` |
 | `51e8c45c793007f211d0d9baee7de16767172444` (PIN) | **1** | `incomplete` |
-
-### First commit showing current diagnostic class (rejected → incomplete), not “breaking”
-
-First-parent parent → child where all three members flip from **`rejected`** (exit 125) to **`incomplete`** AddressBridge class (exit 1):
-
-| | `cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2` (#2292) | `33cefbc6c241048ff6f6c583acc5aca9b0176ec5` (#2238) |
-| --- | --- | --- |
-| PR | psi: lower nested-machine cycles… | compiler: realize canonical float operations… |
-
-**All three members @ parent** (`cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2`), `bisect_test` exit → corpus status:
-
-| fixture | exit | status |
-| --- | ---: | --- |
-| `pass/facts/opaque_independent_qualified_result_import_alias_exit` | **125** | `rejected` |
-| `pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit` | **125** | `rejected` |
-| `pass/facts/opaque_independent_qualified_result_through_local_exit` | **125** | `rejected` |
-
-**All three members @ child** (`33cefbc6c241048ff6f6c583acc5aca9b0176ec5`):
-
-| fixture | exit | status |
-| --- | ---: | --- |
-| `pass/facts/opaque_independent_qualified_result_import_alias_exit` | **1** | `incomplete` |
-| `pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit` | **1** | `incomplete` |
-| `pass/facts/opaque_independent_qualified_result_through_local_exit` | **1** | `incomplete` |
-
-Typical parent diagnostic: `NativeFloats::float_add_f32_f32` requires a checked body. Child: `AddressBridgeProvider::classified_make` has no executable body (authored result domains).
-
-**Mechanism (#2238):** not established.
-
-**Diff note (#2238):** adds `omega-rust/omega/compilation/backend/target/src/float_realization.rs` (new file), opening:
-
-```diff
-+/*
-+Each hosted target declares how it realizes every canonical `f32`/`f64`
-+operation, so float arithmetic no longer depends on a Build program choosing a
-+provider for 104 operator slots on every compile. The table is the target's
-+declaration under decision `target-realized-float-arithmetic`
-+...
-+*/
-+
-+use crate::TargetProfile;
-+...
-+pub const CANONICAL_FLOAT_OPERATIONS: [&str; 104] = [
-```
 
 ### Mechanism notes (named commits)
 

@@ -1,7 +1,7 @@
-orig_index	slice_rows	witness	pin_at_pin	verdict	good_sha	first_bad_sha	diagnostic_class_sha	pr	mechanism_short	notes
-8	13	fail/arithmetic/remainder_postcondition_signed_minimum_underbound_rejected	fixed	propagated				na	PIN cluster fixed (13 measured members)
-48	3	pass/facts/opaque_independent_qualified_result_import_alias_exit	broken	bisected	4d6278c81b8360d8100cef23e2100be18ddf32a7	60cb5e1f79dd05465f77775990e46bcc2e789470	33cefbc6c241048ff6f6c583acc5aca9b0176ec5	1721/2238	#1721 calling-policy missing-provider path; #2238 float_realization new file (class edge only)	fresh target tie-break; 4d6278 is 60cb5e1^1; stale shared target caused false never-good
-88	2	fail/generics/runtime_value_recipe_join_bound_loss	fixed	propagated				na	PIN fixed
-128	1	pass/traits/refined_borrowed_implementation_exit	fixed	propagated				na	PIN fixed
-168	1	fail/facts/open_record_const_implementation_specialization_agreement_rejected	fixed	propagated				na	PIN fixed
-208	1	fail/proofs/inductive_climbing_sum_unbounded_accumulator	fixed	propagated				na	PIN fixed
+orig_index	slice_rows	witness	pin_at_pin	verdict	good_sha	first_bad_sha	pr	mechanism_short	notes
+8	13	fail/arithmetic/remainder_postcondition_signed_minimum_underbound_rejected	fixed	propagated			na	PIN cluster fixed (13 measured members)
+48	3	pass/facts/opaque_independent_qualified_result_import_alias_exit	broken	bisected	4d6278c81b8360d8100cef23e2100be18ddf32a7	60cb5e1f79dd05465f77775990e46bcc2e789470	1721	#1721 calling-policy missing-provider path; mechanism not established beyond diff quote	fresh per-commit target; 4d6278 is 60cb5e1^1; #2238 class-edge dropped after cdb14/33cef reruns
+88	2	fail/generics/runtime_value_recipe_join_bound_loss	fixed	propagated			na	PIN fixed
+128	1	pass/traits/refined_borrowed_implementation_exit	fixed	propagated			na	PIN fixed
+168	1	fail/facts/open_record_const_implementation_specialization_agreement_rejected	fixed	propagated			na	PIN fixed
+208	1	fail/proofs/inductive_climbing_sum_unbounded_accumulator	fixed	propagated			na	PIN fixed
