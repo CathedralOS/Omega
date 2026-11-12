@@ -66,25 +66,23 @@ def main() -> int:
     bad_hi = 0
     good_idx: int | None = None
     step = 1
+    last_good: int | None = None
     while step < len(revs):
         code = run_test(root, revs[step])
         print(f"exp[{step}] {revs[step][:12]} exit={code}", flush=True)
         if code == 0:
+            last_good = step
             good_idx = step
             break
         if code == 1:
             bad_hi = step
         step = min(step * 2, len(revs) - 1)
-        if step == len(revs) - 1 and code == 1:
-            # scan tail if exponential end is still bad
-            for i in range(bad_hi + 1, len(revs)):
-                code = run_test(root, revs[i])
-                print(f"tail[{i}] {revs[i][:12]} exit={code}", flush=True)
-                if code == 0:
-                    good_idx = i
-                    break
-            break
-    if good_idx is not None and bad_hi + 1 < good_idx:
+    if good_idx is None:
+        floor_code = run_test(root, revs[floor_i])
+        print(f"floor[{floor_i}] {revs[floor_i][:12]} exit={floor_code}", flush=True)
+        if floor_code == 0:
+            good_idx = floor_i
+    if good_idx is not None and bad_hi and bad_hi + 1 < good_idx:
         lo, hi = bad_hi + 1, good_idx - 1
         while lo <= hi:
             mid = (lo + hi) // 2
