@@ -2416,7 +2416,10 @@ mod repeated_locals {
                 .filter(|symbol| symbol.is_valid())
                 .collect();
             let mut locals: Vec<SymbolHandle> = Vec::new();
-            for statement in declarations.state_statements.span_or_empty(state.statements) {
+            for statement in declarations
+                .state_statements
+                .span_or_empty(state.statements)
+            {
                 let Statement::LocalData(local) = statement else {
                     continue;
                 };
