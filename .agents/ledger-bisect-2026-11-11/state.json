@@ -92,7 +92,13 @@
         "pass/memory/runtime_linear_native_allocation_exit"
       ],
       "bisect": {
-        "status": "pending"
+        "status": "bisected",
+        "good": "ff34e63b5705992b450e162bfe912c75191a8d6a",
+        "first_bad": "2ab64136c02d7879635a92e3e078d7374bec7590",
+        "pr": "1811",
+        "mechanism": "build: choose default float implementations through Build (#1811) ({ omega-rust/omega/build-system/build-settings/src/activation.rs,omega-rust/omega/build-system/build-settings/src/activation/completed_pure_build.rs,omega-rust/omega/build-system/build-settings/src/activation/preparation.rs })",
+        "flaky_good": false,
+        "flaky_bad": false
       }
     },
     {

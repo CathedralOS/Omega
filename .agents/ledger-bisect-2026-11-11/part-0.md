@@ -6,7 +6,8 @@ Measured commit (PIN): `51e8c45c793007f211d0d9baee7de16767172444`
 
 | rows | kind | diagnostic | witness | breaking commit | PR | mechanism | status |
 | ---: | --- | --- | --- | --- | ---: | --- | --- |
-| 2 | pass/run rejected | cannot prove ensures contract for exit from HeapProvider::allocate at statement 0: result in Allocation::Held; the retur | `pass/memory/runtime_linear_native_allocation_call_result_exit` | `` |  |  | pending |
+| 2 | pass/run rejected | cannot prove ensures contract for exit from HeapProvider::allocate at statement 0: result in Allocation::Held; the retur | `pass/memory/runtime_linear_native_allocation_call_result_exit` | `2ab64136c02d` | 1811 | build: choose default float implementations through Build (#1811) ({ omega-rust/omega/build-system/build-settings/src/activation.rs,omega-rust/omega/build-system/build-settings/src/activation/completed_pure_build.rs,omega-rust/omega/build-system/build-settings/src/activation/preparation.rs }) | bisected |
+Good: `ff34e63b5705`
 Members: `pass/memory/runtime_linear_native_allocation_call_result_exit` `pass/memory/runtime_linear_native_allocation_exit`
 
 | 2 | pass/run rejected | cannot prove ensures contract for exit from selected at statement 2: result >= Minimum | `pass/facts/open_const_implementation_statement_const_result_exit` | `0b8c31c25928` | 2413 | psi: retire a copied read's facts once a write reaches its storage (#2413) ({ omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow.rs }) | bisected |
