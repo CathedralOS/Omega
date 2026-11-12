@@ -257,6 +257,15 @@ def main():
     refused('missing-selected-entry', b'machine f() -> u8 { 1 }', 246, 1)
     refused('unreachable-bad-body', b'machine f() -> u8 { 1 } machine bad() -> u8 { nope }', 248)
     refused('invalid-source', b'machine f( {', 250)
+    # The real lexer must retain both checked hexadecimal digit bounds.
+    # Byte-array lowering is still unsupported, so a valid escape reaches
+    # that frontier; either invalid digit must fail in lexing instead.
+    refused('valid-hex-literal-reaches-lowering',
+            b'machine f()->u8{let bytes:[u8;1]="\\xff";42}', 246)
+    refused('invalid-first-hex-digit',
+            b'machine f()->u8{let bytes:[u8;1]="\\xgf";42}', 251)
+    refused('invalid-second-hex-digit',
+            b'machine f()->u8{let bytes:[u8;1]="\\xfg";42}', 251)
     refused('unsupported-unused-constant', b'const X: u8 = 1; machine f() -> u8 { 42 }', 246)
     refused('unsupported-domain-root', b'domain u8::Small requires self < 4; '
             b'machine f() -> u8 { 42 }', 246)
