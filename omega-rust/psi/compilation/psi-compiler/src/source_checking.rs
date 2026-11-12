@@ -567,7 +567,7 @@ pub(crate) mod checked_slice {
             return None;
         }
         let sources = program.symbols.source_map()?;
-        let encoded = compiler_storage::encode_beside(program, &sources, LIMITS).ok()?;
+        let encoded = encode_program(program, &program.type_identities, &sources).ok()?;
         slice_key(
             KEY_DOMAIN,
             reuse,
@@ -621,9 +621,25 @@ pub(crate) mod checked_slice {
         key: &SliceKey,
         checked: &checked_trees::CheckedTrees,
     ) {
-        if let Ok(payload) = compiler_storage::encode_beside(checked, &key.sources, LIMITS) {
+        if let Ok(payload) = encode_program(checked, &checked.typed.type_identities, &key.sources) {
             save_payload(reuse, key, &payload);
         }
+    }
+
+    /*
+        A program, or a result holding one, written beside the invocation's
+        source map and under its type identity table's canonical numbering, so
+        equal programs write equal bytes however checking threads raced to
+        mint their identities.
+    */
+    pub(crate) fn encode_program<T: compiler_storage::Record>(
+        value: &T,
+        identities: &typed_trees::type_identity::TypeIdentityTable,
+        sources: &std::sync::Arc<source::SourceMap>,
+    ) -> Result<Vec<u8>, compiler_storage::RecordError> {
+        compiler_storage::encode_beside_with(value, sources, LIMITS, |output| {
+            identities.renumber_canonically(output)
+        })
     }
 
     fn payload_identity(key: &[u8; 32], payload: &[u8]) -> [u8; 32] {

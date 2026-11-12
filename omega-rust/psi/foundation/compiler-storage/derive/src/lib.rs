@@ -4,7 +4,10 @@ generating structural `write` and `read` implementations across structs and
 enums. Struct fields serialize in declaration order, enums serialize their
 variant declaration index as a `u32` tag followed by variant fields, and fields
 annotated with `#[record(skip)]` are omitted on write and reconstructed via
-`Default::default()` on read.
+`Default::default()` on read. A type annotated with
+`#[record(write_scope = path)]` writes its fields inside
+`path(self, output, |output| ...)`, which lets it prepare the writer for its
+own fields, such as installing its own renumbering, and restore it after.
 */
 
 /*
@@ -50,6 +53,23 @@ fn skipped(field: &syn::Field) -> syn::Result<bool> {
         }
     }
     Ok(skip)
+}
+
+fn write_scope(input: &DeriveInput) -> syn::Result<Option<syn::Path>> {
+    let mut scope = None;
+    for attribute in &input.attrs {
+        if attribute.path().is_ident("record") {
+            attribute.parse_nested_meta(|meta| {
+                if meta.path.is_ident("write_scope") {
+                    scope = Some(meta.value()?.parse::<syn::Path>()?);
+                    Ok(())
+                } else {
+                    Err(meta.error("expected record(write_scope = path) on a type"))
+                }
+            })?;
+        }
+    }
+    Ok(scope)
 }
 
 fn fields(
@@ -134,6 +154,10 @@ fn expand(mut input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                 "compiler records do not store Rust unions",
             ));
         }
+    };
+    let write = match write_scope(&input)? {
+        None => write,
+        Some(scope) => quote!(#scope(self, output, |output| { #write })),
     };
     Ok(quote! {
         impl #implementation ::compiler_storage::Record for #name #arguments #conditions {
