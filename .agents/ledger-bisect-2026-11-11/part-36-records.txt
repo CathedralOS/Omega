@@ -1,0 +1,18 @@
+pass/borrows/runtime_shared_view_record_presentation_exit rejected 3593ms check-target:macos_arm64
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(92), reason: "descriptor result origin could not be substituted at the call" }))
+pass/facts/target_family_contract_operand/other_machine checked 3397ms check-target:macos_arm64
+pass/facts/target_family_contract_operand/other_state checked 3379ms check-target:macos_arm64
+pass/facts/target_family_contract_operand/parameter checked 3219ms check-target:macos_arm64
+pass/modules/selected_constant_array_alias_computed_extent_exit rejected 10309ms check-target:macos_arm64
+	cannot form specification index in machine `Main::main` requires contract: independent collection bounds are not established by preceding formed facts
+	cannot form specification index in machine `Main::main` requires contract: independent collection bounds are not established by preceding formed facts
+pass/modules/selected_constant_array_alias_match_qualification rejected 1375ms
+	cannot form specification index in machine `check_source` requires contract: independent collection bounds are not established by preceding formed facts
+pass/modules/selected_constant_array_alias_named_extent_exit rejected 7571ms check-target:macos_arm64
+	cannot form specification index in machine `Main::main` requires contract: independent collection bounds are not established by preceding formed facts
+	cannot form specification index in machine `Main::main` requires contract: independent collection bounds are not established by preceding formed facts
+pass/modules/selected_constant_array_alias_qualification rejected 1393ms
+	cannot form specification index in machine `check_source` requires contract: independent collection bounds are not established by preceding formed facts
+pass/slices/saved_byte_predicate_operand_disjoint_exit checked 3084ms check-target:macos_arm64
+pass/slices/state_projected_selector_bounds rejected 1178ms
+	cannot form specification index in machine `store` requires contract: independent collection bounds are not established by preceding formed facts

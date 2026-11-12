@@ -1,0 +1,11 @@
+fixture	class	first_diagnostic	cluster_id
+pass/modules/selected_constant_array_alias_computed_extent_exit	still_broken	cannot form specification index in machine `Main::main` requires contract: independent collection bounds are not established by preceding formed facts	spec_index
+pass/modules/selected_constant_array_alias_match_qualification	still_broken	cannot form specification index in machine `check_source` requires contract: independent collection bounds are not established by preceding formed facts	spec_index
+pass/modules/selected_constant_array_alias_named_extent_exit	still_broken	cannot form specification index in machine `Main::main` requires contract: independent collection bounds are not established by preceding formed facts	spec_index
+pass/modules/selected_constant_array_alias_qualification	still_broken	cannot form specification index in machine `check_source` requires contract: independent collection bounds are not established by preceding formed facts	spec_index
+pass/slices/state_projected_selector_bounds	still_broken	cannot form specification index in machine `store` requires contract: independent collection bounds are not established by preceding formed facts	spec_index
+pass/borrows/runtime_shared_view_record_presentation_exit	still_broken	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(92), reason: "descriptor result origin could not be substituted at the call" }))	native_descriptor_origins
+pass/facts/target_family_contract_operand/other_machine	fixed_on_main		cleared_prior_76
+pass/facts/target_family_contract_operand/other_state	fixed_on_main		cleared_prior_76
+pass/facts/target_family_contract_operand/parameter	fixed_on_main		cleared_prior_116
+pass/slices/saved_byte_predicate_operand_disjoint_exit	fixed_on_main		cleared_prior_156

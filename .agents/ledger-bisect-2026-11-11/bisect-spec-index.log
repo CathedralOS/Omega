@@ -1,0 +1,492 @@
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 1625 revisions left to test after this (roughly 11 steps)
+[51bbfaaa57678ec3147c40dc7d206da35b9fd21e] psi: own source entry compatibility and root admission (#828)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 812 revisions left to test after this (roughly 10 steps)
+[fd4096fc655667d02ccb8be52360880d300473c8] psi: remove call planning's private slot and carrier walks
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 406 revisions left to test after this (roughly 9 steps)
+[cf6f8d82df0a79013865c688995d6e451c897679] psi: preserve selected issuance through native call completion (#312)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 203 revisions left to test after this (roughly 8 steps)
+[ccd7f264646e6bdd941e1c2bd6e3fa60cf7d9087] compiler: retain the intrinsic execution identity at derivation (#546)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 101 revisions left to test after this (roughly 7 steps)
+[185f1f4949357e65a232a9a695402cae9b0e5dbc] pipeline-04: fold two-operand row shape onto one predicate (#654)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 50 revisions left to test after this (roughly 6 steps)
+[6af69727cb479c65811c9ca18c3c93adbfa5e201] psi: preserve private ranks through borrowed records (#774)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 25 revisions left to test after this (roughly 5 steps)
+[ab34d3cb882f75f8b24805d48f842807a3d5358e] docs: ratify data decomposition and irrefutable bindings (#799)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 24 revisions left to test after this (roughly 5 steps)
+[52929b02d410af19e925c30218b1b00626734041] Preserve owned array replacement predicates through results (#800)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 11 revisions left to test after this (roughly 4 steps)
+[2e573f9b5b5a8a19a2e822dabd5352c4a9eada4d] tools: carry chart styling through facts and work (#815)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 5 revisions left to test after this (roughly 3 steps)
+[8badab9ee404808dbc2024bbc3534f4d08de8e49] tools: add evidence-bound compiler performance dashboard (#821)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 2 revisions left to test after this (roughly 2 steps)
+[8645aa25de576733e8f042d517eec724941a524d] psi: own complete product provider request admission (#825)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 0 revisions left to test after this (roughly 1 step)
+[0cea3356c5b0c1f8e6f6010428d7281f5bd1259f] psi: carry proven assignment coordinates into conserved-Content store checks (#823)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[5746c155a30e40702a0e53c7d3674c659cdeb429] psi: execute descriptor-indexed private ranks end to end (#824)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+5746c155a30e40702a0e53c7d3674c659cdeb429 is the first bad commit
+commit 5746c155a30e40702a0e53c7d3674c659cdeb429
+Author: aquinas-bot <aquinasbot@proton.me>
+Date:   Thu Oct 29 22:20:26 2026 +0000
+
+    psi: execute descriptor-indexed private ranks end to end (#824)
+    
+    * psi: retain descriptor bounds on indexed entry coordinates
+    
+    Entry coordinate geometry distinguishes fixed-array extents from live descriptor observations. Literal slice selectors retain runtime index obligations, with exact collection prefixes and independently proved entry bounds. The unchanged seven/empty private-cycle witness is refused by the fixed d837145 baseline; this checkpoint retains the repair for focused execution validation.
+    
+    * psi: transport finite collection observations through windows
+    
+    Array construction retains completed scalar coordinates. Builtin windows translate their finite observations using the same independently checked endpoint decision as descriptor lengths; a dynamic selection joins an equal-valued contiguous run only with its own inclusion proof. Preserve the frozen private-rank witness and carry it across nine transport places with strict-descent reject twins.
+    
+    * psi: preserve collection snapshots and joined scalar bounds
+    
+    Completed match values retain the union of independently captured arm bounds. Finite element observations can then prove a dynamic selection without assuming an arm. Borrowed captures retain their original source coordinates before window rebasing; owned copies retain independent value semantics.
+    
+    * psi: trace descriptor contract captures during diagnosis
+    
+    * psi: retain mathematical bounds for completed scalar joins
+    
+    Anonymous literal arms have integer values before any executable carrier reference is selected. Preserve their proved bounds on the completed join instead of requiring an unrelated type reference. Remove temporary capture tracing after it identified the precise loss; array and window observations were already retained correctly.
+    
+    * psi: transport aggregate result observations through public contracts
+    
+    Completed aggregate results retain exact typed scalar coordinates. The shared independent call-guarantee owner binds those observations without inspecting a callee body or granting bounds from geometry. Current value capture transports fields through every join predecessor and carries checked constructor carriers for anonymous array elements. The frozen nine-place descriptor rank programs remain unchanged.
+    
+    * psi: keep aggregate result observations on owned snapshots
+    
+    Returned references require independent binding and load custody; the new aggregate result roster admits only owned inline scalar coordinates. Duplicate source occurrences bind the same snapshot while each coordinate is installed only once.
+    
+    * psi: retain result facts through assignments and value joins
+    
+    Aggregate completion uses the selected machine result namespace independently of its arithmetic entry-state telescope. Assignment imports the same guarantees as initialization at the captured destination cut. Value joins retain alternative source coordinates separately, adding them as live backing dependencies only for borrowed results.
+    
+    * omega: form element views through retained pointer regions
+    
+    A matched reference carries an address word. Collection view formation resolves every pointer region before its final collection offset and selectors, reusing the shared address walk. Target admission reconstructs the retained path and access ceiling; native selection loads the actual stored pointer rather than descriptor bytes. Collection and establishment queries move under their operation owners.
+    
+    * omega: retain descriptor refusal ownership after module extraction
+    
+    * omega: retain reference access ceilings on view formation
+    
+    Readable pointer geometry does not grant mutable access. Establishment lowering and target admission now use the same full descriptor-path authority query as selection, with the actual root declaration and requested access.
+    
+    * compiler: retain typed backing authority across descriptor producers
+    
+    Descriptor lineage metadata no longer rejects every stored-reference path. The shared typed backing-access owner validates every establishment/subslice hop against its actual source declaration and full access ceiling, rejecting cycles and duplicate producers. All access consumers fail closed when this join is unavailable. Pin the unchanged nine descriptor-rank programs and strict twins, plus literal, assignment, copy and bound controls, for source-to-native qualification.
+    
+    * omega: use typed backing authority for descriptor transfers
+    
+    Structural transfer admission consumes the shared source-chain authority result rather than inferring mutable backing from affine multiplicity. Owned carrier custody remains separate from lending its payload.
+    
+    * omega: admit typed reference paths in descriptor selection
+    
+    The legalized descriptor source query already intersects every stored reference ceiling with its actual root authority. Remove the earlier blanket Referent refusal so the typed path decision owns admission.
+    
+    * psi: form specification indexing from preceding bounds
+    
+    * psi: judge formed collection bounds in declaration scope
+    
+    * psi: retain independent descriptor bound formation controls
+    
+    * psi: pin descriptor admission at independent bounds formation
+    
+    * psi: retain missing index bounds at specification formation
+    
+    * psi: pin the missing-bounds refusal reason
+    
+    * psi: record descriptor-indexed rank and formation outcomes
+    
+    ---------
+    
+    Co-authored-by: Zachary Canann <zcanann@Zacharys-Mac-mini.local>
+
+ TASKS.md                                           |   2 +-
+ .../src/lowering/scalar/element_views.rs           | 272 +-----------------
+ .../lowering/scalar/element_views/establishment.rs | 315 +++++++++++++++++++++
+ .../scalar_graph_input/target/element_view.rs      |  13 +-
+ .../structural/element_establishment.rs            |  29 +-
+ .../src/selection/established_view_input/access.rs |   4 +-
+ .../structural_reference_input.rs                  | 243 +---------------
+ .../structural_reference_input/collection_views.rs | 290 +++++++++++++++++++
+ .../optimization-unit/semantics/src/lib.rs         |   4 +-
+ .../semantics/src/unit_validation/catalogs.rs      |   3 +-
+ .../function_structure/descriptor_sources.rs       |   4 +-
+ .../function_structure/structural_transfers.rs     |   9 +-
+ .../operation_contracts/structural_access.rs       |  57 ++--
+ .../structural_access/descriptor_access.rs         |  54 ++++
+ .../src/unit_validation/references/access_paths.rs |   2 +-
+ .../declarations/operators/scoped_applications.rs  |  85 ++++--
+ omega-rust/psi/compilation/checking/src/lib.rs     |  15 +-
+ .../contract_entailment/collection_bounds.rs       | 115 ++------
+ .../collection_bounds/geometry.rs                  | 106 +++++++
+ .../contract_entailment/scoped_arithmetic.rs       |  21 ++
+ .../contract_entailment/scoped_arithmetic/calls.rs |  42 ++-
+ .../scoped_arithmetic/calls/result_observations.rs | 130 +++++++++
+ .../contract_entailment/specification_calls.rs     |  81 ++++--
+ .../specification_calls/collection_operations.rs   |  47 +++
+ .../structural_judgment/integer_predicates.rs      |   6 +-
+ .../checking/src/value_custody/places.rs           |   7 +-
+ .../places/structural_scalar_field.rs              |   3 +-
+ .../places/structural_scalar_field/coordinates.rs  | 115 +++++---
+ .../src/checks/current_scalar_values.rs            |  66 +++--
+ .../checks/current_scalar_values/call_contracts.rs |  28 ++
+ .../checks/current_scalar_values/collections.rs    |  51 +++-
+ .../checks/current_scalar_values/entry_fields.rs   |   2 +
+ .../src/checks/current_scalar_values/joins.rs      |  87 ++++++
+ .../checks/current_scalar_values/scalar_fields.rs  | 198 ++++++++++---
+ .../scalar_fields/collection_values.rs             | 257 +++++++++++++++++
+ .../checks/current_scalar_values/scalar_storage.rs |   1 +
+ .../scalar_computations/coordinate_reads.rs        |  33 ++-
+ .../representations/checked-trees/facts/src/lib.rs |  12 +-
+ .../checked-trees/facts/src/predicates.rs          |  22 +-
+ .../checked-trees/src/checked_trees.rs             |  10 +-
+ .../checked-trees/src/checked_trees/values.rs      |  10 +-
+ .../call_result/descriptor_indexed_value/README.md |   5 +
+ .../call_result/descriptor_indexed_value/build.omg |   7 +
+ .../descriptor_indexed_value/invalid/build.omg     |   7 +
+ .../descriptor_indexed_value/invalid/main.omg      |  58 ++++
+ .../descriptor_indexed_value/invalid/sample.json   |   7 +
+ .../call_result/descriptor_indexed_value/main.omg  |  58 ++++
+ .../const_name/descriptor_indexed_value/README.md  |   5 +
+ .../const_name/descriptor_indexed_value/build.omg  |   7 +
+ .../descriptor_indexed_value/invalid/build.omg     |   7 +
+ .../descriptor_indexed_value/invalid/main.omg      |  53 ++++
+ .../descriptor_indexed_value/invalid/sample.json   |   7 +
+ .../const_name/descriptor_indexed_value/main.omg   |  53 ++++
+ .../descriptor_circular_cycle_bounds/build.omg     |   7 +
+ .../descriptor_circular_cycle_bounds/main.omg      |  16 ++
+ .../descriptor_circular_cycle_bounds/sample.json   |   7 +
+ .../descriptor_circular_entry_bounds/build.omg     |   7 +
+ .../descriptor_circular_entry_bounds/main.omg      |  13 +
+ .../descriptor_circular_entry_bounds/sample.json   |   7 +
+ .../descriptor_literal_empty_view/build.omg        |   7 +
+ .../descriptor_literal_empty_view/main.omg         |  52 ++++
+ .../descriptor_literal_empty_view/sample.json      |   7 +
+ .../descriptor_match_unproved_arm/build.omg        |   7 +
+ .../descriptor_match_unproved_arm/main.omg         |  54 ++++
+ .../descriptor_match_unproved_arm/sample.json      |   7 +
+ .../descriptor_result_payload_bound/build.omg      |   7 +
+ .../descriptor_result_payload_bound/main.omg       |  58 ++++
+ .../descriptor_result_payload_bound/sample.json    |   7 +
+ .../controls/descriptor_sibling_length/build.omg   |   7 +
+ .../controls/descriptor_sibling_length/main.omg    |  53 ++++
+ .../controls/descriptor_sibling_length/sample.json |   7 +
+ .../descriptor_stale_window_value/build.omg        |   7 +
+ .../descriptor_stale_window_value/main.omg         |   9 +
+ .../descriptor_stale_window_value/sample.json      |   7 +
+ .../descriptor_unproved_payload_bound/build.omg    |   7 +
+ .../descriptor_unproved_payload_bound/main.omg     |  52 ++++
+ .../descriptor_unproved_payload_bound/sample.json  |   7 +
+ .../controls/indexed_missing_entry_bound/main.omg  |   2 +-
+ .../indexed_missing_entry_bound/sample.json        |   7 +
+ .../field/descriptor_indexed_value/README.md       |   5 +
+ .../field/descriptor_indexed_value/build.omg       |   7 +
+ .../descriptor_indexed_value/invalid/build.omg     |   7 +
+ .../descriptor_indexed_value/invalid/main.omg      |  53 ++++
+ .../descriptor_indexed_value/invalid/sample.json   |   7 +
+ .../field/descriptor_indexed_value/main.omg        |  53 ++++
+ .../local/descriptor_indexed_value/README.md       |  25 ++
+ .../local/descriptor_indexed_value/build.omg       |   7 +
+ .../descriptor_indexed_value/invalid/build.omg     |   7 +
+ .../descriptor_indexed_value/invalid/main.omg      |  52 ++++
+ .../descriptor_indexed_value/invalid/sample.json   |   7 +
+ .../literal_selector/build.omg                     |   7 +
+ .../literal_selector/main.omg                      |  52 ++++
+ .../local/descriptor_indexed_value/main.omg        |  52 ++++
+ .../owned_snapshot/build.omg                       |   7 +
+ .../owned_snapshot/main.omg                        |  34 +++
+ .../result_assignment/build.omg                    |   7 +
+ .../result_assignment/main.omg                     |  59 ++++
+ .../match_join/descriptor_indexed_value/README.md  |   5 +
+ .../match_join/descriptor_indexed_value/build.omg  |   7 +
+ .../descriptor_indexed_value/invalid/build.omg     |   7 +
+ .../descriptor_indexed_value/invalid/main.omg      |  54 ++++
+ .../descriptor_indexed_value/invalid/sample.json   |   7 +
+ .../match_join/descriptor_indexed_value/main.omg   |  54 ++++
+ .../descriptor_indexed_value/README.md             |   5 +
+ .../descriptor_indexed_value/build.omg             |   7 +
+ .../descriptor_indexed_value/invalid/build.omg     |   7 +
+ .../descriptor_indexed_value/invalid/main.omg      |  61 ++++
+ .../descriptor_indexed_value/invalid/sample.json   |   7 +
+ .../descriptor_indexed_value/main.omg              |  61 ++++
+ .../other_state/descriptor_indexed_value/README.md |   5 +
+ .../other_state/descriptor_indexed_value/build.omg |   7 +
+ .../descriptor_indexed_value/invalid/build.omg     |   7 +
+ .../descriptor_indexed_value/invalid/main.omg      |  52 ++++
+ .../descriptor_indexed_value/invalid/sample.json   |   7 +
+ .../other_state/descriptor_indexed_value/main.omg  |  52 ++++
+ .../parameter/descriptor_indexed_value/README.md   |   5 +
+ .../parameter/descriptor_indexed_value/build.omg   |   7 +
+ .../descriptor_indexed_value/invalid/build.omg     |   7 +
+ .../descriptor_indexed_value/invalid/main.omg      |  55 ++++
+ .../descriptor_indexed_value/invalid/sample.json   |   7 +
+ .../parameter/descriptor_indexed_value/main.omg    |  55 ++++
+ .../target_body/descriptor_indexed_value/README.md |   5 +
+ .../target_body/descriptor_indexed_value/build.omg |  11 +
+ .../descriptor_indexed_value/invalid/build.omg     |  11 +
+ .../descriptor_indexed_value/invalid/main.omg      |  57 ++++
+ .../descriptor_indexed_value/invalid/sample.json   |   7 +
+ .../target_body/descriptor_indexed_value/main.omg  |  57 ++++
+ tests/omega/corpus_outcomes.txt                    |  54 +++-
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  16 ++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  13 +
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  52 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  54 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  58 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  53 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |   9 +
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  52 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  58 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  53 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  53 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  52 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  54 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  61 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  52 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  55 ++++
+ .../build.omg                                      |  11 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  57 ++++
+ .../expected.txt                                   |   2 +-
+ .../main.omg                                       |   2 +-
+ .../build.omg                                      |   7 +
+ .../main.omg                                       |  52 ++++
+ .../build.omg                                      |   7 +
+ .../main.omg                                       |  34 +++
+ .../build.omg                                      |   7 +
+ .../main.omg                                       |  59 ++++
+ .../build.omg                                      |   7 +
+ .../main.omg                                       |  58 ++++
+ .../build.omg                                      |   7 +
+ .../main.omg                                       |  53 ++++
+ .../build.omg                                      |   7 +
+ .../main.omg                                       |  53 ++++
+ .../build.omg                                      |   7 +
+ .../main.omg                                       |  52 ++++
+ .../build.omg                                      |   7 +
+ .../main.omg                                       |  54 ++++
+ .../build.omg                                      |   7 +
+ .../main.omg                                       |  61 ++++
+ .../build.omg                                      |   7 +
+ .../main.omg                                       |  52 ++++
+ .../build.omg                                      |   7 +
+ .../main.omg                                       |  55 ++++
+ .../build.omg                                      |  11 +
+ .../main.omg                                       |  57 ++++
+ 205 files changed, 5567 insertions(+), 858 deletions(-)
+ create mode 100644 omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/scalar/element_views/establishment.rs
+ create mode 100644 omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/structural_inputs/structural_reference_input/collection_views.rs
+ create mode 100644 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/operation_contracts/structural_access/descriptor_access.rs
+ create mode 100644 omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/collection_bounds/geometry.rs
+ create mode 100644 omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/scoped_arithmetic/calls/result_observations.rs
+ create mode 100644 omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls/collection_operations.rs
+ create mode 100644 omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/current_scalar_values/joins.rs
+ create mode 100644 omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/current_scalar_values/scalar_fields/collection_values.rs
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/call_result/descriptor_indexed_value/README.md
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/call_result/descriptor_indexed_value/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/call_result/descriptor_indexed_value/invalid/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/call_result/descriptor_indexed_value/invalid/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/call_result/descriptor_indexed_value/invalid/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/call_result/descriptor_indexed_value/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/const_name/descriptor_indexed_value/README.md
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/const_name/descriptor_indexed_value/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/const_name/descriptor_indexed_value/invalid/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/const_name/descriptor_indexed_value/invalid/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/const_name/descriptor_indexed_value/invalid/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/const_name/descriptor_indexed_value/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_circular_cycle_bounds/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_circular_cycle_bounds/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_circular_cycle_bounds/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_circular_entry_bounds/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_circular_entry_bounds/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_circular_entry_bounds/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_literal_empty_view/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_literal_empty_view/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_literal_empty_view/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_match_unproved_arm/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_match_unproved_arm/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_match_unproved_arm/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_result_payload_bound/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_result_payload_bound/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_result_payload_bound/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_sibling_length/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_sibling_length/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_sibling_length/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_stale_window_value/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_stale_window_value/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_stale_window_value/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_unproved_payload_bound/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_unproved_payload_bound/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/descriptor_unproved_payload_bound/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/controls/indexed_missing_entry_bound/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/field/descriptor_indexed_value/README.md
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/field/descriptor_indexed_value/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/field/descriptor_indexed_value/invalid/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/field/descriptor_indexed_value/invalid/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/field/descriptor_indexed_value/invalid/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/field/descriptor_indexed_value/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/local/descriptor_indexed_value/README.md
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/local/descriptor_indexed_value/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/local/descriptor_indexed_value/invalid/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/local/descriptor_indexed_value/invalid/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/local/descriptor_indexed_value/invalid/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/local/descriptor_indexed_value/literal_selector/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/local/descriptor_indexed_value/literal_selector/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/local/descriptor_indexed_value/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/local/descriptor_indexed_value/owned_snapshot/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/local/descriptor_indexed_value/owned_snapshot/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/local/descriptor_indexed_value/result_assignment/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/local/descriptor_indexed_value/result_assignment/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/match_join/descriptor_indexed_value/README.md
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/match_join/descriptor_indexed_value/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/match_join/descriptor_indexed_value/invalid/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/match_join/descriptor_indexed_value/invalid/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/match_join/descriptor_indexed_value/invalid/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/match_join/descriptor_indexed_value/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/descriptor_indexed_value/README.md
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/descriptor_indexed_value/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/descriptor_indexed_value/invalid/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/descriptor_indexed_value/invalid/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/descriptor_indexed_value/invalid/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/descriptor_indexed_value/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/other_state/descriptor_indexed_value/README.md
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/other_state/descriptor_indexed_value/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/other_state/descriptor_indexed_value/invalid/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/other_state/descriptor_indexed_value/invalid/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/other_state/descriptor_indexed_value/invalid/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/other_state/descriptor_indexed_value/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/parameter/descriptor_indexed_value/README.md
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/parameter/descriptor_indexed_value/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/parameter/descriptor_indexed_value/invalid/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/parameter/descriptor_indexed_value/invalid/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/parameter/descriptor_indexed_value/invalid/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/parameter/descriptor_indexed_value/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/target_body/descriptor_indexed_value/README.md
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/target_body/descriptor_indexed_value/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/target_body/descriptor_indexed_value/invalid/build.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/target_body/descriptor_indexed_value/invalid/main.omg
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/target_body/descriptor_indexed_value/invalid/sample.json
+ create mode 100644 samples/cli/facts/nested_machine_invocation/joint_rank/target_body/descriptor_indexed_value/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_circular_cycle_bounds_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_circular_cycle_bounds_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_circular_cycle_bounds_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_circular_entry_bounds_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_circular_entry_bounds_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_circular_entry_bounds_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_literal_empty_view_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_literal_empty_view_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_literal_empty_view_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_match_unproved_arm_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_match_unproved_arm_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_match_unproved_arm_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_result_payload_bound_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_result_payload_bound_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_result_payload_bound_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_sibling_length_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_sibling_length_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_sibling_length_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_stale_window_value_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_stale_window_value_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_stale_window_value_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_unproved_payload_bound_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_unproved_payload_bound_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_descriptor_unproved_payload_bound_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_call_result_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_call_result_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_call_result_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_const_name_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_const_name_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_const_name_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_field_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_field_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_field_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_local_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_local_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_local_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_match_join_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_match_join_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_match_join_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_other_machine_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_other_machine_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_other_machine_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_other_state_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_other_state_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_other_state_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_parameter_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_parameter_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_parameter_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_target_body_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_target_body_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/nested_machine_joint_rank_descriptor_indexed_value_target_body_rejected/main.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_descriptor_literal_selector_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_descriptor_literal_selector_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_descriptor_owned_snapshot_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_descriptor_owned_snapshot_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_descriptor_result_assignment_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_descriptor_result_assignment_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_call_result_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_call_result_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_const_name_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_const_name_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_field_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_field_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_local_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_local_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_match_join_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_match_join_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_other_machine_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_other_machine_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_other_state_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_other_state_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_parameter_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_parameter_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_target_body_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/nested_machine_joint_rank_descriptor_indexed_value_target_body_exit/main.omg
+bisect found first bad commit
