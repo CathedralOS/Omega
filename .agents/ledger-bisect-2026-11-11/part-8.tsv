@@ -1,7 +1,7 @@
-orig_index	slice_rows	witness	pin_at_pin	bisected	good_sha	breaking_sha	pr	mechanism_short	notes
-8	13	fail/arithmetic/remainder_postcondition_signed_minimum_underbound_rejected	fixed	no			na	PIN cluster fixed (13 measured members)
-48	3	pass/facts/opaque_independent_qualified_result_import_alias_exit	broken	yes	none	33cefbc6c241048ff6f6c583acc5aca9b0176ec5	2238	Target canonical float realization table replaces Build-time NativeFloats selection; witness becomes AddressBridge classified_make bodyless incomplete	find_good: no exit-0 on first-parent chain; parent cdb14cc0c3e rejected (125)
-88	2	fail/generics/runtime_value_recipe_join_bound_loss	fixed	no			na	PIN fixed
-128	1	pass/traits/refined_borrowed_implementation_exit	fixed	no			na	PIN fixed
-168	1	fail/facts/open_record_const_implementation_specialization_agreement_rejected	fixed	no			na	PIN fixed
-208	1	fail/proofs/inductive_climbing_sum_unbounded_accumulator	fixed	no			na	PIN fixed
+orig_index	slice_rows	witness	pin_at_pin	verdict	good_sha	first_diagnostic_class_commit	pr	mechanism_short	notes
+8	13	fail/arithmetic/remainder_postcondition_signed_minimum_underbound_rejected	fixed	propagated			na	PIN cluster fixed (13 measured members)
+48	3	pass/facts/opaque_independent_qualified_result_import_alias_exit	broken	never-good since 7399f90b98d974e4ee7f8d5c823fae5dd28fc8b2	none	33cefbc6c241048ff6f6c583acc5aca9b0176ec5	2238	mechanism not established (rejected→incomplete edge only)	#2238 not breaking; parent cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2 exit 125; ledger checked @60ee163 / c64728 / #1721 reruns not exit 0
+88	2	fail/generics/runtime_value_recipe_join_bound_loss	fixed	propagated			na	PIN fixed
+128	1	pass/traits/refined_borrowed_implementation_exit	fixed	propagated			na	PIN fixed
+168	1	fail/facts/open_record_const_implementation_specialization_agreement_rejected	fixed	propagated			na	PIN fixed
+208	1	fail/proofs/inductive_climbing_sum_unbounded_accumulator	fixed	propagated			na	PIN fixed

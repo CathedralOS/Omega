@@ -7,7 +7,7 @@
 
 ## Slice summary (orig_index % 40 == 8)
 
-| orig_index | report_rows | witness (short) | PIN @51e8c45c793 |
+| orig_index | report_rows | witness (short) | PIN @51e8c45c793007f211d0d9baee7de16767172444 |
 | ---: | ---: | --- | --- |
 | 8 | 17 (13 measured) | `fail/arithmetic/remainder_postcondition_signed_minimum_underbound_rejected` | fixed (all measured members pass expected fail/check) |
 | 48 | 3 | `pass/facts/opaque_independent_qualified_result_import_alias_exit` | **broken** — PIN cluster below |
@@ -26,54 +26,90 @@ Report cluster 8’s prior “breaking” `f3612364ffbb9489d7be1409397df6867fcbe
 | --- | --- | --- | --- | --- |
 | `` `_` has no executable body … (authored result domains) `` | 3 opaque `pass/facts/*_qualified_result_*_exit` | `pass/facts/opaque_independent_qualified_result_import_alias_exit` | `incomplete` | `checked` |
 
-## Bisect — opaque qualified-result cluster (orig_index 48)
+## Opaque qualified-result cluster (orig_index 48)
 
-### Good commit (`find_good`, exit 0)
+### Verdict
 
-`find_good_commit.sh` walked **>400 first-parent steps** from PIN and sampled the **2074** first-parent commits between fixture introduction (`7399f90b98d`, #295) and PIN. Every runnable outcome was either:
+**never-good since `7399f90b98d974e4ee7f8d5c823fae5dd28fc8b2`** (#295, first commit adding `tests/omega/pass/facts/opaque_independent_qualified_result_*_exit`).
 
-- exit **1** — PIN-broken `incomplete` + AddressBridge `classified_make` “no executable body”, or  
-- exit **125** — build failure, ledger/md-only skip, or **`rejected`** (e.g. `NativeFloats::float_add_f32_f32` requires checked body) — not ledger-expected `checked`.
+`find_good_commit.sh` and fixed-PIN reruns on the first-parent chain from the PIN through that introduction commit never returned exit **0** (`checked` / `built` per PIN snapshot). Outcomes were exit **1** (PIN-broken incomplete) or exit **125** (rejected, build failure, ledger/md skip, or other ≠ expected).
 
-No first-parent ancestor on this host returned exit **0** for the fixed PIN expected outcome (`checked`). The ledger stamp `@60ee163d4f0f` on this row is **not** a first-parent ancestor of PIN; re-running that SHA here still yields `incomplete` with the same diagnostic class.
+There is **no** `git bisect` good commit; **#2238 is not a breaking commit** (parent is also not good: exit 125).
 
-**Recorded good commit for `git bisect`:** _none (methodology requires exit 0; not satisfied on first-parent chain)._  
-**Boundary parent (last non–PIN-broken class before break):** `cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2` — `rejected`, `NativeFloats::float_add_f32_f32` (exit 125).
+### Evidence — fixture introduction and walk samples
 
-### Breaking commit (manual first-parent boundary + reruns)
+Witness: `pass/facts/opaque_independent_qualified_result_import_alias_exit`.  
+`bisect_witness.sh` + `bisect_test.py` with fixed PIN observation (same command path as bisect).
 
-| field | value |
-| --- | --- |
-| **breaking_sha** | `33cefbc6c241048ff6f6c583acc5aca9b0176ec5` |
-| **PR** | [#2238](https://github.com/cathedralos/omega/pull/2238) — `compiler: realize canonical float operations from the target's declared table` |
-| **parent** | `cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2` (#2292) |
-| **mechanism (diff)** | Moves canonical `f32`/`f64` operator realization into per-target `TargetProfile::canonical_float_realization` (`float_realization.rs`), binding the sealed float catalog from the target table instead of Build-time `NativeFloats` selection in core; downstream checking/lowering no longer follows the prior float-selection path — witness flips from unrelated float rejection to **AddressBridgeProvider `classified_make` bodyless / authored result domains incomplete**. |
-| **bisect_test @child** | exit **1** (PIN-broken class) |
-| **bisect_test @parent** | exit **125** (`rejected`, different diagnostic class) |
+| commit (40 hex) | `bisect_test` exit | corpus status |
+| --- | ---: | --- |
+| `7399f90b98d974e4ee7f8d5c823fae5dd28fc8b2` (fixture add) | **125** | `rejected` |
+| `a6dfe40c6b59efe1d1af1e453ff9e9e2e2203218` (sample, ~304 on chain) | **125** | `rejected` |
+| `643ff5441c15ea62815109514a8047194d7397a0` (sample, nearer PIN) | **1** | `incomplete` (PIN-broken class) |
+| `51e8c45c793007f211d0d9baee7de16767172444` (PIN) | **1** | `incomplete` |
 
-Ledger-only #2228 (`f3612364`) sits **between** child and PIN but does not change compiler behaviour (skip 125).
+### First commit showing current diagnostic class (rejected → incomplete), not “breaking”
 
-### Commands (witness)
+First-parent parent → child where all three members flip from **`rejected`** (exit 125) to **`incomplete`** AddressBridge class (exit 1):
 
-```bash
-export BISECT_FIXTURE_DIR=/tmp/ledger-bisect-part-8/opaque
-export BISECT_WITNESS=pass/facts/opaque_independent_qualified_result_import_alias_exit
-python3 .agents/ledger-bisect-2026-11-11/tools/pin_bisect_setup.py \
-  pass/facts/opaque_independent_qualified_result_import_alias_exit \
-  /tmp/part8_pin_records.txt /tmp/ledger-bisect-part-8/opaque
+| | `cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2` (#2292) | `33cefbc6c241048ff6f6c583acc5aca9b0176ec5` (#2238) |
+| --- | --- | --- |
+| PR | psi: lower nested-machine cycles… | compiler: realize canonical float operations… |
 
-# parent / child reruns
-git checkout cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2
-bash .agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh   # → 125
+**All three members @ parent** (`cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2`), `bisect_test` exit → corpus status:
 
-git checkout 33cefbc6c241048ff6f6c583acc5aca9b0176ec5
-bash .agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh   # → 1
+| fixture | exit | status |
+| --- | ---: | --- |
+| `pass/facts/opaque_independent_qualified_result_import_alias_exit` | **125** | `rejected` |
+| `pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit` | **125** | `rejected` |
+| `pass/facts/opaque_independent_qualified_result_through_local_exit` | **125** | `rejected` |
+
+**All three members @ child** (`33cefbc6c241048ff6f6c583acc5aca9b0176ec5`):
+
+| fixture | exit | status |
+| --- | ---: | --- |
+| `pass/facts/opaque_independent_qualified_result_import_alias_exit` | **1** | `incomplete` |
+| `pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit` | **1** | `incomplete` |
+| `pass/facts/opaque_independent_qualified_result_through_local_exit` | **1** | `incomplete` |
+
+Typical parent diagnostic: `NativeFloats::float_add_f32_f32` requires a checked body. Child: `AddressBridgeProvider::classified_make` has no executable body (authored result domains).
+
+**Mechanism:** not established — the edge correlates with #2238 but parent is not good and `find_good` never succeeds; no causal link proved.
+
+**Diff note (#2238):** adds `omega-rust/omega/compilation/backend/target/src/float_realization.rs` (new file), opening:
+
+```diff
++/*
++Each hosted target declares how it realizes every canonical `f32`/`f64`
++operation, so float arithmetic no longer depends on a Build program choosing a
++provider for 104 operator slots on every compile. The table is the target's
++declaration under decision `target-realized-float-arithmetic`
++...
++*/
++
++use crate::TargetProfile;
++...
++pub const CANONICAL_FLOAT_OPERATIONS: [&str; 104] = [
 ```
+
+### Ledger “checked” vs never-good
+
+Fixed-PIN ledger copy at PIN lists all three rows as **`checked`** stamped `@60ee163d4f0f5f8b9349ecf253660a917917a7c7` (not on the first-parent chain to PIN).
+
+| source | ledger says | fixed-PIN rerun @ that commit (import_alias witness) |
+| --- | --- | --- |
+| PIN ledger rows | `checked` @ `60ee163d4f0f5f8b9349ecf253660a917917a7c7` | @ `60ee163d4f0f5f8b9349ecf253660a917917a7c7`: exit **125**, `rejected` |
+| `c64728d90e83036051d52fb69961b786423230c6` (#889 recorder) | rows `checked` @ `ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd` | @ `c64728d90e83036051d52fb69961b786423230c6`: exit **125**, `rejected` |
+| Part 17 opaque cluster (#1721) | first-bad `60cb5e1f79dd05465f77775990e46bcc2e789470` | @ `60cb5e1f79dd05465f77775990e46bcc2e789470`: exit **125**, `rejected` |
+
+`c64728d90e83036051d52fb69961b786423230c6` is the commit that **first recorded** `checked` for these three in ledger history (`git log -S`); `ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd` is the integration stamp named in that ledger file’s context header, not re-run as exit **0** here.
+
+**Resolution:** ledger **`checked`** entries are historical stamps / integration records; they do **not** contradict **never-good since `7399f90b98d974e4ee7f8d5c823fae5dd28fc8b2`** under fixed-PIN `bisect_test` on this host. Part 17’s #1721 first-bad is a separate bisect slice on the same diagnostic family, not a good commit for this cluster.
 
 ## Propagated / fixed-on-PIN clusters
 
 All other slice clusters are **fixed at PIN** (no bisect): arithmetic remainder/bounds pack (13 measured), generics runtime-value recipe pair, refined borrowed implementation, open-record specialization, inductive climbing sum.
 
-## Tooling touched (`.agents/` only)
+## Tooling (`.agents/` only)
 
 `tools/pin_bisect_setup.py`, `bisect_test.py`, `bisect_witness.sh`, `find_good_commit.sh`, `run_bisect.sh`, plus corpus batch copies for slice recovery.
