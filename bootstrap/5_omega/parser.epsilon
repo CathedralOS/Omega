@@ -33,6 +33,10 @@ machine OmegaParser::parse_view(
     self.statement_count = 0;
     self.call_statement_count = 0;
     self.call_expression_count = 0;
+    self.call_parse_frame_count = 0;
+    self.pending_argument_count = 0;
+    self.call_pending_head = -1;
+    self.call_pending_tail = -1;
     self.cast_expression_count = 0;
     self.assignment_statement_count = 0;
     self.local_data_statement_count = 0;
@@ -128,6 +132,7 @@ machine OmegaParser::parse_view(
     self.call_first_machine_argument = 0;
     self.call_first_argument = 0;
     self.call_is_expression = 0;
+    self.call_end = 0;
     self.call_result_consumer = OmegaExpressionConsumer::CallArgument;
     self.call_first_path_member = 0;
     self.call_path_member_count = 0;
@@ -5204,6 +5209,8 @@ machine OmegaParser::parse_view(
     }
 
     state begin_call_arguments() {
+        self.call_pending_head = -1;
+        self.call_pending_tail = -1;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(44) }
     }
@@ -5584,8 +5591,55 @@ machine OmegaParser::parse_view(
                 check_call_expression_outer_frame()
             OmegaExpressionConsumer::ExpressionStatement ->
                 check_call_expression_statement_frame()
+            OmegaExpressionConsumer::CallArgument ->
+                check_nested_call_frame()
             _ -> incomplete_root()
         }
+    }
+
+    // An ordinary nested call is an argument primary. Prefixes, prior
+    // operands, static arguments, and enclosing argument groups remain
+    // explicit coverage boundaries until their frames are preserved too.
+    state check_nested_call_frame() {
+        transition (self.expression_frame_value_count == 0) &&
+            (self.expression_frame_operator_count == 0) &&
+            (self.expression_group_count == 0) &&
+            (self.expression_prefix_count == 0) {
+            true -> nested_call_punctuation()
+            _ -> incomplete_root()
+        }
+    }
+
+    state nested_call_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftParen -> nested_call_capacity()
+            _ -> incomplete_root()
+        }
+    }
+
+    state nested_call_capacity() {
+        transition self.call_parse_frame_count < 128 {
+            true -> save_enclosing_call()
+            _ -> resource_failure(OmegaParserResource::ExpressionDepth,
+                128, self.call_parse_frame_count + 1)
+        }
+    }
+
+    state save_enclosing_call() {
+        let frame: i32 = self.call_parse_frame_count;
+        self.call_parse_frames[frame].first_machine_argument = self.call_first_machine_argument;
+        self.call_parse_frames[frame].is_expression = self.call_is_expression;
+        self.call_parse_frames[frame].result_consumer = self.call_result_consumer;
+        self.call_parse_frames[frame].first_path_member = self.call_first_path_member;
+        self.call_parse_frames[frame].path_member_count = self.call_path_member_count;
+        self.call_parse_frames[frame].starts_at_self = self.call_starts_at_self;
+        self.call_parse_frames[frame].name_member_count = self.call_name_member_count;
+        self.call_parse_frames[frame].start = self.call_start;
+        self.call_parse_frames[frame].outer_group_count = self.call_outer_group_count;
+        self.call_parse_frames[frame].pending_head = self.call_pending_head;
+        self.call_parse_frames[frame].pending_tail = self.call_pending_tail;
+        self.call_parse_frame_count = frame + 1;
+        transition true { true -> retain_call_expression_path() }
     }
 
     state check_call_expression_outer_frame() {
@@ -5598,9 +5652,9 @@ machine OmegaParser::parse_view(
         }
     }
 
-    // A state's terminal call is spelled inside an expression group, since a
-    // statement-leading name always parses as a call statement. The call is
-    // the whole expression exactly when the outer frame is empty; enclosing
+    // A grouped terminal call uses the ordinary expression frame; an
+    // ungrouped terminal is promoted when its closing brace arrives. The call
+    // is the whole expression when the outer frame is empty; enclosing
     // groups stay open across the call's own frame reset because their bases
     // live on the separate group stacks.
     state check_call_expression_statement_frame() {
@@ -6278,6 +6332,33 @@ machine OmegaParser::parse_view(
     }
 
     state finish_call_arguments() {
+        self.call_first_argument = self.call_argument_count;
+        transition true { true -> publish_call_arguments(self.call_pending_head) }
+    }
+
+    state publish_call_arguments(pending: i32) {
+        transition pending >= 0 {
+            true -> publish_call_argument_capacity(pending)
+            _ -> finish_published_call_arguments()
+        }
+    }
+
+    state publish_call_argument_capacity(pending: i32) {
+        transition self.call_argument_count < 16384 {
+            true -> publish_call_argument(pending)
+            _ -> resource_failure(OmegaParserResource::Expressions,
+                16384, self.call_argument_count + 1)
+        }
+    }
+
+    state publish_call_argument(pending: i32) {
+        self.call_arguments[self.call_argument_count] = self.pending_argument_values[pending];
+        self.call_argument_count = self.call_argument_count + 1;
+        transition true { true -> publish_call_arguments(self.pending_argument_next[pending]) }
+    }
+
+    state finish_published_call_arguments() {
+        self.call_end = self.scan.token_end;
         transition self.call_is_expression {
             1 -> retain_call_expression()
             _ -> finish_call_statement_arguments()
@@ -6413,10 +6494,10 @@ machine OmegaParser::parse_view(
         self.call_expressions[self.call_expression_count].argument_count =
             self.call_argument_count - self.call_first_argument;
         self.call_expressions[self.call_expression_count].start = self.call_start;
-        self.call_expressions[self.call_expression_count].end = self.scan.token_end;
+        self.call_expressions[self.call_expression_count].end = self.call_end;
         self.expression_result = self.expression_count;
         self.expression_result_start = self.call_start;
-        self.expression_end = self.scan.token_end;
+        self.expression_end = self.call_end;
         self.expressions[self.expression_count].kind = OmegaExpressionKind::Call;
         self.expressions[self.expression_count].path_kind =
             OmegaPathExpressionKind::Name;
@@ -6435,6 +6516,40 @@ machine OmegaParser::parse_view(
         self.expression_group_count = self.call_outer_group_count;
         self.expression_prefix_count = 0;
         self.cursor = self.scan.next_cursor;
+        transition self.call_is_expression {
+            2 -> retain_expression_statement()
+            _ -> resume_retained_call_expression()
+        }
+    }
+
+    state resume_retained_call_expression() {
+        transition self.call_result_consumer {
+            OmegaExpressionConsumer::CallArgument -> restore_enclosing_call()
+            _ -> scan_semantic(54)
+        }
+    }
+
+    state restore_enclosing_call() {
+        transition self.call_parse_frame_count > 0 {
+            true -> restore_enclosing_call_bounded()
+            _ -> internal_failure()
+        }
+    }
+
+    state restore_enclosing_call_bounded() {
+        self.call_parse_frame_count = self.call_parse_frame_count - 1;
+        let frame: OmegaCallParseFrame = self.call_parse_frames[self.call_parse_frame_count];
+        self.call_first_machine_argument = frame.first_machine_argument;
+        self.call_is_expression = frame.is_expression;
+        self.call_result_consumer = frame.result_consumer;
+        self.call_first_path_member = frame.first_path_member;
+        self.call_path_member_count = frame.path_member_count;
+        self.call_starts_at_self = frame.starts_at_self;
+        self.call_name_member_count = frame.name_member_count;
+        self.call_start = frame.start;
+        self.call_outer_group_count = frame.outer_group_count;
+        self.call_pending_head = frame.pending_head;
+        self.call_pending_tail = frame.pending_tail;
         transition true { true -> scan_semantic(54) }
     }
 
@@ -6448,8 +6563,20 @@ machine OmegaParser::parse_view(
     state call_semicolon_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Semicolon -> retain_call_statement()
+            OmegaPunctuationKind::RightBrace -> promote_terminal_call()
             _ -> incomplete_root()
         }
+    }
+
+    // The closing brace makes this completed statement-leading call the
+    // terminal expression. Reuse the ordinary call AST and keep the brace
+    // in scan custody for finish_current_state; call_end retains the earlier
+    // closing parenthesis rather than including the brace in its source span.
+    state promote_terminal_call() {
+        self.call_is_expression = 2;
+        self.call_result_consumer = OmegaExpressionConsumer::ExpressionStatement;
+        self.call_outer_group_count = 0;
+        transition true { true -> retain_call_expression() }
     }
 
     state retain_call_statement() {
@@ -6949,20 +7076,39 @@ machine OmegaParser::parse_view(
     }
 
     state retain_call_argument_expression() {
-        transition self.call_argument_count < 16384 {
+        transition self.pending_argument_count < 16384 {
             true -> retain_call_argument_expression_bounded()
             _ -> resource_failure(
                 OmegaParserResource::Expressions,
                 16384,
-                self.call_argument_count + 1
+                self.pending_argument_count + 1
             )
         }
     }
 
     state retain_call_argument_expression_bounded() {
-        self.call_arguments[self.call_argument_count] =
+        self.pending_argument_values[self.pending_argument_count] =
             self.assignment_value_expression;
-        self.call_argument_count = self.call_argument_count + 1;
+        self.pending_argument_next[self.pending_argument_count] = -1;
+        transition self.call_pending_tail >= 0 {
+            true -> link_call_argument()
+            _ -> first_call_argument()
+        }
+    }
+
+    state link_call_argument() {
+        self.pending_argument_next[self.call_pending_tail] = self.pending_argument_count;
+        transition true { true -> finish_pending_call_argument() }
+    }
+
+    state first_call_argument() {
+        self.call_pending_head = self.pending_argument_count;
+        transition true { true -> finish_pending_call_argument() }
+    }
+
+    state finish_pending_call_argument() {
+        self.call_pending_tail = self.pending_argument_count;
+        self.pending_argument_count = self.pending_argument_count + 1;
         transition self.scan.punctuation {
             OmegaPunctuationKind::Comma -> next_call_argument()
             OmegaPunctuationKind::RightParen -> finish_call_arguments()

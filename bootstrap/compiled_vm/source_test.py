@@ -40,13 +40,15 @@ def main():
     parser.add_argument("--accelerated", action="store_true")
     parser.add_argument("--seconds", type=int, default=3600)
     parser.add_argument("--omega", action="store_true")
+    parser.add_argument("--omega-values", action="store_true",
+                        help="execute bootstrap parameter/local/call and refusal controls")
     parser.add_argument("--compiler-only", action="store_true",
                         help="stop after compiler construction, rebuilds, and differential controls")
     args = parser.parse_args()
     if args.seconds <= 0:
         parser.error("--seconds must be positive")
-    if args.compiler_only and args.omega:
-        parser.error("--compiler-only and --omega select incompatible customer scopes")
+    if args.compiler_only and (args.omega or args.omega_values):
+        parser.error("--compiler-only and Omega customers select incompatible scopes")
     mode = "accelerated" if args.accelerated else "reference"
     work = test.ROOT / "build" / ("source-gamma-" + mode)
     work.mkdir(parents=True, exist_ok=True)
@@ -96,6 +98,8 @@ def main():
     test.epsilon_customer(work, producer=SourceCompiler)
     if args.omega:
         test.omega_customer(work, args.seconds)
+    if args.omega_values:
+        test.omega_values_customer(work, args.seconds)
     print(f"{mode} construction and requested customers passed", flush=True)
 
 

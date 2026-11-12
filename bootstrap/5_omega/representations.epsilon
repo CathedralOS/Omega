@@ -839,6 +839,22 @@ data OmegaParserResource {
     case Expressions;
 }
 
+// Parsing a call argument may enter another ordinary call. Save the enclosing
+// call's own header and pending-argument list, without retaining a host stack.
+data OmegaCallParseFrame {
+    first_machine_argument: i32;
+    is_expression: i32;
+    result_consumer: OmegaExpressionConsumer;
+    first_path_member: i32;
+    path_member_count: i32;
+    starts_at_self: i32;
+    name_member_count: i32;
+    start: i32;
+    outer_group_count: i32;
+    pending_head: i32;
+    pending_tail: i32;
+}
+
 data OmegaParser {
     scan: OmegaLexScan;
     // Only Complete authorizes consumers to inspect rows below the matching
@@ -1004,7 +1020,10 @@ data OmegaParser {
     statement_starts_at_self: i32;
     call_first_machine_argument: i32;
     call_first_argument: i32;
+    // 0 = statement candidate, 1 = expression, 2 = ungrouped terminal.
     call_is_expression: i32;
+    // Completed right-parenthesis end; written after children finish.
+    call_end: i32;
     call_result_consumer: OmegaExpressionConsumer;
     call_first_path_member: i32;
     call_path_member_count: i32;
@@ -1014,6 +1033,16 @@ data OmegaParser {
     call_has_receiver: i32;
     call_receiver_expression: i32;
     call_outer_group_count: i32;
+    call_parse_frames: [OmegaCallParseFrame; 128];
+    call_parse_frame_count: i32;
+    // Argument records are retained in source order per call, then copied
+    // into its contiguous public call_arguments extent when that call closes.
+    // Nested calls can consume their own extent without splitting the parent.
+    pending_argument_values: [i32; 16384];
+    pending_argument_next: [i32; 16384];
+    pending_argument_count: i32;
+    call_pending_head: i32;
+    call_pending_tail: i32;
     static_argument_first_path_member: i32;
     static_argument_path_member_count: i32;
     static_argument_start: i32;
