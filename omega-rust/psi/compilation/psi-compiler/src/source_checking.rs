@@ -493,7 +493,7 @@ mod checked_slice {
         let mut files = Vec::new();
         for file in sources.selected_files() {
             if let CheckedSliceOwner::Consumer(root_package) = reuse.owner
-                && !LibrarySliceRequest { root_package }.in_slice(file)
+                && !(LibrarySliceRequest { root_package }).in_slice(file)
             {
                 return None;
             }
