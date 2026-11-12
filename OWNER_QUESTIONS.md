@@ -804,3 +804,42 @@ per type.
 
 Until answered the lowered-form checker takes the first way, which meets
 either answer.
+
+### Q19 - Does a hosted program entry's state ceiling include the floating-control envelope of the imports it calls?
+
+Decision name: `hosted-entry-floating-control-ceiling`.
+
+**Customer.** An `Independent` component whose hosted `ProgramEntry` calls a
+returning native import: the `independent*` places of
+`samples/cli/facts/opaque_closed_carrier_exchange` (about 50 samples) and the
+seven `pass/facts/opaque_independent_*` corpus rows. Each checks, then its native
+component entry is refused with `complete entry code uses machine state outside
+its declared ceiling: used MachineStateSet(95), permitted MachineStateSet(31)`.
+Any `Independent` component calling libc meets the same refusal.
+
+**Gap.** [Floating control state](wiki/spec/build/foreign_bindings.md#floating-control-state)
+requires a save/restore envelope around every returning import unless a
+preservation proof is admitted. The envelope's `RestoreFloatingControl`
+instruction writes the floating-control unit, so the body's footprint includes
+control state. [The final-artifact obligation](wiki/spec/build/machine_state_evidence.md#final-artifact-obligation)
+requires `actual_transitive_footprint ⊆ permitted_transitive_use`, with the
+ceiling covering the complete synchronous callee closure. The four hosted
+`ProgramEntry` plans (`source/library/std/targets/*/entry.omg`, mirrored in
+`program_entry_physical.rs`) and every ordinary boundary plan
+(`evaluate_ordinary_boundary_entry_plan`) leave `control_state` out, while
+the UEFI entry includes it. So the two specified rules cannot both hold for a
+hosted entry that calls an import. Programs that are not `Independent`
+components do not reach this check today.
+
+**Question.**
+
+- **(a)** Does a hosted entry's published ceiling include control state? The
+  hosted ABIs make the floating controls callee-preserved, as they do the
+  callee-saved general registers the ceiling already lists. This widens the four
+  hosted entry plans and the ordinary boundary ceiling, and so the plan identity
+  of every ordinary boundary.
+- **(b)** Or does a save/restore envelope that provably returns the controls to
+  their entry value count as preservation, not use, so the ceiling stays as
+  published and the footprint omits a restored pair?
+
+Until answered, these components stay refused at native entry admission.
