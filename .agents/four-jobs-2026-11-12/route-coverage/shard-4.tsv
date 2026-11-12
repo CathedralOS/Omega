@@ -1,0 +1,294 @@
+fixture	tier	route_verdict	current_verdict	agreement	first_refusal	seconds
+tests/omega/fail/arithmetic/anonymous_comparison_imported_zero_divisor/main.omg	fail	error	stopped	n-a		1.020
+tests/omega/fail/arithmetic/bitwise_numeric_into_bool_rejected/main.omg	fail	outside	rejected	n-a	machine attached data	6.967
+tests/omega/fail/arithmetic/boolean_shift_guard_subject_written/main.omg	fail	outside	rejected	n-a	type data with custody	1.109
+tests/omega/fail/arithmetic/captured_boolean_replaced_scalar/main.omg	fail	outside	rejected	n-a	type constrained	1.343
+tests/omega/fail/arithmetic/collection_result_changed_predecessor/main.omg	fail	outside	rejected	n-a	type reference	1.201
+tests/omega/fail/arithmetic/collection_result_wrong_argument/main.omg	fail	outside	rejected	n-a	type reference	1.140
+tests/omega/fail/arithmetic/dispatch_cast_wrong_arm/main.omg	fail	outside	rejected	n-a	expression match on a scalar subject	1.123
+tests/omega/fail/arithmetic/exact_integer_cast_unproven/main.omg	fail	rejected	rejected	agree	expression cast into a non-exact arithmetic domain	1.108
+tests/omega/fail/arithmetic/exact_shift_left_value_unproven/main.omg	fail	outside	rejected	n-a	machine attached data	1.179
+tests/omega/fail/arithmetic/full_width_literal_requires_explicit_policy_conversion/main.omg	fail	accepted	rejected	disagree	expression cast into a non-exact arithmetic domain	1.059
+tests/omega/fail/arithmetic/immutable_unsigned_shift_underbound_rejected/main.omg	fail	accepted	rejected	disagree	contract term other than a formal or literal	1.134
+tests/omega/fail/arithmetic/implicit_store_widening_rejected/main.omg	fail	outside	rejected	n-a	machine attached data	8.586
+tests/omega/fail/arithmetic/integer_multiple_remainder_signed_minimum/main.omg	fail	outside	rejected	n-a	type data with custody	1.487
+tests/omega/fail/arithmetic/modular_power_state_seed_outside_bounds/main.omg	fail	outside	rejected	n-a	machine service reach	8.551
+tests/omega/fail/arithmetic/ordinary_clamp_inverted_bounds/main.omg	fail	outside	rejected	n-a	contract disjunction	8.355
+tests/omega/fail/arithmetic/policy_operator_unpublished_trap/main.omg	fail	outside	rejected	n-a	expression cast into a non-exact arithmetic domain	8.727
+tests/omega/fail/arithmetic/relative_midpoint_zero_divisor/main.omg	fail	rejected	rejected	agree		1.138
+tests/omega/fail/arithmetic/short_circuit_cast_wrong_path/main.omg	fail	rejected	rejected	agree		1.117
+tests/omega/fail/arithmetic/total_contract_signed_division_unproven/main.omg	fail	outside	rejected	n-a	contract term other than a formal or literal	1.167
+tests/omega/fail/arithmetic/unequal_observations_do_not_compose/main.omg	fail	rejected	rejected	agree		1.077
+tests/omega/fail/arithmetic/unsigned_quotient_operand_overflow_rejected/main.omg	fail	rejected	rejected	agree		1.127
+tests/omega/fail/arithmetic/zero_dividend_remainder_requires_nonzero/main.omg	fail	rejected	rejected	agree		1.051
+tests/omega/fail/asm/arm_subs_invented_clobber/main.omg	fail	error	stopped	n-a		0.544
+tests/omega/fail/asm/atomic_completion_wrong_invocation/main.omg	fail	outside	rejected	n-a	no program entry	1.119
+tests/omega/fail/asm/atomic_release_disposition_reused_event/main.omg	fail	outside	rejected	n-a	no program entry	1.117
+tests/omega/fail/asm/checked_asm_compare_arm_link_register_view/main.omg	fail	error	stopped	n-a		0.572
+tests/omega/fail/asm/checked_asm_compare_wrong_flag_snapshot/main.omg	fail	outside	rejected	n-a	machine assembly target	2.135
+tests/omega/fail/asm/checked_asm_nominal_unproved_construction/main.omg	fail	outside	rejected	n-a	contract term other than a formal or literal	1.537
+tests/omega/fail/asm/checked_fence_dmb_numeric_option/main.omg	fail	error	stopped	n-a		0.574
+tests/omega/fail/asm/finite_prefix_skipped_fact/main.omg	fail	accepted	rejected	disagree	type addr	1.118
+tests/omega/fail/asm/instruction_disposition_saved_subject_reused/main.omg	fail	accepted	rejected	disagree	machine service reach	1.209
+tests/omega/fail/asm/instruction_effect_skipped_write/main.omg	fail	accepted	rejected	disagree	machine assembly target	1.165
+tests/omega/fail/asm/proposition_missing_premise/main.omg	fail	outside	rejected	n-a	no program entry	1.107
+tests/omega/fail/asm/scratch_catalog_subtract_meaning/main.omg	fail	error	stopped	n-a		0.637
+tests/omega/fail/asm/scratch_destination_shared_borrow/main.omg	fail	error	stopped	n-a		1.145
+tests/omega/fail/asm/scratch_separate_body_flag/main.omg	fail	error	stopped	n-a		1.156
+tests/omega/fail/asm/state_fact_skipped_index_arrival/main.omg	fail	outside	rejected	n-a	no program entry	1.110
+tests/omega/fail/atomics/atomic_boolean_fetch/main.omg	fail	outside	rejected	n-a	type reference	1.049
+tests/omega/fail/atomics/atomic_compare_exchange_failure_stronger_rejected/main.omg	fail	error	stopped	n-a		0.546
+tests/omega/fail/atomics/case_payload_non_event_write/main.omg	fail	outside	rejected	n-a	type reference	1.055
+tests/omega/fail/atomics/placed_atomic_load_denied/main.omg	fail	outside	rejected	n-a	machine attached data	3.025
+tests/omega/fail/borrow/aggregate_field_loan_requires_handback/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	1.109
+tests/omega/fail/borrow/captured_window_write_through_keeps_loan/main.omg	fail	outside	rejected	n-a	type data with custody	2.020
+tests/omega/fail/borrow/named_operator_effectful_argument_retires_bound/main.omg	fail	outside	rejected	n-a	no program entry	1.116
+tests/omega/fail/borrow/qualified_write_only_record_observation/main.omg	fail	outside	rejected	n-a	no program entry	1.090
+tests/omega/fail/borrow/returned_write_destination_argument_read/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	1.086
+tests/omega/fail/borrow/scalar_reference_rebinding_does_not_prove_original_handback/main.omg	fail	outside	rejected	n-a	no program entry	1.122
+tests/omega/fail/borrow/signed_window_missing_lower_bound/main.omg	fail	outside	rejected	n-a	no program entry	1.145
+tests/omega/fail/borrow/stored_write_only_observation/main.omg	fail	outside	rejected	n-a	no program entry	1.103
+tests/omega/fail/borrow/write_only_byte_field_missing_membership/main.omg	fail	outside	rejected	n-a	no program entry	1.124
+tests/omega/fail/borrow/write_only_exclusive_replacement_incoming_reuse/main.omg	fail	outside	rejected	n-a	no program entry	1.100
+tests/omega/fail/borrow/write_only_metadata_operand_observation/main.omg	fail	accepted	rejected	disagree	type reference	1.087
+tests/omega/fail/borrow/write_only_state_readable_widening/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	1.149
+tests/omega/fail/borrows/aliased_descriptor_slot_suspended_reborrow/main.omg	fail	outside	rejected	n-a	no program entry	1.164
+tests/omega/fail/borrows/assignment_rhs_carrier_preserves_final_backing/main.omg	fail	outside	rejected	n-a	no program entry	1.142
+tests/omega/fail/borrows/borrow_mut_literal/main.omg	fail	accepted	rejected	disagree	parameter mutable parameter	1.109
+tests/omega/fail/borrows/boundary_primitive_loan_mutable_from_shared/main.omg	fail	outside	rejected	n-a	machine service reach	1.463
+tests/omega/fail/borrows/callable_shared_candidate_cannot_supply_mutable_result/main.omg	fail	outside	rejected	n-a	type generic data	2.024
+tests/omega/fail/borrows/case_reference_from_immutable_bytes/main.omg	fail	outside	rejected	n-a	no program entry	1.113
+tests/omega/fail/borrows/completed_selector_boolean_result_wrong_value/main.omg	fail	accepted	rejected	disagree	parameter mutable parameter	1.159
+tests/omega/fail/borrows/computed_view_store_retains_local_array_backing/main.omg	fail	outside	rejected	n-a	machine generic parameters	2.067
+tests/omega/fail/borrows/constructed_view_argument_retains_completed_child_backing/main.omg	fail	outside	rejected	n-a	machine generic parameters	2.364
+tests/omega/fail/borrows/copied_descriptor_operand_retains_consumed_backing/main.omg	fail	outside	rejected	n-a	machine generic parameters	2.115
+tests/omega/fail/borrows/direct_mutable_reference_from_immutable_bytes/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	1.107
+tests/omega/fail/borrows/dropped_reference_qualification_carrier_write/main.omg	fail	accepted	rejected	disagree	type constrained	1.138
+tests/omega/fail/borrows/dyn_image_incoming_backing_write/main.omg	fail	outside	rejected	n-a	no program entry	1.146
+tests/omega/fail/borrows/dynamic_store_local_backing_escape/main.omg	fail	outside	rejected	n-a	no program entry	1.116
+tests/omega/fail/borrows/dynamic_window_result_keeps_backing_loan/main.omg	fail	outside	rejected	n-a	no program entry	1.145
+tests/omega/fail/borrows/exclusive_reference_array_copy/main.omg	fail	outside	rejected	n-a	no program entry	1.084
+tests/omega/fail/borrows/fixed_array_stored_view_local_escape/main.omg	fail	outside	rejected	n-a	no program entry	1.123
+tests/omega/fail/borrows/fresh_selector_borrow_has_no_parent_capture/main.omg	fail	outside	rejected	n-a	no program entry	1.113
+tests/omega/fail/borrows/imported_range_retains_backing_loan/main.omg	fail	outside	rejected	n-a	no program entry	1.189
+tests/omega/fail/borrows/indexed_carrier_neighbor_stays_borrowed/main.omg	fail	outside	rejected	n-a	no program entry	1.132
+tests/omega/fail/borrows/inline_carried_reference_holds_backing/main.omg	fail	outside	rejected	n-a	machine generic parameters	1.716
+tests/omega/fail/borrows/local_record_loan_outlives_local/main.omg	fail	outside	rejected	n-a	no program entry	1.117
+tests/omega/fail/borrows/loop_descriptor_reformation_with_live_alias/main.omg	fail	outside	rejected	n-a	no program entry	1.124
+tests/omega/fail/borrows/materialized_reference_does_not_discharge_linear_owner/main.omg	fail	outside	rejected	n-a	type reference	8.787
+tests/omega/fail/borrows/mutable_reference_match_shared_arm_requires_exclusive_access/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	1.074
+tests/omega/fail/borrows/nested_array_reference_call_stale_index/main.omg	fail	outside	rejected	n-a	no program entry	1.112
+tests/omega/fail/borrows/nested_machine_carried_recurrent_selector_false_guarantee_rejected/main.omg	fail	outside	rejected	n-a	machine generic parameters	9.010
+tests/omega/fail/borrows/nested_owned_call_backing_keeps_input_loan/main.omg	fail	outside	rejected	n-a	no program entry	1.138
+tests/omega/fail/borrows/opaque_incoming_nested_projected_array_result_empty_rejected/main.omg	fail	outside	rejected	n-a	type reference	2.035
+tests/omega/fail/borrows/opaque_static_stored_writeonly_input/main.omg	fail	outside	rejected	n-a	machine supply mode other than a checked body	1.136
+tests/omega/fail/borrows/owned_carrier_result_retains_whole_operand/main.omg	fail	outside	rejected	n-a	no program entry	1.156
+tests/omega/fail/borrows/placed_helper_exclusive_alias_rejected/main.omg	fail	outside	rejected	n-a	machine attached data	2.886
+tests/omega/fail/borrows/projected_descriptor_retains_backing_loan/main.omg	fail	outside	rejected	n-a	no program entry	1.150
+tests/omega/fail/borrows/qualified_state_loan_invalid_membership/main.omg	fail	outside	rejected	n-a	type constrained	1.145
+tests/omega/fail/borrows/rebound_parameter_returns_local_view/main.omg	fail	outside	rejected	n-a	no program entry	1.132
+tests/omega/fail/borrows/reference_aggregate_replacement_new_loan/main.omg	fail	outside	rejected	n-a	no program entry	1.138
+tests/omega/fail/borrows/reference_carrier_store_while_shared/main.omg	fail	outside	rejected	n-a	no program entry	1.147
+tests/omega/fail/borrows/region_store_live_sibling_reference/main.omg	fail	outside	rejected	n-a	no program entry	1.169
+tests/omega/fail/borrows/returned_image_borrowed_alternative/main.omg	fail	outside	rejected	n-a	no program entry	1.133
+tests/omega/fail/borrows/returned_reference_invalidated_membership/main.omg	fail	outside	rejected	n-a	no program entry	1.185
+tests/omega/fail/borrows/returned_shared_reference_case_write/main.omg	fail	outside	rejected	n-a	type reference	1.459
+tests/omega/fail/borrows/routed_field_handback_not_old_value/main.omg	fail	accepted	rejected	disagree	type constrained	1.139
+tests/omega/fail/borrows/scalar_call_stored_carrier_holds_backing/main.omg	fail	outside	rejected	n-a	no program entry	1.157
+tests/omega/fail/borrows/selected_reference_field_wrong_arm_carrier/main.omg	fail	outside	rejected	n-a	machine generic parameters	1.168
+tests/omega/fail/borrows/selected_stored_carrier_child_holds_parent/main.omg	fail	outside	rejected	n-a	no program entry	1.170
+tests/omega/fail/borrows/shared_reference_carrier_writable_call/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	1.483
+tests/omega/fail/borrows/state_transfer_reference_leaf_duplicate/main.omg	fail	outside	rejected	n-a	no program entry	1.331
+tests/omega/fail/borrows/static_subject_delayed_loan/main.omg	fail	outside	rejected	n-a	no program entry	1.225
+tests/omega/fail/borrows/stored_reference_child_constructor_live_source_write/main.omg	fail	outside	rejected	n-a	machine service reach	9.181
+tests/omega/fail/borrows/stored_returned_reference_live_source_write/main.omg	fail	outside	rejected	n-a	type data with custody	2.632
+tests/omega/fail/borrows/stored_writeonly_carrier_read/main.omg	fail	outside	rejected	n-a	no program entry	1.076
+tests/omega/fail/borrows/suspension_projected_call_view_shared_cohort_early_write_rejected/main.omg	fail	outside	rejected	n-a	machine service reach	2.005
+tests/omega/fail/borrows/suspension_saved_reference_view_shared_cohort_early_write_rejected/main.omg	fail	outside	rejected	n-a	machine service reach	2.012
+tests/omega/fail/borrows/template_prefix_keeps_owned_borrow_live/main.omg	fail	outside	rejected	n-a	no program entry	1.152
+tests/omega/fail/borrows/terminal_static_callback_requires_public_field_guarantee/main.omg	fail	outside	rejected	n-a	machine generic parameters	2.150
+tests/omega/fail/borrows/whole_mut_receiver_read_under_live_local_loan/main.omg	fail	outside	rejected	n-a	no program entry	1.147
+tests/omega/fail/boundary/requirement_case_precondition_unproved/main.omg	fail	outside	rejected	n-a	declaration Build selection that is not a machine or a data type	2.049
+tests/omega/fail/build/activation_owned_field_refused/main.omg	fail	error	stopped	n-a		0.563
+tests/omega/fail/build/boundary_repeated_record_shape_bound/main.omg	fail	outside	rejected	n-a	type fixed array	9.676
+tests/omega/fail/build/calling_policy_authored_rejection/main.omg	fail	accepted	rejected	disagree	type fixed array	9.485
+tests/omega/fail/build/component_assumption_other_builder/main.omg	fail	error	stopped	n-a		0.581
+tests/omega/fail/build/component_scalar_shared_provider_mutation/producer/main.omg	fail	outside	rejected	n-a	declaration Build selection that is not a machine or a data type	1.644
+tests/omega/fail/build/duplicate_program_entry_binding/main.omg	fail	error	stopped	n-a		0.922
+tests/omega/fail/build/explicit_provider_scalar_budget/backing/main.omg	fail	accepted	rejected	disagree	call compiler operation call	1.916
+tests/omega/fail/build/generated_declaration_continuation_domain/main.omg	fail	outside	rejected	n-a	contract contracts on a state	2.986
+tests/omega/fail/build/helper_contract_context/main.omg	fail	error	stopped	n-a		0.562
+tests/omega/fail/build/installed_entry_ram_wrong_occurrence/main.omg	fail	outside	accepted	n-a	parameter mutable parameter	6.050
+tests/omega/fail/build/native_table_non_address_field/main.omg	fail	outside	rejected	n-a	machine service reach	2.386
+tests/omega/fail/build/opaque_representation_double_selection/main.omg	fail	error	stopped	n-a		0.904
+tests/omega/fail/build/private_extent_unproved_call/main.omg	fail	error	stopped	n-a		0.588
+tests/omega/fail/build/product_entry_query_discarded_unknown_target/main.omg	fail	error	stopped	n-a		0.658
+tests/omega/fail/build/product_provider_requires_satisfier/main.omg	fail	error	stopped	n-a		0.674
+tests/omega/fail/build/provider_applied_static_capture_unused_invalid/main.omg	fail	error	stopped	n-a		1.079
+tests/omega/fail/build/provider_package_default_missing_rejected/main.omg	fail	outside	accepted	n-a	machine service reach	3.524
+tests/omega/fail/build/provider_package_generated_owner_contract_rejected/reading_provider/reading_implementations/main.omg	fail	accepted	accepted	agree		1.925
+tests/omega/fail/build/provider_unused_const_divisor_rejected/main.omg	fail	error	stopped	n-a		0.961
+tests/omega/fail/build/retired_assumed_binding_receiver/main.omg	fail	error	stopped	n-a		0.537
+tests/omega/fail/build/root_binding_fabricated_receiver/main.omg	fail	error	stopped	n-a		0.534
+tests/omega/fail/build/segment_selector_shared_gdt/main.omg	fail	outside	rejected	n-a	declaration Build selection that is not a machine or a data type	9.294
+tests/omega/fail/build/staging_path_escape_refused/main.omg	fail	error	stopped	n-a		0.577
+tests/omega/fail/build/task_register_shared_gdt/main.omg	fail	outside	rejected	n-a	declaration Build selection that is not a machine or a data type	9.221
+tests/omega/fail/build/uefi_context_precondition_unestablished/main.omg	fail	outside	rejected	n-a	contract contracts on a state	9.433
+tests/omega/fail/build/uefi_storage_entry_counterfeit/main.omg	fail	outside	rejected	n-a	machine service reach	9.660
+tests/omega/fail/build/unrequested_target_entry_returns_value/main.omg	fail	accepted	rejected	disagree		2.449
+tests/omega/fail/calls/ambiguous_returned_loan_drops_count/main.omg	fail	outside	rejected	n-a	machine attached data	1.129
+tests/omega/fail/calls/byte_literal_nested_invalid_encoding/main.omg	fail	outside	rejected	n-a	no program entry	1.178
+tests/omega/fail/calls/closed_constructor_requires_alias_write_rejected/main.omg	fail	outside	rejected	n-a	machine service reach	9.363
+tests/omega/fail/calls/closed_constructor_unused_mutual_divergence_unknown/main.omg	fail	outside	rejected	n-a	machine service reach	8.391
+tests/omega/fail/calls/constructor_child_effectful_calls_not_equal/main.omg	fail	accepted	rejected	disagree	machine attached data	1.127
+tests/omega/fail/calls/copied_argument_ensures_cannot_restore_mutated_source/main.omg	fail	accepted	rejected	disagree	machine attached data	1.126
+tests/omega/fail/calls/effectful_result_outside_captured_requirement/main.omg	fail	accepted	rejected	disagree	parameter mutable parameter	1.129
+tests/omega/fail/calls/foreign_scalar_indirect_result_parameter_overlap_rejected/main.omg	fail	outside	accepted	n-a	type fixed array	9.680
+tests/omega/fail/calls/immutable_arg_for_mut_param_rejected/main.omg	fail	outside	rejected	n-a	machine attached data	8.876
+tests/omega/fail/calls/native_code_layout_family_head_rejected/main.omg	fail	outside	rejected	n-a	machine target selection	1.577
+tests/omega/fail/calls/native_code_layout_wrong_lifetime_arity_rejected/main.omg	fail	error	stopped	n-a		1.110
+tests/omega/fail/calls/nested_static_implementation_wrong_carrier/main.omg	fail	outside	rejected	n-a	type reference	1.604
+tests/omega/fail/calls/numeric_operand_call_requires/main.omg	fail	accepted	rejected	disagree	contract disjunction	8.352
+tests/omega/fail/calls/outcome_specific_mixed_mutated/main.omg	fail	accepted	rejected	disagree	contract result binding	1.194
+tests/omega/fail/calls/projected_call_domain_unproved/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	1.997
+tests/omega/fail/calls/recursive_unit_zero_requires_rejected/main.omg	fail	outside	rejected	n-a	machine service reach	8.879
+tests/omega/fail/calls/retired_core_binding_local/main.omg	fail	outside	rejected	n-a	type generic application	1.050
+tests/omega/fail/calls/runtime_recursive_unit_non_tail_rejected/main.omg	fail	outside	rejected	n-a	machine service reach	9.197
+tests/omega/fail/calls/selector_field_predicate_upper_bound/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	1.129
+tests/omega/fail/calls/static_machine_required_input_overwritten_local/main.omg	fail	outside	rejected	n-a	machine generic parameters	2.044
+tests/omega/fail/calls/subslice_argument_unrelated_fact_missing/main.omg	fail	accepted	rejected	disagree	machine attached data	1.221
+tests/omega/fail/calls/terminal_state_jump_block_acknowledgement/main.omg	fail	accepted	rejected	disagree	call suspend or block acknowledgement	1.135
+tests/omega/fail/capabilities/cyclic_synchronous_invocation/main.omg	fail	outside	accepted	n-a	no program entry	1.240
+tests/omega/fail/capabilities/selected_synchronous_cycle/main.omg	fail	outside	rejected	n-a	machine service reach	2.576
+tests/omega/fail/cases/constructor_subject_range_narrowing_unproved/main.omg	fail	outside	rejected	n-a	type data with custody	1.044
+tests/omega/fail/collections/anonymous_fractional_call_index/main.omg	fail	outside	rejected	n-a	type fixed array	1.053
+tests/omega/fail/collections/computed_nested_borrow_selected_extent/main.omg	fail	outside	rejected	n-a	no program entry	1.118
+tests/omega/fail/collections/contract_length_replaced_count/main.omg	fail	outside	rejected	n-a	no program entry	1.109
+tests/omega/fail/collections/element_view_descendant_uses_selected_extent/main.omg	fail	outside	rejected	n-a	no program entry	1.127
+tests/omega/fail/collections/literal_element_read_empty_view/main.omg	fail	outside	rejected	n-a	no program entry	1.114
+tests/omega/fail/collections/runtime_three_indexed_float_read_missing_bound/main.omg	fail	outside	rejected	n-a	no program entry	1.123
+tests/omega/fail/collections/wrapping_loop_increment_bound/main.omg	fail	outside	rejected	n-a	no program entry	1.130
+tests/omega/fail/comptime/array_expression_u32_intermediate_overflow/main.omg	fail	error	stopped	n-a		0.764
+tests/omega/fail/comptime/fuel_exhausted_const_array_length/main.omg	fail	error	stopped	n-a		9.075
+tests/omega/fail/concurrency/suspend_explicit_parameter_field_rejected/main.omg	fail	outside	rejected	n-a	no program entry	1.106
+tests/omega/fail/constants/direct_named_implementation_initializer_requires/main.omg	fail	error	stopped	n-a		0.821
+tests/omega/fail/constants/target_layout_derived_crashing_helper_reject/main.omg	fail	outside	rejected	n-a	declaration Build selection that is not a machine or a data type	2.967
+tests/omega/fail/constants/target_layout_derived_qualified_reject/main.omg	fail	outside	rejected	n-a	declaration Build selection that is not a machine or a data type	2.784
+tests/omega/fail/constants/unused_scalar_constant_range/main.omg	fail	error	stopped	n-a		0.635
+tests/omega/fail/contracts/adapter_input_membership_is_not_result/main.omg	fail	outside	rejected	n-a	contract contracts on a state	2.000
+tests/omega/fail/contracts/borrowed_descriptor_guarded_end_exit/main.omg	fail	outside	rejected	n-a	expression projected name path	2.080
+tests/omega/fail/contracts/case_requirement_replaced_through_parameter/main.omg	fail	outside	rejected	n-a	type reference	1.120
+tests/omega/fail/contracts/copied_field_guarantee_after_overwrite/main.omg	fail	accepted	rejected	disagree	type float	1.137
+tests/omega/fail/contracts/cyclic_false_mixed_conjunction/main.omg	fail	outside	rejected	n-a	type data with custody	1.135
+tests/omega/fail/contracts/ensures_named_parameter_arithmetic_wrong/main.omg	fail	outside	rejected	n-a	no program entry	1.144
+tests/omega/fail/contracts/float_indexed_crash_wrong_element/main.omg	fail	outside	rejected	n-a	no program entry	1.117
+tests/omega/fail/contracts/guard_call_cannot_use_selected_result/main.omg	fail	outside	rejected	n-a	contract clause that is not a comparison or conjunction	1.138
+tests/omega/fail/contracts/indexed_crash_erased_fact/main.omg	fail	outside	rejected	n-a	type reference	2.017
+tests/omega/fail/contracts/indexed_element_requirement_wrong_selector/main.omg	fail	outside	rejected	n-a	type reference	1.157
+tests/omega/fail/contracts/machine_requires_later_state_parameter_rejected/main.omg	fail	accepted	rejected	disagree	type reference	1.127
+tests/omega/fail/contracts/match_reference_public_input/main.omg	fail	outside	rejected	n-a	type reference	1.997
+tests/omega/fail/contracts/negated_edge_guard_unproven_bound/main.omg	fail	rejected	rejected	agree		1.157
+tests/omega/fail/contracts/normal_return_written_premise/main.omg	fail	accepted	rejected	disagree	parameter mutable parameter	1.136
+tests/omega/fail/contracts/private_arrival_open_callable_case/main.omg	fail	outside	rejected	n-a	no program entry	1.174
+tests/omega/fail/contracts/proof_fact_indexed_domain_application_unevidenced/main.omg	fail	outside	rejected	n-a	no program entry	1.256
+tests/omega/fail/contracts/returned_case_geometry_domain_exit/main.omg	fail	outside	rejected	n-a	no program entry	1.465
+tests/omega/fail/contracts/ruled_out_branch_requires_resolved_names/main.omg	fail	outside	rejected	n-a	spelling name without a symbol	1.508
+tests/omega/fail/contracts/runtime_requirement_after_statement_write/main.omg	fail	accepted	rejected	disagree	parameter mutable parameter	1.167
+tests/omega/fail/contracts/scalar_copy_guard_shadowed_const_expression/main.omg	fail	outside	rejected	n-a	machine generic parameters	1.170
+tests/omega/fail/contracts/shared_field_recursive_actual/main.omg	fail	accepted	rejected	disagree	type reference	1.132
+tests/omega/fail/contracts/static_type_requires_later_fact_rejected/main.omg	fail	outside	rejected	n-a	machine generic parameters	1.559
+tests/omega/fail/contracts/template_call_retires_known_borrowed_field/main.omg	fail	accepted	rejected	disagree	machine generic parameters	1.111
+tests/omega/fail/control_flow/anonymous_transition_undefined_divisor/main.omg	fail	error	stopped	n-a		1.226
+tests/omega/fail/control_flow/dispatch_boundary_adjacent_crash/main.omg	fail	error	stopped	n-a		0.756
+tests/omega/fail/control_flow/dispatch_boundary_separated_crash/main.omg	fail	error	stopped	n-a		0.758
+tests/omega/fail/control_flow/projected_float_payload_without_case/main.omg	fail	outside	rejected	n-a	machine service reach	9.028
+tests/omega/fail/control_flow/single_case_guarded_arm_nonexhaustive/main.omg	fail	error	stopped	n-a		0.802
+tests/omega/fail/control_flow/transition_fall_through_bool/main.omg	fail	error	stopped	n-a		7.898
+tests/omega/fail/core/address_offset_anonymous_out_of_range/main.omg	fail	outside	rejected	n-a	type addr	1.082
+tests/omega/fail/core/address_partition_distinct_predecessors/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	1.214
+tests/omega/fail/core/constant_false_crash_ceiling_forbids_body_crash/main.omg	fail	outside	rejected	n-a	no program entry	1.170
+tests/omega/fail/core/content_conservation_incompatible_units/main.omg	fail	error	stopped	n-a		0.971
+tests/omega/fail/core/content_conservation_local_projection_lookalike/main.omg	fail	outside	rejected	n-a	no program entry	1.111
+tests/omega/fail/core/content_counted_partition_unconserved/main.omg	fail	accepted	rejected	disagree	parameter mutable parameter	1.173
+tests/omega/fail/core/content_membership_return_invented_vacancy/main.omg	fail	accepted	rejected	disagree	contract contracts on a state	1.199
+tests/omega/fail/core/content_partition_provider_late_entry_read/main.omg	fail	accepted	rejected	disagree	parameter mutable parameter	1.160
+tests/omega/fail/core/content_projection_partial_integer_cancellation/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	1.112
+tests/omega/fail/core/content_reunion_exchanged_empty/main.omg	fail	accepted	rejected	disagree	machine type equations, owned data or conformances	1.195
+tests/omega/fail/core/content_transform_nested_generic_loss/main.omg	fail	outside	rejected	n-a	no program entry	1.133
+tests/omega/fail/core/generic_content_runtime_projection/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	1.550
+tests/omega/fail/core/guarded_trap_ceiling_wider_than_primitive_rejected/main.omg	fail	outside	rejected	n-a	machine service reach	9.155
+tests/omega/fail/core/independent_content_factory_unissued/main.omg	fail	outside	rejected	n-a	machine service reach	2.131
+tests/omega/fail/core/inherited_content_wrong_formal/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	2.083
+tests/omega/fail/core/interval_content_partition_overlap/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	1.178
+tests/omega/fail/core/numeric_exact_conversion_unproven_argument_rejected/main.omg	fail	outside	rejected	n-a	machine service reach	9.280
+tests/omega/fail/core/owned_content_partition_raw_child_authority/main.omg	fail	outside	rejected	n-a	no program entry	1.207
+tests/omega/fail/core/qualified_integer_cast_specification_requires_representability/main.omg	fail	outside	rejected	n-a	contract term other than a formal or literal	1.106
+tests/omega/fail/core/scoped_integer_call_guarantees_cannot_form_cycle/main.omg	fail	outside	accepted	n-a	no program entry	1.241
+tests/omega/fail/core/vacant_extent_partition_base/main.omg	fail	accepted	rejected	disagree	contract contracts on a state	1.284
+tests/omega/fail/data/closed_literal_selected_case_false/main.omg	fail	outside	rejected	n-a	type mixed data	1.074
+tests/omega/fail/data/match_predicate_domain_needs_default/main.omg	fail	error	stopped	n-a		0.767
+tests/omega/fail/data/prefix_case_partial_identities/main.omg	fail	error	stopped	n-a		0.555
+tests/omega/fail/data/qualified_record_pattern_missing_field/main.omg	fail	outside	rejected	n-a	no program entry	1.073
+tests/omega/fail/data/unbounded_integer_field/main.omg	fail	outside	rejected	n-a	no program entry	1.067
+tests/omega/fail/dependent/case_where_generic_type_bound_wrong_arm/main.omg	fail	error	stopped	n-a		0.762
+tests/omega/fail/dependent/closed_case_projection_checks_sibling_arithmetic/main.omg	fail	accepted	rejected	disagree	machine attached data	1.145
+tests/omega/fail/dependent/computed_slice_index_changed_parameter/main.omg	fail	outside	rejected	n-a	no program entry	1.129
+tests/omega/fail/dependent/data_requires_return_beside_dead_crash/main.omg	fail	accepted	rejected	disagree	parameter mutable parameter	1.108
+tests/omega/fail/dependent/data_where_param_write_unproven/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	8.799
+tests/omega/fail/dependent/dependent_range_on_field_rejected/main.omg	fail	outside	rejected	n-a	machine attached data	8.957
+tests/omega/fail/dependent/partial_view_does_not_inherit_collection_fact/main.omg	fail	outside	rejected	n-a	type reference	1.159
+tests/omega/fail/dependent/stored_observation_overlapping_alias_write/main.omg	fail	accepted	rejected	disagree	parameter mutable parameter	1.165
+tests/omega/fail/dependent/zero_storage_prefix_does_not_establish/main.omg	fail	outside	rejected	n-a	no program entry	1.145
+tests/omega/fail/domains/array_constructor_result_not_disjunction_branch/main.omg	fail	outside	rejected	n-a	no program entry	1.138
+tests/omega/fail/domains/bitwise_membership_requires_issuance/main.omg	fail	outside	rejected	n-a	contract contracts on a state	1.206
+tests/omega/fail/domains/byte_predicate_operand_callee_crash/main.omg	fail	outside	rejected	n-a	no program entry	1.109
+tests/omega/fail/domains/carried_nested_payload_qualification_missing_arrival/main.omg	fail	accepted	rejected	disagree	contract domain membership	1.163
+tests/omega/fail/domains/carrier_exact_specialized_generic/main.omg	fail	error	stopped	n-a		1.072
+tests/omega/fail/domains/case_payload_widened_call_result_rejected/main.omg	fail	accepted	rejected	disagree	type data with custody	1.197
+tests/omega/fail/domains/computed_scalar_alias_requires_all_predicates/main.omg	fail	outside	rejected	n-a	no program entry	1.110
+tests/omega/fail/domains/dependent_coordinate_sum_wrong_sign/main.omg	fail	outside	rejected	n-a	machine generic parameters	1.164
+tests/omega/fail/domains/domain_operator_competing_spelling_meanings/main.omg	fail	outside	rejected	n-a	no program entry	1.118
+tests/omega/fail/domains/domain_pattern_match_bound_generic_unconstrained_rejected/main.omg	fail	error	stopped	n-a		0.989
+tests/omega/fail/domains/domain_pattern_match_bound_routed_boolean_unproven_rejected/main.omg	fail	outside	rejected	n-a	type constrained	1.959
+tests/omega/fail/domains/float_conversion_qualification_wrong_domain_rejected/main.omg	fail	accepted	rejected	disagree	type float	1.133
+tests/omega/fail/domains/generic_exact_issuer_unrelated_template/main.omg	fail	outside	rejected	n-a	no program entry	1.135
+tests/omega/fail/domains/indexed_domain_requires_invalidated_by_known_index_mutation/main.omg	fail	outside	rejected	n-a	machine attached data	1.118
+tests/omega/fail/domains/issued_owner_double_release/main.omg	fail	outside	rejected	n-a	no program entry	1.082
+tests/omega/fail/domains/issued_state_arrival_unissued/main.omg	fail	outside	rejected	n-a	type constrained	1.109
+tests/omega/fail/domains/logical_subject_not_machine_requires/main.omg	fail	error	stopped	n-a		0.545
+tests/omega/fail/domains/mutable_domain_parameter_outside_arrival/main.omg	fail	outside	rejected	n-a	contract contracts on a state	1.947
+tests/omega/fail/domains/offset_borrow_return_unestablished_field/main.omg	fail	outside	rejected	n-a	no program entry	1.107
+tests/omega/fail/domains/qualified_explicit_buffer_length_contract/main.omg	fail	outside	rejected	n-a	no program entry	1.098
+tests/omega/fail/domains/qualified_fixed_byte_array_immutable_parameter/main.omg	fail	outside	rejected	n-a	contract contracts on a state	1.047
+tests/omega/fail/domains/qualified_fixed_byte_array_short_assignment/main.omg	fail	error	stopped	n-a		0.791
+tests/omega/fail/domains/qualified_fixed_byte_array_write_only_read/main.omg	fail	outside	rejected	n-a	no program entry	1.088
+tests/omega/fail/domains/qualified_record_child_provenance/main.omg	fail	outside	rejected	n-a	no program entry	1.117
+tests/omega/fail/domains/qualified_record_stale_predicate/main.omg	fail	outside	rejected	n-a	no program entry	1.119
+tests/omega/fail/domains/qualified_selected_byte_write_split_utf8/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	2.242
+tests/omega/fail/domains/refinement_chain_routed_provenance_forge/main.omg	fail	outside	rejected	n-a	no program entry	1.127
+tests/omega/fail/domains/retired_unused_subject/main.omg	fail	error	stopped	n-a		0.548
+tests/omega/fail/domains/routed_qualification_cast_computed_operand/main.omg	fail	outside	rejected	n-a	no program entry	1.148
+tests/omega/fail/domains/routed_qualification_erased_case_payload/main.omg	fail	accepted	rejected	disagree	type constrained	1.125
+tests/omega/fail/domains/routed_qualification_reference_recast/main.omg	fail	accepted	rejected	disagree	type constrained	1.097
+tests/omega/fail/domains/scalar_domain_mixed_return_bad_predicate/main.omg	fail	outside	rejected	n-a	no program entry	1.138
+tests/omega/fail/domains/scalar_field_write_requires_issuer/main.omg	fail	outside	rejected	n-a	declaration Build selection that is not a machine or a data type	2.068
+tests/omega/fail/domains/structural_predicate_cast_after_field_write/main.omg	fail	outside	rejected	n-a	no program entry	1.115
+tests/omega/fail/domains/target_issuer_no_self_assumption/main.omg	fail	outside	rejected	n-a	contract contracts on a state	1.160
+tests/omega/fail/domains/translated_predicate_does_not_issue_provenance/main.omg	fail	outside	rejected	n-a	no program entry	1.113
+tests/omega/fail/domains/write_only_stored_reference_requires_qualification/main.omg	fail	outside	rejected	n-a	no program entry	1.145
+tests/omega/fail/drops/authored_cleanup_static_argument_rejected/main.omg	fail	accepted	rejected	disagree	machine generic parameters	1.100
+tests/omega/fail/drops/borrowed_replacement_old_hook_prerequisite/main.omg	fail	outside	rejected	n-a	no program entry	1.186
+tests/omega/fail/drops/cleanup_helper_guarantee_after_write/main.omg	fail	outside	rejected	n-a	no program entry	1.159
+tests/omega/fail/drops/copied_argument_cannot_delay_nominal_cleanup/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	2.080
+tests/omega/fail/drops/generic_cleanup_mutated_integer_prerequisite/main.omg	fail	outside	rejected	n-a	no program entry	1.200
+tests/omega/fail/drops/named_linear_container_duplicate_transfer/main.omg	fail	outside	rejected	n-a	no program entry	1.139
+tests/omega/fail/drops/owned_replacement_transferred_source_read/main.omg	fail	outside	rejected	n-a	no program entry	1.156
+tests/omega/fail/drops/qualified_scalar_control_consumed_owner_reused/main.omg	fail	outside	rejected	n-a	no program entry	1.126
+tests/omega/fail/drops/result_cleanup_parent_hook_write/main.omg	fail	outside	rejected	n-a	no program entry	1.163
+tests/omega/fail/drops/selected_partial_replacement_old_cleanup_prerequisite/main.omg	fail	outside	rejected	n-a	no program entry	1.217
+tests/omega/fail/drops/state_loan_invalidates_nominal_cleanup_prerequisite/main.omg	fail	outside	rejected	n-a	parameter mutable parameter	2.225
+tests/omega/fail/drops/temporary_cleanup_selected_operand/main.omg	fail	outside	rejected	n-a	no program entry	1.282
+tests/omega/fail/effects/create_dir_all_requires_metadata_query/main.omg	fail	outside	rejected	n-a	machine service reach	46.562
+tests/omega/fail/effects/macos_dispatch_cannot_hide_filesystem_write/main.omg	fail	outside	rejected	n-a	machine service reach	9.817
+tests/omega/fail/effects/portable_filesystem_write_needs_write_reach/main.omg	fail	outside	rejected	n-a	machine service reach	44.276
+tests/omega/fail/effects/top_level_callback_block_required/main.omg	fail	outside	rejected	n-a	machine attached data	1.121
