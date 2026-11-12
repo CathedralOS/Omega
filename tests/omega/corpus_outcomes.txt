@@ -293,6 +293,10 @@ fail/arithmetic/numeric_operand_abs_unrepresentable rejected 12572ms expected @1
 	machine `main` state `entry` value call to `abs_i32` violates required fact `value > -2147483648`: the instantiated fact is structurally false (`-2147483648 > -2147483648`)
 fail/arithmetic/ordinary_clamp_inverted_bounds rejected 77309ms expected @ab235e9fbe19
 	cannot prove requires contract: machine `inverted` state `entry` value call to `clamp_i32` violates required fact `lower <= upper`: the instantiated fact is structurally false (`8 <= 2`)
+fail/arithmetic/policy_operator_contract_trapping_term rejected 35199ms expected @0b4c3638114a
+	the trapping operator `+!` cannot be used in a contract: specification terms are total and cannot transfer runtime control. Use the `%` or `|` form, or the bare operator with its Exact formation proof
+fail/arithmetic/policy_operator_contract_wrapped_requirement_violated rejected 45280ms expected @0b4c3638114a
+	cannot prove requires contract: machine `subject` state `entry` value call to `small_sum` violates required fact `a as u32 + b as u32 as u32 < 10`: the instantiated fact is structurally false (`embed(embed(3) + embed(9)) < 10`)
 fail/arithmetic/policy_operator_operand_types_rejected rejected 77655ms expected @a8253f299f08
 	`+%` needs both operands in one fixed-width integer carrier, found `u32` and `u64`; convert one operand explicitly
 	`+%` is a fixed-width integer operation, but its left operand has type `f64`
@@ -28826,6 +28830,7 @@ run/arithmetic/fixed_integer_operand_after_pressure checked 169374ms check-targe
 run/arithmetic/fixed_integer_operand_join checked 123234ms check-target:macos_arm64 @c3cb68d51f3f
 run/arithmetic/float_structural_initializer_selection checked 141671ms check-target:macos_arm64 @c3cb68d51f3f
 run/arithmetic/pinned_dividend_across_console_calls checked 71356ms check-target:macos_arm64 @c3cb68d51f3f
+run/arithmetic/policy_operator_contracts checked 59503ms check-target:macos_arm64 @0b4c3638114a
 run/arithmetic/policy_operator_division_matches_policy_domains checked 89555ms check-target:macos_arm64 @473aad8691ce
 run/arithmetic/policy_operator_exact_result_fact checked 66071ms check-target:macos_arm64 @a54f74b63a36
 run/arithmetic/policy_operator_minimum_quotient_traps checked 75870ms check-target:macos_arm64 @47e9f59075e9

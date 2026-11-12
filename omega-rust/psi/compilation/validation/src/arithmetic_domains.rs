@@ -5610,7 +5610,7 @@ pub(crate) mod expression_analysis {
             // it the bare Exact meaning, so it rejects instead.
             if binary.policy != ArithmeticDomain::Exact {
                 diagnostics.push(Diagnostic::error(format!(
-                    "the policy operator `{}{}` in {} was not typed against its operand carrier; a suffixed operator is supported only in executable machine code",
+                    "the policy operator `{}{}` in {} was not typed against its operand carrier",
                     arithmetic_operator_spelling(binary.operator),
                     binary.policy.operator_suffix(),
                     walk.owner,

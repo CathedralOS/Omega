@@ -1,0 +1,2 @@
+the trapping operator `+!` cannot be used in a contract
+specification terms are total and cannot transfer runtime control
