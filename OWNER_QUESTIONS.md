@@ -161,64 +161,7 @@ Until answered `Build::validate` is not implemented and the release gate has
 no full-package check of `core` and `std`. Ordinary checks already treat only
 the root package as a subject.
 
-### Q3 - May a denotational call observe a record with shared reference fields through a shared reference?
-
-Decision name: `shared-observation-denotational-content`.
-
-**Customer.** `tests/omega/fail/layouts/fixed_layout_policy_borrowed_content`
-declares `data Payload [copy] { left: &u64; value: u64; right: u64; }` and
-lays it out with a `FixedLayout` policy. Its `validate` machine publishes
-`ensures policy(result, storage, expected)`, where `storage` is
-`&LayoutStorage<Payload, Policy>` and `policy` reads only `storage.value`.
-The fixture's header says *"A layout cannot make a borrowed field into a
-repeatable proof value"*. It pins "the application carries forbidden
-denotational content". The current checker accepts it (`rejected -> checked`
-at `c507708a7a`), and the ledger row is recorded `checked` here. The layout plays
-no part: the same program with `storage: &Payload` is also accepted.
-
-**Cause.** #2184 (`4a194ff149`, 2026-11-09) made shared reference arguments
-use a separate `SharedObservation` content rule in
-`omega-rust/psi/compilation/validation/src/proof_contracts_core.rs`. That
-rule follows a readable reference field inside the shared referent instead
-of refusing it: *"The enclosing shared loan permits reads through these
-fields; their actual observations still retain storage and backing
-identity."* Before #2184 the argument went through the value-observation
-rule, which refuses every reference field. That refusal is the diagnostic the
-fixture pins. Slices of reference-bearing elements still refuse under the new
-rule (`fail/facts/computed_subslice_extent_nested_reference_elements_rejected`).
-
-**Gap.** These contracts were checked and do not say whether such content is
-admissible:
-
-- [Contracts](wiki/spec/proofs/contracts.md): *"A call interpreted
-  denotationally needs a checked observation-free, reach-free, crash-free,
-  terminating invocation"*, and repeated pure comparisons share a denotation
-  only for *"exact unchanged arguments"*; *"observation-dependent inputs ...
-  invalidate that reasoning"*.
-- [Invocation admission](wiki/spec/language/evaluation.md#invocation-admission)
-  lists the admission axes. None of them mentions reference fields reached
-  through a shared argument.
-- [Ownership](wiki/spec/language/ownership.md): *"Shared reference and
-  borrowed-view fields may occur in `[copy]` data ... Copying the record
-  duplicates its shared loan carriers, not its referents"*. This rule is about
-  copying, not proof use.
-
-Neither text says whether reading through a shared loan into a record whose
-fields are themselves shared references gives an argument that is
-"unchanged" and free of observations for a specification call.
-
-**Question.**
-
-- **(a)** Are readable reference fields inside a shared referent admissible
-  denotational content, as the checker has held since #2184? Then the
-  fixture is a valid program and moves to `pass/` or is retired.
-- **(b)** Or does any reference field in a denotational argument carry
-  forbidden content? Then the shared-observation rule stops following
-  reference fields, and the customer #2184 served needs another form.
-
-Until answered the row stays as recorded and the checker is unchanged.
-
-### Q4 - Who supplies TaskRuntime and interrupt masking once authored compiler intrinsics are refused?
+### Q3 - Who supplies TaskRuntime and interrupt masking once authored compiler intrinsics are refused?
 
 Decision name: `sealed-runtime-providers`.
 
@@ -273,7 +216,7 @@ Until answered, `via ForeignBinding::CompilerIntrinsic` stays accepted at
 these sites, and BUILD-OWNED-NATIVE-BINDINGS keeps its `CompilerIntrinsic`
 retirement.
 
-### Q5 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
+### Q4 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
 
 Decision name: `operating-system-library-name`. Raised by Jarod for Zac.
 

@@ -5080,9 +5080,6 @@ impl<'program> CurrentScalarValues<'program> {
                     }
                     let alternatives =
                         values.capture_alternatives(program, machine, state, assignment.value);
-                    if stored_value.is_some() {
-                        values.retire_unpreserved(stored_at);
-                    }
                     let mut fields = values.captured_field_lengths(assignment.value, 0);
                     if let Some(value) = values.collection_length(assignment.value, 0)
                         && let Some(type_reference) = validation::expression_result_type_reference(
@@ -5099,6 +5096,19 @@ impl<'program> CurrentScalarValues<'program> {
                             type_reference,
                             value,
                         });
+                    }
+                    // Receive the completed scalar's promise before its destination
+                    // write retires observations, regardless of where it is stored.
+                    if let Some(result_value) = value.as_ref().or(stored_value.as_ref()) {
+                        values.assume_call_ensures(
+                            assignment.value,
+                            result_value,
+                            &actuals,
+                            ordinal,
+                        );
+                    }
+                    if stored_value.is_some() {
+                        values.retire_unpreserved(stored_at);
                     }
                     if target_remains_current
                         && let ExpressionNode::Name(name) =
@@ -5120,14 +5130,6 @@ impl<'program> CurrentScalarValues<'program> {
                             let primitive = integer_carrier(program, reference)?;
                             Some(observed_scalar(state, name.symbol, ordinal, primitive))
                         });
-                        if let Some(result_value) = &next_value {
-                            values.assume_call_ensures(
-                                assignment.value,
-                                result_value,
-                                &actuals,
-                                ordinal,
-                            );
-                        }
                         if let Some(binding) = values
                             .current
                             .iter_mut()

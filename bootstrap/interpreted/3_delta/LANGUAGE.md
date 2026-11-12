@@ -33,7 +33,7 @@ program      := data-declaration* function-declaration+
 data         := (data TYPE (CONSTRUCTOR TYPE*)+)
 function     := (def NAME ((NAME TYPE)*) TYPE expression)
 type         := Int | Bytes | TYPE
-expression   := INTEGER | NAME
+expression   := INTEGER | BYTE_STRING | NAME
               | (if expression expression expression)
               | (let NAME TYPE expression expression)
               | (+ expression expression) | (- expression expression)
@@ -49,6 +49,23 @@ expression   := INTEGER | NAME
               | (bytes_concat expression expression)
 pattern      := CONSTRUCTOR | (CONSTRUCTOR NAME*)
 ```
+
+A `BYTE_STRING` is an immutable `Bytes` value written between double quotes.
+Its unescaped contents are printable ASCII except double quote and backslash.
+The only escapes are `\n`, `\r`, `\t`, `\\`, and `\"`, producing LF, CR, HT,
+backslash, and double quote respectively. Empty literals are valid. Raw control
+bytes, unknown escapes, a trailing backslash, and a missing closing quote reject
+as malformed syntax at the opening quote. Source-envelope byte validation still
+precedes token validation, including bytes inside literals. A closed literal
+must be followed by whitespace, a parenthesis, a comment, or source end.
+Parentheses and semicolons inside quotes are ordinary bytes.
+
+Byte literals are expressions, never identifiers, type names, call heads, or
+match patterns. They have exactly the existing `Bytes` meaning and operations;
+there is no implicit conversion to `Int` or a nominal type. Other byte values
+remain constructible with `bytes_single`. This small facility serves readable
+source emission in the checked Epsilon-to-Delta compiler; it adds no runtime
+primitive or new admitted artifact.
 
 The final source item is a declaration, not an untyped trailing expression.
 Declarations are mutually visible, so forward and mutual recursion are legal.

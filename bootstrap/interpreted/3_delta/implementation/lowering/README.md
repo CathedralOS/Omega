@@ -134,7 +134,7 @@ occurrence classes summing to at most `S` retained nodes and `Ce <= A`
 constructor-field edges inside the `A` argument edges,
 
 ```text
-lowering site pairs
+nonliteral lowering site pairs
   <= 21*At + 11*K + 21*Ca + 14*Ce + 178*R + 17*L + 64*M + 44*U + 41*B
     + 10*F + 6*P + 8*A + 91
   <= 178*S + 22*S + 91
@@ -155,10 +155,12 @@ selector chains, projections and wrapper lets, parameters and the `$dp`
 definition — gives the deliberately loose bound
 
 ```text
-G <= 40*S + 15
+G_base <= 40*S + 15
 ```
 
-so the normalizer machine's `45*G + 7*F + 1` reduces to an admitted-source
+Byte-literal expansion adds the separately charged nodes below, giving
+`G <= 40*S + 15 + 5*Decoded + 2*Literals`. The normalizer machine's
+`45*G + 7*F + 1` therefore reduces to an admitted-source
 term. That reduction does not itself bound capture merges, which the
 normalization audit closes separately through its incidence charge.
 
@@ -173,11 +175,38 @@ owner handles body nesting without changing Delta lowering rules.
 Allocated plan and continuation pairs consume the evaluator's finite immutable
 arena; the [traversal-and-rebuild accounting](#traversal-and-rebuild-pairs)
 above charges each one to a retained-source occurrence and bounds the produced
-plan size `G`. Whole-producer arena containment is settled by the measured
-worst-shape study rather than by these envelopes, and generated-program
+plan size `G`. Whole-producer arena containment remains open; the measured
+worst-shape study covers its recorded shapes, not every literal-containing
+composition. Generated-program
 admission bounds — function census via the payload's eight-bytes-per-declaration
 charge, body list depth, and static environments — are discharged by the
 [normalization audit](../normalization/README.md#remaining-resources). A
 generated program's live runtime contexts and cumulative storage remain its
 own execution's resources, not compiler outcomes. Exact checking and execution
 receipts remain explicit regression obligations.
+
+### Byte-literal lowering
+
+A byte literal uses existing `Bytes` constructors rather than a new Gamma node
+kind or runtime representation. Lexical admission owns quotes/escapes and the
+complete token boundary; lowering reads only that retained span. Empty literals
+lower to `bytes_empty`. Nonempty literals decode to an ordered byte spine, then
+form a balanced tree of `bytes_single` leaves and `bytes_concat` nodes. Tree
+construction returns its unconsumed spine, so no subtree rescans earlier bytes.
+
+For a literal with `p > 0` decoded bytes, decoding/reversal uses `2*p + 1`
+source-level pairs. Leaves use at most 16 pairs, internal concatenations at
+most 13, and each tree result one custody pair. A conservative additional
+charge is `34*p + 12` pairs and `5*p + 2` Gamma plan nodes per literal, on top of
+the earlier source-occurrence envelope. Thus a literal's compressed syntax atom
+does not conceal its expansion from resource accounting. With total decoded
+bytes `Decoded` and literal count `Literals`, add `34*Decoded + 12*Literals` to the lowering envelope and
+`5*Decoded + 2*Literals` to its plan-node envelope; normalization/emission keep their existing
+per-plan-node charges. This does not close the previously open whole-compiler
+cumulative arena-containment obligation.
+
+All source input is limited to 4,194,304 bytes, and decoded bytes cannot exceed
+their authored span. Each non-tail tree child has at most `ceil(p/2)` bytes;
+the tree therefore adds at most 22 recursive levels. Decode and spine reversal
+are tail-recursive. The tree completes before normalization/capture sorting
+begins, so these recursive phases do not retain each other's contexts.

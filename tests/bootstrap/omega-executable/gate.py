@@ -125,8 +125,8 @@ def main():
     require_identity("Epsilon", epsilon, 617354,
                      "4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e")
     delta_compiler = (directory / "delta_compiler.gamma").read_bytes()
-    require_identity("Delta compiler", delta_compiler, 147840,
-                     "fbcb9e17b7ce0c75849136086bc5a4b6df4264054be72b5aae6d70325f9d0929")
+    require_identity("Delta compiler", delta_compiler, 151525,
+                     "de94946dd946c90c3311dba52aa4622a3c80a18866d5483531de1312cc62e0c6")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
     require_identity("D", compiler, 764081,
                      "2d7602e4e1e63822be65b950ccb4170c9dfddcc6de8344f9ab0729209133a681")

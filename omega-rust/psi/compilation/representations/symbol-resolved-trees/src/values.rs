@@ -418,6 +418,7 @@ pub mod expression {
                 SymbolCopy {
                     program: self,
                     substitutions,
+                    type_arguments: &[],
                     types: Vec::new(),
                     visited_payloads: Vec::new(),
                 }
@@ -432,16 +433,46 @@ pub mod expression {
                 SymbolCopy {
                     program: self,
                     substitutions,
+                    type_arguments: &[],
                     types: Vec::new(),
                     visited_payloads: Vec::new(),
                 }
                 .proof_fact(source)
+            }
+
+            /// Copy a selected declaration's type operands into an application.
+            /// Exact binder identities select replacements; retained source names
+            /// continue to identify the declarations which supplied the type.
+            pub fn copy_type_arguments(
+                &mut self,
+                source: HandleSpan<TypeReference>,
+                type_arguments: &[(SymbolHandle, TypeReference)],
+            ) -> HandleSpan<TypeReference> {
+                let substitutions = type_arguments
+                    .iter()
+                    .filter_map(|(formal, actual)| {
+                        if let TypeReference::Named { symbol, .. } = actual {
+                            Some((*formal, *symbol))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                SymbolCopy {
+                    program: self,
+                    substitutions: &substitutions,
+                    type_arguments,
+                    types: Vec::new(),
+                    visited_payloads: Vec::new(),
+                }
+                .type_span(source)
             }
         }
 
         struct SymbolCopy<'program, 'substitutions> {
             program: &'program mut SymbolResolvedTrees,
             substitutions: &'substitutions [(SymbolHandle, SymbolHandle)],
+            type_arguments: &'substitutions [(SymbolHandle, TypeReference)],
             types: Vec<(Handle<TypeReference>, Handle<TypeReference>)>,
             visited_payloads: Vec<ExpressionHandle>,
         }
@@ -789,6 +820,14 @@ pub mod expression {
             }
 
             fn type_payload(&mut self, mut reference: TypeReference) -> TypeReference {
+                if let TypeReference::Named { symbol, .. } = &reference
+                    && let Some((_, actual)) = self
+                        .type_arguments
+                        .iter()
+                        .find(|(formal, _)| formal == symbol)
+                {
+                    return actual.clone();
+                }
                 match &mut reference {
                     TypeReference::Reference(borrow) => {
                         borrow.referee = self.type_reference(borrow.referee)
@@ -2318,7 +2357,7 @@ pub mod expression {
         }
 
         const EXPECTED_COPY_ROWS: &str = r#"
-expression #28 = Name(TableNamePath { members: #9+2, member_symbols: #5+2, head_symbol: #3, symbol: #3 }) at 0:0..0 exposure Some(PrivateImplementation) partition None occurrences #5+1
+expression #28 = Name(TableNamePath { members: #9+2, member_symbols: #5+2, head_symbol: #3, symbol: #3, reserved_result_of: #0@0 }) at 0:0..0 exposure Some(PrivateImplementation) partition None occurrences #5+1
 expression #29 = Integer(IntegerLiteral { text: "1", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #30 = Float(FloatLiteral { text: "2.5", landing: None, presented: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #31 = ArrayLiteral(#7+2) at 0:0..0 exposure None partition None occurrences #0@0+0
@@ -2332,14 +2371,14 @@ expression #38 = String([72, 97, 108, 108]) at 0:0..0 exposure None partition No
 expression #39 = Integer(IntegerLiteral { text: "11", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #40 = Integer(IntegerLiteral { text: "13", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #41 = Binary(TableBinaryExpression { left: #39, operator: Add, right: #40, policy: Exact }) at 0:0..0 exposure None partition None occurrences #0@0+0
-expression #42 = Name(TableNamePath { members: #13+1, member_symbols: #7+1, head_symbol: #3, symbol: #3 }) at 0:0..0 exposure None partition None occurrences #0@0+0
+expression #42 = Name(TableNamePath { members: #13+1, member_symbols: #7+1, head_symbol: #3, symbol: #3, reserved_result_of: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #43 = Integer(IntegerLiteral { text: "3", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #44 = Indexed(TableIndexedExpression { collection: #42, index: #43 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #45 = StructLiteral(TableStructLiteral { application_type: #0@0, type_name: "Room", type_symbol: #11, case_name: Some("Open"), case_symbol: Some(#12), fields: #4+3 }) at 7:60..65 exposure None partition None occurrences #0@0+0
-expression #46 = Name(TableNamePath { members: #14+1, member_symbols: #0@0+0, head_symbol: #0@0, symbol: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
+expression #46 = Name(TableNamePath { members: #14+1, member_symbols: #0@0+0, head_symbol: #0@0, symbol: #0@0, reserved_result_of: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #47 = Member(TableMemberExpression { receiver: #46, member_symbol: #4, member: "count", case_variant: Some("Full") }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #48 = Borrow(TableBorrowExpression { target: #47, access: Mutable }) at 0:0..0 exposure None partition None occurrences #0@0+0
-expression #49 = Name(TableNamePath { members: #15+1, member_symbols: #8+1, head_symbol: #4, symbol: #4 }) at 0:0..0 exposure None partition None occurrences #0@0+0
+expression #49 = Name(TableNamePath { members: #15+1, member_symbols: #8+1, head_symbol: #4, symbol: #4, reserved_result_of: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #50 = Atomic(TableAtomicExpression { value: #48, result: #49, ordering: Load(GlobalOrder), result_custody: Scalar }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #51 = UndeterminedNaN(F32) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #52 = Membership(TableMembershipExpression { is_pattern: false, value: #51, domain: #16+1, domain_symbol: #14, case_type_symbol: #0@0, case_symbol: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0

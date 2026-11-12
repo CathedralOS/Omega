@@ -152,6 +152,8 @@ pub mod declarations {
 
         #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
         pub enum MachineParameterContract {
+            /// Pending declaration inference; never admitted to typed publication.
+            Inferred,
             RequirementIdentity,
             Structural(crate::signature::StateSignature),
             AuthoredNominal {
@@ -176,7 +178,8 @@ pub mod declarations {
             pub fn structural(&self) -> Option<&crate::signature::StateSignature> {
                 match self {
                     Self::Structural(signature) => Some(signature),
-                    Self::RequirementIdentity
+                    Self::Inferred
+                    | Self::RequirementIdentity
                     | Self::AuthoredNominal { .. }
                     | Self::Nominal { .. } => None,
                 }
@@ -185,7 +188,8 @@ pub mod declarations {
             pub fn structural_mut(&mut self) -> Option<&mut crate::signature::StateSignature> {
                 match self {
                     Self::Structural(signature) => Some(signature),
-                    Self::RequirementIdentity
+                    Self::Inferred
+                    | Self::RequirementIdentity
                     | Self::AuthoredNominal { .. }
                     | Self::Nominal { .. } => None,
                 }

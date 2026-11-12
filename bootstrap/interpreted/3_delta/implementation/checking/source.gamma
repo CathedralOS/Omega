@@ -45,7 +45,10 @@
         (+ index 1)
         (if (eq byte 41)
           (+ index 1)
-          (token_word_end index))))))
+          (if (eq byte '"')
+            (let after Int (byte_literal_scan (+ index 1))
+              (if after after (source_length)))
+            (token_word_end index)))))))
 
 (def token_word_end ((index Int)) Int
   (if (eq index (source_length))
@@ -186,7 +189,7 @@
     (if (eq start (source_length))
       0
       (let end Int (token_end start)
-        (if (token_bytes_builtin start end)
+        (if (if (eq (source_read start) '"') 1 (token_bytes_builtin start end))
           1
           (source_uses_bytes_builtin end))))))
 

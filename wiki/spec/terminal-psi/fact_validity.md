@@ -79,6 +79,45 @@ unchanged argument values, including any observed referent versions. Results
 from other call frames require checked exact substitution; a different value
 version or selected implementation supplies no interchangeable fact.
 
+## Borrowed read dependencies
+
+Under `shared-observation-denotational-content`, an admitted predicate's
+argument state includes the borrowed storage it actually observes, with exact
+places, backing identity, value versions and applicable access/loan conditions.
+A reference carrier's identity does not stand for unchanged referent contents.
+Apply the same dependency rules through record fields, slice/array elements and
+nested reference paths rather than classifying an entire type as forbidden
+because a reference occurs inside it.
+
+A read of slice length depends on that metadata value, not automatically on
+the elements or their referents. Reading one ordinary field does not observe
+an unused reference field. Following a reference depends on the selected
+referent identity and the observed contents version, including intermediate
+path selections. Input validity, lifetime, qualifications, custody and access
+remain independently required even when a particular field is unread.
+
+Direct and helper reads compose through sound checked summaries and exact
+actual-argument substitution under the ordinary interface rules. A known
+metadata-only summary may retain that precision. An unknown read footprint is
+conservative, never empty; a missing summary cannot justify assuming no reads
+or no dependency on possibly reachable storage. A proof requiring unavailable
+stability or place correspondence has no such premise.
+
+Call congruence and reused result facts require all relevant observed state to
+remain valid. Overlapping or potentially aliasing writes invalidate facts about
+current storage; proved-disjoint writes preserve them. A retained fact about
+an earlier captured value does not become a fact about the current value by
+reusing the same pointer or source expression. Shared loans retain their normal
+scope and compatibility rules, not permanent transitive immutability.
+
+External/device and atomic observations require their own admitted stability
+contract or reasoning about an authorized captured observation. Atomicity alone
+does not establish repeatability. This rule grants no reference escape,
+resource duplication, new canonical generic atom or permission to evaluate a
+runtime borrowed graph as a compile-time constant. See
+[proof admission](../proofs/contracts.md#borrowed-proof-inputs) and
+[access supply](../resources/access.md).
+
 ## Restored scalar values
 
 Under `restored-scalar-value-facts`, a valid initialized ordinary storage place

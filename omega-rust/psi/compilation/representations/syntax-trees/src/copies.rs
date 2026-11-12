@@ -1788,6 +1788,9 @@ pub(crate) mod item_copies {
                         },
                         TypeParameterKind::Machine { contract } => TypeParameterKind::Machine {
                             contract: contract.as_ref().map(|contract| match contract {
+                                MachineParameterContract::Inferred => {
+                                    MachineParameterContract::Inferred
+                                }
                                 MachineParameterContract::RequirementIdentity => {
                                     MachineParameterContract::RequirementIdentity
                                 }
