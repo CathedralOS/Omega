@@ -224,6 +224,13 @@ The host must supply a legitimate owned value. An opaque identity number does
 not establish global allocation freshness against interpreter-created values
 or suspended callers. Shape validation alone is not external ownership proof.
 
+A host-returned `addr` is admitted as an opaque host-provenance value, like a
+claim ticket: the interpreter may store, copy and compare it and pass it back
+to native imports, but never dereferences it, offsets it, or mixes it with
+interpreter-created addresses. Any such use is refused, not guessed. This lets
+a program that keeps a native handle, such as a database or window handle,
+run on both engines.
+
 ## Reachability and attachments
 
 An installation-bound requirement may retain an upper-bound reachability row.
