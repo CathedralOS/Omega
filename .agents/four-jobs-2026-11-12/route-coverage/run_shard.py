@@ -23,7 +23,8 @@ TIMEOUT_S = 300
 MODE = sys.argv[2] if len(sys.argv) > 2 else "resume"
 
 HEADER = (
-    "fixture\ttier\troute_verdict\tcurrent_verdict\tagreement\tfirst_refusal\tseconds\n"
+    "fixture\ttier\troute_verdict\tcurrent_verdict\tagreement\t"
+    "first_refusal\tcurrent_diagnostic_class\tseconds\n"
 )
 
 
@@ -87,19 +88,22 @@ def run_one(fixture: str) -> tuple[str, str]:
         elapsed = time.monotonic() - started
         out = proc.stdout + proc.stderr
         if "program\t" not in out and "panicked" in out:
-            row = f"{fixture}\t{tier}\terror\t-\tn-a\tmeta:harness-panicked\t{elapsed:.2f}\n"
+            row = (
+                f"{fixture}\t{tier}\terror\t-\tn-a\tmeta:harness-panicked\t-\t"
+                f"{elapsed:.2f}\n"
+            )
             return row, exact
-        route_verdict, current, agreement, first_refusal = _parse.parse_harness_output(
-            out
+        route_verdict, current, agreement, first_refusal, diag = (
+            _parse.parse_harness_output(out)
         )
         row = (
             f"{fixture}\t{tier}\t{route_verdict}\t{current}\t{agreement}\t"
-            f"{first_refusal}\t{elapsed:.2f}\n"
+            f"{first_refusal}\t{diag}\t{elapsed:.2f}\n"
         )
         return row, exact
     except subprocess.TimeoutExpired:
         elapsed = float(TIMEOUT_S)
-        row = f"{fixture}\t{tier}\ttimeout\t-\tn-a\t-\t{elapsed:.2f}\n"
+        row = f"{fixture}\t{tier}\ttimeout\t-\tn-a\t-\t-\t{elapsed:.2f}\n"
         return row, exact
 
 

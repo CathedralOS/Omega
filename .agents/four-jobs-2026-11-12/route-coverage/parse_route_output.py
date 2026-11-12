@@ -14,6 +14,12 @@ _ENUM_PREFIXES = (
     "ForeignIdentity",
 )
 
+OUTSIDE_FAMILY = frozenset(
+    {"outside", "incomplete", "fallback", "refused-module"}
+)
+UNJUDGED = frozenset({"no-entry", "unreached"})
+HARN_ERROR = frozenset({"defect", "panicked"})
+
 
 def field_map(parts: list[str]) -> dict[str, str]:
     out: dict[str, str] = {}
@@ -51,52 +57,30 @@ def refusal_feature(detail: str) -> str:
     return detail
 
 
-def combined_route(routes: list[str]) -> str:
-    """Mirror route_one_comparison --tally Tallied::route over machine roots."""
+def fixture_route_verdict(routes: list[str]) -> str:
+    """Fixture-level route bucket: accepted only if every root accepted and none partial."""
     if not routes:
         return "error"
-
-    has = lambda name: any(r == name or r.startswith(name + ",") for r in routes)
-    first = lambda name: next((r for r in routes if r == name or r.startswith(name)), None)
-
-    for decided in ("rejected", "incomplete"):
-        if has(decided):
-            return decided
-    for undecided in ("fallback", "refused-module", "defect", "panicked"):
-        found = first(undecided)
-        if found:
-            return found
-    if has("accepted"):
-        return "accepted"
-    if first("outside") or any(r == "outside" for r in routes):
-        return "outside"
-    if has("no-entry"):
-        return "no-entry"
-    if has("unreached"):
-        return "unreached"
-    return routes[0]
-
-
-def bucket_route(combined: str) -> str:
-    if combined == "rejected":
+    if any(r == "rejected" for r in routes):
         return "rejected"
-    if combined == "accepted":
-        return "accepted"
-    if combined in (
-        "incomplete",
-        "fallback",
-        "refused-module",
-        "outside",
-        "no-entry",
-    ):
-        return "outside"
-    if combined in ("defect", "panicked", "unreached", "error"):
+    if any(r in HARN_ERROR for r in routes):
         return "error"
+
+    has_accepted = any(r == "accepted" for r in routes)
+    has_outside = any(r in OUTSIDE_FAMILY for r in routes)
+    has_unjudged = any(r in UNJUDGED for r in routes)
+
+    if has_accepted and (has_outside or has_unjudged):
+        return "partial"
+    if has_accepted and all(r == "accepted" for r in routes):
+        return "accepted"
+    if has_outside or has_unjudged:
+        return "outside"
     return "error"
 
 
 def first_construct_refusal(
-    program_fields: list[dict[str, str]], text: str, combined: str
+    program_fields: list[dict[str, str]], text: str, route_verdict: str
 ) -> str:
     """First construct-specific refusal in root order; meta bucket when not a construct."""
     for f in program_fields:
@@ -121,23 +105,60 @@ def first_construct_refusal(
                     return f"{construct}: {refusal_feature(tail)}"
                 return construct
 
-    if combined in ("no-entry",) or all(
-        f.get("route") in ("no-entry", "-") for f in program_fields
+    routes = [f.get("route", "-") for f in program_fields]
+    if route_verdict == "outside" and all(
+        r in UNJUDGED for r in routes
     ):
         return META_NO_ENTRY
-    if combined == "unreached" or any(f.get("route") == "unreached" for f in program_fields):
+    if any(r == "unreached" for r in routes):
         return META_UNREACHED
-    if combined in ("defect", "panicked"):
-        return f"meta:harness-{combined}"
+    if any(r in HARN_ERROR for r in routes):
+        return "meta:harness-error"
 
     for f in program_fields:
         if f.get("route") == "refused-module":
             return refusal_feature(f.get("reason", "refused-module"))
 
+    if route_verdict == "partial":
+        for f in program_fields:
+            if f.get("route") in OUTSIDE_FAMILY:
+                return refusal_feature(f.get("outside_detail", "partial-mix"))
+            if f.get("route") in UNJUDGED:
+                return META_NO_ENTRY if f.get("route") == "no-entry" else META_UNREACHED
+
     return "-"
 
 
-def parse_harness_output(text: str) -> tuple[str, str, str, str]:
+def first_checker_diagnostic_class(text: str) -> str:
+    """Classify the first current-checker diagnostic (typed-frontier check only)."""
+    for line in text.splitlines():
+        if not line.startswith("current-diagnostic\t"):
+            continue
+        parts = line.split("\t")
+        if len(parts) < 4:
+            continue
+        msg = parts[3].lower()
+        if "cannot prove ensures" in msg or "ensures contract" in msg:
+            return "ensures"
+        if "requires" in msg or "requirement" in msg:
+            return "requires"
+        if "cannot prove" in msg and "guard" in msg:
+            return "guard"
+        if "borrow" in msg or "loan" in msg:
+            return "borrow"
+        if "index" in msg or "bounds" in msg or "bound" in msg:
+            return "bounds"
+        if "termination" in msg or "well-founded" in msg or "rank" in msg:
+            return "termination"
+        if "type" in msg and ("mismatch" in msg or "expected" in msg):
+            return "type"
+        if "build" in msg or "entry" in msg or "program entry" in msg:
+            return "build-entry"
+        return "other:" + msg[:60].replace("\t", " ")
+    return "no-diagnostic"
+
+
+def parse_harness_output(text: str) -> tuple[str, str, str, str, str]:
     program_fields: list[dict[str, str]] = []
     current = "-"
 
@@ -153,18 +174,19 @@ def parse_harness_output(text: str) -> tuple[str, str, str, str]:
             program_fields.append(f)
 
     routes = [f.get("route", "-") for f in program_fields]
-    combined = combined_route(routes)
-    route_verdict = bucket_route(combined)
+    route_verdict = fixture_route_verdict(routes)
     first_refusal = "-"
-    if route_verdict == "outside":
-        first_refusal = first_construct_refusal(program_fields, text, combined)
-    elif route_verdict == "error":
-        first_refusal = first_construct_refusal(program_fields, text, combined)
+    if route_verdict in ("outside", "partial", "error"):
+        first_refusal = first_construct_refusal(program_fields, text, route_verdict)
 
     agreement = "n-a"
-    if current in ("accepted", "rejected") and route_verdict in ("accepted", "rejected"):
+    if current in ("accepted", "rejected") and route_verdict in (
+        "accepted",
+        "rejected",
+    ):
         agreement = "agree" if current == route_verdict else "disagree"
     elif current == "stopped":
         agreement = "n-a"
 
-    return route_verdict, current, agreement, first_refusal
+    diag_class = first_checker_diagnostic_class(text) if current == "rejected" else "-"
+    return route_verdict, current, agreement, first_refusal, diag_class
