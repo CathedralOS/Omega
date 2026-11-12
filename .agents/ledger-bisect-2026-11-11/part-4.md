@@ -13,19 +13,19 @@ PIN: `51e8c45c793007f211d0d9baee7de16767172444`
 
 | rows | kind | diagnostic | witness | breaking commit | PR | mechanism | status | stability |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 5 | pass/run rejected | cannot compare `Tree` values with `==`: structural equality is synthesized only through a named implementation | `pass/relevance/runtime_static_proof_namespace_exit` | `` |  | no first-parent good endpoint: ledger stamp and sweep baseline both still worse for witnes | propagated |  |
+| 5 | pass/run rejected | cannot compare `Tree` values with `==`: structural equality is synthesized only through a named implementation | `pass/relevance/runtime_static_proof_namespace_exit` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
 Members: `pass/proofs/case_call_premises`, `pass/proofs/cauchy_predicates_compile`, `pass/proofs/defined_proposition_premises`, `pass/relevance/runtime_static_proof_namespace_exit`, `pass/traits/structural_array_crash_identity_exit`
 
-| 4 | fail wrong reason | machine `incorrect` ensures contract proof fact `result == 4` is disproved by constant arithmetic on the trans | `fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected` | `` | 2505 | bisect endpoint collapsed to PIN only (no strict good at ledger stamp); use sweep good 759 | propagated |  |
+| 4 | fail wrong reason | machine `incorrect` ensures contract proof fact `result == 4` is disproved by constant arithmetic on the trans | `fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected` | `` |  |  | pending |  |
 Members: `fail/build/helper_contract_context`, `fail/contracts/replacement_call_child_false_snapshot`, `fail/expressions/cast_result_range`, `fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected`
 
-| 2 | pass/run rejected | generated generic application does not match its exact retained instance origin | `pass/generics/runtime_computed_nested_const_call_exit` | `` | 2505 | bisect endpoint collapsed to PIN only (no strict good at ledger stamp); use sweep good 759 | propagated |  |
+| 2 | pass/run rejected | generated generic application does not match its exact retained instance origin | `pass/generics/runtime_computed_nested_const_call_exit` | `` |  |  | pending |  |
 Members: `pass/build/const_index_dependency_order_exit`, `pass/generics/runtime_computed_nested_const_call_exit`
 
-| 2 | fail wrong reason | integer node `u8(300)` does not fit exact carrier `u8` | `fail/generics/const_data_argument_out_of_range` | `` | 2505 | bisect endpoint collapsed to PIN only (no strict good at ledger stamp); use sweep good 759 | propagated |  |
+| 2 | fail wrong reason | integer node `u8(300)` does not fit exact carrier `u8` | `fail/generics/const_data_argument_out_of_range` | `` |  |  | pending |  |
 Members: `fail/generics/const_data_argument_out_of_range`, `fail/generics/dependent_const_carrier_range`
 
-| 1 | fail wrong reason | anonymous operand `25/8` is not an integer in closed const argument; type an operand before division if intege | `fail/generics/grouped_decimal_const_fraction_rejected` | `` | 2505 | bisect endpoint collapsed to PIN only (no strict good at ledger stamp); use sweep good 759 | propagated |  |
+| 1 | fail wrong reason | anonymous operand `25/8` is not an integer in closed const argument; type an operand before division if intege | `fail/generics/grouped_decimal_const_fraction_rejected` | `` |  |  | pending |  |
 Members: `fail/generics/grouped_decimal_const_fraction_rejected`
 
 | 1 | fail wrong reason | cannot compare against payload-bearing case `Chain::Cons` with `==`: structural equality is synthesized only t | `fail/float/state_constructor_ieee_reflexivity` | `` | 2505 | bisect endpoint collapsed to PIN only (no strict good at ledger stamp); use sweep good 759 | propagated |  |
