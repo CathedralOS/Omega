@@ -1508,7 +1508,7 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
             retain_native_inputs: true,
             image: Default::default(),
             private_entry_ram: Vec::new(),
-            terminal_authority_policy: provider_admission::current_terminal_authority_policy(),
+            terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
             terminal_authority_permission_policy: None,
             optimization_rollback: Default::default(),
         });
