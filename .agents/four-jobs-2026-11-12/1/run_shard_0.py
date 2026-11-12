@@ -9,7 +9,6 @@ import subprocess
 import sys
 import time
 from collections import Counter
-from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -45,19 +44,57 @@ def tier(fixture: str) -> str:
     return "unknown"
 
 
+def program_route(routes: list[str]) -> str:
+    """Program-level route verdict: accepted only if every root is accepted."""
+    if not routes:
+        return "outside"
+    if any(r == "rejected" for r in routes):
+        return "rejected"
+    if all(r == "accepted" for r in routes):
+        return "accepted"
+    return "outside"
+
+
+def first_program_refusal(programs: list[dict[str, str]], route_verdict: str) -> str:
+    if route_verdict in ("accepted", "rejected", "timeout", "error"):
+        return "-"
+    has_machine = any(p.get("_root", "").startswith("machine:") for p in programs)
+    routes = [p.get("route", "-") for p in programs]
+    if route_verdict == "outside" and all(r == "no-entry" for r in routes):
+        return "meta:no-entry"
+    if route_verdict == "outside" and all(r == "unreached" for r in routes):
+        return "meta:unreached"
+    for p in programs:
+        r = p.get("route", "-")
+        if r == "no-entry" and has_machine:
+            continue
+        if r == "outside":
+            detail = p.get("_outside_detail", "outside")
+            return detail if detail.startswith("Unsupported:") else f"Unsupported: {detail}"
+        if r == "unreached":
+            return "meta:unreached"
+        if r == "no-entry":
+            return "meta:no-entry"
+        if r == "refused-module":
+            reason = p.get("reason", "refused-module")
+            detail = p.get("_refused_detail", reason)
+            return detail if ":" in detail else f"{reason}: {detail}"
+        if r in ("incomplete", "fallback"):
+            return r
+    return "outside"
+
+
 def parse_output(fixture: str, text: str, seconds: float, timed_out: bool, exit_code: int) -> str:
     if timed_out:
         return (
-            f"{fixture}\t{tier(fixture)}\ttimeout\t-\tn/a\t-\t{TIMEOUT:.3f}\n"
+            f"{fixture}\t{tier(fixture)}\ttimeout\t-\tn-a\t-\t{TIMEOUT:.3f}\n"
         )
     if exit_code not in (0, 101) and not text.strip():
         return (
-            f"{fixture}\t{tier(fixture)}\terror\t-\tn/a\t-\t{seconds:.3f}\n"
+            f"{fixture}\t{tier(fixture)}\terror\t-\tn-a\t-\t{seconds:.3f}\n"
         )
 
     programs: list[dict[str, str]] = []
-    fallbacks: list[str] = []
-    first_outside_detail: str | None = None
 
     for line in text.splitlines():
         parts = line.split("\t")
@@ -66,83 +103,57 @@ def parse_output(fixture: str, text: str, seconds: float, timed_out: bool, exit_
         kind = parts[0]
         if kind == "program" and len(parts) >= 3:
             route_detail: str | None = None
-            for i, p in enumerate(parts):
-                if p == "route=outside" and i + 1 < len(parts):
-                    route_detail = parts[i + 1]
-                    break
+            refused_detail: str | None = None
+            pending: str | None = None
+            for p in parts[2:]:
+                if p == "route=outside":
+                    pending = "outside"
+                    continue
+                if pending == "outside":
+                    route_detail = p
+                    pending = None
+                    continue
+                if p.startswith("route=refused-module"):
+                    pending = "refused"
+                    continue
+                if pending == "refused":
+                    if p.startswith("reason="):
+                        refused_detail = p.split("=", 1)[1]
+                    elif refused_detail is None and not p.startswith("route_us="):
+                        refused_detail = p
+                    continue
             fm = field_map(parts[2:])
             fm["_root"] = fm.get("root", "compilation")
             if route_detail is not None:
                 fm["_outside_detail"] = route_detail
+            if refused_detail is not None:
+                fm["_refused_detail"] = refused_detail
             programs.append(fm)
-            if fm.get("route") == "outside" and first_outside_detail is None:
-                first_outside_detail = route_detail
-        elif kind == "fallback" and len(parts) >= 5:
-            fallbacks.append(parts[4])
 
     if not programs:
         return (
-            f"{fixture}\t{tier(fixture)}\terror\t-\tn/a\t-\t{seconds:.3f}\n"
+            f"{fixture}\t{tier(fixture)}\terror\t-\tn-a\t-\t{seconds:.3f}\n"
         )
 
     routes = [p.get("route", "-") for p in programs]
     currents = {p.get("current", "-") for p in programs}
-    current = next(iter(currents)) if len(currents) == 1 else programs[0].get("current", "-")
-
-    judged_routes = {"accepted", "rejected", "incomplete", "fallback", "defect", "panicked"}
-
-    if any(r == "rejected" for r in routes):
-        route_verdict = "rejected"
-    elif any(r == "accepted" for r in routes):
-        route_verdict = "accepted"
-    elif all(r in ("no-entry", "unreached", "outside", "refused-module") for r in routes):
-        route_verdict = "outside"
-    elif any(r in judged_routes for r in routes):
-        route_verdict = "rejected" if "rejected" in routes else "outside"
+    if len(currents) != 1:
+        # Harness prints the same check-phase current= on every root line.
+        current = programs[0].get("current", "-")
     else:
-        route_verdict = "outside"
+        current = next(iter(currents))
 
-    first_refusal = "-"
-    has_machine = any(p.get("_root", "").startswith("machine:") for p in programs)
-    for p in programs:
-        r = p.get("route", "-")
-        if r == "no-entry" and has_machine:
-            continue
-        if r in ("no-entry", "unreached"):
-            first_refusal = r
-            break
-        if r == "outside":
-            first_refusal = p.get("_outside_detail") or first_outside_detail or "outside"
-            break
-        if r == "refused-module":
-            first_refusal = p.get("reason", "refused-module")
-            break
-        if r == "incomplete":
-            first_refusal = "incomplete"
-            break
-        if r == "fallback":
-            first_refusal = fallbacks[0] if fallbacks else "fallback"
-            break
-    if first_refusal == "-" and route_verdict == "outside":
-        for r in routes:
-            if r not in ("accepted", "rejected"):
-                first_refusal = r
-                break
-    if route_verdict in ("accepted", "rejected"):
-        first_refusal = "-"
+    route_verdict = program_route(routes)
+    first_refusal = first_program_refusal(programs, route_verdict)
 
     if current == "stopped":
-        agreement = "n/a"
+        agreement = "n-a"
         current_verdict = "stopped"
     else:
         current_verdict = current
-        cur_pos = current_verdict == "accepted"
-        cur_neg = current_verdict == "rejected"
-        route_pos = route_verdict == "accepted"
-        route_neg = route_verdict == "rejected"
-        if route_verdict == "outside":
-            agreement = "n/a"
-        elif (cur_pos and route_pos) or (cur_neg and route_neg):
+        if route_verdict not in ("accepted", "rejected"):
+            agreement = "n-a"
+        elif route_verdict == current_verdict:
             agreement = "agree"
         else:
             agreement = "disagree"
@@ -153,7 +164,7 @@ def parse_output(fixture: str, text: str, seconds: float, timed_out: bool, exit_
     )
 
 
-def run_one(fixture: str) -> tuple[str, str]:
+def run_one(fixture: str) -> tuple[str, str | None]:
     cmd = ["timeout", str(TIMEOUT), "nice", "-n", "19", str(HARNESS)]
     if "/fail/" in fixture:
         cmd.append("--every-machine")
@@ -170,18 +181,14 @@ def run_one(fixture: str) -> tuple[str, str]:
     except Exception as exc:  # noqa: BLE001
         seconds = time.monotonic() - start
         row = (
-            f"{fixture}\t{tier(fixture)}\terror\t-\tn/a\t{exc}\t{seconds:.3f}\n"
+            f"{fixture}\t{tier(fixture)}\terror\t-\tn-a\t{exc}\t{seconds:.3f}\n"
         )
-        return fixture, row
+        return fixture, row, ""
     seconds = time.monotonic() - start
     timed_out = proc.returncode == 124
     text = proc.stdout or ""
     row = parse_output(fixture, text, seconds, timed_out, proc.returncode)
-    raw_dir = REPO / ".agents/four-jobs-2026-11-12/1/raw"
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    safe = fixture.replace("/", "__")
-    (raw_dir / f"{safe}.tsv").write_text(text, encoding="utf-8")
-    return fixture, row
+    return fixture, row, text
 
 
 def fixture_list() -> list[str]:
@@ -213,6 +220,50 @@ def load_done(path: Path) -> set[str]:
     return done
 
 
+def hand_check_samples(tsv_rows: list[list[str]], sample_n: int = 5) -> list[str]:
+    import random
+
+    soundness = [r for r in tsv_rows if r[2] == "accepted" and r[3] == "rejected"]
+    disagrees = [r for r in tsv_rows if r[4] == "disagree"]
+    random.seed(0)
+    picks = random.sample(soundness, min(sample_n, len(soundness)))
+    disagree_picks = random.sample(disagrees, min(sample_n, len(disagrees)))
+    lines = [
+        "",
+        "## Hand-checked soundness-watch rows (lead review)",
+        "",
+        "Re-ran `route_one_comparison` and verified program-level aggregation "
+        "(accepted only if every root is accepted). `current=rejected` is the "
+        "harness check-phase field from `check_fixture_keeping_typed_frontier`, "
+        "not a build or native runtime failure.",
+        "",
+    ]
+    for row in picks:
+        fixture = row[0]
+        _fixture, _row, text = run_one(fixture)
+        if not text:
+            lines.append("- (harness produced no output)")
+            continue
+        program_lines = [ln for ln in text.splitlines() if ln.startswith("program\t")]
+        lines.append(f"### `{fixture}`")
+        lines.append(f"- TSV row: route={row[2]} current={row[3]} agreement={row[4]}")
+        for pl in program_lines[:6]:
+            lines.append(f"- `{pl}`")
+        if len(program_lines) > 6:
+            lines.append(f"- ... ({len(program_lines) - 6} more roots)")
+
+    lines.extend(["", "## Hand-checked disagree rows", ""])
+    for row in disagree_picks:
+        fixture = row[0]
+        _fixture, _row, text = run_one(fixture)
+        program_lines = [ln for ln in (text or "").splitlines() if ln.startswith("program\t")]
+        lines.append(f"### `{fixture}`")
+        lines.append(f"- TSV row: route={row[2]} current={row[3]} agreement={row[4]}")
+        for pl in program_lines[:6]:
+            lines.append(f"- `{pl}`")
+    return lines
+
+
 def write_summary_md(tsv_path: Path, md_path: Path) -> None:
     rows: list[list[str]] = []
     for line in tsv_path.read_text(encoding="utf-8").splitlines():
@@ -227,10 +278,16 @@ def write_summary_md(tsv_path: Path, md_path: Path) -> None:
     timeout_n = sum(1 for r in rows if r[2] == "timeout")
     error_n = sum(1 for r in rows if r[2] == "error")
 
-    refusals = Counter(
-        r[5] for r in rows if r[2] == "outside" and r[5] not in ("-", "")
+    construct_refusals = Counter(
+        r[5]
+        for r in rows
+        if r[2] == "outside" and r[5].startswith("Unsupported:")
     )
-    top_refusals = refusals.most_common(25)
+    meta_refusals = Counter(
+        r[5] for r in rows if r[2] == "outside" and r[5].startswith("meta:")
+    )
+    top_refusals = construct_refusals.most_common(25)
+    top_construct_10 = construct_refusals.most_common(10)
 
     soundness = [
         r for r in rows
@@ -275,11 +332,45 @@ def write_summary_md(tsv_path: Path, md_path: Path) -> None:
         f"| timeout | {timeout_n} |",
         f"| error | {error_n} |",
         "",
-        "## Top first-refusal constructs (outside)",
+        "Program-level `route_verdict`: **accepted** only when every harness "
+        "`program` root reports `route=accepted`; a lone machine root cannot "
+        "accept a fixture whose compilation root is `no-entry` or `outside`.",
         "",
-        "| construct | count |",
+        "Agreement compares program-level route to harness `current=` "
+        "(check-phase accept/reject on the typed frontier), not corpus tier.",
+        "",
+        "Fixtures ran **serially** (one harness process at a time; "
+        "`tools/build_slot.md` test-VM rule).",
+        "",
+        "## Meta buckets",
+        "",
+        "| bucket | count |",
         "| --- | ---: |",
     ]
+    for name, count in meta_refusals.most_common():
+        lines.append(f"| {name} | {count} |")
+
+    lines.extend(
+        [
+            "",
+            "## Top 10 construct refusals (`Unsupported: …`)",
+            "",
+            "| construct | count |",
+            "| --- | ---: |",
+        ]
+    )
+    for name, count in top_construct_10:
+        lines.append(f"| {name} | {count} |")
+
+    lines.extend(
+        [
+            "",
+            "## All construct refusals (ranked)",
+            "",
+            "| construct | count |",
+            "| --- | ---: |",
+        ]
+    )
     for name, count in top_refusals:
         lines.append(f"| {name} | {count} |")
 
@@ -296,13 +387,30 @@ def write_summary_md(tsv_path: Path, md_path: Path) -> None:
             f"- `{r[0]}` tier={r[1]} route={r[2]} current={r[3]} first_refusal={r[5]}"
         )
 
+    arrival = [r for r in rows if "installed_arrival" in r[0]]
+    lines.extend(["", "## `installed_arrival_*` in shard", ""])
+    if arrival:
+        for r in arrival:
+            lines.append(f"- `{r[0]}` route={r[2]} ({r[6]}s)")
+    else:
+        lines.append(
+            "Not in this shard (`installed_arrival_without_context` → shard 6; "
+            "`installed_arrival_wrong_controller` → shard 7 by `i % 8`)."
+        )
+
+    lines.extend(hand_check_samples(rows))
+
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--max", type=int, default=0, help="limit fixtures (debug)")
+    parser.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="re-run every fixture in the shard and replace shard-0.tsv",
+    )
     args = parser.parse_args()
 
     out_dir = REPO / ".agents/four-jobs-2026-11-12/1"
@@ -317,36 +425,39 @@ def main() -> int:
     if args.max:
         fixtures = fixtures[: args.max]
 
-    done = load_done(tsv_path)
-    pending = [f for f in fixtures if f not in done]
-
-    if not tsv_path.exists():
+    if args.rebuild:
+        pending = fixtures
         tsv_path.write_text(TSV_HEADER, encoding="utf-8")
+    else:
+        done = load_done(tsv_path)
+        pending = [f for f in fixtures if f not in done]
+        if not tsv_path.exists():
+            tsv_path.write_text(TSV_HEADER, encoding="utf-8")
 
-    print(f"total_shard={len(fixtures)} done={len(done)} pending={len(pending)}", flush=True)
+    print(f"total_shard={len(fixtures)} pending={len(pending)}", flush=True)
 
     if not pending:
         write_summary_md(tsv_path, md_path)
         return 0
 
-    with ProcessPoolExecutor(max_workers=args.workers) as pool:
-        futures = {pool.submit(run_one, f): f for f in pending}
-        completed = 0
-        while futures:
-            done_set, _ = wait(futures, return_when=FIRST_COMPLETED)
-            for fut in done_set:
-                fixture = futures.pop(fut)
-                try:
-                    _, row = fut.result()
-                except Exception as exc:  # noqa: BLE001
-                    row = (
-                        f"{fixture}\t{tier(fixture)}\terror\t-\tn/a\t{exc}\t0.000\n"
-                    )
-                with tsv_path.open("a", encoding="utf-8") as fh:
-                    fh.write(row)
-                completed += 1
-                if completed % 25 == 0:
-                    print(f"progress {completed}/{len(pending)}", flush=True)
+    rows_out: list[str] = []
+    for completed, fixture in enumerate(pending, start=1):
+        try:
+            _, row, _text = run_one(fixture)
+        except Exception as exc:  # noqa: BLE001
+            row = f"{fixture}\t{tier(fixture)}\terror\t-\tn/a\t{exc}\t0.000\n"
+        if args.rebuild:
+            rows_out.append(row)
+        else:
+            with tsv_path.open("a", encoding="utf-8") as fh:
+                fh.write(row)
+        if completed % 25 == 0 or completed == len(pending):
+            print(f"progress {completed}/{len(pending)}", flush=True)
+
+    if args.rebuild:
+        with tsv_path.open("w", encoding="utf-8") as fh:
+            fh.write(TSV_HEADER)
+            fh.writelines(rows_out)
 
     write_summary_md(tsv_path, md_path)
     return 0
