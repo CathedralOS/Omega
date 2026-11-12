@@ -5,7 +5,8 @@ CLUSTER="${1:?0-3}"
 ROOT="${OMEGA_REPO:-/agent/repos/omega}"
 ART="$ROOT/.agents/ledger-bisect-2026-11-11"
 PIN=51e8c45c793007f211d0d9baee7de16767172444
-export OMEGA_REPO="$ROOT" LEDGER_BISECT_PIN="$PIN"
+export OMEGA_REPO="$ROOT" LEDGER_BISECT_PIN="$PIN" BISECT_SKIP_ENDPOINT_VERIFY=1
+unset BISECT_GOOD
 
 mkdir -p /tmp/ledger-bisect-tools
 # Snapshot tools before any historical checkout (untracked .agents paths are not stable).
