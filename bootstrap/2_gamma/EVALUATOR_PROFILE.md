@@ -300,6 +300,16 @@ second lexer or index. Both 30-byte helper slots and every control address stay
 fixed; only 36 tape bytes change. The generic string comparison still handles
 ordinary names and keywords.
 
+The punctuation calls have a nonempty source token: `need_token` rejects EOF,
+and the census checks `next_token`'s success before calling either helper.
+The classification entry is the sole unchecked `next_token` call: census has
+already required a nullary `main` and validation has succeeded before it resets
+the cursor to the start of that nonempty source. Its first token is therefore
+the already-censused opening parenthesis. EOF leaves old token registers in
+place, but no punctuation call uses them after EOF. Prefix controls check that
+sealed parentheses or the exact missing suffix cannot complete truncated
+ordinary/application sources, including character literals and grouped lets.
+
 On Linux x86-64, the complete Delta-to-Epsilon diagnostic receipt reconstructed
 byte-identically: the prior evaluator used 349.620 CPU / 354.968 wall seconds;
 the direct punctuation version used 335.574 CPU / 339.061 wall seconds. These

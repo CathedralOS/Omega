@@ -236,6 +236,27 @@ for request in (b"", b"\x01\x00\x00", struct.pack("<I", 30) + b"(def main () Int
     if run_request(request) != (1, b""):
         raise SystemExit("malformed source framing did not reject quietly")
 
+# A sealed suffix must never complete a truncated source token or expression.
+# Cover both the ordinary and application-classification entrances, including
+# parentheses inside character literals and grouped let bindings.
+punctuation_boundaries = (
+    (b"(def main () Int (let ((x Int '(')) (if 0 ')' x)))", b"("),
+    (b"(def $application () Int 1)(def main () Int (pair 0 1))", b""),
+)
+for source, expected in punctuation_boundaries:
+    for end in range(len(source)):
+        for sealed in (b"(", b")", source[end:]):
+            if run(source[:end], sealed) != (1, b""):
+                raise SystemExit(f"sealed input crossed source boundary at {end}")
+    for sealed in (b"(", b")"):
+        if run(source, sealed) != (0, expected):
+            raise SystemExit("sealed punctuation changed a complete source")
+for source in (b"", b" \t\r\n", b"; comment", b"; comment\n"):
+    for sealed in (b"(", b")", b"(def main () Int 42)"):
+        if run(source, sealed) != (1, b""):
+            raise SystemExit("sealed input supplied a missing main declaration")
+print("Direct Beta Gamma evaluator: punctuation source-boundary controls passed")
+
 def countdown(depth):
     return (
         f"(def loop ((n Int)) Int "
