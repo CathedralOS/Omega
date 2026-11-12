@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+ Build::application(builder, "runtime_index_application");
+ Build::bind(builder, windows_x86_64::ProgramEntry, main);
+ Build::bind(builder, linux_x86_64::ProgramEntry, main);
+ Build::bind(builder, macos_arm64::ProgramEntry, main);
+ Build::bind(builder, linux_arm64::ProgramEntry, main);
+ Build::select_provider<IndexProbe, WindowsIndexProbe>(builder, windows_x86_64);
+ Build::select_provider<IndexProbe, LinuxX86IndexProbe>(builder, linux_x86_64);
+ Build::select_provider<IndexProbe, MacIndexProbe>(builder, macos_arm64);
+ Build::select_provider<IndexProbe, LinuxArmIndexProbe>(builder, linux_arm64);
+}

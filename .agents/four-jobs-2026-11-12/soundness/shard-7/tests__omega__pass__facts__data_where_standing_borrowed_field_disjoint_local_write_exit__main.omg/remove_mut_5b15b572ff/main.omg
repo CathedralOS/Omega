@@ -1,0 +1,24 @@
+// Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
+// Expected exit: 0
+public data Counter<'storage> [copy] requires self.value <= 60 { before: i32; value: &'storage i32; after: i32; marker: i32; }
+machine read(value: &i32) -> i32 ensures result == value, { value }
+machine replace_marker(marker: &mut i32, replacement: i32) ensures marker == replacement, { marker = replacement; }
+public machine compute(counter: &Counter) -> i32 {
+    let marker: i32 = 19;
+    replace_marker(&mut marker, 41);
+    let value: i32 = read(counter.value);
+    let total: i32 = 70 + value;
+    transition marker == 41 { true -> total false -> -99 }
+}
+machine main() crashes Trap {
+    let high: i32 = 60;
+    let low: i32 = -17;
+    let mut first: Counter = Counter { before: 17, value: &high, after: 53, marker: 19 };
+    let mut second: Counter = Counter { before: 17, value: &low, after: 53, marker: 23 };
+    transition compute(&first) == 130 && compute(&second) == 53
+        && first.before == 17 && first.after == 53 && first.marker == 19
+        && second.before == 17 && second.after == 53 && second.marker == 23
+        && high == 60 && low == -17 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

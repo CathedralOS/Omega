@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from dataclasses import replace
+
 from fix3_classify import Outcome, checker_side, accepted_by
 
 ROUTE_OUTSIDE = frozenset({"outside", "no-entry", "unreached", "missing"})
@@ -11,8 +13,8 @@ ROUTE_OUTSIDE = frozenset({"outside", "no-entry", "unreached", "missing"})
 CHECK_TIME_SPECS: dict[str, tuple[str, str, str]] = {
     "mut_ref_instead_of_shared": (
         "language/ownership.md",
-        "## Owned local mutability",
-        "modifying an established ordinary local's owned storage requires a `mut` binding.",
+        "## Borrow and write qualification",
+        "A callee cannot grant writable access that the caller's place lacks.",
     ),
     "shared_instead_of_mut": (
         "language/ownership.md",
@@ -52,6 +54,17 @@ def real_disagreement(omg: str, cur: str, route: str) -> bool:
     ):
         return True
     return False
+
+
+def runtime_trap_scan_text(mutant: str) -> str:
+    hits: list[str] = []
+    for i, ln in enumerate(mutant.splitlines(), 1):
+        low = ln.lower()
+        if "crash" in low or "trap" in low or "bad(" in low or "-> bad" in low:
+            hits.append(f"L{i}:{ln.strip()[:90]}")
+    if hits:
+        return "FOUND " + "; ".join(hits[:4])
+    return "none (no crash/trap/bad() in mutant source)"
 
 
 def runtime_trap_deferred(kind: str, mutant: str, obligation: str | None) -> bool:
@@ -148,40 +161,44 @@ def apply_fix4(
             "reclassified: no accept-vs-reject disagree",
         )
 
+    scan = runtime_trap_scan_text(mutant)
+
     if oc.bucket == "confirmed-hole":
         ok, note, path, quote, heading = airtight_confirmed(kind, original, mutant, oc)
+        if scan.startswith("FOUND"):
+            ok = False
+            note = f"confirmed downgrade: runtime trap/crash route present ({scan[:120]})"
         if not ok:
             if cs == "accept" and route_is_outside(route):
-                return Outcome(
-                    "valid-route-outside",
-                    "current",
-                    True,
-                    oc.obligation,
-                    None,
-                    None,
-                    None,
-                    note,
+                return replace(
+                    oc,
+                    bucket="valid-route-outside",
+                    accepted_by="current",
+                    valid=True,
+                    note=note,
+                    runtime_trap_scan=scan,
                 )
-            return Outcome(
-                "discarded-valid",
-                ab if cs == "accept" else "",
-                True,
-                oc.obligation,
-                None,
-                None,
-                None,
-                note,
+            return replace(
+                oc,
+                bucket="discarded-valid",
+                accepted_by=ab if cs == "accept" else "",
+                valid=True,
+                note=note,
+                discard_class="confirmed-downgrade",
+                runtime_trap_scan=scan,
             )
         merged = f"{oc.note} | {note}" if oc.note else note
-        return Outcome(
-            oc.bucket,
-            ab,
-            False,
-            oc.obligation,
-            path,
-            quote,
-            heading,
-            merged,
+        return replace(
+            oc,
+            accepted_by=ab,
+            valid=False,
+            spec_path=path,
+            spec_quote=quote,
+            spec_heading=heading,
+            note=merged,
+            runtime_trap_scan=scan,
         )
 
+    if oc.bucket in ("confirmed-hole", "discarded-valid", "known-gap-q7-mut") and not oc.runtime_trap_scan:
+        return replace(oc, runtime_trap_scan=scan)
     return oc

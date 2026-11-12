@@ -28,6 +28,9 @@ class Outcome:
     spec_quote: str | None
     spec_heading: str | None
     note: str
+    discard_class: str = ""
+    not_q7_reason: str = ""
+    runtime_trap_scan: str = ""
 
 
 def checker_side(omg: str, cur: str) -> str:
@@ -107,20 +110,22 @@ def classify_drop_requires(original: str, mutant: str, omg: str, cur: str, route
             f"valid: in-machine transition restates removed requires | "
             f"requires: `{req_q}` | transition: `{trans_q}`"
         )
+        dc = "drop-req-transition-restate"
         if ab:
-            return Outcome("discarded-valid", ab, True, trans_q, None, None, None, note)
-        return Outcome("discarded-valid", "", True, trans_q, None, None, None, note)
+            return Outcome("discarded-valid", ab, True, trans_q, None, None, None, note, dc)
+        return Outcome("discarded-valid", "", True, trans_q, None, None, None, note, dc)
 
     if machine:
         in_body, req_q, rest_q = body_reestablishes_clause(mutant, machine, clause)
         if in_body:
+            dc = "drop-req-guard-restate" if "access:" in rest_q else "drop-req-body-restate"
             note = (
                 f"valid: in-machine body/guard restates removed requires | "
                 f"requires: `{req_q}` | restate: `{rest_q}`"
             )
             if ab:
-                return Outcome("discarded-valid", ab, True, rest_q, None, None, None, note)
-            return Outcome("discarded-valid", "", True, rest_q, None, None, None, note)
+                return Outcome("discarded-valid", ab, True, rest_q, None, None, None, note, dc)
+            return Outcome("discarded-valid", "", True, rest_q, None, None, None, note, dc)
 
     # fix5: caller-established facts outside the machine do not heal modular entry.
     obl = f"removed requires `{clause}`"
@@ -132,6 +137,64 @@ def classify_drop_requires(original: str, mutant: str, omg: str, cur: str, route
     if disagree(omg, cur, route):
         return Outcome("disagreement-valid", accepted_by(omg, cur, route), False, obl, path, quote, heading, note)
     return Outcome("rejected-both", "", False, obl, None, None, None, note)
+
+
+_WRITE_SKIP = (
+    "requires ",
+    "ensures ",
+    "let ",
+    "const ",
+    "data ",
+    "machine ",
+    "public ",
+    "transition",
+    "//",
+    "import ",
+    "terminates ",
+)
+
+
+def _demoted_mut_binding(mline: str) -> str | None:
+    pm = re.search(r"(\w+)\s*:\s*&\s*[\w:<\['\"]", mline)
+    if pm:
+        return pm.group(1)
+    return None
+
+
+def _checktime_write_via_name(mutant: str, name: str) -> str | None:
+    for ln in mutant.splitlines():
+        s = ln.strip()
+        if any(s.startswith(p) for p in _WRITE_SKIP):
+            continue
+        if re.search(rf"\b{re.escape(name)}\s*\.[A-Za-z0-9_\[\]]+\s*=", s):
+            return s
+        if re.search(rf"\b{re.escape(name)}\s*=", s) and "==" not in s:
+            return s
+    return None
+
+
+def _shared_slot_from_mut_source(mline: str) -> bool:
+    return bool(re.search(r":\s*&[^m]", mline) and "&mut" in mline)
+
+
+def _callee_param_write(mutant: str, sig_hint: str, pname: str) -> str | None:
+    idx = mutant.find(sig_hint)
+    chunk = mutant[idx : idx + 2500] if idx >= 0 else mutant
+    started = False
+    for ln in chunk.splitlines():
+        if not started and pname in ln and ("machine " in ln or f"({pname}" in ln):
+            if "{" in ln:
+                started = True
+            continue
+        if not started:
+            continue
+        s = ln.strip()
+        if s.startswith("requires ") or s.startswith("machine ") or s.startswith("transition"):
+            continue
+        if re.search(rf"\b{re.escape(pname)}\b", s) and "=" in s and "==" not in s:
+            if not s.startswith("let "):
+                return s
+    return None
 
 
 def _ref_diff_lines(original: str, mutant: str) -> list[tuple[str, str]]:
@@ -181,55 +244,72 @@ def classify_reference_kind(kind: str, original: str, mutant: str, omg: str, cur
             return Outcome("disagreement-valid", accepted_by(omg, cur, route), False, obl, path, quote, heading, invalid)
         return Outcome("rejected-both", "", False, obl, None, None, None, invalid)
 
-    # Parameter or field: &mut added where & was — invalid only if callee/caller writes through it.
+    path_sm, heading_sm, quote_sm = SPEC_BY_KIND["shared_instead_of_mut"]
+    path_mr, heading_mr, quote_mr = SPEC_BY_KIND["mut_ref_instead_of_shared"]
+
     if kind == "shared_instead_of_mut":
-        pm = re.search(r"(\w+)\s*:\s*&\s", mline)
-        if pm:
-            pname = pm.group(1)
-            writes = [
-                ln.strip()
-                for ln in mutant.splitlines()
-                if pname in ln and "=" in ln and not ln.strip().startswith("//")
-            ]
-            if not writes:
-                note = f"valid: `{pname}` still shared; no write through parameter"
-                if ab:
-                    return Outcome("discarded-valid", ab, True, mline, None, None, None, note)
-                return Outcome("discarded-valid", "", True, mline, None, None, None, note)
-            obl = writes[0]
-            path, heading, quote = SPEC_BY_KIND["shared_instead_of_mut"]
-            invalid = f"invalid: write through shared borrow of `{pname}`"
+        pname = _demoted_mut_binding(mline)
+        obl = None
+        if pname:
+            obl = _checktime_write_via_name(mutant, pname) or _callee_param_write(mutant, mline, pname)
+        if _shared_slot_from_mut_source(mline):
+            obl = mline
+        if not obl:
+            note = "valid: demoted `&mut`→`&` without check-time write through shared place"
+            dc = "ref-signature-or-call-only"
             if ab:
-                return Outcome("confirmed-hole", ab, False, obl, path, quote, heading, invalid)
-            return Outcome("disagreement-valid", accepted_by(omg, cur, route), False, obl, path, quote, heading, invalid)
+                return Outcome(
+                    "discarded-valid", ab, True, mline, None, None, None, note, dc,
+                    "not Q7: mutation is reference qualification, not `remove_mut`",
+                )
+            return Outcome("discarded-valid", "", True, mline, None, None, None, note, dc)
+        path, heading, quote = path_sm, heading_sm, quote_sm
+        invalid = f"invalid: check-time write or `&mut` loan through shared place `{obl}`"
+        nq = "not Q7: no dropped `let mut` binding; obligation is shared/mut reference rule"
+        if ab:
+            return Outcome("confirmed-hole", ab, False, obl, path, quote, heading, invalid, "", nq)
+        if disagree(omg, cur, route):
+            return Outcome(
+                "disagreement-valid", accepted_by(omg, cur, route), False, obl, path, quote, heading, invalid, "", nq
+            )
+        return Outcome("rejected-both", "", False, obl, None, None, None, invalid)
 
     if kind == "mut_ref_instead_of_shared":
-        # &mut parameter where & was: invalid if body assigns through parameter.
-        pm = re.search(r"(\w+)\s*:\s*&mut", mline)
-        writes: list[str] = []
-        if pm:
-            pname = pm.group(1)
-            # find machine body
-            idx = mutant.find(mline)
-            body = mutant[idx:] if idx >= 0 else mutant
-            writes = [
-                ln.strip()
-                for ln in body.splitlines()[:80]
-                if re.search(rf"\b{re.escape(pname)}\b", ln)
-                and ("=" in ln or f"&mut {pname}" in ln)
-                and not ln.strip().startswith("//")
-                and "machine " not in ln
-            ]
-            if not writes and pname not in oline:
-                note = f"valid: `&mut {pname}` in signature only (no callee write)"
-                if ab:
-                    return Outcome("discarded-valid", ab, True, mline, None, None, None, note)
-                return Outcome("discarded-valid", "", True, mline, None, None, None, note)
-            obl = writes[0] if writes else mline
-        else:
+        if _shared_slot_from_mut_source(mline):
             obl = mline
+            invalid = "invalid: shared-typed slot receives `&mut` source (aliasing/exclusivity)"
+            if ab:
+                return Outcome(
+                    "confirmed-hole", ab, False, obl, path_mr, quote_mr, heading_mr, invalid, "",
+                    "not Q7: type slot is shared `&T`, not owned-local mut gap",
+                )
+            if disagree(omg, cur, route):
+                return Outcome(
+                    "disagreement-valid",
+                    accepted_by(omg, cur, route),
+                    False,
+                    obl,
+                    path_mr,
+                    quote_mr,
+                    heading_mr,
+                    invalid,
+                )
+            return Outcome("rejected-both", "", False, obl, None, None, None, invalid)
 
-        # &mut local loan without mut binding on same name — Q7 if pattern `&mut name` with `let name`
+        pm = re.search(r"(\w+)\s*:\s*&mut", mline)
+        callee_write = _callee_param_write(mutant, mline, pm.group(1)) if pm else None
+        if pm and callee_write:
+            obl = callee_write
+            invalid = f"invalid: callee writes through `&mut` parameter `{pm.group(1)}`"
+            if ab:
+                return Outcome("confirmed-hole", ab, False, obl, path_mr, quote_mr, heading_mr, invalid)
+            if disagree(omg, cur, route):
+                return Outcome(
+                    "disagreement-valid", accepted_by(omg, cur, route), False, obl, path_mr, quote_mr, heading_mr, invalid
+                )
+            return Outcome("rejected-both", "", False, obl, None, None, None, invalid)
+
+        obl = mline
         lm = re.search(r"&mut\s+(\w+)", obl)
         if lm:
             name = lm.group(1)
@@ -240,25 +320,13 @@ def classify_reference_kind(kind: str, original: str, mutant: str, omg: str, cur
                 note = f"Q7: non-mut `let {name}` with `{obl}`"
                 if ab:
                     return Outcome("known-gap-q7-mut", ab, False, obl, path, quote, heading, note)
+                return Outcome("rejected-both", "", False, obl, None, None, None, note)
 
-        if obl.startswith("//"):
-            return Outcome("discarded-valid", ab, True, mline, None, None, None, "reference change in comment only")
-
-        path, heading, quote = SPEC_BY_KIND["mut_ref_instead_of_shared"]
-        if re.search(r":\s*&[^m]", obl) and "&mut" in obl:
-            invalid = "invalid: shared-typed slot from `&mut` source"
-        elif pm and writes:
-            invalid = "invalid: callee writes through `&mut` parameter"
-        else:
-            note = "valid: `&mut` added without conflicting write or type mismatch (hand)"
-            if ab:
-                return Outcome("discarded-valid", ab, True, obl, None, None, None, note)
-            return Outcome("discarded-valid", "", True, obl, None, None, None, note)
+        note = "valid: `&mut` at least as strict as `&` without shared-slot violation"
+        dc = "mut-ref-stricter-signature"
         if ab:
-            return Outcome("confirmed-hole", ab, False, obl, path, quote, heading, invalid)
-        if disagree(omg, cur, route):
-            return Outcome("disagreement-valid", accepted_by(omg, cur, route), False, obl, path, quote, heading, invalid)
-        return Outcome("rejected-both", "", False, obl, None, None, None, invalid)
+            return Outcome("discarded-valid", ab, True, mline, None, None, None, note, dc)
+        return Outcome("discarded-valid", "", True, mline, None, None, None, note, dc)
 
     return Outcome("discarded-valid", ab, True, mline, None, None, None, "unclassified reference mutation")
 
@@ -307,18 +375,30 @@ def classify_fix3(
             oc = Outcome("rejected-both", "", False, None, None, None, None, "")
         elif kind == "drop_ensures":
             oc = (
-                Outcome("discarded-valid", ab, True, None, None, None, None, "ensures removal weakens only")
+                Outcome(
+                    "discarded-valid", ab, True, None, None, None, None, "ensures removal weakens only", "ensures-weaken"
+                )
                 if ab
                 else Outcome("rejected-both", "", True, None, None, None, None, "")
             )
         elif kind in ("drop_guard", "break_ensures", "widen_requires"):
             oc = (
-                Outcome("discarded-valid", ab, True, None, None, None, None, "not auto-confirmed (fix3)")
+                Outcome(
+                    "discarded-valid",
+                    ab,
+                    True,
+                    None,
+                    None,
+                    None,
+                    None,
+                    "not auto-confirmed (fix3)",
+                    f"accepted-{kind}",
+                )
                 if ab
                 else Outcome("rejected-both", "", False, None, None, None, None, "")
             )
         elif ab and kind:
-            oc = Outcome("discarded-valid", ab, True, None, None, None, None, "unsettled; default valid")
+            oc = Outcome("discarded-valid", ab, True, None, None, None, None, "unsettled; default valid", "other-accepted")
         else:
             oc = Outcome("rejected-both", "", False, None, None, None, None, "")
 
