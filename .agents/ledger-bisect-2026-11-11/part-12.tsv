@@ -12,6 +12,9 @@ pass/facts/as_slice_views_generic_through_other_machine_exit	still broken	cannot
 pass/facts/as_slice_views_generic_through_other_state_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
 pass/facts/as_slice_views_generic_through_parameter_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
 pass/facts/as_slice_views_generic_through_target_body_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
+pass/operators/crash_routes	still broken	boundary requirement `Comparison::equal` … resolves to 0 selected ProviderPlans; expected exactly one	crash_routes_boundary
+pass/providers/checked_fixed_operator_dispatch_exit	still broken	boundary requirement `Comparison::equal` … resolves to 0 selected ProviderPlans; expected exactly one	crash_routes_boundary
+pass/providers/checked_fixed_operator_physical_custody	still broken	boundary requirement `Comparison::equal` … resolves to 0 selected ProviderPlans; expected exactly one	crash_routes_boundary
 fail/borrows/evidence_bound_record_result_keeps_loan	fixed on main		fixed
 pass/generics/runtime_inherited_composite_requirement_exit	fixed on main		fixed
 fail/proofs/result_index_authored_operator	fixed on main		fixed

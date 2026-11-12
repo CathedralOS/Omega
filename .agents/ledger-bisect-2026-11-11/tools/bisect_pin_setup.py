@@ -10,7 +10,7 @@ from pathlib import Path
 
 PIN = Path("/agent/repos/omega")
 PIN_OUTCOMES = PIN / "tests/omega/corpus_outcomes.txt"
-OBS = PIN / ".agents/ledger-bisect-2026-11-11/part-12-pin.txt"
+OBS = Path("/tmp/part-12-pin.txt")
 OUT_DIR = Path("/tmp/bisect-pin")
 
 

@@ -27,6 +27,24 @@
       "status": "bisected",
       "good_commit": "b60588878916f41d711b596dc7299ae14a32d94a",
       "stability": "deterministic (PIN exit 1 ×3, good b605888 exit 0 ×1; bisect first-bad not PIN)"
+    },
+    {
+      "cluster_id": "crash_routes_boundary",
+      "rows": 3,
+      "kind": "pass/run rejected",
+      "witness": "pass/operators/crash_routes",
+      "diag": "boundary requirement `Comparison::equal` … resolves to 0 selected ProviderPlans; expected exactly one",
+      "members": [
+        "pass/operators/crash_routes",
+        "pass/providers/checked_fixed_operator_dispatch_exit",
+        "pass/providers/checked_fixed_operator_physical_custody"
+      ],
+      "breaking_commit": "60cb5e1f79dd05465f77775990e46bcc2e789470",
+      "pr": "1721",
+      "mechanism": "psi #1721 reshapes provider admission/selection and collection-bound checks so Comparison::equal boundary requirement no longer resolves to a single ProviderPlan",
+      "status": "bisected",
+      "good_commit": "b60588878916f41d711b596dc7299ae14a32d94a",
+      "stability": "deterministic (PIN exit 1, bebbe455 exit 0, 2174 exit 0; first-bad #1721)"
     }
   ]
 }
