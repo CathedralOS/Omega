@@ -1,0 +1,4 @@
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 45 revisions left to test after this (roughly 6 steps)
+[3fbdcc7e9f716445a62aadbf19d8a5c8a4a4ed18] psi: let the result of a trapping operation count as its exact result (#2341)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'

@@ -1,0 +1,50 @@
+pass/traits/inline_member_seals_target_family_provider	still broken	cannot prove published termination for machine `FamilyConsole::write_byte`: its checked body reaches an operation without a usable termination guarantee; state `FamilyConsole::write_byte::write_byte` 	2-pin-0
+run/ownership/sequence_owned_local_cleanup	still broken	cannot prove published termination for machine `FamilyConsole::write_byte`: its checked body reaches an operation without a usable termination guarantee; state `FamilyConsole::write_byte::write_byte` 	2-pin-0
+pass/domains/private_case_payload_construction	still broken	data `Locator` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value	2-pin-1
+pass/facts/static_callback_reach_through_field	still broken	data `Locator` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value	2-pin-1
+pass/borrows/returned_record_case_field_store_exit	still broken	cannot establish assignment invariants: partial write enclosure has no exact active-case frontier	2-pin-2
+pass/borrows/runtime_reassigned_view_capture_exit	still broken	cannot establish assignment invariants: source parent type is unavailable	2-pin-3
+pass/optimizer/pre_allocation_joint_frontier_exit	still broken	selected optimizations `SelectedSameBlockCopyI64RemovalV1`, `SelectedRedundantExtensionRemovalV1`, `SelectedAddressOffsetFoldV1`, `SelectedConstantBooleanFoldV1`, `SelectedConstantBranchFoldV1`, `Sele	2-pin-4
+fail/dependent/case_where_unproved_bound_rejected	fixed on main		
+fail/facts/descriptor_range_exclusive_loan_through_call_result_rejected	fixed on main		
+fail/facts/descriptor_range_exclusive_loan_through_const_name_rejected	fixed on main		
+fail/facts/descriptor_range_exclusive_loan_through_field_rejected	fixed on main		
+fail/facts/descriptor_range_exclusive_loan_through_local_rejected	fixed on main		
+fail/facts/descriptor_range_exclusive_loan_through_match_join_rejected	fixed on main		
+fail/facts/descriptor_range_exclusive_loan_through_other_machine_rejected	fixed on main		
+fail/facts/descriptor_range_exclusive_loan_through_other_state_rejected	fixed on main		
+fail/facts/descriptor_range_exclusive_loan_through_parameter_rejected	fixed on main		
+fail/facts/descriptor_range_exclusive_loan_through_target_body_rejected	fixed on main		
+fail/facts/match_loan_last_use_through_call_result_rejected	fixed on main		
+fail/facts/match_loan_last_use_through_const_name_rejected	fixed on main		
+fail/facts/match_loan_last_use_through_field_rejected	fixed on main		
+fail/facts/match_loan_last_use_through_local_rejected	fixed on main		
+fail/facts/match_loan_last_use_through_match_join_rejected	fixed on main		
+fail/facts/match_loan_last_use_through_other_machine_rejected	fixed on main		
+fail/facts/match_loan_last_use_through_other_state_rejected	fixed on main		
+fail/facts/match_loan_last_use_through_parameter_rejected	fixed on main		
+fail/facts/match_loan_last_use_through_target_body_rejected	fixed on main		
+fail/facts/static_callback_reach_through_field	fixed on main		
+fail/traits/dyn_finite_family_narrowed_provider	fixed on main		
+pass/borrows/runtime_reassigned_view_return_exit	fixed on main		
+pass/facts/descriptor_range_exclusive_loan_through_call_result_exit	fixed on main		
+pass/facts/descriptor_range_exclusive_loan_through_const_name_exit	fixed on main		
+pass/facts/descriptor_range_exclusive_loan_through_field_exit	fixed on main		
+pass/facts/descriptor_range_exclusive_loan_through_local_exit	fixed on main		
+pass/facts/descriptor_range_exclusive_loan_through_match_join_exit	fixed on main		
+pass/facts/descriptor_range_exclusive_loan_through_other_machine_exit	fixed on main		
+pass/facts/descriptor_range_exclusive_loan_through_other_state_exit	fixed on main		
+pass/facts/descriptor_range_exclusive_loan_through_parameter_exit	fixed on main		
+pass/facts/descriptor_range_exclusive_loan_through_target_body_exit	fixed on main		
+pass/facts/match_loan_last_use_through_call_result_exit	fixed on main		
+pass/facts/match_loan_last_use_through_const_name_exit	fixed on main		
+pass/facts/match_loan_last_use_through_field_exit	fixed on main		
+pass/facts/match_loan_last_use_through_local_exit	fixed on main		
+pass/facts/match_loan_last_use_through_match_join_exit	fixed on main		
+pass/facts/match_loan_last_use_through_other_machine_exit	fixed on main		
+pass/facts/match_loan_last_use_through_other_state_exit	fixed on main		
+pass/facts/match_loan_last_use_through_parameter_exit	fixed on main		
+pass/facts/match_loan_last_use_through_target_body_exit	fixed on main		
+pass/facts/target_family_callback_guarantee/const_name	fixed on main		
+pass/slices/let_matched_mutable_window	fixed on main		
+pass/termination/progress_selector_owned_arrival_replacement_helper_exit	fixed on main		

@@ -1,0 +1,89 @@
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 45 revisions left to test after this (roughly 6 steps)
+[3fbdcc7e9f716445a62aadbf19d8a5c8a4a4ed18] psi: let the result of a trapping operation count as its exact result (#2341)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 22 revisions left to test after this (roughly 5 steps)
+[146d382b9d17641c5def7c14522c482447d3a41a] psi: keep an implementation operand's source record in step when its consts close (#2330)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 11 revisions left to test after this (roughly 4 steps)
+[c27eaacc45d6a0b97390b9263d98bab5e5d80b81] docs: publish a checked body's inferred mutation frame as part of its contract (#2316)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 5 revisions left to test after this (roughly 3 steps)
+[937131af8d190a0e844c526a058cbbc70856269f] tests: re-record 24 provider and entry rows, moving six to parameterless entries (#2226)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 2 revisions left to test after this (roughly 1 step)
+[0fa0ba3cc942bcf6baa175d6d1b8ef0705d04aa6] psi: stop erased arguments and linear casts from failing ownership checks (#2224)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[f3612364ffbb9489d7be1409397df6867fcbebc6] tests: record four case-payload rows that already check (#2228)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+f3612364ffbb9489d7be1409397df6867fcbebc6 is the first bad commit
+commit f3612364ffbb9489d7be1409397df6867fcbebc6
+Author: Jarod Castillo <43973221+Smotto@users.noreply.github.com>
+Date:   Wed Nov 11 00:08:50 2026 +0000
+
+    tests: record four case-payload rows that already check (#2228)
+    
+    Four case-payload rows were listed as red in the corpus ledger, but main
+    already checks them. This re-records them, so the scalar-range
+    migration's remaining-work list no longer counts them. One more row that
+    was never recorded is added, and it checks too.
+    
+    These rows are customers of **CANONICALIZE-SCALAR-RANGE-CONTRACTS**.
+    Each was migrated from a payload suffix (`case X(v: T [lo..=hi])`) to a
+    guarded data `requires` disjunct. A call inside the selected match arm
+    relies on that disjunct, e.g. `take(lo, hi)` requiring `lo <= hi`. The
+    ledger still showed the rejection recorded at `ccdb99ca2214`. At main
+    `fea4cddc5c14`, these check:
+    
+    - `pass/cases/case_where_match`
+    - `pass/cases/case_arm_pattern_names`
+    - `pass/dependent/case_where_match_contributes`
+    - `pass/dependent/case_where_generic_type_bound_coverage` (+ new row
+    `..._coverage_exit`)
+    
+    No compiler code changes.
+    
+    **Dropped from the original version of this PR:**
+    `pass/control_flow/runtime_projected_case_payload_snapshots_exit`
+    checked at the earlier base `82e12564e`, but it is rejected again at
+    main with the same diagnostic (`value < 100` not proved at the
+    `selected` call). Its row is left untouched and still red. It is a
+    regression that needs its own trace.
+    
+    Limits: these are check-target rows. None was executed natively or under
+    `omega run --both`. The parent item's `--both` acceptance stays open.
+    The original run also found these rows, which this PR does not touch:
+    `fail/facts/case_where_equality_data_predicate_through_field_rejected`
+    accepted (unsound),
+    `pass/facts/case_where_equality_data_predicate_nested_payload_carriage_exit`
+    failing Terminal lowering, and
+    `pass/facts/case_where_equality_through_call_result_exit` rejected with
+    `may overflow u64`. They were not re-checked at the new base.
+    
+    ### Validation
+    - Rebased onto main `fea4cddc5c1`. The old ledger commit was dropped and
+    every row was re-recorded instead.
+    - `mbx xtask corpus --record --filter
+    case_where_match,case_arm_pattern_names,case_where_match_contributes,case_where_generic_type_bound_coverage,runtime_projected_case_payload_snapshots_exit`
+    on a clean tree at `fea4cddc5c14`, linux_x86_64, with a freshly built
+    runner. Five rows are `checked`; the snapshots row stays `rejected` and
+    was reverted to its original line.
+    - Earlier, at `82e12564e`: three falsifiers rejected on both binaries (a
+    callee demanding `lo < hi`, an arm for a case with no predicate, and
+    swapped arguments). Not repeated at the new base.
+    - `mbx xtask check-rules --base fea4cddc5c14 --body-file`: clean.
+    
+    Agent: Claude Code | Model: claude-opus-5-5 | Effort: high | Tokens:
+    12.99M in (12.91M cached), 51.9k out | Steps: 66 | Time: 17m58s |
+    Steers: 38
+    
+    🤖 Generated with [Claude Code](https://claude.com/claude-code)
+    
+    https://claude.ai/code/session_01AAaT4ez9ixUH38qApMkCmF
+    
+    Co-authored-by: Claude <noreply@anthropic.com>
+
+ tests/omega/corpus_outcomes.txt | 13 +++++--------
+ 1 file changed, 5 insertions(+), 8 deletions(-)
+bisect found first bad commit

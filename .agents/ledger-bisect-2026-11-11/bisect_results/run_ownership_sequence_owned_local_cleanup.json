@@ -1,0 +1,8 @@
+{
+  "witness": "run/ownership/sequence_owned_local_cleanup",
+  "breaking_commit": "51e8c45c793007f211d0d9baee7de16767172444",
+  "pr": "2505",
+  "mechanism": "psi: check a body over a const value parameter once and carry its proofs (#2505)",
+  "status": "bisected",
+  "rc": 1
+}
