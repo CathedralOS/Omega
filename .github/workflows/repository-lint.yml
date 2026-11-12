@@ -43,7 +43,27 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          fetch-depth: 2
+      # A change to prose, fixtures or the ledger compiles no Rust, so the
+      # build and lint steps below have nothing to judge; they cost a runner
+      # for up to 20 minutes per pull request and per merge-queue entry.
+      - name: Decide whether this change touches code
+        id: scope
+        run: |
+          if [ "${{ github.event_name }}" != pull_request ] && [ "${{ github.event_name }}" != merge_group ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if ! changed=$(git diff --name-only HEAD^1 HEAD); then
+            echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if printf '%s\n' "$changed" | grep -Ev '^(wiki/|tests/omega/|samples/)|\.md$|^$' | grep -q .; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+            echo "Only prose, fixtures or ledgers changed; skipping the Rust build and lint."
+          fi
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        if: steps.scope.outputs.code == 'true'
         with:
           path: |
             ~/.cargo/registry
@@ -53,6 +73,8 @@ jobs:
           restore-keys: |
             repository-lint-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
       - name: Check formatting
+        if: steps.scope.outputs.code == 'true'
         run: cargo xtask fmt --check
       - name: Lint every workspace target
+        if: steps.scope.outputs.code == 'true'
         run: cargo clippy --locked --keep-going --workspace --all-targets -- -D warnings
