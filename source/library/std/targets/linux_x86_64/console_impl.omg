@@ -1,5 +1,3 @@
-use console;
-
 // Exact linux_x86_64 Console byte/runtime leaves. The named NativeConsole
 // implementation in std/console.omg forwards to these target declarations.
 // Each leaf's compiler supply is inferred from its exact realization symbol,
