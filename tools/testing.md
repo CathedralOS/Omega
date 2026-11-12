@@ -447,13 +447,14 @@ otherwise request N times the machine.
 
 ### The corpus in CI
 
-Every pull request that is not a draft, and every merge-queue entry, runs the
-corpus rows its diff can affect against this ledger, and the job fails when a
+Every pull request that is not a draft runs the corpus rows its diff can
+affect against this ledger, and the required `compiler-check` fails when a
 row gets worse: a pass/run row that stops checking, a fail row that is
 accepted, or a fail row that loses its pinned reason. A row main already lost
 is not charged to the pull request. Each night a sweep measures the whole
-corpus on main and opens one ledger-only pull request recording every row that
-moved, with accepted fail rows listed first as soundness alerts. Both are
+corpus on main and pushes one ledger-only commit recording every row that
+moved to `work/tests-nightly-corpus-sweep`, with accepted fail rows listed
+first as soundness alerts, for a session to open as a pull request. Both are
 described in [tools/ci/README.md](ci/README.md#corpus-gate) and implemented by
 `cargo xtask corpus-gate`; the gate's own plan and shard run locally with the
 commands there.

@@ -5,22 +5,22 @@ name: Corpus sweep
 # The pull request gate (corpus-gate.yml) checks a sample of rows, and the
 # ledger drifted while nothing ran the whole corpus: a triage on 2026-11-11
 # found 941 rows whose recorded outcome main no longer produced. This sweep
-# runs all of tests/omega in shards on main's head, then opens (or replaces)
-# one pull request that changes only tests/omega/corpus_outcomes.txt and
-# records every row whose outcome differs from it. Such a pull request may
-# record red rows (tools/testing.md, "Who may record a regression"), so its
-# description lists every must-reject fixture the compiler now accepts first,
+# runs all of tests/omega in shards on main's head, then force-pushes one
+# commit to work/tests-nightly-corpus-sweep that changes only
+# tests/omega/corpus_outcomes.txt and records every row whose outcome differs
+# from it. A long-running session turns that branch into the ledger-only pull
+# request. Such a pull request may record red rows (tools/testing.md, "Who may
+# record a regression"), so the commit message, which is the pull request's
+# description, lists every must-reject fixture the compiler now accepts first,
 # as soundness alerts, before a table of the worse rows by first diagnostic.
 #
 # The sweep also publishes its observations as the `observed.txt` asset of the
 # `corpus-sweep-main` release. The gate reads it so a row main already lost is
 # not charged to an unrelated pull request.
 #
-# Owner settings (tools/ci/README.md, "Corpus gate"): a pull request opened
-# with the default GITHUB_TOKEN starts no workflows, so its checks never run.
-# Store a token that may push branches and open pull requests as the
-# CORPUS_SWEEP_TOKEN secret; without it the sweep still opens the pull
-# request, and the repository must allow GitHub Actions to create pull requests.
+# The workflow opens no pull request: one opened with GITHUB_TOKEN would start
+# no checks, and a pull request from a session's push does. Pushing a branch
+# and publishing a release asset need only `contents: write`, no secret.
 
 on:
   schedule:
@@ -104,16 +104,14 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: write
-      pull-requests: write
     env:
-      GH_TOKEN: ${{ secrets.CORPUS_SWEEP_TOKEN || github.token }}
+      GH_TOKEN: ${{ github.token }}
       COMMIT: ${{ needs.plan.outputs.commit }}
       BRANCH: work/tests-nightly-corpus-sweep
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.plan.outputs.commit }}
-          token: ${{ secrets.CORPUS_SWEEP_TOKEN || github.token }}
           fetch-depth: 1
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -135,7 +133,7 @@ jobs:
           gh release upload corpus-sweep-main build/corpus-sweep/observed.txt --clobber --repo "${{ github.repository }}"
           gh release edit corpus-sweep-main --repo "${{ github.repository }}" --notes \
             "observed.txt holds every corpus row the nightly sweep (.github/workflows/corpus-sweep.yml) measured on main at $COMMIT. The pull request gate reads it so a row main already lost is not charged to an unrelated change."
-      - name: Open or update the ledger pull request
+      - name: Push the recorded rows for the ledger pull request
         if: steps.report.outputs.changed != '0'
         env:
           CHANGED: ${{ steps.report.outputs.changed }}
@@ -149,25 +147,21 @@ jobs:
           fi
           created=$(gh run view "${{ github.run_id }}" --repo "${{ github.repository }}" --json createdAt --jq .createdAt)
           seconds=$(( $(date +%s) - $(date -d "$created" +%s) ))
+          # The commit message is the pull request's title and description.
           {
+            printf '%s\n\n' "$title"
             cat build/corpus-sweep/body.md
             echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             echo
             printf 'Agent: Corpus sweep | Model: none | Effort: none | Tokens: 0 in (0 cached), 0 out | Steps: %s | Time: %dh%02dm | Steers: 0\n' \
               "$SHARDS" $((seconds / 3600)) $((seconds % 3600 / 60))
-          } > build/corpus-sweep/pr-body.md
-          printf '%s\n\n' "$title" > build/corpus-sweep/commit.txt
-          head -c 60000 build/corpus-sweep/pr-body.md >> build/corpus-sweep/commit.txt
+          } > build/corpus-sweep/commit.txt
           git config user.name "corpus-sweep"
           git config user.email "corpus-sweep@users.noreply.github.com"
           git checkout -q -B "$BRANCH"
           git add tests/omega/corpus_outcomes.txt
           git commit -q -F build/corpus-sweep/commit.txt
           git push -q --force origin "HEAD:refs/heads/$BRANCH"
-          existing=$(gh pr list --repo "${{ github.repository }}" --head "$BRANCH" --state open --json number --jq '.[0].number')
-          if [ -n "$existing" ]; then
-            gh pr edit "$existing" --repo "${{ github.repository }}" --title "$title" --body-file build/corpus-sweep/pr-body.md
-          else
-            gh pr create --repo "${{ github.repository }}" --base main --head "$BRANCH" \
-              --title "$title" --body-file build/corpus-sweep/pr-body.md
-          fi
+          tail -n +3 build/corpus-sweep/commit.txt > build/corpus-sweep/sweep-body.md
+          gh release upload corpus-sweep-main build/corpus-sweep/sweep-body.md --clobber --repo "${{ github.repository }}"
+          echo "Pushed $BRANCH at $(git rev-parse --short=12 HEAD): $title" >> "$GITHUB_STEP_SUMMARY"

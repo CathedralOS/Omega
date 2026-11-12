@@ -3,8 +3,9 @@ name: Compiler admission
 on:
   pull_request:
     branches: [main]
-    # `edited` re-runs the check when a description gains its `Agent:` line.
-    types: [opened, synchronize, reopened, edited]
+    # `edited` re-runs the check when a description gains its `Agent:` line;
+    # `ready_for_review` re-reads the corpus gate once a draft is marked ready.
+    types: [opened, synchronize, reopened, edited, ready_for_review]
   merge_group:
     branches: [main]
     types: [checks_requested]
@@ -29,6 +30,9 @@ on:
 
 permissions:
   contents: read
+  # Read the corpus gate's run for this head (tools/ci/await_corpus_gate.sh).
+  actions: read
+  pull-requests: read
 
 concurrency:
   group: compiler-admission-${{ github.event.pull_request.number || github.ref }}
@@ -38,7 +42,8 @@ jobs:
   compiler-check:
     name: ${{ github.event_name == 'workflow_dispatch' && inputs.prepare_tests_only && 'compiler-test-preparation' || 'compiler-check' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && inputs.test_package != '' && 25 || 20 }}
+    # A pull request's check also waits for the corpus gate, about 25 minutes.
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && inputs.test_package != '' && 25 || github.event_name == 'pull_request' && 70 || 20 }}
     env:
       CARGO_BUILD_JOBS: '2'
       CARGO_INCREMENTAL: '0'
@@ -123,3 +128,16 @@ jobs:
           TEST_TARGET: ${{ inputs.test_target }}
           OMEGA_WINDOWS_HANDLE_PROFILE: ${{ inputs.test_package == 'compiler' && inputs.test_target == 'filesystem_receiver' && inputs.test_filter == 'windows_canonicalize_receiver' && '1' || '' }}
         run: mbx xtask focused-test
+      # The required status carries the corpus gate's verdict, so a pull
+      # request that breaks corpus rows cannot merge under main's existing
+      # protection. The merge queue does not wait: the pull request's own run
+      # already gated the change, and a 25-minute corpus run per queue entry
+      # would serialize the queue. The nightly sweep covers what lands.
+      - name: Wait for the corpus gate's verdict on this head
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash tools/ci/await_corpus_gate.sh

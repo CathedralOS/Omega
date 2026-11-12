@@ -10,7 +10,8 @@ authors do not rebuild or repeat review just because main advances.
 dispatch. Its required status, **compiler-check**, runs
 `python tools/fmt.py --check` and `cargo clippy --locked -p omega -- -D warnings`
 on Linux. Clippy type-checks the same crates `cargo check -p omega` did and
-rejects warnings in them. `.github/workflows/repository-lint.yml` runs the full
+rejects warnings in them. On a pull request it then waits for the corpus
+gate's verdict on the same head and fails with it (see [Corpus gate](#corpus-gate)). `.github/workflows/repository-lint.yml` runs the full
 `--workspace --all-targets` clippy, which also covers test and example targets,
 as the second required status, **workspace-clippy**, on each PR push and in the
 merge queue, and again after each main push and nightly.
@@ -91,8 +92,7 @@ PR updates cancel superseded PR jobs; queue jobs do not cancel one another.
 Before this gate no CI job ran the corpus, so a compiler change could break
 ledger rows and land green; #2370 broke more than 100 and nobody saw it until a
 sweep. `.github/workflows/corpus-gate.yml` runs, for every pull request that is
-not a draft and for every merge-queue entry, the corpus rows the change can
-affect, and fails when one of them gets worse than
+not a draft, the corpus rows the change can affect, and fails when one of them gets worse than
 `tests/omega/corpus_outcomes.txt` records:
 
 - a `pass/` or `run/` row stops checking (or loses a matched native rejection),
@@ -137,10 +137,30 @@ and uploads its evidence as `corpus-gate-shard-N-attempt`.
 container and path the warm-build job builds main in, and restore that build
 with `tools/ci/corpus_host.sh`; only the crates the candidate changed compile.
 
-**Required status.** The last job, `corpus-gate`, is the one to require: it is
-green when the plan skips or every shard passes, and red when the plan or any
-shard fails or does not finish. Requiring it is an owner change to the main
-ruleset (`main-ruleset.json`), not something this workflow does.
+**Enforcement.** Main's ruleset already requires `compiler-check`, so that
+job carries the verdict instead of a new required check, which only the owner
+could add. On a pull request, `compiler-check` (`compiler.yml`) ends by
+waiting for the corpus gate's run on the same head commit
+(`tools/ci/await_corpus_gate.sh`) and fails when that run fails, so a pull
+request that breaks rows cannot merge. The gate's last job, `corpus-gate`, is
+the verdict it reads: green when the plan skips or every shard passes, red when
+the plan or any shard fails or does not finish.
+
+- A ledger- or Markdown-only pull request's gate run finishes in under a
+  minute, so its `compiler-check` stays fast.
+- A draft's `compiler-check` does not wait. `compiler.yml` runs again on
+  `ready_for_review` and waits then, and it ignores a gate run whose plan was
+  skipped as a draft.
+- An edit to the description re-runs `compiler-check`, which reads the
+  existing gate run for that head instead of starting the corpus again.
+- A gate run that failed and is then re-run does not update a red
+  `compiler-check` by itself; re-run that job too.
+- The merge queue does not wait for the corpus. The pull request's own run
+  already gated the change, and the queue admits one entry at a time, so a
+  25-minute corpus run per entry would serialize landing. The nightly sweep
+  measures what lands.
+
+While it waits, `compiler-check` holds one runner, up to 55 minutes.
 
 Run a shard locally with the same code:
 
@@ -155,8 +175,11 @@ mbx xtask corpus-gate check --plan build/corpus-gate/plan.json --shard 0 < /dev/
 UTC in 64 shards (`cargo xtask corpus-gate sweep-shard`), then
 `cargo xtask corpus-gate sweep-report` splices every row whose outcome differs
 from the ledger with `--record`'s rules (the measured commit as the stamp, and
-`regressed-from:` on a pass/run row that lost a success) and opens or replaces
-one ledger-only pull request from `work/tests-nightly-corpus-sweep`. Its
+`regressed-from:` on a pass/run row that lost a success). It force-pushes that
+one ledger-only commit to `work/tests-nightly-corpus-sweep` and opens no pull
+request: a long-running session opens or updates the ledger-only pull request
+from that branch, using the commit message as its title and description (also
+published as `sweep-body.md` on the `corpus-sweep-main` release). The
 description starts with the soundness alerts, every `fail/` fixture the
 compiler now accepts, and then tables the worse rows by first diagnostic. A
 ledger-only pull request may record red rows, so a reviewer must read the
@@ -164,12 +187,9 @@ alerts before it lands; recording an accepted must-reject program keeps the
 ledger honest and does not make it acceptable. The sweep also publishes its
 observations for the gate.
 
-Owner settings: a pull request opened with the default `GITHUB_TOKEN` starts
-no workflows, so its required checks never report. Store a token that can push
-a branch and open pull requests as the `CORPUS_SWEEP_TOKEN` secret. Without it
-the sweep falls back to `GITHUB_TOKEN`, which needs "Allow GitHub Actions to
-create and approve pull requests" enabled and leaves the pull request without
-checks until someone pushes to it.
+The workflow needs no secret: pushing the branch and publishing the release
+assets use `GITHUB_TOKEN` with `contents: write`. It opens no pull request,
+because one opened with `GITHUB_TOKEN` would start no checks.
 
 ## Administration and rollout
 

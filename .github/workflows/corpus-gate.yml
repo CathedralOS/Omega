@@ -10,17 +10,17 @@ name: Corpus gate
 # row main already lost is told apart from this change's own; tools/ci/README.md
 # has the operating notes.
 #
-# Required status: `corpus-gate` (the last job). It reports success when the
-# plan skips (a pull request that changes only ledgers and Markdown) and fails
-# when any shard fails or does not finish.
+# Enforcement: the required `compiler-check` job in compiler.yml ends by
+# waiting for this workflow's run on the same head and fails when it fails
+# (tools/ci/await_corpus_gate.sh), so no ruleset change is needed. The last
+# job here, `corpus-gate`, is the verdict it reads: success when the plan
+# skips (a pull request that changes only ledgers and Markdown) or every shard
+# passes; failure when the plan or any shard fails or does not finish.
 
 on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
-  merge_group:
-    branches: [main]
-    types: [checks_requested]
   workflow_dispatch:
 
 permissions:
