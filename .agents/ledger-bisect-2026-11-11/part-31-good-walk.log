@@ -1,0 +1,152 @@
+=== good-walk c0 witness=pass/borrows/runtime_selected_reference_mutation_complement_exit ===
+witness=pass/borrows/runtime_selected_reference_mutation_complement_exit pin=51e8c45c793007f211d0d9baee7de16767172444 commits=34672
+  jump idx=0 sha=51e8c45c793007f211d0d9baee7de16767172444 exit=125
+  jump idx=1 sha=e2e7876a03e415c6aad2defbbe743e0ec24e7caa exit=125
+  jump idx=2 sha=dfece9ee0666386d0fceb27ede2549b3302d82c8 exit=125
+  jump idx=4 sha=182a33b423f50a54760c53cae43861af0f95f63f exit=125
+  jump idx=8 sha=a24aae8c0d708d76cd47894a5f0eaf9afe414899 exit=125
+  jump idx=16 sha=4561f923e68883df47e1262496a492034b1816d1 exit=125
+  jump idx=32 sha=3bbe5c131a15666f68a700f499783f04910e8143 exit=125
+  jump idx=64 sha=d14bba6d178e0c6e02f62065ad601cd65656bd2b exit=125
+  jump idx=128 sha=7b3a04c7c5056b020dca66b45ab5cfd6184a4dce exit=125
+  jump idx=256 sha=ca85a279ff090b7204dd45f3f522ba8d79505d4c exit=1
+  jump idx=512 sha=c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30 exit=1
+  jump idx=1024 sha=a48219f5cf97b2d7d766d07c48e1d8946a2b6477 exit=1
+  jump idx=2048 sha=68b1302cf9ebc2a9297840db1deb3b6993b6ac3d exit=1
+  jump idx=4096 sha=2be444ab1c3390893286cb2d618cfcad8366bed9 exit=125
+  jump idx=8192 sha=bd9aee3464df1f7873da3d08856b9c95ed6e3d40 exit=125
+  jump idx=16384 sha=3e4489ff4611732c790e148968ed6679ae629ed2 exit=125
+NO_GOOD
+=== good-walk c1 witness=pass/facts/computed_record_window_through_other_machine_exit ===
+fatal: Unable to create '/agent/repos/omega/.git/index.lock': File exists.
+
+Another git process seems to be running in this repository, e.g.
+an editor opened by 'git commit'. Please make sure all processes
+are terminated then try again. If it still fails, a git process
+may have crashed in this repository earlier:
+remove the file manually to continue.
+witness=pass/facts/computed_record_window_through_other_machine_exit pin=51e8c45c793007f211d0d9baee7de16767172444 commits=34672
+  jump idx=0 sha=51e8c45c793007f211d0d9baee7de16767172444 exit=125
+  jump idx=1 sha=e2e7876a03e415c6aad2defbbe743e0ec24e7caa exit=125
+  jump idx=2 sha=dfece9ee0666386d0fceb27ede2549b3302d82c8 exit=125
+  jump idx=4 sha=182a33b423f50a54760c53cae43861af0f95f63f exit=125
+  jump idx=8 sha=a24aae8c0d708d76cd47894a5f0eaf9afe414899 exit=125
+  jump idx=16 sha=4561f923e68883df47e1262496a492034b1816d1 exit=125
+  jump idx=32 sha=3bbe5c131a15666f68a700f499783f04910e8143 exit=125
+  jump idx=64 sha=d14bba6d178e0c6e02f62065ad601cd65656bd2b exit=125
+  jump idx=128 sha=7b3a04c7c5056b020dca66b45ab5cfd6184a4dce exit=125
+  jump idx=256 sha=ca85a279ff090b7204dd45f3f522ba8d79505d4c exit=1
+  jump idx=512 sha=c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30 exit=125
+  jump idx=1024 sha=a48219f5cf97b2d7d766d07c48e1d8946a2b6477 exit=125
+Traceback (most recent call last):
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/verify_good_walk.py", line 67, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/verify_good_walk.py", line 36, in main
+    subprocess.check_call(["git", "-C", str(ROOT), "checkout", "-q", revs[jump]])
+  File "/usr/lib/python3.12/subprocess.py", line 413, in check_call
+    raise CalledProcessError(retcode, cmd)
+subprocess.CalledProcessError: Command '['git', '-C', '/agent/repos/omega', 'checkout', '-q', '68b1302cf9ebc2a9297840db1deb3b6993b6ac3d']' returned non-zero exit status 128.
+=== good-walk c2 witness=pass/facts/match_computed_root_through_other_state_exit ===
+fatal: Unable to create '/agent/repos/omega/.git/index.lock': File exists.
+
+Another git process seems to be running in this repository, e.g.
+an editor opened by 'git commit'. Please make sure all processes
+are terminated then try again. If it still fails, a git process
+may have crashed in this repository earlier:
+remove the file manually to continue.
+witness=pass/facts/match_computed_root_through_other_state_exit pin=51e8c45c793007f211d0d9baee7de16767172444 commits=34672
+Traceback (most recent call last):
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/verify_good_walk.py", line 67, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/verify_good_walk.py", line 36, in main
+    subprocess.check_call(["git", "-C", str(ROOT), "checkout", "-q", revs[jump]])
+  File "/usr/lib/python3.12/subprocess.py", line 413, in check_call
+    raise CalledProcessError(retcode, cmd)
+subprocess.CalledProcessError: Command '['git', '-C', '/agent/repos/omega', 'checkout', '-q', '51e8c45c793007f211d0d9baee7de16767172444']' returned non-zero exit status 128.
+=== good-walk c3 witness=pass/generics/generic_result_parameter_receipt ===
+fatal: Unable to create '/agent/repos/omega/.git/index.lock': File exists.
+
+Another git process seems to be running in this repository, e.g.
+an editor opened by 'git commit'. Please make sure all processes
+are terminated then try again. If it still fails, a git process
+may have crashed in this repository earlier:
+remove the file manually to continue.
+witness=pass/generics/generic_result_parameter_receipt pin=51e8c45c793007f211d0d9baee7de16767172444 commits=34672
+Traceback (most recent call last):
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/verify_good_walk.py", line 67, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/verify_good_walk.py", line 36, in main
+    subprocess.check_call(["git", "-C", str(ROOT), "checkout", "-q", revs[jump]])
+  File "/usr/lib/python3.12/subprocess.py", line 413, in check_call
+    raise CalledProcessError(retcode, cmd)
+subprocess.CalledProcessError: Command '['git', '-C', '/agent/repos/omega', 'checkout', '-q', '51e8c45c793007f211d0d9baee7de16767172444']' returned non-zero exit status 128.
+=== WITNESS pass/borrows/runtime_selected_reference_mutation_complement_exit ===
+witness=pass/borrows/runtime_selected_reference_mutation_complement_exit pin=51e8c45c793007f211d0d9baee7de16767172444 commits=34672
+fatal: Unable to create '/agent/repos/omega/.git/index.lock': File exists.
+
+Another git process seems to be running in this repository, e.g.
+an editor opened by 'git commit'. Please make sure all processes
+are terminated then try again. If it still fails, a git process
+may have crashed in this repository earlier:
+remove the file manually to continue.
+Traceback (most recent call last):
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/verify_good_walk.py", line 78, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/verify_good_walk.py", line 35, in main
+    subprocess.check_call(["git", "-C", str(ROOT), "checkout", "-q", revs[jump]])
+  File "/usr/lib/python3.12/subprocess.py", line 413, in check_call
+    raise CalledProcessError(retcode, cmd)
+subprocess.CalledProcessError: Command '['git', '-C', '/agent/repos/omega', 'checkout', '-q', '51e8c45c793007f211d0d9baee7de16767172444']' returned non-zero exit status 128.
+=== WITNESS pass/facts/computed_record_window_through_other_machine_exit ===
+witness=pass/facts/computed_record_window_through_other_machine_exit pin=51e8c45c793007f211d0d9baee7de16767172444 commits=34672
+error: Your local changes to the following files would be overwritten by checkout:
+	.agents/ledger-bisect-2026-11-11/setup_pin_specs.py
+Please commit your changes or stash them before you switch branches.
+Aborting
+Traceback (most recent call last):
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/verify_good_walk.py", line 78, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/verify_good_walk.py", line 35, in main
+    subprocess.check_call(["git", "-C", str(ROOT), "checkout", "-q", revs[jump]])
+  File "/usr/lib/python3.12/subprocess.py", line 413, in check_call
+    raise CalledProcessError(retcode, cmd)
+subprocess.CalledProcessError: Command '['git', '-C', '/agent/repos/omega', 'checkout', '-q', '51e8c45c793007f211d0d9baee7de16767172444']' returned non-zero exit status 1.
+=== WITNESS pass/facts/match_computed_root_through_other_state_exit ===
+witness=pass/facts/match_computed_root_through_other_state_exit pin=51e8c45c793007f211d0d9baee7de16767172444 commits=34672
+error: Your local changes to the following files would be overwritten by checkout:
+	.agents/ledger-bisect-2026-11-11/setup_pin_specs.py
+Please commit your changes or stash them before you switch branches.
+Aborting
+Traceback (most recent call last):
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/verify_good_walk.py", line 78, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/verify_good_walk.py", line 35, in main
+    subprocess.check_call(["git", "-C", str(ROOT), "checkout", "-q", revs[jump]])
+  File "/usr/lib/python3.12/subprocess.py", line 413, in check_call
+    raise CalledProcessError(retcode, cmd)
+subprocess.CalledProcessError: Command '['git', '-C', '/agent/repos/omega', 'checkout', '-q', '51e8c45c793007f211d0d9baee7de16767172444']' returned non-zero exit status 1.
+=== WITNESS pass/generics/generic_result_parameter_receipt ===
+witness=pass/generics/generic_result_parameter_receipt pin=51e8c45c793007f211d0d9baee7de16767172444 commits=34672
+error: Your local changes to the following files would be overwritten by checkout:
+	.agents/ledger-bisect-2026-11-11/setup_pin_specs.py
+Please commit your changes or stash them before you switch branches.
+Aborting
+Traceback (most recent call last):
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/verify_good_walk.py", line 78, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/verify_good_walk.py", line 35, in main
+    subprocess.check_call(["git", "-C", str(ROOT), "checkout", "-q", revs[jump]])
+  File "/usr/lib/python3.12/subprocess.py", line 413, in check_call
+    raise CalledProcessError(retcode, cmd)
+subprocess.CalledProcessError: Command '['git', '-C', '/agent/repos/omega', 'checkout', '-q', '51e8c45c793007f211d0d9baee7de16767172444']' returned non-zero exit status 1.
+error: Your local changes to the following files would be overwritten by checkout:
+	.agents/ledger-bisect-2026-11-11/setup_pin_specs.py
+Please commit your changes or stash them before you switch branches.
+Aborting

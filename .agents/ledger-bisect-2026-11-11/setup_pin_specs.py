@@ -58,7 +58,10 @@ def main() -> int:
     measure = MEASURE.read_text()
     witnesses = [
         "pass/borrows/runtime_selected_reference_mutation_complement_exit",
+        "pass/borrows/runtime_uniform_projected_reference_selection_exit",
+        "pass/write_only/returned_destination_transport_exit",
         "pass/facts/computed_record_window_through_other_machine_exit",
+        "pass/facts/computed_record_window_through_other_state_exit",
         "pass/facts/match_computed_root_through_other_state_exit",
         "pass/generics/generic_result_parameter_receipt",
     ]

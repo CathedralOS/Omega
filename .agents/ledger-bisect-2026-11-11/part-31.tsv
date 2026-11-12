@@ -1,3 +1,4 @@
+# fixture rows (PIN)
 fail/borrows/conditional_reference_replacement_false_first_stale_index	fixed	cannot establish assignment invariants: performed write has unknown destination origins in machine `exercise` state `entry` at statement 1: destination descriptor has no complete captured suppliers	c0
 fail/borrows/conditional_reference_replacement_true_first_stale_index	fixed	cannot establish assignment invariants: performed write has unknown destination origins in machine `exercise` state `entry` at statement 1: destination descriptor has no complete captured suppliers	c0
 fail/slices/reborrowed_replaced_descriptor	fixed	cannot establish assignment invariants: performed write has unknown destination origins in machine `store` state `entry` at statement 5: assignment has no complete incoming storage prefix	c0
@@ -9,3 +10,24 @@ pass/facts/computed_record_window_through_other_state_exit	broken	`main` calls `
 pass/facts/target_family_contract_operand/call_result	fixed		fixed
 pass/facts/match_computed_root_through_other_state_exit	broken	cannot prove requires contract for call compute from write: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`	c2
 pass/generics/generic_result_parameter_receipt	broken	machine `received` state `entry` statement 6: operand has no complete completed call-slot relation	c3
+
+# acceptance verification (40-char SHAs)
+cluster	role	sha40	pr	triple_or_status	witness_or_members
+c0	good	c64728d90e83036051d52fb69961b786423230c6		walk+confirm	pass/borrows/runtime_selected_reference_mutation_complement_exit
+c0	parent	c0b334362da0ce997052dc277a639af7471555e9		0,0,0	pass/borrows/runtime_selected_reference_mutation_complement_exit
+c0	first-bad	b7e951cdab51dda4e199f3fd33c53a0408fe72db	1242	1,1,1	pass/borrows/runtime_selected_reference_mutation_complement_exit
+c0	parent-members	c0b334362da0ce997052dc277a639af7471555e9		all3=checked	assignment cluster pass fixtures
+c0	first-bad-members	b7e951cdab51dda4e199f3fd33c53a0408fe72db	1242	all3=rejected	assignment cluster pass fixtures
+c1	good	773b8422694b5a8e64b43284bcba1ceb6de2b1e9		walk+confirm	pass/facts/computed_record_window_through_other_machine_exit
+c1	parent	bebbe455e7517a069862d87aead2f1ca911588c3		0,0,0	pass/facts/computed_record_window_through_other_machine_exit
+c1	first-bad	2174c0d10bb146aea6a86f55262bc536feb86ea3	1313	1,1,1	pass/facts/computed_record_window_through_other_machine_exit
+c1	parent-members	bebbe455e7517a069862d87aead2f1ca911588c3		both=checked	window pass pair
+c1	first-bad-members	2174c0d10bb146aea6a86f55262bc536feb86ea3	1313	both=rejected	window pass pair
+c2	good	442a95195e64d20d6d373b6bbddcd11c7f6da38a		walk+confirm	pass/facts/match_computed_root_through_other_state_exit
+c2	parent	6f0eea318690404f6d4e3d962434415493382377		0,0,0	pass/facts/match_computed_root_through_other_state_exit
+c2	first-bad	d30fccc7aae65a2358024cf39788d1007e2661b4	2276	1,1,1	pass/facts/match_computed_root_through_other_state_exit
+c3	good	42ef40205f19c7797b352647f55b82519407191c		walk+confirm	pass/generics/generic_result_parameter_receipt
+c3	parent	eab58bf427c48063e3fcf597e4550ca53ac7cb8c	348	0,0,0	pass/generics/generic_result_parameter_receipt
+c3	first-bad	5ab4e12334fba74babfc3ae8d9992572fba307e6	348	1,1,1	pass/generics/generic_result_parameter_receipt
+sanity	741270df60f7eab218e879eb6771d2bc75e64c00		walk+confirm	c0 witness
+pin	51e8c45c793007f211d0d9baee7de16767172444		measure	part-31-measure.txt

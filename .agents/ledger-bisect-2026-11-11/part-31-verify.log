@@ -1,0 +1,32 @@
+=== c0-first-bad commit=b7e951cdab51dda4e199f3fd33c53a0408fe72db witness=pass/borrows/runtime_selected_reference_mutation_complement_exit ===
+  run1 exit=1
+  run2 exit=1
+  run3 exit=1
+=== c0-parent commit=c0b334362da0ce997052dc277a639af7471555e9 witness=pass/borrows/runtime_selected_reference_mutation_complement_exit ===
+  run1 exit=0
+  run2 exit=0
+  run3 exit=0
+=== c1-first-bad commit=2174c0d10bb146aea6a86f55262bc536feb86ea3 witness=pass/facts/computed_record_window_through_other_machine_exit ===
+  run1 exit=1
+  run2 exit=1
+  run3 exit=1
+=== c1-parent commit=bebbe455e7517a069862d87aead2f1ca911588c3 witness=pass/facts/computed_record_window_through_other_machine_exit ===
+  run1 exit=0
+  run2 exit=0
+  run3 exit=0
+=== c2-first-bad commit=d30fccc7aae65a2358024cf39788d1007e2661b4 witness=pass/facts/match_computed_root_through_other_state_exit ===
+  run1 exit=1
+  run2 exit=1
+  run3 exit=1
+=== c2-parent commit=6f0eea318690404f6d4e3d962434415493382377 witness=pass/facts/match_computed_root_through_other_state_exit ===
+  run1 exit=0
+  run2 exit=0
+  run3 exit=0
+=== c3-first-bad commit=5ab4e12334fba74babfc3ae8d9992572fba307e6 witness=pass/generics/generic_result_parameter_receipt ===
+  run1 exit=1
+  run2 exit=1
+  run3 exit=1
+=== c3-parent commit=eab58bf427c48063e3fcf597e4550ca53ac7cb8c witness=pass/generics/generic_result_parameter_receipt ===
+  run1 exit=0
+  run2 exit=0
+  run3 exit=0

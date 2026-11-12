@@ -1,0 +1,6 @@
+=== #348 parent fixture audit commit=eab58bf427c48063e3fcf597e4550ca53ac7cb8c ===
+  present tests/omega/pass/generics/generic_result_parameter_receipt/main.omg
+  MISSING tests/omega/pass/generics/generic_result_parameter_receipt/build.omg
+  present source/library
+  present tests/omega/corpus_outcomes.txt
+  frozen_pin_ledger_line=pass/generics/generic_result_parameter_receipt checked 3866ms @ada93c78b02f+wt
