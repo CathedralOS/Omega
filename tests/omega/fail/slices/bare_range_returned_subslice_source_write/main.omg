@@ -1,0 +1,28 @@
+// Negative twin of bare_range_returned_subslice_exit: the returned view still
+// borrows `main.buffer` through the bare range argument, so writing the buffer
+// while that view is live rejects, as it would for `&main.buffer[0..3]`.
+data View { tail: &[u8]; }
+machine split(bytes: &[u8]) -> View {
+    transition bytes.len >= 1 {
+        true -> View { tail: bytes[1..bytes.len] }
+        false -> View { tail: bytes[0..0] }
+    }
+}
+data Main { buffer: [u8; 3]; }
+machine run(main: &mut Main) crashes Trap {
+    main.buffer[0] = 41;
+    main.buffer[1] = 7;
+    main.buffer[2] = 8;
+    let view: View = split(main.buffer[0..3]);
+    main.buffer[1] = 9;
+    transition view.tail.len == 2 && view.tail[0] == 7 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine main() crashes Trap {
+    let mut storage: Main;
+    run(&mut storage);
+}

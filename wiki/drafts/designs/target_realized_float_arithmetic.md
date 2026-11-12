@@ -21,7 +21,7 @@ two ARM targets. Every compile checked and ran those 104 selections first.
 Replacing the file with a single selection cut whole-process compile time by
 about 9% on the recorded host.
 
-Owner question Q1 (`bulk-provider-selection`) asked how one Build call could
+Owner question `bulk-provider-selection` asked how one Build call could
 cover many slots. Every option batched the bootstrap: a target-set form, a
 provider-derived selection, a 98-element list, a split implementation trait, a
 named slot group. The question behind them was why the bootstrap existed.
@@ -44,8 +44,8 @@ named slot group. The question behind them was why the bootstrap existed.
 6. A program that needs a particular algorithm calls a named machine. Checked
    software routines remain usable as target realizations, including for
    targets without floating-point state.
-7. Q1 closes without a bulk-selection form. No target-set form, no
-   provider-derived selection, no slot list, no named slot group. A later need
+7. `bulk-provider-selection` closes without a bulk-selection form. No target-set
+   form, no provider-derived selection, no slot list, no named slot group. A later need
    to group genuinely replaceable services brings its own customer.
 
 ## Given up

@@ -435,7 +435,6 @@ pub(crate) mod private_entry_ram {
 pub(crate) mod target_layouts {
     use crate::AdmittedTargetMachineSelections;
     use semantic_vocabulary::StructuralTypeId;
-    use terminal_codec::TerminalArtifactView;
     use terminal_psi::{
         LayoutApplicationId, StructuralRecordStorage, StructuralTypeDeclaration,
         StructuralTypeShape, TerminalIdentityIndex, TerminalPsiIdentity,
@@ -485,8 +484,9 @@ pub(crate) mod target_layouts {
         }
         pub fn geometry<'a>(
             &'a self,
-            artifact: TerminalArtifactView<'a>,
+            artifact: impl Into<terminal_codec::TerminalExecutionView<'a>>,
         ) -> Result<TargetLayoutGeometry<'a>, TargetLayoutSelectionError> {
+            let artifact = artifact.into();
             if artifact.identity() != self.terminal_psi {
                 return Err(TargetLayoutSelectionError::ArtifactIdentityMismatch);
             }
@@ -499,7 +499,7 @@ pub(crate) mod target_layouts {
 
     #[derive(Clone, Copy)]
     pub struct TargetLayoutGeometry<'a> {
-        artifact: TerminalArtifactView<'a>,
+        artifact: terminal_codec::TerminalExecutionView<'a>,
         layouts: &'a AdmittedTargetLayouts,
     }
     impl<'a> TargetLayoutGeometry<'a> {
@@ -570,11 +570,12 @@ pub(crate) mod target_layouts {
     }
     impl std::error::Error for TargetLayoutSelectionError {}
 
-    pub fn admit_target_layouts(
-        artifact: TerminalArtifactView<'_>,
+    pub fn admit_target_layouts<'artifact>(
+        artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>,
         selections: &AdmittedTargetMachineSelections,
         target: &layout_plans::LayoutTargetFacts,
     ) -> Result<AdmittedTargetLayouts, TargetLayoutSelectionError> {
+        let artifact = artifact.into();
         if artifact.identity() != selections.terminal_psi() {
             return Err(TargetLayoutSelectionError::ArtifactIdentityMismatch);
         }
