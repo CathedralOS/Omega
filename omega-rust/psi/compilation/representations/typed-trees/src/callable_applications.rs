@@ -3917,6 +3917,34 @@ pub(crate) mod requirement_instances {
                 Self::RuntimeValue { .. } => None,
             }
         }
+
+        fn portable_identity(
+            self,
+            program: &TypedTrees,
+            binding: &static_applications::StaticMachineBindingValue,
+            lexical_owner: SymbolHandle,
+        ) -> Option<type_identity::NormalizedTypeIdentity> {
+            // A selected machine and its entry state invoke the same callable.
+            // Keep its complete checked application rather than its type spelling.
+            if matches!(
+                binding,
+                static_applications::StaticMachineBindingValue::Machine(_)
+            ) {
+                type_identity::portable_applied_index_identity(
+                    program,
+                    type_identity::IndexIdentityArgument::TypeReference(self.type_reference()),
+                    lexical_owner,
+                    &[],
+                )
+            } else {
+                type_identity::portable_applied_type_identity(
+                    program,
+                    self.type_reference(),
+                    lexical_owner,
+                    &[],
+                )
+            }
+        }
     }
 
     #[derive(Clone, Copy)]
@@ -4259,14 +4287,11 @@ pub(crate) mod requirement_instances {
                 .ok_or("closed requirement has no complete portable declaring application")?;
             let portable_local_arguments = local_arguments
                 .iter()
-                .map(|argument| {
-                    type_identity::portable_applied_type_identity(
-                        self,
-                        argument.type_reference(),
-                        lexical_owner,
-                        &[],
-                    )
-                    .ok_or("closed requirement has no complete portable local operand")
+                .zip(&bindings)
+                .map(|(argument, binding)| {
+                    argument
+                        .portable_identity(self, &binding.value, lexical_owner)
+                        .ok_or("closed requirement has no complete portable local operand")
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             if let Some(existing) = self.closed_requirement_applications().find(|existing| {
@@ -4481,6 +4506,151 @@ pub(crate) mod requirement_instances {
                     signature: closed,
                 });
             Ok(instance)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::{expression, machine::Machine, name::Identifier, state::State};
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        #[test]
+        fn requirement_machine_operands_keep_callable_identity_across_entry_selection() {
+            let mut symbols = SymbolTableBuilder::default();
+            let selected =
+                symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("Selected"));
+            let other = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("Other"));
+            let missing =
+                symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("Missing"));
+            let symbolic =
+                symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("Callback"));
+            let states = symbols
+                .insert_children(
+                    selected,
+                    [
+                        (SymbolKind::State, SymbolNameRef::Static("entry")),
+                        (SymbolKind::State, SymbolNameRef::Static("later")),
+                    ],
+                )
+                .handles()
+                .collect::<Vec<_>>();
+            let other_entry = symbols
+                .insert_children(other, [(SymbolKind::State, SymbolNameRef::Static("entry"))])
+                .start();
+            let orphan = symbols.insert_root(SymbolKind::State, SymbolNameRef::Static("orphan"));
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let unit = program
+                .type_reference_table
+                .insert(types::TypeReferenceNode::Unit);
+            for (symbol, name, state_symbols) in [
+                (selected, "Selected", states.as_slice()),
+                (other, "Other", std::slice::from_ref(&other_entry)),
+            ] {
+                let mut machine = Machine {
+                    symbol,
+                    name: Identifier::generated(name),
+                    ..Default::default()
+                };
+                for state in state_symbols {
+                    program.push_machine_state(
+                        &mut machine,
+                        State {
+                            symbol: *state,
+                            name: Identifier::from(program.symbols.name(*state)),
+                            return_type: unit,
+                            ..Default::default()
+                        },
+                    );
+                }
+                program.push_machine(machine);
+            }
+            let machine_binding = static_applications::StaticMachineBindingValue::Machine(
+                expression::StaticMachineArgument::default(),
+            );
+            let references = [
+                selected,
+                states[0],
+                states[1],
+                other,
+                other_entry,
+                missing,
+                orphan,
+                symbolic,
+            ]
+            .map(|symbol| {
+                program
+                    .type_reference_table
+                    .insert(types::TypeReferenceNode::Named {
+                        symbol,
+                        name: Identifier::from(program.symbols.name(symbol)),
+                    })
+            });
+            let identities = references.map(|reference| {
+                RequirementLocalArgument::Static(reference).portable_identity(
+                    &program,
+                    &machine_binding,
+                    selected,
+                )
+            });
+            assert!(identities[0].is_some());
+            assert_eq!(identities[0], identities[1]);
+            assert_ne!(identities[0], identities[2]);
+            assert_ne!(identities[0], identities[3]);
+            assert_eq!(identities[3], identities[4]);
+            assert!(
+                identities[5].is_none(),
+                "a missing machine is not an executable callable"
+            );
+            assert!(
+                identities[6].is_none(),
+                "a state without its machine must refuse"
+            );
+            assert!(
+                identities[7].is_some(),
+                "symbolic machine binders retain their identity"
+            );
+            assert_ne!(identities[0], identities[7]);
+
+            let application = |program: &mut TypedTrees, argument| {
+                let arguments = program
+                    .type_reference_table
+                    .insert_type_reference_handles([argument]);
+                program
+                    .type_reference_table
+                    .insert(types::TypeReferenceNode::Generic {
+                        base_symbol: selected,
+                        base_name: Identifier::generated("Selected"),
+                        lifetime_arguments: Vec::new(),
+                        arguments,
+                    })
+            };
+            let first = application(&mut program, unit);
+            let second = application(&mut program, references[3]);
+            let identity = |reference| {
+                RequirementLocalArgument::Static(reference).portable_identity(
+                    &program,
+                    &machine_binding,
+                    selected,
+                )
+            };
+            assert!(identity(first).is_some());
+            assert_ne!(identity(first), identity(second));
+            assert_ne!(identity(first), identities[0]);
+            let ordinary = static_applications::StaticMachineBindingValue::Type(references[0]);
+            assert_eq!(
+                RequirementLocalArgument::Static(references[0])
+                    .portable_identity(&program, &ordinary, selected),
+                type_identity::portable_applied_type_identity(
+                    &program,
+                    references[0],
+                    selected,
+                    &[]
+                )
+            );
         }
     }
 }
