@@ -792,19 +792,21 @@ impl SourceCompilationRequest {
             .as_mut()
             .map(|typing| typing.resolved_base_for_extension())
             .transpose()?;
-        let evaluated = build_time_evaluation::evaluate_pre_resolution(
-            build_time_evaluation::BuildTimeEvaluationRequest {
-                syntax_trees: self.syntax,
-                source_context: build_time_evaluation::BuildTimeSources {
-                    sources: Some(Arc::clone(&self.sources)),
-                    source_scoped_top_level_bindings: &self.top_level_bindings,
-                    selection_authority: self.selection_authority,
-                    predecessor: retained.clone(),
-                    declaration_syntax: Some(&context.declaration_syntax),
-                    retained_declaration_syntax: retained_declaration_syntax.as_deref(),
+        let evaluated = observer.record_result(PsiCompilationStage::BuildTimeEvaluation, || {
+            build_time_evaluation::evaluate_pre_resolution(
+                build_time_evaluation::BuildTimeEvaluationRequest {
+                    syntax_trees: self.syntax,
+                    source_context: build_time_evaluation::BuildTimeSources {
+                        sources: Some(Arc::clone(&self.sources)),
+                        source_scoped_top_level_bindings: &self.top_level_bindings,
+                        selection_authority: self.selection_authority,
+                        predecessor: retained.clone(),
+                        declaration_syntax: Some(&context.declaration_syntax),
+                        retained_declaration_syntax: retained_declaration_syntax.as_deref(),
+                    },
                 },
-            },
-        )?;
+            )
+        })?;
         let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
         let (mut typing, mut pending_bodies) = if let (Some(typing), Some(base)) =
             (retained, resolved_base)

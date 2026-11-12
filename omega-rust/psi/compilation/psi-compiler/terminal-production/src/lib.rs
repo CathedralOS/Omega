@@ -328,9 +328,10 @@ pub(crate) mod observation {
         Lexing,
         Parsing,
         SourceParsing,
+        BuildTimeEvaluation,
     }
 
-    const OBSERVATION_LABELS: [(&str, &str, &str); 10] = [
+    const OBSERVATION_LABELS: [(&str, &str, &str); 11] = [
         (
             "terminal-production/machine-selection",
             "CheckedTrees",
@@ -357,6 +358,9 @@ pub(crate) mod observation {
         ("Psi 00", "SourceFiles", "TokenStreams"),
         ("Psi 01", "TokenStreams", "SyntaxTrees"),
         ("Source ingress", "SourceFiles", "SyntaxTrees"),
+        // Constant, generic and access-view evaluation before name resolution,
+        // including the probes' own resolution, typing and checking.
+        ("Step: evaluate", "SyntaxTrees", "EvaluatedSyntaxTrees"),
     ];
 
     impl PsiCompilationStage {
