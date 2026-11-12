@@ -85,8 +85,12 @@ def main() -> int:
         return 0
 
     pin_status = cfg["pin_status"]
-    if status == pin_status and diag_norm == cfg["pin_diag_norm"]:
-        return 1
+    pin_needle = cfg.get("pin_first_diagnostic", "")[:96]
+    if status == pin_status:
+        if pin_needle and pin_needle in diag:
+            return 1
+        if diag_norm == cfg["pin_diag_norm"]:
+            return 1
 
     return 125
 

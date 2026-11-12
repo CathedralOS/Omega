@@ -7,8 +7,34 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from classify_corpus import norm_diag, parse_records  # noqa: E402
+
+def parse_records(text: str) -> dict[str, dict]:
+    records: dict[str, dict] = {}
+    current_key: str | None = None
+    for line in text.splitlines():
+        if line.startswith("\t") and current_key:
+            records[current_key]["diagnostics"].append(line[1:].strip())
+            continue
+        if not line.strip() or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) < 3 or not parts[2].endswith("ms"):
+            continue
+        fixture, status = parts[0], parts[1]
+        records[fixture] = {
+            "fixture": fixture,
+            "status": status,
+            "diagnostics": [],
+        }
+        current_key = fixture
+    return records
+
+
+def norm_diag(d: str) -> str:
+    d = d.strip()
+    d = re.sub(r"`[^`]*`", "`_`", d)
+    d = re.sub(r"\b\d+\b", "N", d)
+    return d[:160]
 
 
 def parse_regressed_from(flags: list[str]) -> str | None:
