@@ -47,6 +47,8 @@ def main() -> int:
     ]
     for c in sorted(clf["clusters"], key=lambda x: (-x["count"], x["diag_sample"])):
         b = bisects.get(c["cluster_id"], {})
+        if b.get("breaking_commit") in ("", "51e8c45c793007f211d0d9baee7de16767172444") and b.get("status") == "bisected":
+            b = {**b, "status": "propagated", "stability": (b.get("stability") or "") + ";invalid_break"}
         diag = c["diag_sample"].replace("|", "\\|")[:100]
         mech = (b.get("mechanism") or "").replace("|", "\\|")[:120]
         brk = (b.get("breaking_commit") or "")[:12]
