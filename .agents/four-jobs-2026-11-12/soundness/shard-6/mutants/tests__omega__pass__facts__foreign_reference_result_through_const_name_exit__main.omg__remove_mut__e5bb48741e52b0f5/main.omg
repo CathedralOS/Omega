@@ -1,0 +1,34 @@
+// A foreign reference result retains the captured input backing and access through ordinary transport, so its provider write is visible and a guest write through the result changes that input while preserving its neighbors.
+// Place: const_name
+// Expected exit: 0
+public data Cell { value: u64; before: u64; after: u64; }
+public boundary trait Memory {
+ machine fill<'source>(value: &'source mut Cell, byte: i32, count: u64) -> &'source mut Cell reaches requires count == 8;
+}
+machine apply(cell: &mut Cell) -> bool {
+ let filled: bool = cell.value == 2676586395008836901;
+ cell.value = 41;
+ let observed: bool = cell.value == 41;
+ cell.value = 73;
+ filled && observed
+}
+const FILL_VALUE: i32 = 37;
+const COUNT: u64 = 8;
+machine journey(cell: &mut Cell, first: bool) -> bool reaches Memory {
+ let selected: &mut Cell = Memory::fill(cell, FILL_VALUE, COUNT);
+ apply(selected)
+}
+machine main() reaches Memory crashes Trap {
+ let left: Cell = Cell { value: 37, before: 11, after: 17 };
+ let mut right: Cell = Cell { value: 37, before: 23, after: 29 };
+ let first: bool = journey(&mut left, true);
+ let first_correct: bool = first && left.value == 73 && right.value == 37
+  && left.before == 11 && left.after == 17 && right.before == 23 && right.after == 29;
+ let second: bool = journey(&mut right, false);
+ transition first_correct && second && left.value == 73 && right.value == 73
+  && left.before == 11 && left.after == 17 && right.before == 23 && right.after == 29 {
+  true -> done() _ -> bad()
+ }
+ machine done() {}
+ machine bad() { crash Trap; }
+}
