@@ -44,7 +44,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let sample: LabelSample;
+    let mut sample: LabelSample;
     sample.count = 7;
     sample.label = "héllo";
 
