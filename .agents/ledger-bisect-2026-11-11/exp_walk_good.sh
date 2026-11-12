@@ -43,7 +43,7 @@ test_commit() {
   return "$r"
 }
 
-log() { echo "$*" | tee -a "$LOG"; }
+log() { echo "$*" >>"$LOG"; }
 
 : >"$LOG"
 PIN=$(git rev-parse "$PIN")

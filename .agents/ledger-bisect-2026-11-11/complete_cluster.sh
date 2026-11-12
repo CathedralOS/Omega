@@ -10,10 +10,13 @@ TOOLS="/tmp/ledger-bisect-part-30-tools"
 cd "$REPO"
 git checkout -qf work/ledger-bisect-part-30
 mkdir -p "$RUNTIME" "$TOOLS"
+TOOLS_REF="work/ledger-bisect-part-30"
 install_tools() {
-  cp "$REPO/.agents/ledger-bisect-2026-11-11/tools/bisect_test.py" "$TOOLS/"
-  cp "$REPO/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh" "$TOOLS/"
-  cp "$REPO/.agents/ledger-bisect-2026-11-11/"{exp_walk_good.sh,run_one_bisect.sh,setup_pin_refs.sh} "$TOOLS/"
+  git -C "$REPO" show "$TOOLS_REF:.agents/ledger-bisect-2026-11-11/tools/bisect_test.py" >"$TOOLS/bisect_test.py"
+  git -C "$REPO" show "$TOOLS_REF:.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh" >"$TOOLS/bisect_witness.sh"
+  for f in exp_walk_good.sh run_one_bisect.sh setup_pin_refs.sh; do
+    git -C "$REPO" show "$TOOLS_REF:.agents/ledger-bisect-2026-11-11/$f" >"$TOOLS/$f"
+  done
   chmod +x "$TOOLS"/*.sh
 }
 install_tools
@@ -24,7 +27,8 @@ LOG="$RUNTIME/bisect_${TAG}.log"
 EXP_LOG="$RUNTIME/exp_walk_${TAG}.log"
 
 set +e
-GOOD=$(bash "$TOOLS/exp_walk_good.sh" "$WITNESS" "$PIN" "$BAD_ANCHOR" "$EXP_LOG")
+GOOD=$(bash "$TOOLS/exp_walk_good.sh" "$WITNESS" "$PIN" "$BAD_ANCHOR" "$EXP_LOG" | tail -1)
+GOOD=$(git -C "$REPO" rev-parse "$GOOD")
 ew=$?
 set -e
 

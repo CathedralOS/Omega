@@ -23,10 +23,13 @@ restore_report() {
     .agents/ledger-bisect-2026-11-11/part-30.tsv 2>/dev/null || true
 }
 
+TOOLS_REF="work/ledger-bisect-part-30"
 sync_tools() {
   mkdir -p "$OMEGA_BISECT_TOOLS"
-  cp "$REPO/.agents/ledger-bisect-2026-11-11/tools/bisect_test.py" "$OMEGA_BISECT_TOOLS/"
-  cp "$REPO/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh" "$OMEGA_BISECT_TOOLS/"
+  git -C "$REPO" show "$TOOLS_REF:.agents/ledger-bisect-2026-11-11/tools/bisect_test.py" \
+    >"$OMEGA_BISECT_TOOLS/bisect_test.py"
+  git -C "$REPO" show "$TOOLS_REF:.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh" \
+    >"$OMEGA_BISECT_TOOLS/bisect_witness.sh"
   chmod +x "$OMEGA_BISECT_TOOLS/bisect_witness.sh"
 }
 sync_tools
@@ -35,6 +38,7 @@ verify() {
   local label="$1" c="$2" expect="$3"
   git checkout -qf "$c"
   restore_report
+  rm -f /tmp/ledger-bisect-part-30-target/.bisect_head
   sync_tools
   local ok=0 bad=0 skip=0
   for _ in 1 2; do

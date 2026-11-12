@@ -11,10 +11,11 @@ RUNTIME="/tmp/ledger-bisect-part-30"
 LOG="$RUNTIME/traits_probe.log"
 export OMEGA_REPO="$REPO" OMEGA_BISECT_TOOLS="$TOOLS" PATH="/home/ubuntu/.local/share/mbx/bin:$PATH"
 export OMEGA_PIN_ROOT="$RUNTIME" BISECT_WITNESS="$WITNESS"
+TOOLS_REF="work/ledger-bisect-part-30"
 mkdir -p "$RUNTIME" "$TOOLS"
-cp "$REPO/.agents/ledger-bisect-2026-11-11/tools/"*.py "$TOOLS/"
-cp "$REPO/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh" "$TOOLS/"
-cp "$REPO/.agents/ledger-bisect-2026-11-11/run_one_bisect.sh" "$TOOLS/"
+git -C "$REPO" show "$TOOLS_REF:.agents/ledger-bisect-2026-11-11/tools/bisect_test.py" >"$TOOLS/bisect_test.py"
+git -C "$REPO" show "$TOOLS_REF:.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh" >"$TOOLS/bisect_witness.sh"
+git -C "$REPO" show "$TOOLS_REF:.agents/ledger-bisect-2026-11-11/run_one_bisect.sh" >"$TOOLS/run_one_bisect.sh"
 chmod +x "$TOOLS"/*.sh
 bash "$REPO/.agents/ledger-bisect-2026-11-11/setup_pin_refs.sh" "$PIN" "$WITNESS" >/dev/null
 export OMEGA_PIN_LEDGER="$RUNTIME/pin_corpus_outcomes.txt"
@@ -30,6 +31,7 @@ probe() {
   local c="$1"
   git checkout -qf "$c"
   restore_report
+  rm -f /tmp/ledger-bisect-part-30-target/.bisect_head
   set +e
   local o=0 b=0 s=0 r
   for _ in 1 2; do
