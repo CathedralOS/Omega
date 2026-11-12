@@ -5730,7 +5730,11 @@ mod permission_schedule {
         remaining: Option<&mut RemainingCustody>,
     ) {
         for place in places.iter_mut().filter(|place| {
-            place.root == excluded.root && place.path.starts_with(&excluded.segments)
+            place.root == excluded.root
+                && crate::checks::multiplicity::cleanup_dispositions::lies_under_observed_case(
+                    &excluded.segments,
+                    &place.path,
+                )
         }) {
             place.live = false;
             place.case_excluded = true;

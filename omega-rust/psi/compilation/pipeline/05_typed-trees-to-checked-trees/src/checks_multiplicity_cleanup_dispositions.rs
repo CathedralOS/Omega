@@ -34,6 +34,54 @@ mod case_exclusions {
     struct CaseObservationTable {
         observations: Vec<CaseObservation>,
         by_identity: SymbolKeyMap<u64, usize>,
+        /* How many observations name a range of array elements. */
+        element_ranges: usize,
+    }
+
+    /*
+        An inactive case of a zero-formed array is observed once for a range of
+        elements: its path spells that range where one element's path spells its
+        index. Such a path stands for the same case in every element of the range,
+        so it is a prefix of an element's path when the index lies inside it.
+    */
+    fn observed_segment_admits(observed: PlaceSegment, queried: PlaceSegment) -> bool {
+        observed == queried
+            || matches!(
+                (observed, queried),
+                (
+                    PlaceSegment::FixedRange { start, end },
+                    PlaceSegment::FixedIndex { index },
+                ) if start <= index && index < end
+            )
+    }
+
+    fn names_element_range(path: &[PlaceSegment]) -> bool {
+        path.iter()
+            .any(|segment| matches!(segment, PlaceSegment::FixedRange { .. }))
+    }
+
+    /* The observed case path, or a path below it. */
+    pub(in crate::checks::multiplicity) fn lies_under_observed_case(
+        observed: &[PlaceSegment],
+        path: &[PlaceSegment],
+    ) -> bool {
+        observed.len() <= path.len()
+            && observed
+                .iter()
+                .zip(path)
+                .all(|(observed, queried)| observed_segment_admits(*observed, *queried))
+    }
+
+    /* A path that contains the observed case path. */
+    pub(in crate::checks::multiplicity) fn contains_observed_case(
+        path: &[PlaceSegment],
+        observed: &[PlaceSegment],
+    ) -> bool {
+        path.len() <= observed.len()
+            && observed
+                .iter()
+                .zip(path)
+                .all(|(observed, queried)| observed_segment_admits(*observed, *queried))
     }
 
     #[derive(Clone, Default)]
@@ -69,6 +117,7 @@ mod case_exclusions {
                 .by_identity
                 .entry(fingerprint)
                 .or_insert(table.observations.len());
+            table.element_ranges += usize::from(names_element_range(&place.segments));
             table.observations.push(CaseObservation {
                 place: Arc::new(place.clone()),
                 fingerprint,
@@ -97,9 +146,15 @@ mod case_exclusions {
                     return true;
                 }
                 if query.segments.pop().is_none() {
-                    return false;
+                    break;
                 }
             }
+            self.table.element_ranges != 0
+                && self.table.observations.iter().any(|observation| {
+                    observation.place.root == root
+                        && names_element_range(&observation.place.segments)
+                        && lies_under_observed_case(&observation.place.segments, path)
+                })
         }
 
         pub(super) fn iter(&self) -> impl Iterator<Item = &CanonicalPlace> {
@@ -126,6 +181,11 @@ mod case_exclusions {
                 original < first_removed || (original > first_removed && keep(&observation.place))
             });
             table.by_identity.clear();
+            table.element_ranges = table
+                .observations
+                .iter()
+                .filter(|observation| names_element_range(&observation.place.segments))
+                .count();
             for (position, observation) in table.observations.iter().enumerate() {
                 table
                     .by_identity
@@ -165,6 +225,64 @@ mod case_exclusions {
             }
         }
 
+        /*
+            `root.table[2..6].kind/Case` observed once for four elements answers
+            for a path through any of them and for no other element.
+        */
+        #[test]
+        fn an_element_range_observation_covers_each_element_in_it() {
+            let field = |index| PlaceSegment::Field {
+                symbol: SymbolHandle::from_parts(index, 1),
+            };
+            let case = PlaceSegment::Case {
+                variant: SymbolHandle::from_parts(9, 1),
+            };
+            let root = PlaceRoot::Symbol(SymbolHandle::from_parts(1, 1));
+            let observed = CanonicalPlace {
+                root,
+                segments: vec![
+                    field(2),
+                    PlaceSegment::FixedRange { start: 2, end: 6 },
+                    field(3),
+                    case,
+                ],
+            };
+            let mut exclusions = CaseExclusions::default();
+            exclusions.insert(&observed);
+            let through = |index| {
+                vec![
+                    field(2),
+                    PlaceSegment::FixedIndex { index },
+                    field(3),
+                    case,
+                    field(4),
+                ]
+            };
+            assert!(exclusions.contains_prefix_of(root, &through(2)));
+            assert!(exclusions.contains_prefix_of(root, &through(5)));
+            assert!(!exclusions.contains_prefix_of(root, &through(6)));
+            assert!(!exclusions.contains_prefix_of(root, &through(1)));
+            assert!(!exclusions.contains_prefix_of(root, &through(3)[..3]));
+            assert!(!exclusions.contains_prefix_of(
+                PlaceRoot::Symbol(SymbolHandle::from_parts(7, 1)),
+                &through(3)
+            ));
+            assert!(super::lies_under_observed_case(
+                &observed.segments,
+                &through(4)
+            ));
+            assert!(super::contains_observed_case(
+                &through(4)[..2],
+                &observed.segments
+            ));
+            assert!(!super::contains_observed_case(
+                &through(7)[..2],
+                &observed.segments
+            ));
+            exclusions.retain(|_| false);
+            assert!(!exclusions.contains_prefix_of(root, &through(3)));
+        }
+
         #[test]
         fn hash_collisions_do_not_join_structural_identities() {
             let places = [
@@ -184,6 +302,7 @@ mod case_exclusions {
                         })
                         .collect(),
                     by_identity: [(fingerprint, 0)].into_iter().collect(),
+                    element_ranges: 0,
                 }),
             };
             for (position, place) in places[..3].iter().enumerate() {
@@ -464,6 +583,9 @@ use super::selected_evaluation::ExpressionRoutes;
 use super::selected_evaluation::SelectedEvaluation;
 use crate::flow::canonical_place_segments_may_overlap;
 use case_exclusions::CaseExclusions;
+pub(in crate::checks::multiplicity) use case_exclusions::{
+    contains_observed_case, lies_under_observed_case,
+};
 
 use checked_trees::{
     ContextualCleanupDisposition, ContextualCleanupExcludedRegion as ExcludedRegion,
@@ -639,7 +761,8 @@ impl RemainingCustody {
             })
             && !self.inactive_cases.iter().any(|removed| {
                 removed.root == root
-                    && (path.starts_with(&removed.segments) || removed.segments.starts_with(path))
+                    && (lies_under_observed_case(&removed.segments, path)
+                        || contains_observed_case(path, &removed.segments))
             })
     }
 
@@ -914,11 +1037,10 @@ impl RemainingCustody {
     ) -> Vec<&'a [PlaceSegment]> {
         self.inactive_cases
             .iter()
-            .filter_map(|inactive| {
-                (inactive.root == root)
-                    .then(|| inactive.segments.strip_prefix(path))
-                    .flatten()
+            .filter(|inactive| {
+                inactive.root == root && contains_observed_case(path, &inactive.segments)
             })
+            .map(|inactive| &inactive.segments[path.len()..])
             .collect()
     }
 
