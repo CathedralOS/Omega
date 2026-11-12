@@ -468,6 +468,21 @@ pub fn verify_sample(
         return Err("missing unambiguous entry".to_owned());
     };
     if project.role == "intended-invalid" {
+        // Exit 1 alone also describes unrelated compiler errors. A negative
+        // sample needs a diagnostic oracle before its refusal can earn credit.
+        if project.rejection.is_empty() && project.rejection_any.is_empty() {
+            return Err("intended-invalid sample requires diagnostic expectations".to_owned());
+        }
+        if project
+            .rejection
+            .iter()
+            .chain(&project.rejection_any)
+            .any(|fragment| fragment.trim().is_empty())
+        {
+            return Err(
+                "intended-invalid diagnostic expectations contain a blank fragment".to_owned(),
+            );
+        }
         let out = execution::output(
             Command::new(cli)
                 .args(["--check", "--target", target])
@@ -769,6 +784,116 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn invalid_sample(directory: &Path) -> SampleProject {
+        fs::write(directory.join("main.omg"), "machine main() {}\n").unwrap();
+        fs::write(directory.join("build.omg"), "").unwrap();
+        fs::write(
+            directory.join("sample.json"),
+            r#"{"role":"intended-invalid"}"#,
+        )
+        .unwrap();
+        project_at(directory, directory).unwrap()
+    }
+
+    #[test]
+    fn intended_invalid_requires_a_nonblank_diagnostic_oracle_before_execution() {
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        let cli = directory.join("missing-compiler");
+        let mut sample = invalid_sample(&directory);
+        for expected in [None, Some("  \n\t\n")] {
+            if let Some(text) = expected {
+                fs::write(directory.join("expected.txt"), text).unwrap();
+                sample = project_at(&directory, &directory).unwrap();
+            }
+            let error = verify_sample(&cli, &sample, host_target(), &directory.join("evidence"))
+                .unwrap_err();
+            assert!(
+                error.contains("requires diagnostic expectations"),
+                "{error}"
+            );
+        }
+        for meta in [
+            r#"{"role":"intended-invalid","rejection_contains":[]}"#,
+            r#"{"role":"intended-invalid","rejection_contains":[" "]}"#,
+            r#"{"role":"intended-invalid","rejection_any_contains":[""]}"#,
+            r#"{"role":"intended-invalid","rejection_contains":["wanted"],"rejection_any_contains":["wanted",""]}"#,
+        ] {
+            fs::write(directory.join("sample.json"), meta).unwrap();
+            sample = project_at(&directory, &directory).unwrap();
+            let error = verify_sample(&cli, &sample, host_target(), &directory.join("evidence"))
+                .unwrap_err();
+            assert!(error.contains("diagnostic expectations"), "{error}");
+        }
+        assert!(!directory.join("evidence").exists());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn intended_invalid_requires_the_pinned_reason_and_a_normal_rejection() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        let mut sample = invalid_sample(&directory);
+        sample.rejection = vec!["required contract".to_owned()];
+        sample.rejection_any = vec!["bound too small".to_owned(), "missing evidence".to_owned()];
+        let cli = directory.join("compiler");
+        for (name, diagnostic, code, expected) in [
+            ("correct", "required contract: missing evidence", 1, None),
+            (
+                "unrelated",
+                "syntax error",
+                1,
+                Some("missing rejection fragment"),
+            ),
+            (
+                "missing-alternative",
+                "required contract",
+                1,
+                Some("missing any rejection fragment"),
+            ),
+            (
+                "crashed",
+                "required contract: missing evidence",
+                101,
+                Some("expected rejection exit 1"),
+            ),
+            (
+                "accepted",
+                "required contract: missing evidence",
+                0,
+                Some("expected rejection exit 1"),
+            ),
+        ] {
+            fs::write(
+                &cli,
+                format!("#!/bin/sh\nprintf '%s\\n' '{diagnostic}' >&2\nexit {code}\n"),
+            )
+            .unwrap();
+            fs::set_permissions(&cli, fs::Permissions::from_mode(0o700)).unwrap();
+            let result = verify_sample(&cli, &sample, host_target(), &directory.join(name));
+            if let Some(fragment) = expected {
+                let error = result.unwrap_err();
+                assert!(error.contains(fragment), "{error}");
+            } else {
+                assert_eq!(result.unwrap(), "rejected");
+            }
+        }
+        // An any-of pin can stand alone, and authored case folding still applies.
+        sample.rejection.clear();
+        sample.rejection_casefold = true;
+        fs::write(
+            &cli,
+            "#!/bin/sh\nprintf 'MISSING EVIDENCE\\n' >&2\nexit 1\n",
+        )
+        .unwrap();
+        assert_eq!(
+            verify_sample(&cli, &sample, host_target(), &directory.join("casefold")).unwrap(),
+            "rejected"
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn compared_host_request_executes_both_without_compile_only_target() {
