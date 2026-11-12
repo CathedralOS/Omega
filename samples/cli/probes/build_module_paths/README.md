@@ -9,6 +9,6 @@ the last names the module file.
   and no `ghost/` directory resolves the prefix as an own-package
   directory and rejects "captured entry is absent: ghost".
 - `invalid_depbuild_in_build`: `use kit::build` inside build.omg
-  over a `build_depend_as` edge — dependency build files are
+  over a aliased `Build::build_dependency` edge — dependency build files are
   load-protected in BOTH scopes ("may not load dependency build
   file"), not just product imports.

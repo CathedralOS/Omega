@@ -1,6 +1,6 @@
 // wrapping_square_sum -- a dependency-free benchmark subject.
 //
-// Every other hosted sample `depend()`s on omega-language-std for its
+// Every other hosted sample registers a dependency on omega-language-std for its
 // console/exit services; this one intentionally declares no package edges so
 // the benchmark harness measures a compile with no dependency settlement at
 // all. The work is a self-transition loop summing squares under Wrapping:

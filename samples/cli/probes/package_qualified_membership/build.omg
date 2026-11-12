@@ -1,6 +1,8 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "package_qualified_membership");
-    Build::depend_as(builder, "leaf", Source::Path { location: "leaf" });
+    let mut leaf_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "leaf" });
+    dependency::with_alias(&mut leaf_dependency, "leaf");
+    let leaf_registration: DependencyRegistration = Build::dependency(builder, leaf_dependency);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
