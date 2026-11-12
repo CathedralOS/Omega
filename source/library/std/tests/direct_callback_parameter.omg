@@ -73,10 +73,10 @@ boundary trait HookProcedure: Calling<HookProcedurePolicyCallingPolicy> {
     machine call(message: u64) -> u64 reaches none;
 }
 
-data RegistrarPolicy { }
-public RegistrarPolicyCallingPolicy satisfies CallingPolicy {
+data HookRegistrarPolicy { }
+public HookRegistrarCallingPolicy satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        RegistrarPolicy::plan(signature)
+        HookRegistrarPolicy::plan(signature)
     }
 }
 
@@ -98,7 +98,7 @@ requires index <= 31
     };
 }
 
-machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+machine HookRegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan
 {
     transition signature.parameter_count == 2 {
@@ -163,7 +163,7 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
     }
 }
 
-boundary trait HookRegistrar: Calling<RegistrarPolicyCallingPolicy> {
+boundary trait HookRegistrar: Calling<HookRegistrarCallingPolicy> {
     machine install<machine Handler>(
         kind: u64,
         native callback procedure from Handler,
