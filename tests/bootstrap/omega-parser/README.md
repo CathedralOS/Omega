@@ -62,7 +62,7 @@ returning `000000000041` with status 0 and empty stderr — now that
 Bash execution; the PE artifact is proven byte-exact under wine but the
 MINGW/MSYS shell route itself has not run on Windows hardware.
 
-The current customer reuses one parser across fifty-nine invocations. Direct
+The current customer reuses one parser across seventy-seven invocations. Direct
 Boolean transition results retain ordinary expression rows; parameterized
 nested-machine transfers retain their argument rows. The retired `state`
 declaration spelling refuses, while `state` remains a usable identifier. A
@@ -94,6 +94,17 @@ expression machinery. Explicit empty literals, malformed nesting, the bounded
 128-level context limit and successful reuse after failures check ownership and
 reset behavior. These remain parser checks; emitted record copies and returned
 records are exercised by the executable compiler customer.
+
+Postfix indices share the same bounded expression suspension. The explicit
+mutable/shared domain-removal views used by SourceUnit append/read keep their
+Borrow and Cast nodes below Indexed, while selectors can contain ordinary
+calls, groups, casts and nested indices. Assignment retains the completed
+target once before its value; checking still owns writability, type, bounds and
+loan obligations. Controls check authored target spans after an earlier call,
+collection/selector call identities, outer argument and record-field custody,
+existing range forms, malformed brackets and ranges, lexical failures, the
+128-frame bound and reset. Model results alone do not establish execution of
+these source programs.
 
 Four header controls were added in the historical twenty-invocation customer:
 termination and reach clauses in both orders retain their exact ranges, and
@@ -240,8 +251,8 @@ or proof evidence. No Windows profiling result is claimed.
 
 ## Bound customer entry
 
-The [customer](main.epsilon) entry is bound at 38,045 bytes, SHA-256
-`50ec5053fd956e9291355246b64d741da8914130767538877e25599b33112385`. The customer is the bound compiler closure followed by this entry.
+The [customer](main.epsilon) entry is bound at 52,195 bytes, SHA-256
+`ee2db20ec8008e3127aca61b5661e153317b42aa1c2819d26a3a588b6577317b`. The customer is the bound compiler closure followed by this entry.
 `tools/bootstrap/omega/compiler_env.sh` checks the entry identity before every
 packing and `tests/bootstrap/omega-identity.sh` covers the refusals. The same
 pins stand inline in `gate.py`; they are records of this one subject, not

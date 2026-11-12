@@ -668,18 +668,15 @@ data OmegaExpressionConsumer {
     case TransitionPatternFieldValue;
 }
 
-// Nested index operands suspend one in-progress outer bracket while the same
-// postfix builder retains the inner indexed expression. The frame owns every
-// outer-builder coordinate that the inner bracket may overwrite; expression
-// result and scan custody stay live outside the frame so the completed inner
-// expression can become the outer index operand without copying syntax rows.
+// Every postfix index suspends its surrounding expression while its selector
+// uses the ordinary operand grammar. These metadata frames preserve enclosing
+// bracket/range builders; the shared expression frames preserve operators,
+// groups and prefixes. The completed result and its incoming consumer remain
+// live outside the saved frame, without copying or rebuilding syntax rows.
 data OmegaIndexedExpressionFrame {
     base_expression: i32;
-    index_expression: i32;
     result_consumer: OmegaExpressionConsumer;
     start: i32;
-    is_value: i32;
-    index_is_range_start: i32;
     range_has_start: i32;
     range_start_expression: i32;
     range_has_end: i32;
@@ -896,7 +893,7 @@ data OmegaStructLiteralParseFrame {
     field_name_end: i32;
 }
 
-// A call or literal suspends the surrounding expression while children reuse the
+// Calls, literals and indices suspend surrounding expressions while children reuse the
 // active stacks. Slots are shared across suspended frames, bounded in total;
 // each category reads only the prefix owned by its saved count.
 data OmegaSuspendedExpressionFrame {
@@ -1135,15 +1132,12 @@ data OmegaParser {
     expression_result_start: i32;
     expression_end: i32;
     assignment_target_expression: i32;
-    assignment_target_name_member_count: i32;
-    assignment_target_path_kind: OmegaPathExpressionKind;
     assignment_value_expression: i32;
     indexed_base_expression: i32;
     indexed_index_expression: i32;
     indexed_result_consumer: OmegaExpressionConsumer;
+    indexed_pending_consumer: OmegaExpressionConsumer;
     indexed_start: i32;
-    indexed_is_value: i32;
-    indexed_index_is_range_start: i32;
     indexed_range_has_start: i32;
     indexed_range_start_expression: i32;
     indexed_range_has_end: i32;

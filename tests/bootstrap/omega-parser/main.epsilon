@@ -233,7 +233,7 @@ machine Main::main(&mut self) {
     self.check_refused();
 
     self.parser.parse_view("machine p() { let x: R = R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: 0 } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } }; }");
-    self.check_literal_depth_refused();
+    self.check_expression_depth_refused();
 
     // A failed nested parse must not leak lists, call headers, or saved stacks.
     self.parser.parse_view("machine make()->Empty { Empty {} }");
@@ -243,6 +243,54 @@ machine Main::main(&mut self) {
     assert self.parser.struct_literal_field_count == 0;
     assert self.parser.pending_struct_field_count == 0;
     self.check_record_expression(self.parser.statements[0].item_index, 0);
+
+    // A domain-removal view keeps its borrow and cast below the indexed
+    // place; the selector owns a fresh expression frame.
+    self.parser.parse_view("machine append(source_unit:&mut SourceUnit, byte:u8) { (&mut source_unit.bytes as -Trapping)[source_unit.length] = byte; } machine read(source_unit:&SourceUnit, index:u64 in Trapping)->u8 { (&source_unit.bytes as -Trapping)[index as -Trapping] }");
+    self.check_domain_view_indices();
+
+    self.parser.parse_view("machine p(){ before(); ((&mut matrix as -D)[rows[next((offset() + 1))]])[column()] = value(); }");
+    self.check_nested_index_custody();
+
+    self.parser.parse_view("machine p(){ consume(7, Packet { value: (&array as -D)[(next() as -D)] }, 9); }");
+    self.check_record_index_context();
+
+    self.parser.parse_view("machine p(){ make()[index()] = value(); } machine read()->u8 { make()[index()] }");
+    self.check_factory_indices();
+
+    self.parser.parse_view("machine p(){ array[(lo() + rows[i]) * (hi as u64)] = value; }");
+    self.check_index_operators();
+
+    self.parser.parse_view("machine p(){ let a:R = array[1..3]; let b:R = array[..3]; let c:R = array[..]; let d:R = array[1..]; let e:R = array[1..=3]; let f:R = array[lo()..(hi() - 1)]; }");
+    self.check_index_ranges();
+
+    self.parser.parse_view("machine p(){ let yes:bool = !(flags[choose()] && check(bits[other()])); }");
+    self.check_index_prefix_context();
+
+    self.parser.parse_view("machine p(){ before(); (value) = next(); }");
+    self.check_grouped_assignment();
+
+    self.parser.parse_view("machine p(){ array[rows[next()] = value; }");
+    self.check_refused();
+    self.parser.parse_view("machine p(){ (array[index] = value); }");
+    self.check_refused();
+    self.parser.parse_view("machine p(){ array[] = value; }");
+    self.check_refused();
+    self.parser.parse_view("machine p(){ (array)[index] = ; }");
+    self.check_refused();
+    self.parser.parse_view("machine p(){ array[1..2..3] = value; }");
+    self.check_refused();
+    self.parser.parse_view("machine p(){ array[(next()");
+    self.check_refused();
+
+    self.parser.parse_view("machine p(){ let x:R = array[1..=]; }");
+    self.check_missing_index_range_end();
+    self.parser.parse_view("machine p(){ array[index ` 1] = value; }");
+    self.check_lexical_index_failure();
+    self.parser.parse_view("machine p(){ let x:u8 = array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[array[0]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]; }");
+    self.check_expression_depth_refused();
+    self.parser.parse_view("machine p(){ array[index] = value; }");
+    self.check_index_reset();
 
     self.console.write_byte(65);
 }
@@ -529,6 +577,7 @@ machine Main::check_header_rows(&mut self, termination: i32, reached: i32, termi
 }
 
 machine Main::check_call_stacks_empty(&mut self) {
+    assert self.parser.indexed_expression_frame_count == 0;
     assert self.parser.struct_literal_frame_count == 0;
     assert self.parser.call_parse_frame_count == 0;
     assert self.parser.suspended_expression_frame_count == 0;
@@ -805,7 +854,7 @@ machine Main::check_record_field_frames(&mut self) {
         }
     }
 }
-machine Main::check_literal_depth_refused(&mut self) {
+machine Main::check_expression_depth_refused(&mut self) {
     transition self.parser.status {
         OmegaParserStatus::ResourceFailure -> bound()
         _ -> self.console.exit_process(1)
@@ -818,4 +867,219 @@ machine Main::check_literal_depth_refused(&mut self) {
             _ -> self.console.exit_process(1)
         }
     }
+}
+
+machine Main::check_index_expression(&mut self, expression:i32, row:i32) {
+    assert self.parser.expressions[expression].payload0 == row;
+    assert self.parser.indexed_expressions[row].base < expression;
+    assert self.parser.indexed_expressions[row].index < expression;
+    transition self.parser.expressions[expression].kind {
+        OmegaExpressionKind::Indexed -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+machine Main::check_call_expression(&mut self, expression:i32, row:i32) {
+    assert self.parser.expressions[expression].payload0 == row;
+    transition self.parser.expressions[expression].kind {
+        OmegaExpressionKind::Call -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+machine Main::check_view_index_base(&mut self, row:i32, cast:i32, access:i32) {
+    let base:i32 = self.parser.indexed_expressions[row].base;
+    assert self.parser.expressions[base].payload0 == cast;
+    self.check_cast_kind(cast, 2);
+    self.check_borrow_node(self.parser.cast_expressions[cast].value, access);
+    transition self.parser.expressions[base].kind {
+        OmegaExpressionKind::Cast -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+machine Main::check_domain_view_indices(&mut self) {
+    self.check_complete(); self.check_call_stacks_empty();
+    assert self.parser.assignment_statement_count == 1;
+    assert self.parser.indexed_expression_count == 2;
+    assert self.parser.cast_expression_count == 3;
+    assert self.parser.unary_expression_count == 0;
+    assert self.parser.call_expression_count == 0;
+    self.check_index_expression(self.parser.assignment_statements[0].target, 0);
+    self.check_view_index_base(0, 0, 1);
+    assert self.parser.assignment_statements[0].start == self.parser.indexed_expressions[0].start;
+    assert self.parser.assignment_statements[0].start == 55;
+    assert self.parser.assignment_statements[0].end > self.parser.indexed_expressions[0].end;
+    self.check_index_expression(self.parser.statements[1].item_index, 1);
+    self.check_view_index_base(1, 1, 0);
+    self.check_cast_kind(2, 2);
+    let index:i32 = self.parser.indexed_expressions[1].index;
+    assert self.parser.expressions[index].payload0 == 2;
+    transition self.parser.expressions[index].kind {
+        OmegaExpressionKind::Cast -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+machine Main::check_nested_index_custody(&mut self) {
+    self.check_complete(); self.check_call_stacks_empty();
+    assert self.parser.call_statement_count == 1;
+    assert self.parser.call_statements[0].argument_count == 0;
+    assert self.parser.assignment_statement_count == 1;
+    assert self.parser.assignment_statements[0].start == 23;
+    assert self.parser.indexed_expression_count == 3;
+    assert self.parser.call_expression_count == 4;
+    assert self.parser.call_argument_count == 1;
+    assert self.parser.binary_expression_count == 1;
+    self.check_index_expression(self.parser.assignment_statements[0].target, 2);
+    self.check_index_expression(self.parser.indexed_expressions[2].base, 1);
+    self.check_index_expression(self.parser.indexed_expressions[1].index, 0);
+    self.check_view_index_base(1, 0, 1);
+    self.check_call_expression(self.parser.indexed_expressions[0].index, 1);
+    self.check_call_expression(self.parser.indexed_expressions[2].index, 2);
+    self.check_call_expression(self.parser.assignment_statements[0].value, 3);
+    self.check_call_expression(self.parser.binary_expressions[0].left, 0);
+    assert self.parser.call_expressions[1].argument_count == 1;
+    let argument:i32 = self.parser.call_arguments[self.parser.call_expressions[1].first_argument];
+    assert self.parser.expressions[argument].payload0 == 0;
+    transition self.parser.expressions[argument].kind {
+        OmegaExpressionKind::Binary -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+machine Main::check_record_index_context(&mut self) {
+    self.check_complete(); self.check_call_stacks_empty();
+    assert self.parser.call_statement_count == 1;
+    assert self.parser.call_statements[0].argument_count == 3;
+    assert self.parser.call_argument_count == 3;
+    assert self.parser.call_expression_count == 1;
+    assert self.parser.struct_literal_count == 1;
+    assert self.parser.indexed_expression_count == 1;
+    self.check_record_expression(self.parser.call_arguments[1], 0);
+    self.check_index_expression(self.parser.struct_literal_fields[0].value, 0);
+    self.check_view_index_base(0, 0, 0);
+    self.check_call_expression(self.parser.cast_expressions[1].value, 0);
+    self.check_cast_kind(1, 2);
+}
+machine Main::check_factory_indices(&mut self) {
+    self.check_complete(); self.check_call_stacks_empty();
+    assert self.parser.assignment_statement_count == 1;
+    assert self.parser.indexed_expression_count == 2;
+    assert self.parser.call_expression_count == 5;
+    assert self.parser.call_statement_count == 0;
+    self.check_index_expression(self.parser.assignment_statements[0].target, 0);
+    self.check_call_expression(self.parser.indexed_expressions[0].base, 0);
+    self.check_call_expression(self.parser.indexed_expressions[0].index, 1);
+    self.check_call_expression(self.parser.assignment_statements[0].value, 2);
+    self.check_index_expression(self.parser.statements[1].item_index, 1);
+    self.check_call_expression(self.parser.indexed_expressions[1].base, 3);
+    self.check_call_expression(self.parser.indexed_expressions[1].index, 4);
+}
+machine Main::check_index_operators(&mut self) {
+    self.check_complete(); self.check_call_stacks_empty();
+    assert self.parser.assignment_statement_count == 1;
+    assert self.parser.indexed_expression_count == 2;
+    assert self.parser.binary_expression_count == 2;
+    assert self.parser.cast_expression_count == 1;
+    assert self.parser.call_expression_count == 1;
+    self.check_index_expression(self.parser.assignment_statements[0].target, 1);
+    self.check_index_expression(self.parser.binary_expressions[0].right, 0);
+    self.check_call_expression(self.parser.binary_expressions[0].left, 0);
+    self.check_cast_kind(0, 0);
+    let index:i32 = self.parser.indexed_expressions[1].index;
+    assert self.parser.expressions[index].payload0 == 1;
+    transition self.parser.expressions[index].kind {
+        OmegaExpressionKind::Binary -> operator()
+        _ -> self.console.exit_process(1)
+    }
+    state operator() {
+        transition self.parser.binary_expressions[1].operator {
+            OmegaBinaryOperatorKind::Multiply -> return
+            _ -> self.console.exit_process(1)
+        }
+    }
+}
+machine Main::check_index_ranges(&mut self) {
+    self.check_complete(); self.check_call_stacks_empty();
+    assert self.parser.indexed_expression_count == 6;
+    assert self.parser.range_expression_count == 6;
+    assert self.parser.call_expression_count == 2;
+    assert self.parser.binary_expression_count == 1;
+    self.check_range_flags(0, 1, 1, 0);
+    self.check_range_flags(1, 0, 1, 0);
+    self.check_range_flags(2, 0, 0, 0);
+    self.check_range_flags(3, 1, 0, 0);
+    self.check_range_flags(4, 1, 1, 1);
+    self.check_range_flags(5, 1, 1, 0);
+    self.check_call_expression(self.parser.range_expressions[5].start, 0);
+    self.check_call_expression(self.parser.binary_expressions[0].left, 1);
+}
+machine Main::check_range_flags(&mut self, row:i32, start:i32, end:i32, inclusive:i32) {
+    assert self.parser.range_expressions[row].has_start == start;
+    assert self.parser.range_expressions[row].has_end == end;
+    assert self.parser.range_expressions[row].end_inclusive == inclusive;
+    let index:i32 = self.parser.indexed_expressions[row].index;
+    assert self.parser.expressions[index].payload0 == row;
+    transition self.parser.expressions[index].kind {
+        OmegaExpressionKind::Range -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+machine Main::check_index_prefix_context(&mut self) {
+    self.check_complete(); self.check_call_stacks_empty();
+    assert self.parser.indexed_expression_count == 2;
+    assert self.parser.call_expression_count == 3;
+    assert self.parser.call_argument_count == 1;
+    assert self.parser.unary_expression_count == 1;
+    assert self.parser.binary_expression_count == 1;
+    self.check_call_expression(self.parser.indexed_expressions[0].index, 0);
+    self.check_call_expression(self.parser.indexed_expressions[1].index, 1);
+    self.check_index_expression(self.parser.call_arguments[0], 1);
+    self.check_index_expression(self.parser.binary_expressions[0].left, 0);
+    self.check_call_expression(self.parser.binary_expressions[0].right, 2);
+    let operand:i32 = self.parser.unary_expressions[0].operand;
+    transition self.parser.expressions[operand].kind {
+        OmegaExpressionKind::Binary -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+machine Main::check_grouped_assignment(&mut self) {
+    self.check_complete(); self.check_call_stacks_empty();
+    assert self.parser.call_statement_count == 1;
+    assert self.parser.call_expression_count == 1;
+    assert self.parser.assignment_statement_count == 1;
+    assert self.parser.assignment_statements[0].start == 23;
+    self.check_call_expression(self.parser.assignment_statements[0].value, 0);
+    transition self.parser.expressions[self.parser.assignment_statements[0].target].kind {
+        OmegaExpressionKind::Path -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+machine Main::check_missing_index_range_end(&mut self) {
+    transition self.parser.status {
+        OmegaParserStatus::SyntaxFailure -> diagnostic()
+        _ -> self.console.exit_process(1)
+    }
+    state diagnostic() {
+        assert self.parser.diagnostic_start == 33;
+        assert self.parser.diagnostic_end == 34;
+        transition self.parser.diagnostic_code {
+            OmegaParseDiagnosticCode::ExpectedIndexedRangeEnd -> return
+            _ -> self.console.exit_process(1)
+        }
+    }
+}
+machine Main::check_lexical_index_failure(&mut self) {
+    assert self.parser.diagnostic_start == 25;
+    assert self.parser.diagnostic_end == 26;
+    transition self.parser.status {
+        OmegaParserStatus::LexicalFailure -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+machine Main::check_index_reset(&mut self) {
+    self.check_complete(); self.check_call_stacks_empty();
+    assert self.parser.assignment_statement_count == 1;
+    assert self.parser.indexed_expression_count == 1;
+    assert self.parser.range_expression_count == 0;
+    assert self.parser.cast_expression_count == 0;
+    assert self.parser.call_expression_count == 0;
+    assert self.parser.expression_prefix_count == 0;
+    self.check_index_expression(self.parser.assignment_statements[0].target, 0);
 }
