@@ -63,6 +63,9 @@ def domain_cast_cases():
                   + b' = 42 as u8 +' + policy + b'; (x as =' + policy
                   + b') as -' + policy + b' }')
         accepted('explicit-policy-' + policy.decode(), source, 42)
+        refused('policy-declaration-cannot-shadow-' + policy.decode(),
+                b'domain u8::' + policy + b' requires self==0; '
+                b'machine chosen()->u8{(42 as u8 +' + policy + b') as -' + policy + b'}', 248)
     accepted('policy-change-keeps-value',
              b'machine chosen()->u8 { ((42 as u8 +Trapping) as -Trapping as u8 +Wrapping) as -Wrapping }', 42)
     accepted('cast-does-not-wrap',
@@ -75,6 +78,8 @@ def domain_cast_cases():
         ('implicit-argument', b'machine take(x:u8 in Trapping)->u8{x as -Trapping} machine chosen()->u8{take(42)}'),
         ('implicit-result', b'machine result()->u8 in Trapping{42} machine chosen()->u8{result() as -Trapping}'),
         ('implicit-array-element', b'machine chosen()->u8 { let x:[u8 in Trapping;1]=[42]; x[0] as -Trapping }'),
+        ('implicit-array-shell', b'machine chosen()->u8 { let x:[u8;1] in Trapping=[42]; 0 }'),
+        ('implicit-nested-array-shell', b'machine chosen()->u8 { let x:[[u8;1] in Trapping;1]=[[42]]; 0 }'),
         ('implicit-match-arm', b'machine chosen()->u8 { let x:u8 in Trapping=match true {true->42 false->43}; x as -Trapping }'),
         ('implicit-policy-removal', b'machine chosen()->u8 { let x:u8 in Trapping=42 as u8 +Trapping; x }'),
         ('carrier-cast-cannot-drop-policy', b'machine chosen()->u8 { let x:u8 in Trapping=42 as u8 +Trapping; x as u8 }'),
@@ -87,6 +92,8 @@ def domain_cast_cases():
         ('implicit-declared-erasure', b'domain u8::Small requires self<100; machine chosen(x:u8 in Small)->u8{x}'),
         ('qualified-collection-needs-selected-operator', b'machine chosen()->u8 { let mut x:[u8;1] in Trapping; x[0]=42; 0 }'),
         ('qualified-index-needs-selected-operator', b'machine chosen()->u8 { let mut x:[u8;1]; let i:u8 in Trapping=0 as u8 +Trapping; x[i]=42; 0 }'),
+        ('qualified-range-start-needs-selected-operator', b'machine chosen()->u8 { let x:[u8;1]; let i:u8 in Trapping=0 as u8 +Trapping; let view:&[u8]=&x[i..1]; 0 }'),
+        ('qualified-range-end-needs-selected-operator', b'machine chosen()->u8 { let x:[u8;1]; let i:u8 in Trapping=1 as u8 +Trapping; let view:&[u8]=&x[0..i]; 0 }'),
     ):
         refused(name, source, 249)
     for name, source in (
@@ -153,12 +160,6 @@ machine chosen()->u8 { 42 }
 
 
 def main():
-    # Keep the exact host-built compiler for additional inputs without repeating
-    # its expensive native construction. This cache is outside captured source.
-    retained = ROOT / 'build/product-alpha/build/compiler-under-test'
-    retained.parent.mkdir(parents=True, exist_ok=True)
-    if Path(PROGRAM).resolve() != retained.resolve():
-        shutil.copy2(PROGRAM, retained)
     first = accepted('literal', b'machine chosen() -> u8 { 42 }', 42)
     changed = accepted('changed-source', b'machine chosen() -> u8 { 43 }', 43)
     assert first != changed
@@ -215,6 +216,12 @@ def main():
 
 
 if __name__ == '__main__':
+    # Both suites retain the exact host-built compiler for additional inputs
+    # without repeating native construction. This is outside captured source.
+    retained = ROOT / 'build/product-alpha/build/compiler-under-test'
+    retained.parent.mkdir(parents=True, exist_ok=True)
+    if Path(PROGRAM).resolve() != retained.resolve():
+        shutil.copy2(PROGRAM, retained)
     if len(sys.argv) == 3 and sys.argv[2] == '--domain-casts':
         domain_cast_cases()
     else:

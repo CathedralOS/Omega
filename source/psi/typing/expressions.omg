@@ -633,15 +633,30 @@ crashes Trap
     machine done() {}
 }
 
-// One range endpoint: an integer, or an anonymous literal landed at `u64`.
+// Builtin range endpoints follow scalar indexing: an unqualified integer,
+// or an anonymous literal landed at `u64`. A qualified endpoint requires
+// a selected operator, which this builtin path does not supply.
 machine type_endpoint(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping)
 crashes Trap
 {
     let typed: u64 in Trapping = typing_expression_type(&typer.output, endpoint);
     let integer: bool = integer_type(typer, typed);
     transition integer {
-        true -> done()
+        true -> qualified(typer, syntax, endpoint, typed)
         _ -> other(typer, syntax, endpoint, typed == typer.output.anonymous)
+    }
+
+    machine qualified(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping, typed: u64 in Trapping) {
+        let row: TypeRow = type_table_row(&typer.output.types, typed);
+        transition row.domain == DomainBinding::Unqualified {
+            true -> done()
+            _ -> unsupported(typer, syntax, endpoint)
+        }
+    }
+
+    machine unsupported(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping) {
+        let written: Expression = syntax_trees_expression(syntax, endpoint);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::UnsupportedExpression, written.source_span);
     }
 
     machine other(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping, anonymous: bool) {
@@ -1598,6 +1613,8 @@ crashes Trap
 
     machine named(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, path: NamePath) {
         let name: IdentifierSpan = syntax_trees_member(syntax, path.first_member);
+        // Resolution rejects authored domains with these reserved spellings
+        // in every module before typing; none can shadow this policy identity.
         let domain: DomainBinding = known_domain(sources, name.source_span);
         let policy: bool = domain == DomainBinding::Trapping || domain == DomainBinding::Wrapping
             || domain == DomainBinding::Saturating;
