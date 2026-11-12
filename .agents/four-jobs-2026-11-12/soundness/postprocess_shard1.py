@@ -8,6 +8,10 @@ import subprocess
 from collections import Counter
 from pathlib import Path
 
+import sys
+
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE))
 from run_shard1 import extract_route_reason
 
 REPO = Path(__file__).resolve().parents[3]
