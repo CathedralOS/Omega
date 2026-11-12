@@ -96,35 +96,55 @@ def field_map(line: str, *, body_only: bool = False) -> dict[str, str]:
     return out
 
 
-def first_refusal_from_output(raw: str) -> str:
-    refusal = ""
-    for line in raw.splitlines():
-        if line.startswith("fallback\t"):
-            parts = line.split("\t")
-            if len(parts) >= 5:
-                construct = parts[4].strip()
-                if construct and construct != "Concerns":
-                    refusal = construct
-                    break
-        if line.startswith("program\t"):
-            fm = field_map(line)
-            route = fm.get("route", "")
-            if route == "outside" and fm.get("outside_detail"):
-                detail = fm["outside_detail"]
-                if ":" in detail:
-                    refusal = detail.split(":", 1)[1].strip()
-                else:
-                    refusal = detail.strip()
-            elif route == "refused-module" and "reason" in fm:
-                refusal = fm["reason"]
-            elif route == "no-entry" and not refusal:
-                refusal = "no-entry"
-            elif route == "unreached" and not refusal:
-                refusal = "unreached"
-    return refusal
+def refusal_construct_from_detail(detail: str) -> str:
+    """Map harness refusal text to the construct/family string structure_elaboration names."""
+    detail = detail.strip()
+    if not detail:
+        return ""
+    if ":" in detail:
+        _reason, payload = detail.split(":", 1)
+        return payload.strip()
+    return detail
 
 
-def aggregate_fixture(program_lines: list[str], fallbacks: list[str]) -> tuple[str, str, str, str]:
+def fallback_construct(line: str) -> str:
+    parts = line.split("\t")
+    if len(parts) < 5:
+        return ""
+    concerns = parts[4].strip()
+    # Rust Debug of `Construct` — keep the enum label for tallying.
+    if "(" in concerns:
+        return concerns.split("(", 1)[0].strip()
+    return concerns
+
+
+def first_refusal_from_parsed(parsed: list[dict[str, str]], fallbacks: list[str]) -> str:
+    for p in parsed:
+        route = p.get("route", "")
+        if route == "outside" and p.get("outside_detail"):
+            construct = refusal_construct_from_detail(p["outside_detail"])
+            if construct:
+                return construct
+        if route == "refused-module":
+            reason = p.get("reason", "")
+            if reason:
+                return reason
+    for line in fallbacks:
+        construct = fallback_construct(line)
+        if construct:
+            return construct
+    for p in parsed:
+        route = p.get("route", "")
+        if route == "no-entry":
+            return "no_program_entry"
+        if route == "unreached":
+            return "current_stopped_before_typed_trees"
+    return ""
+
+
+def aggregate_fixture(
+    program_lines: list[str], fallbacks: list[str], *, fail_every_machine: bool
+) -> tuple[str, str, str, str]:
     if not program_lines:
         return "error", "", "n-a", ""
     if len(program_lines) == 1 and program_lines[0].strip() == "panicked":
@@ -142,43 +162,33 @@ def aggregate_fixture(program_lines: list[str], fallbacks: list[str]) -> tuple[s
         current = "error"
 
     comp = next((p for p in parsed if p.get("root") == "compilation"), parsed[0])
-    route_raw = comp.get("route", "error")
+    machine_roots = [p for p in parsed if str(p.get("root", "")).startswith("machine:")]
 
-    if route_raw in JUDGED_ROUTE:
-        route_verdict = route_raw
-    elif route_raw in OUTSIDE_ROUTE:
-        route_verdict = "outside"
+    if fail_every_machine and comp.get("route") == "no-entry" and machine_roots:
+        routes = [p.get("route", "") for p in machine_roots]
+        if any(r == "rejected" for r in routes):
+            route_verdict = "rejected"
+        elif all(r in OUTSIDE_ROUTE or r in ("", "error") for r in routes):
+            route_verdict = "outside"
+        elif any(r == "accepted" for r in routes) and any(
+            r in OUTSIDE_ROUTE for r in routes
+        ):
+            # One machine judged, another still outside the subset — not fully judged.
+            route_verdict = "outside"
+        elif any(r == "accepted" for r in routes):
+            route_verdict = "accepted"
+        else:
+            route_verdict = "outside"
     else:
-        route_verdict = "outside"
-        route_raw = route_raw or "error"
+        route_raw = comp.get("route", "error")
+        if route_raw in JUDGED_ROUTE:
+            route_verdict = route_raw
+        elif route_raw in OUTSIDE_ROUTE:
+            route_verdict = "outside"
+        else:
+            route_verdict = "outside"
 
-    if comp.get("route") == "no-entry" and len(parsed) > 1:
-        judged = [p for p in parsed if p.get("route") in JUDGED_ROUTE]
-        if judged:
-            if any(p.get("route") == "rejected" for p in judged):
-                route_verdict = "rejected"
-            else:
-                route_verdict = "accepted"
-            route_raw = judged[0].get("route", route_raw)
-
-    first_refusal = ""
-    for p in parsed:
-        route = p.get("route", "")
-        if route == "outside" and p.get("outside_detail"):
-            detail = p["outside_detail"]
-            first_refusal = detail.split(":", 1)[1].strip() if ":" in detail else detail.strip()
-            break
-    if not first_refusal:
-        for p in parsed:
-            route = p.get("route", "")
-            if route == "no-entry":
-                first_refusal = "no-entry"
-                break
-            if route == "unreached":
-                first_refusal = "unreached"
-                break
-    if not first_refusal and fallbacks:
-        first_refusal = first_refusal_from_output("\n".join(fallbacks))
+    first_refusal = first_refusal_from_parsed(parsed, fallbacks)
 
     if route_verdict == "accepted":
         if current == "accepted":
@@ -281,7 +291,7 @@ def run_one(fixture: str) -> tuple[str, float]:
         program_lines = ["panicked"]
 
     route_verdict, current, agreement, first_refusal = aggregate_fixture(
-        program_lines, fallbacks
+        program_lines, fallbacks, fail_every_machine=tier(fixture) == "fail"
     )
     row = "\t".join(
         [
@@ -297,12 +307,32 @@ def run_one(fixture: str) -> tuple[str, float]:
     return row, elapsed
 
 
+def repair_all(fixtures: list[str]) -> None:
+    header = "fixture\ttier\troute_verdict\tcurrent_verdict\tagreement\tfirst_refusal\tseconds\n"
+    rows: list[str] = [header.rstrip("\n")]
+    for i, fixture in enumerate(fixtures, 1):
+        row, elapsed = run_one(fixture)
+        rows.append(row)
+        if i % 50 == 0 or elapsed > 60:
+            print(f"[repair {i}/{len(fixtures)}] {fixture} {elapsed:.1f}s", flush=True)
+    TSV.write_text("\n".join(rows) + "\n")
+
+
 def main() -> None:
     if not HARNESS.is_file():
         print(f"missing harness: {HARNESS}", file=sys.stderr)
         sys.exit(1)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     fixtures = list_shard_fixtures()
+    if len(sys.argv) > 2 and sys.argv[2] == "--repair":
+        to_repair = fixtures
+        existing = load_done()
+        if existing:
+            to_repair = [f for f in fixtures if f in existing]
+        print(f"repair {len(to_repair)} fixtures", flush=True)
+        repair_all(to_repair)
+        return
+
     done = load_done()
     todo = [f for f in fixtures if f not in done]
     print(f"shard {SHARD}/{SHARD_MOD}: {len(fixtures)} fixtures, {len(todo)} todo", flush=True)
