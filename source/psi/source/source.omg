@@ -23,7 +23,7 @@ requires
     length <= 131072,
 {
     id: SourceId;
-    bytes: [u8; 131072] in Trapping;
+    bytes: [u8; 131072];
     length: u64;
     last_retained: bool;
 }
@@ -44,7 +44,7 @@ machine source_unit_append(source_unit: &mut SourceUnit, byte: u8) {
     machine retain(source_unit: &mut SourceUnit, byte: u8)
     requires source_unit.length < 131072
     {
-        (&mut source_unit.bytes as -Trapping)[source_unit.length] = byte;
+        source_unit.bytes[source_unit.length] = byte;
         source_unit.length = source_unit.length + 1;
         source_unit.last_retained = true;
     }
@@ -75,9 +75,9 @@ machine source_unit_byte_or_nul(source_unit: &SourceUnit, index: u64 in Trapping
     machine read(source_unit: &SourceUnit, index: u64 in Trapping) -> u8
     requires index < 131072
     {
-        // Remove the array shell's policy through a shared view. The element
-        // remains plain u8; the explicit index projection preserves its value.
-        (&source_unit.bytes as -Trapping)[index as -Trapping]
+        // The buffer stores ordinary bytes; only the coordinate carries a
+        // policy. Remove it after establishing the physical array bound.
+        source_unit.bytes[index as -Trapping]
     }
 
     machine absent() -> u8 {
@@ -93,7 +93,7 @@ public data ModulePath
 requires
     length <= 256,
 {
-    bytes: [u8; 256] in Trapping;
+    bytes: [u8; 256];
     length: u64;
 }
 
@@ -111,7 +111,7 @@ public machine module_path_append(module_path: &mut ModulePath, byte: u8) -> boo
     machine retain(module_path: &mut ModulePath, byte: u8) -> bool
     requires module_path.length < 256
     {
-        (&mut module_path.bytes as -Trapping)[module_path.length] = byte;
+        module_path.bytes[module_path.length] = byte;
         module_path.length = module_path.length + 1;
         true
     }
@@ -394,8 +394,11 @@ crashes Trap
         }
     }
 
-    machine store(sources: &mut SourceSet, name: &ModulePath, index: u64 in Trapping, at: u64 in Trapping) -> SourceRange {
-        sources.path_bytes[at] = name.bytes[index] as u8 in Trapping;
+    machine store(sources: &mut SourceSet, name: &ModulePath, index: u64 in Trapping, at: u64 in Trapping) -> SourceRange
+    requires index < 256
+    {
+        let byte: u8 = name.bytes[index as -Trapping];
+        sources.path_bytes[at] = byte as +Trapping;
         transition { _ -> next(sources, name, index + 1) }
     }
 

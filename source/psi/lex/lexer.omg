@@ -747,24 +747,30 @@ machine lex_cooked_string(lexer: &mut Lexer) {
 
     machine hex_first(lexer: &mut Lexer, index1: u64 in Trapping, index2: u64 in Trapping) {
         let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, index1);
-        let high: u32 in Trapping = hex_digit_value(source_byte as u32 in Trapping);
+        let high: u32 in Trapping = hex_digit_value(source_byte as u32 +Trapping);
         transition high < 16 {
             true -> hex_second(lexer, index2, high)
             _ -> hex_invalid_first(lexer)
         }
     }
 
-    machine hex_second(lexer: &mut Lexer, index2: u64 in Trapping, high: u32 in Trapping) {
+    machine hex_second(lexer: &mut Lexer, index2: u64 in Trapping, high: u32 in Trapping)
+    requires high < 16
+    {
         let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, index2);
-        let low: u32 in Trapping = hex_digit_value(source_byte as u32 in Trapping);
+        let low: u32 in Trapping = hex_digit_value(source_byte as u32 +Trapping);
         transition low < 16 {
             true -> hex_emit(lexer, high, low)
             _ -> hex_invalid_second(lexer)
         }
     }
 
-    machine hex_emit(lexer: &mut Lexer, high: u32 in Trapping, low: u32 in Trapping) {
-        let byte: u8 = (high * 16 + low) as u8;
+    // Each caller has checked its digit. Retain those bounds across the
+    // private calls so exact narrowing follows the actual hexadecimal value.
+    machine hex_emit(lexer: &mut Lexer, high: u32 in Trapping, low: u32 in Trapping)
+    requires high < 16, low < 16
+    {
+        let byte: u8 = ((high * 16 + low) as -Trapping) as u8;
         lexer_push_decoded(lexer, byte);
         lexer.cursor = lexer.cursor + 3;
         transition lexer.output.accepted { true -> scan(lexer) _ -> done() }
