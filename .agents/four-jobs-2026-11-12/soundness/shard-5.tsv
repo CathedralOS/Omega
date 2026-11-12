@@ -672,3 +672,53 @@ tests/omega/pass/facts/signed_64bit_wrapping_subtraction_bound_through_call_resu
 tests/omega/pass/facts/signed_64bit_wrapping_subtraction_bound_through_target_body_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			1.556	1.788
 tests/omega/pass/facts/signed_8bit_division_quotient_bound_through_parameter_exit/main.omg	pass	drop_requires		rejected	rejected	agree	discarded-both-reject			2.080	2.343
 tests/omega/pass/facts/signed_8bit_division_remainder_bound_through_other_state_exit/main.omg	pass	drop_requires		rejected	rejected	agree	discarded-both-reject			2.135	2.348
+tests/omega/pass/facts/signed_8bit_exact_arithmetic_bound_through_other_machine_exit/main.omg	pass	drop_requires		rejected	rejected	agree	discarded-both-reject			2.154	2.425
+tests/omega/pass/facts/signed_8bit_exact_multiplication_bound_through_match_join_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.106	2.554
+tests/omega/pass/facts/signed_8bit_exact_subtraction_bound_through_local_exit/main.omg	pass	drop_requires		rejected	rejected	agree	discarded-both-reject			2.120	2.523
+tests/omega/pass/facts/signed_8bit_saturating_arithmetic_bound_through_field_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.175	2.464
+tests/omega/pass/facts/signed_8bit_shift_left_bound_through_const_name_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.229	2.428
+tests/omega/pass/facts/signed_8bit_shift_right_bound_through_call_result_exit/main.omg	pass	drop_requires		rejected	rejected	agree	discarded-both-reject			2.134	2.546
+tests/omega/pass/facts/signed_8bit_shift_right_bound_through_target_body_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.146	2.448
+tests/omega/pass/facts/signed_8bit_wrapping_arithmetic_bound_through_parameter_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.059	2.356
+tests/omega/pass/facts/signed_arithmetic_shift_right_through_other_state_exit/main.omg	pass	drop_requires	.agents/four-jobs-2026-11-12/soundness/shard-5/omega_pass_facts_signed_arithmetic_shift_right_through_other_state_exit_main_omg_a50a5685c3__drop_requires	accepted	rejected	disagree	confirmed-invalid	wiki/spec/language/state_contracts.md	Machine `requires` applies at every invocation, including terminal and recursive calls. Every arrival establishes the target's requirements and declared domains under actual argument substitution.	2.698	3.270
+tests/omega/pass/facts/signed_division_quotient_through_other_machine_exit/main.omg	pass	drop_requires		rejected	rejected	agree	discarded-both-reject			1.620	1.842
+tests/omega/pass/facts/signed_division_remainder_through_match_join_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			1.566	1.889
+tests/omega/pass/facts/signed_exact_addition_bound_through_local_exit/main.omg	pass	drop_requires	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_facts_signed_exact_addition_bound_through_local_exit_main_omg_c639dcd803__drop_requires	accepted	accepted	agree	confirmed-invalid	wiki/spec/language/state_contracts.md	Machine `requires` applies at every invocation, including terminal and recursive calls. Every arrival establishes the target's requirements and declared domains under actual argument substitution.	2.746	3.388
+tests/omega/pass/facts/signed_exact_multiplication_bound_through_field_exit/main.omg	pass	drop_requires	.agents/four-jobs-2026-11-12/soundness/shard-5/s_omega_pass_facts_signed_exact_multiplication_bound_through_field_exit_main_omg_aa6dfef9ed__drop_requires	accepted	outside	disagree	confirmed-invalid	wiki/spec/language/state_contracts.md	Machine `requires` applies at every invocation, including terminal and recursive calls. Every arrival establishes the target's requirements and declared domains under actual argument substitution.	2.689	3.167
+tests/omega/pass/facts/signed_exact_subtraction_bound_through_const_name_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			1.545	1.807
+tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	pass	drop_requires		rejected	rejected	agree	discarded-both-reject			2.023	2.250
+tests/omega/pass/facts/signed_shift_left_bound_through_target_body_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.690	0.748
+tests/omega/pass/facts/size_align_layout_geometry_through_other_machine_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.647	0.719
+tests/omega/pass/facts/skipped_short_circuit_call_through_match_join_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.158	2.531
+tests/omega/pass/facts/slice_view_element_read_bound_through_local_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.097	2.341
+tests/omega/pass/facts/slice_view_layout_geometry_through_field_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.643	0.682
+tests/omega/pass/facts/source_indexed_binary_tree_empty_children_exit/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.601	0.675
+tests/omega/pass/facts/source_indexed_binary_tree_through_other_state_exit/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.594	0.684
+tests/omega/pass/facts/source_indexed_family_recursive_index_positive/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.689	0.675
+tests/omega/pass/facts/source_indexed_family_through_parameter_exit/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.611	0.688
+tests/omega/pass/facts/source_indexed_type_parameter_through_other_machine_exit/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.655	0.680
+tests/omega/pass/facts/sret_aggregate_return_bound_through_local_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.600	0.677
+tests/omega/pass/facts/stack_frame_slot_isolation_through_field_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.111	2.404
+tests/omega/pass/facts/state_transition_ranking_bound_through_const_name_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.078	2.357
+tests/omega/pass/facts/static_callable_type_requirements_through_call_result_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			1.820	2.034
+tests/omega/pass/facts/static_callable_type_requirements_through_target_body_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			1.839	2.017
+tests/omega/pass/facts/static_callback_reach_private_helper/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			1.589	1.769
+tests/omega/pass/facts/static_callback_reach_through_field/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			1.560	1.766
+tests/omega/pass/facts/static_evidence_premise_through_const_name_exit/main.omg	pass	drop_requires	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_facts_static_evidence_premise_through_const_name_exit_main_omg_6db616f84b__drop_requires	accepted	outside	disagree	confirmed-invalid	wiki/spec/language/state_contracts.md	Machine `requires` applies at every invocation, including terminal and recursive calls. Every arrival establishes the target's requirements and declared domains under actual argument substitution.	2.654	3.204
+tests/omega/pass/facts/stored_exclusive_byte_view_through_call_result_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.714	0.683
+tests/omega/pass/facts/stored_exclusive_byte_view_through_target_body_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.634	0.710
+tests/omega/pass/facts/stored_shared_byte_view_element_lend_through_parameter_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.162	2.487
+tests/omega/pass/facts/suspension_transported_loan_through_other_state_exit/main.omg	pass	amp_to_ampmut		rejected	outside	agree	discarded-both-reject			1.656	1.920
+tests/omega/pass/facts/target_family_callback_guarantee/other_machine/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.689	0.717
+tests/omega/pass/facts/target_family_contract_operand/match_join/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.633	0.784
+tests/omega/pass/facts/target_family_invocation_lifetime/local/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.728	0.730
+tests/omega/pass/facts/target_family_open_const/field/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.616	0.682
+tests/omega/pass/facts/target_layout_derived_constant_through_const_name_exit/main.omg	pass	drop_ensures		rejected	unreached	agree	discarded-both-reject			0.752	0.695
+tests/omega/pass/facts/target_recursive_bound_through_call_result_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			1.912	2.226
+tests/omega/pass/facts/target_recursive_bound_through_target_body_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.068	2.282
+tests/omega/pass/facts/target_scoped_constant_realization_through_parameter_exit/main.omg	pass	drop_ensures		rejected	unreached	agree	discarded-both-reject			0.684	0.692
+tests/omega/pass/facts/temporary_case_cleanup_through_other_state_exit/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.702	0.665
+tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_other_machine_exit/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.595	0.682
+tests/omega/pass/facts/typed_reflection_mutation_through_match_join_exit/main.omg	pass	drop_requires	.agents/four-jobs-2026-11-12/soundness/shard-5/ests_omega_pass_facts_typed_reflection_mutation_through_match_join_exit_main_omg_086b6cbf1d__drop_requires	accepted	outside	disagree	confirmed-invalid	wiki/spec/language/state_contracts.md	Machine `requires` applies at every invocation, including terminal and recursive calls. Every arrival establishes the target's requirements and declared domains under actual argument substitution.	2.804	3.261
+tests/omega/pass/facts/typed_reflection_through_local_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			3.138	3.408
+tests/omega/pass/facts/typed_run_singleton_rejection/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			7.491	8.638
