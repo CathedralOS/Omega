@@ -41,7 +41,9 @@ fn build_readiness_installs_applied_inherited_slots() {
 use backing::api;
 machine build(builder: &mut Build) suspends {
     Build::application(builder, "applied_readiness");
-    Build::build_depend_as(builder, "backing", Source::Path { location: "../backing" });
+    let mut backing_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../backing" });
+    dependency::with_alias(&mut backing_dependency, "backing");
+    let backing_registration: DependencyRegistration = Build::build_dependency(builder, backing_dependency);
     let mut count: u64 = 0;
     count = count + 1;
     suspend Build::await_provider<Operations<u32>, backing::Selected>(builder);

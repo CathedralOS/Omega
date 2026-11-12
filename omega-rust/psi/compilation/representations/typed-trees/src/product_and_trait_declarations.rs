@@ -4096,6 +4096,25 @@ pub mod trait_definition {
         pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
         pub alias: Option<Identifier>,
         pub rows: Vec<ConformanceRow>,
+        pub value_identity: ImplementationValueIdentity,
+    }
+
+    /*
+        What distinguishes the value a named implementation constructs
+        (conformances.md, "Resulting-value identity"): the schema application
+        and the selected operations, never the constructor's name or a binder
+        the schema application does not use. The default keeps the declaration
+        as its own representative with every binder relevant, which is the
+        answer for an implementation that owns a member: an inline or default
+        body is a new machine over the whole telescope.
+    */
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub struct ImplementationValueIdentity {
+        /* The first declaration constructing this same value; invalid means this one. */
+        pub representative: SymbolHandle,
+        /* One flag per binder: set when the schema application does not mention it. */
+        pub unused_lifetimes: Vec<bool>,
+        pub unused_parameters: Vec<bool>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]

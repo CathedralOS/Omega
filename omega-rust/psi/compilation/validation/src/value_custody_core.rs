@@ -6,7 +6,6 @@ storage, constants, locals, partial affine residuals, and structural identity
 pub mod activation_storage {
     use crate::CheckingInput;
     use language_core::ReferenceAccess;
-    use language_core::activation_storage::ACTIVATION_CORE_SOURCE;
     pub use language_core::activation_storage::ActivationStorageOperation;
     use language_semantics::{DataSupplyMode, MachineSupplyMode, Multiplicity};
     use symbols::SymbolHandle;
@@ -26,9 +25,8 @@ pub mod activation_storage {
     }
 
     fn sealed(program: &dyn CheckingInput, symbol: SymbolHandle, identity: &str) -> bool {
-        program
-            .symbol_toolchain_relative_path(symbol)
-            .is_some_and(|path| path == std::path::Path::new(ACTIVATION_CORE_SOURCE))
+        program.symbols.core_source(symbol)
+            == Some(language_core::core_vocabulary::CoreSource::Activation)
             && program
                 .normalized_hermetic_symbol_identity(symbol)
                 .ok()
@@ -601,7 +599,7 @@ pub mod activation_storage {
 
 pub mod atomic_fences {
     use crate::CheckingInput;
-    use language_core::atomic::{ATOMIC_CORE_SOURCE, FenceOrdering};
+    use language_core::atomic::FenceOrdering;
     use symbols::SymbolHandle;
     use typed_trees::operator::OperatorDefinition;
 
@@ -617,9 +615,8 @@ pub mod atomic_fences {
             .ok()
             .as_deref()
             == Some(identity)
-            && program
-                .symbol_toolchain_relative_path(symbol)
-                .is_some_and(|path| path == std::path::Path::new(ATOMIC_CORE_SOURCE))
+            && program.symbols.core_source(symbol)
+                == Some(language_core::core_vocabulary::CoreSource::Atomic)
     }
 
     pub fn exact_toolchain_atomic_fence_contract(
@@ -890,8 +887,8 @@ pub mod atomic_operations {
                     .as_deref()
                     .and_then(|name| name.strip_prefix("toolchain::"))
                     != Some(custody.outcome_identity.name())
-                || program.symbol_toolchain_relative_path(*base_symbol)
-                    != Some(std::path::Path::new("layout.omg"))
+                || program.symbols.core_source(*base_symbol)
+                    != Some(language_core::core_vocabulary::CoreSource::Layout)
                 || data.properties.multiplicity != match custody.observation {
                     language_core::atomic::AtomicCompareExchangeObservationAxis::Observing => {
                         language_semantics::Multiplicity::Unrestricted
@@ -4272,8 +4269,6 @@ pub mod destructure {
     use diagnostics::Diagnostic;
     use typed_trees::data::DataMember;
 
-    const ARM_MARKER_PREFIX: &str = "__arm_destructure#V=";
-
     pub(crate) fn validate_destructure_exhaustiveness(
         program: &dyn crate::CheckingInput,
         diagnostics: &mut Vec<Diagnostic>,
@@ -4284,17 +4279,6 @@ pub mod destructure {
                     let Some(local) = statement.as_local_data() else {
                         continue;
                     };
-                    if let Some(encoded) = local.name.as_str().strip_prefix(ARM_MARKER_PREFIX) {
-                        validate_arm_pattern_marker(
-                            program,
-                            machine,
-                            state,
-                            local,
-                            encoded,
-                            diagnostics,
-                        );
-                        continue;
-                    }
                     if local.role != language_core::LocalBindingRole::RecordPattern {
                         continue;
                     }
@@ -4443,127 +4427,6 @@ pub mod destructure {
             return Err(RecordPatternRefusal::Sum(data));
         }
         Ok(data)
-    }
-
-    fn validate_arm_pattern_marker(
-        program: &dyn crate::CheckingInput,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        local: &typed_trees::statement::TableLocalData,
-        encoded: &str,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        let mut parts = encoded.split('#');
-        let variant = parts.next().unwrap_or("");
-        let mut spelled: Vec<&str> = parts.collect();
-        let has_rest = spelled.last() == Some(&"~rest");
-        if has_rest {
-            spelled.pop();
-        }
-        if spelled
-            .last()
-            .is_some_and(|part| part.starts_with("~subject="))
-        {
-            spelled.pop();
-        }
-
-        let declared = crate::value_custody::places::declared_place_type_raw(
-            program,
-            machine,
-            Some(state),
-            local.initial_value,
-        )
-        .or_else(|| {
-            local
-                .type_reference
-                .is_valid()
-                .then_some(local.type_reference)
-        });
-        let Some(declared) = declared else {
-            return;
-        };
-        let Some(data) = crate::value_custody::places::data_definition_for_type(program, declared)
-        else {
-            return;
-        };
-
-        let declared_fields: Vec<&str> = if variant.is_empty() {
-            let mut fields = Vec::new();
-            for member in program.data_members(data) {
-                match member {
-                    DataMember::Field(field) => {
-                        fields.push(field.name.as_str());
-                    }
-                    DataMember::Variant(_) => {
-                        diagnostics.push(Diagnostic::error(format!(
-                        "record pattern arm in machine `{}` state `{}` destructures sum type `{}` without naming a case -- spell the variant (`{}::Case {{ .. }}`)",
-                        machine.name, state.name, data.name, data.name,
-                    )));
-                        return;
-                    }
-                }
-            }
-            fields
-        } else {
-            let qualified_pattern = format!("{}::{variant}", data.name);
-            if program.domain_definitions().iter().any(|domain| {
-                domain.name.as_str() == qualified_pattern
-                    && crate::value_custody::type_references::type_references_match(
-                        program,
-                        declared,
-                        domain.target_type,
-                    )
-            }) {
-                diagnostics.push(Diagnostic::error(format!(
-                "domain pattern `{qualified_pattern}` cannot bind payload fields; payload destructuring is only valid for a data case"
-            )));
-                return;
-            }
-            let Some(case) = program
-                .data_members(data)
-                .iter()
-                .find_map(|member| match member {
-                    DataMember::Variant(case) if case.name.as_str() == variant => Some(case),
-                    _ => None,
-                })
-            else {
-                return;
-            };
-            program
-                .data_members(data)
-                .iter()
-                .filter_map(|member| match member {
-                    DataMember::Field(field) => Some(field),
-                    DataMember::Variant(_) => None,
-                })
-                .chain(program.data_payload_fields(case))
-                .map(|field| field.name.as_str())
-                .collect()
-        };
-
-        let subject_name = if variant.is_empty() {
-            data.name.to_string()
-        } else {
-            format!("{}::{}", data.name, variant)
-        };
-        if !has_rest {
-            for field in &declared_fields {
-                if !spelled.contains(field) {
-                    diagnostics.push(Diagnostic::error(format!(
-                    "destructure arm in machine `{}` state `{}` does not mention field `{}` of `{}` -- record patterns are exhaustive by law: bind it, rename it with `as`, waive it with `as _`, or opt out with `..`",
-                    machine.name, state.name, field, subject_name,
-                )));
-                }
-            }
-        }
-        for field in &spelled {
-            if !declared_fields.contains(field) {
-                diagnostics.push(Diagnostic::error(format!(
-                "destructure arm in machine `{}` state `{}` names `{}`, which is not a field of `{}`",
-                machine.name, state.name, field, subject_name,
-            )));
-            }
-        }
     }
 
     #[cfg(test)]
@@ -8515,30 +8378,45 @@ pub mod reference_access {
                 interpretation: Some(formation.interpretation),
             });
         }
-        match expression_table(program).expression(value) {
-            ExpressionNode::Indexed(indexed)
-                if program.expression_table.range_node(indexed.index).is_some()
-                    && crate::value_custody::places::place_has_builtin_coordinates(
-                        program, machine, state, value,
-                    ) =>
-            {
-                let reference = crate::value_custody::places::declared_place_type_raw(
-                    program,
-                    machine,
-                    state,
-                    indexed.collection,
-                )?;
-                if !crate::collection_operations::type_reference_is_collection(program, reference) {
-                    return None;
-                }
-                Some(CompletedBorrow {
-                    source: indexed.collection,
-                    access: ReferenceAccess::Shared,
-                    interpretation: None,
-                })
-            }
-            _ => None,
+        bare_range_view_source(program, machine, state, value).map(|source| CompletedBorrow {
+            source,
+            access: ReferenceAccess::Shared,
+            interpretation: None,
+        })
+    }
+
+    /*
+        `bare-range-reference-access`: a built-in range over a core collection,
+        spelled without `&`, forms the same shared view as `&items[a..b]`.
+        Returns the collection it views. This is the one recognizer for that
+        spelling; whether the range is built-in depends on the operator
+        selection at this site, so it needs the machine and state, unlike the
+        context-free `reference_formation_source`.
+    */
+    pub fn bare_range_view_source(
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: Option<&State>,
+        value: ExpressionHandle,
+    ) -> Option<ExpressionHandle> {
+        let ExpressionNode::Indexed(indexed) = expression_table(program).expression(value) else {
+            return None;
+        };
+        if program.expression_table.range_node(indexed.index).is_none()
+            || !crate::value_custody::places::place_has_builtin_coordinates(
+                program, machine, state, value,
+            )
+        {
+            return None;
         }
+        let reference = crate::value_custody::places::declared_place_type_raw(
+            program,
+            machine,
+            state,
+            indexed.collection,
+        )?;
+        crate::collection_operations::type_reference_is_collection(program, reference)
+            .then_some(indexed.collection)
     }
 
     fn declared_call_reference_access(
@@ -9011,7 +8889,7 @@ pub mod resident_content {
         else {
             return None;
         };
-        if !is_extent_declaration(program, *extent) || program.symbols.name(*extent) != "Extent" {
+        if !is_core_extent(program, *extent) {
             return None;
         }
         let domains = crate::value_custody::field_domains::declared_domain_constraint_records(
@@ -9019,10 +8897,9 @@ pub mod resident_content {
         );
         let canonical_domain = |name| {
             let mut matching = domains.iter().copied().filter(|domain| {
-            is_extent_declaration(program, domain.symbol)
+            is_core_extent_domain(program, domain.symbol, name)
                 && program.domain_definition(domain.symbol).is_some_and(|definition| {
-                    definition.name.as_str().rsplit("::").next() == Some(name)
-                        && matches!(
+                    matches!(
                             program.type_reference_table.type_reference(
                                 program.type_reference_table.peeled_type_reference(definition.target_type)
                             ),
@@ -9052,16 +8929,22 @@ pub mod resident_content {
         })
     }
 
-    pub fn is_extent_declaration(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> bool {
+    /// Whether `symbol` is core `extent.omg`'s `Extent` data.
+    pub fn is_core_extent(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> bool {
+        program.symbols.core_vocabulary(symbol)
+            == Some(language_core::core_vocabulary::CoreVocabulary::Extent)
+    }
+
+    /// Whether `symbol` is the `extent.omg` domain declared with member `name`.
+    pub fn is_core_extent_domain(
+        program: &dyn crate::CheckingInput,
+        symbol: SymbolHandle,
+        name: &str,
+    ) -> bool {
         program
             .symbols
-            .symbol_source_span(symbol)
-            .and_then(|span| program.symbols.source_file(span))
-            .is_some_and(|file| {
-                file.origin == source::SourceOrigin::Toolchain
-                    && file.path.strip_prefix(&file.package_root).ok()
-                        == Some(std::path::Path::new("extent.omg"))
-            })
+            .core_vocabulary(symbol)
+            .is_some_and(|vocabulary| vocabulary.is_extent_domain_named(name))
     }
 }
 
@@ -10736,11 +10619,29 @@ pub mod storage_contents {
                 .collect::<Vec<_>>();
             (data, substitutions)
         };
+        // A boundary-opaque declaration authors no fields. Once the build
+        // selects its representation, its contents are those of the selected
+        // carrier, so every contents question about the opaque value is
+        // answered from that carrier here, in the one place that walks
+        // contents. The declaration's own multiplicity and cleanup selection
+        // still apply below: the carrier supplies the shape, the opaque
+        // declaration keeps deciding whether a value may be copied.
+        let selected_carrier = (data.supply_mode
+            == language_semantics::DataSupplyMode::BoundaryOpaque)
+            .then(|| {
+                representation_selections::selection_for_opaque(
+                    program.opaque_representation_selections(),
+                    data.symbol,
+                )
+            })
+            .flatten()
+            .map(|selection| selection.carrier_type());
         // An opaque declaration's empty field roster says nothing about hidden
         // references. The sealed toolchain activation claim is the exception:
         // its backing is activation-local, and the activation storage contract
         // owns every loan of it, so no caller place hides behind the claim.
         if requirement == ContentsRequirement::BorrowFree
+            && selected_carrier.is_none()
             && data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
             && !crate::value_custody::activation_storage::is_toolchain_activation_claim(
                 program, data,
@@ -10798,16 +10699,21 @@ pub mod storage_contents {
             resolve(program, field.type_reference, &substitutions, requirement)
                 .is_some_and(|field| check_contents(program, &field, active, complete, requirement))
         };
-        let supported = program
-            .data_members(data)
-            .iter()
-            .all(|member| match member {
-                DataMember::Field(field) => check_field(field),
-                DataMember::Variant(variant) => program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .all(&mut check_field),
-            });
+        let supported = match selected_carrier {
+            Some(carrier) => resolve(program, carrier, &[], requirement).is_some_and(|carrier| {
+                check_contents(program, &carrier, active, complete, requirement)
+            }),
+            None => program
+                .data_members(data)
+                .iter()
+                .all(|member| match member {
+                    DataMember::Field(field) => check_field(field),
+                    DataMember::Variant(variant) => program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .all(&mut check_field),
+                }),
+        };
         active.pop();
         if supported {
             complete.push(resolved.clone());

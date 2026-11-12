@@ -175,7 +175,7 @@ pub(crate) mod declaration_predicates {
                         BigIntInterval::constant(BigInt::from_i128(value)).into_closed()
                     }
                     Scalar::StructuralParameterField {
-                        parameter_position: 0,
+                        root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
                         path,
                         primitive_type,
                         ..
@@ -703,7 +703,9 @@ pub(crate) mod declaration_predicates {
             let (carrier_minimum, carrier_maximum) = carrier_bounds(primitive)?;
             let leaf = || CheckedScalarExpression::StructuralParameterField {
                 observation: Default::default(),
-                parameter_position: self.parameter_position,
+                root: checked_trees::CheckedStorageRoot::Parameter {
+                    index: self.parameter_position,
+                },
                 path: path.clone(),
                 primitive_type: primitive,
             };
@@ -1293,7 +1295,9 @@ pub(crate) mod declaration_predicates {
                     Some((
                         CheckedScalarExpression::StructuralParameterField {
                             observation: Default::default(),
-                            parameter_position: self.parameter_position,
+                            root: checked_trees::CheckedStorageRoot::Parameter {
+                                index: self.parameter_position,
+                            },
                             path,
                             primitive_type: primitive,
                         },
@@ -2035,7 +2039,7 @@ pub(crate) mod declaration_predicates {
             };
             let leaf = |ordinal, name| CheckedScalarExpression::StructuralParameterField {
                 observation: Default::default(),
-                parameter_position: 0,
+                root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
                 path: vec![
                     CheckedStructuralPredicatePathSegment::Case(identity(2, "Point")),
                     CheckedStructuralPredicatePathSegment::Field(identity(10, "pair")),

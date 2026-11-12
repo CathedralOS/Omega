@@ -1156,7 +1156,10 @@ mod argument_paths {
                 position: u32::try_from(position).ok()?,
             },
             CheckedScalarExpression::StructuralParameterField {
-                parameter_position,
+                root:
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: parameter_position,
+                    },
                 path,
                 ..
             } => CheckedRuntimeIndex::StructuralField(CheckedStructuralParameterField {

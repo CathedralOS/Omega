@@ -4,7 +4,7 @@
 // the capacity ceilings each decoded counted array observes and reinterpreting
 // `BuildTimeValue::Int` carriers as exact `u64` bits where required.
 
-use build_time_evaluation::BuildTimeValue;
+use build_time_values::BuildTimeValue;
 use calling_conventions::{
     BoundaryEntryPlan, BoundaryPlanResult, CallPlan, CallbackMaterialization, CallingPolicy,
     CallingPolicyRejection, EntryControl, EntryStack, IndirectPointerLocation, LayoutPlanId,

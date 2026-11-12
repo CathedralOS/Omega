@@ -2,8 +2,12 @@ use build_support;
 
 machine build(builder: &mut Build) {
     Build::application(builder, "acquired_generator_completed_output_set");
-    Build::build_depend_as(builder, "generator", Source::Path { location: "generator" });
-    Build::depend_as(builder, "runtime_generator", Source::Path { location: "generator" });
+    let mut generator_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "generator" });
+    dependency::with_alias(&mut generator_dependency, "generator");
+    let generator_registration: DependencyRegistration = Build::build_dependency(builder, generator_dependency);
+    let mut runtime_generator_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "generator" });
+    dependency::with_alias(&mut runtime_generator_dependency, "runtime_generator");
+    let runtime_generator_registration: DependencyRegistration = Build::dependency(builder, runtime_generator_dependency);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

@@ -127,12 +127,13 @@ entry, since neither is inside the lowered subset.
 
 ### Generic machines
 
-Two kinds of generic parameter are read, as an experiment for
+Three kinds of generic parameter are read, as an experiment for
 [the checker's generic bodies](../lowered-discharge/README.md#generic-bodies-experiment):
 an implementation parameter (`Selected satisfies Step`), through which the
-body calls members (`Selected::apply(x)`), and a value parameter (`const
-Units: u64`), which the body and its contract name like a formal. A machine
-whose generic parameters are all of these two kinds is read in two forms.
+body calls members (`Selected::apply(x)`), a value parameter (`const
+Units: u64`), which the body and its contract name like a formal, and an
+opaque type parameter (`T`), whose values the body can pass on. A machine
+whose generic parameters are all of these kinds is read in two forms.
 
 - **Its specializations**, by `elaborate`. Stage 04 closes each static
   application `advance<Double>` by generating a machine for it, so the
@@ -176,13 +177,52 @@ signature at those arguments beside the dispatch
 contract itself and does not read the record, which only Psi 05's helpers
 can resolve.
 
+**A type parameter** of the generic check form's entry is rigid: a formal
+or result of type `T` has `ValueType::Rigid`, which is neither a scalar nor a
+record, so every operator, comparison, field and literal rule refuses it.
+What each type parameter in scope stands for is kept beside the machine
+being read (`Program::scope`), found by the binder's symbol. A call of
+another generic machine at the entry's own type parameters,
+`forward<T>(item, limit)`, is read from the bindings of the call's static
+application: the callee becomes one machine per tuple of type arguments,
+with its signature and contract at those types and no body
+(`Program::application`, `Elaboration::applications`). A value of `T` may be
+named once in a body unless `T` is declared `[copy]`; a `[linear]`
+parameter, a local of type `T` and a call that returns a `T` are refused. A
+machine stage 04 generated for a type argument is a closed machine and
+reads as one, as far as its clauses and body are in the subset.
+
+**A generated machine of a finite type family** keeps its type equations.
+Stage 04 does not fold them: the machine generated from `threshold<T>
+requires T == u32 || T == u64 { transition T == u32 { true -> (37u32) _ ->
+(73u64) } }` for `u32` still holds `requires u32 == u32 || u32 == u64`, a
+local bound to `u32 == u32`, both arms, and an arm that returns a `u64`
+from a machine whose result is `u32`. Such an equation is static
+([generics.md](../../../../../wiki/spec/language/generics.md#static-type-equality):
+"a branch with established `T == u32` may use that equality to check its
+operations and values as u32. On leaving the branch, only facts common to
+its surviving predecessors remain"), so the reader decides it
+(`static_truth`): two closed builtin types are equal exactly when their
+symbols name the same compiler-installed atom, and a local bound to such a
+truth, and `==`, `&&`, `||` and `!` over those, are decided with it. A
+`requires` or `ensures` clause decided as true adds no clause, and one
+decided as false is refused. An arm whose guard is decided as false is the
+branch of another type: it is left unread, because it is typed under an
+equation that is false here. An arm decided as true is taken
+unconditionally, and the arms after it are left unread. A lone Boolean
+literal decides nothing this way: only a type equation makes a condition
+static. An equation with a type parameter, a data type or an application on
+either side is not decided, so the generic form of such a machine is still
+refused (`expression type expression`).
+
 `elaborate_witness` builds the statement that an implementation refines a
 requirement: the requirement's contract, at the given value arguments, on a
 body that is one call of the implementation. `template_of` gives the
-declaration a generated machine came from. A type or callable parameter, a
-runtime-capable value binder (`Count: u32` without `const`) and a value
-parameter of a carrier other than an integer are still refused as `machine
-generic parameters` or by the parameter's own refusal (findings 29 to 32).
+declaration a generated machine came from. A callable parameter, a
+runtime-capable value binder (`Count: u32` without `const`), a value
+parameter of a carrier other than an integer, and a type parameter with a
+declared type equation are still refused as `machine generic parameters`
+or by the parameter's own refusal (findings 29 to 32).
 
 A contract clause that is the literal `true` adds no clause: it asks and
 promises nothing, as an absent `requires` or `ensures` does.
@@ -868,3 +908,12 @@ worked around by adding to `terminal-check-tables`.
     the caller's obligations on the ordinary call rows; a later lane that
     wants requirements out of `module.machines` needs a callee row for one.
 
+33. **A resolved call is not a permitted call.** The typed trees hold a call
+    into a dependency's private machine fully resolved; the current checker
+    rejects it later, where a product selects the callee. The reader
+    therefore checks visibility itself: a callee that is not public must be
+    declared in the caller's package, by the source file each symbol was
+    declared in, with a generated machine placed where its declaration is
+    (`visible_to`). Any other call is refused as `call private machine of
+    another package`, so the current checker decides the compilation
+    (`tests/omega/fail/build/executed_dependency_private_call`).

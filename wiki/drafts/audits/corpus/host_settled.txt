@@ -1,0 +1,8 @@
+fail/build/installed_arrival_without_context rejected 255252ms expected
+fail/build/installed_arrival_wrong_controller rejected 252274ms expected
+pass/calls/runtime_composed_index_case_pool_transition_exit checked 156844ms check-target:macos_arm64
+pass/calls/runtime_indexed_case_pool_transition_exit checked 150065ms check-target:macos_arm64
+pass/filesystem/create_dir_all_symlink_kind_exit checked 74344ms check-target:macos_arm64
+pass/filesystem/cross_linux_value_syscalls checked 72668ms
+pass/filesystem/dir_walk_wrappers_exit checked 72818ms check-target:macos_arm64
+pass/filesystem/runtime_portable_unknown_directory_kinds_exit checked 155902ms check-target:macos_arm64

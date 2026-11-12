@@ -1,1 +1,1 @@
-index < items.len
+cannot prove index `3` is within unknown slice length of `holder.view`

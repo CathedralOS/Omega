@@ -3,6 +3,6 @@
 // only opts out of lock/install context, not edge resolution.
 machine build(builder: &mut Build) {
     Build::application(builder, "build_freestanding_depend");
-    Build::depend(builder, Source::Path { location: "dep" });
+    let dep_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "dep" }));
     builder.freestanding = true;
 }

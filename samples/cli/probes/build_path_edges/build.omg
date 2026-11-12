@@ -4,6 +4,10 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "build_path_edges");
     builder.freestanding = true;
-    Build::depend_as(builder, "inside", Source::Path { location: "dep_inside" });
-    Build::depend_as(builder, "escape", Source::Path { location: "../build_dep_diamond/dep_c" });
+    let mut inside_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dep_inside" });
+    dependency::with_alias(&mut inside_dependency, "inside");
+    let inside_registration: DependencyRegistration = Build::dependency(builder, inside_dependency);
+    let mut escape_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../build_dep_diamond/dep_c" });
+    dependency::with_alias(&mut escape_dependency, "escape");
+    let escape_registration: DependencyRegistration = Build::dependency(builder, escape_dependency);
 }

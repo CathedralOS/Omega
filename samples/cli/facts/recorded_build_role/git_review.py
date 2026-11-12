@@ -118,9 +118,12 @@ def main():
         declaration = 'machine build(builder: &mut Build) { Build::package(builder, "my_library"); conditional_dependency(builder, ' + enabled + '); }\n'
         declaration += '''machine conditional_dependency(builder: &mut Build, enabled: bool) {
     transition enabled {
-        true -> Build::depend(builder, Source::Path { location: "unreachable_source" })
+        true -> register_dependency(builder)
         false -> no_dependency()
     }
+}
+machine register_dependency(builder: &mut Build) {
+    let unreachable_source_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "unreachable_source" }));
 }
 machine no_dependency() {}
 '''

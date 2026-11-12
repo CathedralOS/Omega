@@ -6,7 +6,7 @@ twice under different names and both `use` rows resolve.
 
 - `invalid_use_as`: `use kit::main as k` — `as` aliasing does not
   exist on use rows; parse rejects "expected `;`, found keyword
-  `as`". Alias selection happens at the `depend_as` row, not the
+  `as`". Alias selection happens at the aliased `Build::dependency` row, not the
   import.
 - `invalid_bad_field`: `builder.bogus = 1` rejects "data `Build` has
   no field `bogus`" — field names are a closed schema.

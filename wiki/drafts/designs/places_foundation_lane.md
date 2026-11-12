@@ -552,6 +552,100 @@ opens a window that each consumption point must close, and a gated local is
 established field by field
 ([lowered-discharge](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#invariant-windows)).
 
+## Gate re-run, 2026-11-12
+
+Sixteen of the 619 fixtures now reach a verdict, where five did, and twelve
+are accepted by both checkers, where four were. The four the route rejects
+and the current checker accepts are all a result bound of a division or a
+shift, which waits for the kernel rules of owner question Q3; none is a
+program the route accepts wrongly.
+
+The run: the same 619 fixtures as [the first run](#gate-run-2026-11-11),
+with `route_one_comparison` built at `b743adba3` (the commit `#2505` landed
+as `51e8c45c7`) with `CARGO_PROFILE_DEV_OPT_LEVEL=1`, one process per
+fixture, two at a time, `timeout 300 nice -n 19`, on a cloud container
+(Linux x86_64, 4 CPUs, 15 GB) that was also building the compiler. No
+fixture panicked or timed out. The raw lines are in
+[places_foundation_lane_gate_2026-11-12.tsv](places_foundation_lane_gate_2026-11-12.tsv).
+The harness now reports a module the discharge refuses as `outside`, so the
+first run's "lowered whole, then discharge refuses" row has no counterpart
+here.
+
+| Current checker | New route | First run | This run |
+| --- | --- | ---: | ---: |
+| accepted | outside: a construct is refused, so the current checker decides | 499 | 502 |
+| accepted | no program entry | 68 | 68 |
+| rejected or stopped | not judged (a `pass/` or `run/` row that is red today) | 47 | 33 |
+| accepted | accepted | 4 | 12 |
+| accepted | rejected | 1 | 4 |
+
+The first run's 499 is its 479 refused at lowering and its 20 refused at
+discharge. Of this run's 33, the route refuses 31 at lowering, one binds no
+entry, and one stops before the typed trees.
+
+**Agreement.** Of the 16 judged programs, 12 agree. The four disagreements,
+each a true obligation the prover has no rule to prove:
+
+| Fixture | Unproved |
+| --- | --- |
+| `pass/facts/signed_shift_left_bound_through_call_result_exit` | a call's `requires` over a shifted value, and the subtraction after it |
+| `pass/facts/unsigned_shift_left_bound_through_other_state_exit` | the add after a shift |
+| `run/contracts/scalar_crash_route_exit` | `ensures result <= value` of `value / 2` |
+| `run/contracts/scalar_crash_route_trap` | the same clause |
+
+`run/calls/scalar_contract_route_exit`, the first run's one disagreement,
+is now accepted. The twelve accepted programs are
+`pass/constants/target_layout_derived_ground_guarantee_exit`,
+`pass/data/prefix_case_contextual_case_field`,
+`pass/facts/abi_multi_arg_spill_through_call_result_exit`,
+`pass/facts/case_payload_transport_through_local_exit`,
+`pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit`,
+`pass/facts/nested_three_level_record_field_bound_through_local_exit`,
+`pass/facts/recorded_build_role/other_machine`,
+`pass/locals/runtime_unrestricted_record_rebinding_exit`,
+`pass/patterns/named_value_before_negative_integer_pattern_exit`,
+`pass/types/storage_address_core_name_shadowed_exit`,
+`run/arithmetic/anonymous_comparison_with_typed_operators` and
+`run/calls/scalar_contract_route_exit`.
+
+**Kernel-checked evidence on the corpus.** 123 obligations in the 16 judged
+programs. Of the 110 that take a certificate, 105 are discharged and judged
+by the kernel core: `CrashCoverage` 38 of 38, `OperationSafety` 24 of 26,
+`ArrivalInvariant` 16 of 16, `CallRequirement` 13 of 14, `NormalGuarantee`
+12 of 14, `DataDomain` 2 of 2. Of the 13 `PublishedGuarantee` rows, 11 hold
+and 2 fail with their return. 24 uses of storage, all established; no
+invariant window opens.
+
+**First refusals** among the 502:
+
+| Refusal | Fixtures |
+| --- | ---: |
+| `machine service reach` | 199 |
+| `parameter mutable parameter` | 72 |
+| `type reference` | 50 |
+| `machine generic parameters` | 32 |
+| `declaration Build selection that is not a machine or a data type` | 20 |
+| `type data with custody` | 18 |
+| `type constrained` | 16 |
+| `machine attached data` | 16 |
+| `contract contracts on a state` | 15 |
+| `type float` | 11 |
+| `type fixed array` | 7 |
+| `expression cast` | 6 |
+| `declaration const` | 6 |
+| other refusals, 4 or fewer fixtures each | 34 |
+
+`type data with custody` falls from 111 to 18 and `type fixed array` from 50
+to 7, because the route now roots every declaration of the subject and
+refuses at the first one it cannot lower, which is more often a machine than
+a type. The order of this table is therefore not comparable with the first
+run's. The 32 `machine generic parameters` were measured before the opaque
+type parameter work (`#2517`).
+
+Check time: the current checker took 8,406.7 s over the 619 fixtures (at
+most 91.4 s for one, on a loaded machine); the route took 285 ms over the 16
+it judged (at most 141 ms). The two are not the same work.
+
 ## Dependencies
 
 | PR | What this lane needs from it | If it does not land |

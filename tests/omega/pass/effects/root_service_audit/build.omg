@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::package(builder, "audit_consumer");
-    Build::depend(builder, Source::Path { location: "driver" });
+    let driver_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "driver" }));
     configure(builder);
     transition false {
         true -> unselected(builder)

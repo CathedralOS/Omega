@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "provider_package_default_override_exit");
-    Build::depend(builder, Source::Path { location: "reading_provider" });
+    let reading_provider_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "reading_provider" }));
     Build::select_provider<reading_provider::main::Reading, OverrideReading>(builder, windows_x86_64);
     Build::select_provider<reading_provider::main::Reading, OverrideReading>(builder, macos_x86_64);
     Build::select_provider<reading_provider::main::Reading, OverrideReading>(builder, linux_x86_64);

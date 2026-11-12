@@ -1386,6 +1386,20 @@ mod source_queries {
         }
 
         /*
+            The bundled core source `symbol` is declared in, if any. Callers
+            pair this with their own exact identity check.
+        */
+        pub fn core_source(
+            &self,
+            symbol: SymbolHandle,
+        ) -> Option<language_core::core_vocabulary::CoreSource> {
+            if !symbol.is_valid() {
+                return None;
+            }
+            crate::core_source_at(self.source_file(self.symbol_source_span(symbol)?)?)
+        }
+
+        /*
             The core vocabulary row `symbol` is declared by, if any. This is
             recognition only; it never implies compiler custody.
         */

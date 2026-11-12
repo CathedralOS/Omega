@@ -1,1 +1,2 @@
-uncovered Trap result-policy site
+call from `scale` to `risky`
+has an uncovered Trap crash route

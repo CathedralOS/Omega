@@ -50,12 +50,10 @@ trust must be deleted or delegated to that owner rather than dressed as an
 Omega guarantee. If the boundary or enforceable claim is genuinely ambiguous,
 promote that narrow ambiguity here before adding machinery.
 
-Bootstrap design exploration is delegated engineering work, not an owner
-question merely because it compares a different implementation or language
-facility. Apply [whole-chain minimization](bootstrap/MINIMIZATION.md): identify
-the next compiler/checker customer and compare complete audit cost. Experiments
-remain non-authoritative; changes to the trust boundary or required assurances
-must be surfaced before relying on them.
+Bootstrap construction follows the owner's [variant mandate](bootstrap/MINIMIZATION.md).
+Architecture exploration and implementation within that mandate are delegated.
+Unresolved changes outside it belong in [OWNER_QUESTIONS_BOOTSTRAP.md](OWNER_QUESTIONS_BOOTSTRAP.md).
+This file continues to own product-language questions.
 
 Name the contracts checked and found silent. A question that cannot cite them
 has not shown its decision is open. Specifications are organized by mechanism
@@ -67,115 +65,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - How does the compiler publish `Incomplete` for a proof goal whose form the prover has no rule for?
-
-Decision name: `unproved-goal-form-publication`.
-
-A correct program can state an obligation in a form the prover has no rule
-for. The author then needs to be told that the compiler could not finish, not
-that the program is wrong, or they will rewrite valid code to work around a
-compiler gap. The outcome itself is ruled (Jarod, 2026-11-11): such a goal is
-`Incomplete`; `Reject` stays for a goal whose form the prover has rules for
-but cannot establish from what the program states. What is not settled is how
-that `Incomplete` is published.
-
-- [compiler_request.md](wiki/spec/build/compiler_request.md#outcomes) defines
-  `Incomplete` as "a named resource/search limit or unsupported valid case" and
-  says the outcomes "do not invent new wire tags or host exit codes".
-- Its scalar-resource table assigns one `Incomplete` code per named provision
-  and is closed at codes 1–35. Codes 27–35 are proof-search bounds, each with
-  a nonzero limit; none names a goal form. Codes 15–25 are coverage provisions
-  with limit 0 for source forms a stage does not yet cover, each with a source
-  coordinate.
-- [review.md](wiki/spec/packages/review.md) says "Unproved source contracts
-  reject in Psi checking", which reads the other way for the same case unless
-  it is limited to goals the prover has rules for.
-
-The questions:
-
-- **(a)** Does this case get a new row in that table (a coverage provision
-  with limit 0 whose coordinate is the identity of the obligation left
-  unproved), or does it publish under an existing code?
-- **(b)** Should the sentence in review.md be narrowed to match the ruling?
-
-Until answered, the lowered-form route computes the `Incomplete` verdict but
-has no diagnostic that publishes it. The route is not in the default compile,
-so no program is affected yet; a router that publishes this verdict needs the
-answer first.
-
-### Q2 - May a Build program select a provider for a requirement it declares itself?
-
-Decision name: `build-declared-requirement-provider`.
-
-**Customer.** A Build program that computes a value, such as an array
-length, through a checked helper it declares in its own `build.omg`.
-`tests/omega/pass/build/selected_const_array_length_exit` does this with
-`boundary trait CheckedMath` and has not compiled since #2296.
-
-After #2331 the compiler can name such a requirement during constant
-evaluation. The program still fails, because nothing selects an
-implementation for it. One candidate exists and the compiler may not pick it:
-
-- [Provider selection](wiki/spec/build/provider_selection.md): *"Readiness
-  never searches for a satisfier, chooses the sole visible candidate"* and
-  *"Ordinary product Build::select_provider rows do not select or authorize
-  this Build-host slot"*.
-- [Execution](wiki/spec/build/execution.md): *"No satisfier search, ambient
-  import or default chooses a service implementation."*
-- `Build::await_provider` takes its implementation from a build dependency,
-  which cannot name a trait declared in the depending `build.omg`.
-
-The same call from `build()` at run time fails with
-`ProviderInstallationMissing`, so this is not specific to constants.
-
-The question:
-
-- **(a)** Should a Build program be able to select a provider for a
-  requirement it declares itself, and with what form?
-- **(b)** Or is that part of the fixture stale, to be rewritten without the
-  requirement or retired?
-
-Until answered the fixture stays red and the compiler selects nothing.
-
-### Q3 - Who approves a new rule in the proof kernel?
-
-Decision name: `kernel-rule-admission`.
-
-**Customer.** The checker on the lowered form accepts an obligation only when
-the proof kernel has checked a certificate for it. Seven correct corpus
-programs cannot be accepted because the kernel has no rule for a step their
-proofs need
-([route one measures](wiki/drafts/designs/route_one_measures.md)).
-
-This file's header says a missing operation needed for accepted behavior is
-implementation work. A kernel rule is different in one way: the kernel is the
-part everything else trusts, and a wrong rule has nothing behind it to catch
-it.
-
-The rules asked for:
-
-1. A contradiction between two values with no literal (`low <= high` against
-   a guard `high < low`).
-   [Contracts](wiki/spec/proofs/contracts.md#required-automatic-discharge)
-   lists "contradiction of an unreachable path" among the proofs the compiler
-   must find, so this one may already be owed.
-2. A quotient by a non-literal divisor.
-3. A remainder by a non-literal divisor, bounded by the dividend.
-4. A quotient related to its dividend (`value / 2 <= value`).
-5. Closed evaluation of a bitwise expression, and any rule for xor.
-6. A product related to its operand (`value * value >= value`).
-
-The question:
-
-- **(a)** May a lane add a kernel rule as ordinary implementation work, one
-  rule per pull request with its row in the kernel's rule table and tests?
-- **(b)** Or does each new kernel rule need an owner's approval, and if so
-  which of the six above are approved?
-
-Until answered no kernel rule is added and the seven programs stay unproved
-on the new route. The current checker still accepts them.
-
-### Q4 - What source form binds a boundary requirement to a field of a foreign function table?
+### Q1 - What source form binds a boundary requirement to a field of a foreign function table?
 
 Decision name: `native-table-field-binding`.
 
@@ -223,7 +113,7 @@ field of a foreign table?
 Until answered these leaves keep `via`, and `BUILD-OWNED-NATIVE-BINDINGS`
 cannot delete its parser.
 
-### Q5 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
+### Q2 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
 
 Decision name: `applied-provider-cycle-selection`.
 
@@ -275,7 +165,7 @@ implementation could satisfy, or only the applications Build admits for it.
 
 Until answered the row is left red and the call graph is unchanged.
 
-### Q6 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
+### Q3 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
 
 Decision name: `validation-subjects` (`Build::validate` naming).
 
@@ -291,11 +181,16 @@ Build::dependency(builder, core, locator);
 Build::validate(builder, core);
 ```
 
-The shipped Build vocabulary has no `Build::dependency` and names no
-dependency by identifier. A dependency is registered with
-`Build::depend(builder, Source::Path { location: "vendor" })` or
-`Build::depend_as(builder, "vendor", source)`, and is known afterwards by its
-alias bytes. The bundled `core`, `std` and `alloc` are never registered by a
+Premise update (#2530 and the corpus migration that retires `depend*`): the
+shipped vocabulary now registers a dependency as a configured description,
+`Build::dependency(builder, description) -> DependencyRegistration` (and
+`Build::build_dependency` for Build scope), where
+`dependency::from_source(source)` builds the description and
+`dependency::with_alias(&mut description, "vendor")` sets its alias. It still
+names no dependency by identifier; the registration carries no fields, and the
+coordinator knows the dependency by its alias bytes. The returned
+`DependencyRegistration` is one candidate argument for `Build::validate`; this
+note does not choose it. The bundled `core`, `std` and `alloc` are never registered by a
 product at all; the toolchain supplies them. Today
 `omega --check source/library/core/main.omg` is refused with
 `source root ... overlaps toolchain root`, so no command can check a bundled
@@ -304,7 +199,8 @@ library as a subject.
 The question:
 
 - **(a)** Is the argument of `Build::validate` the dependency's alias, as in
-  `Build::validate(builder, "vendor")`, or a new identifier form?
+  `Build::validate(builder, "vendor")`, the returned `DependencyRegistration`,
+  or a new identifier form?
 - **(b)** How is a bundled library named as a subject: by
   `Build::validate(builder, "core")` without registration, by checking the
   library's own directory as a root (lifting the overlap refusal for the
@@ -314,7 +210,7 @@ Until answered `Build::validate` is not implemented and the release gate has
 no full-package check of `core` and `std`. Ordinary checks already treat only
 the root package as a subject.
 
-### Q7 - May a guard on one copy bound a place restored from another copy of the same version?
+### Q4 - May a guard on one copy bound a place restored from another copy of the same version?
 
 Decision name: `restored-scalar-value-facts` (scope of the copy that is guarded).
 
@@ -361,7 +257,7 @@ on a second copy of the same version.
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q8 - May a denotational call observe a record with shared reference fields through a shared reference?
+### Q5 - May a denotational call observe a record with shared reference fields through a shared reference?
 
 Decision name: `shared-observation-denotational-content`.
 
@@ -418,7 +314,7 @@ fields are themselves shared references gives an argument that is
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q9 - Which in-memory filesystem does a test group select, and what does it implement?
+### Q6 - Which in-memory filesystem does a test group select, and what does it implement?
 
 Decision name: `test-group-virtual-filesystem`.
 
@@ -464,7 +360,7 @@ select.
 Until answered, test groups run only without services, and
 `BUILD-TEST-GROUPS` keeps only its virtual-filesystem acceptance.
 
-### Q10 - May `&mut` lend a binding declared without `mut`, and may the borrower replace its value?
+### Q7 - May `&mut` lend a binding declared without `mut`, and may the borrower replace its value?
 
 Decision name: `immutable-binding-exclusive-loan`.
 
@@ -526,7 +422,7 @@ governs exclusive lending:
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q11 - Does a cyclic `invokes` graph between unselected providers reject a program with no Build?
+### Q8 - Does a cyclic `invokes` graph between unselected providers reject a program with no Build?
 
 Decision name: `unselected-synchronous-invocation-cycle`.
 
@@ -569,7 +465,7 @@ Build realizes no provider.
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q12 - Does a caller's local loan passed into a terminal machine call end at its last use inside the callee?
+### Q9 - Does a caller's local loan passed into a terminal machine call end at its last use inside the callee?
 
 Decision name: `terminal-call-carried-loan-lifetime`.
 
@@ -623,7 +519,7 @@ why this row rejects.
 
 Until answered the row is left as recorded and the checker is unchanged.
 
-### Q13 - Who supplies TaskRuntime and interrupt masking once authored compiler intrinsics are refused?
+### Q10 - Who supplies TaskRuntime and interrupt masking once authored compiler intrinsics are refused?
 
 Decision name: `sealed-runtime-providers`.
 
@@ -678,7 +574,7 @@ Until answered, `via ForeignBinding::CompilerIntrinsic` stays accepted at
 these sites, and BUILD-OWNED-NATIVE-BINDINGS keeps its `CompilerIntrinsic`
 retirement.
 
-### Q16 - May a generic body apply an operator to a value of type `T` outside a branch that fixes `T`?
+### Q11 - May a generic body apply an operator to a value of type `T` outside a branch that fixes `T`?
 
 Decision name: `type-family-operation-outside-arm`.
 
@@ -726,7 +622,7 @@ Until answered the current checker is unchanged, and the lowered-form checker
 serves neither reading: its generic form has no operation on a value of type
 `T` ([lowered type generics](wiki/drafts/designs/lowered_type_generics.md)).
 
-### Q17 - Is a contract conjunct beside a type equation typed under that equation?
+### Q12 - Is a contract conjunct beside a type equation typed under that equation?
 
 Decision name: `contract-conjunct-under-type-equation`.
 
@@ -768,7 +664,7 @@ u32 && result == 0u32)` checks, with `least<u32>` called.
 Until answered the lowered-form checker reads no contract with a type
 equation, so `core::integer::min` is not served by it.
 
-### Q18 - Does checking each listed type of a finite family concretely count as checking the generic body once?
+### Q13 - Does checking each listed type of a finite family concretely count as checking the generic body once?
 
 Decision name: `finite-family-generic-check`.
 
@@ -804,3 +700,199 @@ per type.
 
 Until answered the lowered-form checker takes the first way, which meets
 either answer.
+
+### Q19 - May two machines' guarantees each name the other in a specification call when both bodies are plain definitions?
+
+Decision name: `mutual-specification-call-guarantees`.
+
+**Customer.** `tests/omega/fail/core/scoped_integer_call_guarantees_cannot_form_cycle`:
+
+```omega
+machine first(value: i16) -> i16
+ensures (second(value) as i16 in Saturating) == result { value }
+machine second(value: i16) -> i16
+ensures (first(value) as i16 in Wrapping) == result { value }
+machine main() {}
+```
+
+The fixture pins "cannot prove ensures contract for exit", and its ledger row
+records one such diagnostic per machine. The current checker accepts the
+program (`omega --check` exits 0 at `2aab3a555`); the row read
+`rejected` from the unreachable stamp `@ccdb99ca2214` and is recorded `checked`
+here, as main measures it. Both guarantees are
+true: each body is `value`, neither body calls anything, and unfolding the two
+bodies proves both exits without citing either guarantee. The casts and
+arithmetic policies do not matter; the program without them, and the
+self-cycle `machine first(value: i16) -> i16 ensures first(value) == result { value }`,
+are accepted the same way. Every false variant probed still rejects: a body
+returning `7i16`, a self-cycle `== 9i16`, an opaque callee, a callee that
+`crashes Trap`, and a mutually tail-recursive pair.
+
+**Gap.** These contracts were checked:
+
+- [Total arithmetic](wiki/spec/proofs/contracts.md#total-arithmetic): *"A call
+  interpreted denotationally needs a checked observation-free, reach-free,
+  crash-free, terminating invocation, not merely a same-spelled mathematical
+  operation."* It does not say whether `second` is "checked" for this purpose
+  while `second`'s own guarantee is still being proved from `first`.
+- [Citation and induction](wiki/spec/proofs/contracts.md#citation-and-induction):
+  *"Mutual recursion requires a joint ranking; citation cycles cannot justify
+  themselves."* Here no guarantee is cited: the proof reads the bodies, and
+  the bodies are not recursive.
+- [Mathematical bindings](wiki/spec/proofs/mathematical_bindings.md):
+  *"Mathematical conversion unfolds checked definitions ... arbitrary
+  self-reference is not a definition."* The bodies are not self-referential;
+  only the contracts refer to each other.
+
+- [Local call summaries](wiki/spec/language/state_contracts.md#local-call-summaries)
+  (`callee-result-body-summary`, settled 2026-11-11): *"An exact checked call
+  inside the same fingerprinted verification unit may use the callee's written
+  contract plus checked body-derived result and state facts"* and *"recursive
+  groups need checked invariants or induction: assuming a proposed summary
+  around a cycle is not a proof."* Read alone this makes the program valid:
+  the bodies form no recursive group. It speaks of calls, though, and does not
+  say whether a specification call in a contract counts as one, or whether
+  two contracts that mention each other form a "group".
+
+#1704 retired `scoped_integer_call_guarantee_requires_published_equality` on
+the reasoning that unfolding a checked body is a valid proof. `check-rules`
+now refuses a pull request that removes a pinned `expected.txt`, so this
+fixture cannot be retired the same way without the owner's answer. The compiler has
+a guard for the stricter reading: `independent_application` refuses a
+specification call whose target's declaration, contracts included, depends on
+the machine being proved. One later exit pass reaches `unfold_application`
+without that test, which is why the program is accepted.
+
+**Question.**
+
+- **(a)** Is a specification call eligible whenever the callee's body is a
+  checked, non-recursive, observation-free definition, whatever its contracts
+  mention? Then the program is valid, the fixture is retired as #1704's was,
+  and the independence test narrows to body dependencies.
+- **(b)** Or must the callee's whole declaration, contracts included, be
+  independent of the machine being proved? Then the program rejects, and the
+  independence test moves to the one place applications are unfolded so no
+  exit pass can skip it.
+
+Until answered the row stays as recorded here and the checker is unchanged.
+
+### Q20 - May a nested machine establish its parent's named evidence output, and how does a terminal call discharge an outcome-specific guarantee?
+
+Decision name: `nested-evidence-output-establishment`.
+
+**Customer.** Three run fixtures,
+`tests/omega/run/calls/outcome_specific_selected_guarantee_{result,input,inputs}_exit`.
+The first:
+
+```omega
+machine pick(threshold: u32) -> Outcome
+ensures Outcome::Success -> { selected: succeeded(result); }
+{
+    transition threshold > 3 {
+        true -> succeed()
+        false -> fail()
+    }
+    machine succeed() -> Outcome {
+        selected = Fresh;
+        Outcome::Success
+    }
+    machine fail() -> Outcome { Outcome::Failure }
+}
+```
+
+`pick` promises the evidence output `selected` on its `Success` outcome, and
+its nested machine `succeed` assigns `selected`. The ledger records the rows
+`rejected`: "machine `succeed` state `entry` uses `selected`, which is not a
+declared local, parameter, field, or type in this state". The green siblings
+`outcome_specific_selected_guarantee_{exit,nested_exit,variants_exit}` and
+`pass/calls/outcome_specific_root_exit` assign the output in the declaring
+machine's own body. The same rejection reproduces with an unconditional
+`ensures selected: above(5)` assigned from a nested machine, so it is not
+specific to outcome-specific guarantees.
+
+The rewrite that gives `succeed` its own guarantee
+(`machine succeed() -> Outcome ensures Outcome::Success -> { selected: succeeded(result); }`)
+is also refused today: "cannot classify the ordinary result case on exit
+through pick::entry". The exit check accepts only a literal constructor as the
+result case, not the result of a terminal call.
+
+**Gap.** These contracts were checked:
+
+- [Bindings and arrivals](wiki/spec/language/state_contracts.md#bindings-and-arrivals):
+  *"Nesting does not assume the parent's entry requirements again, import its
+  return guarantees, or supply facts invalidated by mutation."* Read alone, a
+  nested machine does not see its parent's guarantee, so it cannot name the
+  parent's output.
+- [Returns and proof use](wiki/spec/language/state_contracts.md#returns-and-proof-use):
+  *"A terminal call owes both the callee's result and the caller's completion
+  contract; lexical ancestry adds no further return targets."* and
+  *"Outcome-specific guarantees follow the matching nominal result case"*.
+  Read together, `pick`'s `Success` guarantee is owed at the terminal call
+  `succeed()`, and could be discharged from `succeed`'s own guarantee on the
+  matching case.
+- No ratified page gives the source rule for writing an evidence output name:
+  which bodies may assign it, and whether the name is in scope in nested
+  machines.
+
+**Question.**
+
+- **(a)** Is a named evidence output assignable only in the machine that
+  declares it? Then the three programs are invalid as written and are migrated
+  so `succeed` declares the guarantee, and the exit check learns to discharge
+  the caller's guarantee from a terminal callee's guarantee and result case.
+- **(b)** Or may a nested machine reached by a terminal call assign its
+  parent's output, as these fixtures do? Then output names enter nested scope,
+  and the spec needs the rule for which nested machines qualify.
+
+Until answered the three rows are left as recorded and the checker is unchanged.
+
+### Q21 - Does a long operator chain count against the parser's expression depth, and what limit does the Rust compiler publish?
+
+Decision name: `expression-tree-depth-provision`.
+
+**Customer.** Generated Omega source, such as a table of several thousand
+terms summed or concatenated in one expression, must end in a named compiler
+outcome, never a host stack overflow. Today that guarantee is bought with
+256 MiB thread stacks: several hundred walkers in Psi 02 to 06 recurse once
+per level of the expression tree, and the stacks are sized so the walkers
+finish before the stack ends. `PIPELINE-ARCHITECTURE-ENFORCEMENT` on
+[TASKS.md](TASKS.md) asks to drop those stacks. Measured on a development
+build, the whole standard library and 1,000 nested parentheses both check with
+every such stack at 8 MiB, so the size is driven by how deep a tree may be,
+not by ordinary programs.
+
+**Gap.** The parser refuses nesting beyond 1,024 levels
+(`MAX_NESTING_DEPTH`; `tests/omega/fail/parser/nesting_exceeds_max_depth`),
+but only parentheses, calls and types count. An operator chain such as
+`a + b + c + ...` is parsed by a loop and builds a tree as deep as the chain
+is long; prefix runs (`~~~x`) and suffix chains (`a.b.c`) do the same. The
+parser's unit tests parse 4,096 prefixes and a 7,167-operator chain on
+purpose. No fixture or sample chains more than 264 operators, and a
+2,000-term sum does not finish checking in ten minutes, but nothing bounds
+the tree those chains build.
+
+[Compiler requests](wiki/spec/build/compiler_request.md#outcomes) defines
+`Incomplete` as "Named private provision exceeded; no verdict on unexamined
+source" and its scalar-resource table already names `parser_expression_depth`
+and `parser_type_depth`, each with limit 128. The same section says "The
+parser capacities are private D budgets over its fixed tables, not Omega
+source limits". It does not say whether the Rust reference compiler publishes
+under those codes, with which limit, or what an expression's depth is for a
+chain.
+
+**Question.**
+
+- **(a)** Is an expression's depth the depth of its tree, so that every
+  operator of a chain, every prefix and every suffix counts one level, the
+  same as a parenthesis?
+- **(b)** When the Rust compiler exceeds its own bound, does it publish
+  `Incomplete` under `parser_expression_depth` with its own selected limit
+  (today's 1,024), or `Reject` as the existing nesting fixture pins?
+- **(c)** Is 128, the table's limit, a ceiling the Rust compiler must also
+  meet? Two corpus fixtures nest 200 and 300 parentheses deep and four chain
+  264 operators.
+
+Until answered the stacks keep their size. A parser change that charges
+chains against the existing 1,024 levels and refuses beyond it is prepared on
+`work/psi-parser-chain-depth` and meets answer (a) with either answer to (b);
+it is held because it changes which programs parse.
