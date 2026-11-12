@@ -38,6 +38,15 @@ Validity from reading mutants; route reasons are hints only.
 
 Prior incomplete run: **203** fixtures had progress but **no TSV rows** (~152 mutant rows never emitted, **0** `no-mutation` placeholders). Incremental rebuild closed the gap with **147** `no-mutation` rows and backfilled mutants.
 
+### Retired prior `failed-run` rows (12)
+
+Those 12 were **not** checker failures on distinct mutants. Review had written a multi-line `drop_requires` obligation into `shard-7.tsv`; newline splits produced phantom rows whose `original_fixture` was code (`first: holder.amount,`, etc.). Classification saw missing files → `failed-run`.
+
+Single real fixture: `tests/omega/pass/calls/runtime_constructor_child_named_state_captures_exit/main.omg`.
+After rebuild + `_field()` sanitization, the lone `drop_requires` mutant row is **`rejected-both`** (checker rejects; modular entry hole not accepted). Related rows on the same fixture: `widen_requires` rejected-both, `remove_mut` known-gap-q7-mut, `shared_instead_of_mut` rejected-both.
+
+**`disagreement-valid`:** also **0** in the prior reviewed TSV (`d90c7e9`); real accept-vs-reject disagreements were already `rejected-both` or `valid-route-outside` under fix3/fix4.
+
 Fixtures with more than one mutant row (first 20):
 - `tests/omega/pass/borrows/runtime_dependent_window_byte_payload_exit/main.omg`: **7** rows
 - `tests/omega/pass/borrows/runtime_dyn_image_result_snapshot_exit/main.omg`: **7** rows
@@ -64,21 +73,20 @@ Fixtures with more than one mutant row (first 20):
 
 | Bucket | Count |
 | --- | ---: |
-| `confirmed-hole` | 9 |
-| `discarded-valid` | 340 |
-| `known-gap-q7-mut` | 228 |
+| `confirmed-hole` | 7 |
+| `discarded-valid` | 343 |
+| `known-gap-q7-mut` | 230 |
 | `no-mutation` | 147 |
-| `rejected-both` | 1935 |
+| `rejected-both` | 1932 |
 | `timeout` | 1 |
 | `valid-route-outside` | 269 |
 | **sum** | **2929** |
 
 ### Confirmed holes by kind
 - `drop_requires`: 7
-- `mut_ref_instead_of_shared`: 2
 
 ### Confirmed holes by accepted_by
-- `current`: 9
+- `current`: 7
 
 ### Confirmed drop_requires holes by hole_subtype
 - `inferred-entry`: 6
@@ -92,12 +100,13 @@ Fixtures with more than one mutant row (first 20):
 - `mut-ref-stricter-signature`: 80
 - `ensures-weaken`: 20
 - `drop-req-body-restate`: 4
+- `mut-ref-reborrow-from-mut-place`: 3
 - `confirmed-downgrade`: 2
 
 ### By mutation kind
 - `shared_instead_of_mut`: 99
 - `remove_mut`: 96
-- `mut_ref_instead_of_shared`: 80
+- `mut_ref_instead_of_shared`: 83
 - `drop_requires`: 45
 - `drop_ensures`: 20
 
@@ -207,21 +216,6 @@ Fixtures with more than one mutant row (first 20):
 ```
 
 ## Confirmed holes (hand basis: obligation + spec quote)
-
-### mut_ref_instead_of_shared | accepted_by=current
-- Fixture: `tests/omega/pass/arithmetic/every_width_index/main.omg`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__arithmetic__every_width_index__main.omg/mut_ref_instead_of_shared_e758417cff/main.omg`
-- omega **accepted**, current **accepted**, route **no-entry** (route outside is not acceptance)
-- Obligation (check-time): `let view: &[u64] = &mut values[..];`
-- Spec: `wiki/spec/language/ownership.md` — ## Borrow and write qualification
-> A callee cannot grant writable access that the caller's place lacks.
-- fix4b / fix3: runtime trap scan: `none (no crash/trap/bad() in mutant source)`
-- not-Q7: (n/a)
-- Hand note: invalid: shared type receives `&mut` source | fix4 airtight
-```diff
--     let view: &[u64] = &values[..];
-+     let view: &[u64] = &mut values[..];
-```
 
 ### drop_requires | accepted_by=current
 - Fixture: `tests/omega/pass/control_flow/record_result_dispatch_compile/main.omg`
@@ -335,21 +329,6 @@ Fixtures with more than one mutant row (first 20):
 +     }
 ```
 
-### mut_ref_instead_of_shared | accepted_by=current
-- Fixture: `tests/omega/pass/slices/subslice_folded_bound_facts_compile/main.omg`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__slices__subslice_folded_bound_facts_compile__main.omg/mut_ref_instead_of_shared_82abaec25a/main.omg`
-- omega **accepted**, current **accepted**, route **no-entry** (route outside is not acceptance)
-- Obligation (check-time): `let view: &[Entry] = &mut main.entries[..];`
-- Spec: `wiki/spec/language/ownership.md` — ## Borrow and write qualification
-> A callee cannot grant writable access that the caller's place lacks.
-- fix4b / fix3: runtime trap scan: `none (no crash/trap/bad() in mutant source)`
-- not-Q7: (n/a)
-- Hand note: invalid: shared type receives `&mut` source | fix4 airtight
-```diff
--     let view: &[Entry] = &main.entries[..];
-+     let view: &[Entry] = &mut main.entries[..];
-```
-
 ### drop_requires | accepted_by=current
 - Fixture: `tests/omega/pass/termination/external_result_ranked_arrival_compile/main.omg`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__termination__external_result_ranked_arrival_compile__main.omg/drop_requires_560635e41b/main.omg`
@@ -373,15 +352,6 @@ Fixtures with more than one mutant row (first 20):
 
 ### 5 confirmed holes
 
-- `mut_ref_instead_of_shared` `tests/omega/pass/arithmetic/every_width_index/main.omg` — invalid: shared type receives `&mut` source | fix4 airtight
-```diff
--     let view: &[u64] = &values[..];
-+     let view: &[u64] = &mut values[..];
-```
-- omega exit=0
-- compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__arithmetic__every_width_index__main.omg/mut_ref_instead_of_shared_e758417cff/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__arithmetic__every_width_index__main.omg/mut_ref_instead_of_shared_e758417cff/main.omg	current=accepted	current_us=1667204	root=compilation	route=no-entry
-
 - `drop_requires` `tests/omega/pass/control_flow/record_result_dispatch_compile/main.omg` — invalid (modular entry): machine `Main::pick(n: u64) -> Pair` missing entry `n <= 9` | fix4 airtight | probe pick(0) rejected (exit 1)
 ```diff
 - requires n <= 9
@@ -397,7 +367,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__control_flow__record_result_dispatch_compile__main.omg/drop_requires_b139efc8d2/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__control_flow__record_result_dispatch_compile__main.omg/drop_requires_b139efc8d2/main.omg	current=accepted	current_us=1566397	root=compilation	route=no-entry
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__control_flow__record_result_dispatch_compile__main.omg/drop_requires_b139efc8d2/main.omg	current=accepted	current_us=1496723	root=compilation	route=no-entry
 
 - `drop_requires` `tests/omega/pass/drops/runtime_nominal_state_loan_nonlending_branch_exit/main.omg` — invalid (modular entry): machine `drop_room(room:` missing entry `room.count == 10` | fix4 airtight | probe drop_room(0) rejected (exit 1)
 ```diff
@@ -414,7 +384,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__drops__runtime_nominal_state_loan_nonlending_branch_exit__main.omg/drop_requires_eab7e56c6e/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__drops__runtime_nominal_state_loan_nonlending_branch_exit__main.omg/drop_requires_eab7e56c6e/main.omg	current=accepted	current_us=3489223	root=compilation	route=outside	Unsupported: machine service reach
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__drops__runtime_nominal_state_loan_nonlending_branch_exit__main.omg/drop_requires_eab7e56c6e/main.omg	current=accepted	current_us=3399649	root=compilation	route=outside	Unsupported: machine service reach
 
 - `drop_requires` `tests/omega/pass/generics/mixed_value_nullary_case_checked/main.omg` — invalid (modular entry): removed requires `((self in Tagged::Empty) && (Limit<10))` | fix4 airtight
 ```diff
@@ -425,7 +395,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__generics__mixed_value_nullary_case_checked__main.omg/drop_requires_9c6180c1c5/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__generics__mixed_value_nullary_case_checked__main.omg/drop_requires_9c6180c1c5/main.omg	current=accepted	current_us=3304764	root=compilation	route=outside	Unsupported: type generic data
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__generics__mixed_value_nullary_case_checked__main.omg/drop_requires_9c6180c1c5/main.omg	current=accepted	current_us=3111947	root=compilation	route=outside	Unsupported: type generic data
 
 - `drop_requires` `tests/omega/pass/proofs/embedded_successor_call_requirement_exit/main.omg` — invalid (modular entry): machine `require_length<Length: u64>()` missing entry `Length <= 8` | fix4 airtight | probe require_length<Length: u64>(0) rejected (exit 1)
 ```diff
@@ -442,7 +412,20 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__proofs__embedded_successor_call_requirement_exit__main.omg/drop_requires_7e84fe46ee/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__proofs__embedded_successor_call_requirement_exit__main.omg/drop_requires_7e84fe46ee/main.omg	current=accepted	current_us=3272580	root=compilation	route=outside	Unsupported: machine generic parameters
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__proofs__embedded_successor_call_requirement_exit__main.omg/drop_requires_7e84fe46ee/main.omg	current=accepted	current_us=3275825	root=compilation	route=outside	Unsupported: machine generic parameters
+
+- `drop_requires` `tests/omega/pass/proofs/proposition_const_operand_application/main.omg` — invalid (modular entry): machine `inspect(value:` missing entry `valid<3u64>(value)` | fix4 airtight | probe inspect(0) rejected (exit 1)
+```diff
+- requires valid<3u64>(value)
++ {}
+- {}
++ 
+- 
++ machine main() {}
+```
+- omega exit=0
+- compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__proofs__proposition_const_operand_application__main.omg/drop_requires_9ef71b3696/main.omg; wrote_output=false | 
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__proofs__proposition_const_operand_application__main.omg/drop_requires_9ef71b3696/main.omg	current=accepted	current_us=1451200	root=compilation	route=no-entry
 
 ### 5 discarded drop_requires (current accepts)
 
@@ -461,7 +444,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__live_across_two_calls_preservation_bound_through_other_state_exit__main.omg/drop_requires_b80f167658/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__live_across_two_calls_preservation_bound_through_other_state_exit__main.omg/drop_requires_b80f167658/main.omg	current=accepted	current_us=3105581	root=compilation	route=accepted	route_us=11458	discharge_us=10428	reverify_us=8462	reverified=12	obligations=14	judged=12	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	publi
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__live_across_two_calls_preservation_bound_through_other_state_exit__main.omg/drop_requires_b80f167658/main.omg	current=accepted	current_us=3478723	root=compilation	route=accepted	route_us=11941	discharge_us=10517	reverify_us=8771	reverified=12	obligations=14	judged=12	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	publi
 
 - `drop_requires` `tests/omega/pass/facts/projection_call_premise_through_field_exit/main.omg` — no removed requires
 ```diff
@@ -478,7 +461,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__projection_call_premise_through_field_exit__main.omg/drop_requires_9fa9392ad7/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__projection_call_premise_through_field_exit__main.omg/drop_requires_9fa9392ad7/main.omg	current=accepted	current_us=3215721	root=compilation	route=incomplete	route_us=1146	discharge_us=615	reverify_us=64	reverified=2	obligations=3	judged=2	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=4	unestablis
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__projection_call_premise_through_field_exit__main.omg/drop_requires_9fa9392ad7/main.omg	current=accepted	current_us=3303523	root=compilation	route=incomplete	route_us=999	discharge_us=429	reverify_us=66	reverified=2	obligations=3	judged=2	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=4	unestablish
 
 - `drop_requires` `tests/omega/pass/facts/range_fact_delivery_through_call_result_exit/main.omg` — no removed requires
 ```diff
@@ -495,7 +478,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__range_fact_delivery_through_call_result_exit__main.omg/drop_requires_bd26803be7/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__range_fact_delivery_through_call_result_exit__main.omg/drop_requires_bd26803be7/main.omg	current=accepted	current_us=3179716	root=compilation	route=accepted	route_us=2125	discharge_us=1308	reverify_us=756	reverified=8	obligations=9	judged=8	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=1	uses=0	unestabl
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__range_fact_delivery_through_call_result_exit__main.omg/drop_requires_bd26803be7/main.omg	current=accepted	current_us=3208151	root=compilation	route=accepted	route_us=1985	discharge_us=1347	reverify_us=763	reverified=8	obligations=9	judged=8	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=1	uses=0	unestabl
 
 - `drop_requires` `tests/omega/pass/facts/signed_arithmetic_shift_right_through_call_result_exit/main.omg` — valid: in-machine body/guard restates removed requires | requires: `diff >= 0i64 && diff <= 0i64` | restate: `diff`
 ```diff
@@ -512,7 +495,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__signed_arithmetic_shift_right_through_call_result_exit__main.omg/drop_requires_be51a89af9/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__signed_arithmetic_shift_right_through_call_result_exit__main.omg/drop_requires_be51a89af9/main.omg	current=accepted	current_us=3270943	root=compilation	route=rejected	route_us=2987	discharge_us=2250	reverify_us=1375	reverified=9	obligations=12	judged=9	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=2	use
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__signed_arithmetic_shift_right_through_call_result_exit__main.omg/drop_requires_be51a89af9/main.omg	current=accepted	current_us=3000599	root=compilation	route=rejected	route_us=2899	discharge_us=2177	reverify_us=1386	reverified=9	obligations=12	judged=9	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=2	use
 
 - `drop_requires` `tests/omega/pass/facts/signed_exact_addition_bound_through_other_machine_exit/main.omg` — valid: in-machine body/guard restates removed requires | requires: `margin >= 0i64 && margin <= 40i64` | restate: `margin`
 ```diff
@@ -529,7 +512,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__signed_exact_addition_bound_through_other_machine_exit__main.omg/drop_requires_d82f31b8cf/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__signed_exact_addition_bound_through_other_machine_exit__main.omg/drop_requires_d82f31b8cf/main.omg	current=accepted	current_us=3329234	root=compilation	route=accepted	route_us=26263	discharge_us=25389	reverify_us=23017	reverified=6	obligations=6	judged=6	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	u
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__signed_exact_addition_bound_through_other_machine_exit__main.omg/drop_requires_d82f31b8cf/main.omg	current=accepted	current_us=3230936	root=compilation	route=accepted	route_us=25909	discharge_us=25272	reverify_us=22897	reverified=6	obligations=6	judged=6	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	u
 
 ### 5 known-gap Q7 remove_mut
 
@@ -540,7 +523,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__arithmetic__call_argument_snapshot_survives_write_exit__main.omg/remove_mut_8f93f94ace/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__arithmetic__call_argument_snapshot_survives_write_exit__main.omg/remove_mut_8f93f94ace/main.omg	current=accepted	current_us=3172004	root=compilation	route=outside	Unsupported: parameter mutable parameter
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__arithmetic__call_argument_snapshot_survives_write_exit__main.omg/remove_mut_8f93f94ace/main.omg	current=accepted	current_us=3116680	root=compilation	route=outside	Unsupported: parameter mutable parameter
 
 - `remove_mut` `tests/omega/pass/arithmetic/runtime_captured_call_result_subtracts_itself_exit/main.omg` — binding `flag` lacks `mut` but is written or `&mut`-loaned
 ```diff
@@ -549,7 +532,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__arithmetic__runtime_captured_call_result_subtracts_itself_exit__main.omg/remove_mut_233016365f/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__arithmetic__runtime_captured_call_result_subtracts_itself_exit__main.omg/remove_mut_233016365f/main.omg	current=accepted	current_us=3052630	root=compilation	route=outside	Unsupported: parameter mutable parameter
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__arithmetic__runtime_captured_call_result_subtracts_itself_exit__main.omg/remove_mut_233016365f/main.omg	current=accepted	current_us=3345413	root=compilation	route=outside	Unsupported: parameter mutable parameter
 
 - `remove_mut` `tests/omega/pass/borrow/runtime_write_only_affine_sum_exit/main.omg` — binding `entry_storage` lacks `mut` but is written or `&mut`-loaned
 ```diff
@@ -558,7 +541,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_affine_sum_exit__main.omg/remove_mut_3842ac4802/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_affine_sum_exit__main.omg/remove_mut_3842ac4802/main.omg	current=accepted	current_us=3089585	root=compilation	route=outside	Unsupported: type data with custody
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_affine_sum_exit__main.omg/remove_mut_3842ac4802/main.omg	current=accepted	current_us=3187418	root=compilation	route=outside	Unsupported: type data with custody
 
 - `remove_mut` `tests/omega/pass/borrow/runtime_write_only_exclusive_reference_call_operand_exit/main.omg` — binding `held` lacks `mut` but is written or `&mut`-loaned
 ```diff
@@ -567,7 +550,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_exclusive_reference_call_operand_exit__main.omg/remove_mut_c1fe05d15f/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_exclusive_reference_call_operand_exit__main.omg/remove_mut_c1fe05d15f/main.omg	current=accepted	current_us=3329564	root=compilation	route=outside	Unsupported: parameter mutable parameter
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_exclusive_reference_call_operand_exit__main.omg/remove_mut_c1fe05d15f/main.omg	current=accepted	current_us=3309559	root=compilation	route=outside	Unsupported: parameter mutable parameter
 
 - `remove_mut` `tests/omega/pass/borrow/runtime_write_only_indexed_record_copy_exit/main.omg` — binding `entry_storage` lacks `mut` but is written or `&mut`-loaned
 ```diff
@@ -576,14 +559,19 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_indexed_record_copy_exit__main.omg/remove_mut_c3dcdea5f6/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_indexed_record_copy_exit__main.omg/remove_mut_c3dcdea5f6/main.omg	current=accepted	current_us=3125657	root=compilation	route=outside	Unsupported: parameter mutable parameter
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_indexed_record_copy_exit__main.omg/remove_mut_c3dcdea5f6/main.omg	current=accepted	current_us=3134374	root=compilation	route=outside	Unsupported: parameter mutable parameter
+
+### mut_ref `let view: &[T] = &mut ...` (prior confirmed pair)
+
+- `arithmetic/every_width_index`: source is `let values` (**not** `mut`) → **`known-gap-q7-mut`** (Q7: `&mut` of non-mut local); no separate aliasing spec.
+- `slices/subslice_folded_bound_facts_compile`: source is `main: &mut Main` → valid shared reborrow from mut place → **`valid-route-outside`** / discard_class `mut-ref-reborrow-from-mut-place` (fix4 routes `no-entry`).
 
 ### shared_instead_of_mut confirmed holes (not Q7)
 
 
 ### Hand read: all mut_ref_instead_of_shared rows
 
-- **confirmed-hole** accepted_by=current | `tests/omega/pass/arithmetic/every_width_index/main.omg` | `let view: &[u64] = &mut values[..];` | invalid: shared type receives `&mut` source | fix4 airtight
+- **known-gap-q7-mut** accepted_by=current | `tests/omega/pass/arithmetic/every_width_index/main.omg` | `let view: &[u64] = &mut values[..];` | Q7: source `let values` without `mut`; `let view: &[u64] = &mut values[..];`
 - **rejected-both** accepted_by=- | `tests/omega/pass/arithmetic/relative_midpoint_values_exit/main.omg` | `None` | 
 - **rejected-both** accepted_by=- | `tests/omega/pass/asm/atomic_release_disposition_reference_exit/main.omg` | `None` | 
 - **rejected-both** accepted_by=- | `tests/omega/pass/asm/observation_preserves_address_model/main.omg` | `None` | 
@@ -619,7 +607,7 @@ Fixtures with more than one mutant row (first 20):
 - **discarded-valid** accepted_by=- | `tests/omega/pass/borrows/runtime_reference_result_alias_case_payload_exit/main.omg` | `machine has_value(cell: &mut Cell, expected: u64 in Wrapping) -> bool` | valid: `&mut` at least as strict as `&` without shared-slot violation
 - **rejected-both** accepted_by=- | `tests/omega/pass/borrows/runtime_scalar_call_stored_carrier_exit/main.omg` | `None` | 
 - **rejected-both** accepted_by=- | `tests/omega/pass/borrows/runtime_selected_stored_carrier_retired_parent_exit/main.omg` | `None` | 
-- **rejected-both** accepted_by=- | `tests/omega/pass/borrows/runtime_shared_temporary_call_exit/main.omg` | `machine Main::collect(context: &mut Main, first: &mut Item, second: &Item) -> bool {` | invalid: shared type receives `&mut` source
+- **rejected-both** accepted_by=- | `tests/omega/pass/borrows/runtime_shared_temporary_call_exit/main.omg` | `machine Main::collect(context: &mut Main, first: &mut Item, second: &Item) -> bool {` | Q7: source `let Main, first: &mut Item, second: &Item) -> bool {` without `mut`; `machine Main::collect(context: &mut Main, first: &mut Item, second: &Item) -> bool {`
 - **rejected-both** accepted_by=- | `tests/omega/pass/borrows/runtime_stored_boolean_reference_exit/main.omg` | `None` | 
 - **valid-route-outside** accepted_by=current | `tests/omega/pass/borrows/runtime_tail_recursive_disjoint_field_fact_exit/main.omg` | `machine require_bound(work: &mut Work) requires work.count <= 8 { }` | valid mutant; route `outside` not a checker verdict (fix4)
 - **rejected-both** accepted_by=- | `tests/omega/pass/borrows/runtime_writeonly_reference_array_state_exit/main.omg` | `targets[index].value = 71;` | invalid: callee writes through `&mut` parameter `value`
@@ -856,7 +844,7 @@ Fixtures with more than one mutant row (first 20):
 - **valid-route-outside** accepted_by=current | `tests/omega/pass/facts/write_only_ieee_store_readback_through_parameter_exit/main.omg` | `// Fact: an IEEE f64 computed and stored through a write-only borrow (&mut write) preserves its exact bit pattern on readback, satisfying the 0.75 comparison across all nine places` | valid mutant; route `outside` not a checker verdict (fix4)
 - **discarded-valid** accepted_by=- | `tests/omega/pass/facts/write_only_indexed_reborrow_through_other_state_exit/main.omg` | `machine replace(cell: &mut write Cell, value: i64) { cell.value = value; }` | valid: `&mut` at least as strict as `&` without shared-slot violation
 - **discarded-valid** accepted_by=- | `tests/omega/pass/facts/write_only_match_join_through_other_machine_exit/main.omg` | `let selected: &mut write i64 = match choose(visits, flag) {` | valid: `&mut` at least as strict as `&` without shared-slot violation
-- **rejected-both** accepted_by=- | `tests/omega/pass/facts/write_only_recast_through_match_join_exit/main.omg` | `machine marked<'storage>(storage: &'storage write Original, marker: &mut write u32) -> &'storage write Viewed {` | invalid: shared type receives `&mut` source
+- **rejected-both** accepted_by=- | `tests/omega/pass/facts/write_only_recast_through_match_join_exit/main.omg` | `machine marked<'storage>(storage: &'storage write Original, marker: &mut write u32) -> &'storage write Viewed {` | Q7: source `let write u32) -> &'storage write Viewed {` without `mut`; `machine marked<'storage>(storage: &'storage write Original, marker: &mut write u32) -> &'storage write Viewed {`
 - **valid-route-outside** accepted_by=current | `tests/omega/pass/facts/write_only_reference_store_through_local_exit/main.omg` | `// Fact: a `&mut write` store into a record's reference leaf installs the incoming` | valid mutant; route `outside` not a checker verdict (fix4)
 - **discarded-valid** accepted_by=- | `tests/omega/pass/filesystem/native_fs_workflow/main.omg` | `&mut  61440;` | valid: `&mut` at least as strict as `&` without shared-slot violation
 - **discarded-valid** accepted_by=- | `tests/omega/pass/filesystem/windows_raw_file_control_exit/main.omg` | `transition (after &mut  1) != 0 && (before & 4294967166) == (after & 4294967166) {` | valid: `&mut` at least as strict as `&` without shared-slot violation
@@ -879,7 +867,7 @@ Fixtures with more than one mutant row (first 20):
 - **discarded-valid** accepted_by=- | `tests/omega/pass/host/runtime_windows_bitmap_client_cleanup_exit/main.omg` | `WindowsGuiHost::stretch_dibits(device, 0, 0, 173, 147, 0, 0, 2, 2, &mut pixels[0], &info[0], 0, 13369376)` | valid: `&mut` at least as strict as `&` without shared-slot violation
 - **rejected-both** accepted_by=- | `tests/omega/pass/layouts/fixed_layout_computed_alias_policy_exit/main.omg` | `None` | 
 - **rejected-both** accepted_by=- | `tests/omega/pass/layouts/fixed_layout_overridden_valid_policy_exit/main.omg` | `None` | 
-- **valid-route-outside** accepted_by=current | `tests/omega/pass/layouts/nested_reference_carrier_geometry_exit/main.omg` | `data Views { pair: &mut Pair; bytes: &[u8]; }` | confirmed downgrade: runtime trap/crash route present (FOUND L9:machine main() crashes Trap {; L15:_ -> bad(); L17:machine bad() { crash Trap; })
+- **known-gap-q7-mut** accepted_by=current | `tests/omega/pass/layouts/nested_reference_carrier_geometry_exit/main.omg` | `data Views { pair: &mut Pair; bytes: &[u8]; }` | Q7: source `let Pair; bytes: &` without `mut`; `data Views { pair: &mut Pair; bytes: &[u8]; }`
 - **rejected-both** accepted_by=- | `tests/omega/pass/layouts/placed_primitive_authored_name/main.omg` | `None` | 
 - **valid-route-outside** accepted_by=current | `tests/omega/pass/layouts/placed_reference_results/forwarded/main.omg` | `read(&mut view.number)` | valid mutant; route `outside` not a checker verdict (fix4)
 - **discarded-valid** accepted_by=- | `tests/omega/pass/layouts/private_callback_descriptor_fragments_exit/main.omg` | `fill_materializations(&mut plan, &mut signature, 0, 33);` | valid: `&mut` at least as strict as `&` without shared-slot violation
@@ -921,7 +909,7 @@ Fixtures with more than one mutant row (first 20):
 - **discarded-valid** accepted_by=- | `tests/omega/pass/register_allocation/runtime_call_crossing_decimal_reload_exit/main.omg` | `transition accepted { true -> block header(&mut configuration) _ -> invalid() }` | valid: `&mut` at least as strict as `&` without shared-slot violation
 - **rejected-both** accepted_by=- | `tests/omega/pass/relevance/erased_formal_borrowed/main.omg` | `None` | 
 - **rejected-both** accepted_by=- | `tests/omega/pass/relevance/erased_reference_receiver_field_exit/main.omg` | `None` | 
-- **rejected-both** accepted_by=- | `tests/omega/pass/slices/local_record_array_state_view_exit/main.omg` | `let view: &[i32] = &mut packet.samples.items[..];` | invalid: shared type receives `&mut` source
+- **rejected-both** accepted_by=- | `tests/omega/pass/slices/local_record_array_state_view_exit/main.omg` | `let view: &[i32] = &mut packet.samples.items[..];` | Q7: source `let packet` without `mut`; `let view: &[i32] = &mut packet.samples.items[..];`
 - **discarded-valid** accepted_by=- | `tests/omega/pass/slices/nested_operand_view/main.omg` | `bits.y = ((bits.x &mut  0xffff) as u32) & (&bits.x as &u32);` | valid: `&mut` at least as strict as `&` without shared-slot violation
 - **rejected-both** accepted_by=- | `tests/omega/pass/slices/returned_collection_window_copy/main.omg` | `None` | 
 - **valid-route-outside** accepted_by=current | `tests/omega/pass/slices/runtime_borrowed_noncopy_array_argument_exit/main.omg` | `let field_count: u64 = extent(&mut main.entries);` | valid mutant; route `outside` not a checker verdict (fix4)
@@ -931,10 +919,10 @@ Fixtures with more than one mutant row (first 20):
 - **rejected-both** accepted_by=- | `tests/omega/pass/slices/runtime_namespace_range_contract_exit/main.omg` | `None` | 
 - **valid-route-outside** accepted_by=current | `tests/omega/pass/slices/runtime_range_qualified_fixed_scalar_snapshot_exit/main.omg` | `let chosen: i32 in Small = copy(&mut items, 1);` | valid mutant; route `outside` not a checker verdict (fix4)
 - **rejected-both** accepted_by=- | `tests/omega/pass/slices/runtime_same_carrier_inline_cast_index_exit/main.omg` | `None` | 
-- **rejected-both** accepted_by=- | `tests/omega/pass/slices/runtime_slice_index_copy_dispatch_exit/main.omg` | `let entry_view: &[Entry] = &mut main.entries[..];` | invalid: shared type receives `&mut` source
-- **rejected-both** accepted_by=- | `tests/omega/pass/slices/runtime_unit_state_subslice_and_read_call_operands_exit/main.omg` | `let view: &[Entry] = &mut main.entries[..];` | invalid: shared type receives `&mut` source
+- **discarded-valid** accepted_by=- | `tests/omega/pass/slices/runtime_slice_index_copy_dispatch_exit/main.omg` | `let entry_view: &[Entry] = &mut main.entries[..];` | valid: `&mut` loan into shared slot is reborrow from mut place (source parameter `main: &mut _`)
+- **discarded-valid** accepted_by=- | `tests/omega/pass/slices/runtime_unit_state_subslice_and_read_call_operands_exit/main.omg` | `let view: &[Entry] = &mut main.entries[..];` | valid: `&mut` loan into shared slot is reborrow from mut place (source parameter `main: &mut _`)
 - **valid-route-outside** accepted_by=current | `tests/omega/pass/slices/slice_core_surface/main.omg` | `// `&mut main.entries[..]` borrows a field array as `&[T]` and `.len` reports the` | valid mutant; route `no-entry` not a checker verdict (fix4)
-- **confirmed-hole** accepted_by=current | `tests/omega/pass/slices/subslice_folded_bound_facts_compile/main.omg` | `let view: &[Entry] = &mut main.entries[..];` | invalid: shared type receives `&mut` source | fix4 airtight
+- **valid-route-outside** accepted_by=current | `tests/omega/pass/slices/subslice_folded_bound_facts_compile/main.omg` | `let view: &[Entry] = &mut main.entries[..];` | valid mutant; route `no-entry` not a checker verdict (fix4)
 - **rejected-both** accepted_by=- | `tests/omega/pass/slices/wrapping_count_window_length/main.omg` | `None` | 
 - **rejected-both** accepted_by=- | `tests/omega/pass/structs/affine_record_state_clone/main.omg` | `copied.count = source.count;` | invalid: callee writes through `&mut` parameter `source`
 - **rejected-both** accepted_by=- | `tests/omega/pass/structural/local_record_receivers/main.omg` | `None` | 
@@ -945,7 +933,7 @@ Fixtures with more than one mutant row (first 20):
 - **rejected-both** accepted_by=- | `tests/omega/pass/termination/progress_selector_owned_arrival_repeated_rebind_exit/main.omg` | `None` | 
 - **valid-route-outside** accepted_by=current | `tests/omega/pass/termination/rank_range_nested_slice_carrier_borrowed/main.omg` | `// is `&mut Pair`, so the `bag` role arrives through one reference boundary and` | valid mutant; route `no-entry` not a checker verdict (fix4)
 - **rejected-both** accepted_by=- | `tests/omega/pass/termination/runtime_selected_requirement_rank_prefix_exit/main.omg` | `None` | 
-- **rejected-both** accepted_by=- | `tests/omega/pass/text/byte_content_store_continuation_exit/main.omg` | `let prefix: &[u8] in Utf8 = TextBuffer::view(&mut main.text);` | invalid: shared type receives `&mut` source
+- **discarded-valid** accepted_by=- | `tests/omega/pass/text/byte_content_store_continuation_exit/main.omg` | `let prefix: &[u8] in Utf8 = TextBuffer::view(&mut main.text);` | valid: `&mut` loan into shared slot is reborrow from mut place (source parameter `main: &mut _`)
 - **rejected-both** accepted_by=- | `tests/omega/pass/text/local_bounded_text_scalar_loan_exit/main.omg` | `let sum: i32 in Wrapping = digit_sum(&mut text);` | Q7: non-mut `let text` with `let sum: i32 in Wrapping = digit_sum(&mut text);`
 - **discarded-valid** accepted_by=- | `tests/omega/pass/text/plain_and_qualified_byte_arrays_exit/main.omg` | `let first: u8 = head(&mut plain);` | valid: `&mut` at least as strict as `&` without shared-slot violation
 - **discarded-valid** accepted_by=- | `tests/omega/pass/text/runtime_bounded_carrier_concat_exit/main.omg` | `main.text = Buffer16::join("Room ", Buffer4::view(&mut main.label));` | valid: `&mut` at least as strict as `&` without shared-slot violation
@@ -953,7 +941,7 @@ Fixtures with more than one mutant row (first 20):
 - **discarded-valid** accepted_by=- | `tests/omega/pass/text/zii_default_string_equality_exit/main.omg` | `main.okf = TextBuffer::equal(&mut main.never, "");` | valid: `&mut` at least as strict as `&` without shared-slot violation
 - **rejected-both** accepted_by=- | `tests/omega/pass/time/runtime_kernel_clock_wait_loans_exit/main.omg` | `None` | 
 - **rejected-both** accepted_by=- | `tests/omega/pass/traits/applied_nominal_callback_scopes_exit/main.omg` | `None` | 
-- **rejected-both** accepted_by=- | `tests/omega/pass/traits/equatable_string_field_equality_exit/main.omg` | `machine equals(left: &mut T, right: &T) -> bool;` | invalid: shared type receives `&mut` source
+- **rejected-both** accepted_by=- | `tests/omega/pass/traits/equatable_string_field_equality_exit/main.omg` | `machine equals(left: &mut T, right: &T) -> bool;` | Q7: source `let T, right: &T) -> bool` without `mut`; `machine equals(left: &mut T, right: &T) -> bool;`
 - **valid-route-outside** accepted_by=current | `tests/omega/pass/traits/requirement_evidence_renamed_regions_exit/main.omg` | `let answer: i32 = observe(&mut storage.value, &storage.neighbor);` | valid mutant; route `outside` not a checker verdict (fix4)
 - **discarded-valid** accepted_by=- | `tests/omega/pass/traits/runtime_finite_family_correlated_case_result_exit/main.omg` | `machine code<Width: u32, Depth: u32>(subject: &mut T) -> Choice` | valid: `&mut` at least as strict as `&` without shared-slot violation
 - **rejected-both** accepted_by=- | `tests/omega/pass/traits/runtime_qualified_owned_requirement_calls_exit/main.omg` | `None` | 

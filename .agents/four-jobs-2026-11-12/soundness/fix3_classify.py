@@ -177,6 +177,23 @@ def _shared_slot_from_mut_source(mline: str) -> bool:
     return bool(re.search(r":\s*&[^m]", mline) and "&mut" in mline)
 
 
+def _loan_root(expr: str) -> str:
+    expr = expr.strip().rstrip(";")
+    head = re.split(r"\[", expr, maxsplit=1)[0]
+    return head.split(".")[0].strip()
+
+
+def _place_is_mut_at_check(mutant: str, loan_expr: str) -> tuple[bool, str]:
+    root = _loan_root(loan_expr)
+    if re.search(rf"\blet\s+mut\s+{re.escape(root)}\b", mutant):
+        return True, f"source `let mut {root}`"
+    if re.search(rf"\(\s*[^)]*\b{re.escape(root)}\s*:\s*&mut\b", mutant):
+        return True, f"source parameter `{root}: &mut _`"
+    if re.search(rf"\b{re.escape(root)}\s*:\s*&mut\b", mutant):
+        return True, f"source binding `{root}: &mut _`"
+    return False, f"source `let {root}` without `mut`"
+
+
 def _callee_param_write(mutant: str, sig_hint: str, pname: str) -> str | None:
     idx = mutant.find(sig_hint)
     chunk = mutant[idx : idx + 2500] if idx >= 0 else mutant
@@ -233,17 +250,6 @@ def classify_reference_kind(kind: str, original: str, mutant: str, omg: str, cur
                 return Outcome("known-gap-q7-mut", ab, False, obl, path, quote, heading, note)
             return Outcome("rejected-both", "", False, obl, None, None, None, note)
 
-    # Shared-typed slot from mut reference: `let x: &T = &mut y`
-    if re.search(r":\s*&[^m]", mline) and "&mut" in mline:
-        obl = mline
-        path, heading, quote = SPEC_BY_KIND["mut_ref_instead_of_shared"]
-        invalid = "invalid: shared type receives `&mut` source"
-        if ab:
-            return Outcome("confirmed-hole", ab, False, obl, path, quote, heading, invalid)
-        if disagree(omg, cur, route):
-            return Outcome("disagreement-valid", accepted_by(omg, cur, route), False, obl, path, quote, heading, invalid)
-        return Outcome("rejected-both", "", False, obl, None, None, None, invalid)
-
     path_sm, heading_sm, quote_sm = SPEC_BY_KIND["shared_instead_of_mut"]
     path_mr, heading_mr, quote_mr = SPEC_BY_KIND["mut_ref_instead_of_shared"]
 
@@ -277,24 +283,31 @@ def classify_reference_kind(kind: str, original: str, mutant: str, omg: str, cur
     if kind == "mut_ref_instead_of_shared":
         if _shared_slot_from_mut_source(mline):
             obl = mline
-            invalid = "invalid: shared-typed slot receives `&mut` source (aliasing/exclusivity)"
+            src_m = re.search(r"&mut\s+(.+)$", mline)
+            src_expr = src_m.group(1).strip() if src_m else ""
+            is_mut, src_reason = _place_is_mut_at_check(mutant, src_expr)
+            if is_mut:
+                note = f"valid: `&mut` loan into shared slot is reborrow from mut place ({src_reason})"
+                if ab:
+                    return Outcome(
+                        "discarded-valid",
+                        ab,
+                        True,
+                        obl,
+                        None,
+                        None,
+                        None,
+                        note,
+                        "mut-ref-reborrow-from-mut-place",
+                    )
+                return Outcome(
+                    "discarded-valid", "", True, obl, None, None, None, note, "mut-ref-reborrow-from-mut-place"
+                )
+            path, heading, quote = SPEC_BY_KIND["remove_mut"]
+            note = f"Q7: {src_reason}; `{obl}`"
             if ab:
-                return Outcome(
-                    "confirmed-hole", ab, False, obl, path_mr, quote_mr, heading_mr, invalid, "",
-                    "not Q7: type slot is shared `&T`, not owned-local mut gap",
-                )
-            if disagree(omg, cur, route):
-                return Outcome(
-                    "disagreement-valid",
-                    accepted_by(omg, cur, route),
-                    False,
-                    obl,
-                    path_mr,
-                    quote_mr,
-                    heading_mr,
-                    invalid,
-                )
-            return Outcome("rejected-both", "", False, obl, None, None, None, invalid)
+                return Outcome("known-gap-q7-mut", ab, False, obl, path, quote, heading, note)
+            return Outcome("rejected-both", "", False, obl, None, None, None, note)
 
         pm = re.search(r"(\w+)\s*:\s*&mut", mline)
         callee_write = _callee_param_write(mutant, mline, pm.group(1)) if pm else None

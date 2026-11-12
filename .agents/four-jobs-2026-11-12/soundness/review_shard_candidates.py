@@ -375,6 +375,21 @@ def main() -> None:
             "(~152 mutant rows never emitted, **0** `no-mutation` placeholders). "
             "Incremental rebuild closed the gap with **147** `no-mutation` rows and backfilled mutants.",
             "",
+            "### Retired prior `failed-run` rows (12)",
+            "",
+            "Those 12 were **not** checker failures on distinct mutants. Review had written a "
+            "multi-line `drop_requires` obligation into `shard-7.tsv`; newline splits produced "
+            "phantom rows whose `original_fixture` was code (`first: holder.amount,`, etc.). "
+            "Classification saw missing files → `failed-run`.",
+            "",
+            "Single real fixture: `tests/omega/pass/calls/runtime_constructor_child_named_state_captures_exit/main.omg`.",
+            "After rebuild + `_field()` sanitization, the lone `drop_requires` mutant row is **`rejected-both`** "
+            "(checker rejects; modular entry hole not accepted). Related rows on the same fixture: "
+            "`widen_requires` rejected-both, `remove_mut` known-gap-q7-mut, `shared_instead_of_mut` rejected-both.",
+            "",
+            "**`disagreement-valid`:** also **0** in the prior reviewed TSV (`d90c7e9`); real accept-vs-reject "
+            "disagreements were already `rejected-both` or `valid-route-outside` under fix3/fix4.",
+            "",
             "Fixtures with more than one mutant row (first 20):",
         ]
     )
@@ -493,6 +508,19 @@ def main() -> None:
     block("5 confirmed holes", confirmed)
     block("5 discarded drop_requires (current accepts)", discarded_dr)
     block("5 known-gap Q7 remove_mut", [(r, o) for r, o in q7 if r.kind in ("remove_mut", "drop_mut")])
+
+    md.append("### mut_ref `let view: &[T] = &mut ...` (prior confirmed pair)")
+    md.append("")
+    md.append(
+        "- `arithmetic/every_width_index`: source is `let values` (**not** `mut`) → "
+        "**`known-gap-q7-mut`** (Q7: `&mut` of non-mut local); no separate aliasing spec."
+    )
+    md.append(
+        "- `slices/subslice_folded_bound_facts_compile`: source is `main: &mut Main` → "
+        "valid shared reborrow from mut place → **`valid-route-outside`** / discard_class "
+        "`mut-ref-reborrow-from-mut-place` (fix4 routes `no-entry`)."
+    )
+    md.append("")
 
     shared_conf = [(r, o) for r, o, _ in classified if r.kind == "shared_instead_of_mut" and o.bucket == "confirmed-hole"]
     md.append("### shared_instead_of_mut confirmed holes (not Q7)")
