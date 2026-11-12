@@ -16525,7 +16525,7 @@ pub(crate) mod inductive_judgment {
                     eprintln!(
                         "ENTAILDBG inductive machine={} arm_guard={} fact={} visible={}",
                         machine.name,
-                        arm.guard_display,
+                        arm.guard_display.as_deref().unwrap_or("<always>"),
                         program.expression_table.display_name(*fact),
                         arm.fully_visible,
                     );
@@ -16546,27 +16546,27 @@ pub(crate) mod inductive_judgment {
             }
             if let Some(guard) = constant_false_arm {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic on the transition arm guarded by `{}`",
+                "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic{}",
                 machine.name,
                 program.expression_table.display_name(*fact),
-                guard
+                arm_clause(&guard)
             )));
             } else if let Some(guard) = refuted_arm {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` ensures contract proof fact `{}` is disproved on the transition arm guarded by `{}`: the arm's facts entail its negation",
+                "machine `{}` ensures contract proof fact `{}` is disproved{}: the arm's facts entail its negation",
                 machine.name,
                 program.expression_table.display_name(*fact),
-                guard
+                arm_clause(&guard)
             )));
             } else if let Some(ref guard) = unknown_arm
                 && goal_always_in_language
                 && machine_fully_visible
             {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` cannot prove ensures contract proof fact `{}` on the transition arm guarded by `{}`",
+                "machine `{}` cannot prove ensures contract proof fact `{}`{}",
                 machine.name,
                 program.expression_table.display_name(*fact),
-                guard
+                arm_clause(guard)
             )));
             } else if unknown_arm.is_none() {
                 proven.push(*fact);
@@ -16620,7 +16620,20 @@ pub(crate) mod inductive_judgment {
         engine: Engine<'program>,
         vacuous: bool,
         fully_visible: bool,
-        guard_display: String,
+        // `None` for a body with one unguarded arm: there is no guard to name.
+        guard_display: Option<String>,
+    }
+
+    /*
+        The clause that says which transition arm a refused guarantee sits on.
+        A body that is a single unguarded arm has no guard, so the message
+        names the machine and the fact and stops there.
+    */
+    fn arm_clause(guard: &Option<String>) -> String {
+        guard
+            .as_ref()
+            .map(|guard| format!(" on the transition arm guarded by `{guard}`"))
+            .unwrap_or_default()
     }
 
     fn prepare_arm<'program>(
@@ -16633,14 +16646,17 @@ pub(crate) mod inductive_judgment {
         preceding: &[TransitionArm],
     ) -> Option<JudgedArm<'program>> {
         let guard_display = match arm.guard {
-            Some(guard) => program.expression_table.display_name(guard),
-            None if preceding.is_empty() => "<always>".to_owned(),
-            None => preceding
-                .iter()
-                .filter_map(|arm| arm.guard)
-                .map(|guard| failed_guard_display(program, guard))
-                .collect::<Vec<_>>()
-                .join(" && "),
+            Some(guard) => Some(program.expression_table.display_name(guard)),
+            None if preceding.is_empty() => None,
+            None => Some(
+                preceding
+                    .iter()
+                    .filter_map(|arm| arm.guard)
+                    .map(|guard| failed_guard_display(program, guard))
+                    .collect::<Vec<_>>()
+                    .join(" && "),
+            )
+            .filter(|guards| !guards.is_empty()),
         };
 
         let mut engine = Engine::with_result_atom(program, machine, root);
