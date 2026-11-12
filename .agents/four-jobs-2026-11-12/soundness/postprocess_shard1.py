@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""Triage shard-1.tsv per lead review soundness_fix + soundness_fix2."""
+"""Triage shard-1.tsv per lead soundness_fix3 (wins over fix + fix2)."""
 from __future__ import annotations
 
 import json
 import re
 import subprocess
+import sys
 from collections import Counter
 from pathlib import Path
-
-import sys
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
@@ -25,6 +24,17 @@ Q7 = OUT / "q7_fixture_paths.txt"
 OMEGA = REPO / "target/debug/omega"
 ROUTE = REPO / "target/debug/examples/route_one_comparison"
 ENV = {"OMEGA_LIBRARY_ROOT": str(REPO / "source/library")}
+
+BUCKETS = (
+    "confirmed-hole",
+    "known-gap-q7-mut",
+    "disagreement-valid",
+    "discarded-valid",
+    "rejected-both",
+    "timeout",
+    "failed-run",
+    "no-mutation",
+)
 
 
 def q7_fixtures() -> set[str]:
@@ -52,23 +62,23 @@ def read_rows() -> tuple[list[str], list[dict[str, str]]]:
     return hdr, rows
 
 
-def ensure_route_reason(row: dict[str, str]) -> str:
-    if row.get("route_reason", "").strip():
-        return row["route_reason"]
-    raw = row.get("route_out", "")
-    rt = row.get("route_verdict", "")
-    reason = extract_route_reason(raw, rt) if raw else ""
-    row["route_reason"] = reason
-    return reason
+def route_accepts(route: str) -> bool:
+    return route == "accepted"
 
 
-def machine_block_after_requires(source: str) -> str:
-    m = re.search(r"^(\s*)requires\b[^\n]*\n", source, re.MULTILINE)
-    if not m:
-        return ""
-    chunk = source[m.end() :]
-    end = re.search(r"^\s*machine\s+", chunk, re.MULTILINE)
-    return chunk[: end.start()] if end else chunk
+def current_accepts(cur: str) -> bool:
+    return cur == "accepted"
+
+
+def accepted_by(cur: str, route: str) -> str:
+    c, r = current_accepts(cur), route_accepts(route)
+    if c and r:
+        return "both"
+    if c:
+        return "current"
+    if r:
+        return "route"
+    return ""
 
 
 def first_requires_predicate(source: str) -> str:
@@ -80,222 +90,210 @@ def requires_duplicated_in_transition(source: str) -> tuple[bool, str, str]:
     req = first_requires_predicate(source)
     if not req:
         return False, "", ""
-    if req in source:
-        for m in re.finditer(r"transition\s+([^\n{]+)", source):
-            guard = m.group(1).strip()
-            if req == guard or req in guard or guard in req:
+    for m in re.finditer(r"transition\s+([^\n{]+)", source):
+        guard = m.group(1).strip()
+        if req == guard or req in guard or guard in req:
+            return True, req, guard
+        for frag in re.findall(r"[\w().:]+\s*[=<>!]+\s*[\w().:]+", req):
+            if frag.replace(" ", "") in guard.replace(" ", ""):
                 return True, req, guard
-            for frag in re.findall(r"[\w().:]+\s*[=<>!]+\s*[\w().:]+", req):
-                if frag.replace(" ", "") in guard.replace(" ", ""):
-                    return True, req, guard
     return False, "", ""
 
 
-def drop_requires_obligation(original: str) -> tuple[bool, str, str, str]:
-    block = machine_block_after_requires(original)
-    if not block:
-        return False, "", "", ""
-    for line in block.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("ensures "):
-            return (
-                True,
-                stripped,
-                "wiki/spec/language/state_contracts.md",
-                "Every invocation retains both sides of its own contract.",
-            )
-        if not stripped or stripped in ("{", "}"):
-            continue
-        if re.search(r"/\s*[^/\s]|/\s*\w|\[\s*\w|embed\(|\.len\b", stripped):
-            return (
-                True,
-                stripped,
-                "wiki/spec/language/state_contracts.md",
-                "Machine `requires` applies at every invocation, including terminal and recursive calls.",
-            )
-    return False, "", "", ""
-
-
-def remove_mut_binding(original: str) -> tuple[str | None, str | None]:
-    m = re.search(r"\blet mut (\w+)", original)
+def machine_body_after_first_requires(source: str) -> str:
+    m = re.search(r"^(\s*)requires\b[^\n]*\n", source, re.MULTILINE)
     if not m:
-        return None, None
-    name = m.group(1)
-    if re.search(rf"\blet(?:\s+mut)?\s+{re.escape(name)}\b", original[m.end() :]):
-        return None, None
-    write_line = None
-    for line in original.splitlines():
-        if re.search(
-            rf"(?:&mut\s+{re.escape(name)}\b|&write\s+{re.escape(name)}\b|{re.escape(name)}\s*=(?!=)|{re.escape(name)}\[[^\]]+\]\s*=|{re.escape(name)}\.\w+\s*=)",
-            line,
-        ):
-            write_line = line.strip()
-            break
-    return name, write_line
+        return ""
+    chunk = source[m.end() :]
+    end = re.search(r"^\s*machine\s+", chunk, re.MULTILINE)
+    return chunk[: end.start()] if end else chunk
 
 
-def remove_mut_invalid(original: str) -> tuple[bool, str, str, str]:
-    name, line = remove_mut_binding(original)
-    if not name or not line:
-        return False, "", "", ""
-    return (
-        True,
-        f"`{name}`: {line}",
-        "wiki/spec/language/ownership.md",
-        "modifying an established ordinary local's owned storage requires a `mut` binding.",
-    )
-
-
-def remove_guard_obligation(original: str) -> tuple[bool, str, str, str]:
-    m = re.search(r"^\s*transition\s+([^\n]+)\{\s*\n", original, re.MULTILINE)
-    if not m:
-        return False, "", "", ""
-    guard = m.group(1).strip()
-    nxt = original[m.end() :]
-    first = next((ln.strip() for ln in nxt.splitlines() if ln.strip() and not ln.strip().startswith("machine")), "")
-    if first:
-        return (
-            True,
-            f"transition {guard} {{ … {first}",
-            "wiki/spec/language/state_contracts.md",
-            "Only the selected arm executes, with ordinary once-only operand evaluation.",
-        )
-    return False, "", "", ""
-
-
-def amp_to_ampmut_obligation(original: str) -> tuple[bool, str, str, str]:
-    for line in original.splitlines():
-        if re.search(r"(?<![&])&(?![&\w])", line) and "&mut" not in line:
-            return (
-                True,
-                line.strip(),
-                "wiki/spec/language/expressions.md",
-                "mutable and write-only lending require explicit `&mut` and `&write` expressions.",
-            )
-    return False, "", "", ""
-
-
-def widen_requires_obligation(original: str) -> tuple[bool, str, str, str]:
-    m = re.search(r"requires\b[^\n]+", original)
-    if m:
-        return (
-            True,
-            m.group(0).strip(),
-            "wiki/spec/language/state_contracts.md",
-            "Every arrival establishes the target's requirements and declared domains under actual argument substitution.",
-        )
-    return False, "", "", ""
-
-
-SPEC_FN = {
-    "drop_requires": drop_requires_obligation,
-    "remove_mut": remove_mut_invalid,
-    "remove_guard_transition": remove_guard_obligation,
-    "amp_to_ampmut": amp_to_ampmut_obligation,
-    "widen_requires": widen_requires_obligation,
-}
-
-
-def triage_drop_requires_accepted(
-    original: str, route: str, route_reason: str
-) -> tuple[str, str, str, str, str]:
-    """soundness_fix2: per-route-reason bucket for current=accepted drop_requires."""
-    unsupported = route in ("outside", "no-entry", "unreached", "unreached") or "Unsupported" in route_reason
-    if unsupported:
-        return (
-            "discarded-valid",
-            "",
-            "",
-            "",
-            f"route {route}: {route_reason[:200] or 'unsupported/no-entry'}",
-        )
-    dup, req_q, tr_q = requires_duplicated_in_transition(original)
-    if dup:
-        return (
-            "discarded-valid",
-            "",
-            "",
-            "",
-            f"requires duplicated in transition — requires `{req_q}` vs transition `{tr_q}`",
-        )
-    invalid, ob, sf, sq = drop_requires_obligation(original)
-    if invalid:
-        if route in ("rejected", "incomplete") and route_reason:
-            return ("confirmed-invalid", ob, sf, sq, f"route proof gap: {route_reason[:220]}")
-        if route == "accepted":
-            return ("confirmed-invalid", ob, sf, sq, "both checkers accept; obligation remains")
-        return (
-            "disagree-not-current-accept",
-            ob,
-            sf,
-            sq,
-            f"current accepts; route={route}: {route_reason[:180]}",
-        )
-    return (
-        "discarded-valid",
-        "",
-        "",
-        "",
-        f"no body/ensures obligation needs dropped requires; route={route}: {route_reason[:180]}",
-    )
-
-
-def triage_row(row: dict[str, str], q7: set[str]) -> tuple[str, str, str, str, str]:
-    kind = row["mutation_kind"]
-    cur = row["current_verdict"]
-    rt = row["route_verdict"]
-    fixture = row["fixture"]
-    route_reason = ensure_route_reason(row)
-
-    if kind == "none":
-        return "discarded-no-mutation", "", "", "", "no applicable mutator"
-    if cur == "timeout" or rt == "timeout":
-        return "timeout", "", "", "", "checker timeout"
-    if row.get("hand_verdict") == "pending-triage" and not row.get("mutant_path") and kind != "none":
-        return "failed-run", "", "", "", "mutant staging/check failed"
-
-    original = (REPO / fixture).read_text(encoding="utf-8")
-
-    if kind == "drop_requires" and cur == "accepted":
-        return triage_drop_requires_accepted(original, rt, route_reason)
-
-    fn = SPEC_FN.get(kind)
-    if not fn:
-        return "discarded-no-rule", "", "", "", f"unknown kind {kind}"
+def read_mutant_validity(
+    kind: str, original: str, mutant: str
+) -> tuple[bool, str, str, str, str]:
+    """Returns (spec_invalid, obligation_line, spec_file, spec_quote, validity_note)."""
+    note = ""
 
     if kind == "drop_requires":
-        invalid, ob, sf, sq = fn(original)
-    else:
-        invalid, ob, sf, sq = fn(original)
+        dup, rq, tq = requires_duplicated_in_transition(original)
+        if dup:
+            return False, "", "", "", f"valid: requires `{rq}` restated in transition `{tq}`"
+        block = machine_body_after_first_requires(mutant)
+        for line in block.splitlines():
+            s = line.strip()
+            if s.startswith("ensures "):
+                dropped = first_requires_predicate(original)
+                return (
+                    True,
+                    s,
+                    "wiki/spec/language/state_contracts.md",
+                    "Every invocation retains both sides of its own contract.",
+                    f"ensures remains after dropping requires `{dropped}`",
+                )
+            if s and s not in ("{", "}"):
+                if re.search(r"/\s*[^/\s]|\[\s*\w|embed\(|\.len\b", s):
+                    return (
+                        True,
+                        s,
+                        "wiki/spec/language/state_contracts.md",
+                        "Machine `requires` applies at every invocation, including terminal and recursive calls.",
+                        "body operation still present without entry requires",
+                    )
+        return False, "", "", "", "valid: no ensures/body line needs dropped requires"
 
     if kind == "remove_mut":
-        name, write_line = remove_mut_binding(original)
-        if not invalid:
-            return "discarded-valid", "", "", "", "remove_mut: no write/&mut on first `let mut` binding"
-        if cur == "accepted" and fixture in q7 and name and write_line:
+        m = re.search(r"\blet mut (\w+)", original)
+        if not m:
+            return False, "", "", "", "valid: no let mut in original"
+        name = m.group(1)
+        if re.search(rf"\blet(?:\s+mut)?\s+{re.escape(name)}\b", original[m.end() :]):
+            return False, "", "", "", "valid: shadowed binding"
+        for line in original.splitlines():
+            if re.search(
+                rf"(?:&mut\s+{re.escape(name)}\b|&write\s+{re.escape(name)}\b|{re.escape(name)}\s*=(?!=)|{re.escape(name)}\[[^\]]+\]\s*=|{re.escape(name)}\.\w+\s*=)",
+                line,
+            ):
+                return (
+                    True,
+                    line.strip(),
+                    "wiki/spec/language/ownership.md",
+                    "modifying an established ordinary local's owned storage requires a `mut` binding.",
+                    "remove_mut on binding that is written or lent mutably",
+                )
+        return False, "", "", "", "valid: first let mut has no write/&mut on same binding"
+
+    if kind == "amp_to_ampmut":
+        for line in mutant.splitlines():
+            if "&mut" in line and "&" in line.replace("&mut", ""):
+                return (
+                    True,
+                    line.strip(),
+                    "wiki/spec/language/expressions.md",
+                    "Such a loan requires existing writable authority at the selected place;",
+                    "&mut without writable authority on carrier",
+                )
+        return False, "", "", "", "valid: amp_to_ampmut not substantiated in mutant"
+
+    if kind == "remove_guard_transition":
+        m = re.search(r"^\s*transition\s+([^\n]+)\{\s*\n", original, re.MULTILINE)
+        if not m:
+            return False, "", "", "", "valid: no transition guard removed"
+        guard = m.group(1).strip()
+        if guard.lower() in ("true", "false"):
+            return False, "", "", "", "valid: trivial guard"
+        rest = original[m.end() :]
+        arm = next((ln.strip() for ln in rest.splitlines() if ln.strip() and not ln.strip().startswith("machine")), "")
+        return (
+            True,
+            f"removed guard `{guard}` before `{arm}`",
+            "wiki/spec/language/state_contracts.md",
+            "Only the selected arm executes, with ordinary once-only operand evaluation.",
+            "unguarded arm may run without establishing guard facts",
+        )
+
+    if kind == "widen_requires":
+        om = re.search(r"requires\b[^\n]+", original)
+        mm = re.search(r"requires\b[^\n]+", mutant)
+        if om and mm and om.group(0) != mm.group(0):
             return (
-                "known-gap-q7-mut",
-                ob,
-                sf,
-                sq,
-                f"Q7 migration list includes fixture; write line `{write_line}`",
+                True,
+                f"{om.group(0).strip()} -> {mm.group(0).strip()}",
+                "wiki/spec/language/state_contracts.md",
+                "Every arrival establishes the target's requirements and declared domains under actual argument substitution.",
+                "weakened numeric bound in requires",
             )
+        return False, "", "", "", "valid: widen did not apply"
 
-    if not invalid:
-        return "discarded-valid", "", "", "", "mutant remains valid under spec"
+    return False, "", "", "", f"valid: unhandled kind {kind}"
 
-    if cur != "accepted":
-        if cur != rt:
-            return "disagree-not-current-accept", ob, sf, sq, f"route={rt}: {route_reason[:160]}"
-        return "both-reject", "", "", "", route_reason[:200] or "both rejected"
 
-    return "confirmed-invalid", ob, sf, sq, route_reason[:220] or "current accepts invalid mutant"
+def only_q7_mut_violation(spec_quote: str, kind: str) -> bool:
+    if kind in ("remove_mut", "amp_to_ampmut"):
+        return "mut" in spec_quote.lower() or "writable authority" in spec_quote.lower()
+    return False
+
+
+def triage_row(row: dict[str, str], q7: set[str]) -> dict[str, str]:
+    kind = row.get("mutation_kind", "")
+    cur = row.get("current_verdict", "")
+    rt = row.get("route_verdict", "")
+    fixture = row.get("fixture", "")
+
+    if not row.get("route_reason", "").strip():
+        row["route_reason"] = extract_route_reason(row.get("route_out", ""), rt)
+
+    out = {
+        **row,
+        "hand_verdict": "",
+        "accepted_by": "",
+        "verdict_reason": "",
+        "validity_note": "",
+        "obligation_line": "",
+        "spec_file": "",
+        "spec_quote": "",
+        "q7_listed": "",
+    }
+
+    if kind == "none":
+        out["hand_verdict"] = "no-mutation"
+        out["verdict_reason"] = "no applicable mutator"
+        return out
+    if cur == "timeout" or rt == "timeout":
+        out["hand_verdict"] = "timeout"
+        return out
+    if not row.get("mutant_path") and kind != "none":
+        out["hand_verdict"] = "failed-run"
+        return out
+
+    original = (REPO / fixture).read_text(encoding="utf-8")
+    mutant_path = row.get("mutant_path", "")
+    mutant = (REPO / mutant_path / "main.omg").read_text(encoding="utf-8") if mutant_path else original
+
+    invalid, ob, sf, sq, vnote = read_mutant_validity(kind, original, mutant)
+    out["validity_note"] = vnote
+    out["obligation_line"] = ob
+    out["spec_file"] = sf
+    out["spec_quote"] = sq
+
+    acc = accepted_by(cur, rt)
+    c_acc, r_acc = current_accepts(cur), route_accepts(rt)
+
+    if invalid:
+        if only_q7_mut_violation(sq, kind) and acc:
+            out["hand_verdict"] = "known-gap-q7-mut"
+            out["accepted_by"] = acc
+            in_list = fixture in q7
+            out["q7_listed"] = "yes" if in_list else "no"
+            out["verdict_reason"] = (
+                f"{'In' if in_list else 'Not in'} PR #2638 list; obligation `{ob}`"
+            )
+            return out
+        if acc:
+            out["hand_verdict"] = "confirmed-hole"
+            out["accepted_by"] = acc
+            out["verdict_reason"] = vnote or ob
+            return out
+        out["hand_verdict"] = "rejected-both"
+        out["verdict_reason"] = vnote or "invalid; both checkers reject"
+        return out
+
+    # spec-valid mutant
+    if c_acc and r_acc:
+        out["hand_verdict"] = "discarded-valid"
+        out["verdict_reason"] = vnote
+        return out
+    if cur != rt:
+        out["hand_verdict"] = "disagreement-valid"
+        out["verdict_reason"] = vnote
+        return out
+    out["hand_verdict"] = "rejected-both"
+    out["verdict_reason"] = vnote or "valid mutant; both reject"
+    return out
 
 
 def rerun_evidence(mutant_path: str) -> tuple[int, str, str]:
     main = REPO / mutant_path / "main.omg"
-    if not main.is_file():
-        main = REPO / mutant_path
     r = subprocess.run(
         [str(OMEGA), "--check", str(main)],
         env=ENV,
@@ -309,19 +307,19 @@ def rerun_evidence(mutant_path: str) -> tuple[int, str, str]:
 
 def write_hand_block(title: str, rows: list[dict[str, str]], bucket_lines: list[str], n: int = 5) -> None:
     bucket_lines += [f"## {title}", ""]
-    picked = rows[:n]
-    if not picked:
-        bucket_lines.append("_None in this shard yet._\n")
+    if not rows:
+        bucket_lines.append("_None._\n")
         return
-    for row in picked:
+    for row in rows[:n]:
         mp = row.get("mutant_path", "")
         ec, o_out, r_out = rerun_evidence(mp) if mp else (0, "", "")
         bucket_lines += [
-            f"### `{row['mutation_kind']}` — `{row['fixture']}`",
-            f"- Bucket: `{row['hand_verdict']}`",
-            f"- Verdict reason: {row.get('verdict_reason', '')}",
-            f"- Route reason: {row.get('route_reason', '')[:300]}",
+            f"### `{row.get('mutation_kind')}` — `{row.get('fixture')}`",
+            f"- Bucket: `{row.get('hand_verdict')}`; accepted_by: `{row.get('accepted_by','')}`",
+            f"- Validity (read mutant): {row.get('validity_note') or row.get('verdict_reason')}",
+            f"- Route hint (not validity): {row.get('route_reason', '')[:280]}",
             f"- Obligation: `{row.get('obligation_line', '')}`",
+            f"- Spec ({row.get('spec_file', '')}): > {row.get('spec_quote', '')}",
         ]
         if mp:
             bucket_lines += [
@@ -342,32 +340,20 @@ def main() -> None:
     if not rows:
         print("no rows")
         return
-    for col in ("route_reason", "verdict_reason"):
+
+    extra = ["accepted_by", "validity_note", "verdict_reason", "q7_listed"]
+    for col in extra:
         if col not in hdr:
-            hdr.insert(hdr.index("agree") if "agree" in hdr else len(hdr), col)
+            hdr.append(col)
 
     q7 = q7_fixtures()
     buckets: Counter[str] = Counter()
     out_rows: list[dict[str, str]] = []
-    confirmed: list[dict[str, str]] = []
-    discarded_drop: list[dict[str, str]] = []
-    q7_mut: list[dict[str, str]] = []
 
     for row in rows:
-        bucket, ob, sf, sq, reason = triage_row(row, q7)
-        row["hand_verdict"] = bucket
-        row["verdict_reason"] = reason
-        row["obligation_line"] = ob
-        row["spec_file"] = sf
-        row["spec_quote"] = sq
-        buckets[bucket] += 1
-        out_rows.append(row)
-        if bucket == "confirmed-invalid":
-            confirmed.append(row)
-        if row["mutation_kind"] == "drop_requires" and bucket == "discarded-valid":
-            discarded_drop.append(row)
-        if bucket == "known-gap-q7-mut":
-            q7_mut.append(row)
+        triaged = triage_row(row, q7)
+        buckets[triaged["hand_verdict"]] += 1
+        out_rows.append(triaged)
 
     with TSV.open("w", encoding="utf-8") as f:
         f.write("\t".join(hdr) + "\n")
@@ -375,73 +361,80 @@ def main() -> None:
             f.write("\t".join(row.get(h, "") for h in hdr) + "\n")
 
     total = len(rows)
-    assert sum(buckets.values()) == total, buckets
+    assert sum(buckets.values()) == total, (dict(buckets), total)
 
-    prior_mutant_note = (
-        "Earlier `shard-1_mutate_run.py` logged ~970 multi-kind mutants (up to 9 per fixture); "
-        "this rerun records **one prioritized mutation per fixture** (or `none`), so the TSV row "
-        f"count targets **{FIXTURE_TOTAL}** = shard fixture count, not the prior multi-mutant total."
-    )
+    confirmed = [r for r in out_rows if r["hand_verdict"] == "confirmed-hole"]
+    discarded = [r for r in out_rows if r["hand_verdict"] == "discarded-valid"]
+    q7_mut = [r for r in out_rows if r["hand_verdict"] == "known-gap-q7-mut"]
 
     bucket_lines = [
         f"# Soundness mutations — shard {SHARD}/8",
         "",
-        f"PIN: `{PIN}` (`origin/main` at launch).",
+        f"PIN: `{PIN}`. Triage follows **soundness_fix3** (either-checker holes; validity from reading mutant).",
         "",
-        "## Mutant total accounting",
+        "## Coverage",
         "",
-        f"- Shard fixtures (`i % 8 == {SHARD}`): **{FIXTURE_TOTAL}**",
-        f"- TSV rows (this run): **{total}** (in progress until run finishes)",
-        f"- {prior_mutant_note}",
+        f"- Fixtures in shard: **{FIXTURE_TOTAL}**",
+        f"- TSV rows (mutant attempts): **{total}**",
+        f"- Mutants per fixture: **1** prioritized kind (or `none` row)",
         "",
-        "## Bucket totals (each row exactly one bucket; sum = TSV rows)",
+        "## Bucket totals (sum = mutant rows)",
         "",
         "| Bucket | Count |",
         "| --- | ---: |",
     ]
+    for name in BUCKETS:
+        if buckets[name]:
+            bucket_lines.append(f"| `{name}` | {buckets[name]} |")
     for name in sorted(buckets.keys()):
-        bucket_lines.append(f"| `{name}` | {buckets[name]} |")
+        if name not in BUCKETS:
+            bucket_lines.append(f"| `{name}` (legacy) | {buckets[name]} |")
     bucket_lines.append(f"| **Total** | **{total}** |")
-    bucket_lines += [
-        "",
-        "### Confirmed-invalid by mutation kind",
-        "",
-    ]
+
+    bucket_lines += ["", "### Confirmed-hole by mutation kind", ""]
     for k, v in sorted(Counter(r["mutation_kind"] for r in confirmed).items()):
         bucket_lines.append(f"- `{k}`: {v}")
 
+    bucket_lines += ["", "### Confirmed-hole by accepted_by", ""]
+    for k, v in sorted(Counter(r["accepted_by"] for r in confirmed).items()):
+        bucket_lines.append(f"- `{k}`: {v}")
+
+    q7_in = sum(1 for r in q7_mut if r.get("q7_listed") == "yes")
+    q7_out = sum(1 for r in q7_mut if r.get("q7_listed") == "no")
     bucket_lines += [
+        "",
+        "## `known-gap-q7-mut` vs PR #2638",
+        "",
+        f"- Listed in PR #2638 Q7 audit: **{q7_in}**",
+        f"- Not in list (still same-binding write/`&mut`/`&write`): **{q7_out}**",
         "",
         "## Commands",
         "```bash",
-        f"cd {REPO}",
-        "CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=$PWD/target mbx build -p omega -p compiler --example route_one_comparison",
-        "OMEGA_LIBRARY_ROOT=$PWD/source/library timeout 120 ./target/debug/omega --check <mutant>/main.omg",
-        "timeout 120 ./target/debug/examples/route_one_comparison <mutant>/main.omg",
         "python3 .agents/four-jobs-2026-11-12/soundness/run_shard1.py",
         "python3 .agents/four-jobs-2026-11-12/soundness/postprocess_shard1.py",
         "```",
         "",
     ]
 
-    write_hand_block("Hand verification — confirmed-invalid (5)", confirmed, bucket_lines)
-    write_hand_block("Hand verification — discarded-valid `drop_requires` (5)", discarded_drop, bucket_lines)
-    write_hand_block("Hand verification — `known-gap-q7-mut` (5)", q7_mut, bucket_lines)
+    disc_drop = [r for r in discarded if r.get("mutation_kind") == "drop_requires"]
+    write_hand_block("Hand verification — confirmed-hole (5)", confirmed, bucket_lines)
+    write_hand_block("Hand verification — discarded-valid (5)", discarded[:5] or discarded, bucket_lines)
+    write_hand_block("Hand verification — discarded-valid drop_requires (5)", disc_drop, bucket_lines)
+    write_hand_block("Hand verification — known-gap-q7-mut (5)", q7_mut, bucket_lines)
 
-    bucket_lines += ["## Confirmed-invalid holes (current checker accepts)", ""]
-    if not confirmed:
-        bucket_lines.append("_None after triage (shard may still be running)._")
-    else:
-        for row in confirmed:
-            bucket_lines += [
-                f"### `{row['mutation_kind']}` — `{row['fixture']}`",
-                f"- Mutant: `{row['mutant_path']}`",
-                f"- Current: **{row['current_verdict']}**; route: **{row['route_verdict']}**",
-                f"- Route reason: {row.get('route_reason', '')[:280]}",
-                f"- Obligation: `{row['obligation_line']}`",
-                f"- Spec ({row['spec_file']}): > {row['spec_quote']}",
-                "",
-            ]
+    bucket_lines += ["## Confirmed-hole entries", ""]
+    for row in confirmed:
+        bucket_lines += [
+            f"### `{row['mutation_kind']}` — `{row['fixture']}`",
+            f"- accepted_by: **{row['accepted_by']}**",
+            f"- Mutant: `{row['mutant_path']}`",
+            f"- Current: **{row['current_verdict']}**; route: **{row['route_verdict']}**",
+            f"- Validity: {row['validity_note']}",
+            f"- Route hint: {row.get('route_reason', '')[:200]}",
+            f"- Obligation: `{row['obligation_line']}`",
+            f"- Spec: > {row['spec_quote']}",
+            "",
+        ]
 
     MD.write_text("\n".join(bucket_lines) + "\n", encoding="utf-8")
     (OUT / f"shard-{SHARD}-buckets.json").write_text(json.dumps(dict(buckets), indent=2) + "\n")
