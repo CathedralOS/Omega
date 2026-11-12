@@ -24,8 +24,6 @@ use crate::canonical::{self, Repeated};
 use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
 use source::SourceSpan;
 
-type SymbolSet = std::collections::HashSet<SymbolHandle, symbols::BuildSymbolHasher>;
-
 impl<'t> Program<'t> {
     /// A helper with no written input requirement can use what every caller
     /// guarantees. A written `requires true` must still support every input.
@@ -85,18 +83,22 @@ impl<'t> Program<'t> {
         if private.is_empty() {
             return Ok(private);
         }
-        let mut targets = SymbolSet::default();
+        let mut targets = Vec::with_capacity(private.len() * 2);
         for id in &private {
             let symbol = *terminal_check_tables::row(&self.symbols, *id, *id, Construct::Machine)?;
-            targets.insert(symbol);
+            targets.push(symbol);
             let (_, state) = self.declaration(*id, symbol)?;
-            targets.insert(state.symbol);
+            targets.push(state.symbol);
         }
-        let mut outside = OutsideInputUses {
-            lowered: self.symbols.values().copied().collect(),
-            targets,
-            referenced: SymbolSet::default(),
-        };
+        let uses =
+            InputSymbolUses::new(self.symbols.values().copied(), targets).ok_or_else(|| {
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Machine("private input use with an invalid symbol"),
+                )
+            })?;
+        let mut outside = OutsideInputUses { uses };
         typed_trees::references::visit_program(self.typed, &mut outside);
         private.retain(|id| {
             let symbol = *self.symbols.get(*id).expect("candidate was read above");
@@ -104,7 +106,9 @@ impl<'t> Program<'t> {
                 .declaration(*id, symbol)
                 .expect("candidate declaration was checked")
                 .1;
-            !outside.referenced.contains(&symbol) && !outside.referenced.contains(&state.symbol)
+            [symbol, state.symbol]
+                .iter()
+                .all(|symbol| outside.uses.get(*symbol).is_some_and(|row| !row.outside))
         });
         Ok(private)
     }
@@ -1225,24 +1229,131 @@ impl<'t> Program<'t> {
 /// References outside the machines whose complete bodies the route read.
 /// Text and source locations do not decide whether an entry can be invoked.
 struct OutsideInputUses {
-    lowered: SymbolSet,
-    targets: SymbolSet,
-    referenced: SymbolSet,
+    uses: InputSymbolUses,
 }
 
 impl Extend<SymbolHandle> for OutsideInputUses {
     fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
-        self.referenced.extend(
-            symbols
-                .into_iter()
-                .filter(|symbol| self.targets.contains(symbol)),
-        );
+        for symbol in symbols {
+            if let Some(row) = self.uses.get_mut(symbol)
+                && row.target
+            {
+                row.outside = true;
+            }
+        }
     }
 }
 
 impl typed_trees::references::TypedReferences for OutsideInputUses {
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
-        !self.lowered.contains(&symbol)
+        !self.uses.get(symbol).is_some_and(|row| row.lowered)
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+struct InputSymbolUse {
+    lowered: bool,
+    target: bool,
+    outside: bool,
+}
+
+/// Slots are dense within an arena page. Keep each generation separate so
+/// equal slot numbers in independently loaded symbol pages never alias.
+struct InputSymbolUses {
+    pages: Vec<(u32, Vec<InputSymbolUse>)>,
+}
+
+impl InputSymbolUses {
+    fn new(
+        lowered: impl IntoIterator<Item = SymbolHandle>,
+        targets: impl IntoIterator<Item = SymbolHandle>,
+    ) -> Option<Self> {
+        let mut symbols: Vec<_> = lowered
+            .into_iter()
+            .map(|symbol| {
+                (
+                    symbol,
+                    InputSymbolUse {
+                        lowered: true,
+                        ..InputSymbolUse::default()
+                    },
+                )
+            })
+            .chain(targets.into_iter().map(|symbol| {
+                (
+                    symbol,
+                    InputSymbolUse {
+                        target: true,
+                        ..InputSymbolUse::default()
+                    },
+                )
+            }))
+            .collect();
+        symbols.sort_unstable_by_key(|(symbol, _)| (symbol.generation(), symbol.arena_index()));
+        let mut pages: Vec<(u32, Vec<InputSymbolUse>)> = Vec::new();
+        for (symbol, roles) in symbols {
+            if !symbol.is_valid() {
+                return None;
+            }
+            if pages
+                .last()
+                .is_none_or(|(generation, _)| *generation != symbol.generation())
+            {
+                pages.push((symbol.generation(), Vec::new()));
+            }
+            let slots = &mut pages.last_mut()?.1;
+            let index = symbol.arena_index() as usize;
+            if slots.len() <= index {
+                slots.resize(index + 1, InputSymbolUse::default());
+            }
+            slots[index].lowered |= roles.lowered;
+            slots[index].target |= roles.target;
+        }
+        Some(Self { pages })
+    }
+
+    fn get(&self, symbol: SymbolHandle) -> Option<&InputSymbolUse> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        let page = self
+            .pages
+            .binary_search_by_key(&symbol.generation(), |(generation, _)| *generation)
+            .ok()?;
+        self.pages[page].1.get(symbol.arena_index() as usize)
+    }
+
+    fn get_mut(&mut self, symbol: SymbolHandle) -> Option<&mut InputSymbolUse> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        let page = self
+            .pages
+            .binary_search_by_key(&symbol.generation(), |(generation, _)| *generation)
+            .ok()?;
+        self.pages[page].1.get_mut(symbol.arena_index() as usize)
+    }
+}
+
+#[cfg(test)]
+mod input_symbol_uses {
+    use super::*;
+    use typed_trees::references::TypedReferences;
+
+    #[test]
+    fn a_foreign_page_with_the_same_slot_cannot_hide_an_outside_caller() {
+        let helper = SymbolHandle::from_parts(1, 7);
+        let foreign_caller = SymbolHandle::from_parts(1, 8);
+        let mut outside = OutsideInputUses {
+            uses: InputSymbolUses::new([helper], [helper]).unwrap(),
+        };
+        assert!(!outside.declaration(helper));
+        assert!(outside.declaration(foreign_caller));
+        outside.extend([foreign_caller]);
+        assert!(!outside.uses.get(helper).unwrap().outside);
+        // Visiting that foreign declaration reveals its call of the helper.
+        outside.extend([helper]);
+        assert!(outside.uses.get(helper).unwrap().outside);
     }
 }
 
