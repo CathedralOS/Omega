@@ -1,0 +1,3 @@
+inferred callable parameter `Selected`
+different nominal requirement types
+one parameter carries one nominal route

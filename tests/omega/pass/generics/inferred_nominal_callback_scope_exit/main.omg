@@ -1,0 +1,32 @@
+// Expected exit: 0
+// A typed use supplies the exact substituted nominal callback type through lexical forwarding.
+public trait Step<Value> {
+    machine apply(value: Value) -> Value;
+}
+
+public machine forward<Value, const Selected: machine>(value: Value) -> Value {
+    nested(value)
+    machine nested(value: Value) -> Value {
+        relay<Value, Selected>(value)
+    }
+}
+
+public machine relay<Element, const Renamed: machine>(value: Element) -> Element {
+    origin<Element, Renamed>(value)
+}
+
+public machine origin<Item, const Callback: Step<Item>::apply>(value: Item) -> Item {
+    Callback(value)
+}
+
+public machine identity(value: u32) -> u32 satisfies Step<u32>::apply { value }
+
+machine main() crashes Trap {
+    let answer: u32 = forward<u32, identity>(43u32);
+    transition answer == 43u32 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

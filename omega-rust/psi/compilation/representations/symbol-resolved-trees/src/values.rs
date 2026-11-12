@@ -418,6 +418,7 @@ pub mod expression {
                 SymbolCopy {
                     program: self,
                     substitutions,
+                    type_arguments: &[],
                     types: Vec::new(),
                     visited_payloads: Vec::new(),
                 }
@@ -432,16 +433,46 @@ pub mod expression {
                 SymbolCopy {
                     program: self,
                     substitutions,
+                    type_arguments: &[],
                     types: Vec::new(),
                     visited_payloads: Vec::new(),
                 }
                 .proof_fact(source)
+            }
+
+            /// Copy a selected declaration's type operands into an application.
+            /// Exact binder identities select replacements; retained source names
+            /// continue to identify the declarations which supplied the type.
+            pub fn copy_type_arguments(
+                &mut self,
+                source: HandleSpan<TypeReference>,
+                type_arguments: &[(SymbolHandle, TypeReference)],
+            ) -> HandleSpan<TypeReference> {
+                let substitutions = type_arguments
+                    .iter()
+                    .filter_map(|(formal, actual)| {
+                        if let TypeReference::Named { symbol, .. } = actual {
+                            Some((*formal, *symbol))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                SymbolCopy {
+                    program: self,
+                    substitutions: &substitutions,
+                    type_arguments,
+                    types: Vec::new(),
+                    visited_payloads: Vec::new(),
+                }
+                .type_span(source)
             }
         }
 
         struct SymbolCopy<'program, 'substitutions> {
             program: &'program mut SymbolResolvedTrees,
             substitutions: &'substitutions [(SymbolHandle, SymbolHandle)],
+            type_arguments: &'substitutions [(SymbolHandle, TypeReference)],
             types: Vec<(Handle<TypeReference>, Handle<TypeReference>)>,
             visited_payloads: Vec<ExpressionHandle>,
         }
@@ -789,6 +820,14 @@ pub mod expression {
             }
 
             fn type_payload(&mut self, mut reference: TypeReference) -> TypeReference {
+                if let TypeReference::Named { symbol, .. } = &reference
+                    && let Some((_, actual)) = self
+                        .type_arguments
+                        .iter()
+                        .find(|(formal, _)| formal == symbol)
+                {
+                    return actual.clone();
+                }
                 match &mut reference {
                     TypeReference::Reference(borrow) => {
                         borrow.referee = self.type_reference(borrow.referee)

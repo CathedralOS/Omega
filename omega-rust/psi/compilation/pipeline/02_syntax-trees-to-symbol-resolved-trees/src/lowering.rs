@@ -327,6 +327,12 @@ pub(crate) mod data {
                     ))
                 })?;
                     match contract {
+                    syntax::item::MachineParameterContract::Inferred => (
+                        TypeParameterKind::Machine {
+                            contract: symbol_resolved_trees::data::MachineParameterContract::Inferred,
+                        },
+                        None,
+                    ),
                     syntax::item::MachineParameterContract::RequirementIdentity => (
                         TypeParameterKind::Machine {
                             contract: symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity,

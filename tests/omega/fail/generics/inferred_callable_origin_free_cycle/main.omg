@@ -1,0 +1,11 @@
+// A bare call and a forwarding cycle cannot invent a callback's originating type.
+public machine first<const Callback: machine>(value: u32) -> u32 {
+    second<Callback>(value)
+}
+
+public machine second<const Renamed: machine>(value: u32) -> u32 {
+    let ignored: u32 = Renamed(value);
+    first<Renamed>(value)
+}
+
+machine main() {}

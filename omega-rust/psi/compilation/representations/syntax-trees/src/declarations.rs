@@ -243,6 +243,8 @@ pub mod item {
 
         #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
         pub enum MachineParameterContract {
+            /// An authored `const F: machine`; exact typed uses must supply its type.
+            Inferred,
             RequirementIdentity,
             Structural(StateSignature),
             Nominal {

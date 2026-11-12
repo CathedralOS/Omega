@@ -3099,6 +3099,9 @@ pub(crate) mod evidence_forwardings {
         }
     }
 }
+#[path = "selection_callable_inference.rs"]
+pub(crate) mod callable_inference;
+
 pub(crate) mod machine_parameter_requirements {
     /*
         Nominal machine-parameter requirements and trait requirement-identity

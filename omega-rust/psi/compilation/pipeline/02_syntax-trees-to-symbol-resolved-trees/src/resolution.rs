@@ -47,6 +47,53 @@ mod body_completion {
     use syntax_trees::types::TypeReferenceHandle;
 
     /*
+        An inferred callable type makes its defining uses declaration inputs.
+        Demand those existing bodies (and their lexical children) through the
+        ordinary completion owner; selection itself grants no checking evidence.
+    */
+    pub(super) fn complete_callable_type_dependencies(
+        lowerer: &mut Lowerer,
+        syntax: &SyntaxTrees,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let program = &lowerer.symbol_resolved_trees;
+        let mut demanded = Vec::with_capacity(program.machines.len());
+        // Lowering stores lexical parents before their nested declarations.
+        for machine in program.machines.iter() {
+            let inherited = machine.lexical_parent.is_valid()
+                && demanded
+                    .get(machine.lexical_parent.arena_index() as usize)
+                    .copied()
+                    .unwrap_or(false);
+            demanded.push(
+                inherited
+                    || program
+                        .machine_type_parameters(machine)
+                        .iter()
+                        .any(crate::selection::callable_inference::pending),
+            );
+        }
+        let pending = lowerer
+            .pending_machine_bodies
+            .iter()
+            .filter(|body| demanded[body.machine_ordinal])
+            .cloned()
+            .collect::<Vec<_>>();
+        if pending.is_empty() {
+            return Ok(());
+        }
+        let mut completed = Vec::with_capacity(pending.len());
+        for body in &pending {
+            complete_machine_body(lowerer, syntax, body).map_err(|error| vec![error])?;
+            completed.push(lowerer.symbol_resolved_trees.machines[body.machine_ordinal].symbol);
+        }
+        crate::symbols::assign_body_symbols(lowerer, &completed)?;
+        lowerer
+            .pending_machine_bodies
+            .retain(|body| !demanded.get(body.machine_ordinal).copied().unwrap_or(false));
+        Ok(())
+    }
+
+    /*
         Receipt replay needs the original helper closure before a resolved frontier
         can publish. Complete that demand on its current owner: constructing a
         frontier first would replay receipts against Deferred implementations. This
@@ -2601,7 +2648,8 @@ fn finish_resolution(
             .append_completed_body_tables(&predecessor, &completed_machines),
         None => lowerer.symbol_resolved_trees.rebuild_tables(),
     }
-    finish_resolved_tables(lowerer, inputs, &machines)
+    finish_resolved_tables(lowerer, inputs, &machines)?;
+    selection::callable_inference::infer(&mut lowerer.symbol_resolved_trees)
 }
 
 /*
@@ -2609,6 +2657,7 @@ fn finish_resolution(
     table normalization and append-only authored implementation completion.
 */
 fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
+    body_completion::complete_callable_type_dependencies(lowerer, syntax)?;
     constant::finalize_const_declarations(
         syntax,
         &mut lowerer.symbol_resolved_trees,

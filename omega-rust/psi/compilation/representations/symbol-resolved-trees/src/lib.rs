@@ -718,7 +718,8 @@ impl SymbolResolvedTrees {
         contract: &'program data::MachineParameterContract,
     ) -> Option<data::MachineParameterContractView<'program>> {
         match contract {
-            data::MachineParameterContract::RequirementIdentity => None,
+            data::MachineParameterContract::Inferred
+            | data::MachineParameterContract::RequirementIdentity => None,
             data::MachineParameterContract::Structural(signature) => {
                 Some(data::MachineParameterContractView::Structural(signature))
             }

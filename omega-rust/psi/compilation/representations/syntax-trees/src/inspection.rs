@@ -1649,6 +1649,9 @@ pub mod snapshot {
                         None,
                     ),
                     TypeParameterKind::Machine { contract } => match contract {
+                        Some(MachineParameterContract::Inferred) => {
+                            ("inferred_machine", None, None, None, None)
+                        }
                         Some(MachineParameterContract::RequirementIdentity) => {
                             ("machine_requirement", None, None, None, None)
                         }
