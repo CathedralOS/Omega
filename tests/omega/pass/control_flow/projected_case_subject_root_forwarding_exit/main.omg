@@ -99,7 +99,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         ],
         count: 5,
     };
-    let tally: Tally = Tally { accepted: true, total: 0 };
+    let mut tally: Tally = Tally { accepted: true, total: 0 };
     Tally::walk(&mut tally, &table);
     let data_weight: u64 in Trapping = weight_or(ItemKind::Data, 9, 1);
     let use_weight: u64 in Trapping = weight_or(ItemKind::Use, 9, 1);

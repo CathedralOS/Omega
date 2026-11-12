@@ -70,7 +70,7 @@ terminates by items
     }
 
     machine step(head: T, tail: Seq<T>) -> Seq<T> {
-        let current: T = head;
+        let mut current: T = head;
         let keep: bool = Touch(&mut current);
         transition { _ -> choose(keep, current, filter_touch<Touch>(tail)) }
     }

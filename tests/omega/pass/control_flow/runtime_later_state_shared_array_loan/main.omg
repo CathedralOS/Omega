@@ -5,7 +5,7 @@ data Tally { total: u64; }
 machine Workshop::main() crashes Trap {
     transition { _ -> prepare() }
     machine prepare() {
-        let tally: Tally;
+        let mut tally: Tally;
         let cells: [u8; 16];
         transition { _ -> fill(&mut tally, &cells) }
     }

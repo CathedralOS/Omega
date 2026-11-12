@@ -22,7 +22,7 @@ machine exercise<'left, 'right>(
     left: &'left mut i32,
     right: &'right mut i32
 ) {
-    let held: Outer<'left, 'right> = Outer { pair: pair(left, right) };
+    let mut held: Outer<'left, 'right> = Outer { pair: pair(left, right) };
     right = 1;
     held.pair.right = 2;
 }

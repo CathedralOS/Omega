@@ -36,7 +36,7 @@ ensures result in Owned,
     result.base == whole.base, result.length == whole.length,
     core::Identity<IntervalSet<Nat>>(Owned::content(old(&whole)), Owned::content(&result))
 {
-    let parts: Parts = (Holder { parts: partition(whole, requested) }).parts;
+    let mut parts: Parts = (Holder { parts: partition(whole, requested) }).parts;
     parts.left.base = 11;
     parts.left.base = 10;
     let left: Region in Owned = parts.left;

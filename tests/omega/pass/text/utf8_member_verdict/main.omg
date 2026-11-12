@@ -31,7 +31,7 @@ machine Main::main(main: &mut Main) {
     main.buffer[5] = 226;
     main.buffer[6] = 130;
     main.buffer[7] = 172;
-    let decoded: LabelSample;
+    let mut decoded: LabelSample;
     decoded.count = 0;
     decoded.label = "";
     LabelMessage::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
@@ -46,7 +46,7 @@ machine Main::main(main: &mut Main) {
         main.buffer[7] = 128;
         main.read = 0;
         main.verdict = WireVerdict::Sound;
-        let second: LabelSample;
+        let mut second: LabelSample;
         second.count = 0;
         second.label = "";
         LabelMessage::decode(&mut second, &main.buffer, &mut main.read, &mut main.verdict);

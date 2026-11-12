@@ -29,7 +29,7 @@ machine fill(packet: &mut Packet) {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let packet: Packet = Packet {
+    let mut packet: Packet = Packet {
         samples: Samples { items: [0, 0, 0, 0], length: 0 },
         depth: 0
     };

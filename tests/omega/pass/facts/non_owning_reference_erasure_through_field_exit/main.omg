@@ -7,7 +7,7 @@ machine issue(value: u32) -> Storage in Issued { Storage { left_canary: 17, valu
 machine reissue(value: u32) -> Storage in Reissued { Storage { left_canary: 17, value: value, right_canary: 23 } }
 data Envelope { view: &write Storage; }
 machine write(storage: &write Storage in Issued) {
-    let envelope: Envelope = Envelope { view: storage as &write Storage };
+    let mut envelope: Envelope = Envelope { view: storage as &write Storage };
     envelope.view.value = 73;
 }
 machine main() crashes Trap {

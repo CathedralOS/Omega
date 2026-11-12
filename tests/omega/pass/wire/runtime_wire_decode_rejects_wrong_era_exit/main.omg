@@ -46,7 +46,7 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     let buffer: [u8; 8] = [5, 0, 0, 0, 0, 0, 0, 0];
 
-    let decoded: CounterSample = CounterSample {
+    let mut decoded: CounterSample = CounterSample {
         counter: 0,
         delta: 0,
         flag: false

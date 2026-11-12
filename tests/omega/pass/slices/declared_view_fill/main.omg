@@ -11,6 +11,6 @@ data Main {
 }
 machine Main::main(main: &mut Main) {
     main.source.label = "Gate";
-    let room: Room;
+    let mut room: Room;
     room.label = main.source.label;
 }

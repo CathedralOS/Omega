@@ -40,9 +40,9 @@ machine forward(value: &mut u8) -> &mut u8 { value }
 machine inspect_scalar(value: ScalarBorrow) {}
 
 // Owned local contents are borrowable; replacing their binding is separate.
-machine owned_local_direct() { let value: u8 = 0; inspect_reference(&mut value); }
-machine owned_local_record() { let value: u8 = 0; inspect_scalar(ScalarBorrow { value: &mut value }); }
+machine owned_local_direct() { let mut value: u8 = 0; inspect_reference(&mut value); }
+machine owned_local_record() { let mut value: u8 = 0; inspect_scalar(ScalarBorrow { value: &mut value }); }
 data ScalarChoice { case Lent(value: &mut u8); }
-machine owned_local_case() { let value: u8 = 0; inspect_scalar_choice(ScalarChoice::Lent { value: &mut value }); }
+machine owned_local_case() { let mut value: u8 = 0; inspect_scalar_choice(ScalarChoice::Lent { value: &mut value }); }
 machine inspect_reference(value: &mut u8) {}
 machine inspect_scalar_choice(value: ScalarChoice) {}

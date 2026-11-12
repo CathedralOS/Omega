@@ -6,7 +6,7 @@ data Point { x: i32; y: i32; }
 data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let point: Point;
+    let mut point: Point;
     point.x = 7;
     point.y = 12;
     transition point.x == 7 && point.y == 12 {

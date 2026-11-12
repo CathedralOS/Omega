@@ -3,7 +3,7 @@
 data Text { bytes: [u8; 3]; }
 domain Text::Ascii requires ascii_only(self.bytes);
 machine main() {
-    let text: Text = Text { bytes: "go!" };
+    let mut text: Text = Text { bytes: "go!" };
     transition { _ -> repeat(&mut text) }
     machine repeat(text: &mut Text) {
         let invalid: Text in Ascii = Text { bytes: text.bytes };

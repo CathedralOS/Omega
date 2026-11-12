@@ -6,6 +6,6 @@ machine corrupt(instant: &mut Instant) -> Instant {
 }
 
 machine main() {
-    let instant: Instant = Instant { seconds: 0, subsecond_nanoseconds: 0 };
+    let mut instant: Instant = Instant { seconds: 0, subsecond_nanoseconds: 0 };
     let copied: Instant = corrupt(&mut instant);
 }
