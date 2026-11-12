@@ -15,7 +15,6 @@ storage cannot become callee identities. A written boundary stops caller
 inference, while its own declared facts can justify calls within its body.
 */
 
-use proof_admission::check_value_equality_denotation;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IdTable, InvocationSite, MachineId, PlaceId, Proposition,
     ScalarTerm, ScalarType, StructuralCaseId, ValueId,
@@ -104,6 +103,43 @@ fn describe_calls(
         id,
         &mut tables,
         knowledge,
+    )?;
+    let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
+    let declared = joins::prepare(
+        lowered,
+        id,
+        &mut tables,
+        &prepared.graph,
+        &prepared.context,
+        &elaboration.module.scalar_block_invariants,
+        knowledge == Knowledge::All,
+    )?;
+    let storage = crate::places::Storage::new(
+        id,
+        lowered,
+        &elaboration.module.structural_types,
+        &elaboration.domains,
+        &prepared.graph,
+        &tables,
+        &prepared.types,
+    )?;
+    let mut decided = (0..tables.obligations.len())
+        .map(|_| None)
+        .collect::<Vec<_>>();
+    joins::check(
+        &joins::Machine {
+            machines: &elaboration.module.machines,
+            lowered,
+            storage: &storage,
+            id,
+            types: &prepared.types,
+            graph: &prepared.graph,
+            context: &prepared.context,
+            relations: knowledge != Knowledge::LiteralIntervals,
+            declared: &declared,
+        },
+        &mut tables,
+        &mut decided,
     )?;
     for &index in outgoing {
         let site = &sites.arrivals[index];
@@ -310,21 +346,26 @@ fn describe(
                 id,
                 Construct::Machine,
             )?;
-            available.push((row.justification, proposition));
+            flatten(row.justification, proposition, &mut available);
         }
     }
-    // Use the same literal/Boolean definitions as join inference. Numeric
-    // operation results keep their own identities, rather than becoming
-    // invented equations about the callee's inputs.
-    let equations: Vec<&Proposition> = available
+    // Use the same equality transport as proof search. In particular, a taken
+    // result such as `(condition == true) == true` establishes `condition`'s
+    // literal value before caller-only Boolean identities are projected away.
+    let mut assumptions = Vec::new();
+    let mut axioms = Vec::new();
+    for (why, proposition) in &available {
+        if matches!(why, Justification::OperationSemantics(_)) {
+            axioms.push((*proposition).clone());
+        } else {
+            assumptions.push((*proposition).clone());
+        }
+    }
+    let known = crate::known::Known::new(context, &assumptions, &axioms, &tables.values);
+    let equations: Vec<_> = known
+        .equations
         .iter()
-        .filter_map(|(why, proposition)| {
-            (matches!(why, Justification::OperationSemantics(_)) && matches!(proposition,
-            Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition)
-                if subject.scalar_type() == ScalarType::Boolean
-                    || matches!(definition, ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_))
-        )).then_some(*proposition)
-        })
+        .map(|(proposition, _)| proposition)
         .collect();
     let definitions: Vec<_> = equations
         .iter()
@@ -352,18 +393,30 @@ fn describe(
             parts.push(equality);
         }
     }
-    for (why, proposition) in available {
-        if matches!(why, Justification::OperationSemantics(_)) {
-            continue;
-        }
-        let denotation =
-            check_value_equality_denotation(context, proposition, equations.iter().copied())
-                .unwrap_or_else(|_| proposition.clone());
-        if let Ok(stated) = substitute(&denotation, &mut bindings) {
-            parts.push(stated);
-        }
+    for fact in known.facts.iter().filter(|fact| fact.axiom.is_none()) {
+        let proposition = &fact.proposition;
+        // The shared closure retains both the original and normalized facts.
+        // Projection can weaken the former; the latter still carries every
+        // relation established before crossing the input boundary.
+        parts.push(joins::project(proposition, &mut |atom| {
+            substitute(atom, &mut bindings).ok()
+        }));
     }
     Ok(joins::connective(parts, true))
+}
+
+fn flatten<'a>(
+    why: Justification,
+    proposition: &'a Proposition,
+    available: &mut Vec<(Justification, &'a Proposition)>,
+) {
+    if let Proposition::Conjunction(parts) = proposition {
+        for part in parts {
+            flatten(why, part, available);
+        }
+    } else {
+        available.push((why, proposition));
+    }
 }
 
 struct InputBindings<'a> {
