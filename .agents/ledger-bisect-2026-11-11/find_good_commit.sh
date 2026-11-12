@@ -1,8 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 WITNESS="${1:?witness}"
-ROOT="${BISECT_REPO_ROOT:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}"
-SCRIPT="$ROOT/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh"
+MAIN_REPO="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${BISECT_REPO_ROOT:-$MAIN_REPO}"
+SCRIPT="$MAIN_REPO/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh"
 cd "$ROOT"
 START="$(git rev-parse HEAD)"
 

@@ -3,19 +3,21 @@ set -euo pipefail
 WITNESS="${1:?witness}"
 OUT_JSON="${2:?out.json}"
 PIN="${3:-51e8c45c793007f211d0d9baee7de16767172444}"
-ROOT="${BISECT_REPO_ROOT:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}"
-SCRIPT="$ROOT/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh"
-FIND_GOOD="$ROOT/.agents/ledger-bisect-2026-11-11/find_good_commit.sh"
+MAIN_REPO="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${BISECT_REPO_ROOT:-$MAIN_REPO}"
+SCRIPT="$MAIN_REPO/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh"
+FIND_GOOD="$MAIN_REPO/.agents/ledger-bisect-2026-11-11/find_good_commit.sh"
 cd "$ROOT"
 START_SHA="$(git rev-parse HEAD)"
 START_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
+export BISECT_REPO_ROOT="$ROOT"
 if ! GOOD="$(nice -n 19 "$FIND_GOOD" "$WITNESS")"; then
   python3 - "$OUT_JSON" "$WITNESS" <<'PY'
 import json, sys
 open(sys.argv[1], "w").write(json.dumps({
     "witness": sys.argv[2], "breaking_commit": "", "pr": None,
-    "mechanism": "no first-parent good commit found (witness still regressed at ledger stamp and 120 parents of 759c80404428)",
+    "mechanism": "no first-parent good commit found (witness still regressed at ledger stamp and 200 parents of 759c80404428)",
     "status": "propagated", "bisect_exit": 2, "stability": "unknown",
 }, indent=2))
 print("propagated no-good", sys.argv[2])
