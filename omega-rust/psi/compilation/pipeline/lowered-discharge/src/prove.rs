@@ -945,6 +945,17 @@ impl<'a> Prover<'a> {
                         ));
                     }
                 }
+                // `a / d <= a` when `0 <= a` and `0 < d`.
+                Proposition::Equal(output, expression @ ScalarTerm::ExactIntegerDivide { .. })
+                    if output == at =>
+                {
+                    if let Some(axiom) = axiom
+                        && let Some((dividend, at_most)) =
+                            self.quotient_at_most_dividend(axiom, output, expression)
+                    {
+                        steps.push((dividend, at_most, false));
+                    }
+                }
                 // `a % d < d` for an unsigned remainder when `0 < d`.
                 Proposition::Equal(
                     output,
@@ -1174,7 +1185,13 @@ impl<'a> Prover<'a> {
                 // A remainder by a divisor no literal fixes lies between
                 // zero and its dividend.
                 let within = self.remainder_within_dividend(axiom, subject, expression, direction);
-                [defined, below, within]
+                // A quotient of a nonnegative dividend by a positive divisor
+                // is at most the dividend, and so at most its upper bound.
+                let quotient = (direction == Direction::Upper)
+                    .then(|| self.quotient_at_most_dividend(axiom, subject, expression))
+                    .flatten()
+                    .and_then(|(dividend, relation)| self.through(relation, &dividend, direction));
+                [defined, below, within, quotient]
                     .into_iter()
                     .flatten()
                     .reduce(|best, next| {

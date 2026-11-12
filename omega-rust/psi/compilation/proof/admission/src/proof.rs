@@ -58,6 +58,9 @@ pub enum AcceptedProofRule {
     /// It is a row of its own because it is provisional
     /// (`AcceptedProofRule::is_provisional`).
     IntegerRemainderWithinDividend,
+    /// The `IntegerAffineBound` form that relates a quotient to its
+    /// dividend; provisional, like the row above.
+    IntegerQuotientAtMostDividend,
     IntegerExactAddDefinitionBound,
     IntegerExactSubtractDefinitionBound,
     IntegerCastBound,
@@ -487,6 +490,8 @@ pub(crate) mod integer_bound_rules {
             .map_err(ProofError::IntegerAffineWitness)?;
         let rule = if form.is_remainder_within_dividend() {
             AcceptedProofRule::IntegerRemainderWithinDividend
+        } else if form.is_quotient_at_most_dividend() {
+            AcceptedProofRule::IntegerQuotientAtMostDividend
         } else {
             AcceptedProofRule::IntegerAffineBound
         };
