@@ -1,0 +1,6 @@
+{
+  "cluster_id": "c3",
+  "witness": "pass/proofs/reviewed_mathematical_data_contract_exit",
+  "status": "propagated",
+  "reason": "no_good_on_first_parent"
+}
