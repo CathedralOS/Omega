@@ -1,0 +1,10 @@
+{
+  "witness": "pass/providers/specialized_mixed_structural_result_operator_hosted_native",
+  "breaking_commit": "2174c0d10bb146aea6a86f55262bc536feb86ea3",
+  "pr": "1313",
+  "mechanism": "compiler: choose product providers over terminal demand (#1313) — provider-selection/publication.rs, provider_settlement.rs, terminal_artifact.rs",
+  "status": "bisected",
+  "good_commit": "b01cf9ec5f501d77a48f6aac6ba951746747bfae",
+  "stability": "deterministic",
+  "method": "pin_frozen_ledger_v2"
+}
