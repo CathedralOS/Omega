@@ -7,28 +7,43 @@ ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 cd "$ROOT"
 SCRIPT="$ROOT/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh"
 export BISECT_WITNESS="$WITNESS"
-export OMEGA_CORPUS_JOBS=1 CARGO_BUILD_JOBS=4 MBX_SCHEDULER_CPUS=4
 chmod -R u+w "$ROOT/target" 2>/dev/null || true
 
-if ! GOOD=$(python3 "$ROOT/.agents/ledger-bisect-2026-11-11/find_good_commit.py" "$WITNESS" 2>"$ROOT/.agents/ledger-bisect-2026-11-11/find-good-${CLUSTER_ID}.log"); then
-  echo "cluster=$CLUSTER_ID witness=$WITNESS status=propagated reason=no_good_commit"
-  exit 0
-fi
+SPEC=$(.agents/ledger-bisect-2026-11-11/prepare_witness.sh "$WITNESS")
+export BISECT_SPEC="$SPEC"
+export BISECT_LEDGER=/tmp/ledger-bisect-pin-corpus_outcomes.txt
+export OMEGA_CORPUS_JOBS=1 CARGO_BUILD_JOBS=4 MBX_SCHEDULER_CPUS=4
 
 git checkout -f -q "$PIN"
 set +e
-nice -n 19 "$SCRIPT"; pin_ec=$?
-git checkout -f -q "$GOOD"
-nice -n 19 "$SCRIPT"; good_ec=$?
-git checkout -f -q "$PIN"
+nice -n 19 "$SCRIPT"
+pin_ec=$?
 set -e
-
-if [[ "$good_ec" -ne 0 ]]; then
-  echo "cluster=$CLUSTER_ID witness=$WITNESS good=$GOOD status=propagated reason=good_exit_${good_ec}"
-  exit 0
-fi
 if [[ "$pin_ec" -ne 1 ]]; then
   echo "cluster=$CLUSTER_ID witness=$WITNESS status=propagated reason=pin_exit_${pin_ec}"
+  exit 0
+fi
+
+GOOD=""
+rev="$PIN"
+: >"$ROOT/.agents/ledger-bisect-2026-11-11/find-good-${CLUSTER_ID}.log"
+for _ in $(seq 1 400); do
+  parent=$(git rev-parse -q "$rev^1" 2>/dev/null) || break
+  rev="$parent"
+  git checkout -f -q "$rev"
+  set +e
+  nice -n 19 "$SCRIPT"
+  ec=$?
+  set -e
+  echo "walk $rev exit=$ec $(git log -1 --oneline $rev)" >>"$ROOT/.agents/ledger-bisect-2026-11-11/find-good-${CLUSTER_ID}.log"
+  if [[ "$ec" -eq 0 ]]; then
+    GOOD="$rev"
+    break
+  fi
+done
+git checkout -f -q "$PIN"
+if [[ -z "$GOOD" ]]; then
+  echo "cluster=$CLUSTER_ID witness=$WITNESS status=propagated reason=no_good_on_first_parent"
   exit 0
 fi
 
@@ -42,18 +57,33 @@ BREAK=$(git rev-parse HEAD^{commit} 2>/dev/null || echo "")
 PR=$(git log -1 --format='%s' "$BREAK" 2>/dev/null | sed -n 's/.*#\([0-9][0-9]*\).*/\1/p' | head -1)
 git bisect reset
 git checkout -f -q "$PIN"
+
+if [[ -n "$BREAK" ]]; then
+  p=$(git rev-parse -q "$BREAK^1" 2>/dev/null || true)
+  if [[ -n "$p" ]]; then
+    mapfile -t touched < <(git diff --name-only "$p" "$BREAK" 2>/dev/null || true)
+    ledger_only=1
+    for f in "${touched[@]}"; do
+      [[ "$f" == tests/omega/corpus_outcomes.txt ]] && continue
+      case "$f" in *.md) continue ;; esac
+      ledger_only=0
+    done
+    if [[ "$ledger_only" -eq 1 && ${#touched[@]} -gt 0 ]]; then
+      echo "cluster=$CLUSTER_ID witness=$WITNESS good=$GOOD status=propagated reason=ledger_only_break_${BREAK:0:12}"
+      exit 0
+    fi
+  fi
+fi
+
 MECH=$(python3 - "$BREAK" <<'PY'
 import subprocess, sys
 brk = sys.argv[1]
-show = subprocess.run(["git", "show", "--no-renames", "--format=", brk], capture_output=True, text=True).stdout
-code = [l for l in show.splitlines() if l.startswith(("diff --git a/omega-rust", "diff --git a/source/"))]
+if not brk:
+    print(""); raise SystemExit
 subj = subprocess.check_output(["git", "log", "-1", "--format=%s", brk], text=True).strip()
-first = ""
-for l in code[:3]:
-    parts = l.split()
-    if len(parts) >= 4:
-        first += parts[3].replace("b/", "") + " "
-print(f"{subj}; touches {first}".strip()[:200])
+files = subprocess.check_output(["git", "show", "--no-renames", "--format=", "--name-only", brk], text=True).splitlines()
+code = [f for f in files if f.startswith(("omega-rust/", "source/"))][:4]
+print(f"{subj} ({', '.join(code)})"[:200])
 PY
 )
 echo "cluster=$CLUSTER_ID witness=$WITNESS good=$GOOD break=$BREAK pr=$PR rc=$RC mech=$MECH status=bisected"
