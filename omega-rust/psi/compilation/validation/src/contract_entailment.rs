@@ -16573,11 +16573,11 @@ pub(crate) mod inductive_judgment {
                 && machine_fully_visible
             {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` cannot prove ensures contract proof fact `{}`{}",
-                machine.name,
-                program.expression_table.display_name(*fact),
-                arm_clause(guard)
-            )));
+                    "machine `{}` cannot prove ensures contract proof fact `{}`{}",
+                    machine.name,
+                    program.expression_table.display_name(*fact),
+                    arm_clause(guard)
+                )));
             } else if unknown_arm.is_none() {
                 proven.push(*fact);
             }
