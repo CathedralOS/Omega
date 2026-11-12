@@ -9,4 +9,4 @@ WIT="$BASE/witnesses"
 mkdir -p "$WIT"
 git -C "$ROOT" show "$PIN:tests/omega/corpus_outcomes.txt" >"$BASE/corpus_outcomes.txt"
 export LEDGER_PIN_FILE="$BASE/corpus_outcomes.txt"
-python3 "$TOOL/prepare_witness_json.py" "$@"
+python3 "$TOOL/prepare_witness_json.py" /tmp/ledger-audit/part0_pin_observed.txt

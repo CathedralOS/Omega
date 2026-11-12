@@ -9,7 +9,11 @@ export BISECT_WITNESS="$WITNESS"
 export LEDGER_PIN_FILE=/tmp/ledger-bisect-pin/corpus_outcomes.txt
 
 witness_rc() {
-  "$TOOL/bisect_witness.sh"
+  set +e
+  "$TOOL/bisect_witness.sh" >/dev/null
+  local rc=$?
+  set -e
+  return "$rc"
 }
 
 is_ledger_only_commit() {
@@ -28,6 +32,7 @@ is_ledger_only_commit() {
 
 mechanism_for() {
   local sha=$1
+  [[ -n "$sha" ]] || { echo "unknown"; return; }
   if is_ledger_only_commit "$sha"; then
     echo "ledger-only commit; skipped"
     return
@@ -37,10 +42,13 @@ mechanism_for() {
 
 git checkout -q "$PIN"
 set +e
-witness_rc >/dev/null
+witness_rc
 pin_rc=$?
 set -e
-[[ "$pin_rc" -eq 1 ]] || { echo "{\"error\":\"PIN not bad under frozen baseline\",\"rc\":$pin_rc}"; exit 2; }
+[[ "$pin_rc" -eq 1 ]] || {
+  printf '{"witness":"%s","error":"PIN not bad under frozen baseline","rc":%s}\n' "$WITNESS" "$pin_rc"
+  exit 2
+}
 
 good=""
 dist=1
@@ -48,7 +56,8 @@ while [[ "$dist" -le 20000 ]]; do
   cand=$(git rev-parse --verify "${PIN}~${dist}" 2>/dev/null) || break
   git checkout -q "$cand"
   set +e
-  rc=$(witness_rc)
+  witness_rc
+  rc=$?
   set -e
   if [[ "$rc" -eq 0 ]]; then
     good="$cand"
@@ -56,20 +65,40 @@ while [[ "$dist" -le 20000 ]]; do
   fi
   dist=$((dist * 2))
 done
+if [[ -z "$good" ]]; then
+  cur="$PIN"
+  for _ in $(seq 1 1200); do
+    cur=$(git rev-parse --verify "${cur}^@" 2>/dev/null) || break
+    git checkout -q "$cur"
+    set +e
+    witness_rc
+    rc=$?
+    set -e
+    [[ "$rc" -eq 0 ]] && good="$cur" && break
+  done
+fi
 git checkout -q "$PIN"
-[[ -n "$good" ]] || { echo '{"error":"no good first-parent ancestor"}'; exit 3; }
+[[ -n "$good" ]] || {
+  printf '{"witness":"%s","error":"no good first-parent ancestor"}\n' "$WITNESS"
+  exit 3
+}
 
-# Stability at ends (deterministic vs flaky)
 flaky_good=0
 flaky_bad=0
 for _ in 1 2 3; do
   git checkout -q "$good"
-  set +e; witness_rc >/dev/null; r=$?; set -e
+  set +e
+  witness_rc
+  r=$?
+  set -e
   [[ "$r" -ne 0 ]] && flaky_good=1
 done
 for _ in 1 2 3; do
   git checkout -q "$PIN"
-  set +e; witness_rc >/dev/null; r=$?; set -e
+  set +e
+  witness_rc
+  r=$?
+  set -e
   [[ "$r" -ne 1 ]] && flaky_bad=1
 done
 git checkout -q "$PIN"
@@ -83,16 +112,15 @@ git bisect run "$TOOL/bisect_witness.sh" 2>&1 | tee /tmp/bisect_run.log
 bisect_rc=$?
 set -e
 first_bad=$(git bisect log | sed -n 's/^first bad commit: \[\([0-9a-f]*\)\].*/\1/p' | head -1)
-[[ -z "$first_bad" ]] && first_bad=$(rg -m1 'first bad commit: \[([0-9a-f]+)\]' -o -r '$1' /tmp/bisect_run.log || true)
-# Advance past ledger-only first bad if bisect landed there.
 if [[ -n "$first_bad" ]] && is_ledger_only_commit "$first_bad"; then
   walk="$first_bad"
-  for _ in $(seq 1 50); do
+  for _ in $(seq 1 80); do
     walk=$(git rev-parse --verify "${walk}^@" 2>/dev/null) || break
     if ! is_ledger_only_commit "$walk"; then
-      set +e
       git checkout -q "$walk"
-      rc=$(witness_rc)
+      set +e
+      witness_rc
+      rc=$?
       git checkout -q "$PIN"
       set -e
       [[ "$rc" -eq 1 ]] && first_bad="$walk" && break
@@ -101,9 +129,13 @@ if [[ -n "$first_bad" ]] && is_ledger_only_commit "$first_bad"; then
 fi
 git bisect reset "$PIN" >/dev/null
 
-subj=$(git log -1 --format=%s "$first_bad" 2>/dev/null || echo unknown)
-pr=$(echo "$subj" | sed -n 's/.*(#\([0-9][0-9]*\)).*/\1/p')
-mech=$(mechanism_for "$first_bad")
+if [[ -z "$first_bad" ]]; then
+  printf '{"witness":"%s","good":"%s","error":"bisect produced no first_bad","flaky_good":%s,"flaky_bad":%s,"bisect_rc":%s}\n' \
+    "$WITNESS" "$good" "$flaky_good" "$flaky_bad" "$bisect_rc"
+  exit 5
+fi
 
+mech=$(mechanism_for "$first_bad")
+pr=$(echo "$mech" | sed -n 's/.*(#\([0-9][0-9]*\)).*/\1/p')
 printf '{"witness":"%s","good":"%s","first_bad":"%s","pr":"%s","mechanism":"%s","flaky_good":%s,"flaky_bad":%s,"bisect_rc":%s}\n' \
   "$WITNESS" "$good" "$first_bad" "$pr" "$mech" "$flaky_good" "$flaky_bad" "$bisect_rc"
