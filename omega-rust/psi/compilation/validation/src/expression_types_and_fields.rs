@@ -4616,7 +4616,7 @@ pub mod expression_types {
                 program,
                 ExpressionOwner::State { machine, state },
                 expression,
-                &mut Vec::new(),
+                &mut ResultTypeWalk::default(),
             )
         }
 
@@ -4656,7 +4656,7 @@ pub mod expression_types {
                         place_type: &|_| None,
                     },
                     expression,
-                    &mut Vec::new(),
+                    &mut ResultTypeWalk::default(),
                 );
             }
             let telescope =
@@ -4685,7 +4685,7 @@ pub mod expression_types {
                         place_type: &place_type,
                     },
                     expression,
-                    &mut Vec::new(),
+                    &mut ResultTypeWalk::default(),
                 );
             };
             result_type(
@@ -4697,7 +4697,7 @@ pub mod expression_types {
                     telescope,
                 },
                 expression,
-                &mut Vec::new(),
+                &mut ResultTypeWalk::default(),
             )
         }
 
@@ -4784,7 +4784,7 @@ pub mod expression_types {
                     place_type,
                 },
                 expression,
-                &mut Vec::new(),
+                &mut ResultTypeWalk::default(),
             )
         }
 
@@ -4797,7 +4797,7 @@ pub mod expression_types {
                 program,
                 ExpressionOwner::Domain(domain),
                 expression,
-                &mut Vec::new(),
+                &mut ResultTypeWalk::default(),
             )
         }
 
@@ -4837,15 +4837,71 @@ pub mod expression_types {
             }
         }
 
+        /// The expressions that enclose the one a result-type walk is typing.
+        ///
+        /// Meeting an enclosing expression again is a cycle, and that visit
+        /// answers `None`. Such an answer is only true inside this walk, so a
+        /// result that met it must not be memoized for later walks. Every
+        /// other result, `None` included, is what a fresh walk from that
+        /// expression would compute. Memoizing those keeps typing a long
+        /// operator chain linear: before, each enclosing node retyped its
+        /// whole operand subtree because an untyped operand was never kept.
+        #[derive(Default)]
+        struct ResultTypeWalk {
+            enclosing: Vec<ExpressionHandle>,
+            /// The outermost frame a cycle reached since the current
+            /// expression was entered.
+            outermost_cut: Option<usize>,
+        }
+
+        /// What `ResultTypeWalk::enter` returns and `leave` consumes.
+        struct ResultTypeFrame {
+            depth: usize,
+            enclosing_cut: Option<usize>,
+        }
+
+        impl ResultTypeWalk {
+            fn cut_at_enclosing(&mut self, expression: ExpressionHandle) -> bool {
+                let Some(depth) = self.enclosing.iter().position(|open| *open == expression)
+                else {
+                    return false;
+                };
+                self.outermost_cut = Some(self.outermost_cut.map_or(depth, |cut| cut.min(depth)));
+                true
+            }
+
+            fn enter(&mut self, expression: ExpressionHandle) -> ResultTypeFrame {
+                let depth = self.enclosing.len();
+                self.enclosing.push(expression);
+                ResultTypeFrame {
+                    depth,
+                    enclosing_cut: self.outermost_cut.take(),
+                }
+            }
+
+            /// Closes `frame` and says whether its result is independent of
+            /// every expression that encloses it.
+            fn leave(&mut self, frame: ResultTypeFrame) -> bool {
+                self.enclosing.pop();
+                let cut = self.outermost_cut;
+                self.outermost_cut = match (frame.enclosing_cut, cut) {
+                    (Some(enclosing), Some(cut)) => Some(enclosing.min(cut)),
+                    (enclosing, cut) => enclosing.or(cut),
+                };
+                cut.is_none_or(|cut| cut >= frame.depth)
+            }
+        }
+
         fn result_type(
             program: &dyn crate::CheckingInput,
             owner: ExpressionOwner<'_>,
             expression: ExpressionHandle,
-            active: &mut Vec<ExpressionHandle>,
+            walk: &mut ResultTypeWalk,
         ) -> Option<TypeReferenceHandle> {
-            if !program.expression_table.expression_is_valid(expression)
-                || active.contains(&expression)
-            {
+            if !program.expression_table.expression_is_valid(expression) {
+                return None;
+            }
+            if walk.cut_at_enclosing(expression) {
                 return None;
             }
             let memo = crate::frozen_program::frozen_program_memos(program).and_then(|memos| {
@@ -4884,13 +4940,13 @@ pub mod expression_types {
             {
                 return Some(reference);
             }
-            active.push(expression);
+            let frame = walk.enter(expression);
             let result = match expression_table(program).expression(expression) {
                 ExpressionNode::SavedSubject(saved) => program
                     .saved_value_source(saved)
-                    .and_then(|subject| result_type(program, owner, subject, active)),
+                    .and_then(|subject| result_type(program, owner, subject, walk)),
                 ExpressionNode::Atomic(atomic) => {
-                    let operand = result_type(program, owner, atomic.value, active);
+                    let operand = result_type(program, owner, atomic.value, walk);
                     if crate::atomic_load_carrier(program, expression).is_some() {
                         operand
                             .and_then(|cell| crate::atomic_resident_type_reference(program, cell))
@@ -4906,7 +4962,7 @@ pub mod expression_types {
                         .collect::<Vec<_>>();
                     let references = arms
                         .iter()
-                        .map(|arm| result_type(program, owner, arm.value, active))
+                        .map(|arm| result_type(program, owner, arm.value, walk))
                         .collect::<Vec<_>>();
                     join_result_type_references(
                         program,
@@ -4958,7 +5014,7 @@ pub mod expression_types {
                         crate::value_custody::content_conservation::intrinsic_result_type_reference(
                             program,
                             call,
-                            |argument| result_type(program, owner, argument, active),
+                            |argument| result_type(program, owner, argument, walk),
                         )
                     {
                         return Some(reference);
@@ -5040,7 +5096,7 @@ pub mod expression_types {
                     let operands: Vec<_> = expression_table(program)
                         .expression_handles(call.arguments)
                         .iter()
-                        .map(|argument| result_type(program, owner, *argument, active))
+                        .map(|argument| result_type(program, owner, *argument, walk))
                         .collect();
                     let selected_operator = selected_operator.or_else(|| {
                 let references = operands.iter().copied().collect::<Option<Vec<_>>>()?;
@@ -5097,18 +5153,18 @@ pub mod expression_types {
                         if range.end_inclusive {
                             return None;
                         }
-                        let collection = result_type(program, owner, indexed.collection, active)?;
+                        let collection = result_type(program, owner, indexed.collection, walk)?;
                         let operands = [
                             Some(collection),
                             range
                                 .start
                                 .is_valid()
-                                .then(|| result_type(program, owner, range.start, active))
+                                .then(|| result_type(program, owner, range.start, walk))
                                 .flatten(),
                             range
                                 .end
                                 .is_valid()
-                                .then(|| result_type(program, owner, range.end, active))
+                                .then(|| result_type(program, owner, range.end, walk))
                                 .flatten(),
                         ];
                         if !typed_trees::operator::resolve_indexed_spelling_for_operands(
@@ -5162,7 +5218,7 @@ pub mod expression_types {
                     })()
                 }
                 ExpressionNode::Member(member) => {
-                    result_type(program, owner, member.receiver, active).and_then(|receiver| {
+                    result_type(program, owner, member.receiver, walk).and_then(|receiver| {
                         if crate::collection_operations::collection_measure_member(
                             program,
                             member,
@@ -5189,7 +5245,7 @@ pub mod expression_types {
                 }
                 ExpressionNode::Indexed(indexed) => (|| {
                     let operands = [indexed.collection, indexed.index]
-                        .map(|operand| result_type(program, owner, operand, active));
+                        .map(|operand| result_type(program, owner, operand, walk));
                     let candidates = typed_trees::operator::resolve_indexed_spelling_for_operands(
                         program,
                         OperatorSpelling::Index,
@@ -5285,12 +5341,12 @@ pub mod expression_types {
                         builtin_type_reference(program, BuiltinTypeAtom::Bool)
                     } else {
                         let operands = [binary.left, binary.right]
-                            .map(|operand| result_type(program, owner, operand, active));
-                        binary_result(program, owner, expression, binary, operands, active)
+                            .map(|operand| result_type(program, owner, operand, walk));
+                        binary_result(program, owner, expression, binary, operands, walk)
                     }
                 }
                 ExpressionNode::Unary(unary) => {
-                    let operand = result_type(program, owner, unary.operand, active);
+                    let operand = result_type(program, owner, unary.operand, walk);
                     match unary.operator {
                         UnaryOperator::BitwiseNot => operand
                             .and_then(|reference| {
@@ -5339,14 +5395,14 @@ pub mod expression_types {
             };
             let result = result
                 .map(|reference| program.statically_refined_type_reference(expression, reference));
-            active.pop();
+            let independent_of_enclosing = walk.leave(frame);
             let result = result.filter(|reference| {
                 program
                     .type_reference_table
                     .contains_type_reference(*reference)
             });
             if let Some((memos, key)) = memo
-                && (result.is_some() || active.is_empty())
+                && (result.is_some() || independent_of_enclosing)
             {
                 match key {
                     ResultTypeMemoKey::State(key) => {
@@ -5579,7 +5635,7 @@ pub mod expression_types {
             expression: ExpressionHandle,
             binary: &TableBinaryExpression,
             operands: [Option<TypeReferenceHandle>; 2],
-            active: &mut Vec<ExpressionHandle>,
+            walk: &mut ResultTypeWalk,
         ) -> Option<TypeReferenceHandle> {
             use BinaryOperator::*;
             let scoped_membership = matches!(owner, ExpressionOwner::State { machine, state }
@@ -5704,7 +5760,7 @@ pub mod expression_types {
                 }
             }
             builtin_binary_result_type_reference(program, binary, operands, &mut |operand| {
-                result_type(program, owner, operand, active)
+                result_type(program, owner, operand, walk)
             })
         }
 
