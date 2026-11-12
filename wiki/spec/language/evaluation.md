@@ -64,6 +64,20 @@ These rules are shared with ordinary runtime callers and do not grant
 evaluation-only narrowing of opaque contracts.
 Public trait requirements establish the floor; an incompatible conformance
 rejects at its declaration.
+
+[Borrowed proof inputs](../proofs/contracts.md#borrowed-proof-inputs) may supply
+authorized stable metadata, field and referent reads without turning those
+inputs into pure storage-free values. A reference-containing type alone does
+not reject a proof predicate; its actual read dependencies and every admission
+axis still check. Shared access alone cannot justify an unaccounted external
+or atomic observation, and empty reach does not establish read stability.
+
+Permission to reason symbolically about borrowed runtime state does not admit
+that state to hermetic constant evaluation. Runtime pointers, aliases into the
+host/compiler and borrowed graphs retain their existing staging, materialization
+and escape restrictions. This settlement adds neither a deep-snapshot operation
+nor reference/slice canonical generic atoms.
+
 [Package declaration-selection authority](../packages/boundaries.md#admit-before-execution)
 also applies before evaluation, not only after the resulting value is used.
 Permission to select a declaration does not establish its execution meaning.

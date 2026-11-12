@@ -96,8 +96,9 @@ interpretation based on their name or result type.
 Repeated admitted pure comparisons with the same selected operation and exact
 unchanged arguments have the same Boolean denotation. Thus `requires a == b`
 can establish a body's unchanged `a == b` result as true without either identity
-bridge. Changed argument values, observation-dependent inputs, different operation selections
-or failed invocation admission invalidate that reasoning. This is call
+bridge. Changed argument values or relevant observed referent versions,
+unaccounted external observations, different operation selections or failed
+invocation admission invalidate that reasoning. This is call
 congruence, not a general assertion that every comparison is reflexive.
 
 A theorem-only machine has no Type result. Resultless law slots do not need dummy
@@ -194,6 +195,10 @@ anonymous literal inference. A call interpreted denotationally
 needs a checked observation-free, reach-free, crash-free, terminating invocation,
 not merely a same-spelled mathematical operation.
 
+Here observation-free excludes unaccounted external observations, not
+[authorized stable reads of borrowed inputs](#borrowed-proof-inputs). The
+invocation's meaning retains the borrowed state on which its result depends.
+
 A generic proof using a static callable or conformance member must establish
 those conditions from its originating requirement. Write `reaches none` when
 the requirement must guarantee service-free invocation. Under
@@ -274,6 +279,56 @@ signed minimum divided by -1, while shift counts and floats follow their own
 primitive's meaning; an authored crash guard only bounds its possible failures.
 [Crash coverage](../language/effects.md#guarded-crashes) checks that bound.
 `ensures` constrains normal returns, not crash paths.
+
+### Borrowed proof inputs
+
+Named decision: `shared-observation-denotational-content`, settled 2026-11-12.
+A contract predicate may inspect borrowed metadata, ordinary fields beside
+reference fields, and data reached through shared references when every read
+has valid access, lifetime and stability evidence. Admission checks what the
+invocation reads, not whether an argument's type contains a reference. Merely
+admitting the predicate does not establish that it returns `true`.
+
+Apply the same read and fact-validity rules to records, slices, arrays and
+nested reference paths. Reading only `items.len` introduces no observation
+dependency on elements or their referents; reading an ordinary record field
+does not observe an unused sibling reference. Ordinary validity, loan, custody
+and access obligations for the input still apply. An unread reference cannot
+launder invalid storage or supply authority, but its presence is not proof
+input contamination.
+
+Following `held.slot` to read an integer retains both the selected referent
+and that storage's observed value version, including every relevant step of
+the path. Equal reference carriers alone do not establish equal observed
+inputs. Reusing the predicate's result requires the same admitted operation,
+argument substitution and valid observed state under
+[fact validity](../terminal-psi/fact_validity.md#borrowed-read-dependencies).
+After a permitted write, an old fact remains about the earlier captured value,
+not automatically the current referent contents. A shared loan supplies its
+ordinary stability guarantee for its valid scope, never permanent immutability
+of everything reachable through the argument.
+
+Helper calls retain these dependencies through sound checked summaries under
+the ordinary call/interface rules. A known metadata-only summary need not
+invent element-content dependencies. Unknown or incomplete dependencies are
+conservative, never empty; absence of a retained read set or empty service reach
+cannot prove that a call reads no storage. Potentially overlapping writes or
+unproved correspondence prevent reuse of affected facts; provably disjoint
+storage keeps its facts.
+
+External, device and atomic observations retain their
+[access contracts](../resources/access.md). Shared access alone cannot make
+externally changing memory a mathematical constant. Use an authorized runtime
+observation and reason about its captured result, or establish an applicable
+stability contract before treating such a read as stable. Neither atomicity nor
+an unchanged pointer alone proves that repeated reads agree.
+
+This is permission to reason about valid borrowed runtime inputs, not to
+materialize them as compile-time constants. It adds no pointer escape, lifetime
+extension, copying of an entire borrowed graph into an evaluator, or new
+permission to duplicate resources or return a forbidden reference-bearing
+result. Existing constant/evaluation, erasure and ownership restrictions remain.
+No keyword, special reference type or mandatory deep snapshot is introduced.
 
 ## Citation and induction
 

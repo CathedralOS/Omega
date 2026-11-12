@@ -82,6 +82,12 @@ After a call, you know the callee's `ensures`, plus whatever you knew about
 storage it did not write. [Chapter 12](chapter_12_dependent_types.md#facts-across-calls)
 goes into that.
 
+A predicate can inspect a borrowed record or slice even when its fields or
+elements contain references. It may also follow a shared reference when the
+read is authorized and stable. Facts about that read depend on the observed
+contents; after those contents change, the old conclusion cannot describe the
+current value. See [borrowed proof inputs](../spec/proofs/contracts.md#borrowed-proof-inputs).
+
 ## Contracts over all inputs
 
 A contract is proved for every value the `requires` admits, not for examples:
