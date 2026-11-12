@@ -1,0 +1,65 @@
+{
+  "counts": {
+    "fixed": 20,
+    "broken": 4,
+    "host_only": 0,
+    "missing": 0,
+    "total": 24
+  },
+  "fixed": [
+    "pass/facts/computed_record_window_through_call_result_exit",
+    "pass/facts/computed_record_window_through_const_name_exit",
+    "pass/facts/computed_record_window_through_field_exit",
+    "pass/facts/computed_record_window_through_local_exit",
+    "pass/facts/computed_record_window_through_other_machine_exit",
+    "pass/facts/computed_record_window_through_other_state_exit",
+    "pass/facts/computed_record_window_through_target_body_exit",
+    "pass/facts/may_write_computed_receiver_through_call_result_exit",
+    "pass/facts/may_write_computed_receiver_through_const_name_exit",
+    "pass/facts/may_write_computed_receiver_through_field_exit",
+    "pass/facts/may_write_computed_receiver_through_local_exit",
+    "pass/facts/may_write_computed_receiver_through_match_join_exit",
+    "pass/facts/may_write_computed_receiver_through_other_machine_exit",
+    "pass/facts/may_write_computed_receiver_through_other_state_exit",
+    "pass/facts/may_write_computed_receiver_through_parameter_exit",
+    "pass/facts/may_write_computed_receiver_through_target_body_exit",
+    "fail/facts/data_where_standing_mutable_recast_qualified_constant_rejected",
+    "fail/facts/data_where_standing_mutable_recast_stronger_rejected",
+    "fail/ownership/selected_storage_join_unrelated_root",
+    "fail/generics/record_const_foreign_nominal_carrier"
+  ],
+  "broken": [
+    "pass/borrows/runtime_returned_nonzero_nested_window_exit",
+    "pass/facts/matched_field_windows_through_other_state_exit",
+    "pass/slices/runtime_returned_nested_array_window_home_exit",
+    "pass/ownership/runtime_match_nested_observation_cleanup_exit"
+  ],
+  "host_only": [],
+  "missing": [],
+  "broken_detail": {
+    "pass/borrows/runtime_returned_nonzero_nested_window_exit": {
+      "diag": "`main` calls `forward`; `forward` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `forward::entry`, statement 0",
+      "diag_norm": "`_` calls `_`; `_` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `",
+      "main_status": "incomplete",
+      "ledger_status": "checked"
+    },
+    "pass/facts/matched_field_windows_through_other_state_exit": {
+      "diag": "`main` calls `from_state`; `from_state` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `from_state::entry`, statement 0",
+      "diag_norm": "`_` calls `_`; `_` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `",
+      "main_status": "incomplete",
+      "ledger_status": "checked"
+    },
+    "pass/slices/runtime_returned_nested_array_window_home_exit": {
+      "diag": "`main` calls `forward`; `forward` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `forward::entry`, statement 0",
+      "diag_norm": "`_` calls `_`; `_` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `",
+      "main_status": "incomplete",
+      "ledger_status": "checked"
+    },
+    "pass/ownership/runtime_match_nested_observation_cleanup_exit": {
+      "diag": "terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 13435, generation: 1 }), established: StructuralArgument { place: PlaceId(104), path: [], access: Owned }, established_type: StructuralTypeId(22), requested: StructuralArgument { place: PlaceId(111), path: [], access: Owned }, requested_type: StructuralTypeId(22), producer_file: \"omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit_structural_values.rs\", producer_line: 4167 })",
+      "diag_norm": "terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: N, generation: N }), established: Structur",
+      "main_status": "rejected",
+      "ledger_status": "checked"
+    }
+  }
+}
