@@ -2053,7 +2053,22 @@ pub struct ExtensionRequest {
 }
 
 /* Resolve every name in the forest to its exact declaration. */
+// TEMPORARY per-call resolution timing (PIPELINE-ARCHITECTURE-ENFORCEMENT); not for landing.
+struct ResolutionTrace { label: &'static str, items: usize, expressions: usize, started: std::time::Instant }
+impl ResolutionTrace {
+    fn new(label: &'static str, syntax: &SyntaxTrees) -> Option<Self> {
+        std::env::var_os("OMEGA_STAGE_REPEAT_TRACE")?;
+        Some(Self { label, items: syntax.root_item_handles().len(), expressions: syntax.expressions.iter_expressions().count(), started: std::time::Instant::now() })
+    }
+}
+impl Drop for ResolutionTrace {
+    fn drop(&mut self) {
+        eprintln!("PSI02_TRACE {} ms={} items={} expressions={}", self.label, self.started.elapsed().as_millis(), self.items, self.expressions);
+    }
+}
+
 pub fn resolve(request: ResolutionRequest) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+    let _trace = ResolutionTrace::new("resolve", &request.syntax);
     let (syntax, lowerer) = begin_complete(request)?;
     drive(lowerer, &syntax).map(|(trees, _)| trees)
 }
@@ -2065,6 +2080,7 @@ pub fn resolve(request: ResolutionRequest) -> Result<SymbolResolvedTrees, Vec<Di
 pub fn resolve_deferred_extension(
     request: ExtensionRequest,
 ) -> Result<DeferredResolvedExtension, Vec<Diagnostic>> {
+    let _trace = ResolutionTrace::new("resolve_deferred_extension", &request.syntax);
     let ExtensionRequest {
         base,
         syntax,
@@ -2091,6 +2107,7 @@ pub fn resolve_deferred_extension(
 pub fn resolve_deferred(
     request: ResolutionRequest,
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
+    let _trace = ResolutionTrace::new("resolve_deferred", &request.syntax);
     let base = request.retained_base.clone();
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
@@ -2163,6 +2180,7 @@ impl DeferredResolvedExtension {
 pub fn resolve_deferred_numeric_probe(
     request: ResolutionRequest,
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
+    let _trace = ResolutionTrace::new("resolve_deferred_numeric_probe", &request.syntax);
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
     let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete)?;
@@ -2273,6 +2291,7 @@ impl ConstArgumentSelection {
 pub fn resolve_const_argument_selection(
     request: ResolutionRequest,
 ) -> Result<ConstArgumentSelection, Vec<Diagnostic>> {
+    let _trace = ResolutionTrace::new("resolve_const_argument_selection", &request.syntax);
     let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
     index_declarations(&mut lowerer, &syntax)?;
     assign_lexical_inputs(&mut lowerer, &syntax, LexicalInputDemand::TypeOperands)?;
@@ -2297,6 +2316,7 @@ pub fn resolve_const_argument_selection(
 pub fn resolve_numeric_probe(
     request: ResolutionRequest,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+    let _trace = ResolutionTrace::new("resolve_numeric_probe", &request.syntax);
     let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete)?;
     drive(lowerer, &syntax).map(|(trees, _)| trees)
 }
@@ -2310,6 +2330,7 @@ pub fn resolve_numeric_probe(
 pub fn resolve_deferred_initializer_probe(
     request: ResolutionRequest,
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
+    let _trace = ResolutionTrace::new("resolve_deferred_initializer_probe", &request.syntax);
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
     let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
@@ -2328,6 +2349,7 @@ pub fn resolve_deferred_initializer_probe(
 pub fn prepare_const_initializer_selection(
     request: ResolutionRequest,
 ) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
+    let _trace = ResolutionTrace::new("prepare_const_initializer_selection", &request.syntax);
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
     let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
@@ -2345,6 +2367,7 @@ pub fn prepare_const_qualification_selection<'authored>(
     authored: &'authored SyntaxTrees,
     destinations: impl IntoIterator<Item = &'authored ConstDefinition>,
 ) -> Result<Option<ConstInitializerSelection>, Vec<Diagnostic>> {
+    let _trace = ResolutionTrace::new("prepare_const_qualification_selection", &request.syntax);
     let destinations = destinations.into_iter().collect::<Vec<_>>();
     if destinations.is_empty() {
         return Ok(None);
@@ -2444,6 +2467,7 @@ fn finish_const_initializer_selection(
 pub fn resolve_extension(
     request: ExtensionRequest,
 ) -> Result<SeededSymbolResolvedTrees, Vec<Diagnostic>> {
+    let _trace = ResolutionTrace::new("resolve_extension", &request.syntax);
     let ExtensionRequest {
         base,
         syntax,
@@ -2657,6 +2681,7 @@ fn finish_resolved_tables(
 pub fn resolve_call_result_selection(
     request: ResolutionRequest,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+    let _trace = ResolutionTrace::new("resolve_call_result_selection", &request.syntax);
     let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
     index_declarations(&mut lowerer, &syntax)?;
     let inputs = assign_lexical_inputs(&mut lowerer, &syntax, LexicalInputDemand::CallResults)?;
