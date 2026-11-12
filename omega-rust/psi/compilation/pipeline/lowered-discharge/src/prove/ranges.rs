@@ -13,6 +13,13 @@ other operand on the earlier equation that fixes it to a literal
 prover supplies the root's own bound and reads the image the kernel computes
 (`map_integer_affine_bound`); it does no endpoint arithmetic itself.
 
+A left shift whose count is a value that no earlier result equation fixes
+(an entry `requires`, a guard or a callee `ensures` says what it is) has no
+landing. Its value is bounded instead by the kernel's direct shift form, the
+image of the value's bound under the count's literal or upper bound
+(`shift_left_image`), carried onto the result through its equation as a
+product's bound is.
+
 An unsigned remainder by a divisor that is not a literal has the kernel's
 relational form instead: `result < divisor` from `0 < divisor`
 (`remainder_below_divisor`). That is an order step between two values, and a
@@ -328,10 +335,13 @@ impl Prover<'_> {
 
     /// The kernel's image of an exact left shift's operand bounds: a bound in
     /// `direction` on the mathematical term `value << count`, from the
-    /// value's bound and what is known of the count (its literal when an
-    /// equation fixes it, else its upper bound, with `0 <= count` for a
-    /// signed count). The kernel picks the count endpoint by the sign of the
-    /// value's bound (`map_direct_shift_left_bound`).
+    /// value's bound and what is known of the count (its literal when any
+    /// hypothesis, an assumption as well as an axiom, fixes it, else its
+    /// upper bound, with `0 <= count` for a signed count). The kernel picks
+    /// the count endpoint by the sign of the value's bound
+    /// (`map_direct_shift_left_bound`). It serves both the shift's own
+    /// safety goal and, through `Prover::shifted`, the bound of the value
+    /// the shift defines.
     pub(super) fn shift_left_image(
         &mut self,
         value: &IntegerMathTerm,
@@ -352,10 +362,13 @@ impl Prover<'_> {
             .facts
             .iter()
             .find(|fact| {
+                // Either orientation: the kernel reads the count's literal
+                // from whichever side it stands on.
                 matches!(
                     &fact.proposition,
-                    Proposition::Equal(subject, literal)
-                        if subject == &count && literal.integer_value().is_some()
+                    Proposition::Equal(left, right)
+                        if (left == &count && right.integer_value().is_some())
+                            || (right == &count && left.integer_value().is_some())
                 )
             })
             .map(|fact| fact.proof.clone());

@@ -21,7 +21,11 @@ best upper and lower literal bound, each with a node concluding
   (`IntegerOrderSubstitution`);
 - its own result equation when it is a divide, remainder, shift, bitwise and
   or bitwise or with one literal operand: a one-step endpoint chain the
-  kernel replays (`ranges`).
+  kernel replays (`ranges`);
+- its own result equation when it is an exact left shift by a value that no
+  earlier equation fixes: the bound on the mathematical shift from the
+  value's bound and what any hypothesis says of the count, carried onto the
+  output like a product's.
 
 Goals decompose structurally (conjunction, disjunction, antisymmetry for
 equality). A comparison closes when the left side's bound and the right
@@ -1273,6 +1277,11 @@ impl<'a> Prover<'a> {
             ScalarTerm::IntegerWiden { .. } | ScalarTerm::IntegerExactCast { .. } => {
                 return self.cast_bound(axiom, subject, integer, expression, direction);
             }
+            ScalarTerm::ExactIntegerShiftLeft { value, count, .. } => {
+                return self
+                    .chain_step(axiom, subject, integer, expression, direction)
+                    .or_else(|| self.shifted(axiom, subject, integer, value, count, direction));
+            }
             _ => return self.chain_step(axiom, subject, integer, expression, direction),
         };
         let left_proof = self.evidence(left, direction).ok()?;
@@ -1353,6 +1362,57 @@ impl<'a> Prover<'a> {
                 direction,
             )
             .ok()?;
+        self.transported(axiom, *id, integer, image, direction)
+    }
+
+    /// A bound on the output of an exact left shift whose count is a value
+    /// no earlier result equation fixes to a literal, so `chain_step` has
+    /// no landing for it. The count is then known only from a hypothesis
+    /// (an entry `requires`, a guard, a callee `ensures`) or its own bound:
+    /// the kernel bounds the mathematical shift from the value's bound and
+    /// that knowledge (`shift_left_image`), and the bound is carried onto
+    /// the output through the result equation, as for a product.
+    fn shifted(
+        &mut self,
+        axiom: usize,
+        subject: &ScalarTerm,
+        integer: IntegerType,
+        value: &ScalarTerm,
+        count: &ScalarTerm,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let ScalarTerm::Value { id, .. } = subject else {
+            return None;
+        };
+        let leaf = |term: &ScalarTerm| match term {
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(source_type),
+            } => Some(IntegerMathTerm::MathValue {
+                source_type: *source_type,
+                value: *id,
+            }),
+            _ => None,
+        };
+        let (value, count) = (leaf(value)?, leaf(count)?);
+        let image = self.shift_left_image(&value, &count, direction).ok()?;
+        self.transported(axiom, *id, integer, image, direction)
+    }
+
+    /// The output `output` of the result equation `axiom` bounded by
+    /// `image`, the kernel's bound on the equation's mathematical term:
+    /// the bound carried through the equation (`ValueEqualityTransport`)
+    /// and restated in the output's carrier (`IntegerOrderSubstitution`).
+    /// A limit outside the carrier gives no bound.
+    fn transported(
+        &self,
+        axiom: usize,
+        output: ValueId,
+        integer: IntegerType,
+        image: ProofNode,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let subject = &ScalarTerm::value(output, ScalarType::Integer(integer));
         let limit = match (&image.conclusion, direction) {
             (Proposition::IntegerMathLessOrEqual(_, limit), Direction::Upper)
             | (Proposition::IntegerMathLessOrEqual(limit, _), Direction::Lower) => limit.clone(),
@@ -1364,7 +1424,7 @@ impl<'a> Prover<'a> {
         let literal = literal.as_integer_value(integer)?;
         let output = IntegerMathTerm::MathValue {
             source_type: integer,
-            value: *id,
+            value: output,
         };
         let (on_output, endpoint) = match direction {
             Direction::Upper => (
