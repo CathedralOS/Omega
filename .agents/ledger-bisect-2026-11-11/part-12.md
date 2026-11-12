@@ -1,11 +1,11 @@
 # Ledger bisect part 12 (PIN `51e8c45c793`)
 
-Updated: 2026-11-12 09:17 UTC
+Updated: 2026-11-12 11:57 UTC
 
 ## Summary
 
 - Prior-report slice: cluster indices `i % 40 == 12` (6 rows in table; 21 member fixtures after full member recovery).
-- Fixed on main at PIN: 4; still-broken rows: 17 in 2 PIN-diagnostic clusters.
+- Fixed on main at PIN: 4; still-broken rows: 17 in 3 PIN-diagnostic clusters.
 
 | rows | kind | diagnostic | witness | breaking commit | PR | mechanism | status |
 | ---: | --- | --- | --- | --- | ---: | --- | --- |
@@ -16,6 +16,10 @@ Stability: deterministic (PIN exit 1 ×3, good b605888 exit 0 ×1; bisect first-
 | 3 | pass/run rejected | boundary requirement `Comparison::equal` … resolves to 0 selected ProviderPlans; expected exactly on | `pass/operators/crash_routes` | `60cb5e1f79dd` | 1721 | psi #1721 reshapes provider admission/selection and collection-bound checks so Comparison::equal boundary requirement no | bisected |
 Members: `pass/operators/crash_routes`, `pass/providers/checked_fixed_operator_dispatch_exit`, `pass/providers/checked_fixed_operator_physical_custody`
 Stability: deterministic (PIN exit 1, bebbe455 exit 0, 2174 exit 0; first-bad #1721)
+
+| 1 | pass/run rejected | terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "binding_subject", r | `pass/ownership/runtime_match_projected_subject_cleanup_exit` | `7198f568763c` | 1818 | compiler #1818 changes saved-reference/pointer-replacement lowering so binding_subject unit plans lack an exact operatio | bisected |
+Members: `pass/ownership/runtime_match_projected_subject_cleanup_exit`
+Stability: deterministic (PIN=1, c35f455=0); ledger-only parent 5c85123 skipped; bisect narrowed to first-parent c35f455..7198
 
 ## Fixed on main at PIN
 

@@ -45,6 +45,22 @@
       "status": "bisected",
       "good_commit": "b60588878916f41d711b596dc7299ae14a32d94a",
       "stability": "deterministic (PIN exit 1, bebbe455 exit 0, 2174 exit 0; first-bad #1721)"
+    },
+    {
+      "cluster_id": "match_binding_subject",
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "witness": "pass/ownership/runtime_match_projected_subject_cleanup_exit",
+      "diag": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"binding_subject\", reason: \"selection survivor requires an exact emitted operation-result frontier\", gap: None })",
+      "members": [
+        "pass/ownership/runtime_match_projected_subject_cleanup_exit"
+      ],
+      "breaking_commit": "7198f568763c6dae7d02668838a1616c631c70aa",
+      "pr": "1818",
+      "mechanism": "compiler #1818 changes saved-reference/pointer-replacement lowering so binding_subject unit plans lack an exact operation-result frontier",
+      "status": "bisected",
+      "good_commit": "c35f4550249860b906dc7819989f879b09acc66b",
+      "stability": "deterministic (PIN=1, c35f455=0); ledger-only parent 5c85123 skipped; bisect narrowed to first-parent c35f455..7198"
     }
   ]
 }

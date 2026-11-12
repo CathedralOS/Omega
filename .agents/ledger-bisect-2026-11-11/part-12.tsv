@@ -15,6 +15,7 @@ pass/facts/as_slice_views_generic_through_target_body_exit	still broken	cannot p
 pass/operators/crash_routes	still broken	boundary requirement `Comparison::equal` … resolves to 0 selected ProviderPlans; expected exactly one	crash_routes_boundary
 pass/providers/checked_fixed_operator_dispatch_exit	still broken	boundary requirement `Comparison::equal` … resolves to 0 selected ProviderPlans; expected exactly one	crash_routes_boundary
 pass/providers/checked_fixed_operator_physical_custody	still broken	boundary requirement `Comparison::equal` … resolves to 0 selected ProviderPlans; expected exactly one	crash_routes_boundary
+pass/ownership/runtime_match_projected_subject_cleanup_exit	still broken	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "binding_subject", reason: "selection survivor requires an exact emitted operation-result frontier", gap: None })	match_binding_subject
 fail/borrows/evidence_bound_record_result_keeps_loan	fixed on main		fixed
 pass/generics/runtime_inherited_composite_requirement_exit	fixed on main		fixed
 fail/proofs/result_index_authored_operator	fixed on main		fixed
