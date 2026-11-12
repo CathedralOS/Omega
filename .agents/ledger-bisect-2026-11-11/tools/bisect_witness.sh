@@ -59,7 +59,7 @@ find_runner() {
 RUNNER="$(find_runner || true)"
 if [[ ! -x "${RUNNER:-}" ]]; then
   nice -n 19 mbx build -p omega < /dev/null >"/tmp/bisect-build-${SHA}.log" 2>&1 || log125 "build-omega-failed"
-  nice -n 19 mbx test -p compiler corpus_runner --no-run < /dev/null >>"/tmp/bisect-build-${SHA}.log" 2>&1 \
+  nice -n 19 mbx test -p compiler --test corpus_runner --no-run < /dev/null >>"/tmp/bisect-build-${SHA}.log" 2>&1 \
     || log125 "build-runner-failed"
   RUNNER="$(find_runner || true)"
 fi

@@ -65,7 +65,7 @@ ensure_pin_measure() {
     progress "PIN build failed"
     return 1
   }
-  nice -n 19 mbx test -p compiler corpus_runner --no-run < /dev/null >>"$STATE/pin-build.log" 2>&1 || {
+  nice -n 19 mbx test -p compiler --test corpus_runner --no-run < /dev/null >>"$STATE/pin-build.log" 2>&1 || {
     progress "PIN runner build failed"
     return 1
   }
