@@ -25,6 +25,9 @@ use crate::{ClauseText, Piece, Unserved, refuse};
 #[derive(Clone, Copy)]
 pub(super) struct ClauseScope<'s> {
     pub(super) slots: &'s [Slot],
+    /// Each formal's value identity, by slot (`body::formal_values`);
+    /// `None` for a record formal.
+    pub(super) values: &'s [Option<ValueId>],
     /// The value parameters this reading of the clause has bound, each to
     /// its literal: a requirement read at the static arguments of one call
     /// (`requirement_signature`). A name that resolves to one is that
@@ -332,13 +335,7 @@ impl Program<'_> {
                 let ValueType::Scalar(scalar_type) = scope.slots[slot].value_type else {
                     return unserved("record formal named whole in a clause");
                 };
-                // The `k`-th scalar formal is value `k + 1`
-                // (`Signature::parameters`).
-                let earlier = scope.slots[..slot]
-                    .iter()
-                    .filter(|formal| formal.value_type.scalar().is_some())
-                    .count();
-                let value = ValueId::new(earlier as u64 + 1).ok_or_else(|| {
+                let value = scope.values.get(slot).copied().flatten().ok_or_else(|| {
                     refuse(
                         id,
                         Construct::Machine,
@@ -408,6 +405,7 @@ impl Program<'_> {
             return unserved("term other than a field of the value or a literal");
         };
         match value_type {
+            ValueType::Rigid(_) => unserved("field of a rigid type in a clause"),
             ValueType::Scalar(ScalarType::Integer(scalar_type)) => Ok((
                 ScalarTerm::IntegerField {
                     root,
@@ -462,7 +460,7 @@ impl Program<'_> {
                     };
                     let earlier = scope.slots[..slot]
                         .iter()
-                        .filter(|formal| formal.value_type.scalar().is_none())
+                        .filter(|formal| matches!(formal.value_type, ValueType::Record(_)))
                         .count();
                     let root = PlaceId::new(earlier as u64 + 1).ok_or_else(|| {
                         refuse(

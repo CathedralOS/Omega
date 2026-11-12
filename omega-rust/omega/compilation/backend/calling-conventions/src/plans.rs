@@ -375,11 +375,14 @@ fn evaluate_ordinary_boundary_entry_plan_from_call(
     call: CallPlan,
     signature: &CallSignature,
 ) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
+    // The floating-control envelope around a returning import restores the
+    // callee-preserved MXCSR/FPCR controls, so the ceiling includes them.
     let permitted_transitive_use =
         machine_state_for_registers(&call.ordinary_clobbers).union(MachineStateSet::new([
             MachineState::Flags,
             MachineState::InstructionPointer,
             MachineState::StackPointer,
+            MachineState::ControlState,
         ]));
     let initial_regime = match call.policy.architecture() {
         Architecture::X86_64 => MachineRegime::X86Long64,

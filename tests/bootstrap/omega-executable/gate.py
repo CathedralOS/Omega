@@ -7,14 +7,14 @@ ENTRY_IDENTITIES = {
                      "c0af3126f13c8c511d04f224e630f60f3316c0f9fa6e310e72f66779c7c3ce9e"),
     "main_ocreq.epsilon": (19249,
                            "5d5d0b8ed0146b055ffdbb6d680bb902a0e350c80b13577bf148879c6c753943"),
-    "controls.epsilon": (3631,
-                         "78995d1f7975bbd7b8d82230b557f43bb263addb5be3deb2b9bf56cb03efa0a9"),
-    "controls_b.epsilon": (3084,
-                           "261d1529b50ab7b36c9dd228a0df7a4250d46d2913dcd85897ee8b911e98dbc3"),
-    "controls_c.epsilon": (2824,
-                           "0dbc7da705e7da63a7589b49a25677037dcd43c31c3266f31511986b3eba54ae"),
-    "controls_d.epsilon": (2850,
-                           "916218b57476fe59f22a2d493b6529502e3ac3a4fda856d4e16b9a156a0f57c9"),
+    "controls.epsilon": (3536,
+                           "f30a9a3206fdbe7a13b1b6377af7b5d95bca5e27c495bf4faab262fcc0525089"),
+    "controls_b.epsilon": (2804,
+                           "28701862d665951b2e432c58c77b7b1bcbc9d2b8ae53417f95bc76fa19908c6e"),
+    "controls_c.epsilon": (2834,
+                           "1ec2b16b0d97631bc88f23c0d39c417e6184875c1178913fba4629b815fc3465"),
+    "controls_d.epsilon": (2852,
+                           "b54adbcd30b9f192217b89b96efd3b548443a6e9426bb7891c98845fa89e8adb"),
     "controls_e.epsilon": (2797,
                            "83ce536dacd5efb9238d7f5869ed5d6269c6481a24b4cdd0b7d3985777c150bc"),
     "controls_f.epsilon": (4425,
@@ -23,8 +23,8 @@ ENTRY_IDENTITIES = {
                            "3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9"),
     "controls_h.epsilon": (3193,
                            "b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e"),
-    "controls_i.epsilon": (3863,
-                           "8f583b6510c940e3ef0cdc0223a1e263da37ea4f6decbea1a3130f4ba33645d0"),
+    "controls_i.epsilon": (3722,
+                           "9c7d77740284bbca570197290d2d73188681b3763e15a22bf3ce5592f4c12846"),
     "controls_j.epsilon": (4461,
                            "406e2bc4353983ebc81d6daa215a9b42f72b85056bc5f3263e1917e7e01efb94"),
 }
@@ -128,8 +128,8 @@ def main():
     require_identity("Delta compiler", delta_compiler, 147840,
                      "fbcb9e17b7ce0c75849136086bc5a4b6df4264054be72b5aae6d70325f9d0929")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 572143,
-                     "99535101fac4473527467d354a4f93db50f1fb8802fd69c1886eee283555b867")
+    require_identity("D", compiler, 598333,
+                     "0c402370392af73910cf6caa05b0198dd7ccf0820397e26b85367a1dfcec9f72")
     subject = epsilon + adapter
     support = (directory / "support.bin").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
@@ -185,7 +185,7 @@ def main():
               f"{len(customer)}-byte customer, {len(sealed_input)}-byte sealed "
               f"input)", flush=True)
         return
-    receipt_limit = env_seconds("OMEGA_EXECUTABLE_RECEIPT_SECONDS", "300")
+    receipt_limit = env_seconds("OMEGA_EXECUTABLE_RECEIPT_SECONDS", "1800")
     # The receipt depends only on the pinned delta compiler and request, so the
     # controls matrix may share one reconstruction through an optional cache;
     # the pinned identity check below still applies to cached bytes.

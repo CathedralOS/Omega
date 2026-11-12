@@ -4,6 +4,8 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_self_edge");
-    Build::depend_as(builder, "self", Source::Path { location: "." });
+    let mut self_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "." });
+    dependency::with_alias(&mut self_dependency, "self");
+    let self_registration: DependencyRegistration = Build::dependency(builder, self_dependency);
     builder.freestanding = true;
 }

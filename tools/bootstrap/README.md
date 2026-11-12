@@ -53,8 +53,8 @@ entries the omega-parser, omega-outcome, omega-request, and omega-executable
 gates append on top of the bound member bytes, and the omega-request gate's
 canonical sealed request fixture, each recorded in its gate's README.
 The same env binds D's OCREQ request entry — `program.omg`, the canonical
-174-byte Omega source the request names as the compilation subject, SHA-256
-`b880031336a824e41ce6021dda44e1a64aaa9e849a6b25ab658ea6fc612c1b2e` — a
+180-byte Omega source the request names as the compilation subject, SHA-256
+`9cc2d065cf33e3a9de241d061f407665892f7171a431936a0e5ad9e5d3eeea85` — a
 separate input fed to the bound customer as sealed bytes, not a manifested
 member.
 `tools/bootstrap/proofs/sources_env.sh` binds the

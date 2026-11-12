@@ -266,6 +266,25 @@ These semantic outcomes do not invent new wire tags or host exit codes. The
 halt tags and failure frames below represent them for this request; another
 consumer follows its owning interface.
 
+### Unproved goal form publication
+
+Named decision: `unproved-goal-form-publication`, settled 2026-11-11.
+
+When the prover has no rule for a required proof goal's form, the compiler
+reports `Incomplete` and identifies the obligation it could not prove; the
+truth of that obligation is undecided. A supported goal that cannot be
+established from the program's stated premises reports `Reject`;
+exhausting a named proof-search provision reports that provision's
+`Incomplete` code instead.
+
+The unsupported-form case uses the dedicated scalar-resource code 36,
+`coverage_proof_goal_forms`, with limit 0, requested amount 1 and coordinate
+space 3 (internal row), naming the obligation left unproved. It uses the
+existing `Incomplete` halt tag and OCOUT frame, not a new outcome or exit
+code. No checked artifact publishes while a required obligation is unproved.
+This diagnostic does not relax the
+[required automatic-discharge floor](../proofs/contracts.md#required-automatic-discharge).
+
 ## Validation and failures
 
 Validate identity/reserved bytes, encoded high bits, and exact end before any
@@ -502,7 +521,7 @@ Epsilon uses `Exact(nonnegative i32) | Overflowed` with pre-operation checks;
 Omega may compute wider exact values and normalize only at publication.
 
 The scalar-resource table assigns one `Incomplete` code per named private
-capacity:
+provision, whether a capacity or a coverage limitation:
 
 | Code | Resource | Limit | Space | Coordinate |
 | --- | --- | --- | --- | --- |
@@ -541,6 +560,13 @@ capacity:
 | 33 | `proof_search_divisor_computed_joins` | 8 | 3 internal row | identity of the obligation left unproved |
 | 34 | `proof_obligation_identities` | 65,536 | 3 internal row | identity of the obligation left unproved |
 | 35 | `proof_search_integer_certificate_work` | 65,536 | 3 internal row | identity of the obligation left unproved |
+| 36 | `coverage_proof_goal_forms` | 0 | 3 internal row | identity of the obligation whose form the prover has no rule for |
+
+Code 36 is a coverage provision, not a proof-search budget. Its requested
+amount is 1 for the unsupported obligation named by its coordinate. Raising
+a search limit does not supply a missing rule. Do not reuse a source-form or
+proof-search code for this case; see
+[unproved goal form publication](#unproved-goal-form-publication).
 
 Codes 27–35 are the optional proof-search provisions of the lowering stage.
 `proof_search_roster_rounds` bounds the scalar block-invariant pass's
@@ -575,7 +601,11 @@ The request-extent provisions bound the declared subject and invocation
 section lengths; both sit inside the fixed request header and are checked at
 phase 1 after complete framing, before either section is interpreted. The
 parser capacities are private D budgets over its fixed tables, not Omega source
-limits. The tape capacities bound the emitted artifact's payload and
+limits. Omega source has no expression or type depth limit. The Rust compiler
+stores source as flat tables and walks them with loops rather than recursion
+over the input's depth, so a deep or long expression costs memory, not stack.
+Its only bounds are memory and time; exhausting either publishes `Incomplete`
+naming the exhausted resource, never a host stack overflow. The tape capacities bound the emitted artifact's payload and
 relocation records; their coordinates are payload-relative byte offsets.
 Codes 15–25 are coverage provisions, not capacities: each names a
 valid-Omega construct family unavailable under the compiler's provision.

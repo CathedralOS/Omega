@@ -190,7 +190,8 @@ fn origins(
     }
 }
 
-/// The operands of an exact operation, the subset's only partial operations.
+/// The operands of an exact operation or cast, the subset's only partial
+/// operations.
 fn exact_operands(kind: &terminal_psi::OperationKind) -> Vec<ValueId> {
     use terminal_psi::OperationKind as Kind;
     match kind {
@@ -201,6 +202,7 @@ fn exact_operands(kind: &terminal_psi::OperationKind) -> Vec<ValueId> {
         | Kind::ExactIntegerRemainder { left, right, .. } => vec![*left, *right],
         Kind::ExactIntegerShiftLeft { value, count, .. }
         | Kind::ExactIntegerShiftRight { value, count, .. } => vec![*value, *count],
+        Kind::IntegerExactCast { operand, .. } => vec![*operand],
         _ => Vec::new(),
     }
 }

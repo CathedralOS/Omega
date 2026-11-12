@@ -19,8 +19,11 @@ The gate checks the complete certificate for the owner proposition
 encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)
 ```
 
-where `S` is the selected Gamma evaluator's raw Beta source and `T` its
-persisted Alpha tape, following the
+where `S` and `T` are the historical Gamma source and tape at
+`d19361fe4deae73e1b488a940a872fec1ed885cb`, independently hash-checked by
+[full_subject.py](../beta-encoding-theory/full_subject.py). Git with that history
+is required; the gate does not fetch missing objects or substitute current
+source. This research result does not admit the current evaluator. It follows the
 [complete encoding acceptance](../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
 and the [checking profile](../../../bootstrap/proofs/checker/CHECKING.md).
 

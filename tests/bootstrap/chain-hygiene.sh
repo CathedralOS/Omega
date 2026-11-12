@@ -6,6 +6,11 @@ TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$TEST_DIR/../.." && pwd -P)
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 
+# Reuse the built developer verifier for each copied/archive fixture. Its
+# explicit --root selects the fixture; the source construction has no Rust step.
+OMEGA_XTASK_BIN=${OMEGA_XTASK_BIN:-"$OMEGA_REPO_ROOT/target/debug/xtask"}
+export OMEGA_XTASK_BIN
+
 command -v git >/dev/null 2>&1 || {
   echo "bootstrap owner inventory: skipped (git absent)"
   exit 0
@@ -67,12 +72,18 @@ expect_result() {
 mkdir -p "$FIXTURE_ROOT/source/retired/empty" \
   "$FIXTURE_ROOT/bootstrap/retired/empty"
 expect_result accepted 'archive with empty owner directories'
-for tree in source bootstrap
+for tree in source
 do
   touch "$FIXTURE_ROOT/$tree/retired/unexpected.source"
   expect_result rejected "archive with alternate $tree owner"
   rm "$FIXTURE_ROOT/$tree/retired/unexpected.source"
 done
+
+# A peer variant owns a separate source inventory and may declare a different
+# seed. Its manifest is not an input of the interpreted construction.
+mkdir -p "$FIXTURE_ROOT/bootstrap/peer"
+printf 'member 1 0 ignored omega-rust/peer.seed\n' > "$FIXTURE_ROOT/bootstrap/peer/compiler.sources"
+expect_result accepted 'archive with independent bootstrap peer'
 
 for rung in 0_alpha 1_beta 2_gamma
 do
@@ -93,7 +104,11 @@ expect_result accepted 'checkout with empty owner directories'
 touch "$FIXTURE_ROOT/source/retired/.DS_Store" \
   "$FIXTURE_ROOT/bootstrap/retired/.DS_Store"
 expect_result accepted 'checkout with ignored local artifacts'
-for tree in source bootstrap
+printf 'peer source\n' > "$FIXTURE_ROOT/bootstrap/peer/new.source"
+expect_result accepted 'untracked independent bootstrap peer member'
+git -C "$FIXTURE_ROOT" add bootstrap/peer/new.source
+expect_result accepted 'staged independent bootstrap peer member'
+for tree in source
 do
   touch "$FIXTURE_ROOT/$tree/retired/unexpected.source"
   expect_result rejected "untracked alternate $tree owner"
@@ -140,4 +155,4 @@ cp "$FIXTURE_PARENT/omega_compiler.epsilon.sources" \
   "$FIXTURE_ROOT/bootstrap/5_omega/omega_compiler.epsilon.sources"
 expect_result accepted 'restored manifests omit the Rust producer again'
 
-echo 'bootstrap owner inventory: 23 archive, checkout, flat-layout, gate-prefix, and Rust-producer omission cases pass'
+echo 'bootstrap owner inventory: archive, checkout, peer, flat-layout, gate-prefix, and Rust-producer omission cases pass'

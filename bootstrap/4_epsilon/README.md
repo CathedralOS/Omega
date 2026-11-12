@@ -20,18 +20,23 @@ Its [resource classification](LANGUAGE.md#10-resource-classification) separates
 valid source from bounded realization; implementation status below does not
 amend either contract.
 
-## Canonical edges
+## Construction edges
 
 ```text
-Delta-written Epsilon evaluator + exact Epsilon-written Omega D
-  └─ selected Gamma execution ─▶ interpreted Omega compiler D
+Delta-written Epsilon evaluator + Epsilon-written bootstrap compiler
+  └─ Gamma evaluation or source-built compiled VM execution
+     └─ running bootstrap compiler
 
-Interpreted D + Omega-written C + alpha_bootstrap
-  └─ omega0_compiler_bytecode.tape
+Remaining: bootstrap compiler + Omega compiler source + alpha_bootstrap
+  └─ first Omega compiler tape
 ```
 
-The first executable composition runs Epsilon. D accepts Omega and produces the
-first C tape only when its ordinary `alpha_bootstrap` target is selected.
+The existing composition runs Epsilon and compiles exercised scalar Omega
+programs to Alpha tapes. It has not constructed the Omega compiler from its
+source. The [bootstrap compiler](../5_omega/README.md) records implemented
+coverage and explicit refusals; the [compiled VM peer](../compiled_vm/README.md)
+records its source construction and trust inputs. The first Omega compiler
+must then rebuild the same Omega compiler source reproducibly.
 
 ## Implementation status
 
@@ -86,10 +91,11 @@ The real evaluator edge owns its contract-derived positive/negative suite.
 ## Boundaries
 
 - Epsilon is independent of Omega even when spelling overlaps.
-- The Epsilon evaluator is written in Delta and executes exact Epsilon source
-  under the selected Gamma evaluator.
-- Epsilon-written `D` implements full Omega and may slowly compile Omega C for
-  the ordinary `alpha_bootstrap` target.
+- The Epsilon evaluator is written in Delta. Its Gamma receipt can execute
+  through the Gamma evaluator or the source-built Gamma compiler's Alpha tape.
+- The Epsilon-written bootstrap compiler must support enough specified Omega
+  to construct the Omega-written compiler. Its current scalar subset is not
+  that complete source construction.
 - All fixed capacities are source-visible bounds, explicit profile parameters,
   or private budgets whose exhaustion is `Incomplete` and publishes no tape.
 - Shell and Python may invoke tests or stamp tapes. They may not parse, lower,

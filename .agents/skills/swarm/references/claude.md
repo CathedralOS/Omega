@@ -1,8 +1,8 @@
 # Claude Swarm (`claude-code-remote` Adapter)
 
 This reference defines the `claude-code-remote` container transport for running a wave of Claude Code cloud sessions.
-- **Worker workflow:** Every session follows [advance](../../advance/SKILL.md) (`/advance`) and [AGENTS.md](../../../../AGENTS.md#law-of-completion) for capability selection, the 9-place sample loop, validation, and board updates. Point sessions to `.agents/skills/advance/SKILL.md` rather than duplicating `/advance` instructions.
-- **Coordinator review & landing:** Sessions push a **draft** PR (`gh pr create --draft`) and stop (`candidate_ready`). The coordinator audits every diff using [coordinator-review](../../coordinator-review/SKILL.md) before running `cargo xtask land land <pr> --expected-head <sha>`.
+
+Session ownership, execution and publication follow the [swarm skill](../SKILL.md), [advance](../../advance/SKILL.md), and [landing](../../../../tools/landing.md).
 
 ## 1. Claude Cloud Session Tools
 
@@ -25,7 +25,7 @@ Never schedule periodic timers, `schedule` calls, `send_later` check-ins, or sle
 1. **Start sessions warm:**
    - Set the environment's setup script to `if [ -d Omega ]; then bash Omega/tools/agent_setup.sh; fi`; [agent_setup.sh](../../../../tools/agent_setup.sh) installs the pinned Rust toolchain, `zstd`, `mbx`, prebuilt `cargo-nextest` and the crates.
    - Instruct each session to acquire a pool slot via `cargo xtask worktree acquire <lane>-<topic>` and build with `mbx build -p omega` so sample and corpus gates reuse `target/` (direct `cargo build` / `cargo test` fallback is forbidden).
-   - A session's slot starts at the commit the restored build was published for, not at the newest `origin/main`: `acquire` prints both commits. Building there takes under a minute; a few commits later, once a foundation crate has changed, it takes the full 11 minutes of a cold build. Instruct sessions to keep that base and rebase onto `origin/main` only when the task needs a commit that is newer or the PR conflicts; the merge queue integrates the rest. A slot with no restored build, or whose published commit `origin/main` does not contain, starts at `origin/main` as before.
+   - A session's slot starts at the commit the restored build was published for; `acquire` prints that commit and `origin/main`. Keep that fixed base when its producer inputs remain applicable, and update it for a needed prerequisite or actual conflict under the landing rules. A slot with no restored build, or whose published commit `origin/main` does not contain, starts at `origin/main` as before.
    - Instruct sessions to run long builds/gates in the background and wait on completion notifications rather than `sleep` or `pgrep` loops, and pass `--base <commit>` to `cargo xtask check-rules`.
-2. **Record & dispatch:** Fetch `origin/main`, reserve outcomes via [dispatch.md](../../../../tools/swarm/dispatch.md), record the wave ledger under `build/swarm/<wave>/`, and pass each session its `TASKS.md` capability, witness path, and instruction to follow [advance](../../advance/SKILL.md) (`/advance`), stop at a draft PR (`gh pr create --draft`), and print a final JSON verdict block (`candidate_ready`).
-3. **Review, land & reuse:** When a session finishes, run the 5-point diff audit in [coordinator-review](../../coordinator-review/SKILL.md), land via `cargo xtask land land`, and `send_message` the next requirement of the parent capability to the same warm session.
+2. **Record & dispatch:** Complete `/advance` preflight and [claim registration](../../../../tools/claims.md), record the wave ledger under `build/swarm/<wave>/`, and pass each session its capability, witness, fixed base, and instruction to follow `/advance` through verified landing. Retain the PR URL, submitted head, published commit and observed limits in the completion report.
+3. **Reuse:** After the session verifies its landing, `send_message` the next requirement of the parent capability to the same warm session.

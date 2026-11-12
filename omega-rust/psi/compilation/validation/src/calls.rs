@@ -3042,16 +3042,11 @@ pub(crate) mod expression_scanning {
         formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
     ) {
         // A checked mathematical application in an erased initializer has no
-        // machine entry or executable call obligations. Its complete dependent
-        // application was checked by the mathematical producer; relevance still
-        // visits every operand and rejects runtime effects or escaped evidence.
-        if crate::mathematical_applications::is_mathematical_call(program, call)
-            && program
-                .prepared_mathematics()
-                .is_some_and(|view| view.application(expression).is_some())
-            && crate::mathematical_applications::erased_initializer_nodes(program)
-                .contains(&expression)
-        {
+        // machine entry or executable call obligations. Relevance still visits
+        // every operand and rejects runtime effects or escaped evidence.
+        if crate::mathematical_applications::is_erased_checked_application(
+            program, expression, call,
+        ) {
             return;
         }
         if call.quotient_operation.is_some() {
@@ -18326,6 +18321,20 @@ pub(crate) mod write_frames {
                 .data_application_definition(handle)
                 .or_else(|| program.closed_data_definition(handle))
             {
+                /*
+                    A lifetime-only dependency is a hold on caller storage even when
+                    no field spells a reference: a retained-custody carrier such as
+                    `Pending<'source> { slot: u64 }` keeps its backing loan through
+                    that lifetime alone. Such a value can carry a caller borrow, so
+                    it is not an isolated proof value. The type is asked, not the
+                    definition, because a closed instance drops its lifetime list.
+                */
+                if proof_values
+                    && crate::borrow_contracts::retained_lifetime_owner_paths(program, handle)
+                        .is_some_and(|paths| !paths.is_empty())
+                {
+                    return false;
+                }
                 return definition_isolated!(definition, proof_values);
             }
             match program.type_reference_table.type_reference(handle) {
@@ -32959,8 +32968,15 @@ pub(crate) mod write_frames {
                     }
                     if let ExpressionNode::Call(call) = node {
                         capture_completed(expression, prefix, effects, capture);
+                        // Neither a metadata query nor an erased mathematical
+                        // application installs a caller reference slot: the
+                        // first only observes, the second never executes.
                         if crate::compiler_operations::expression_call_only_observes_operands(
                             self.program,
+                            call,
+                        ) || crate::mathematical_applications::is_erased_checked_application(
+                            self.program,
+                            expression,
                             call,
                         ) {
                             if let Some(output) = observed {

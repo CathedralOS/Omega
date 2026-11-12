@@ -5,7 +5,8 @@ for the [complete encoding subject](ACCEPTANCE.md). It is not current Beta
 semantics, a demonstrated resource fit, or permission for isolated helper work.
 Remove it when an integrated source-owned encoder supersedes the recipe, or an
 explicitly assessed replacement strategy displaces it while preserving the
-required full-subject proof. Implementation status belongs on the bootstrap board.
+research proof objective. This is outside the bootstrap construction MVP.
+Implementation status belongs on the bootstrap board.
 
 ## Proposed computation
 
@@ -94,8 +95,9 @@ producer, or block independent bootstrap work. Ordinary engineering choices
 remain engineering choices, not unresolved language decisions.
 
 The [cost review](../../../wiki/drafts/reference/bootstrap_cost_review.md) now carries a
-derived integrated ledger for this candidate against the current 47,756-byte
-subject. Measured there: the state census (17,130 distinct leaf states with
+derived integrated ledger for this candidate against the historical 47,756-byte
+subject at `d19361fe4deae73e1b488a940a872fec1ed885cb`. Measured there: the
+state census (17,130 distinct leaf states with
 count in state, 1,521 without), the shared successor counter at 2,122,796
 work and 4,667,320 request bytes, and the ~675,017 physical work ceiling under
 the selected pair arena. Its verdict: this architecture removes the physically

@@ -2,7 +2,9 @@ use omega::language::core::float_operations;
 
 machine build(builder: &mut Build) {
     Build::application(builder, "rootless_numeric_provider_consumer");
-    Build::depend_as(builder, "numeric_library", Source::Path { location: "../rootless_numeric_provider_review" });
+    let mut numeric_library_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../rootless_numeric_provider_review" });
+    dependency::with_alias(&mut numeric_library_dependency, "numeric_library");
+    let numeric_library_registration: DependencyRegistration = Build::dependency(builder, numeric_library_dependency);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

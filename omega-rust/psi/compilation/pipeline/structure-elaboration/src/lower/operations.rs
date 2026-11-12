@@ -7,13 +7,13 @@ A record-typed expression is storage and goes to `places`.
 use semantic_vocabulary::{ObligationId, OperationId, ScalarType, ValueId};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::ValueOrigin;
-use terminal_check_tables::{Checked, ProgramPoint};
+use terminal_check_tables::{Checked, Construct, ProgramPoint};
 use terminal_psi::{Operation, OperationKind, OperationResult};
 
-use super::places::Bound;
+use super::places::{Bound, Witness};
 use super::{Lowering, Value, declaration};
-use crate::SourceOrigin;
 use crate::body::{Expression, ExpressionKind, Strict, ValueType};
+use crate::{SourceOrigin, Unserved, refuse};
 
 impl Lowering<'_> {
     pub(super) fn operation_identity(&mut self, source: SourceOrigin) -> OperationId {
@@ -61,6 +61,35 @@ impl Lowering<'_> {
         }
     }
 
+    /// The term an erased position names: a literal, a relevant scalar slot's
+    /// current value, or the term another erased slot names. No operation is
+    /// emitted; contracts.md, "Explicit erased bindings": the binding
+    /// "contributes no runtime field, address, read, or cleanup."
+    pub(super) fn witness(&mut self, expression: &Expression) -> Checked<Witness> {
+        match (&expression.kind, expression.result) {
+            (ExpressionKind::Integer(value), Some(ValueType::Scalar(ScalarType::Integer(t)))) => {
+                Ok(Witness::Integer(t, *value))
+            }
+            (ExpressionKind::Boolean(value), _) => Ok(Witness::Boolean(*value)),
+            (ExpressionKind::Slot(slot), Some(ValueType::Scalar(scalar_type))) => {
+                match *self.slot_mut(*slot)? {
+                    Some(Bound::Scalar(value)) => Ok(Witness::Value(value, scalar_type)),
+                    Some(Bound::Erased(witness)) => Ok(witness),
+                    Some(Bound::Home(_) | Bound::Record(_)) | None => Err(refuse(
+                        self.id,
+                        self.current.map_or(Construct::Machine, Construct::Block),
+                        Unserved::Expression("erased term that reads storage"),
+                    )),
+                }
+            }
+            _ => Err(refuse(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+                Unserved::Expression("erased term other than a literal or a binding"),
+            )),
+        }
+    }
+
     fn result_type(&self, expression: &Expression) -> Checked<ScalarType> {
         expression
             .result
@@ -75,6 +104,17 @@ impl Lowering<'_> {
         let result = match expression.result {
             Some(ValueType::Record(_)) => return self.record(expression).map(Value::Record),
             Some(ValueType::Scalar(scalar_type)) => Some(scalar_type),
+            // A value of a rigid type is only ever named: no operation
+            // produces one, so no result row is minted for it here.
+            Some(ValueType::Rigid(_)) => {
+                let ExpressionKind::Slot(slot) = &expression.kind else {
+                    return Err(self.internal("an operation over a value of a rigid type"));
+                };
+                return match *self.slot_mut(*slot)? {
+                    Some(Bound::Scalar(value)) => Ok(Value::Scalar(value)),
+                    _ => Err(self.internal("a rigid slot is not bound to a value")),
+                };
+            }
             None => None,
         };
         match &expression.kind {
@@ -103,6 +143,11 @@ impl Lowering<'_> {
                         self.read_home(home, scalar_type, source)
                     }
                     Some(Bound::Record(_)) => Err(self.internal("a record slot has a scalar type")),
+                    // The reader refuses a runtime read of an erased
+                    // binding, so reaching one here is a broken body.
+                    Some(Bound::Erased(_)) => {
+                        Err(self.internal("an erased binding is read as a runtime value"))
+                    }
                     None => Err(self.internal("a slot is read before it is bound")),
                 }
             }
@@ -141,6 +186,28 @@ impl Lowering<'_> {
                     result,
                     OperationKind::IntegerBitwiseNot { operand },
                 )
+            }
+            ExpressionKind::Cast(operand_expression) => {
+                let operand = self.scalar(operand_expression)?;
+                let (ScalarType::Integer(from), Some(ScalarType::Integer(to))) =
+                    (self.result_type(operand_expression)?, result)
+                else {
+                    return Err(self.internal("a cast between carriers that are not integers"));
+                };
+                let operation = self.operation_identity(source);
+                // Widening is total. Any other conversion is exact only
+                // where the value is representable, which is its obligation.
+                let kind = if from.can_widen_to(to) {
+                    OperationKind::IntegerWiden { operand }
+                } else if from != to && from.can_exact_cast_to(to) {
+                    OperationKind::IntegerExactCast {
+                        operand,
+                        obligation: self.safety(operation, source)?,
+                    }
+                } else {
+                    return Err(self.internal("a cast with no exact conversion"));
+                };
+                self.emit(operation, result, kind)
             }
             ExpressionKind::Strict {
                 operation,

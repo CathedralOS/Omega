@@ -67,6 +67,7 @@ pub struct BuildEvaluationRequest<'request> {
     pub artifact_only: bool,
     pub prior_checks: Vec<&'request psi_compiler::RetainedCheck>, // Scan-ordered prior Build language judgments (own slot chain + equal-projection siblings).
     pub retain_check: bool, // Retain a successful judgment only when a subsequent review pass will consume it.
+    pub checked_slices: Option<&'request dyn psi_compiler::CheckedSliceStore>, // Local store of checked dependency slices; `None` checks every slice afresh.
 }
 
 pub use compilation_products::EvaluatedBuild;
@@ -85,6 +86,7 @@ pub struct PreparedBuildEvaluation {
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
     retained_check: Option<psi_compiler::RetainedCheck>,
+    provider_folded_constants: bool,
     pure_retention: Option<(CompletedPureBuildInputs, PureBuildCompilation)>,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
 }
@@ -166,6 +168,7 @@ impl PreparedBuildEvaluation {
             restricted_build_requests,
             base_source_consumption_commitment,
             retained_check,
+            provider_folded_constants,
             pure_retention,
             restricted_build_grants,
         } = self;
@@ -198,6 +201,7 @@ impl PreparedBuildEvaluation {
             restricted_build_requests,
             base_source_consumption_commitment,
             retained_check,
+            provider_folded_constants,
         })
     }
 }
@@ -222,6 +226,7 @@ pub fn prepare_build_evaluation(
         artifact_only,
         prior_checks,
         retain_check,
+        checked_slices,
     } = request;
     let BuildExecutionInputs {
         profile: execution_profile,
@@ -278,18 +283,20 @@ pub fn prepare_build_evaluation(
         .into_iter()
         .chain(completed_checks.iter().map(AsRef::as_ref))
         .collect::<Vec<_>>();
-    let (prepared, providers, retained_check) = crate::admission::checking::prepare_checked_build(
-        typed,
-        pre_checks,
-        selected_machine,
-        package_inputs,
-        dependency_activation,
-        toolchain_defaults,
-        execution_profile,
-        timings,
-        &prior_checks,
-        retain_check || pure_build_compilation.is_some(),
-    )?;
+    let (prepared, providers, retained_check, provider_folded_constants) =
+        crate::admission::checking::prepare_checked_build(
+            typed,
+            pre_checks,
+            selected_machine,
+            package_inputs,
+            dependency_activation,
+            toolchain_defaults,
+            execution_profile,
+            timings,
+            &prior_checks,
+            retain_check || pure_build_compilation.is_some(),
+            checked_slices,
+        )?;
     let filesystem_scope = crate::prepare_filesystem_scope(
         root_path,
         package_inputs,
@@ -365,6 +372,7 @@ pub fn prepare_build_evaluation(
         restricted_build_requests,
         base_source_consumption_commitment,
         retained_check,
+        provider_folded_constants,
         pure_retention: inputs.zip(pure_build_compilation.cloned()),
         restricted_build_grants,
     })

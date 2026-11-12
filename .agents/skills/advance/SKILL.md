@@ -20,8 +20,7 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
 - **Coordinator + subagents:** The coordinator runs Step 1 from `TASKS.md` and
   `tests/omega/corpus_outcomes.txt` (without reading `omega-rust/` source files
   to pre-diagnose the bug) and dispatches each worker immediately; the worker
-  executes Steps 2–5 in its own context window and stops at a draft PR for
-  `coordinator-review`.
+  executes Steps 2–5 in its own context window and lands its own PR.
 
 ## Step 1: Preflight, Worktree & Claim
 
@@ -62,8 +61,8 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
    close stdin with `< /dev/null` on manual background runs).
 2. **Witness the failure first:** Run the target witness (`omega run --both` or
    `cargo xtask sample-gate --facts --filter <fact>`).
-3. **Cut a refusal down with small probes:** Isolate the failing construct,
-   decide from the governing spec in `wiki/spec/` whether the refusal is a
+3. **Read the spec, then cut the refusal down:** Read the governing page in
+   `wiki/spec/` first. Isolate the failing construct, decide from that spec whether the refusal is a
    language rule or a compiler precision/lowering gap, and check
    `git log <base>..origin/main -- <files>` so you do not duplicate an in-flight
    repair.
@@ -101,47 +100,35 @@ the finite `tests/omega` facts fixture, is a photograph of that object.
 Changing the fact, the bound, or the operation so a place passes is repainting
 that photograph: a different object, and a green check on it is not done.
 
-1. **Run focused validation & sweep the full root-cause family ([testing.md](../../../tools/testing.md)):**
-   - Do not stop at a 1-off fixture win: identify all pinned regressions in
-     `tests/omega/corpus_outcomes.txt` (`--list-pinned-regressions`) and failing
-     programs in `samples/` (`cargo xtask sample-gate`) that were blocked by
-     the same mechanism or migration gap, and validate the whole family together.
-   - Run affected crate unit tests and `cargo xtask corpus --filter <fact_and_family_fixtures>`.
-2. **Commit code and fixture files BEFORE `--record`:**
-   - Ensure no leftover `omega.lock` or `build/` directories sit inside
-     `tests/omega/` fixtures (never delete `tests/omega/pass/build/`).
-   - Commit all `.rs`, `.omg`, and `expected.txt` changes first so `git status`
-     is clean, then run:
-     ```bash
-     cargo xtask corpus --record --filter <affected_fixtures>
-     ```
-   - Inspect `git diff -- tests/omega/corpus_outcomes.txt` and verify every
-     `pass/` or `run/` row is `checked`/`built`, every `fail/` row is
-     `rejected ... expected`, and no row carries a `+wt` stamp or
-     `regressed-from:` marker.
+1. **Run one focused validation ([Law of completion](../../../AGENTS.md#law-of-completion)):**
+   - Run affected crate unit tests and one `cargo xtask corpus --filter` over
+     the rows and samples this change targets. No broad sweeps or before/after
+     comparisons against main; the nightly sweep covers main afterwards.
+2. **Leave the ledger alone:** Do not run `corpus --record` or edit
+   `tests/omega/corpus_outcomes.txt`; the post-merge check writes it. Ensure no
+   leftover `omega.lock` or `build/` directories sit inside `tests/omega/`
+   fixtures (never delete `tests/omega/pass/build/`).
 3. **Update `TASKS.md`:** Delete the completed bullet or clause
    from `TASKS.md` outright (never rewrite into `"preserving / keeping / now
    passes"` history prose), and run `cargo xtask check-rules --base origin/main`.
 
-## Step 5: Publish Draft PR & Continue or Land
+## Step 5: Publish and Land
 
-1. **Push HEAD to a remote `work/` ref and open a draft PR:**
+1. **Push HEAD to a remote `work/` ref and open the PR ready:**
    ```bash
    # In a compiler lane, PR_BODY also carries the `Gate:` line from AGENTS.md.
    cargo xtask provenance  # append this model-audit line to the commit and PR_BODY
    mbx clippy -p <crate> --all-targets -- -D warnings  # each Rust crate you touched
    git push origin HEAD:refs/heads/work/<lane>-<topic>
    cargo xtask check-rules --base origin/main --title "<title>" --body-file PR_BODY
-   gh pr create --draft --title "<title>" --body-file PR_BODY
+   gh pr create --base main --head work/<lane>-<topic> --title "<title>" --body-file PR_BODY
    ```
-2. **Follow the landing boundary ([AGENTS.md](../../../AGENTS.md#sessions-and-subagents)):**
-   - **When controlled by a coordinator session:** Stop at the draft PR and
-     message the coordinator (`candidate_ready`). The coordinator runs
-     [coordinator-review](../coordinator-review/SKILL.md) before marking ready
-     and running `cargo xtask land`.
-   - **When running standalone with no coordinator:** Self-audit the full diff
-     against [coordinator-review](../coordinator-review/SKILL.md), then run
-     `cargo xtask land <pr> --expected-head $(git rev-parse HEAD)`.
+2. **Land it:** Review your own diff the way a careful reviewer would
+   ([coordinator-review](../coordinator-review/SKILL.md)), then squash-merge it
+   when `admission` passes. You already have permission; waiting for it only
+   slows the project down.
 3. **Chain the next requirement on the warm worktree:** Once landed, continue the
-   parent capability's next remaining requirement on the same warm worktree
-   (`git fetch origin main && git checkout --detach origin/main && git clean -fd`).
+   parent capability's next remaining requirement on the same warm worktree.
+   Inspect `git status --short` and preserve unfinished or untracked work before
+   fetching main and switching the detached checkout to the next fixed base.
+   Retain the warm build cache; do not clean the worktree blindly.

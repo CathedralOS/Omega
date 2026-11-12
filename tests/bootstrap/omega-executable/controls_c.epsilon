@@ -15,22 +15,22 @@ machine Main::main(&mut self) {
     self.rejected();
 
     self.compiler.compile("machine answer() -> u8 { 1 + 256 }", "answer");
-    self.rejected();
+    self.incomplete();
 
     self.compiler.compile("machine answer() -> u8 { 200 + 100 }", "answer");
-    self.rejected();
+    self.incomplete();
 
     self.compiler.compile("machine answer() -> u8 { 10 - 20 }", "answer");
-    self.rejected();
+    self.incomplete();
 
     self.compiler.compile("machine answer() -> u8 { 16 * 16 }", "answer");
-    self.rejected();
+    self.incomplete();
 
     self.compiler.compile("machine answer() -> u8 { 100 / 0 }", "answer");
     self.rejected();
 
     self.compiler.compile("machine answer() -> u8 { 7 % 0 }", "answer");
-    self.rejected();
+    self.incomplete();
 
     self.compiler.compile("machine answer() -> u8 { 20 + 22 }", "answer");
     self.complete(22);

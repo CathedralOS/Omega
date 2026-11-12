@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::package(builder, "reading_provider");
-    Build::depend(builder, Source::Path { location: "reading_implementations" });
+    let reading_implementations_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "reading_implementations" }));
     Build::select_provider<reading_implementations::main::Reading, reading_implementations::main::FirstReading>(builder, windows_x86_64);
     Build::select_provider<reading_implementations::main::Reading, reading_implementations::main::FirstReading>(builder, macos_x86_64);
     Build::select_provider<reading_implementations::main::Reading, reading_implementations::main::FirstReading>(builder, linux_x86_64);

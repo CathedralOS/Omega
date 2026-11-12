@@ -54,6 +54,13 @@ pub enum AcceptedProofRule {
     IntegerMathOrderTranslation,
     IntegerOrderAntisymmetry,
     IntegerAffineBound,
+    /// The `IntegerAffineBound` form that bounds a remainder by its dividend.
+    /// It is a row of its own because it is provisional
+    /// (`AcceptedProofRule::is_provisional`).
+    IntegerRemainderWithinDividend,
+    /// The `IntegerAffineBound` form that relates a quotient to its
+    /// dividend; provisional, like the row above.
+    IntegerQuotientAtMostDividend,
     IntegerExactAddDefinitionBound,
     IntegerExactSubtractDefinitionBound,
     IntegerCastBound,
@@ -478,9 +485,16 @@ pub(crate) mod integer_bound_rules {
         root_bound: &Proposition,
         witness: &IntegerAffineWitness,
         conclusion: &Proposition,
-    ) -> Result<Vec<usize>, ProofError> {
+    ) -> Result<(AcceptedProofRule, Vec<usize>), ProofError> {
         let form = check_integer_affine_witness(context, semantic_axioms, witness)
             .map_err(ProofError::IntegerAffineWitness)?;
+        let rule = if form.is_remainder_within_dividend() {
+            AcceptedProofRule::IntegerRemainderWithinDividend
+        } else if form.is_quotient_at_most_dividend() {
+            AcceptedProofRule::IntegerQuotientAtMostDividend
+        } else {
+            AcceptedProofRule::IntegerAffineBound
+        };
         let normalized_conclusion =
             lower_integer_math_relation(conclusion).unwrap_or_else(|| conclusion.clone());
         if *root_bound == Proposition::Truth {
@@ -512,7 +526,7 @@ pub(crate) mod integer_bound_rules {
             }
             cited.push(definition_index);
         }
-        Ok(cited)
+        Ok((rule, cited))
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -759,16 +773,15 @@ pub(crate) mod integer_bound_rules {
                 root_bound,
                 witness,
             } => {
-                acceptance
-                    .rules
-                    .insert(AcceptedProofRule::IntegerAffineBound);
-                affine_bound_relation(
+                let (rule, cited) = affine_bound_relation(
                     context,
                     semantic_axioms,
                     &root_bound.conclusion,
                     witness,
                     conclusion,
-                )?
+                )?;
+                acceptance.rules.insert(rule);
+                cited
             }
             ProofRule::IntegerCastBound {
                 root_bound,

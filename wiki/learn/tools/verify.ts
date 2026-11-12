@@ -16,7 +16,7 @@
 // `accept`, and `omega update --resume` publishes the lock. That ceremony
 // re-runs only when a check reports missing or stale acceptance.
 //
-// Compiles run in parallel (cap 4): a cold fixture that `depend`s on std takes
+// Compiles run in parallel (cap 4): a cold fixture that registers a dependency on std takes
 // minutes because each fresh package location re-checks the whole dependency
 // closure, so serial is the slow way to pay that cost.
 
@@ -127,7 +127,7 @@ for (const ch of chapters) {
       buildCode =
         `machine build(builder: &mut Build) {\n` +
         `    Build::application(builder, "omegalearn_fixture");\n` +
-        `    Build::depend(builder, Source::Path { location: ${JSON.stringify(STD).replace(/\\/g, "/")} });\n` +
+        `    let package_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: ${JSON.stringify(STD).replace(/\\/g, "/")} }));\n` +
         `    Build::bind(builder, windows_x86_64::ProgramEntry, ${entry});\n` +
         `}\n`;
       writeFileSync(buildPath, buildCode);

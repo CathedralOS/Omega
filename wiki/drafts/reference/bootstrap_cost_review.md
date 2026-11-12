@@ -78,7 +78,7 @@ Both investigations ran on macOS arm64; no Windows result is claimed.
 
 The next unit and scope pause belong to the
 [complete encoder candidate](../../../bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md).
-Its customer is the exact selected evaluator source/tape in
+Its recorded customer was the exact evaluator source/tape in
 [the Gamma profile](../../../bootstrap/2_gamma/EVALUATOR_PROFILE.md), not another
 literal instruction proof. The
 [complete encoding subject](../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
@@ -134,7 +134,8 @@ production authority. Do not recreate local scratch paths as required tooling.
 
 ### Integrated ledger for the consolidated candidate
 
-Derived against the current selected subject (47,756-byte source, 8,575-byte
+Derived against the historical subject at
+`d19361fe4deae73e1b488a940a872fec1ed885cb` (47,756-byte source, 8,575-byte
 tape; the discriminators above used the earlier 46,484/8,355 subject). The
 subject now has 3,751 tokens in 595 distinct values, 3,493 emitting tokens,
 218 assertions, 19,495 comment bytes, 15,305 separator bytes, 76 distinct
@@ -226,7 +227,7 @@ emitted theory is 116,992 bytes (18 sorts, 361 constructors, 108 functions;
 encoder functions 58..108 occupy 22,816 bytes). A pure-Python stepper
 (`tests/gamma/beta-encoding-theory/stepper.py`) replays every ground
 application through its stated clause and emits the corresponding
-unfold/congruence/transitivity certificate rows. On the exact selected
+unfold/congruence/transitivity certificate rows. On that exact historical
 subject — the 47,756-byte evaluator source as a midpoint-split Source tree
 (22,339 interned owner terms) and the 8,575-byte tape — it independently
 reconstructed the owner proposition

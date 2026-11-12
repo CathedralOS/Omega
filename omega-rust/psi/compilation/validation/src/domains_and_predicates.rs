@@ -7501,25 +7501,44 @@ pub mod default_domains {
                 }
             }
 
-            let element_store = super::element_stores::handle_element_store(
-                program,
-                machine,
-                state,
-                target,
-                value,
-                tracked,
-                entry_valuations,
-                inherited_windows,
-                poisoned_all,
-                poisoned_paths,
-                born_zero,
-                statement_index,
-            );
+            let origins =
+                call_frames.map(|frames| frames.assignment_storage_origins(machine, statement));
+            // The written element is named by the storage it reaches, not by how the
+            // assignment spells it: `v[0] = x` with `v = &mut b.cells` updates `b`'s
+            // tracked elements exactly as `b.cells[0] = x` does.
+            let element_destination = match &origins {
+                Some(Ok(origins)) => match origins.destinations.as_slice() {
+                    [origin] => origin
+                        .write_storage_coordinate(program, state)
+                        .ok()
+                        .map(|coordinate| coordinate.place),
+                    _ => None,
+                },
+                _ => None,
+            }
+            .or_else(|| crate::canonical_place_from_expression(program, target));
+            let element_store = element_destination.and_then(|destination| {
+                super::element_stores::handle_element_store(
+                    program,
+                    machine,
+                    state,
+                    &destination,
+                    target,
+                    value,
+                    tracked,
+                    entry_valuations,
+                    inherited_windows,
+                    poisoned_all,
+                    poisoned_paths,
+                    born_zero,
+                    statement_index,
+                )
+            });
 
-            let Some(frames) = call_frames else {
+            let Some(origins) = origins else {
                 return;
             };
-            let origins = match frames.assignment_storage_origins(machine, statement) {
+            let origins = match origins {
                 Ok(origins) => origins,
                 Err(reason) => {
                     diagnostics.push(
@@ -7765,7 +7784,7 @@ pub mod default_domains {
             Ok(())
         }
 
-        fn invariant_place_spelling(
+        pub(crate) fn invariant_place_spelling(
             program: &dyn crate::CheckingInput,
             place: &crate::CanonicalPlace,
         ) -> Option<String> {
@@ -9493,8 +9512,7 @@ pub mod default_domains {
         }
     }
     pub(crate) mod element_stores {
-        use super::assignment_windows::tracked_receiver;
-        use super::place_queries::{data_definition_for_expression, write_place_spelling};
+        use super::assignment_windows::{invariant_place_spelling, tracked_receiver};
         use super::state_flow::PlaceValuation;
         use super::symbolic_values::{LiteralValue, literal_value};
         use super::{InvariantWindow, TrackedPlace};
@@ -9503,7 +9521,7 @@ pub mod default_domains {
             self, ArgumentKnowledge, IntegerSet, unknown_knowledge,
         };
         use typed_trees::data::{DataDefinition, DataField, DataMember};
-        use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+        use typed_trees::expression::ExpressionHandle;
         use typed_trees::machine::Machine;
         use typed_trees::state::State;
 
@@ -9511,6 +9529,7 @@ pub mod default_domains {
             program: &'program dyn CheckingInput,
             machine: &Machine,
             state: &State,
+            destination: &crate::CanonicalPlace,
             target: ExpressionHandle,
             value: ExpressionHandle,
             tracked: &mut Vec<TrackedPlace<'program>>,
@@ -9521,25 +9540,62 @@ pub mod default_domains {
             born_zero: bool,
             statement_index: usize,
         ) -> Option<crate::CanonicalPlace> {
-            let indexed = program.expression_table.indexed_node(target)?;
-            let (member_expression, element_index) =
-                match program.expression_table.expression(indexed.collection) {
-                    ExpressionNode::Member(_) => (indexed.collection, Some(indexed.index)),
-                    _ => {
-                        let member = innermost_member(program, indexed.collection)?;
-                        (member, None)
-                    }
-                };
-            let member = program.expression_table.member_node(member_expression)?;
-            let receiver_spelling = write_place_spelling(program, member.receiver)?;
+            // An element store writes one or more index positions below a data field:
+            // `receiver.field[index]...`. A single index is a known or runtime element;
+            // a deeper one leaves the field's elements unknown.
+            let field_position = destination
+                .segments
+                .iter()
+                .rposition(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))?;
+            let facts::PlaceSegment::Field {
+                symbol: field_symbol,
+            } = destination.segments[field_position]
+            else {
+                return None;
+            };
+            let indices = &destination.segments[field_position + 1..];
+            if indices.is_empty()
+                || !indices.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        facts::PlaceSegment::Index { .. } | facts::PlaceSegment::FixedIndex { .. }
+                    )
+                })
+            {
+                return None;
+            }
+            let element_index = match indices {
+                [facts::PlaceSegment::FixedIndex { index }] => Some(Some(*index)),
+                [facts::PlaceSegment::Index { expression }] => Some(
+                    program
+                        .expression_table
+                        .constant_integer_value(*expression)
+                        .and_then(|index| usize::try_from(index).ok()),
+                ),
+                _ => None,
+            };
+            let mut receiver = destination.clone();
+            receiver.segments.truncate(field_position);
+            if matches!(
+                receiver.segments.last(),
+                Some(facts::PlaceSegment::Case { .. })
+            ) {
+                receiver.segments.pop();
+            }
+            let receiver_spelling = invariant_place_spelling(program, &receiver)?;
+            let receiver_type = crate::value_custody::places::canonical_place_type_reference(
+                program,
+                state.symbol,
+                statement_index,
+                &receiver,
+            )?;
             let definition =
-                data_definition_for_expression(program, machine, Some(state), member.receiver)?;
-            let field = data_field(program, definition, member.member.as_str())?;
-            let handled = crate::canonical_place_from_expression(program, member_expression)
-                .filter(|place| {
-                    matches!(place.segments.last(),
-            Some(facts::PlaceSegment::Field { symbol }) if *symbol == field.symbol)
-                });
+                crate::value_custody::places::data_definition_for_type(program, receiver_type)?;
+            let field = data_field(program, definition, program.symbols.name(field_symbol))
+                .filter(|field| field.symbol == field_symbol)?;
+            let mut handled = destination.clone();
+            handled.segments.truncate(field_position + 1);
+            let handled = Some(handled);
             let affected = program
                 .conjunctive_proof_facts(definition.requires_facts)
                 .filter(|fact| {
@@ -9561,7 +9617,7 @@ pub mod default_domains {
             let position = tracked_receiver(
                 program,
                 state,
-                super::place_queries::expression_root_symbol(program, member.receiver),
+                receiver.root.as_symbol()?,
                 tracked,
                 receiver_spelling,
                 definition,
@@ -9594,8 +9650,7 @@ pub mod default_domains {
                     (_, None) => IntegerSet::empty(),
                 };
                 let literal_index = element_index
-                    .and_then(|index| program.expression_table.constant_integer_value(index))
-                    .and_then(|index| usize::try_from(index).ok())
+                    .flatten()
                     .filter(|index| *index < elements.len());
                 match (literal_index, element_index) {
                     (Some(index), _) => elements[index] = stored,
@@ -9644,21 +9699,6 @@ pub mod default_domains {
                 place.opening_write = None;
             }
             handled
-        }
-
-        fn innermost_member(
-            program: &dyn CheckingInput,
-            expression: ExpressionHandle,
-        ) -> Option<ExpressionHandle> {
-            let mut current = expression;
-            for _ in 0..32 {
-                match program.expression_table.expression(current) {
-                    ExpressionNode::Indexed(indexed) => current = indexed.collection,
-                    ExpressionNode::Member(_) => return Some(current),
-                    _ => return None,
-                }
-            }
-            None
         }
 
         fn data_field<'program>(

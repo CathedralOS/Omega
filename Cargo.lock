@@ -1875,6 +1875,7 @@ dependencies = [
  "arena",
  "backend-plan",
  "build-time-evaluation",
+ "build-time-values",
  "calling-conventions",
  "checked-trees",
  "component-description",
@@ -1892,7 +1893,6 @@ dependencies = [
  "program-entry-plan",
  "provider-selection",
  "psi-work",
- "representation-selections",
  "runtime-abi",
  "semantic-vocabulary",
  "source",
@@ -3167,6 +3167,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "shlex",
 ]
 
 [[package]]

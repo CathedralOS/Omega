@@ -108,6 +108,13 @@
 //! listing that differs from the oracle adds its own diagnostic, so the row
 //! cannot keep its recorded status by accident.
 //!
+//! An `expected_native_rejection.txt` (or `expected_native_rejection.<target>.txt`)
+//! beside a build-only pass fixture requires the realized target's publication
+//! to refuse with every listed diagnostic fragment. The record then carries
+//! `expected` and `native-rejection:match`; any other outcome, or an oracle
+//! beside an execution promise, carries `unexpected` and
+//! `native-rejection:mismatch` (`support/native_rejection_oracle.rs`).
+//!
 //! `unaccepted_build_output.txt` supplies a Build-consent refusal control:
 //! relative staged filenames which must remain absent. The fail leg supplies
 //! caller-owned output accounting, not privately issued staging, and no consent
@@ -157,6 +164,8 @@ mod native_entry_controls;
 #[path = "support/native_fixture_cohort.rs"]
 mod native_fixture_cohort;
 use native_fixture_cohort::retained_native_terminal;
+#[path = "support/native_rejection_oracle.rs"]
+mod native_rejection_oracle;
 #[path = "support/output_oracles.rs"]
 mod output_oracles;
 #[path = "support/runtime_oracles.rs"]
@@ -1866,6 +1875,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             Err(message) => (false, Some(message)),
         };
     let mut realized = false;
+    // The target whose publication this record observed, when the leg realized
+    // one. An authored native refusal is weighed against exactly that target.
+    let mut published_target: Option<String> = None;
     let mut outcome = if let Some(errors) = discovery_error {
         Err(errors)
     } else if let Some(message) = target_provision_error {
@@ -1878,6 +1890,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             }
             (_, _, Some((target, executes_here))) => {
                 realized = true;
+                published_target = Some(target.clone());
                 let build_dir = unique_build_dir(sequence);
                 let interpretation = (terminal_target_oracle
                     || interpreter_target.as_ref() == Some(target))
@@ -1988,6 +2001,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                         if let Some(target) = &check_target {
                             facts.push(format!("check-target:{target}"));
                         }
+                        published_target = check_target.clone();
                         interpreter_observation = Some(observe_retained_terminal(
                             leg.artifact.artifact(),
                             None,
@@ -2072,6 +2086,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                 if let Some(target) = &check_target {
                     facts.push(format!("check-target:{target}"));
                 }
+                published_target = check_target;
                 check_outcome
             }
         }
@@ -2185,7 +2200,29 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         .map(|error| host_free_diagnostic_text(&error.message))
         .collect::<Vec<_>>();
     diagnostics.extend(interpreter_diagnostics);
-    let satisfied = expected_fragment_satisfied(&fixture_dir, errors);
+    let mut satisfied = expected_fragment_satisfied(&fixture_dir, errors);
+    // The refusal oracle owns the row's `expected` answer where it applies:
+    // the row is green only as the authored refusal, never as a build.
+    if let Some(target) = &published_target
+        && let Some(verdict) = native_rejection_oracle::weigh(
+            &fixture_dir,
+            tier,
+            &rel,
+            target,
+            status,
+            &facts,
+            &diagnostics,
+        )
+    {
+        satisfied = Some(verdict.is_ok());
+        facts.push(match verdict {
+            Ok(()) => "native-rejection:match".to_owned(),
+            Err(detail) => {
+                eprintln!("corpus_runner: {tier}/{rel}: {detail}");
+                "native-rejection:mismatch".to_owned()
+            }
+        });
+    }
     let millis = started.elapsed().as_millis();
     (
         record_text(tier, &rel, status, millis, satisfied, &facts, &diagnostics),
@@ -2565,6 +2602,8 @@ fn main() {
         "corpus_runner: library slices: {} distinct, {} computed",
         slices.distinct, slices.computed
     );
+    let (loaded, saved) = compiler::checked_slice_totals();
+    eprintln!("corpus_runner: checked slices: {loaded} loaded, {saved} saved");
     // Detached stragglers from timed-out fixtures die with the process here.
     process::exit(0);
 }

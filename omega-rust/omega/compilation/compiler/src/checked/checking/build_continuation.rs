@@ -37,6 +37,7 @@ pub(super) struct BuildSourceInvocation {
     package_inputs: Option<PackageCompilationInputs>,
     selected_target_profile: Option<target::TargetProfile>,
     build_execution_profile: Option<target::TargetProfile>,
+    dependency_activation: bool,
     timings: CompileTimings,
     started: std::time::Instant,
     speculative_product: Option<SpeculativeProduct>,
@@ -121,6 +122,7 @@ pub(super) fn prepare_build_invocation(
         settled_check_reuse,
     } = child;
     let build_execution_profile = build.profile;
+    let dependency_activation = build.dependency_activation;
     let execution_contract = build.contract();
     let TypedCompilationFrontier {
         preparation,
@@ -167,6 +169,7 @@ pub(super) fn prepare_build_invocation(
                     .chain(settled_check_reuse.prior.sibling_build_checks.iter())
                     .collect(),
                 retain_check: settled_check_reuse.retain,
+                checked_slices: crate::checked::checked_slice_store::shared(),
             },
             &mut timings,
         );
@@ -193,6 +196,7 @@ pub(super) fn prepare_build_invocation(
         package_inputs: package_inputs.cloned(),
         selected_target_profile,
         build_execution_profile,
+        dependency_activation,
         timings,
         started,
         speculative_product,
@@ -267,6 +271,7 @@ impl BuildSourceInvocation {
             package_inputs,
             selected_target_profile,
             build_execution_profile,
+            dependency_activation,
             timings,
             started,
             speculative_product: _,
@@ -339,6 +344,7 @@ impl BuildSourceInvocation {
             package_inputs: package_inputs.cloned(),
             original_assembly,
             build_execution_profile,
+            dependency_activation,
             toolchain_provider_defaults: None,
             timings,
             build_elapsed_micros: started.elapsed().as_micros(),
@@ -363,12 +369,9 @@ pub(super) fn prepare_settled_product(
     }
     let started = std::time::Instant::now();
     let mut timings = settled.timings;
-    let frontier = if settled.frontier.product_sources.is_some()
-        || settled.original_assembly
-            == package_compilation::SourceAssemblyInputs::new(
-                inputs,
-                settled.build_execution_profile,
-            ) {
+    let inputs_joined_after_build = settled.original_assembly
+        != package_compilation::SourceAssemblyInputs::new(inputs, settled.build_execution_profile);
+    let frontier = if settled.frontier.product_sources.is_some() || !inputs_joined_after_build {
         settled.frontier
     } else {
         let (frontier, prepared_timings) =
@@ -383,6 +386,8 @@ pub(super) fn prepare_settled_product(
         settled.toolchain_provider_defaults,
         inputs,
         settled.build_execution_profile,
+        settled.dependency_activation,
+        inputs_joined_after_build,
         &mut timings,
     )
     .map_err(|failure| super::attribute_failure(failure, &initial_sources, inputs))?;
@@ -405,6 +410,8 @@ fn complete_build_source(
     toolchain_provider_defaults: Option<package_compilation::CompletedProviderDefaults>,
     package_inputs: Option<&PackageCompilationInputs>,
     build_execution_profile: Option<target::TargetProfile>,
+    dependency_activation: bool,
+    inputs_joined_after_build: bool,
     timings: &mut CompileTimings,
 ) -> Result<(BuiltTypedProgram, BuildSourceCustody), CompileFailure> {
     let TypedCompilationFrontier {
@@ -422,6 +429,7 @@ fn complete_build_source(
         restricted_build_requests,
         base_source_consumption_commitment,
         retained_check: retained_build_check,
+        provider_folded_constants,
     } = evaluated;
     if let Some(pending) = product_sources {
         let inputs =
@@ -465,6 +473,29 @@ fn complete_build_source(
         source_file_count = product.source_file_count;
         generated_source_custody = product.generated_source_custody;
         Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
+        // This frontier holds the Build source again, typed afresh, so a
+        // constant Build admission folded under its own provider plans is
+        // pending here. Repeat that settlement and discharge it before the
+        // Product completes; left pending, the constant would be retained as
+        // a Product application and evaluated by the Product's targets.
+        // Constants that need no provider fold the same way on either
+        // frontier, so only a provider fold, or package inputs that joined
+        // after Build ran and may change what defers, calls for it.
+        if provider_folded_constants || inputs_joined_after_build {
+            let entry = selected.ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "deferred Product lost the Build entry whose constants it must settle",
+                )]
+            })?;
+            build_settings::settle_rejoined_build_slice(
+                source.build_input(),
+                entry,
+                package_inputs,
+                dependency_activation,
+                toolchain_provider_defaults.as_ref(),
+                build_execution_profile,
+            )?;
+        }
     }
     if computed_build_config
         .declared_product_selections

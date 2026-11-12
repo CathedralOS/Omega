@@ -13,7 +13,7 @@ use semantic_vocabulary::{
 };
 use structure_elaboration::{
     Body, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict,
-    Target, Unpositioned, ValueType,
+    Target, Termination, Unpositioned, ValueType,
 };
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
@@ -22,7 +22,9 @@ use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
 use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
+mod guard_contradiction;
 mod ranges;
+mod type_parameters;
 mod value_parameters;
 
 fn integer_type(sign: IntegerSign) -> IntegerType {
@@ -122,6 +124,8 @@ fn at_least(position: u64, value: u128) -> Proposition {
 
 struct Machine {
     parameters: Vec<ScalarType>,
+    /// Positions of the `[erased]` formals.
+    erased: Vec<usize>,
     result: ScalarType,
     locals: Vec<ScalarType>,
     requires: Vec<Proposition>,
@@ -132,6 +136,7 @@ struct Machine {
 fn machine(parameters: Vec<ScalarType>, statements: Vec<Statement>) -> Machine {
     Machine {
         parameters,
+        erased: Vec::new(),
         result: u32_type(),
         locals: Vec::new(),
         requires: Vec::new(),
@@ -154,10 +159,12 @@ fn lower(machines: Vec<Machine>) -> Checked<structure_elaboration::Elaboration> 
         });
         signatures.push(Signature {
             parameters,
+            erased: machine.erased,
             result: Some(machine.result.into()),
             requires: machine.requires,
             ensures: machine.ensures,
             crashes: CrashCeiling::Authored(Vec::new()),
+            termination: Termination::Silent,
         });
     }
     structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -1356,10 +1363,12 @@ fn elaborate_over(
         });
         signatures.push(Signature {
             parameters: machine.parameters,
+            erased: Vec::new(),
             result: Some(machine.result),
             requires: machine.requires,
             ensures: Vec::new(),
             crashes: CrashCeiling::Authored(Vec::new()),
+            termination: Termination::Silent,
         });
     }
     structure_elaboration::lower_bodies(id(1), &bodies, &signatures, records).unwrap()
@@ -3060,7 +3069,9 @@ fn a_dispatch_edge_establishes_its_case_and_the_wildcard_edge_establishes_none()
         .collect();
     assert_eq!(
         refused,
-        ["a case payload is accessed on a path that does not establish its case"]
+        [
+            "cannot prove selected case for payload access: a path to this access does not establish the case"
+        ]
     );
 }
 
@@ -5572,10 +5583,12 @@ mod generic_bodies {
             });
             signatures.push(Signature {
                 parameters,
+                erased: Vec::new(),
                 result: Some(machine.result.into()),
                 requires: machine.requires,
                 ensures: machine.ensures,
                 crashes: CrashCeiling::DeclaredNone,
+                termination: structure_elaboration::Termination::Silent,
             });
         }
         structure_elaboration::lower_generic(
@@ -5895,10 +5908,12 @@ fn crashing_below_ten(
     });
     signatures.push(Signature {
         parameters: vec![u32_type().into()],
+        erased: Vec::new(),
         result: Some(u32_type().into()),
         requires: Vec::new(),
         ensures: Vec::new(),
         crashes: CrashCeiling::Authored(routes),
+        termination: structure_elaboration::Termination::Silent,
     });
     let mut elaboration =
         structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -5979,10 +5994,12 @@ fn crashing_at_zero(requires: Vec<Proposition>) -> (structure_elaboration::Elabo
     });
     signatures.push(Signature {
         parameters: vec![u32_type().into()],
+        erased: Vec::new(),
         result: Some(u32_type().into()),
         requires,
         ensures: Vec::new(),
         crashes: CrashCeiling::DeclaredNone,
+        termination: structure_elaboration::Termination::Silent,
     });
     let mut elaboration =
         structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -6028,10 +6045,12 @@ fn calling_a_zero_route(
     });
     signatures.push(Signature {
         parameters: vec![u32_type().into()],
+        erased: Vec::new(),
         result: Some(u32_type().into()),
         requires,
         ensures: Vec::new(),
         crashes: CrashCeiling::DeclaredNone,
+        termination: structure_elaboration::Termination::Silent,
     });
     bodies.push(Body {
         slots: vec![u32_type().into()],
@@ -6046,6 +6065,7 @@ fn calling_a_zero_route(
     });
     signatures.push(Signature {
         parameters: vec![u32_type().into()],
+        erased: Vec::new(),
         result: Some(u32_type().into()),
         requires: Vec::new(),
         ensures: Vec::new(),
@@ -6055,6 +6075,7 @@ fn calling_a_zero_route(
                 bound(u32_type(), IntegerValue::Unsigned(0)),
             )),
         )])),
+        termination: structure_elaboration::Termination::Silent,
     });
     let mut elaboration =
         structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -6142,10 +6163,12 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
         });
         signatures.push(Signature {
             parameters: vec![u32_type().into()],
+            erased: Vec::new(),
             result: Some(u32_type().into()),
             requires: Vec::new(),
             ensures: Vec::new(),
             crashes: CrashCeiling::Authored(caller_routes),
+            termination: structure_elaboration::Termination::Silent,
         });
         bodies.push(Body {
             slots: vec![u32_type().into()],
@@ -6160,10 +6183,12 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
         });
         signatures.push(Signature {
             parameters: vec![u32_type().into()],
+            erased: Vec::new(),
             result: Some(u32_type().into()),
             requires: Vec::new(),
             ensures: Vec::new(),
             crashes: CrashCeiling::Authored(trap_when(vec![terminal_psi::CrashRouteGuard::Truth])),
+            termination: structure_elaboration::Termination::Silent,
         });
         let mut elaboration =
             structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -6189,3 +6214,196 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
     let (elaboration, result) = program(Vec::new());
     assert_unproved(verdicts(&elaboration, &result, 1, operation_site)[0].1);
 }
+
+/// `keep(n: u32, bound [erased]: u32) -> u32 requires n < bound { n }`. The
+/// erased formal is the callee's value 3: after `n` and the result
+/// pseudo-value (`Signature::formal_values`).
+fn keep(ensures: Vec<Proposition>) -> Machine {
+    Machine {
+        erased: vec![1],
+        requires: vec![Proposition::LessThan(
+            formal(1, u32_type()),
+            formal(3, u32_type()),
+        )],
+        ensures,
+        ..machine(
+            vec![u32_type(), u32_type()],
+            vec![returns(slot(0, u32_type()))],
+        )
+    }
+}
+
+/// Machine 1 is `main() -> u32 { keep(70, <bound>) }`.
+fn keeps_seventy_under(bound: Expression) -> Vec<Machine> {
+    let main = machine(
+        Vec::new(),
+        vec![returns(call(2, vec![unsigned(70), bound]))],
+    );
+    vec![main, keep(Vec::new())]
+}
+
+/// contracts.md, "Explicit erased bindings": the binding "remains in checking
+/// and semantic identity". The requirement that names it is proved at the
+/// call from the term the call supplies, with nothing evaluated for it.
+#[test]
+fn a_requirement_over_an_erased_formal_discharges_from_the_supplied_term() {
+    let (elaboration, result) = run(keeps_seventy_under(unsigned(100)));
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    // The erased formal's own entry requirement is knowledge in the callee
+    // like any other, over its value identity.
+    let callee = elaboration.tables.machines.get(id(2)).unwrap();
+    assert_eq!(
+        callee.values.get(id(3)).unwrap().origin,
+        ValueOrigin::MachineParameter { position: 1 }
+    );
+}
+
+/// The twin differs only in the erased term, and that alone breaks the
+/// requirement: an erased actual is checked, not ignored.
+#[test]
+fn a_requirement_over_an_erased_formal_is_unproved_for_a_term_that_breaks_it() {
+    let (elaboration, result) = run(keeps_seventy_under(unsigned(50)));
+    assert_unproved(verdicts(&elaboration, &result, 1, requirement)[0].1);
+}
+
+/// An erased formal forwarded as the erased term of an inner call: the
+/// caller's own `requires n < bound` proves the callee's.
+#[test]
+fn an_erased_formal_forwards_as_the_erased_term_of_a_call() {
+    let forward = |requires| {
+        let outer = Machine {
+            erased: vec![1],
+            requires,
+            ..machine(
+                vec![u32_type(), u32_type()],
+                vec![returns(call(
+                    2,
+                    vec![slot(0, u32_type()), slot(1, u32_type())],
+                ))],
+            )
+        };
+        vec![outer, keep(Vec::new())]
+    };
+    let held = vec![Proposition::LessThan(
+        formal(1, u32_type()),
+        formal(3, u32_type()),
+    )];
+    let (elaboration, result) = run(forward(held));
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    let (elaboration, result) = run(forward(Vec::new()));
+    assert_unproved(verdicts(&elaboration, &result, 1, requirement)[0].1);
+}
+
+/// A callee guarantee that names its erased formal reaches the caller with
+/// the supplied term in its place: `ensures n < bound` after `keep(a, 100)`
+/// is `a < 100` in the caller.
+#[test]
+fn a_guarantee_over_an_erased_formal_reaches_the_caller_under_the_supplied_term() {
+    let stated = Proposition::LessThan(formal(1, u32_type()), formal(3, u32_type()));
+    let caller = |bound: u128| Machine {
+        requires: vec![at_most(1, 60)],
+        ..machine(
+            vec![u32_type()],
+            vec![returns(call(2, vec![slot(0, u32_type()), unsigned(bound)]))],
+        )
+    };
+    let (elaboration, result) = run(vec![caller(100), keep(vec![stated])]);
+    for (obligation, verdict) in verdicts(&elaboration, &result, 1, requirement) {
+        assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    }
+    let callee_guarantee = elaboration
+        .tables
+        .machines
+        .get(id(1))
+        .unwrap()
+        .knowledge
+        .iter()
+        .find(|(_, row)| matches!(row.justification, Justification::CalleeGuarantee { .. }))
+        .map(|(_, row)| row.proposition)
+        .unwrap();
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    assert_eq!(
+        tables.propositions.get(callee_guarantee),
+        Some(&Proposition::LessThan(
+            formal(1, u32_type()),
+            bound(u32_type(), IntegerValue::Unsigned(100)),
+        ))
+    );
+}
+
+/// `let w [erased]: u32 = 100; keep(70, w)`: the local names the term and the
+/// call supplies it. No operation computes the local.
+#[test]
+fn an_erased_local_supplies_the_term_it_names() {
+    let with_local = |value: u128| {
+        let main = Machine {
+            locals: vec![u32_type()],
+            ..machine(
+                Vec::new(),
+                vec![
+                    Statement::Witness {
+                        slot: 0,
+                        term: unsigned(value),
+                    },
+                    returns(call(2, vec![unsigned(70), slot(0, u32_type())])),
+                ],
+            )
+        };
+        vec![main, keep(Vec::new())]
+    };
+    let (elaboration, result) = run(with_local(100));
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    let module = &elaboration.module;
+    let operations: Vec<_> = module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .collect();
+    // One constant (70) and the call: nothing was emitted for `w`.
+    assert_eq!(operations.len(), 2);
+    let (elaboration, result) = run(with_local(50));
+    assert_unproved(verdicts(&elaboration, &result, 1, requirement)[0].1);
+}
+
+/// `keep(bound [erased]: u32, n: u32) -> u32 requires n < bound { n }`: an
+/// erased formal written before a runtime one. `n` keeps its authored
+/// position 1 though it is the first runtime formal, and the erased formal
+/// is still value 3, after `n` and the result.
+#[test]
+fn an_erased_formal_written_before_a_runtime_one_keeps_both_positions() {
+    let keep_first = || Machine {
+        erased: vec![0],
+        requires: vec![Proposition::LessThan(
+            formal(1, u32_type()),
+            formal(3, u32_type()),
+        )],
+        ..machine(
+            vec![u32_type(), u32_type()],
+            vec![returns(slot(1, u32_type()))],
+        )
+    };
+    let main = |bound| {
+        machine(
+            Vec::new(),
+            vec![returns(call(2, vec![unsigned(bound), unsigned(70)]))],
+        )
+    };
+    let (elaboration, result) = run(vec![main(100), keep_first()]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    let callee = elaboration.tables.machines.get(id(2)).unwrap();
+    assert_eq!(
+        callee.values.get(id(1)).unwrap().origin,
+        ValueOrigin::MachineParameter { position: 1 }
+    );
+    assert_eq!(
+        callee.values.get(id(3)).unwrap().origin,
+        ValueOrigin::MachineParameter { position: 0 }
+    );
+    let (elaboration, result) = run(vec![main(50), keep_first()]);
+    assert_unproved(verdicts(&elaboration, &result, 1, requirement)[0].1);
+}
+mod loops;

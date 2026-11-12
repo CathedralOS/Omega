@@ -1,6 +1,9 @@
-# authored_plan_layout
+# Authored fixed layout
 
-Hand-declared plan-laid layout vocabulary (no `core::layout` import): Schema/SchemaField where-bounds, `FieldPlan::IntegerAt{offset, stored_width, interpretation}` placement cases, `SignedByte::plan(schema) -> Plan` producing entries, `SignedByte<PortableByte>` record-field instantiation. Plain `[u8]` array storage stays independently checked beside the declared layout — unrelated encodings don't bleed into byte views.
+`SignedByte` is an ordinary named `FixedLayout<PortableByte>` implementation.
+Its `IntegerAt` placement stores a signed value in one byte. `RawView` selects
+that representation with `LayoutStorage<PortableByte, SignedByte>`; unrelated
+plain byte storage retains its own representation.
 
-Compile-checked only: no standard-library dependency and
-no `Main::exit` — run a check target, not native.
+This remains a checking probe. Its local success/failure values are not a
+process-exit oracle, so it does not establish native/Psi runtime agreement.

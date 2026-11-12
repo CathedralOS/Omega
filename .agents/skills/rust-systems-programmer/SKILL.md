@@ -75,7 +75,7 @@ Select affected-path tests and relevant positive/rejection controls. Retain and
 reuse valid completed evidence under the applicability rules below. Huge corpus
 or workspace gates are not defaults: name the change-specific obligation that
 needs a broader run and follow [AGENTS.md's sweep rules](../../../AGENTS.md#commands).
-Required GitHub `compiler-check` still applies.
+Follow [landing](../../../tools/landing.md) for current admission and publication.
 
 For compiler work and review, apply [requirements and evidence](../../../AGENTS.md#requirements-and-evidence),
 [main-change validation](../../../tools/testing.md#main-change-validation), and

@@ -1,148 +1,57 @@
 # Bootstrap tasks
 
-Follow [board update discipline](TASKS.md#updating-the-boards): retain unfinished
-work and its necessary context, not a history of completed milestones.
-Use [working the board](TASKS.md#working-the-board): the session that starts
-a construction outcome carries it through its executable and proof acceptance.
-Path overlap does not partition the chain into stages for different sessions.
+The owner-adopted [bootstrap mandate](bootstrap/MINIMIZATION.md) governs this
+board. Develop competing peer variants through executable construction of the
+Omega compiler and reproducible self-compilation. No variant is selected during
+exploration. Architectural changes, stage count, language facilities and explicit
+acceleration are delegated within that mandate. Preserve required language
+semantics and disclose each result's trust assumptions.
 
-Build the smallest **human-auditable proof chain to self-hosted Omega**.
-Runnable compilers and checked edge evidence are both required; neither replaces
-the other. Minimize the total human audit burden of semantics, admitted seeds,
-implementations, checker rules, certificates, profiles, and permanent tooling.
-The governing contracts are [bootstrap minimization](bootstrap/MINIMIZATION.md)
-and the [derivation checker](bootstrap/proofs/checker/README.md).
+Use **bootstrap compiler** for the compiler that first builds the **Omega
+compiler**. Existing OMEGA-D/OMEGA-C task IDs and artifact filenames remain stable
+references; the old letters below identify historical subjects, not public names.
+A bootstrap compiler needs correct coverage for its actual successor, not every
+Omega feature. Formal bootstrap correctness certificates are optional future work
+and do not block construction. Ordinary Omega proof/safety semantics are unchanged.
 
-The currently selected construction route is:
+Variants may change organization and carry their own source/specification/run
+surface. Keep comparisons tied to actual compiler customers, source revisions,
+resource profiles and observations. A one- or two-day cold run may be acceptable;
+a timeout is an uncompleted observation rather than a semantic verdict. Document
+failed experiments and attempted remedies before retiring them. Do not leave an
+implementation at a prototype when its path remains viable.
 
-```text
-audited Alpha VM + admitted Beta compiler tape
-  -> Beta-written Gamma evaluator
-  -> Gamma-authored Delta compiler
-  -> Delta-authored Epsilon evaluator
-  -> interpreted Epsilon-authored Omega compiler D
-  -> Omega-written product compiler C for alpha_bootstrap
-  -> C rebuilds itself
-```
+Record genuine changes outside the mandate in
+[OWNER_QUESTIONS_BOOTSTRAP.md](OWNER_QUESTIONS_BOOTSTRAP.md). Do not escalate
+ordinary authorized engineering or re-open settled Omega semantics merely to
+avoid implementation. Continue independent work while a question is pending.
 
-The Gamma checker sits beside these edges; it is not another language rung.
-Its implementation is a means to explicit, independently rooted proofs, not
-a general-purpose proof-system project or an end in itself.
+## Active peer construction work
 
-Prioritize the executable path to Omega and reductions in its human audit burden.
-Proof-checker experimentation is secondary in scheduling; this does not remove
-the required evidence for final chain closure. Retained rung features serve their
-actual next compiler/evaluator customer, not general-purpose language completeness
-beyond the selected contracts. Language and topology experiments follow
-whole-chain minimization without an owner-approval prerequisite. Adoption must
-reconcile contracts and evidence; proposed weakening of required assurances
-still requires owner escalation. Tag an added item's provenance on its first
-line: `(new-scope)` for newly discovered work, `(split-of:<parent-item>)` when
-it decomposes an existing item. Items added before 2026-09-14 are untagged.
+- **INTERPRETED-CONSTRUCTION.** (new-scope) Restore executable verification of
+  the numbered interpreted owners, reconcile current source identities with their
+  consumers, and establish a completed observation on actual Omega compiler input.
+  Carry missing coverage and shared execution-cost repairs through the successor
+  route. Existing identity checks alone are not compiler execution acceptance.
+- **COMPILED-CONSTRUCTION.** (new-scope) Carry the compiled route through the
+  Omega compiler's own source construction and reproducible rebuilds. Measure
+  total implementation/audit burden and cold/development costs against the same
+  required behavior as the other peers.
+- **OMEGA-COMPILER-CONSTRUCTION.** (new-scope) Complete the Omega-written compiler
+  through required source checking, portable lowering and target emission, driven
+  by its own source closure and end-to-end program behavior. The Rust compiler is
+  a comparator, not an undisclosed construction stage. Coordinate with
+  OMEGA-PRODUCT-COMPILER-SOURCE in [TASKS.md](TASKS.md).
 
-## Selection and stopping rules
+The following retained tasks detail unfinished interpreted-variant and product
+work. Their existence gives that variant no priority over alternative routes.
 
-- Apply [scope checkpoints](AGENTS.md#scope-and-escalation) before each milestone.
-  Challenge the task's premise against the final audit goal, not just its tests.
-  A concrete compiler customer or named proof obligation is necessary but does
-  not alone establish that the proposed mechanism is the simplest solution.
-- Count progress in execution, human auditability, and measured proof feasibility.
-  Helper/test counts, smaller files, and preserving current limits are not goals.
-  Compare simpler implementations and coherent private-capacity changes before
-  adding workarounds; preserve required semantics and fail-closed behavior.
-  Routine limit changes need no owner approval; follow
-  [private capacity changes](bootstrap/MINIMIZATION.md#private-capacity-changes).
-- No intermediate self-hosting, hypothetical reuse, permanent compatibility
-  layers, host semantic stages, or customer-specific acceptance shortcuts.
-  Host tools may invoke, stamp, compare, and report, never manufacture authority.
-- Keep topology/source ownership green with
-  `sh tools/bootstrap/check-chain-hygiene.sh`; this is validation, not an
-  evergreen feature task. Remove completed tasks rather than logging milestones.
-- Question questionable checker/encoding designs as well as compiler designs.
-  Report evidence and alternatives before extending a faulty premise. Changes
-  to ratified language/trust contracts follow [owner escalation](AGENTS.md#scope-and-escalation);
-  engineering review does not authorize silently weakening the proof claim.
-- Keep language-facility and implementation comparisons on this board under
-  [whole-chain minimization](bootstrap/MINIMIZATION.md). Experiments remain
-  non-authoritative and do not need an owner ruling. Escalate proposed weakening
-  of trust, observation, identity, or fail-closed guarantees before relying on it.
+<a id="p4---epsilon-to-omega-and-self-hosting"></a>
 
-## Dependencies
-
-The `P`-numbered groups below are task-group labels, not owner-question
-numbers or a mandatory serial schedule. P1 is the Gamma checker's proof that
-the entire selected evaluator Beta source encodes to its exact persisted
-Alpha tape; it is not a proof that the evaluator implements Gamma. An empty
-`OWNER_QUESTIONS.md` means there is no unanswered owner decision, not that
-these implementation tasks pass.
-Skip a task-local pause or blocker and continue independent work on this board.
-Proof work can advance against existing exact artifacts before Omega is complete.
-Runnable lower-rung development can also proceed under disclosed trust assumptions;
-it does not close a proof edge. Do not redirect all effort to execution merely because the
-checker has a longer acceptance path.
-
-Full self-hosting remains dependent on settled exercised Omega behavior, the
-[Rust product completion plan](wiki/drafts/reference/rust_compiler_completion.md),
-complete D, and `OMEGA-PRODUCT-COMPILER-SOURCE` in [TASKS.md](TASKS.md).
-Rust remains a comparator, not bootstrap authority. Optimization matters where
-measured execution or audit feasibility requires it, not as an unbounded
-prerequisite to every lower-rung milestone.
-
-## P1 - Gamma checker and first complete encoding proof
-
-- **GAMMA-DERIVATION-CHECKER.** Close the first artifact-specific encoding proof
-  with the ordinary-Gamma [checker](bootstrap/proofs/checker/CHECKING.md) and
-  [Beta definitions](bootstrap/proofs/beta_encoding/README.md). Follow the
-  [full acceptance](bootstrap/proofs/beta_encoding/ACCEPTANCE.md), not a smaller
-  equation batch: the subject is the entire selected Gamma evaluator's raw Beta
-  source and persisted Alpha tape, with independently reconstructed proposition
-  `encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)`.
-
-  Current frontier: the complete untrusted derivation and source-owned theory
-  exist, but full checking and mutation acceptance remain owed. The
-  2026-09-27 macOS arm64 evaluator run hit the 43200 s host timeout without
-  `Checked`; see `wiki/drafts/measurements/gamma_beta_encoding_check.md`.
-  The 135,485,028-byte request fits the selected 136,314,880-byte admission
-  bound; `implementation/comparison/session.gamma` uses the selected 2^26
-  shared work bound. These are the provisions to exercise, not new blockers.
-  Reuse the coupled evaluator/storage provisions in
-  [CHECKING.md](bootstrap/proofs/checker/CHECKING.md#complete-generic-execution-provision)
-  and [PROFILE.md](bootstrap/proofs/beta_encoding/PROFILE.md); do not rediscover
-  the retired small request limit or add a second work allowance.
-
-  Remaining:
-  - Produce the complete certificate through the selected evaluator chain from
-    the source-owned definitions. `tests/gamma/beta-encoding-theory/run.sh
-    --full-subject` reproduces and measures host-stepper output; it is not
-    selected-chain production.
-  - Run `tests/gamma/beta-encoding-check/run.sh` against the current pinned
-    checker on supported native seeds. Require the exact `Checked` observation
-    for 3,182,974 rows within the selected provision, record actual time/storage,
-    then execute the full-subject mutation controls. A timeout, reference-VM
-    result or partial run is not admission.
-  - Preserve the retained-role census and justify every remaining checker rule,
-    definition and admission against this subject. Remove unjustified helpers;
-    totality cases and owner-fixed rules need not occur in this successful
-    derivation. Reuse the existing census rather than opening another inventory
-    task.
-
-  More native backing, not a new composition rule, is the selected admission
-  route. The [encoder candidate continuation condition](bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md#continuation-condition)
-  still governs that separate experiment. Use the provisioned macOS arm64
-  seed's 128 GiB extent; work on another supported seed is unaffected.
-
-  Acceptance: full evidence checks under the exact
-  [result/resource profile](bootstrap/proofs/checker/FORMAT.md), with measured
-  bytes, storage, depth and time. Malformed, cyclic, missing-premise,
-  wrong-subject, wrong-rule and exhausted requests cannot accept. Keep the
-  explicit limitation: encoding equality does not prove evaluator semantics.
-  No proof search, producer-selected root, trusted assembler primitive or
-  general-purpose checker extension.
-## P4 - Epsilon to Omega and self-hosting
+## Interpreted variant and Omega self-hosting
 
 - **OMEGA-D.** Complete the Epsilon closure selected by
-  `bootstrap/5_omega/omega_compiler.epsilon.sources` as the first full Omega
-  compiler. Work against settled product semantics and actual C requirements;
+  `bootstrap/5_omega/omega_compiler.epsilon.sources` as the bootstrap compiler for the actual Omega compiler closure. Work against specified Omega semantics and the actual Omega compiler requirements;
   conservative, slow interpreted execution is acceptable when feasible.
 
   - Migrate the evaluator, independent refinement model, fixtures and full D
@@ -190,7 +99,7 @@ prerequisite to every lower-rung milestone.
   that selected operation as not implemented, per the
   [bootstrap contract](bootstrap/CONTRACT.md#selected-execution-chain).
 
-- **OMEGA-C.** Once the product source and D are ready, compile the exact
+- **OMEGA-C.** Once the product source and bootstrap compiler are ready, compile the exact
   Omega-written closure rooted at `source/omega/{build.omg,main.omg}` with D,
   then with `omega0`. This is the sole self-host edge.
   Acceptance: `D -> C/omega0 -> C/omega` is deterministic, `omega` recompiles
@@ -198,17 +107,17 @@ prerequisite to every lower-rung milestone.
 
 ## P5 - Audited chain closure
 
-- **CHAIN-MANIFEST.** Bind the remaining self-host compiler tapes, certificates
-  and disclosed admissions in edge-owned records and shared
+- **CHAIN-MANIFEST.** Bind the remaining self-host compiler tapes, disclosed trust assumptions
+  and any retained research certificates in edge-owned records and shared
   `tools/bootstrap/` orchestration. Source closures, seed/evaluator artifacts,
   request entries and gate-local drivers already use exact bindings; preserve
   their `*_env.sh` materializers and `tests/bootstrap/*-identity.sh` refusal
   controls rather than creating another binding scheme.
 
   Missing subjects: the `omega0` and `omega` tapes produced by OMEGA-C, and
-  proof/admission records as their edges close. Each binding must join the exact
+  construction records as each variant closes. Each binding must join the exact
   source closure, artifact, semantics and resource/observation profile,
-  reconstructed obligation and evidence before the consuming gate executes.
+  construction evidence and disclosed assumptions before the consuming gate executes.
   Identity-only tests are not execution or proof evidence.
 
   Acceptance: a reviewer can follow each dependency to the audited root without
@@ -218,9 +127,10 @@ prerequisite to every lower-rung milestone.
   OFFLINE-REBUILD owns complete blank-host reconstruction.
 
 - **OFFLINE-REBUILD.** Close `tests/bootstrap/` reconstruction from the audited
-  Alpha seed and repository-owned bytes on supported hosts. Rust, Python,
-  networking and package managers are never semantic stages; the manifest must
-  expose all admissions and contain no retired rung.
+  Alpha seed and repository-owned bytes on supported hosts. In this source-owned
+  route, Rust/Python development compilers and network acquisition are not semantic
+  stages. Accelerated variants disclose those dependencies separately and do not
+  claim this cold reconstruction. Expose all assumptions and omit retired rungs.
 
   Reuse the existing identity/source-closure/hygiene gates and seed execution
   routes. Linux x86-64 has a selected native seed and executable lower-rung
@@ -234,7 +144,7 @@ prerequisite to every lower-rung milestone.
     Alpha/Beta prerequisite; it does not close this higher-rung roster.
     Byte-only identity checks do not replace execution.
   - Complete the chain beyond interpreted D once OMEGA-D, OMEGA-C and their
-    required proof edges close, then reconstruct/check it on a blank supported
+    executable construction obligations close, then reconstruct/check it on a blank supported
     host without unavailable-host success or an undisclosed authority substitute.
   - Complete [Delta's cumulative pair containment](bootstrap/3_delta/implementation/boundary/execution_storage.md#remaining-obligation)
     for the selected Gamma profile. Scaled allocation projections and individual
@@ -244,4 +154,63 @@ prerequisite to every lower-rung milestone.
     failure for the compiler outcome. Capacity tuning is not owner-blocked.
 
   Acceptance is the complete offline self-host chain, not another passing
-  subset or an aggregate of incompatible source/profile pins.
+  subset or an aggregate of incompatible source/profile pins. Formal proof
+  certificates are not prerequisites for this construction milestone.
+
+## Optional proof research: first complete encoding proof
+
+This retained research is outside current construction acceptance. Its stated
+proof claims remain conditional on completing the exact checks below. Do not
+schedule it as a prerequisite for a runnable bootstrap chain.
+
+- **GAMMA-DERIVATION-CHECKER.** Close the first artifact-specific encoding proof
+  with the ordinary-Gamma [checker](bootstrap/proofs/checker/CHECKING.md) and
+  [Beta definitions](bootstrap/proofs/beta_encoding/README.md). Follow the
+  [full acceptance](bootstrap/proofs/beta_encoding/ACCEPTANCE.md), not a smaller
+  equation batch: the subject is the entire historical Gamma evaluator's raw
+  Beta source and persisted Alpha tape at
+  `d19361fe4deae73e1b488a940a872fec1ed885cb`, with independently reconstructed proposition
+  `encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)`.
+  This remaining research does not certify the current evaluator or gate
+  ordinary bootstrap construction.
+
+  Current frontier: the complete untrusted derivation and source-owned theory
+  exist, but full checking and mutation acceptance remain owed. The
+  2026-09-27 macOS arm64 evaluator run hit the 43200 s host timeout without
+  `Checked`; see `wiki/drafts/measurements/gamma_beta_encoding_check.md`.
+  The 135,485,028-byte request fits the selected 136,314,880-byte admission
+  bound; `implementation/comparison/session.gamma` uses the selected 2^26
+  shared work bound. These are the provisions to exercise, not new blockers.
+  Reuse the coupled evaluator/storage provisions in
+  [CHECKING.md](bootstrap/proofs/checker/CHECKING.md#complete-generic-execution-provision)
+  and [PROFILE.md](bootstrap/proofs/beta_encoding/PROFILE.md); do not rediscover
+  the retired small request limit or add a second work allowance.
+
+  Remaining:
+  - Produce the complete certificate through the selected evaluator chain from
+    the source-owned definitions. `tests/gamma/beta-encoding-theory/run.sh
+    --full-subject` reproduces and measures host-stepper output; it is not
+    selected-chain production.
+  - Run `tests/gamma/beta-encoding-check/run.sh` against the current pinned
+    checker on supported native seeds. Require the exact `Checked` observation
+    for 3,182,974 rows within the selected provision, record actual time/storage,
+    then execute the full-subject mutation controls. A timeout, reference-VM
+    result or partial run is not admission.
+  - Preserve the retained-role census and justify every remaining checker rule,
+    definition and admission against this subject. Remove unjustified helpers;
+    totality cases and owner-fixed rules need not occur in this successful
+    derivation. Reuse the existing census rather than opening another inventory
+    task.
+
+  More native backing, not a new composition rule, is the selected admission
+  route. The [encoder candidate continuation condition](bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md#continuation-condition)
+  still governs that separate experiment. Use the provisioned macOS arm64
+  seed's 128 GiB extent; work on another supported seed is unaffected.
+
+  Acceptance: full evidence checks under the exact
+  [result/resource profile](bootstrap/proofs/checker/FORMAT.md), with measured
+  bytes, storage, depth and time. Malformed, cyclic, missing-premise,
+  wrong-subject, wrong-rule and exhausted requests cannot accept. Keep the
+  explicit limitation: encoding equality does not prove evaluator semantics.
+  No proof search, producer-selected root, trusted assembler primitive or
+  general-purpose checker extension.

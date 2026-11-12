@@ -39,7 +39,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **OPERATION-RECORD-IMPLEMENTATIONS.** Make implementations ordinary checked records of callable selections and evidence ([design](wiki/drafts/designs/operation_record_implementations.md)).
   - Finish callable selections, typed/erased fields, constraints, open/closed contracts and static/runtime materialization.
-  - Unify empty/generic record identity; migrate marker customers. Complete general evidence citation, explicit inherited fields and computed Build providers.
+  - Unify identity for instantiated defaults, generic constructors, call static arguments. Complete general evidence citation, explicit inherited fields and computed Build providers.
   Acceptance: the design's cases pass `--both`; reusing a machine needs no forwarding member.
 
 - **OWNED-ACTIVATIONS.** Expose activation execution custody with typed replies ([design](wiki/drafts/designs/owned_activations.md)), after the record model.
@@ -72,7 +72,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 ## Pipeline route
 
 - **PIPELINE-ARCHITECTURE-ENFORCEMENT.** Enforce the single-pass Psi (`00–07`) + Build + per-target Omega (`00–09`) [pipeline](omega-rust/pipeline.md) in `target_batch.rs`.
-  - Admit dependency contexts ([scoped_execution.md](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)), run `build.omg` and Psi `00–07` once, clear `FIREWALL_ALLOWANCES` in `tools/check_native_boundary.py`, and drop 256 MiB stacks.
+  - Admit dependency contexts ([scoped_execution.md](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)), run `build.omg` and Psi `00–07` once, clear `FIREWALL_ALLOWANCES` in `tools/check_native_boundary.py`, and drop 256 MiB stacks (the bound on expression-tree depth they stand in for waits on [`expression-tree-depth-provision`](OWNER_QUESTIONS.md)).
   Acceptance: two-target builds run Psi `00–07` and Build once and Omega `00–09` once per target with clean boundary guards.
 
 - **VALIDATION-SUBJECTS.** Implement [validation subjects](wiki/drafts/designs/validation_subjects.md): check the selected packages in full and dependencies only through their required semantic closure.
@@ -125,9 +125,6 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Retire Psi 06 shape gates (`tools/stage06_shape_gates.txt`) and source-context reads (`tools/stage06_source_context.txt`) using Psi 05 plans.
   Acceptance: retired gates have checking reject twins in `tests/omega/fail/facts/`, and `linux_x86_64` native corpus passes.
 
-- **WIRE-CODEC-LIBRARY.** (covers **SEMANTIC-REFLECTION**) Complete [semantic reflection](wiki/spec/language/reflection.md) and `compact_binary` in `source/library/core/wire.omg`.
-  Acceptance: `source/library/core/wire.omg`, the 40-field record, `tests/omega/{pass,fail}/wire/*`, and `wire_protocol` pass `omega run --both`.
-
 ## Universal interpreter cutover
 
 - **EARLY-TERMINAL-JOBS.** (covers **TERMINAL-LAYOUT-WIRE-EVALUATION**, **TERMINAL-BUILD-SEED**) Route [evaluation](wiki/spec/language/evaluation.md), [embedding](wiki/spec/build/embedding.md), and [scoped Build](wiki/spec/build/scoped_execution.md) through `TerminalProgram::load`.
@@ -142,7 +139,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 - **REQUIRES-UNIFICATION.** Run `tests/psi/*/test-*.sh` over the `where` deletion; each gate's `omega update` peaks near 14 GB single-threaded.
   Acceptance: the parser, resolver, typing and checking gates pass.
 
-- **STAGED-BUILD-CAPABILITIES.** Implement [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages) and attenuated filesystem delegation, retiring `depend*` and `BuildInputs`/`BuildSource`/`BuildOutput`.
+- **STAGED-BUILD-CAPABILITIES.** Implement [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages) and attenuated filesystem delegation, retiring `BuildInputs`/`BuildSource`/`BuildOutput`.
   Acceptance: root/dependency Builds, generators, and attenuated filesystem providers pass `omega run --both` with legacy Build paths deleted.
 
 - **LIBRARY-REPRESENTATION-FAMILIES.** Implement [representations](wiki/spec/layouts/plans.md#representation-applications), [aliases](wiki/spec/language/generics.md#transparent-type-aliases), [conversions](wiki/spec/layouts/codecs.md#representation-conversions), and [home layouts](wiki/drafts/designs/home_layout_optimization.md).
@@ -185,7 +182,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## P3 - Terminal Psi, proofs, and observation
 
-- **STRUCTURAL-BORROW-IDENTITY.** (covers **WRITE-ONLY-BORROW**, **PLACED-ACCESS-NATIVE-OPS**, **GENERIC-FIXED-ARRAY-VIEWS**, **BORROW-PROOF-CONVERGENCE**, **TERMINAL-SLICE-VIEW-VOCABULARY**) Finish [structural borrows](wiki/spec/terminal-psi/structural_access.md), [loans](wiki/spec/terminal-psi/loans.md) and [slice views](wiki/spec/terminal-psi/byte_views.md), including nested element-view copies.
+- **STRUCTURAL-BORROW-IDENTITY.** (covers **WRITE-ONLY-BORROW**, **PLACED-ACCESS-NATIVE-OPS**, **GENERIC-FIXED-ARRAY-VIEWS**, **BORROW-PROOF-CONVERGENCE**, **TERMINAL-SLICE-VIEW-VOCABULARY**) Complete structural loans and slice views, including nested element-view copies; enforce [owned-local mutability and independent fact invalidation](wiki/spec/language/ownership.md#owned-local-mutability).
   Acceptance: `write_only`, `computed_nested_state_loan`, [reference_recast_backing_footprint](samples/cli/facts/reference_recast_backing_footprint/README.md), `disjoint_mut_subslice_windows_compile`, and `fletcher_checksum` pass `--both`.
 
 <a id="normalized-abi-lowering"></a>
@@ -193,7 +190,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 - **NORMALIZED-ABI-LOWERING.** (covers **OPAQUE-BY-VALUE-BOUNDARY-ABI**, **FOREIGN-RETAINED-ARGUMENT-BACKING**) Complete [calling plans](wiki/spec/build/calling_plans.md) and [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody) (`boundary_signatures.rs`, `retained_borrow_custody.rs`).
   Acceptance: `samples/cli/facts/{opaque_closed_carrier_exchange,foreign_retained_*,foreign_nested_record_backing}` and `providers/foreign_*` pass `omega run --both`.
 
-- **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**, **PSI-CLAIM-ADMISSION**) Complete [source proofs](wiki/spec/proofs/foundation.md) and [Psi preparation](wiki/drafts/designs/psi_claim_admission.md).
+- **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**, **PSI-CLAIM-ADMISSION**) Complete [source proofs](wiki/spec/proofs/foundation.md) and [Psi preparation](wiki/drafts/designs/psi_claim_admission.md). Emit code 36.
   Acceptance: [kernel, admission and performance controls](wiki/drafts/designs/psi_claim_admission.md#acceptance), including existing proof samples through `--both`.
 
 ## Build-level behavior exclusions
@@ -203,7 +200,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## Requirement-based tests
 
-- **BUILD-TEST-GROUPS.** Add [virtual-filesystem test groups](wiki/spec/build/testing.md#group-configuration-and-authority): a group-scoped `service<>` selection and the in-memory filesystem it selects, once owner question `test-group-virtual-filesystem` names that provider's interface and owning library.
+- **BUILD-TEST-GROUPS.** Add [virtual-filesystem test groups](wiki/spec/build/testing.md#group-configuration-and-authority): a group-scoped `service<>` selection and the in-memory filesystem it selects, once owner question `test-group-filesystem-state` says where that provider keeps its per-test state.
   Acceptance: a virtual-filesystem test group executes on both engines with fresh per-test state, and a child cannot widen it to the real filesystem.
 
 ## Checked boundary topology

@@ -2,9 +2,9 @@
 
 One dependency directory reached by the same alias `kit` on both purposes:
 
-- `Build::build_depend_as(builder, "kit", ...)` gives the build scope the
+- A `Build::build_dependency` registration aliased `"kit"` gives the build scope the
   dep's product machines (`use kit::main` inside `build.omg`).
-- `Build::depend_as(builder, "kit", ...)` gives the product scope the same
+- A `Build::dependency` registration aliased `"kit"` gives the product scope the same
   machines (`use kit::main` inside `main.omg`).
 
 The dep stages `generated.omg` through the required-output custody flow.

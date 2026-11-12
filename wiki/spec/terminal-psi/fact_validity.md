@@ -100,6 +100,22 @@ affected equality from being used. Bounded analysis may require a fresh proof;
 it must not assume restoration when tracking is exhausted. Existing floating-point
 observation and equality rules are unchanged.
 
+## Mutation and current-storage facts
+
+A call's write frame invalidates facts about overlapping current storage.
+Postconditions or sound local summaries may establish facts for the successor
+value version. Facts about a captured earlier value remain true of that
+snapshot, not automatically of the place's current contents. Proved-disjoint
+sibling places retain their facts.
+
+Declaring a binding without `mut` is not proof that every place reachable
+through it is stable: a reference carrier can be immutable while its referent
+permits writes. Check the exact place, loan authority and value version.
+[Writable-loan admission](../language/ownership.md#owned-local-mutability)
+does not replace this analysis; a legal writable call must not leave an
+old current-value fact available to prove an exit contract. Literal and
+computed initializers follow the same rule.
+
 ## Entry facts and crash coverage
 
 Entry hypotheses bind exact invocation formals or structural entry paths, with
