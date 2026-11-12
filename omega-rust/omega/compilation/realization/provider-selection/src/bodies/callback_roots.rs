@@ -17,7 +17,7 @@ pub(crate) type CallbackApplicationUse<'program> = (
     terminal_psi::ProofDeclarationId,
     &'program terminal_psi::TerminalCallbackApplication,
     Result<terminal_psi::ProofDeclarationId, String>,
-    Vec<terminal_psi::CallbackUseId>,
+    Result<Vec<terminal_psi::CallbackUseId>, String>,
     bool, // Borrowed from an actual installed registration's callback roster.
 );
 pub(crate) type InstalledHelperUse = (
@@ -184,8 +184,7 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
     }
 
     pub(crate) fn application_uses<'program>(
-        declarations: &terminal_psi::CallbackDeclarationRoster,
-        identities: &terminal_psi::TerminalIdentityTable,
+        prepared: &psi_terminal_production::PreparedExternalProviderDeclarations,
         module: &'program terminal_psi::TerminalModule,
     ) -> Result<
         (
@@ -274,11 +273,7 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
             }
         }
         bodies.sort_unstable_by_key(|(contract, _, _)| *contract);
-        let mut uses = declarations.uses.iter().collect::<Vec<_>>();
-        uses.sort_unstable_by_key(|(_, usage)| {
-            (usage.application_index, usage.static_machine_ordinal)
-        });
-        let mut result = Vec::new();
+        let mut requests = Vec::new();
         let applications = module
             .callback_applications
             .iter()
@@ -333,56 +328,31 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
                     Err("reached callback demand has no unique exact checked proof body".to_owned())
                 }
             };
-            let key = (
-                application.application_index,
-                application.static_machine_ordinal,
-            );
-            let first = uses.partition_point(|(_, usage)| {
-                (usage.application_index, usage.static_machine_ordinal) < key
-            });
-            let associated = uses[first..]
-                .iter()
-                .take_while(|(_, usage)| {
-                    (usage.application_index, usage.static_machine_ordinal) == key
-                })
-                .filter(|(_, usage)| {
-                    usage.published.commitment == application.published_contract
-                        && usage.requirement_overload == application.requirement
-                        && usage.entry.is_some() == application.entry_admitted
-                        && usage.selected_declaration.as_ref().is_ok_and(|selected| {
-                            selected.same_identity_as(
-                                identities,
-                                &application.body,
-                                &module.identities,
-                            )
-                        })
-                        && usage
-                            .registration_declaration
-                            .as_ref()
-                            .is_ok_and(|registration| {
-                                if let Some(installed_registrar) = installed {
-                                    registration.same_identity_as(
-                                        identities,
-                                        installed_registrar,
-                                        &module.identities,
-                                    )
-                                } else {
-                                    registration.same_identity_as(
-                                        identities,
-                                        &declaration.source.machine,
-                                        &module.identities,
-                                    ) || registration.same_identity_as(
-                                        identities,
-                                        &declaration.source.state,
-                                        &module.identities,
-                                    )
-                                }
-                            })
-                })
-                .map(|(usage, _)| *usage)
-                .collect();
-            result.push((*owner, application, body, associated, installed.is_some()));
+            let registrars = match installed {
+                Some(registrar) => [registrar, registrar],
+                None => [&declaration.source.machine, &declaration.source.state],
+            };
+            requests.push((*owner, application, body, registrars, installed.is_some()));
         }
+        let associated = prepared
+            .callbacks
+            .corresponding_uses(
+                &prepared.identities,
+                &module.identities,
+                requests
+                    .iter()
+                    .map(|(_, application, _, registrars, installed)| {
+                        (*application, *registrars, *installed)
+                    }),
+            )
+            .collect::<Vec<_>>();
+        let result = requests
+            .into_iter()
+            .zip(associated)
+            .map(|((owner, application, body, _, installed), uses)| {
+                (owner, application, body, uses, installed)
+            })
+            .collect();
         let mut helpers = Vec::new();
         for (operation, roots) in Self::installed_helper_roots(module) {
             let first = operations.partition_point(|(candidate, _, _)| *candidate < operation);
@@ -429,6 +399,9 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
             if !application.entry_admitted {
                 continue;
             }
+            let uses = uses
+                .as_ref()
+                .map_err(|reason| vec![Diagnostic::error(reason.clone())])?;
             if uses.is_empty() {
                 return Err(vec![Diagnostic::error(
                     "reached callback occurrence lost its exact checked use",

@@ -354,8 +354,7 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                     .map_err(<[Diagnostic]>::to_vec)
                     .and_then(|(callbacks, _)| {
                         crate::CallbackProviderDeclarations::application_uses(
-                            &callbacks.callbacks.declarations,
-                            &callbacks.identities,
+                            callbacks,
                             artifact.module(),
                         )
                     }),
