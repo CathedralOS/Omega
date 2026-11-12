@@ -12,6 +12,7 @@ use crate::repo_root;
 const CLAIMS_REF: &str = "refs/coordination/omega-claims/main";
 const PROTOCOL: &str = "omega-claims-v1";
 const DEFAULT_LEASE_MINUTES: u64 = 480;
+const NANOSECONDS_PER_SECOND: i128 = 1_000_000_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ClaimsRecord {
@@ -59,8 +60,9 @@ fn decimal(text: &str) -> Option<u32> {
 
 // Unknown expiry must remain visible: only a complete, valid timestamp proves
 // that a record has expired. The registry's historical offsets and fractions
-// describe instants, so comparing their text would hide the wrong records.
-fn parse_expiry(text: &str) -> Option<SystemTime> {
+// describe instants. Keep their precision independent of SystemTime: converting
+// a future expiry to Windows' 100ns clock could round it down to the present.
+fn parse_expiry(text: &str) -> Option<i128> {
     if text.len() < 20 || !text.is_ascii() {
         return None;
     }
@@ -101,7 +103,7 @@ fn parse_expiry(text: &str) -> Option<SystemTime> {
         }
         let precision = digits.len().min(9);
         let nanos = decimal(&digits[..precision])? * 10u32.pow((9 - precision) as u32);
-        // Round an expiry finer than the host clock up, never into the past.
+        // Round expiry finer than a nanosecond up, never into the past.
         nanos + u32::from(digits[precision..].bytes().any(|byte| byte != b'0'))
     };
     let zone = &tail[zone_start..];
@@ -128,12 +130,16 @@ fn parse_expiry(text: &str) -> Option<SystemTime> {
             .sum::<i64>()
         + i64::from(day - 1);
     let seconds = days * 86400 + i64::from(hour * 3600 + minute * 60 + second) - offset;
-    let whole = if seconds < 0 {
-        UNIX_EPOCH.checked_sub(Duration::from_secs(seconds.unsigned_abs()))?
-    } else {
-        UNIX_EPOCH.checked_add(Duration::from_secs(seconds as u64))?
+    Some(i128::from(seconds) * NANOSECONDS_PER_SECOND + i128::from(nanos))
+}
+
+fn epoch_nanoseconds(time: SystemTime) -> i128 {
+    let (elapsed, sign) = match time.duration_since(UNIX_EPOCH) {
+        Ok(elapsed) => (elapsed, 1),
+        Err(error) => (error.duration(), -1),
     };
-    whole.checked_add(Duration::from_nanos(u64::from(nanos)))
+    sign * (i128::from(elapsed.as_secs()) * NANOSECONDS_PER_SECOND
+        + i128::from(elapsed.subsec_nanos()))
 }
 
 fn format_utc(time: SystemTime) -> Result<String, String> {
@@ -177,6 +183,7 @@ fn lease_timestamps(now: SystemTime) -> Result<(String, String), String> {
 }
 
 fn status_snapshot(version: &str, record: &ClaimsRecord, now: SystemTime) -> serde_json::Value {
+    let now = epoch_nanoseconds(now);
     let claims: Vec<_> = record
         .claims
         .iter()
@@ -478,16 +485,24 @@ mod tests {
 
     #[test]
     fn claim_lease_starts_at_the_supplied_clock_and_lasts_eight_hours() {
-        let now = UNIX_EPOCH + Duration::new(1_794_527_999, 123_456_789);
+        let now = UNIX_EPOCH + Duration::new(1_794_527_999, 123_456_700);
         let (claimed, expires) = lease_timestamps(now).unwrap();
-        assert_eq!(claimed, "2026-11-12T23:59:59.123456789+00:00");
-        assert_eq!(expires, "2026-11-13T07:59:59.123456789+00:00");
+        assert_eq!(claimed, "2026-11-12T23:59:59.123456700+00:00");
+        assert_eq!(expires, "2026-11-13T07:59:59.123456700+00:00");
         assert_eq!(format_utc(now).unwrap(), claimed);
-        assert_eq!(parse_expiry(&claimed), Some(now));
+        assert_eq!(parse_expiry(&claimed), Some(epoch_nanoseconds(now)));
         assert_eq!(
-            parse_expiry(&expires).unwrap().duration_since(now).unwrap(),
-            Duration::from_secs(8 * 60 * 60)
+            parse_expiry(&expires).unwrap() - epoch_nanoseconds(now),
+            8 * 60 * 60 * NANOSECONDS_PER_SECOND
         );
+    }
+
+    #[test]
+    fn observed_clock_retains_signed_epoch_nanoseconds() {
+        assert_eq!(epoch_nanoseconds(UNIX_EPOCH), 0);
+        let elapsed = Duration::new(1, 100);
+        assert_eq!(epoch_nanoseconds(UNIX_EPOCH + elapsed), 1_000_000_100);
+        assert_eq!(epoch_nanoseconds(UNIX_EPOCH - elapsed), -1_000_000_100);
     }
 
     #[test]
@@ -501,7 +516,7 @@ mod tests {
         ] {
             let time = UNIX_EPOCH + Duration::from_secs(seconds);
             assert_eq!(format_utc(time).unwrap(), text);
-            assert_eq!(parse_expiry(text), Some(time));
+            assert_eq!(parse_expiry(text), Some(epoch_nanoseconds(time)));
         }
         assert!(format_utc(UNIX_EPOCH - Duration::from_secs(1)).is_err());
         assert!(format_utc(UNIX_EPOCH + Duration::from_secs(253_402_300_800)).is_err());
@@ -516,40 +531,33 @@ mod tests {
             "1970-01-01T01:00:00+01:00",
             "1969-12-31T19:00:00-05:00",
         ] {
-            assert_eq!(parse_expiry(text), Some(UNIX_EPOCH), "{text}");
+            assert_eq!(parse_expiry(text), Some(0), "{text}");
         }
-        assert_eq!(
-            parse_expiry("1969-12-31T23:59:59.5Z"),
-            Some(UNIX_EPOCH - Duration::from_millis(500))
-        );
+        assert_eq!(parse_expiry("1969-12-31T23:59:59.5Z"), Some(-500_000_000));
         for (text, nanos) in [
             ("1970-01-01T00:00:00.1Z", 100_000_000),
             ("1970-01-01T00:00:00.0000000001Z", 1),
             ("1970-01-01T00:00:00.9999999999Z", 1_000_000_000),
             ("1970-01-01T00:00:00.123456789000Z", 123_456_789),
         ] {
-            assert_eq!(
-                parse_expiry(text),
-                Some(UNIX_EPOCH + Duration::from_nanos(nanos)),
-                "{text}"
-            );
+            assert_eq!(parse_expiry(text), Some(nanos), "{text}");
         }
     }
 
     #[test]
     fn status_hides_expired_claims_at_the_exact_boundary_without_rewriting_history() {
-        let now = UNIX_EPOCH + Duration::new(1_794_527_999, 123_456_789);
-        let claims: Vec<_> = [-1, 0, 1]
-            .into_iter()
-            .map(|delta| {
-                let expiry = if delta < 0 {
-                    now - Duration::from_nanos(1)
-                } else {
-                    now + Duration::from_nanos(delta as u64)
-                };
-                json!({"ticket": delta, "expires_utc": format_utc(expiry).unwrap()})
-            })
-            .collect();
+        let now = UNIX_EPOCH + Duration::new(1_794_527_999, 123_456_700);
+        // The observed clock fits Windows' 100ns storage. Authored expiry
+        // strings must retain finer precision without entering that storage.
+        let claims: Vec<_> = [
+            ("before", "2026-11-12T23:59:59.123456699Z"),
+            ("equal", "2026-11-12T23:59:59.123456700Z"),
+            ("after", "2026-11-12T23:59:59.123456701Z"),
+            ("finer", "2026-11-12T23:59:59.1234567001Z"),
+        ]
+        .into_iter()
+        .map(|(ticket, expiry)| json!({"ticket": ticket, "expires_utc": expiry}))
+        .collect();
         let mut record = ClaimsRecord {
             claims: claims.clone(),
             notes: vec![json!({"text": "retained note"})],
@@ -557,7 +565,7 @@ mod tests {
         };
         let out = status_snapshot("snapshot", &record, now);
         assert_eq!(out["state"], "claimed");
-        assert_eq!(out["claims"], json!([claims[2]]));
+        assert_eq!(out["claims"], json!([claims[2], claims[3]]));
         assert_eq!(out["version"], "snapshot");
         assert_eq!(out["notes_pending"], 1);
         assert_eq!(record.claims, claims);
