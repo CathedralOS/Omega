@@ -22,13 +22,14 @@ run_test_at() {
   git -c submodule.recurse=false checkout --detach "$rev" >/dev/null 2>&1 || return 125
   export BISECT_TOOLS_ROOT="/tmp/ledger_bisect_tools"
   nice -n 19 "$SCRIPT"
+  return $?
 }
 
 echo "find_good from $PIN" >&2
 GOOD=""
 cur="$(git rev-parse "${PIN}^1")"
 while [[ -n "$cur" ]]; do
-  run_test_at "$cur" || true
+  run_test_at "$cur"
   rc=$?
   echo "  $cur -> $rc" >&2
   if [[ "$rc" -eq 0 ]]; then
@@ -43,9 +44,9 @@ git checkout --detach "$START_SHA" >/dev/null 2>&1
   exit 2
 }
 
-run_test_at "$PIN" || true
+run_test_at "$PIN"
 pin_rc=$?
-run_test_at "$GOOD" || true
+run_test_at "$GOOD"
 good_rc=$?
 git checkout --detach "$START_SHA" >/dev/null 2>&1
 [[ "$good_rc" -eq 0 && "$pin_rc" -eq 1 ]] || {
@@ -55,9 +56,9 @@ git checkout --detach "$START_SHA" >/dev/null 2>&1
 
 STABLE=1
 for _ in 1 2; do
-  run_test_at "$GOOD" || true
+  run_test_at "$GOOD"
   g=$?
-  run_test_at "$PIN" || true
+  run_test_at "$PIN"
   p=$?
   [[ "$g" -eq 0 && "$p" -eq 1 ]] || STABLE=0
 done
