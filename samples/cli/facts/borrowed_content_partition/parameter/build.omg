@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "borrowed_partition_parameter");
-    Build::depend(builder, Source::Path { location: "../../../../../tests/support/borrowed_partition_support" });
+    let borrowed_partition_support_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../tests/support/borrowed_partition_support" }));
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

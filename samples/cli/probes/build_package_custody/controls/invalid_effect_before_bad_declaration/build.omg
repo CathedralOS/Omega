@@ -7,7 +7,9 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_effect_before_bad_declaration");
     mark(builder);
-    Build::depend_as(builder, "missing", Source::Path { location: "missing_package" });
+    let mut missing_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "missing_package" });
+    dependency::with_alias(&mut missing_dependency, "missing");
+    let missing_registration: DependencyRegistration = Build::dependency(builder, missing_dependency);
 }
 
 machine mark(builder: &mut Build) {

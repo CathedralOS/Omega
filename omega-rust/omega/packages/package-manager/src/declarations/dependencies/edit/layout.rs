@@ -6,7 +6,10 @@ use crate::declarations::dependencies::edit::{
     BUILD_MACHINE_NAME, BUILDER_PARAMETER_NAME, BuildDependencyEditError,
 };
 use crate::declarations::dependencies::read::DependencyProjectionError;
-use build_declarations::DependencyOperation;
+use build_declarations::{
+    BUILD_TYPE_NAME, DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_HELPER_OWNER,
+    DependencyOperation, FROM_SOURCE_HELPER_NAME,
+};
 use syntax_trees::item::Item;
 use syntax_trees::statement::StatementNode;
 use tokens::{PunctuationKind, TokenKind, TokenStream};
@@ -56,12 +59,36 @@ impl BuildLayout {
         } else {
             ""
         };
+        let indent = format!("{insertion_prefix}{extra_indent}");
         replacement.insert_str(
             insertion_line_start,
-            &format!("{insertion_prefix}{extra_indent}{statement}{newline}"),
+            &format!(
+                "{indent}{}{newline}",
+                indent_continuation_lines(statement, &indent, newline)
+            ),
         );
         Some(replacement)
     }
+
+    // A replacement keeps the replaced row's first-line indent for every line.
+    pub(super) fn replace_row(source: &str, row: &DependencyRow, statement: &str) -> String {
+        let newline = if source.contains("\r\n") {
+            "\r\n"
+        } else {
+            "\n"
+        };
+        let indent = line_indent(source, row.start).unwrap_or_default();
+        let mut replacement = source.to_owned();
+        replacement.replace_range(
+            row.start..row.end,
+            &indent_continuation_lines(statement, indent, newline),
+        );
+        replacement
+    }
+}
+
+fn indent_continuation_lines(statement: &str, indent: &str, newline: &str) -> String {
+    statement.replace('\n', &format!("{newline}{indent}"))
 }
 
 #[derive(Debug)]
@@ -220,89 +247,102 @@ fn matching_brace(tokens: &TokenStream<'_>, open: usize) -> Option<usize> {
     None
 }
 
+// Rows are the canonical top-level registration spellings the shared row
+// grammar projects: one bound or discarded `Build::<operation>(...)` statement, or the
+// three-statement aliased description journey starting at its `let mut`.
 fn dependency_rows(
     tokens: &TokenStream<'_>,
     body_open: usize,
     body_close: usize,
 ) -> Vec<DependencyRow> {
-    let semantic = semantic_indices(tokens)
-        .into_iter()
-        .filter(|index| *index > body_open && *index < body_close)
-        .collect::<Vec<_>>();
+    let statements = top_level_statements(tokens, body_open, body_close);
+    let discarded = DependencyOperation::ALL.map(|operation| {
+        format!(
+            "_={BUILD_TYPE_NAME}::{}({BUILDER_PARAMETER_NAME},",
+            operation.name()
+        )
+    });
+    let bound = DependencyOperation::ALL.map(|operation| {
+        format!(
+            ":DependencyRegistration={BUILD_TYPE_NAME}::{}({BUILDER_PARAMETER_NAME},",
+            operation.name()
+        )
+    });
+    let description_marker = format!(
+        ":{DEPENDENCY_DESCRIPTION_TYPE_NAME}={DEPENDENCY_HELPER_OWNER}::{FROM_SOURCE_HELPER_NAME}("
+    );
+    let is_registration = |text: &str| {
+        discarded
+            .iter()
+            .any(|prefix| text.starts_with(prefix.as_str()))
+            || (text.starts_with("let")
+                && !text.starts_with("letmut")
+                && bound.iter().any(|marker| text.contains(marker.as_str())))
+    };
     let mut rows = Vec::new();
-    let mut brace_depth = 0usize;
-    let mut paren_depth = 0usize;
-    let mut bracket_depth = 0usize;
-    let mut position = 0usize;
-    while position < semantic.len() {
-        let index = semantic[position];
-        let token = &tokens[index];
-        if brace_depth == 0
-            && paren_depth == 0
-            && bracket_depth == 0
-            && tokens.text(token) == BUILDER_PARAMETER_NAME
-            && semantic
-                .get(position + 1)
-                .is_some_and(|next| tokens.text(&tokens[*next]) == ".")
-            && semantic.get(position + 2).is_some_and(|next| {
-                tokens
-                    .text(&tokens[*next])
-                    .try_as_str()
-                    .is_some_and(|name| DependencyOperation::classify(name).is_some())
-            })
-            && semantic
-                .get(position + 3)
-                .is_some_and(|next| tokens.text(&tokens[*next]) == "(")
-            && let Some(end_position) = dependency_row_end(tokens, &semantic, position + 3)
-        {
-            let end_index = semantic[end_position];
-            rows.push(DependencyRow {
-                start: token.span.start,
-                end: tokens[end_index].span.end,
-                contains_comment: tokens[index..=end_index]
-                    .iter()
-                    .any(|token| token.comment().is_some()),
-            });
-            position = end_position + 1;
+    let mut position = 0;
+    while position < statements.len() {
+        let (first, _) = statements[position];
+        let text = compact_text(tokens, statements[position]);
+        let length = if is_registration(&text) {
+            1
+        } else if text.starts_with("letmut") && text.contains(description_marker.as_str()) {
+            3
+        } else {
+            position += 1;
             continue;
-        }
-        match tokens.text(token).try_as_str() {
-            Some("{") => brace_depth += 1,
-            Some("}") => brace_depth = brace_depth.saturating_sub(1),
-            Some("(") => paren_depth += 1,
-            Some(")") => paren_depth = paren_depth.saturating_sub(1),
-            Some("[") => bracket_depth += 1,
-            Some("]") => bracket_depth = bracket_depth.saturating_sub(1),
-            _ => {}
-        }
-        position += 1;
+        };
+        let Some(&(_, last)) = statements.get(position + length - 1) else {
+            break;
+        };
+        rows.push(DependencyRow {
+            start: tokens[first].span.start,
+            end: tokens[last].span.end,
+            contains_comment: tokens[first..=last]
+                .iter()
+                .any(|token| token.comment().is_some()),
+        });
+        position += length;
     }
     rows
 }
 
-fn dependency_row_end(
+// Inclusive token ranges of the body's depth-0 statements, each ending at its
+// semicolon. Nested blocks, calls and literals stay inside their statement.
+fn top_level_statements(
     tokens: &TokenStream<'_>,
-    semantic: &[usize],
-    open_position: usize,
-) -> Option<usize> {
+    body_open: usize,
+    body_close: usize,
+) -> Vec<(usize, usize)> {
+    let mut statements = Vec::new();
     let mut depth = 0usize;
-    for position in open_position..semantic.len() {
-        match tokens.text(&tokens[semantic[position]]).try_as_str() {
-            Some("(") => depth = depth.checked_add(1)?,
-            Some(")") => {
-                depth = depth.checked_sub(1)?;
-                if depth == 0 {
-                    let semicolon = position + 1;
-                    return semantic
-                        .get(semicolon)
-                        .filter(|index| tokens.text(&tokens[**index]) == ";")
-                        .map(|_| semicolon);
+    let mut start = None;
+    for index in semantic_indices(tokens)
+        .into_iter()
+        .filter(|index| *index > body_open && *index < body_close)
+    {
+        if depth == 0 {
+            start.get_or_insert(index);
+        }
+        match tokens.text(&tokens[index]).try_as_str() {
+            Some("{" | "(" | "[") => depth += 1,
+            Some("}" | ")" | "]") => depth = depth.saturating_sub(1),
+            Some(";") if depth == 0 => {
+                if let Some(first) = start.take() {
+                    statements.push((first, index));
                 }
             }
             _ => {}
         }
     }
-    None
+    statements
+}
+
+fn compact_text(tokens: &TokenStream<'_>, (first, last): (usize, usize)) -> String {
+    (first..=last)
+        .filter(|index| !tokens[*index].is_non_semantic())
+        .filter_map(|index| tokens.text(&tokens[index]).try_as_str())
+        .collect()
 }
 
 fn line_indent(source: &str, offset: usize) -> Option<&str> {

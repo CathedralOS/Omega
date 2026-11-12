@@ -2,6 +2,8 @@ use omega::language::core::program_image;
 
 machine build(builder: &mut Build) suspends {
     Build::application(builder, "provider_readiness_product_dependency");
-    Build::depend_as(builder, "backing", Source::Path { location: "../backing" });
+    let mut backing_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../backing" });
+    dependency::with_alias(&mut backing_dependency, "backing");
+    let backing_registration: DependencyRegistration = Build::dependency(builder, backing_dependency);
     suspend Build::await_provider<ProgramImage, backing::TestImage>(builder);
 }
