@@ -543,7 +543,11 @@ pub(super) mod lexical_regions {
         let parameters = program.state_parameters(destination);
         let authenticated = closed_private
             && site.is_some_and(|site| {
-                site.target_symbol(program) == destination.symbol
+                // A machine's own body names itself, `write(...)` inside
+                // `write`, by its machine symbol; callers elsewhere resolve to
+                // its entry state. Both are the same invocation of that entry.
+                validation::call_target_entry_symbol(program, site.target_symbol(program))
+                    == destination.symbol
                     && match owner.lexical_region_origin {
                         Some(origin) => {
                             origin.machine == machine.symbol
@@ -576,28 +580,6 @@ pub(super) mod lexical_regions {
             && captured.iter().all(|value| {
                 value.state_symbol == state.symbol && value.statement_index == call.statement_index
             });
-        if std::env::var("OMEGA_DBG_ARR").is_ok() {
-            eprintln!(
-                "ARRDBG auth-parts from={} to={} site={} target_ok={} origin={:?} roster={} covers={} nested={} receiver={} counts={}/{} same_stmt={}",
-                machine.name,
-                owner.name,
-                site.is_some(),
-                site.is_some_and(|site| site.target_symbol(program) == destination.symbol),
-                owner.lexical_region_origin.map(|origin| (program.symbols.name(origin.machine).to_owned(), origin.state == state.symbol)),
-                site.is_some_and(|site| validation::call_site_argument_expressions(program, &site)
-                    .iter()
-                    .copied()
-                    .eq(captured.iter().map(|value| value.expression))),
-                super::lexical_scope_covers_call(program, machine.symbol, owner.symbol),
-                super::lexically_nested_machine(program, owner.symbol),
-                call.has_receiver,
-                captured.len(),
-                parameters.len(),
-                captured.iter().all(|value| {
-                    value.state_symbol == state.symbol && value.statement_index == call.statement_index
-                }),
-            );
-        }
         let mut values = Vec::new();
         let mut bounds = Vec::new();
         let mut fields = Vec::new();
@@ -653,13 +635,6 @@ pub(super) mod lexical_regions {
                     joined
                 }),
             };
-            if std::env::var("OMEGA_DBG_ARR").is_ok() {
-                eprintln!(
-                    "ARRDBG invoke from={}::{} to={} param={} auth={} closed={} completed={} interval={:?}",
-                    machine.name, state.name, owner.name, parameter.name, authenticated, closed_private,
-                    completed.is_some(), interval
-                );
-            }
             values.push((parameter.symbol, observed));
             bounds.push(super::ParameterBounds::new(parameter.symbol, interval));
             if let Some((capture, completed)) = capture.zip(completed.as_ref()) {
@@ -2885,15 +2860,6 @@ fn join(
         incoming: incoming.clone(),
     }) {
         return;
-    }
-    if std::env::var("OMEGA_DBG_ARR").is_ok() {
-        eprintln!(
-            "ARRDBG join dest={} source={:?} existing={} bounds={:?}",
-            destination.name,
-            source,
-            build.reached_state_index(incoming.state).is_some(),
-            incoming.bounds.iter().map(|b| b.bounds.clone()).collect::<Vec<_>>()
-        );
     }
     let mut incoming = incoming;
     let edge_cases = std::mem::take(&mut incoming.cases);
