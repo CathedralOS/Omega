@@ -178,7 +178,7 @@ pub(crate) mod calls {
             machine,
             state,
             receiver_symbol,
-            call.target_symbol,
+            validation::call_target_symbol(program, call),
             receiver_path.as_deref(),
             &call.target,
         );
@@ -1141,11 +1141,11 @@ mod moves {
         Whether borrow-call discovery owns this expression call even though the
         table expression itself does not retain the final target-state symbol.
 
-        Attached method calls may carry an invalid `target_symbol` in the typed
-        expression and resolve through the receiver's exact type instead. Borrow
-        discovery performs that resolution and emits the parameter-aligned moves.
-        Expression recursion must make the same classification or its unknown-call
-        fallback will incorrectly transfer a borrowed receiver wholesale.
+        Calls may carry an invalid `target_symbol` in the typed expression and
+        resolve through the selected declaration or the receiver's exact type.
+        Borrow discovery performs that resolution and emits the parameter-aligned
+        moves. Expression recursion must use the same selected target or it will
+        transfer those operands again instead of consuming the completed result.
     */
     fn expression_call_is_owned_by_call_flow(
         program: &dyn ::validation::CheckingInput,
@@ -1160,14 +1160,12 @@ mod moves {
         };
         let (receiver_symbol, receiver_path) =
             validation::call_receiver_parts(program, call.receiver);
-        let boundary_operator = typed_trees::operator::resolve_named_expression_call(program, call)
-            .filter(|operator| operator.is_boundary);
         validation::resolve_state_call_target(
             program,
             machine,
             state,
             receiver_symbol,
-            boundary_operator.map_or(call.target_symbol, |operator| operator.symbol),
+            validation::call_target_symbol(program, call),
             receiver_path.as_deref(),
             &call.target,
         )
