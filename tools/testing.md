@@ -128,6 +128,17 @@ checking, `--runtime tier/group/name,...` for native/Psi execution, and
 directory with `--output`; an existing directory refuses rather than mixing runs.
 The total selection is limited to 200 programs. These are exact paths, not search
 fragments. Selection and authored oracles are checked before compiler preparation.
+Discovery and execution use the same exact roster, so selecting
+`pass/build/native_component_reuse` excludes `native_component_reuse_foreign`.
+Ordinary `xtask corpus --filter` remains a substring search. Qualification passes
+the exact list through `OMEGA_CORPUS_FIXTURE_PATHS`; its bounded substring filter
+also remains present for older retained runners, whose extra matches still fail
+the observed-roster check.
+Qualification leaves verbose compiler check-site tracing disabled and clears an
+inherited `OMEGA_COMPILER_CHECK_SITES`. Ordinary compiler diagnostics remain in
+the captured runner output; use `xtask corpus --check-sites` for an explicit
+diagnostic replay. The trace switch prints successful internal queries too and
+can otherwise dominate the bounded observation.
 An existing numeric `Expected exit` header is the fallback when no explicit exit
 file exists; target-specific and portable files keep their precedence.
 
@@ -492,8 +503,9 @@ Name the tiers in `--filter` (`pass/,fail/,run/`), as the script does: with an
 empty filter the gate passes every fixture name to the runner in one
 environment string, which Linux refuses. Before 2026-11-11 each invocation
 spent about six minutes rebuilding the runner (see the freshness paragraph
-below); an unchanged tree now reuses it in under a second. xtask stops a runner
-at 1800 seconds, so forty shards of about 440 fixtures is the size that fits. On the
+below); an unchanged tree now reuses it in under a second. A corpus run has no
+time limit and prints each fixture as it finishes; shards exist to spread the work,
+and forty shards of about 440 fixtures is the size the sweep uses. On the
 two test VMs that is about 22 minutes a shard. To split the work, give each
 host its own `todo.txt` and merge the ledgers by taking each fixture's block
 from the host that stamped it with the new commit. The script's header carries

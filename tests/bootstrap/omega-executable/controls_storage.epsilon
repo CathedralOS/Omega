@@ -88,7 +88,7 @@ machine Main::main(&mut self) {
         self.refusal("data B {bytes:[u8;2];} machine write(target:&mut B)->u8 {target.bytes[0]=1;9} machine main()->u8 {let mut b:B;b.bytes[0]=write(&mut b);42}", 2, 68);
         self.refusal("public machine compare(value:u64 in Trapping)->bool {value==0} machine main()->u8 {42}", 2, 69);
         // A tail transfer cannot reuse a local backing while its shared loan remains live.
-        self.refusal("data Cell {value:u8;} machine main()->u8 {let seed:Cell=Cell{value:0};transition{_->again(&seed,42,false)} machine again(view:&Cell,n:u8,done:bool)->u8 {let temp:Cell=Cell{value:n};transition done {true->view.value _->again(&temp,44,true)}}}", 2, 70);
+        self.refusal("data Cell [copy] {value:u8;} machine main()->u8 {let seed:Cell=Cell{value:0};transition{_->again(&seed,42,false)} machine again(view:&Cell,n:u8,done:bool)->u8 {let temp:Cell=Cell{value:n};transition done {true->view.value _->again(&temp,44,true)}}}", 2, 70);
         // An unchecked arrival cannot inherit the target contract.
         self.refusal("data B {bytes:[u8;2];} machine choose(index:u64)->u8 {transition{_->read(index)} machine read(index:u64)->u8 requires index<2 {let b:B;b.bytes[index]}} machine main()->u8{0}", 2, 71);
         // A true requirement does not invent a numeric bound.

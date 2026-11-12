@@ -80,6 +80,7 @@ def run(work, vm, producer, realize, seconds):
     representations = [line.split()[4] for line in manifest.read_text().splitlines()[1:]
                        if line.split()[4].startswith("representations/")]
     target = b"\n".join((manifest.parent / path).read_bytes() for path in representations)
+    target += b"\n" + (root / "bootstrap/independent/epsilon/runtime/values.delta").read_bytes()
     target += b"\n" + fragment + b"\n" + (driver / "emitted_driver.delta").read_bytes()
     (work / "literal-target.delta").write_bytes(target)
     status, target_receipt = compile_delta(target)
