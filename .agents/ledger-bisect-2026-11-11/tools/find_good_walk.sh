@@ -5,7 +5,7 @@ WITNESS="${1:?witness}"
 PIN="${2:-51e8c45c793007f211d0d9baee7de16767172444}"
 MAX="${3:-1200}"
 STEP="${4:-48}"
-ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+ROOT="${LEDGER_BISECT_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)}"
 SRC="$(cd "$(dirname "$0")" && pwd)"
 if [[ ! -d /tmp/ledger-bisect-tools ]]; then
   bash "$SRC/bootstrap_tools.sh" >/dev/null
