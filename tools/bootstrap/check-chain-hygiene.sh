@@ -105,8 +105,8 @@ done
   fail "source-closure materializer is not executable"
 [ -x "$OMEGA_REPO_ROOT/tests/bootstrap/source-closure.sh" ] ||
   fail "source-closure gate is not executable"
-[ -f "$OMEGA_PATH_OMEGA/build.omg" ] || fail "Omega C build root is absent"
-[ -f "$OMEGA_PATH_OMEGA/main.omg" ] || fail "Omega C main root is absent"
+[ -f "$OMEGA_PATH_OMEGA/application/construction/build.omg" ] || fail "Omega compiler construction build root is absent"
+[ -f "$OMEGA_PATH_OMEGA/application/construction/main.omg" ] || fail "Omega compiler construction entry is absent"
 
 for beta_source in \
   "$OMEGA_PATH_BETA_COMPILER_SOURCE" \

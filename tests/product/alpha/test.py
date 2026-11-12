@@ -7,7 +7,8 @@ It contains no source compiler, evaluator, Alpha encoder or alternate output.
 import hashlib
 from pathlib import Path
 import shutil
-import struct
+import re
+import runpy
 import subprocess
 import sys
 import tempfile
@@ -15,10 +16,17 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[3]
 PROGRAM = sys.argv[1]
 COUNT = 0
+ENCODE = runpy.run_path(str(ROOT / "source/omega/construct.py"))["encode"]
 
 
 def compile_source(source, entry=0):
-    completed = subprocess.run([PROGRAM], input=struct.pack('<I', entry) + source,
+    # Test fixtures name the selected declaration explicitly in the production
+    # request. This spelling scan only chooses fixture metadata; the compiler
+    # independently parses and resolves the exact supplied source.
+    names = re.findall(rb"\bmachine\s+(?:[A-Za-z_][A-Za-z_0-9]*::)*([A-Za-z_][A-Za-z_0-9]*)\s*\(", source)
+    selected = names[entry] if entry < len(names) else b"__missing_entry"
+    wire, _, _, _ = ENCODE([("fixture", 0)], [], [(0, source)], 0, selected)
+    completed = subprocess.run([PROGRAM], input=wire,
                                capture_output=True, timeout=60)
     assert completed.stderr == b'', completed.stderr
     return completed

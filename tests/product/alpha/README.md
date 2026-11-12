@@ -20,8 +20,10 @@ When using a comparator built in another checkout, set `OMEGA_LIBRARY_ROOT`
 to this checkout's absolute `source/library` path. Pin the executable too; a
 long review/build run must not switch compiler or library inputs midway.
 
-The input is one little-endian `u32` selected machine index followed by the exact
-source bytes of one unit in one diagnostic package. The frontend lexes, parses,
+The executable is the actual production construction application. Its
+[closed-source-set input](../../../source/omega/README.md#closed-source-set-input)
+retains explicit package, unit and entry identities; the focused cases frame
+one exact unit in one diagnostic package. The frontend lexes, parses,
 resolves, types and checks the entire source before lowering. Selection uses the
 resulting declaration identity; no name or source fingerprint selects a special
 compiler path. The selected entry must be a top-level nullary machine returning ordinary `u8`, with no
@@ -77,7 +79,7 @@ and contract identities; the current checker retains verdicts and counts, which
 cannot be turned into those identities by inventing proof records. No serialized
 Psi publication or independently replayable proof claim is made here.
 
-[`source/omega/alpha/emitter.omg`](../../../source/omega/alpha/emitter.omg) consumes
+[`source/omega/compilation/alpha/emitter.omg`](../../../source/omega/compilation/alpha/emitter.omg) consumes
 only that lowered program. Each activation owns slots in `[32,64)` MiB of Alpha
 memory. Frame allocation is checked before stores; the region is disjoint from
 the at-most-2 MiB tape and Alpha's downward return stack. Layout and emission run
@@ -90,14 +92,13 @@ complete product-publication claim. The public request still needs its structure
 lineage framing migrated to the shared acquisition identity. Its canonical hash
 preimage already exists in package acquisition; that implementation work does not
 block the independent source invocation or require a new trust claim.
-The gate creates an ignored package at `build/product-alpha` containing the exact emitter source and its
-own entry, because the product application's package role disallows importing it
-as a dependency. Its stable worktree-local path permits reuse of unchanged review
-records; parallel runs require separate worktrees. It retains no alternate semantic implementation. Python only
-frames inputs, checks outputs and invokes the existing seed stamper. The exact
-host-built compiler is retained at `build/product-alpha/build/compiler-under-test`
-for additional input checks without repeating native construction; the gate log
-records its SHA-256. It is a development artifact, not an admitted bootstrap seed.
+The gate builds `source/omega/application/construction` directly, using the
+production compilation library. There is no copied emitter or diagnostic-only
+pipeline. Python frames inputs, checks outputs and invokes the existing seed
+stamper. The exact host-built constructor is retained at
+`build/product-alpha/build/compiler-under-test`; the gate log records its hash.
+The actual whole-compiler endpoint is `source/omega/construct.py`, which supplies
+the complete declared source closure rather than these focused cases.
 
 Success is exit 0 with the actual tape. Failure publishes no bytes: lexing 251,
 parsing 250, resolution 248, typing 249, checking 247, unsupported lowering 246,

@@ -1,0 +1,338 @@
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
+use omega_compiler::Compilation;
+use omega_compiler::CompilationStatus;
+use psi::DependencyScope;
+use psi::Lexer;
+use psi::ModulePath;
+
+// This internal construction entry consumes an explicitly supplied package
+// graph, not a filesystem or an admitted OCREQ. Every row span addresses the
+// same byte arena. Authored module declarations retain their normal meaning.
+data ConstructionInput {
+    package_count: u32;
+    edge_count: u32;
+    unit_count: u32;
+    entry_unit: u32;
+    entry_name_start: u32;
+    entry_name_end: u32;
+    buffer_length: u32;
+    rows: [u32; 2752];
+    bytes: [u8; 4194304];
+}
+
+machine malformed() reaches Console crashes Trap {
+    Console::exit_process(253);
+    crash Trap;
+}
+
+machine read_byte() -> u8 reaches Console crashes Trap blocks {
+    let input: ByteRead = block Console::read_byte();
+    transition input {
+        ByteRead::Byte { value } -> byte(value)
+        _ -> truncated()
+    }
+    machine byte(value: i32) -> u8
+    requires value >= 0 && value <= 255
+    { value as u8 }
+    machine truncated() -> u8 {
+        Console::exit_process(253);
+        crash Trap;
+    }
+}
+
+machine read_word() -> u32 reaches Console crashes Trap blocks {
+    let b0: u32 = (block read_byte()) as u32;
+    let b1: u32 = (block read_byte()) as u32;
+    let b2: u32 = (block read_byte()) as u32;
+    let b3: u32 = (block read_byte()) as u32;
+    b0 + b1 * 256 + b2 * 65536 + b3 * 16777216
+}
+
+machine read_input(input: &mut ConstructionInput)
+reaches Console crashes Trap blocks
+{
+    input.package_count = block read_word();
+    input.edge_count = block read_word();
+    input.unit_count = block read_word();
+    input.entry_unit = block read_word();
+    input.entry_name_start = block read_word();
+    input.entry_name_end = block read_word();
+    input.buffer_length = block read_word();
+    transition input.package_count > 0 && input.package_count <= 64
+        && input.edge_count <= 256
+        && input.unit_count > 0 && input.unit_count <= 512
+        && input.entry_unit < input.unit_count
+        && input.buffer_length <= 4194304
+        && input.entry_name_start < input.entry_name_end
+        && input.entry_name_end <= input.buffer_length
+        && input.entry_name_end - input.entry_name_start <= 256 {
+        true -> rows(input, 0, input.package_count as u64 * 3
+            + input.edge_count as u64 * 4 + input.unit_count as u64 * 3)
+        _ -> malformed()
+    }
+    machine rows(input: &mut ConstructionInput, index: u64, count: u64) {
+        transition index < count && index < 2752 {
+            true -> row(input, index, count)
+            _ -> bytes(input, 0)
+        }
+    }
+    machine row(input: &mut ConstructionInput, index: u64, count: u64)
+    requires index < 2752
+    {
+        input.rows[index] = block read_word();
+        transition { _ -> rows(input, index + 1, count) }
+    }
+    machine bytes(input: &mut ConstructionInput, index: u64) {
+        transition index < input.buffer_length as u64 && index < 4194304 {
+            true -> byte(input, index)
+            _ -> end()
+        }
+    }
+    machine byte(input: &mut ConstructionInput, index: u64)
+    requires index < 4194304
+    {
+        input.bytes[index] = block read_byte();
+        transition { _ -> bytes(input, index + 1) }
+    }
+    machine end() {
+        let trailing: ByteRead = block Console::read_byte();
+        transition trailing {
+            ByteRead::Eof -> done()
+            _ -> malformed()
+        }
+    }
+    machine done() {}
+}
+
+// Metadata access never substitutes zero for an invalid coordinate. A bad
+// row, span, package index or role terminates before any tape is published.
+machine row_word(input: &ConstructionInput, index: u64) -> u32
+reaches Console crashes Trap
+{
+    transition index < 2752 {
+        true -> word(input, index)
+        _ -> invalid()
+    }
+    machine word(input: &ConstructionInput, index: u64) -> u32
+    requires index < 2752
+    { input.rows[index] }
+    machine invalid() -> u32 {
+        Console::exit_process(253);
+        crash Trap;
+    }
+}
+
+machine copy_name(input: &ConstructionInput, name: &mut ModulePath, start: u32, end: u32)
+reaches Console crashes Trap
+{
+    psi::module_path_clear(name);
+    transition start <= end && end <= input.buffer_length && end - start <= 256 {
+        true -> next(input, name, start as u64, end as u64)
+        _ -> malformed()
+    }
+    machine next(input: &ConstructionInput, name: &mut ModulePath, index: u64, end: u64) {
+        transition index < end && index < 4194304 {
+            true -> append(input, name, index, end)
+            _ -> done()
+        }
+    }
+    machine append(input: &ConstructionInput, name: &mut ModulePath, index: u64, end: u64)
+    requires index < 4194304
+    {
+        let retained: bool = psi::module_path_append(name, input.bytes[index]);
+        transition retained {
+            true -> next(input, name, index + 1, end)
+            _ -> malformed()
+        }
+    }
+    machine done() {}
+}
+
+machine add_packages(input: &ConstructionInput, compilation: &mut Compilation)
+reaches Console crashes Trap
+{
+    transition { _ -> next(input, compilation, 0) }
+    machine next(input: &ConstructionInput, compilation: &mut Compilation, index: u64) {
+        transition input.package_count <= 64 && index < input.package_count as u64 {
+            true -> package(input, compilation, index)
+            _ -> done()
+        }
+    }
+    machine package(input: &ConstructionInput, compilation: &mut Compilation, index: u64)
+    requires index < 64
+    {
+        let start: u32 = row_word(input, index * 3);
+        let end: u32 = row_word(input, index * 3 + 1);
+        let role: u32 = row_word(input, index * 3 + 2);
+        transition role <= 2 {
+            true -> retain(input, compilation, index, start, end, role)
+            _ -> malformed()
+        }
+    }
+    machine retain(input: &ConstructionInput, compilation: &mut Compilation, index: u64, start: u32, end: u32, role: u32)
+    requires index < 64
+    {
+        let mut name: ModulePath;
+        copy_name(input, &mut name, start, end);
+        let retained: bool = psi::add_package(&mut compilation.sources, &name, role == 1);
+        transition retained {
+            true -> next(input, compilation, index + 1)
+            _ -> full()
+        }
+    }
+    machine full() { Console::exit_process(252); crash Trap; }
+    machine done() {}
+}
+
+machine add_edges(input: &ConstructionInput, compilation: &mut Compilation)
+reaches Console crashes Trap
+{
+    transition { _ -> next(input, compilation, 0) }
+    machine next(input: &ConstructionInput, compilation: &mut Compilation, index: u64) {
+        transition input.package_count <= 64 && input.edge_count <= 256 && index < input.edge_count as u64 {
+            true -> edge(input, compilation, index, input.package_count as u64 * 3 + index * 4)
+            _ -> done()
+        }
+    }
+    machine edge(input: &ConstructionInput, compilation: &mut Compilation, index: u64, row: u64)
+    requires index < 256, row <= 2748
+    {
+        let requester: u32 = row_word(input, row);
+        let target: u32 = row_word(input, row + 1);
+        let start: u32 = row_word(input, row + 2);
+        let end: u32 = row_word(input, row + 3);
+        transition requester < input.package_count && target < input.package_count {
+            true -> retain(input, compilation, index, requester, target, start, end)
+            _ -> malformed()
+        }
+    }
+    machine retain(input: &ConstructionInput, compilation: &mut Compilation, index: u64, requester: u32, target: u32, start: u32, end: u32)
+    requires index < 256
+    {
+        let mut alias: ModulePath;
+        copy_name(input, &mut alias, start, end);
+        let retained: bool = psi::add_dependency(&mut compilation.sources,
+            (requester as u64) as +Trapping, DependencyScope::Product,
+            &alias, (target as u64) as +Trapping);
+        transition retained {
+            true -> next(input, compilation, index + 1)
+            _ -> full()
+        }
+    }
+    machine full() { Console::exit_process(252); crash Trap; }
+    machine done() {}
+}
+
+machine add_units(input: &ConstructionInput, compilation: &mut Compilation, lexer: &mut Lexer)
+reaches Console crashes Trap
+{
+    transition { _ -> next(input, compilation, lexer, 0) }
+    machine next(input: &ConstructionInput, compilation: &mut Compilation, lexer: &mut Lexer, index: u64) {
+        transition compilation.status {
+            CompilationStatus::Collecting -> remaining(input, compilation, lexer, index)
+            _ -> done()
+        }
+    }
+    machine remaining(input: &ConstructionInput, compilation: &mut Compilation, lexer: &mut Lexer, index: u64) {
+        transition input.package_count <= 64 && input.edge_count <= 256
+            && input.unit_count <= 512 && index < input.unit_count as u64 {
+            true -> unit(input, compilation, lexer, index,
+                input.package_count as u64 * 3 + input.edge_count as u64 * 4 + index * 3)
+            _ -> done()
+        }
+    }
+    machine unit(input: &ConstructionInput, compilation: &mut Compilation, lexer: &mut Lexer, index: u64, row: u64)
+    requires index < 512, row <= 2749
+    {
+        let package: u32 = row_word(input, row);
+        let start: u32 = row_word(input, row + 1);
+        let end: u32 = row_word(input, row + 2);
+        transition package < input.package_count && start <= end && end <= input.buffer_length {
+            true -> size(input, compilation, lexer, index, package, start, end)
+            _ -> malformed()
+        }
+    }
+    machine size(input: &ConstructionInput, compilation: &mut Compilation, lexer: &mut Lexer, index: u64, package: u32, start: u32, end: u32)
+    requires index < 512, start <= end
+    {
+        transition end - start <= 131072 {
+            true -> initialize(input, compilation, lexer, index, package, start, end)
+            _ -> full()
+        }
+    }
+    machine initialize(input: &ConstructionInput, compilation: &mut Compilation, lexer: &mut Lexer, index: u64, package: u32, start: u32, end: u32)
+    requires index < 512
+    {
+        psi::lexer_initialize(lexer, (index as u32) as +Trapping);
+        transition { _ -> bytes(input, compilation, lexer, index, package, start as u64, end as u64) }
+    }
+    machine bytes(input: &ConstructionInput, compilation: &mut Compilation, lexer: &mut Lexer, index: u64, package: u32, offset: u64, end: u64)
+    requires index < 512
+    {
+        transition offset < end && offset < 4194304 {
+            true -> byte(input, compilation, lexer, index, package, offset, end)
+            _ -> parse(input, compilation, lexer, index, package)
+        }
+    }
+    machine byte(input: &ConstructionInput, compilation: &mut Compilation, lexer: &mut Lexer, index: u64, package: u32, offset: u64, end: u64)
+    requires index < 512, offset < 4194304
+    {
+        psi::append_source_byte(lexer, input.bytes[offset]);
+        transition { _ -> bytes(input, compilation, lexer, index, package, offset + 1, end) }
+    }
+    machine parse(input: &ConstructionInput, compilation: &mut Compilation, lexer: &mut Lexer, index: u64, package: u32)
+    requires index < 512
+    {
+        let mut module_path: ModulePath;
+        psi::module_path_clear(&mut module_path);
+        omega_compiler::compilation_add_unit(compilation, lexer, (package as u64) as +Trapping, &module_path);
+        transition { _ -> next(input, compilation, lexer, index + 1) }
+    }
+    machine full() { Console::exit_process(252); crash Trap; }
+    machine done() {}
+}
+
+machine publish(compilation: &Compilation) reaches Console crashes Trap {
+    let status: i32 = omega_compiler::compilation_exit_status(compilation);
+    transition status == 0 {
+        true -> bounded(compilation)
+        _ -> refused(status)
+    }
+    machine bounded(compilation: &Compilation) {
+        transition compilation.output.length <= 2097152 {
+            true -> next(compilation, 0)
+            _ -> refused(252)
+        }
+    }
+    machine next(compilation: &Compilation, index: u64) {
+        transition index < compilation.output.length && index < 2097152 {
+            true -> byte(compilation, index)
+            _ -> complete()
+        }
+    }
+    machine byte(compilation: &Compilation, index: u64)
+    requires index < 2097152
+    {
+        Console::write_byte(compilation.output.bytes[index] as i32);
+        transition { _ -> next(compilation, index + 1) }
+    }
+    machine complete() { Console::exit_process(0); }
+    machine refused(status: i32) { Console::exit_process(status); }
+}
+
+machine entry_start() reaches Console crashes Trap blocks {
+    let mut input: ConstructionInput;
+    block read_input(&mut input);
+    let mut compilation: Compilation;
+    omega_compiler::compilation_clear(&mut compilation);
+    add_packages(&input, &mut compilation);
+    add_edges(&input, &mut compilation);
+    let mut lexer: Lexer;
+    add_units(&input, &mut compilation, &mut lexer);
+    let mut entry_name: ModulePath;
+    copy_name(&input, &mut entry_name, input.entry_name_start, input.entry_name_end);
+    omega_compiler::compilation_finish(&mut compilation, input.entry_unit,
+        &entry_name.bytes[0..entry_name.length]);
+    publish(&compilation);
+}

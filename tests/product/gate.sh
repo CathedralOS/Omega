@@ -2,7 +2,7 @@
 # Shared driver for the product compiler gates. A gate names the package it
 # builds and a semantic-free Python decoder: the Psi gates under tests/psi/
 # build their own harness packages around source/psi, and the product gates
-# under tests/product/ build the product root source/omega itself.
+# under tests/product/ build their actual production application roots.
 # `gate.sh <name> <package-directory> <decoder.py>` reviews the package,
 # builds its program natively once and runs the decoder's cases against that
 # artifact.
