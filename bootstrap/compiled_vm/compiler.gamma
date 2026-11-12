@@ -1,0 +1,680 @@
+; Gamma compiler. The frontend consumes sealed source bytes. This backend
+; constructs a reversed instruction stream, resolves labels in an AVL map,
+; and publishes bytes only after all declarations and bodies are validated.
+; Runtime values use a word/tag pair; source cannot forge a heap reference.
+
+(def $application () Int 1)
+
+(def c_a ((x Int)) Int (first x))
+(def c_b ((x Int)) Int (first (second x)))
+(def c_c ((x Int)) Int (first (second (second x))))
+(def c_d ((x Int)) Int (second (second (second x))))
+(def c_record ((a Int) (b Int) (c Int) (d Int)) Int
+  (pair a (pair b (pair c d))))
+(def c_max ((a Int) (b Int)) Int (if (lt a b) b a))
+(def c_check ((ok Int) (value Int)) Int (if ok value (p_fail)))
+
+; An AVL tree maps machine label identifiers to byte addresses. Empty trees
+; have height zero; no condition ever inspects a pair as a scalar.
+(def m_empty () Int (pair 0 0))
+(def m_height ((t Int)) Int (first t))
+(def m_key ((t Int)) Int (c_a (second t)))
+(def m_value ((t Int)) Int (c_b (second t)))
+(def m_left ((t Int)) Int (c_c (second t)))
+(def m_right ((t Int)) Int (c_d (second t)))
+(def m_node ((key Int) (value Int) (left Int) (right Int)) Int
+  (pair (+ 1 (c_max (m_height left) (m_height right)))
+    (c_record key value left right)))
+(def m_rotate_left ((t Int)) Int
+  (let r Int (m_right t)
+    (m_node (m_key r) (m_value r)
+      (m_node (m_key t) (m_value t) (m_left t) (m_left r)) (m_right r))))
+(def m_rotate_right ((t Int)) Int
+  (let l Int (m_left t)
+    (m_node (m_key l) (m_value l) (m_left l)
+      (m_node (m_key t) (m_value t) (m_right l) (m_right t)))))
+(def m_balance ((t Int)) Int
+  (let ((l Int (m_left t)) (r Int (m_right t)))
+    (if (lt (+ 1 (m_height r)) (m_height l))
+      (m_rotate_right
+        (if (lt (m_height (m_left l)) (m_height (m_right l)))
+          (m_node (m_key t) (m_value t) (m_rotate_left l) r) t))
+      (if (lt (+ 1 (m_height l)) (m_height r))
+        (m_rotate_left
+          (if (lt (m_height (m_right r)) (m_height (m_left r)))
+            (m_node (m_key t) (m_value t) l (m_rotate_right r)) t)) t))))
+(def m_put ((t Int) (key Int) (value Int)) Int
+  (if (m_height t)
+    (if (eq key (m_key t)) (p_fail)
+      (if (lt key (m_key t))
+        (m_balance (m_node (m_key t) (m_value t)
+          (m_put (m_left t) key value) (m_right t)))
+        (m_balance (m_node (m_key t) (m_value t)
+          (m_left t) (m_put (m_right t) key value)))))
+    (m_node key value (m_empty) (m_empty))))
+(def m_get ((t Int) (key Int)) Int
+  (if (m_height t)
+    (if (eq key (m_key t)) (m_value t)
+      (if (lt key (m_key t)) (m_get (m_left t) key)
+        (m_get (m_right t) key))) (p_fail)))
+
+; State is (next-label, byte-count, next-local-slot, reversed instructions).
+; Instructions are (opcode,a,b,c); opcode 21 marks a label without bytes.
+(def s_new ((s Int)) Int
+  (c_record (+ 1 (c_a s)) (c_b s) (c_c s) (c_d s)))
+(def s_local ((s Int) (n Int)) Int (c_record (c_a s) (c_b s) n (c_d s)))
+(def i_size ((op Int)) Int
+  (if (eq op 21) 0
+    (if (eq op 20) 1
+      (if (eq op 1) 10
+        (if (eq op 12) 9
+          (if (eq op 19) 9
+            (if (eq op 13) 10
+              (if (eq op 14) 10
+                (if (eq op 15) 11
+                  (if (eq op 16) 11
+                    (if (eq op 0) 2
+                      (if (eq op 17) 2 (if (eq op 18) 2 3)))))))))))))
+(def e3 ((s Int) (op Int) (a Int) (b Int) (c Int)) Int
+  (c_record (c_a s) (+ (c_b s) (i_size op)) (c_c s)
+    (p_cons (c_record op a b c) (c_d s))))
+(def e2 ((s Int) (op Int) (a Int) (b Int)) Int (e3 s op a b 0))
+(def e1 ((s Int) (op Int) (a Int)) Int (e3 s op a 0 0))
+(def e0 ((s Int) (op Int)) Int (e3 s op 0 0 0))
+(def s_mark ((s Int) (id Int)) Int (e1 s 21 id))
+(def e_add ((s Int) (reg Int) (value Int)) Int
+  (e2 (e2 s 1 12 value) 3 reg 12))
+(def e_bound ((s Int) (reg Int) (end Int) (error Int)) Int
+  (e3 (e2 s 1 13 end) 15 13 reg error))
+(def e_push ((s Int)) Int
+  (let ((a Int (e2 s 2 10 246))
+        (b Int (e_add a 10 16))
+        (c Int (e_bound b 10 134217728 2))
+        (d Int (e2 c 11 246 0))
+        (e Int (e_add d 246 8))
+        (f Int (e2 e 11 246 1)))
+    (e_add f 246 8)))
+(def e_pop ((s Int) (value Int) (tag Int)) Int
+  (let ((a Int (e_add s 246 -8))
+        (b Int (e2 a 10 tag 246))
+        (c Int (e_add b 246 -8)))
+    (e2 c 10 value 246)))
+(def e_slot ((s Int) (offset Int) (store Int)) Int
+  (let ((a Int (e_add (e2 s 2 10 247) 10 (* offset 16)))
+        (b Int (if store (e2 a 11 10 0) (e2 a 10 0 10)))
+        (c Int (e_add b 10 8)))
+    (if store (e2 c 11 10 1) (e2 c 10 1 10))))
+
+; Resolve labels before writing. Every instruction retains numeric operands;
+; branch/call operand positions alone carry labels.
+(def i_labels ((xs Int) (at Int) (labels Int)) Int
+  (if (p_length xs)
+    (let ((ins Int (p_head xs)) (op Int (c_a ins)))
+      (i_labels (p_tail xs) (+ at (i_size op))
+        (if (eq op 21) (m_put labels (c_b ins) at) labels))) labels))
+(def i_word ((word Int) (remaining Int)) Int
+  (if remaining
+    (let ((byte Int (% (+ (% word 256) 256) 256))
+          (ignored Int (write byte)))
+      (i_word (/ (- word byte) 256) (- remaining 1))) 0))
+(def i_emit ((ins Int) (labels Int)) Int
+  (let ((op Int (c_a ins)) (a Int (c_b ins))
+        (b Int (c_c ins)) (c Int (c_d ins)))
+    (if (eq op 21) 0
+      (let ignored Int (write op)
+        (if (eq op 20) 0
+          (if (eq op 12) (i_word (m_get labels a) 8)
+            (if (eq op 19) (i_word (m_get labels a) 8)
+              (let ignored2 Int (write a)
+                (if (eq op 1) (i_word b 8)
+                  (if (eq op 13) (i_word (m_get labels b) 8)
+                    (if (eq op 14) (i_word (m_get labels b) 8)
+                      (if (eq op 0) 0
+                        (if (eq op 17) 0
+                          (if (eq op 18) 0
+                            (let ignored3 Int (write b)
+                              (if (eq op 15) (i_word (m_get labels c) 8)
+                                (if (eq op 16) (i_word (m_get labels c) 8) 0)))))))))))))))))
+(def i_output ((xs Int) (labels Int)) Int
+  (if (p_length xs)
+    (let ignored Int (i_emit (p_head xs) labels)
+      (i_output (p_tail xs) labels)) (pair 0 1)))
+
+; Runtime entry seals input, executes main, then atomically publishes output.
+(def e_header ((s Int) (mainid Int)) Int
+  (let (
+    (s0 Int (e2 s 1 246 33554432))
+    (s1 Int (e2 s0 1 247 0))
+    (s2 Int (e2 s1 1 248 805306368))
+    (s3 Int (e2 s2 1 249 0))
+    (s4 Int (e2 s3 1 250 0))
+    (s5 Int (e2 s4 1 243 1))
+    (s6 Int (s_mark s5 7))
+    (s7 Int (e1 s6 17 0))
+    (s8 Int (e2 s7 1 1 -1))
+    (s9 Int (e3 s8 16 0 1 8))
+    (s10 Int (e2 s9 2 10 249))
+    (s11 Int (e_add s10 10 1))
+    (s12 Int (e_bound s11 10 137363456 4))
+    (s13 Int (e2 s12 2 10 249))
+    (s14 Int (e_add s13 10 268435456))
+    (s15 Int (e2 s14 9 10 0))
+    (s16 Int (e_add s15 249 1))
+    (s17 Int (e1 s16 12 7))
+    (s18 Int (s_mark s17 8))
+    (s19 Int (e1 s18 19 mainid)))
+    s19))
+(def e_application ((s Int)) Int
+  (let (
+    (s0 Int (e2 s 13 1 1))
+    (s1 Int (e2 s0 2 10 0))
+    (s2 Int (e2 s1 10 15 10))
+    (s3 Int (e_add s2 10 8))
+    (s4 Int (e2 s3 10 1 10))
+    (s5 Int (e2 s4 14 1 1))
+    (s6 Int (e_add s5 10 8))
+    (s7 Int (e2 s6 10 2 10))
+    (s8 Int (e_add s7 10 8))
+    (s9 Int (e2 s8 10 3 10))
+    (s10 Int (e2 s9 14 3 1))
+    (s11 Int (e2 s10 1 4 0))
+    (s12 Int (e3 s11 15 15 4 1))
+    (s13 Int (e2 s12 1 4 254))
+    (s14 Int (e3 s13 15 4 15 1))
+    (s15 Int (e2 s14 13 2 9))
+    (s16 Int (e2 s15 1 4 1))
+    (s17 Int (e3 s16 16 2 4 10))
+    (s18 Int (e1 s17 12 1))
+    (s19 Int (s_mark s18 9))
+    (s20 Int (e2 s19 13 15 1))
+    (s21 Int (e1 s20 0 15))
+    (s22 Int (s_mark s21 10))
+    (s23 Int (e2 s22 13 15 11))
+    (s24 Int (e2 s23 13 250 1))
+    (s25 Int (s_mark s24 11)))
+    s25))
+(def e_scalar ((s Int)) Int
+  (let (
+    (s0 Int (e2 s 14 1 1))
+    (s1 Int (e1 s0 19 6))
+    (s2 Int (e2 s1 1 15 0)))
+    s2))
+(def e_finish ((s Int) (application Int)) Int
+  (let (
+    (s0 Int (e2 s 1 8 0))
+    (s1 Int (s_mark s0 12))
+    (s2 Int (e3 s1 16 8 250 13))
+    (s3 Int (e2 s2 2 10 8))
+    (s4 Int (e_add s3 10 536870912))
+    (s5 Int (e2 s4 8 0 10))
+    (s6 Int (e1 s5 18 0))
+    (s7 Int (e_add s6 8 1))
+    (s8 Int (e1 s7 12 12))
+    (s9 Int (s_mark s8 13))
+    (s10 Int (e1 s9 0 15))
+    (s11 Int (s_mark s10 6))
+    (s12 Int (e2 s11 1 4 0))
+    (s13 Int (e3 s12 15 0 4 1))
+    (s14 Int (e2 s13 1 4 255))
+    (s15 Int (e3 s14 15 4 0 1))
+    (s16 Int (e2 s15 2 10 250))
+    (s17 Int (e_add s16 10 1))
+    (s18 Int (e_bound s17 10 134217728 5))
+    (s19 Int (e2 s18 2 10 250))
+    (s20 Int (e_add s19 10 536870912))
+    (s21 Int (e2 s20 9 10 0))
+    (s22 Int (e_add s21 250 1))
+    (s23 Int (e0 s22 20))
+    (s24 Int (s_mark s23 1))
+    (s25 Int (e2 s24 1 0 (if application 249 2)))
+    (s26 Int (e1 s25 0 0))
+    (s27 Int (s_mark s26 2))
+    (s28 Int (e2 s27 1 0 (if application 250 3)))
+    (s29 Int (e1 s28 0 0))
+    (s30 Int (s_mark s29 3))
+    (s31 Int (e2 s30 1 0 (if application 252 3)))
+    (s32 Int (e1 s31 0 0))
+    (s33 Int (s_mark s32 4))
+    (s34 Int (e2 s33 1 0 (if application 253 3)))
+    (s35 Int (e1 s34 0 0))
+    (s36 Int (s_mark s35 5))
+    (s37 Int (e2 s36 1 0 (if application 254 3)))
+    (s38 Int (e1 s37 0 0)))
+    s38))
+(def e_runtime ((s Int) (application Int) (mainid Int)) Int
+  (let h Int (e_header s mainid)
+    (e_finish (if application (e_application h) (e_scalar h)) application)))
+
+; Fixed syntax words are compared byte-for-byte; identifiers remain source spans.
+(def c_kind ((node Int)) Int
+  (if (eq (first node) 2)
+    (let ((span Int (second node)) (at Int (first span))
+          (size Int (- (second span) at)))
+      (if
+        (if (eq size 3)
+          (* (eq (read (+ at 0)) 'd')
+            (* (eq (read (+ at 1)) 'e')
+              (eq (read (+ at 2)) 'f')))
+          0)
+        1
+      (if
+        (if (eq size 3)
+          (* (eq (read (+ at 0)) 'I')
+            (* (eq (read (+ at 1)) 'n')
+              (eq (read (+ at 2)) 't')))
+          0)
+        2
+      (if
+        (if (eq size 4)
+          (* (eq (read (+ at 0)) 'm')
+            (* (eq (read (+ at 1)) 'a')
+              (* (eq (read (+ at 2)) 'i')
+                (eq (read (+ at 3)) 'n'))))
+          0)
+        3
+      (if
+        (if (eq size 12)
+          (* (eq (read (+ at 0)) '$')
+            (* (eq (read (+ at 1)) 'a')
+              (* (eq (read (+ at 2)) 'p')
+                (* (eq (read (+ at 3)) 'p')
+                  (* (eq (read (+ at 4)) 'l')
+                    (* (eq (read (+ at 5)) 'i')
+                      (* (eq (read (+ at 6)) 'c')
+                        (* (eq (read (+ at 7)) 'a')
+                          (* (eq (read (+ at 8)) 't')
+                            (* (eq (read (+ at 9)) 'i')
+                              (* (eq (read (+ at 10)) 'o')
+                                (eq (read (+ at 11)) 'n'))))))))))))
+          0)
+        4
+      (if
+        (if (eq size 2)
+          (* (eq (read (+ at 0)) 'i')
+            (eq (read (+ at 1)) 'f'))
+          0)
+        5
+      (if
+        (if (eq size 3)
+          (* (eq (read (+ at 0)) 'l')
+            (* (eq (read (+ at 1)) 'e')
+              (eq (read (+ at 2)) 't')))
+          0)
+        6
+      (if
+        (if (eq size 1)
+          (eq (read (+ at 0)) '+')
+          0)
+        7
+      (if
+        (if (eq size 1)
+          (eq (read (+ at 0)) '-')
+          0)
+        8
+      (if
+        (if (eq size 1)
+          (eq (read (+ at 0)) '*')
+          0)
+        9
+      (if
+        (if (eq size 1)
+          (eq (read (+ at 0)) '/')
+          0)
+        10
+      (if
+        (if (eq size 1)
+          (eq (read (+ at 0)) '%')
+          0)
+        11
+      (if
+        (if (eq size 2)
+          (* (eq (read (+ at 0)) 'e')
+            (eq (read (+ at 1)) 'q'))
+          0)
+        12
+      (if
+        (if (eq size 2)
+          (* (eq (read (+ at 0)) 'l')
+            (eq (read (+ at 1)) 't'))
+          0)
+        13
+      (if
+        (if (eq size 4)
+          (* (eq (read (+ at 0)) 'p')
+            (* (eq (read (+ at 1)) 'a')
+              (* (eq (read (+ at 2)) 'i')
+                (eq (read (+ at 3)) 'r'))))
+          0)
+        14
+      (if
+        (if (eq size 4)
+          (* (eq (read (+ at 0)) 'r')
+            (* (eq (read (+ at 1)) 'e')
+              (* (eq (read (+ at 2)) 'a')
+                (eq (read (+ at 3)) 'd'))))
+          0)
+        15
+      (if
+        (if (eq size 5)
+          (* (eq (read (+ at 0)) 'w')
+            (* (eq (read (+ at 1)) 'r')
+              (* (eq (read (+ at 2)) 'i')
+                (* (eq (read (+ at 3)) 't')
+                  (eq (read (+ at 4)) 'e')))))
+          0)
+        16
+      (if
+        (if (eq size 5)
+          (* (eq (read (+ at 0)) 'f')
+            (* (eq (read (+ at 1)) 'i')
+              (* (eq (read (+ at 2)) 'r')
+                (* (eq (read (+ at 3)) 's')
+                  (eq (read (+ at 4)) 't')))))
+          0)
+        17
+      (if
+        (if (eq size 6)
+          (* (eq (read (+ at 0)) 's')
+            (* (eq (read (+ at 1)) 'e')
+              (* (eq (read (+ at 2)) 'c')
+                (* (eq (read (+ at 3)) 'o')
+                  (* (eq (read (+ at 4)) 'n')
+                    (eq (read (+ at 5)) 'd'))))))
+          0)
+        18
+      (if
+        (if (eq size 5)
+          (* (eq (read (+ at 0)) 'i')
+            (* (eq (read (+ at 1)) 'n')
+              (* (eq (read (+ at 2)) 'p')
+                (* (eq (read (+ at 3)) 'u')
+                  (eq (read (+ at 4)) 't')))))
+          0)
+        19
+        0)))))))))))))))))))) 0))
+
+(def c_list ((node Int)) Int
+  (if (eq (first node) 3) (second node) (p_fail)))
+(def c_nth ((xs Int) (n Int)) Int
+  (if n (c_nth (p_tail xs) (- n 1)) (p_head xs)))
+(def c_name ((node Int)) Int (c_check (eq (first node) 2) node))
+(def c_env_find ((env Int) (name Int)) Int
+  (if (p_length env)
+    (let entry Int (p_head env)
+      (if (p_name_eq (first entry) name) (pair 1 (second entry))
+        (c_env_find (p_tail env) name))) (pair 0 0)))
+(def c_env_get ((env Int) (name Int)) Int
+  (let found Int (c_env_find env name)
+    (if (first found) (second found) (p_fail))))
+(def c_env_add ((env Int) (name Int) (slot Int)) Int
+  (if (first (c_env_find env (c_name name))) (p_fail)
+    (p_cons (pair name slot) env)))
+(def c_params ((params Int) (slot Int) (env Int)) Int
+  (if (p_length params)
+    (let ((entry Int (c_list (p_head params)))
+          (checked Int (c_check (eq (p_length entry) 2) entry))
+          (name Int (c_name (p_head checked)))
+          (type Int (c_check (eq (c_kind (c_nth checked 1)) 2) 0)))
+      (c_params (p_tail params) (+ slot 1) (c_env_add env name slot))) env))
+(def c_find ((functions Int) (name Int)) Int
+  (if (p_length functions)
+    (let entry Int (p_head functions)
+      (if (p_name_eq (c_a entry) name) (pair 1 entry)
+        (c_find (p_tail functions) name))) (pair 0 0)))
+(def c_main_find ((functions Int)) Int
+  (if (p_length functions)
+    (let f Int (p_head functions)
+      (if (eq (c_kind (c_a f)) 3)
+        (c_check (eq (p_length (c_b f)) 0) (c_d f))
+        (c_main_find (p_tail functions)))) (p_fail)))
+(def c_application ((functions Int)) Int
+  (if (p_length functions) (eq (c_kind (c_a (p_head functions))) 4) 0))
+(def c_declarations ((roots Int) (id Int) (functions Int)) Int
+  (if (p_length roots)
+    (let ((root Int (c_list (p_head roots)))
+          (checked Int (c_check (eq (p_length root) 5) root))
+          (defcheck Int (c_check (eq (c_kind (p_head checked)) 1) 0))
+          (name Int (c_name (c_nth checked 1)))
+          (params Int (c_list (c_nth checked 2)))
+          (typecheck Int (c_check (eq (c_kind (c_nth checked 3)) 2) 0))
+          (body Int (c_nth checked 4))
+          (paramcheck Int (c_params params 0 (p_empty)))
+          (unique Int (c_check (eq (first (c_find functions name)) 0) 0))
+          (marker Int (if (eq (c_kind name) 4)
+            (c_check (* (eq id 100) (* (eq (p_length params) 0)
+              (* (eq (first body) 1) (eq (second body) 1)))) 0) 0)))
+      (c_declarations (p_tail roots) (+ id 1)
+        (p_cons (c_record name params body id) functions)))
+    (p_reverse functions)))
+
+; Count lexical homes before the fixed-size prologue is emitted. Traversal is
+; explicit, and later compilation validates every visited form before output.
+(def c_append_work ((xs Int) (work Int)) Int
+  (if (p_length xs)
+    (c_append_work (p_tail xs) (p_cons (p_head xs) work)) work))
+(def c_initializer_work ((bindings Int) (work Int)) Int
+  (if (p_length bindings)
+    (let binding Int (c_list (p_head bindings))
+      (c_initializer_work (p_tail bindings)
+        (p_cons (c_nth binding 2) work))) work))
+(def c_local_count ((work Int) (total Int)) Int
+  (if (p_length work)
+    (let ((node Int (p_head work)) (rest Int (p_tail work)))
+      (if (eq (first node) 3)
+        (let ((xs Int (second node)) (kind Int (c_kind (p_head xs))))
+          (if (eq kind 6)
+            (let shape Int (c_let xs)
+              (c_local_count
+                (c_initializer_work (first shape) (p_cons (second shape) rest))
+                (+ total (p_length (first shape)))))
+            (c_local_count (c_append_work (p_tail xs) rest) total)))
+        (c_local_count rest total))) total))
+
+; Actions make expression traversal independent of the evaluator's call stack.
+; Every action is a tagged record; environments persist across branch forks.
+(def a_expr ((node Int) (env Int) (tail Int)) Int
+  (pair 0 (c_record node env tail 0)))
+(def a_simple ((tag Int) (a Int) (b Int) (c Int) (d Int)) Int
+  (pair tag (c_record a b c d)))
+(def a_args ((args Int) (env Int) (work Int)) Int
+  (if (p_length args)
+    (a_args (p_tail args) env (p_cons (a_expr (p_head args) env 0) work)) work))
+(def c_arity ((kind Int)) Int
+  (if (lt kind 15) 2 (if (eq kind 19) 0 1)))
+(def c_is_primitive ((kind Int)) Int (* (lt 6 kind) (lt kind 20)))
+
+; Argument values are on the evaluation stack before any caller binding moves.
+(def e_move_args ((s Int) (words Int)) Int
+  (if words
+    (let ((a Int (e2 s 10 0 8)) (b Int (e2 a 11 9 0))
+          (c Int (e_add b 8 8)) (d Int (e_add c 9 8)))
+      (e_move_args d (- words 1))) s))
+(def e_call ((s Int) (id Int) (argc Int) (tail Int) (parameters Int)) Int
+  (if tail
+    (let ((a Int (e_slot s parameters 0))
+          (b Int (e2 a 2 14 0)) (c Int (e2 b 2 8 246))
+          (d Int (e_add c 8 (* -16 argc))) (e Int (e2 d 2 9 247))
+          (f Int (e_move_args e (* 2 argc)))
+          (g Int (e2 f 2 246 9)) (h Int (e2 g 2 247 14)))
+      (e1 h 12 id))
+    (let ((a Int (e_add s 243 1)) (b Int (e_bound a 243 131072 2)))
+      (e_push (e1 b 19 id)))))
+
+(def e_pair_fields ((s Int) (reg Int)) Int
+  (if (lt reg 4)
+    (e_pair_fields (e_add (e2 s 11 248 reg) 248 8) (+ reg 1)) s))
+(def e_pair ((s Int)) Int
+  (let ((a Int (e_add (e2 s 2 10 248) 10 32))
+        (b Int (e_bound a 10 137438953472 3))
+        (c Int (e2 b 2 4 248)) (d Int (e_pair_fields c 0))
+        (e Int (e2 d 2 0 4)))
+    (e2 e 1 1 1)))
+(def e_project ((s Int) (kind Int)) Int
+  (let ((a Int (e2 s 13 1 1)) (b Int (e2 a 2 10 0))
+        (c Int (if (eq kind 18) (e_add b 10 16) b))
+        (d Int (e2 c 10 0 10)) (e Int (e_add d 10 8)))
+    (e2 e 10 1 10)))
+(def e_divide ((s Int) (kind Int)) Int
+  (let ((good Int (+ (c_a s) 1)) (after Int (+ good 1))
+        (a Int (s_new (s_new s)))
+        (b Int (e2 a 13 2 1)) (c Int (e2 b 1 4 -9223372036854775808))
+        (d Int (e3 c 16 0 4 good)) (e Int (e1 d 12 after))
+        (f Int (s_mark e good)) (g Int (e2 f 1 4 -1))
+        (h Int (e3 g 16 2 4 1)) (i Int (s_mark h after)))
+    (e2 i (- kind 4) 0 2)))
+(def e_compare ((s Int) (kind Int)) Int
+  (let ((yes Int (+ (c_a s) 1)) (done Int (+ yes 1))
+        (a Int (s_new (s_new s)))
+        (b Int (e3 a (if (eq kind 12) 16 15) 0 2 yes))
+        (c Int (e2 b 1 0 0)) (d Int (e1 c 12 done))
+        (e Int (s_mark d yes)) (f Int (e2 e 1 0 1)))
+    (s_mark f done)))
+(def e_read ((s Int)) Int
+  (let ((good Int (+ (c_a s) 1)) (a Int (s_new s))
+        (b Int (e2 a 1 4 0)) (c Int (e3 b 15 0 4 1))
+        (d Int (e3 c 15 0 249 good)) (e Int (e1 d 12 1))
+        (f Int (s_mark e good)) (g Int (e_add f 0 268435456)))
+    (e2 g 8 0 0)))
+(def e_scalar_op ((s Int) (kind Int)) Int
+  (if (lt kind 10) (e2 s (- kind 4) 0 2)
+    (if (lt kind 12) (e_divide s kind)
+      (if (lt kind 14) (e_compare s kind)
+        (if (eq kind 15) (e_read s)
+          (if (eq kind 16) (e1 s 19 6)
+            (if (eq kind 19) (e2 s 2 0 249) (p_fail))))))))
+(def e_primitive ((s Int) (kind Int)) Int
+  (let ((arity Int (c_arity kind))
+        (a Int (if (eq arity 2) (e_pop s 2 3) s))
+        (b Int (if arity (e_pop a 0 1) a)))
+    (e_push
+      (if (eq kind 14) (e_pair b)
+        (if (+ (eq kind 17) (eq kind 18)) (e_project b kind)
+          (let ((c Int (if arity (e2 b 14 1 1) b))
+                (d Int (if (eq arity 2) (e2 c 14 3 1) c)))
+            (e2 (e_scalar_op d kind) 1 1 0)))))))
+
+(def c_let ((xs Int)) Int
+  (if (eq (p_length xs) 5)
+    (let ((typecheck Int (c_check (eq (c_kind (c_nth xs 2)) 2) 0))
+          (binding Int (pair 3
+            (p_cons (c_nth xs 1) (p_cons (c_nth xs 2)
+              (p_cons (c_nth xs 3) (p_empty)))))))
+      (pair (p_cons binding (p_empty)) (c_nth xs 4)))
+    (if (eq (p_length xs) 3)
+      (pair (c_list (c_nth xs 1)) (c_nth xs 2)) (p_fail))))
+(def c_if_work ((xs Int) (env Int) (tail Int) (other Int) (done Int) (work Int)) Int
+  (let ((a Int (p_cons (a_simple 5 done 0 0 0) work))
+        (b Int (p_cons (a_expr (c_nth xs 3) env tail) a))
+        (c Int (p_cons (a_simple 4 done other 0 0) b))
+        (d Int (p_cons (a_expr (c_nth xs 2) env tail) c))
+        (e Int (p_cons (a_simple 3 other 0 0 0) d)))
+    (p_cons (a_expr (c_nth xs 1) env 0) e)))
+
+(def c_expr_action ((s Int) (work Int) (functions Int) (parameters Int) (payload Int)) Int
+  (let ((node Int (c_a payload)) (env Int (c_b payload))
+        (tail Int (c_c payload)) (tag Int (first node)))
+    (if (eq tag 1)
+      (c_loop (e_push (e2 (e2 s 1 0 (second node)) 1 1 0)) work functions parameters)
+      (if (eq tag 2)
+        (c_loop (e_push (e_slot s (c_env_get env node) 0)) work functions parameters)
+        (let ((xs Int (c_list node)) (op Int (c_name (p_head xs)))
+              (kind Int (c_kind op)) (args Int (p_tail xs)))
+          (if (eq kind 5)
+            (let ((checked Int (c_check (eq (p_length args) 3) 0))
+                  (other Int (+ (c_a s) 1)) (done Int (+ other 1)))
+              (c_loop (s_new (s_new s))
+                (c_if_work xs env tail other done work) functions parameters))
+            (if (eq kind 6)
+              (let shape Int (c_let xs)
+                (c_loop s (p_cons (a_simple 6 (first shape) (second shape) env tail) work)
+                  functions parameters))
+              (if (c_is_primitive kind)
+                (let ((checked Int (c_check (eq (p_length args) (c_arity kind)) 0))
+                      (finish Int (p_cons (a_simple 1 kind 0 0 0) work)))
+                  (c_loop s (a_args (p_reverse args) env finish) functions parameters))
+                (let ((found Int (c_find functions op))
+                      (function Int (c_check (first found) (second found)))
+                      (checked Int (c_check
+                        (* (eq (p_length args) (p_length (c_b function)))
+                          (eq (eq kind 4) 0)) 0))
+                      (finish Int (p_cons
+                        (a_simple 2 (c_d function) (p_length args) tail 0) work)))
+                  (c_loop s (a_args (p_reverse args) env finish) functions parameters))))))))))
+
+(def c_bind_action ((s Int) (work Int) (functions Int) (parameters Int) (payload Int)) Int
+  (let ((bindings Int (c_a payload)) (body Int (c_b payload))
+        (env Int (c_c payload)) (tail Int (c_d payload)))
+    (if (p_length bindings)
+      (let ((binding Int (c_list (p_head bindings)))
+            (shapecheck Int (c_check (eq (p_length binding) 3) 0))
+            (name Int (c_name (p_head binding)))
+            (typecheck Int (c_check (eq (c_kind (c_nth binding 1)) 2) 0))
+            (unique Int (c_check (eq (first (c_env_find env name)) 0) 0))
+            (finish Int (a_simple 7 name (p_tail bindings) body (pair env tail))))
+        (c_loop s (p_cons (a_expr (c_nth binding 2) env 0)
+          (p_cons finish work)) functions parameters))
+      (c_loop s (p_cons (a_expr body env tail) work) functions parameters))))
+
+(def c_loop ((s Int) (work Int) (functions Int) (parameters Int)) Int
+  (if (p_length work)
+    (let ((action Int (p_head work)) (tag Int (first action))
+          (payload Int (second action)) (rest Int (p_tail work)))
+      (if (eq tag 0) (c_expr_action s rest functions parameters payload)
+        (if (eq tag 1)
+          (c_loop (e_primitive s (c_a payload)) rest functions parameters)
+          (if (eq tag 2)
+            (c_loop (e_call s (c_a payload) (c_b payload) (c_c payload) parameters)
+              rest functions parameters)
+            (if (eq tag 3)
+              (let a Int (e2 (e_pop s 0 1) 14 1 1)
+                (c_loop (e2 a 13 0 (c_a payload)) rest functions parameters))
+              (if (eq tag 4)
+                (c_loop (s_mark (e1 s 12 (c_a payload)) (c_b payload))
+                  rest functions parameters)
+                (if (eq tag 5)
+                  (c_loop (s_mark s (c_a payload)) rest functions parameters)
+                  (if (eq tag 6) (c_bind_action s rest functions parameters payload)
+                    (if (eq tag 7)
+                      (let ((slot Int (c_c s))
+                            (a Int (s_local (e_slot (e_pop s 0 1) slot 1) (+ slot 1)))
+                            (context Int (c_d payload))
+                            (env Int (c_env_add (first context) (c_a payload) slot))
+                            (next Int (a_simple 6 (c_b payload) (c_c payload)
+                              env (second context))))
+                        (c_loop a (p_cons next rest) functions parameters))
+                      (p_fail)))))))))) s))
+
+(def e_prologue ((s Int) (id Int) (parameters Int) (locals Int)) Int
+  (let ((a Int (s_local (s_mark s id) (+ parameters 1)))
+        (b Int (e2 a 2 0 247)) (c Int (e2 b 1 1 0))
+        (d Int (e2 c 2 247 246)) (e Int (e_add d 247 (* -16 parameters)))
+        (f Int (e_push e)) (g Int (e_add f 246 (* 16 locals))))
+    (e_bound g 246 134217728 2)))
+(def e_return ((s Int) (parameters Int)) Int
+  (let ((a Int (e_pop s 0 1)) (b Int (e2 a 2 6 0))
+        (c Int (e2 b 2 7 1)) (d Int (e_slot c parameters 0))
+        (e Int (e2 d 2 246 247)) (f Int (e2 e 2 247 0))
+        (g Int (e2 f 2 0 6)) (h Int (e2 g 2 1 7))
+        (i Int (e_add h 243 -1)))
+    (e0 i 20)))
+(def c_functions ((s Int) (remaining Int) (functions Int)) Int
+  (if (p_length remaining)
+    (let ((f Int (p_head remaining)) (parameters Int (p_length (c_b f)))
+          (env Int (c_params (c_b f) 0 (p_empty)))
+          (locals Int (c_local_count (p_cons (c_c f) (p_empty)) 0))
+          (start Int (e_prologue s (c_d f) parameters locals))
+          (body Int (c_loop start (p_cons (a_expr (c_c f) env 1) (p_empty))
+            functions parameters))
+          (checked Int (c_check (eq (c_c body) (+ (+ parameters 1) locals)) body)))
+      (c_functions (e_return checked parameters) (p_tail remaining) functions)) s))
+(def main () Int
+  (let ((roots Int (p_parse))
+        (functions Int (c_declarations roots 100 (p_empty)))
+        (entry Int (c_main_find functions))
+        (start Int (c_record (+ 100 (p_length functions)) 0 0 (p_empty)))
+        (runtime Int (e_runtime start (c_application functions) entry))
+        (compiled Int (c_functions runtime functions functions))
+        (capacity Int (c_check (lt (c_b compiled) 16777213) 0))
+        (instructions Int (p_reverse (c_d compiled)))
+        (labels Int (i_labels instructions 0 (m_empty))))
+    (i_output instructions labels)))

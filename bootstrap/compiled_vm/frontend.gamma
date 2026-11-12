@@ -1,0 +1,171 @@
+; Gamma source parsing retains immutable nodes and exact symbol spans. Lists
+; carry explicit counts because a pair reference cannot be a scalar condition.
+; Every traversal loops in tail position; authored nesting uses a source-owned
+; stack instead of consuming the reference evaluator's non-tail call contexts.
+; Nodes are (tag,payload): 1 integer word, 2 (begin,end) symbol, 3 counted list.
+; A counted list is (count,spine), with zero as the unused empty spine.
+
+(def p_fail () Int (first 0))
+
+(def p_empty () Int (pair 0 0))
+
+(def p_length ((xs Int)) Int (first xs))
+
+(def p_head ((xs Int)) Int
+  (if (p_length xs) (first (second xs)) (p_fail)))
+
+(def p_tail ((xs Int)) Int
+  (if (p_length xs)
+    (pair (- (p_length xs) 1) (second (second xs)))
+    (p_fail)))
+
+(def p_cons ((value Int) (xs Int)) Int
+  (pair (+ (p_length xs) 1) (pair value (second xs))))
+
+(def p_reverse ((xs Int)) Int
+  (pair (p_length xs) (p_reverse_spine (p_length xs) (second xs) 0)))
+
+(def p_reverse_spine ((count Int) (spine Int) (result Int)) Int
+  (if count
+    (p_reverse_spine (- count 1) (second spine) (pair (first spine) result))
+    result))
+
+(def p_span_eq ((a Int) (b Int)) Int
+  (if (eq (- (second a) (first a)) (- (second b) (first b)))
+    (p_span_bytes (first a) (first b) (second a))
+    0))
+
+(def p_span_bytes ((a Int) (b Int) (end Int)) Int
+  (if (eq a end)
+    1
+    (if (eq (read a) (read b))
+      (p_span_bytes (+ a 1) (+ b 1) end)
+      0)))
+
+(def p_name_eq ((a Int) (b Int)) Int
+  (if (eq (first a) 2)
+    (if (eq (first b) 2) (p_span_eq (second a) (second b)) 0)
+    0))
+
+; Admission covers bytes even inside comments and unreachable declarations.
+(def p_validate ((index Int)) Int
+  (if (eq index (input))
+    0
+    (let byte Int (read index)
+      (if (eq byte 9)
+        (p_validate (+ index 1))
+        (if (eq byte 10)
+          (p_validate (+ index 1))
+          (if (eq byte 13)
+            (p_validate (+ index 1))
+            (if (lt byte 32)
+              (p_fail)
+              (if (lt byte 127) (p_validate (+ index 1)) (p_fail)))))))))
+
+(def p_comment ((index Int)) Int
+  (if (eq index (input))
+    index
+    (let byte Int (read index)
+      (if (eq byte 10)
+        index
+        (if (eq byte 13) index (p_comment (+ index 1)))))))
+
+(def p_skip ((index Int)) Int
+  (if (eq index (input))
+    index
+    (let byte Int (read index)
+      (if (lt byte 33)
+        (p_skip (+ index 1))
+        (if (eq byte 59) (p_skip (p_comment (+ index 1))) index)))))
+
+(def p_token_end ((index Int)) Int
+  (if (eq index (input))
+    index
+    (let byte Int (read index)
+      (if (lt byte 33)
+        index
+        (if (eq byte 40)
+          index
+          (if (eq byte 41)
+            index
+            (if (eq byte 59) index (p_token_end (+ index 1)))))))))
+
+; The whole token must be decimal. A minus alone, or any non-digit, remains
+; a symbol. Gamma arithmetic supplies literal accumulation modulo 2^64.
+(def p_atom ((begin Int) (end Int)) Int
+  (if (eq (read begin) 45)
+    (if (eq (+ begin 1) end)
+      (pair 2 (pair begin end))
+      (p_number begin end (+ begin 1) 0 1))
+    (p_number begin end begin 0 0)))
+
+(def p_number
+  ((begin Int) (end Int) (index Int) (value Int) (negative Int)) Int
+  (if (eq index end)
+    (pair 1 (if negative (- 0 value) value))
+    (let byte Int (read index)
+      (if (lt byte 48)
+        (pair 2 (pair begin end))
+        (if (lt byte 58)
+          (p_number begin end (+ index 1) (+ (* value 10) (- byte 48)) negative)
+          (pair 2 (pair begin end)))))))
+
+; Token results retain the next source offset beside the parsed node.
+(def p_character ((begin Int)) Int
+  (if (lt (+ begin 2) (input))
+    (let byte Int (read (+ begin 1))
+      (if (eq byte 92)
+        (p_escape begin)
+        (if (eq (read (+ begin 2)) 39)
+          (if (eq byte 39)
+            (p_fail)
+            (if (lt byte 32)
+              (p_fail)
+              (if (lt byte 127)
+                (pair (+ begin 3) (pair 1 byte))
+                (p_fail))))
+          (p_fail))))
+    (p_fail)))
+
+(def p_escape ((begin Int)) Int
+  (if (lt (+ begin 3) (input))
+    (if (eq (read (+ begin 3)) 39)
+      (let byte Int (read (+ begin 2))
+        (if (eq byte 110)
+          (pair (+ begin 4) (pair 1 10))
+          (if (eq byte 115)
+            (pair (+ begin 4) (pair 1 32))
+            (p_fail))))
+      (p_fail))
+    (p_fail)))
+
+(def p_token ((begin Int)) Int
+  (if (eq (read begin) 39)
+    (p_character begin)
+    (let end Int (p_token_end begin)
+      (pair end (p_atom begin end)))))
+
+(def p_parse () Int
+  (let admitted Int (p_validate 0)
+    (p_parse_loop 0 (p_empty) (p_empty))))
+
+; Current children are reversed until their closing parenthesis. Each stack
+; entry holds the enclosing reversed children. Thus only authored lists count
+; toward 255, regardless of token length or the number of sibling expressions.
+(def p_parse_loop ((index Int) (current Int) (stack Int)) Int
+  (let start Int (p_skip index)
+    (if (eq start (input))
+      (if (p_length stack) (p_fail) (p_reverse current))
+      (let byte Int (read start)
+        (if (eq byte 40)
+          (if (lt (p_length stack) 255)
+            (p_parse_loop (+ start 1) (p_empty) (p_cons current stack))
+            (p_fail))
+          (if (eq byte 41)
+            (if (p_length stack)
+              (p_parse_loop (+ start 1)
+                (p_cons (pair 3 (p_reverse current)) (p_head stack))
+                (p_tail stack))
+              (p_fail))
+            (let token Int (p_token start)
+              (p_parse_loop (first token) (p_cons (second token) current) stack))))))))
