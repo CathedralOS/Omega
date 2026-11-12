@@ -187,6 +187,15 @@ is renamed on each return edge. All 45 reach a verdict there.
   remainder rows), each unproved obligation is true. The contradictory-guard
   and multiply rows are classified by `#2317`'s family readings, which name
   them.
+- **The contradictory-guard row since then.** Run one program at a time
+  with the harness below at `main` `8ae4ed44e`: the three programs whose
+  guard contradicts a literal bound are accepted, and
+  `contradictory_relational_branch_exit` is rejected with one unproved
+  subtraction. With the prover's guard refutation
+  ([lowered discharge](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md),
+  "Two orders between values") it is accepted, all 8 obligations judged by
+  the mathematical core. That needed no kernel rule. The other rows were
+  not rerun.
 - **Current-checker errors.** These follow `#2317`'s reading of
   `machines.md`: a nested declaration has its own contract and cannot use
   another invocation's live facts. For example, `machine divided(left, right)
