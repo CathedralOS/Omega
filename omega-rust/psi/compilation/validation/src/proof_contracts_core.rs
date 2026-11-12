@@ -10361,6 +10361,11 @@ pub mod relevance {
         use typed_trees::statement::TableCall;
         use typed_trees::types::TypeReferenceHandle;
 
+        /*
+            Reports runtime uses of erased values in `expression`'s subtree, in
+            pre-order with children in edge order. Pending children live in a
+            stack the walk owns, so subtree depth costs memory, not stack.
+        */
         pub(crate) fn validate_expression(
             program: &dyn crate::CheckingInput,
             proof_only: &typed_trees::proof_only::ProofOnlyClassification,
@@ -10370,20 +10375,42 @@ pub mod relevance {
             context: Context,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
+            let mut pending = vec![(expression, context)];
+            let mut children = Vec::new();
+            while let Some((expression, context)) = pending.pop() {
+                validate_expression_node(
+                    program,
+                    proof_only,
+                    machine,
+                    state,
+                    expression,
+                    context,
+                    diagnostics,
+                    &mut children,
+                );
+                pending.extend(children.drain(..).rev());
+            }
+        }
+
+        // One expression's own reports; its children, with the context each
+        // is validated in, are appended to `children` in visit order.
+        #[allow(clippy::too_many_arguments)]
+        fn validate_expression_node(
+            program: &dyn crate::CheckingInput,
+            proof_only: &typed_trees::proof_only::ProofOnlyClassification,
+            machine: &Machine,
+            state: &State,
+            expression: ExpressionHandle,
+            context: Context,
+            diagnostics: &mut Vec<Diagnostic>,
+            children: &mut Vec<(ExpressionHandle, Context)>,
+        ) {
             if !expression.is_valid() {
                 return;
             }
             macro_rules! visit_expression {
                 ($child:expr, $context:expr) => {
-                    validate_expression(
-                        program,
-                        proof_only,
-                        machine,
-                        state,
-                        $child,
-                        $context,
-                        diagnostics,
-                    )
+                    children.push(($child, $context))
                 };
             }
             match expression_table(program).expression(expression) {
@@ -10442,13 +10469,13 @@ pub mod relevance {
                 }
                 ExpressionNode::StructLiteral(literal) => validate_struct_literal(
                     program,
-                    proof_only,
                     machine,
                     state,
                     expression,
                     literal,
                     context,
                     diagnostics,
+                    children,
                 ),
                 ExpressionNode::Call(call) => {
                     if context == Context::Runtime
@@ -10501,27 +10528,20 @@ pub mod relevance {
             }
         }
 
+        #[allow(clippy::too_many_arguments)]
         fn validate_struct_literal(
             program: &dyn crate::CheckingInput,
-            proof_only: &typed_trees::proof_only::ProofOnlyClassification,
             machine: &Machine,
             state: &State,
             expression: ExpressionHandle,
             literal: &TableStructLiteral,
             context: Context,
             diagnostics: &mut Vec<Diagnostic>,
+            children: &mut Vec<(ExpressionHandle, Context)>,
         ) {
             macro_rules! visit_expression {
                 ($child:expr, $context:expr) => {
-                    validate_expression(
-                        program,
-                        proof_only,
-                        machine,
-                        state,
-                        $child,
-                        $context,
-                        diagnostics,
-                    )
+                    children.push(($child, $context))
                 };
             }
             let Some(definition) = program.data_definition_by_symbol(literal.type_symbol) else {
