@@ -15332,12 +15332,35 @@ pub(crate) mod contract_refinement {
         pub(crate) result: TypeReferenceHandle,
     }
 
-    pub(crate) struct CallableContractRefinement {
-        required: ContractFacts,
-        actual: ContractFacts,
+    pub(crate) enum CallableContractRefinement {
+        Lowered {
+            accepts: bool,
+        },
+        Source {
+            required: ContractFacts,
+            actual: ContractFacts,
+        },
     }
 
     impl CallableContractRefinement {
+        pub(crate) fn prepare_lowered<'a>(
+            program: &'a typed_trees::TypedTrees,
+            required: &'a StateSignature,
+            actual: structure_elaboration::CallableDeclaration<'a>,
+        ) -> Option<Self> {
+            use lowered_discharge::RouteVerdict;
+            let verdict = lowered_discharge::judge(
+                structure_elaboration::elaborate_callable_witness(program, required, actual),
+            );
+            match verdict {
+                Ok(RouteVerdict::Accepted(_)) => Some(Self::Lowered { accepts: true }),
+                Ok(RouteVerdict::Rejected { .. }) | Err(_) => {
+                    Some(Self::Lowered { accepts: false })
+                }
+                Ok(RouteVerdict::FallBack(_) | RouteVerdict::Incomplete(_)) => None,
+            }
+        }
+
         pub(crate) fn prepare(
             program: &dyn crate::CheckingInput,
             required: CallableContract<'_>,
@@ -15379,7 +15402,7 @@ pub(crate) mod contract_refinement {
                     return None;
                 }
             }
-            Some(Self {
+            Some(Self::Source {
                 required: ContractFacts::collect(
                     program,
                     required.owner,
@@ -15406,19 +15429,23 @@ pub(crate) mod contract_refinement {
             program: &dyn crate::CheckingInput,
             kind: &SignatureContractKind,
         ) -> bool {
+            let (required, actual) = match self {
+                Self::Lowered { accepts } => {
+                    return *accepts
+                        && matches!(
+                            kind,
+                            SignatureContractKind::Requires | SignatureContractKind::Ensures
+                        );
+                }
+                Self::Source { required, actual } => (required, actual),
+            };
             let (premises, premise_scope, goals, goal_scope) = match kind {
-                SignatureContractKind::Requires => (
-                    &self.required.requires,
-                    &self.required,
-                    &self.actual.requires,
-                    &self.actual,
-                ),
-                SignatureContractKind::Ensures => (
-                    &self.actual.ensures,
-                    &self.actual,
-                    &self.required.ensures,
-                    &self.required,
-                ),
+                SignatureContractKind::Requires => {
+                    (&required.requires, required, &actual.requires, actual)
+                }
+                SignatureContractKind::Ensures => {
+                    (&actual.ensures, actual, &required.ensures, required)
+                }
                 _ => return false,
             };
             goals

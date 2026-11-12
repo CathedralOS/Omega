@@ -228,13 +228,43 @@ impl<'t> Program<'t> {
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
         let declared = self.declared_requirement(id, declaring_trait, requirement)?;
+        self.witnessed_signature(declared, arguments)
+    }
+
+    pub fn witnessed_signature(
+        &mut self,
+        declared: &'t StateSignature,
+        arguments: &[semantic_vocabulary::ScalarTerm],
+    ) -> Checked<MachineId> {
+        let id = self.next_identity()?;
         let (signature, names) = self.requirement_signature(id, declared, arguments)?;
-        self.symbols.push(requirement);
+        self.symbols.push(declared.symbol);
         self.signatures.push(signature);
         self.names.push(names);
         self.value_parameters.push(0);
         self.value_arguments.push(arguments.to_vec());
         self.scopes.push(Vec::new());
+        Ok(id)
+    }
+
+    /// Allocate the supplied contract independently of the witness entry, even
+    /// when both views name the same declaration. Reusing the entry would turn
+    /// the proof obligation into a recursive call to itself.
+    pub fn callable_contract(
+        &mut self,
+        supplied: crate::CallableDeclaration<'t>,
+    ) -> Checked<MachineId> {
+        let id = match supplied {
+            crate::CallableDeclaration::Signature(signature) => {
+                self.witnessed_signature(signature, &[])?
+            }
+            crate::CallableDeclaration::Machine(symbol) => {
+                let id = self.next_identity()?;
+                self.read_machine(id, symbol, Reading::Closed)?;
+                id
+            }
+        };
+        self.requirements.push(id);
         Ok(id)
     }
 

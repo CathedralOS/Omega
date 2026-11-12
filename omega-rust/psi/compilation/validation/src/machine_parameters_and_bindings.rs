@@ -124,6 +124,7 @@ pub mod machine_parameters {
         use binder_scope::CallableBinderScope;
 
         pub(crate) struct CallableParts<'a> {
+            pub(crate) declaration: structure_elaboration::CallableDeclaration<'a>,
             pub(crate) lexical_owner: SymbolHandle,
             pub(crate) contract_owner: SymbolHandle,
             pub(crate) lifetime_parameters: &'a [typed_trees::name::Identifier],
@@ -141,6 +142,7 @@ pub mod machine_parameters {
                 signature: &'a StateSignature,
             ) -> Self {
                 Self {
+                    declaration: structure_elaboration::CallableDeclaration::Signature(signature),
                     lexical_owner: crate::borrow_contracts::lexical_region_owner(
                         program,
                         signature.symbol,
@@ -358,6 +360,9 @@ pub mod machine_parameters {
                 parameter,
                 requirement,
                 &CallableParts {
+                    declaration: structure_elaboration::CallableDeclaration::Machine(
+                        actual_machine.symbol,
+                    ),
                     lexical_owner: actual_machine.symbol,
                     contract_owner: actual_machine.symbol,
                     lifetime_parameters: &actual_machine.lifetime_parameters,
@@ -634,6 +639,7 @@ pub mod machine_parameters {
                 label,
                 parameter,
                 requirement,
+                actual.declaration,
                 actual.contracts,
                 required_parameters,
                 actual_parameters,
@@ -1912,6 +1918,7 @@ pub mod machine_parameters {
             label: &str,
             parameter: &TypeParameter,
             requirement: &typed_trees::signature::StateSignature,
+            actual_declaration: structure_elaboration::CallableDeclaration<'_>,
             actual_contracts: &[SignatureContract],
             required_parameters: &[StateParameter],
             actual_parameters: &[StateParameter],
@@ -1927,6 +1934,19 @@ pub mod machine_parameters {
         ) {
             let required_contracts = program.state_signature_contracts(requirement);
             let prepare_implication = || {
+                // The typed application owner must have spent every outer
+                // substitution before this witness reads the two contracts.
+                // An open correspondence keeps its existing checking route;
+                // it is never silently dropped from a lowered proof request.
+                if substitutions.is_empty()
+                    && binder_pairs.is_empty()
+                    && proof_scope.types.is_empty()
+                    && let Some(judgment) = crate::proof_contracts::contract_entailment::CallableContractRefinement::prepare_lowered(
+                        program.typed_program(), requirement, actual_declaration,
+                    )
+                {
+                    return Some(judgment);
+                }
                 crate::proof_contracts::contract_entailment::CallableContractRefinement::prepare(
                     program,
                     crate::proof_contracts::contract_entailment::CallableContract {
