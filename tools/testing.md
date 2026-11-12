@@ -190,6 +190,12 @@ before optimized code generation. CLI-only requests do not prepare the harness.
 Relevant toolchain, host, jobs, flags and profile inputs are retained; credentials
 and the full process environment are never captured.
 
+Rust compiler preparation commands have a one-hour wall-clock limit. Checking
+and execution commands keep their 30-minute limit; fixture and Psi work limits are
+unchanged. Each command receipt records its limit and whether it timed out.
+A timed-out child is stopped and reaped, with cleanup errors and the original
+stdout and stderr retained for diagnosis.
+
 `--cli` and `--runner` cannot authenticate an arbitrary supplied executable and
 therefore refuse. Use the current-source builder. Cargo/mbx may reuse compatible
 objects, but it still checks the current source and emits the artifact receipts.
