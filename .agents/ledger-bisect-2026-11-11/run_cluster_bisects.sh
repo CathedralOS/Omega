@@ -11,7 +11,9 @@ WITNESSES=(
   pass/borrows/runtime_reassigned_view_capture_exit
   pass/optimizer/pre_allocation_joint_frontier_exit
 )
-python3 "$ROOT/.agents/ledger-bisect-2026-11-11/tools/pin_snapshot.py" "${WITNESSES[@]}" "$MEASURE"
+for _w in "${WITNESSES[@]}"; do
+  python3 "$ROOT/.agents/ledger-bisect-2026-11-11/tools/pin_snapshot.py" "$_w" "$MEASURE"
+done
 for w in "${WITNESSES[@]}"; do
   echo "=== bisect $w ==="
   bash "$ROOT/.agents/ledger-bisect-2026-11-11/bisect_one.sh" "$w"
