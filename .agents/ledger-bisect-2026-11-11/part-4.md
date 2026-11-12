@@ -46,7 +46,7 @@ Members: `fail/generics/grouped_decimal_const_zero_division_rejected`
 | 1 | fail wrong reason | indexed-domain selected constant has canonical type `named(name(nominal\\(package-owner\\(32:2a7c1be4c2f9cc4e1 | `fail/modules/packaged_structured_const_wrong_carrier` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
 Members: `fail/modules/packaged_structured_const_wrong_carrier`
 
-| 1 | pass/run rejected | proposition `chained` expects 2 proof-static binder argument(s), received 0 | `pass/proofs/family_carrier_relation_laws` | `` |  |  | pending |  |
+| 1 | pass/run rejected | proposition `chained` expects 2 proof-static binder argument(s), received 0 | `pass/proofs/family_carrier_relation_laws` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
 Members: `pass/proofs/family_carrier_relation_laws`
 
 ## Member lines (PIN)
