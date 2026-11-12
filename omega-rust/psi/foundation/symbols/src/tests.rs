@@ -2310,3 +2310,156 @@ fn main_console_symbols() -> SymbolTable {
 
     builder.finish()
 }
+
+mod closed_contract_scope {
+    use crate::{
+        SourceScopedTopLevelBinding, SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable,
+        SymbolTableBuilder,
+    };
+    use source::{DependencyScope, SourceId, SourceMap, SourceOrigin, SourceSpan, Span};
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    fn occurrence(id: usize) -> SourceSpan {
+        SourceSpan::new(SourceId(id), Span::new(0, 4))
+    }
+
+    fn fixture(import: bool, console_scope: DependencyScope) -> (SymbolTable, Vec<SymbolHandle>) {
+        let mut sources = SourceMap::default();
+        for (ordinal, (root, origin)) in [
+            ("application", SourceOrigin::User),
+            ("closed-std", SourceOrigin::ToolchainContract),
+            ("closed-std", SourceOrigin::ToolchainContract),
+            ("another-contract", SourceOrigin::ToolchainContract),
+            ("core", SourceOrigin::Toolchain),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let root = PathBuf::from(root);
+            sources.add_checked_instance(
+                root.join(format!("{ordinal}.omg")),
+                "name",
+                root,
+                None,
+                origin,
+                source::SourceResolutionStratum::Base,
+                if ordinal == 2 {
+                    console_scope
+                } else {
+                    DependencyScope::Product
+                },
+            );
+        }
+        let bindings = if import {
+            vec![SourceScopedTopLevelBinding::logical_module_import(
+                SourceId(0),
+                SourceId(2),
+                "std::Console",
+                1,
+            )]
+        } else {
+            Vec::new()
+        };
+        let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+            Some(Arc::new(sources)),
+            bindings,
+        );
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = SymbolTableBuilder::child_handles(
+            builder.insert_children(
+                root,
+                [
+                    (0, "Application", SymbolKind::Data),
+                    (1, "Entry", SymbolKind::Data),
+                    (2, "Console", SymbolKind::Data),
+                    (3, "Foreign", SymbolKind::Data),
+                    (4, "CoreValue", SymbolKind::Data),
+                    (2, "Console::Restricted", SymbolKind::Domain),
+                ]
+                .into_iter()
+                .map(|(id, value, kind)| {
+                    (
+                        kind,
+                        SymbolNameRef::OwnedSource {
+                            value,
+                            source_span: occurrence(id),
+                        },
+                    )
+                }),
+            ),
+        )
+        .collect::<Vec<_>>();
+        (builder.finish(), declarations)
+    }
+
+    fn resolve(
+        symbols: &SymbolTable,
+        source: usize,
+        name: &str,
+        kind: SymbolKind,
+    ) -> Option<SymbolHandle> {
+        symbols.find_top_level_by_name_and_kinds_from_source(name, &[kind], occurrence(source))
+    }
+
+    #[test]
+    fn closed_contract_cohort_is_local_and_never_an_ambient_std_dependency() {
+        let (symbols, declarations) = fixture(false, DependencyScope::Product);
+        assert_eq!(
+            resolve(&symbols, 1, "Console", SymbolKind::Data),
+            Some(declarations[2])
+        );
+        for id in [0, 3] {
+            assert_eq!(resolve(&symbols, id, "Console", SymbolKind::Data), None);
+            assert!(!symbols.source_domain_is_exposed(occurrence(id), declarations[5]));
+            assert_eq!(
+                resolve(&symbols, id, "Console::Restricted", SymbolKind::Domain),
+                None
+            );
+        }
+        assert!(symbols.source_domain_is_exposed(occurrence(1), declarations[5]));
+        assert_eq!(resolve(&symbols, 1, "Foreign", SymbolKind::Data), None);
+        assert_eq!(resolve(&symbols, 1, "Application", SymbolKind::Data), None);
+        for id in [0, 1, 3] {
+            assert_eq!(
+                resolve(&symbols, id, "CoreValue", SymbolKind::Data),
+                Some(declarations[4])
+            );
+        }
+        assert_eq!(
+            symbols.find_build_subject_declaration_from_source(
+                "Console",
+                occurrence(0),
+                [(declarations[2], true)],
+                &[]
+            ),
+            None
+        );
+        assert_eq!(
+            symbols.find_build_subject_declaration_from_source(
+                "CoreValue",
+                occurrence(0),
+                [(declarations[4], true)],
+                &[]
+            ),
+            Some(declarations[4])
+        );
+    }
+
+    #[test]
+    fn closed_contract_imports_are_file_local_and_do_not_expose_sibling_domains() {
+        let (symbols, declarations) = fixture(true, DependencyScope::Product);
+        assert_eq!(
+            resolve(&symbols, 0, "Console", SymbolKind::Data),
+            Some(declarations[2])
+        );
+        assert_eq!(
+            resolve(&symbols, 0, "std::Console", SymbolKind::Data),
+            Some(declarations[2])
+        );
+        assert_eq!(resolve(&symbols, 3, "Console", SymbolKind::Data), None);
+        assert!(!symbols.source_domain_is_exposed(occurrence(0), declarations[5]));
+        let (separate, _) = fixture(false, DependencyScope::Build);
+        assert_eq!(resolve(&separate, 1, "Console", SymbolKind::Data), None);
+    }
+}

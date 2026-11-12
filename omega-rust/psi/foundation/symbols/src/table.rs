@@ -976,8 +976,7 @@ mod modules {
                         && self.source_module(reference.source_id) == module
                 });
             local
-                || (!module.is_valid()
-                    && self.symbol_source_origin(domain) != Some(source::SourceOrigin::User))
+                || (!module.is_valid() && self.is_ambient_toolchain_symbol(domain))
                 || self
                     .source_module_import_paths(reference.source_id)
                     .any(|path| self.source_import_exposes_domain(reference, path, domain))
@@ -1113,9 +1112,10 @@ mod modules {
 
         pub(super) fn has_namespace_context(&self, reference: SourceSpan) -> bool {
             self.source_file(reference).is_some_and(|file| {
-                file.origin == source::SourceOrigin::User
-                    && file.resolution_stratum
-                        != source::SourceResolutionStratum::CurrentActivationExtension
+                file.origin == source::SourceOrigin::ToolchainContract
+                    || (file.origin == source::SourceOrigin::User
+                        && file.resolution_stratum
+                            != source::SourceResolutionStratum::CurrentActivationExtension)
             }) || self.source_binding_index().has_selected_module
                 || self
                     .source_lookup_scope(reference.source_id)
@@ -1211,7 +1211,7 @@ mod modules {
                 .filter(|candidate| {
                     self.name(*candidate) == name
                         && !self.symbol_module(*candidate).is_valid()
-                        && self.symbol_source_origin(*candidate) != Some(source::SourceOrigin::User)
+                        && self.is_ambient_toolchain_symbol(*candidate)
                 })
                 .collect()
         }
@@ -1373,7 +1373,7 @@ mod modules {
                     && !is_module
                     && !self.symbol_module(candidate).is_valid()
                     && self.name(candidate) == name
-                    && self.symbol_source_origin(candidate) != Some(source::SourceOrigin::User);
+                    && self.is_ambient_toolchain_symbol(candidate);
                 let imported_path = import_bindings.iter().any(|scope| {
                     let binding = &source_scope.bindings[scope.binding_position];
                     let import = binding
@@ -1991,6 +1991,16 @@ mod source_queries {
                 return false;
             };
             sources.same_checked_instance(left, right)
+        }
+
+        // Installed core declarations and source-free builtin symbols are ambient.
+        // Loading a closed contract cohort grants its siblings local scope only.
+        pub(super) fn is_ambient_toolchain_symbol(&self, symbol: SymbolHandle) -> bool {
+            match self.symbol_source_origin(symbol) {
+                Some(SourceOrigin::Toolchain) => true,
+                None => self.symbol_provenance_source_span(symbol).is_none(),
+                Some(SourceOrigin::User | SourceOrigin::ToolchainContract) => false,
+            }
         }
 
         /*
