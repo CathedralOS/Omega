@@ -1570,6 +1570,103 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
     assert_eq!(recovered, pending.terminal);
     assert_eq!(recovered_permissions, pending.accepted_package_permissions);
     assert!(installation_assumptions.is_empty());
+    // Keep the already retained coordinates with a failure so a missing choice
+    // can be distinguished from a different closed call without another probe.
+    let proposal = recovered.native_realization_proposal().unwrap();
+    let module = recovered.artifact().semantic_module();
+    let mut binding_context = format!(
+        "target={} selected_plans={} declarations={} direct_leaves={} callbacks={}\n",
+        proposal.target_profile().target_name(),
+        proposal.providers().selection.plans().len(),
+        proposal.providers().declarations.len(),
+        proposal.providers().direct_boundary_leaves.len(),
+        module.callback_applications.len(),
+    );
+    for callback in &module.callback_applications {
+        let operation = module
+            .operations()
+            .find(|operation| operation.id == callback.registrar)
+            .expect("retained callback registrar operation");
+        let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
+            panic!("retained registrar must be a boundary call");
+        };
+        let declaration = module.boundary_machine(boundary).unwrap();
+        let abi = module.calling_abi_identity(boundary).unwrap();
+        binding_context.push_str(&format!(
+            "registrar={:?} boundary={boundary:?} owner={:?} required={:?} abi={abi:?}\n",
+            callback.registrar,
+            module.identities.text(declaration.owner.identity()),
+            module.identities.text(declaration.identity),
+        ));
+        for (label, plans) in [
+            (
+                "selected",
+                proposal
+                    .providers()
+                    .selection
+                    .plans()
+                    .iter()
+                    .collect::<Vec<_>>(),
+            ),
+            (
+                "declarations",
+                proposal
+                    .providers()
+                    .declarations
+                    .iter()
+                    .map(|row| &row.plan)
+                    .collect(),
+            ),
+        ] {
+            for plan in plans {
+                for row in plan.rows.iter().filter(|row| {
+                    plan.identities.text(row.declared_requirement_identity)
+                        == abi.requirement_identity
+                }) {
+                    binding_context.push_str(&format!(
+                        "{label} target={} root={:?} selected={:?} declared={:?} abi={:?}\n",
+                        plan.target,
+                        plan.schema.root_application_identity(),
+                        plan.identities.text(row.requirement_identity),
+                        plan.identities.text(row.declared_requirement_identity),
+                        row.calling_signature,
+                    ));
+                }
+            }
+        }
+    }
+    for target in proposal.target_provider_proposals() {
+        match &target.selection {
+            Ok(selection) => {
+                binding_context.push_str(&format!(
+                    "publication target={} plans={}\n",
+                    target.target,
+                    selection.plans.len()
+                ));
+                for selected in &selection.plans {
+                    for row in &selected.plan.rows {
+                        if row.calling_signature.is_some() {
+                            binding_context.push_str(&format!(
+                                "publication selected={:?} declared={:?} abi={:?}\n",
+                                selected.plan.identities.text(row.requirement_identity),
+                                selected
+                                    .plan
+                                    .identities
+                                    .text(row.declared_requirement_identity),
+                                row.calling_signature,
+                            ));
+                        }
+                    }
+                }
+            }
+            Err(errors) => binding_context.push_str(&format!(
+                "publication target={} refused={errors:?}\n",
+                target.target
+            )),
+        }
+    }
+    let context_path = scratch.join("native-binding-context.txt");
+    std::fs::write(&context_path, &binding_context).unwrap();
     let direct_boundary_leaves = recovered
         .native_realization_proposal()
         .unwrap()
@@ -1600,7 +1697,12 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
     assert_eq!(outcome.target, profile);
     let report = outcome
         .result
-        .expect("complete recovered native work through ordinary package reconciliation")
+        .unwrap_or_else(|error| {
+            panic!(
+                "complete recovered native work through ordinary package reconciliation: {error:?}\nretained native binding coordinates: {}\n{binding_context}",
+                context_path.display()
+            )
+        })
         .into_report()
         .expect("complete actual native lowering after saved-input recovery");
     drop(prepared);
