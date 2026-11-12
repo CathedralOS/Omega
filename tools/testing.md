@@ -1637,8 +1637,11 @@ A Claude Code cloud session starts in a fresh container with nothing built, and
 `mbx build -p omega` there takes about 11 minutes (688 s measured on a 4-CPU
 container, 2026-11-11). The `Warm build` workflow builds main's compiler in a
 container set up like a session and publishes the build directory, about
-270 MB compressed, on the `warm-build-linux-x86_64` prerelease. The
-SessionStart hook in `.claude/settings.json` runs
+270 MB compressed, to the GitHub Container Registry as
+`ghcr.io/cathedralos/omega-warm-build:<slot>` (`primary` and `worker`), not as a
+release: releases are the product that installers resolve. A session's
+environment must allow `ghcr.io` and its blob host
+`pkg-containers.githubusercontent.com`. The SessionStart hook in `.claude/settings.json` runs
 `bash tools/warm_build.sh session-start`, which unpacks it into the primary
 checkout's `target/` and into `.agents/worktree/worker-1/target` before the
 session's first command. Measured on the same container with the archives CI
