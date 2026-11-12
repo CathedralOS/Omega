@@ -1,25 +1,3 @@
-use psi::checking::reference_backings;
-use psi::checking::arithmetic;
-use psi::checking::checker;
-use psi::checking::completions;
-use psi::checking::ranking;
-use psi::checking::recasts;
-use psi::checking::constructions;
-use psi::checking::contracts;
-use psi::checking::domains;
-use psi::checking::evaluation;
-use psi::checking::flow;
-use psi::checking::matches;
-use psi::checking::places;
-use psi::checking::references;
-use psi::checking::qualification;
-use psi::checking::termination;
-use psi::checks::checks;
-use psi::integers::integers;
-use psi::resolution::resolution;
-use psi::syntax::syntax;
-use psi::types::types;
-
 // Each expression node's value, from its children's, and its definedness
 // obligations: a place's subject, a literal's constant, an index inside its
 // collection (wiki/spec/language/numeric_values.md#collection-bounds),
@@ -27,7 +5,7 @@ use psi::types::types;
 // `requires` facts, effects and `ensures` facts. Values only gather facts
 // while `checking` is false; obligations reject only when it holds, after
 // the body's facts have settled.
-public machine Checker::evaluate_node(
+public machine evaluate_node(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -37,10 +15,10 @@ public machine Checker::evaluate_node(
 )
 crashes Trap
 {
-    let expression: Expression = SyntaxTrees::expression(syntax, handle);
-    let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
-    let row: TypeRow = TypeTable::row(&typing.types, type_handle);
-    let integer: bool = row.kind == TypeKind::Builtin && ExactInteger::is_carrier(row.builtin);
+    let expression: Expression = syntax_trees_expression(syntax, handle);
+    let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
+    let row: TypeRow = type_table_row(&typing.types, type_handle);
+    let integer: bool = row.kind == TypeKind::Builtin && is_carrier(row.builtin);
     transition expression.kind {
         ExpressionKind::Name -> name(checker, syntax, resolution, typing, handle, type_handle)
         ExpressionKind::Integer -> literal(checker, typing, handle)
@@ -101,45 +79,45 @@ crashes Trap
         row: TypeRow,
         offset: u64 in Trapping
     ) {
-        let element: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first + offset);
-        let value: Value = Checker::value_at(checker, element);
-        let written: Expression = SyntaxTrees::expression(syntax, element);
-        Checker::require_qualification(checker, syntax, resolution, typing, row.inner, element, value, written.source_span);
+        let element: u64 in Trapping = syntax_trees_argument(syntax, expression.first + offset);
+        let value: Value = value_at(checker, element);
+        let written: Expression = syntax_trees_expression(syntax, element);
+        require_qualification(checker, syntax, resolution, typing, row.inner, element, value, written.source_span);
         transition { _ -> array_element(checker, syntax, resolution, typing, handle, expression, row, offset + 1) }
     }
 
     machine matched(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, checking: bool) {
-        Checker::close_match(checker, syntax, resolution, typing, handle, checking);
+        close_match(checker, syntax, resolution, typing, handle, checking);
     }
 
     machine name(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, type_handle: u64 in Trapping) {
-        let value: Value = Checker::name_value(checker, syntax, resolution, typing, handle, type_handle);
-        let read: Value = Checker::read_interval(typing, type_handle, value);
-        Checker::set_value(checker, handle, read);
+        let value: Value = name_value(checker, syntax, resolution, typing, handle, type_handle);
+        let read: Value = read_interval(typing, type_handle, value);
+        checker_set_value(checker, handle, read);
     }
 
     machine literal(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping) {
-        let literal: ExactInteger = Typing::value(typing, handle);
-        let value: Value = Value::constant(literal);
-        Checker::set_value(checker, handle, value);
+        let literal: ExactInteger = typing_value(typing, handle);
+        let value: Value = value_constant(literal);
+        checker_set_value(checker, handle, value);
     }
 
     machine boolean(checker: &mut Checker, handle: u64 in Trapping, expression: Expression) {
-        let value: Value = Value::truth(expression.flag);
-        Checker::set_value(checker, handle, value);
+        let value: Value = value_truth(expression.flag);
+        checker_set_value(checker, handle, value);
     }
 
     machine field(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping) {
-        let value: Value = Checker::member_value(checker, typing, handle, expression, type_handle);
-        Checker::set_value(checker, handle, value);
+        let value: Value = member_value(checker, typing, handle, expression, type_handle);
+        checker_set_value(checker, handle, value);
     }
 
     // `collection[index]`: the index lies in `0..len`.
     machine index(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, checking: bool) {
-        let base: Value = Checker::value_at(checker, expression.left);
-        let collection: TypeRow = Checker::collection_row(typing, expression.left);
-        let length: Value = Checker::collection_length(checker, typing, collection, base);
-        let operand: Expression = SyntaxTrees::expression(syntax, expression.right);
+        let base: Value = value_at(checker, expression.left);
+        let collection: TypeRow = collection_row(typing, expression.left);
+        let length: Value = collection_length(checker, typing, collection, base);
+        let operand: Expression = syntax_trees_expression(syntax, expression.right);
         transition operand.kind == ExpressionKind::Range {
             true -> sliced(checker, typing, handle, expression, operand, row, length, base, checking)
             _ -> element(checker, handle, expression, row, length, checking)
@@ -147,10 +125,10 @@ crashes Trap
     }
 
     machine element(checker: &mut Checker, handle: u64 in Trapping, expression: Expression, row: TypeRow, length: Value, checking: bool) {
-        let position: Value = Checker::value_at(checker, expression.right);
-        let below: bool = Checker::proves_less(checker, position, length);
-        let zero: Value = Value::constant(ExactInteger { negative: false, magnitude: 0 });
-        let above: bool = Checker::proves_at_most(checker, zero, position);
+        let position: Value = value_at(checker, expression.right);
+        let below: bool = proves_less(checker, position, length);
+        let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 });
+        let above: bool = proves_at_most(checker, zero, position);
         transition checking && !(below && above) {
             true -> out_of_bounds(checker, handle, expression, row)
             _ -> typed(checker, handle, row)
@@ -164,21 +142,21 @@ crashes Trap
     // exclusive end `b + 1`, valid when `b` is a valid index: neither
     // negative nor past the last element.
     machine sliced(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, expression: Expression, operand: Expression, row: TypeRow, length: Value, base: Value, checking: bool) {
-        let zero: Value = Value::constant(ExactInteger { negative: false, magnitude: 0 });
-        let one: Value = Value::constant(ExactInteger { negative: false, magnitude: 1 });
-        let start: Value = Checker::range_endpoint(checker, operand.first == 1, operand.left, zero);
-        let end: Value = Checker::range_endpoint(checker, operand.count == 1, operand.right, length);
-        let interval: Value = Value::sum(end, one);
-        let successor: Value = Value::offset_sum(end, one, interval);
+        let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 });
+        let one: Value = value_constant(ExactInteger { negative: false, magnitude: 1 });
+        let start: Value = range_endpoint(checker, operand.first == 1, operand.left, zero);
+        let end: Value = range_endpoint(checker, operand.count == 1, operand.right, length);
+        let interval: Value = value_sum(end, one);
+        let successor: Value = offset_sum(end, one, interval);
         let inclusive: bool = operand.flag && operand.count == 1;
-        let within: bool = Checker::proves_at_most(checker, end, length);
-        let index_valid: bool = Checker::proves_less(checker, end, length);
-        let ordered: bool = Checker::proves_at_most(checker, start, end);
-        let ordered_inclusive: bool = Checker::proves_at_most(checker, start, successor);
-        let nonnegative: bool = Checker::proves_at_most(checker, zero, start);
-        let end_index: bool = Checker::proves_at_most(checker, zero, end) && index_valid;
+        let within: bool = proves_at_most(checker, end, length);
+        let index_valid: bool = proves_less(checker, end, length);
+        let ordered: bool = proves_at_most(checker, start, end);
+        let ordered_inclusive: bool = proves_at_most(checker, start, successor);
+        let nonnegative: bool = proves_at_most(checker, zero, start);
+        let end_index: bool = proves_at_most(checker, zero, end) && index_valid;
         let valid: bool = nonnegative && ((inclusive && end_index && ordered_inclusive) || (!inclusive && within && ordered));
-        let bound: Value = Checker::range_end(end, successor, inclusive);
+        let bound: Value = checker_range_end(end, successor, inclusive);
         transition checking && !valid {
             true -> out_of_bounds(checker, handle, expression, row)
             _ -> range_viewed(checker, typing, handle, row, base, start, bound)
@@ -188,7 +166,7 @@ crashes Trap
     // A range slice of a placed collection is a view: a place of its own
     // below the collection, whose live length is the range's extent
     // (wiki/spec/terminal-psi/byte_views.md). A write through it forgets
-    // the collection's contents (`Checker::forget_backing`).
+    // the collection's contents (`forget_backing`).
     machine range_viewed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, row: TypeRow, base: Value, start: Value, bound: Value) {
         transition base.place > 0 {
             true -> view_place(checker, typing, handle, base.place, start, bound)
@@ -197,20 +175,20 @@ crashes Trap
     }
 
     machine view_place(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, collection: u64 in Trapping, start: Value, bound: Value) {
-        let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
-        let view: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Referent, handle, collection, type_handle);
-        let length_place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Length, 0, view, 0);
+        let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
+        let view: u64 in Trapping = checker_place(checker, typing, PlaceKind::Referent, handle, collection, type_handle);
+        let length_place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Length, 0, view, 0);
         // Kept as a linear term when the start is a constant, so
         // `items[1..]` is one shorter than `items` in the zone.
-        let interval: Value = Value::difference(bound, start);
-        let extent: Value = Value::offset_difference(bound, start, interval);
-        Checker::bind_place(checker, typing, length_place, extent);
-        let value: Value = Value::at_place(view);
-        Checker::set_value(checker, handle, value);
+        let interval: Value = value_difference(bound, start);
+        let extent: Value = offset_difference(bound, start, interval);
+        bind_place(checker, typing, length_place, extent);
+        let value: Value = at_place(view);
+        checker_set_value(checker, handle, value);
     }
 
     machine out_of_bounds(checker: &mut Checker, handle: u64 in Trapping, expression: Expression, row: TypeRow) {
-        Checks::reject(&mut checker.output, CheckDiagnosticCode::IndexOutOfBounds, expression.source_span);
+        checks_reject(&mut checker.output, CheckDiagnosticCode::IndexOutOfBounds, expression.source_span);
         transition { _ -> typed(checker, handle, row) }
     }
 
@@ -226,9 +204,9 @@ crashes Trap
     }
 
     machine borrowed(checker: &mut Checker, handle: u64 in Trapping, expression: Expression) {
-        let operand: Value = Checker::value_at(checker, expression.left);
-        let value: Value = Value::at_place(operand.place);
-        Checker::set_value(checker, handle, value);
+        let operand: Value = value_at(checker, expression.left);
+        let value: Value = at_place(operand.place);
+        checker_set_value(checker, handle, value);
     }
 
     machine negated(checker: &mut Checker, handle: u64 in Trapping, expression: Expression, row: TypeRow, integer: bool, checking: bool) {
@@ -239,8 +217,8 @@ crashes Trap
     }
 
     machine negation(checker: &mut Checker, handle: u64 in Trapping, expression: Expression, row: TypeRow, checking: bool) {
-        let value: Value = Checker::negation_value(checker, expression, row, checking);
-        Checker::set_value(checker, handle, value);
+        let value: Value = negation_value(checker, expression, row, checking);
+        checker_set_value(checker, handle, value);
     }
 
     // Comparisons and Boolean operators carry no obligation, and float
@@ -258,8 +236,8 @@ crashes Trap
         integer: bool,
         checking: bool
     ) {
-        let selection: Selection = Typing::selection(typing, handle);
-        let selected: bool = Checker::selects_machine(selection);
+        let selection: Selection = typing_selection(typing, handle);
+        let selected: bool = selects_machine(selection);
         transition selected {
             true -> call(checker, syntax, resolution, typing, handle, expression, row, checking)
             _ -> builtin(checker, handle, expression, row, integer, checking)
@@ -274,8 +252,8 @@ crashes Trap
     }
 
     machine arithmetic(checker: &mut Checker, handle: u64 in Trapping, expression: Expression, row: TypeRow, checking: bool) {
-        let value: Value = Checker::binary_value(checker, expression, row, checking);
-        Checker::set_value(checker, handle, value);
+        let value: Value = binary_value(checker, expression, row, checking);
+        checker_set_value(checker, handle, value);
     }
 
     // A cast to a type a declared domain qualifies proves its predicates of
@@ -309,8 +287,8 @@ crashes Trap
         row: TypeRow,
         integer: bool
     ) {
-        let operand: Value = Checker::value_at(checker, expression.left);
-        Checker::require_qualification(checker, syntax, resolution, typing, type_handle, expression.left, operand, expression.source_span);
+        let operand: Value = value_at(checker, expression.left);
+        require_qualification(checker, syntax, resolution, typing, type_handle, expression.left, operand, expression.source_span);
         transition { _ -> cast(checker, syntax, typing, handle, expression, row, integer, true) }
     }
 
@@ -327,10 +305,10 @@ crashes Trap
     // a view of another carrier reads it as unknown and its writes forget
     // it (references.omg, flow.omg).
     machine recast(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, checking: bool) {
-        Checker::check_recast(checker, syntax, typing, expression, row, checking);
-        let operand: Value = Checker::value_at(checker, expression.left);
-        let value: Value = Value::at_place(operand.place);
-        Checker::set_value(checker, handle, value);
+        check_recast(checker, syntax, typing, expression, row, checking);
+        let operand: Value = value_at(checker, expression.left);
+        let value: Value = at_place(operand.place);
+        checker_set_value(checker, handle, value);
     }
 
     machine scalar_cast(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, integer: bool, checking: bool) {
@@ -341,8 +319,8 @@ crashes Trap
     }
 
     machine conversion(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, checking: bool) {
-        let value: Value = Checker::conversion_value(checker, typing, expression, row, checking);
-        Checker::set_value(checker, handle, value);
+        let value: Value = conversion_value(checker, typing, expression, row, checking);
+        checker_set_value(checker, handle, value);
     }
 
     // In the checking walk a call is recorded for crash routes and its
@@ -360,7 +338,7 @@ crashes Trap
     }
 
     machine replayed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, row: TypeRow) {
-        let place: u64 in Trapping = Checker::find_place(checker, PlaceKind::Call, handle, 0);
+        let place: u64 in Trapping = find_place(checker, PlaceKind::Call, handle, 0);
         transition place > 0 {
             true -> placed(checker, typing, handle, place)
             _ -> typed(checker, handle, row)
@@ -368,12 +346,12 @@ crashes Trap
     }
 
     machine placed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, place: u64 in Trapping) {
-        let value: Value = Checker::reference_value(checker, typing, place);
-        Checker::set_value(checker, handle, value);
+        let value: Value = reference_value(checker, typing, place);
+        checker_set_value(checker, handle, value);
     }
 
     machine entered(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, checking: bool) {
-        let binding: ValueBinding = NameResolution::value_binding(resolution, expression.left);
+        let binding: ValueBinding = value_binding(resolution, expression.left);
         transition binding {
             ValueBinding::BytePredicate { predicate } -> predicated(checker, syntax, resolution, typing, handle, expression, predicate)
             _ -> selected(checker, syntax, resolution, typing, handle, expression, row, checking)
@@ -385,15 +363,15 @@ crashes Trap
     // and of a value whose declared domain requires that predicate; unknown
     // otherwise.
     machine predicated(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, predicate: BytePredicate) {
-        let argument: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first);
-        let truth: Value = Checker::predicate_value(checker, syntax, resolution, typing, argument, predicate);
-        Checker::set_value(checker, handle, truth);
+        let argument: u64 in Trapping = syntax_trees_argument(syntax, expression.first);
+        let truth: Value = predicate_value(checker, syntax, resolution, typing, argument, predicate);
+        checker_set_value(checker, handle, truth);
     }
 
     machine selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, checking: bool) {
-        let selection: Selection = Typing::selection(typing, handle);
-        Checker::observe_selected_invocation(checker, selection, handle);
-        Checker::observe_invocation(checker, syntax, typing, selection, handle, checking);
+        let selection: Selection = typing_selection(typing, handle);
+        observe_selected_invocation(checker, selection, handle);
+        observe_invocation(checker, syntax, typing, selection, handle, checking);
         transition checking {
             true -> recorded(checker, syntax, resolution, typing, handle, expression, row)
             _ -> effects(checker, syntax, resolution, typing, handle, expression, row)
@@ -401,21 +379,21 @@ crashes Trap
     }
 
     machine recorded(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow) {
-        let selection: Selection = Typing::selection(typing, node);
-        Checker::record_call(checker, syntax, resolution, selection);
-        Checker::record_supply(checker, syntax, selection, node);
-        Checker::require_call_qualifications(checker, syntax, resolution, typing, selection, expression);
+        let selection: Selection = typing_selection(typing, node);
+        record_call(checker, syntax, resolution, selection);
+        record_supply(checker, syntax, selection, node);
+        require_call_qualifications(checker, syntax, resolution, typing, selection, expression);
         // Input formation and the target's own contract precede any use of
         // recursive comparison evidence. Ranking never establishes an input.
-        Checker::require_callee_facts(checker, syntax, resolution, typing, selection, expression);
-        Checker::require_invocation_descent(checker, syntax, resolution, typing, selection, node, expression);
+        require_callee_facts(checker, syntax, resolution, typing, selection, expression);
+        require_invocation_descent(checker, syntax, resolution, typing, selection, node, expression);
         transition { _ -> effects(checker, syntax, resolution, typing, node, expression, row) }
     }
 
     machine effects(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow) {
-        let selection: Selection = Typing::selection(typing, node);
-        let called: bool = Checker::selects_machine(selection);
-        Checker::publish_reference_backings(checker, syntax, resolution, typing, node, expression);
+        let selection: Selection = typing_selection(typing, node);
+        let called: bool = selects_machine(selection);
+        publish_reference_backings(checker, syntax, resolution, typing, node, expression);
         transition called {
             true -> released(checker, syntax, resolution, typing, node, expression, row)
             _ -> resulted(checker, syntax, typing, node, expression, row)
@@ -446,7 +424,7 @@ crashes Trap
     // write through a view of unknown storage stays refused, as a write
     // through that source would be, rather than gaining facts of its own.
     machine sourced_view(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow) {
-        let placed: bool = Checker::exclusive_arguments_placed(checker, syntax, typing, expression, 0);
+        let placed: bool = exclusive_arguments_placed(checker, syntax, typing, expression, 0);
         transition placed {
             true -> released_view(checker, syntax, typing, node, expression)
             _ -> typed(checker, node, row)
@@ -454,7 +432,7 @@ crashes Trap
     }
 
     machine released_view(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, expression: Expression) {
-        Checker::release_exclusive_arguments(checker, syntax, typing, expression, Selection::None);
+        release_exclusive_arguments(checker, syntax, typing, expression, Selection::None);
         transition { _ -> viewed(checker, typing, node) }
     }
 
@@ -462,18 +440,18 @@ crashes Trap
     // referent's own subject, or the call place standing for the referent,
     // so a local capturing it reads and writes that storage.
     machine viewed(checker: &mut Checker, typing: &Typing, node: u64 in Trapping) {
-        let type_handle: u64 in Trapping = Typing::expression_type(typing, node);
-        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Call, node, 0, type_handle);
-        let referent: Value = Checker::reference_value(checker, typing, place);
-        Checker::set_value(checker, node, referent);
+        let type_handle: u64 in Trapping = typing_expression_type(typing, node);
+        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Call, node, 0, type_handle);
+        let referent: Value = reference_value(checker, typing, place);
+        checker_set_value(checker, node, referent);
     }
 
     // A binder may be any machine meeting its contract: its exclusive
     // arguments are released before the same public postconditions used
     // for declared calls are instantiated on the completed result.
     machine released(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow) {
-        let selection: Selection = Typing::selection(typing, node);
-        Checker::release_exclusive_arguments(checker, syntax, typing, expression, selection);
+        let selection: Selection = typing_selection(typing, node);
+        release_exclusive_arguments(checker, syntax, typing, expression, selection);
         transition selection {
             Selection::Machine { handle } -> callee(checker, syntax, resolution, typing, node, expression, row, handle)
             _ -> contracted(checker, syntax, resolution, typing, node, expression, row, false)
@@ -484,14 +462,14 @@ crashes Trap
     // evidence. Binder calls use their public contract, never a visible
     // current supplier body or the caller's particular instantiation.
     machine callee(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow, machine: u64 in Trapping) {
-        let completed: bool = Checker::completed_numeric_result(checker, typing, node, machine, row);
+        let completed: bool = completed_numeric_result(checker, typing, node, machine, row);
         transition { _ -> contracted(checker, syntax, resolution, typing, node, expression, row, completed) }
     }
 
     machine contracted(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow, completed: bool) {
-        let selection: Selection = Typing::selection(typing, node);
-        let clauses: CallClauses = Checker::call_clauses(syntax, resolution, selection);
-        let guarantees: bool = Checker::declares(syntax, clauses.first_clause, clauses.clause_count, ClauseKind::Ensures);
+        let selection: Selection = typing_selection(typing, node);
+        let clauses: CallClauses = call_clauses(syntax, resolution, selection);
+        let guarantees: bool = declares(syntax, clauses.first_clause, clauses.clause_count, ClauseKind::Ensures);
         transition guarantees {
             true -> guaranteed(checker, syntax, resolution, typing, node, expression, clauses)
             _ -> completed_or_typed(checker, syntax, typing, node, expression, row, completed)
@@ -503,19 +481,19 @@ crashes Trap
     }
 
     machine guaranteed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, clauses: CallClauses) {
-        let type_handle: u64 in Trapping = Typing::expression_type(typing, node);
-        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Call, node, 0, type_handle);
-        let value: Value = Checker::reference_value(checker, typing, place);
-        Checker::set_value(checker, node, value);
-        Checker::assume_guarantees(checker, syntax, resolution, typing, clauses, expression, value);
+        let type_handle: u64 in Trapping = typing_expression_type(typing, node);
+        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Call, node, 0, type_handle);
+        let value: Value = reference_value(checker, typing, place);
+        checker_set_value(checker, node, value);
+        assume_guarantees(checker, syntax, resolution, typing, clauses, expression, value);
     }
 
     // Establishing a value of data with `requires` facts owes them: a
     // construction over the values it writes, a payload-free case value
     // (`Type::Case`) over zero fields.
     machine construct(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping, row: TypeRow, checking: bool) {
-        let constrained: bool = Checker::constrained(syntax, typing, type_handle);
-        let binding: ValueBinding = NameResolution::value_binding(resolution, expression.left);
+        let constrained: bool = checker_constrained(syntax, typing, type_handle);
+        let binding: ValueBinding = value_binding(resolution, expression.left);
         transition checking && constrained {
             true -> written(checker, syntax, resolution, typing, handle, expression, row, binding)
             _ -> composed(checker, syntax, resolution, typing, handle, expression, row)
@@ -531,8 +509,8 @@ crashes Trap
     }
 
     machine path(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping, row: TypeRow, checking: bool) {
-        let constrained: bool = Checker::constrained(syntax, typing, type_handle);
-        let binding: ValueBinding = NameResolution::value_binding(resolution, handle);
+        let constrained: bool = checker_constrained(syntax, typing, type_handle);
+        let binding: ValueBinding = value_binding(resolution, handle);
         let constructing: bool = checking && constrained;
         transition binding {
             ValueBinding::Constant { constant } -> constant(checker, syntax, typing, handle, constant, type_handle)
@@ -565,8 +543,8 @@ crashes Trap
     }
 
     machine constant(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, constant: u64 in Trapping, type_handle: u64 in Trapping) {
-        let value: Value = Checker::constant_value(syntax, typing, constant, type_handle);
-        Checker::set_value(checker, handle, value);
+        let value: Value = checker_constant_value(syntax, typing, constant, type_handle);
+        checker_set_value(checker, handle, value);
     }
 
     machine constructed(
@@ -583,7 +561,7 @@ crashes Trap
         first: u64 in Trapping,
         count: u64 in Trapping
     ) {
-        let held: bool = Checker::construction_holds(checker, syntax, resolution, typing, item, has_case, data_case, first, count);
+        let held: bool = construction_holds(checker, syntax, resolution, typing, item, has_case, data_case, first, count);
         transition held {
             true -> composed(checker, syntax, resolution, typing, handle, expression, row)
             _ -> unproven_domain(checker, syntax, resolution, typing, handle, expression, row)
@@ -591,27 +569,27 @@ crashes Trap
     }
 
     machine unproven_domain(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow) {
-        Checks::reject(&mut checker.output, CheckDiagnosticCode::DomainUnproven, expression.source_span);
+        checks_reject(&mut checker.output, CheckDiagnosticCode::DomainUnproven, expression.source_span);
         transition { _ -> composed(checker, syntax, resolution, typing, handle, expression, row) }
     }
 
     // A construction's value: its own place, the fields it writes pending
     // below it.
     machine composed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow) {
-        Checker::construction_value(checker, syntax, resolution, typing, handle, expression, row);
+        construction_value(checker, syntax, resolution, typing, handle, expression, row);
     }
 
     // A value known only by its type: a fixed integer's carrier range.
     machine typed(checker: &mut Checker, handle: u64 in Trapping, row: TypeRow) {
-        let value: Value = Value::typed(row);
-        Checker::set_value(checker, handle, value);
+        let value: Value = value_typed(row);
+        checker_set_value(checker, handle, value);
     }
 }
 
 // A range endpoint's value when it is written, else `omitted`'s.
 // A range's exclusive end: the written end, or its successor when the
 // range is inclusive.
-machine Checker::range_end(end: Value, successor: Value, inclusive: bool) -> Value {
+machine checker_range_end(end: Value, successor: Value, inclusive: bool) -> Value {
     transition inclusive {
         true -> answer(successor)
         _ -> answer(end)
@@ -622,7 +600,7 @@ machine Checker::range_end(end: Value, successor: Value, inclusive: bool) -> Val
     }
 }
 
-machine Checker::range_endpoint(checker: &Checker, written: bool, handle: u64 in Trapping, omitted: Value) -> Value
+machine range_endpoint(checker: &Checker, written: bool, handle: u64 in Trapping, omitted: Value) -> Value
 crashes Trap
 {
     transition written {
@@ -631,7 +609,7 @@ crashes Trap
     }
 
     machine read(checker: &Checker, handle: u64 in Trapping) -> Value {
-        let value: Value = Checker::value_at(checker, handle);
+        let value: Value = value_at(checker, handle);
         value
     }
 
@@ -642,17 +620,17 @@ crashes Trap
 
 // A callee's `requires` facts must hold at the call; a machine binder's
 // call owes its `requires machine` contract's.
-machine Checker::require_callee_facts(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, selection: Selection, expression: Expression)
+machine require_callee_facts(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, selection: Selection, expression: Expression)
 crashes Trap
 {
-    let clauses: CallClauses = Checker::call_clauses(syntax, resolution, selection);
+    let clauses: CallClauses = call_clauses(syntax, resolution, selection);
     transition clauses.clause_count > 0 {
         true -> owed(checker, syntax, resolution, typing, clauses, expression)
         _ -> done()
     }
 
     machine owed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, clauses: CallClauses, expression: Expression) {
-        let held: bool = Checker::decide_call_facts(checker, syntax, resolution, typing, clauses, expression, ClauseKind::Requires, true);
+        let held: bool = decide_call_facts(checker, syntax, resolution, typing, clauses, expression, ClauseKind::Requires, true);
         transition held {
             true -> done()
             _ -> unproven(checker, expression)
@@ -660,26 +638,26 @@ crashes Trap
     }
 
     machine unproven(checker: &mut Checker, expression: Expression) {
-        Checks::reject(&mut checker.output, CheckDiagnosticCode::RequirementUnproven, expression.source_span);
+        checks_reject(&mut checker.output, CheckDiagnosticCode::RequirementUnproven, expression.source_span);
     }
 
     machine done() {}
 }
 
 // The collection type an index or `.len` applies to, through references.
-public machine Checker::collection_row(typing: &Typing, handle: u64 in Trapping) -> TypeRow
+public machine collection_row(typing: &Typing, handle: u64 in Trapping) -> TypeRow
 crashes Trap
 {
-    let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
-    let row: TypeRow = Checker::referent_row(typing, type_handle);
+    let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
+    let row: TypeRow = referent_row(typing, type_handle);
     row
 }
 
 // A type's row through any references.
-public machine Checker::referent_row(typing: &Typing, type_handle: u64 in Trapping) -> TypeRow
+public machine referent_row(typing: &Typing, type_handle: u64 in Trapping) -> TypeRow
 crashes Trap
 {
-    let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+    let row: TypeRow = type_table_row(&typing.types, type_handle);
     transition { _ -> through(typing, row, 0) }
 
     machine through(typing: &Typing, row: TypeRow, depth: u64 in Trapping) -> TypeRow {
@@ -690,7 +668,7 @@ crashes Trap
     }
 
     machine referent(typing: &Typing, inner: u64 in Trapping, depth: u64 in Trapping) -> TypeRow {
-        let row: TypeRow = TypeTable::row(&typing.types, inner);
+        let row: TypeRow = type_table_row(&typing.types, inner);
         transition { _ -> through(typing, row, depth + 1) }
     }
 
@@ -702,22 +680,22 @@ crashes Trap
 // An array's extent: its static integer, or for a `const` generic extent
 // any `u64`, since one body serves every specialization.
 // Whether every exclusive reference argument of a call has known storage
-// (`Checker::storage_origin`), from operand `offset` on.
-public machine Checker::exclusive_arguments_placed(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, offset: u64 in Trapping) -> bool
+// (`storage_origin`), from operand `offset` on.
+public machine exclusive_arguments_placed(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, offset: u64 in Trapping) -> bool
 crashes Trap
 {
-    let count: u64 in Trapping = Checker::operand_count(expression);
+    let count: u64 in Trapping = operand_count(expression);
     transition offset < count {
         true -> operand(checker, syntax, typing, expression, offset, count)
         _ -> answer(true)
     }
 
     machine operand(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, offset: u64 in Trapping, count: u64 in Trapping) -> bool {
-        let handle: u64 in Trapping = Checker::operand(syntax, expression, offset);
-        let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
-        let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+        let handle: u64 in Trapping = checker_operand(syntax, expression, offset);
+        let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
+        let row: TypeRow = type_table_row(&typing.types, type_handle);
         let exclusive: bool = row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared;
-        let origin: u64 in Trapping = Checker::storage_origin(checker, syntax, typing, handle);
+        let origin: u64 in Trapping = storage_origin(checker, syntax, typing, handle);
         transition exclusive && origin == 0 {
             true -> answer(false)
             _ -> next(checker, syntax, typing, expression, offset, count)
@@ -737,19 +715,19 @@ crashes Trap
 }
 
 // The truth of primitive byte predicate `predicate` of `argument`.
-public machine Checker::predicate_value(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, argument: u64 in Trapping, predicate: BytePredicate) -> Value
+public machine predicate_value(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, argument: u64 in Trapping, predicate: BytePredicate) -> Value
 crashes Trap
 {
-    let written: Expression = SyntaxTrees::expression(syntax, argument);
-    let binding: ValueBinding = NameResolution::value_binding(resolution, argument);
-    let bit: u64 in Trapping = Checker::roster_bit(predicate);
+    let written: Expression = syntax_trees_expression(syntax, argument);
+    let binding: ValueBinding = value_binding(resolution, argument);
+    let bit: u64 in Trapping = roster_bit(predicate);
     transition written.kind == ExpressionKind::String {
         true -> literal(typing, argument, bit)
         _ -> bound(checker, syntax, resolution, typing, argument, binding, bit, predicate)
     }
 
     machine literal(typing: &Typing, argument: u64 in Trapping, bit: u64 in Trapping) -> Value {
-        let roster: u64 in Trapping = Typing::roster(typing, argument);
+        let roster: u64 in Trapping = typing_roster(typing, argument);
         transition { _ -> truth((roster & bit) != 0) }
     }
 
@@ -769,8 +747,8 @@ crashes Trap
     }
 
     machine declared(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, argument: u64 in Trapping, predicate: BytePredicate) -> Value {
-        let type_handle: u64 in Trapping = Typing::expression_type(typing, argument);
-        let domain: u64 in Trapping = Checker::qualifying_domain(typing, type_handle);
+        let type_handle: u64 in Trapping = typing_expression_type(typing, argument);
+        let domain: u64 in Trapping = qualifying_domain(typing, type_handle);
         transition domain > 0 {
             true -> required(syntax, resolution, domain - 1, predicate)
             _ -> unknown()
@@ -778,7 +756,7 @@ crashes Trap
     }
 
     machine required(syntax: &SyntaxTrees, resolution: &NameResolution, domain: u64 in Trapping, predicate: BytePredicate) -> Value {
-        let declares: bool = Checker::domain_requires(syntax, resolution, domain, predicate);
+        let declares: bool = domain_requires(syntax, resolution, domain, predicate);
         transition declares {
             true -> truth(true)
             _ -> unknown()
@@ -786,18 +764,18 @@ crashes Trap
     }
 
     machine truth(holds: bool) -> Value {
-        let value: Value = Value::truth(holds);
+        let value: Value = value_truth(holds);
         value
     }
 
     machine unknown() -> Value {
-        let value: Value = Value::unknown();
+        let value: Value = value_unknown();
         value
     }
 }
 
 // The roster bit of a primitive byte predicate.
-machine Checker::roster_bit(predicate: BytePredicate) -> u64 in Trapping {
+machine roster_bit(predicate: BytePredicate) -> u64 in Trapping {
     transition predicate {
         BytePredicate::ValidUtf8 -> answer(1)
         BytePredicate::NoNul -> answer(2)
@@ -812,10 +790,10 @@ machine Checker::roster_bit(predicate: BytePredicate) -> u64 in Trapping {
 
 // Whether a declared domain's `requires` facts include primitive byte
 // predicate `predicate` of the domain's subject.
-machine Checker::domain_requires(syntax: &SyntaxTrees, resolution: &NameResolution, domain: u64 in Trapping, predicate: BytePredicate) -> bool
+machine domain_requires(syntax: &SyntaxTrees, resolution: &NameResolution, domain: u64 in Trapping, predicate: BytePredicate) -> bool
 crashes Trap
 {
-    let item: DomainItem = SyntaxTrees::domain_item(syntax, domain);
+    let item: DomainItem = syntax_trees_domain_item(syntax, domain);
     transition { _ -> next(syntax, resolution, item.first_clause, item.first_clause + item.clause_count, predicate) }
 
     machine next(syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, end: u64 in Trapping, predicate: BytePredicate) -> bool {
@@ -826,7 +804,7 @@ crashes Trap
     }
 
     machine clause(syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, end: u64 in Trapping, predicate: BytePredicate) -> bool {
-        let written: Clause = SyntaxTrees::clause(syntax, index);
+        let written: Clause = syntax_trees_clause(syntax, index);
         transition written.kind == ClauseKind::Requires && written.has_expression {
             true -> fact(syntax, resolution, index, end, predicate, written.expression)
             _ -> next(syntax, resolution, index + 1, end, predicate)
@@ -834,7 +812,7 @@ crashes Trap
     }
 
     machine fact(syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, end: u64 in Trapping, predicate: BytePredicate, fact_handle: u64 in Trapping) -> bool {
-        let expression: Expression = SyntaxTrees::expression(syntax, fact_handle);
+        let expression: Expression = syntax_trees_expression(syntax, fact_handle);
         transition expression.kind == ExpressionKind::Call && expression.count == 1 {
             true -> callee(syntax, resolution, index, end, predicate, expression)
             _ -> next(syntax, resolution, index + 1, end, predicate)
@@ -842,9 +820,9 @@ crashes Trap
     }
 
     machine callee(syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, end: u64 in Trapping, wanted: BytePredicate, expression: Expression) -> bool {
-        let binding: ValueBinding = NameResolution::value_binding(resolution, expression.left);
-        let argument: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first);
-        let subject: ValueBinding = NameResolution::value_binding(resolution, argument);
+        let binding: ValueBinding = value_binding(resolution, expression.left);
+        let argument: u64 in Trapping = syntax_trees_argument(syntax, expression.first);
+        let subject: ValueBinding = value_binding(resolution, argument);
         transition binding {
             ValueBinding::BytePredicate { predicate } -> named_predicate(syntax, resolution, index, end, wanted, predicate, subject)
             _ -> next(syntax, resolution, index + 1, end, wanted)
@@ -870,10 +848,10 @@ crashes Trap
     }
 }
 
-public machine Checker::array_extent(typing: &Typing, collection: TypeRow) -> Value
+public machine array_extent(typing: &Typing, collection: TypeRow) -> Value
 crashes Trap
 {
-    let extent: TypeRow = TypeTable::row(&typing.types, collection.length);
+    let extent: TypeRow = type_table_row(&typing.types, collection.length);
     transition extent.kind == TypeKind::StaticInteger {
         true -> fixed(extent.length)
         _ -> parametric()
@@ -881,18 +859,18 @@ crashes Trap
 
     machine fixed(length: u64 in Trapping) -> Value {
         let magnitude: u64 in Wrapping = length as u64 in Wrapping;
-        let value: Value = Value::constant(ExactInteger { negative: false, magnitude: magnitude });
+        let value: Value = value_constant(ExactInteger { negative: false, magnitude: magnitude });
         value
     }
 
     machine parametric() -> Value {
-        let value: Value = Value::carrier(BuiltinType::U64);
+        let value: Value = value_carrier(BuiltinType::U64);
         value
     }
 }
 
 // A collection's length: an array's from its type, a slice's from its place.
-public machine Checker::collection_length(checker: &mut Checker, typing: &Typing, collection: TypeRow, base: Value) -> Value
+public machine collection_length(checker: &mut Checker, typing: &Typing, collection: TypeRow, base: Value) -> Value
 crashes Trap
 {
     transition collection.kind == TypeKind::Array {
@@ -901,7 +879,7 @@ crashes Trap
     }
 
     machine fixed(typing: &Typing, collection: TypeRow) -> Value {
-        let extent: Value = Checker::array_extent(typing, collection);
+        let extent: Value = array_extent(typing, collection);
         extent
     }
 
@@ -914,20 +892,20 @@ crashes Trap
     }
 
     machine counted(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping) -> Value {
-        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Length, 0, parent, 0);
-        let value: Value = Checker::place_value(checker, place);
+        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Length, 0, parent, 0);
+        let value: Value = place_value(checker, place);
         value
     }
 
     machine unknown() -> Value {
-        let unknown: Value = Value::unknown();
+        let unknown: Value = value_unknown();
         unknown
     }
 }
 
 // Whether typing selected a machine, or a machine binder through its
 // contract.
-public machine Checker::selects_machine(selection: Selection) -> bool {
+public machine selects_machine(selection: Selection) -> bool {
     transition selection {
         Selection::Machine { handle } -> yes()
         Selection::Binder { parameter } -> yes()
@@ -945,7 +923,7 @@ public machine Checker::selects_machine(selection: Selection) -> bool {
 
 // How many operands a call-like expression passes: a call's arguments, or
 // an operator's operands when typing selected a machine for it.
-public machine Checker::operand_count(expression: Expression) -> u64 in Trapping {
+public machine operand_count(expression: Expression) -> u64 in Trapping {
     transition expression.kind {
         ExpressionKind::Binary -> two()
         _ -> arguments(expression.count)
@@ -962,7 +940,7 @@ public machine Checker::operand_count(expression: Expression) -> u64 in Trapping
 
 // The handle of a call-like expression's operand `offset`: a call's
 // argument, or an operator's left then right operand.
-public machine Checker::operand(syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping
+public machine checker_operand(syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition expression.kind {
@@ -978,7 +956,7 @@ crashes Trap
     }
 
     machine argument(syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping {
-        let handle: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first + offset);
+        let handle: u64 in Trapping = syntax_trees_argument(syntax, expression.first + offset);
         handle
     }
 
@@ -987,7 +965,7 @@ crashes Trap
     }
 }
 
-machine Checker::observe_invocation(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, selection: Selection, call: u64 in Trapping, checking: bool)
+machine observe_invocation(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, selection: Selection, call: u64 in Trapping, checking: bool)
 crashes Trap
 {
     transition !checking && !checker.replay {
@@ -1001,9 +979,9 @@ crashes Trap
         }
     }
     machine incoming(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, call: u64 in Trapping, handle: u64 in Trapping) {
-        let slot: u64 in Trapping = Checker::body_slot(checker, handle);
+        let slot: u64 in Trapping = body_slot(checker, handle);
         transition slot > 0 {
-            true -> Checker::contribute(checker, syntax, typing, call, handle)
+            true -> contribute(checker, syntax, typing, call, handle)
             false -> done()
         }
     }

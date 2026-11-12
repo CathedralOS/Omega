@@ -1,13 +1,3 @@
-use psi::parse::expression;
-use psi::parse::generics;
-use psi::parse::input;
-use psi::parse::machine;
-use psi::parse::parser;
-use psi::parse::types;
-use psi::source::source;
-use psi::syntax::syntax;
-use psi::tokens::tokens;
-
 // `[public] [boundary] let Name [<generic parameters>] [(parameters)] : Type
 // [= term];`, a named mathematical definition (wiki/spec/proofs/
 // mathematical_bindings.md), entered at the `let` keyword. A checked
@@ -15,7 +5,7 @@ use psi::tokens::tokens;
 // without a term, an explicitly admitted assumption. The generic parameters
 // and parameters share the machine grammars. The item and its root are
 // retained at the closing `;`.
-public machine Parser::parse_definition(
+public machine parse_definition(
     parser: &mut Parser,
     input: &TokenStream,
     item_start: u64 in Trapping,
@@ -33,9 +23,9 @@ crashes Trap
     }
 
     machine keyword(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         parser.declaration_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
-        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedDefinitionName);
+        expect_name(parser, input, ParseDiagnosticCode::ExpectedDefinitionName);
         transition parser.output.accepted {
             true -> named(parser, input)
             _ -> done()
@@ -45,7 +35,7 @@ crashes Trap
     machine named(parser: &mut Parser, input: &TokenStream) {
         parser.declaration_name_start = parser.name_start;
         parser.declaration_name_end = parser.name_end;
-        let generic: bool = Parser::at_punctuation(parser, input, PunctuationKind::Less);
+        let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
         transition generic {
             true -> generics(parser, input)
             _ -> parameters(parser, input)
@@ -53,7 +43,7 @@ crashes Trap
     }
 
     machine generics(parser: &mut Parser, input: &TokenStream) {
-        Parser::parse_generic_parameters(parser, input);
+        parse_generic_parameters(parser, input);
         transition parser.output.accepted {
             true -> parameters(parser, input)
             _ -> done()
@@ -61,7 +51,7 @@ crashes Trap
     }
 
     machine parameters(parser: &mut Parser, input: &TokenStream) {
-        Parser::parse_parameters(parser, input);
+        parse_parameters(parser, input);
         transition parser.output.accepted {
             true -> colon(parser, input)
             _ -> done()
@@ -71,7 +61,7 @@ crashes Trap
     machine colon(parser: &mut Parser, input: &TokenStream) {
         parser.declaration_first_parameter = parser.signature_first_parameter;
         parser.declaration_parameter_count = parser.signature_parameter_count;
-        Parser::expect_punctuation(parser, input, PunctuationKind::Colon, ParseDiagnosticCode::ExpectedDefinitionColon);
+        expect_punctuation(parser, input, PunctuationKind::Colon, ParseDiagnosticCode::ExpectedDefinitionColon);
         transition parser.output.accepted {
             true -> result_type(parser, input)
             _ -> done()
@@ -79,7 +69,7 @@ crashes Trap
     }
 
     machine result_type(parser: &mut Parser, input: &TokenStream) {
-        Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedDefinitionType);
+        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedDefinitionType);
         transition parser.output.accepted {
             true -> body(parser, input, parser.type_result)
             _ -> done()
@@ -95,7 +85,7 @@ crashes Trap
     }
 
     machine equals(parser: &mut Parser, input: &TokenStream, result: u64 in Trapping) {
-        Parser::expect_punctuation(parser, input, PunctuationKind::Equal, ParseDiagnosticCode::ExpectedDefinitionTerm);
+        expect_punctuation(parser, input, PunctuationKind::Equal, ParseDiagnosticCode::ExpectedDefinitionTerm);
         transition parser.output.accepted {
             true -> term(parser, input, result)
             _ -> done()
@@ -103,7 +93,7 @@ crashes Trap
     }
 
     machine term(parser: &mut Parser, input: &TokenStream, result: u64 in Trapping) {
-        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedDefinitionTerm, true, true);
+        parse_expression(parser, input, ParseDiagnosticCode::ExpectedDefinitionTerm, true, true);
         transition parser.output.accepted {
             true -> end(parser, input, result, true, parser.expression_result)
             _ -> done()
@@ -111,7 +101,7 @@ crashes Trap
     }
 
     machine end(parser: &mut Parser, input: &TokenStream, result: u64 in Trapping, has_term: bool, term: u64 in Trapping) {
-        Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedDefinitionEnd);
+        expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedDefinitionEnd);
         transition parser.output.accepted {
             true -> retain_capacity(parser, input, result, has_term, term)
             _ -> done()
@@ -134,9 +124,9 @@ crashes Trap
 
     machine retain(parser: &mut Parser, result: u64 in Trapping, has_term: bool, term: u64 in Trapping) {
         let definition: u64 in Trapping = parser.output.definition_count as u64 in Trapping;
-        let span: SourceSpan = Parser::source_span(parser, parser.declaration_start, parser.token_end);
+        let span: SourceSpan = parser_source_span(parser, parser.declaration_start, parser.token_end);
         parser.output.definitions[parser.output.definition_count] = DefinitionItem {
-            name: Parser::identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
+            name: identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
             first_generic_parameter: parser.declaration_first_generic,
             generic_parameter_count: (parser.output.generic_parameter_count as u64 in Trapping) - parser.declaration_first_generic,
             first_parameter: parser.declaration_first_parameter,
@@ -158,7 +148,7 @@ crashes Trap
     }
 
     machine reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
-        Parser::reject_current(parser, input, code);
+        reject_current(parser, input, code);
     }
 
     machine done() {}

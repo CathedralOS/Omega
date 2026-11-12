@@ -1,13 +1,3 @@
-use psi::integers::integers;
-use psi::resolution::resolution;
-use psi::source::source;
-use psi::syntax::syntax;
-use psi::types::types;
-use psi::typing::literals;
-use psi::typing::landing;
-use psi::typing::references;
-use psi::typing::typer;
-
 // How a value meets a destination of a known type: a declared local, a
 // parameter, a field, a typed operand or a result. The types are equal; an
 // anonymous integer lands at a fixed-integer destination it fits; a value of
@@ -16,7 +6,7 @@ use psi::typing::typer;
 // (wiki/spec/language/expressions.md#calls-places-and-temporaries); and a
 // payload-free case of generic data, which spells no arguments, meets any
 // application of its data; a reference to a builtin scalar meets the scalar
-// by reading its referent (`Typer::read_type`); a reference to a whole array
+// by reading its referent (`typer_read_type`); a reference to a whole array
 // views it as a slice of its elements; and an exclusive-reference
 // destination lends a range slice reached through an exclusive reference. A quoted literal copies its bytes into an
 // fixed byte array of exactly its length, independently of qualification
@@ -44,10 +34,10 @@ public data Admission [copy] {
     case Fraction;
 }
 
-public machine Typer::admission(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission
+public machine typer_admission(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission
 crashes Trap
 {
-    let actual: u64 in Trapping = Typing::expression_type(&typer.output, expression);
+    let actual: u64 in Trapping = typing_expression_type(&typer.output, expression);
     transition actual > 0 {
         true -> valued(typer, syntax, destination, expression, actual)
         _ -> not_a_value()
@@ -61,7 +51,7 @@ crashes Trap
     }
 
     machine different(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, actual: u64 in Trapping) -> Admission {
-        let read: u64 in Trapping = Typer::read_type(typer, actual);
+        let read: u64 in Trapping = typer_read_type(typer, actual);
         transition read != actual && read == destination {
             true -> reading()
             _ -> kinds(typer, syntax, destination, expression, actual)
@@ -69,8 +59,8 @@ crashes Trap
     }
 
     machine kinds(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, actual: u64 in Trapping) -> Admission {
-        let wanted: TypeRow = TypeTable::row(&typer.output.types, destination);
-        let given: TypeRow = TypeTable::row(&typer.output.types, actual);
+        let wanted: TypeRow = type_table_row(&typer.output.types, destination);
+        let given: TypeRow = type_table_row(&typer.output.types, actual);
         transition given.kind {
             TypeKind::AnonymousInteger -> literal(typer, expression, wanted)
             TypeKind::AnonymousFloat -> literal(typer, expression, wanted)
@@ -81,7 +71,7 @@ crashes Trap
     }
 
     machine quoted(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
-        let written: Expression = SyntaxTrees::expression(syntax, expression);
+        let written: Expression = syntax_trees_expression(syntax, expression);
         transition written.kind == ExpressionKind::String && wanted.kind == TypeKind::Array {
             true -> copied(typer, expression, wanted)
             _ -> typed(typer, syntax, wanted, given, actual, expression)
@@ -89,9 +79,9 @@ crashes Trap
     }
 
     machine copied(typer: &Typer, expression: u64 in Trapping, wanted: TypeRow) -> Admission {
-        let element: TypeRow = TypeTable::row(&typer.output.types, wanted.inner);
-        let extent: TypeRow = TypeTable::row(&typer.output.types, wanted.length);
-        let length: ExactInteger = Typing::value(&typer.output, expression);
+        let element: TypeRow = type_table_row(&typer.output.types, wanted.inner);
+        let extent: TypeRow = type_table_row(&typer.output.types, wanted.length);
+        let length: ExactInteger = typing_value(&typer.output, expression);
         let bytes: bool = element.kind == TypeKind::Builtin && element.builtin == BuiltinType::U8
             && element.domain == DomainBinding::Unqualified;
         let exact: bool = extent.kind == TypeKind::StaticInteger && extent.length == (length.magnitude as u64 in Trapping);
@@ -111,12 +101,12 @@ crashes Trap
     }
 
     machine literal(typer: &Typer, expression: u64 in Trapping, wanted: TypeRow) -> Admission {
-        let admission: Admission = Typer::literal_admission(typer, expression, wanted);
+        let admission: Admission = literal_admission(typer, expression, wanted);
         admission
     }
 
     machine unlanded(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission {
-        let landing: Landing = Typer::landing(typer, syntax, destination, expression);
+        let landing: Landing = typer_landing(typer, syntax, destination, expression);
         landing.admission
     }
 
@@ -128,7 +118,7 @@ crashes Trap
     }
 
     machine carried(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
-        let same: bool = TypeTable::same_carrier(&typer.output.types, wanted, given);
+        let same: bool = same_carrier(&typer.output.types, wanted, given);
         transition same {
             true -> requalified(typer, syntax, wanted, given, expression)
             _ -> lending(typer, syntax, wanted, given, actual, expression)
@@ -136,9 +126,9 @@ crashes Trap
     }
 
     machine requalified(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, expression: u64 in Trapping) -> Admission {
-        let wanted_qualified: TypeRow = TypeTable::qualified_row(&typer.output.types, wanted);
-        let given_qualified: TypeRow = TypeTable::qualified_row(&typer.output.types, given);
-        let written: Expression = SyntaxTrees::expression(syntax, expression);
+        let wanted_qualified: TypeRow = qualified_row(&typer.output.types, wanted);
+        let given_qualified: TypeRow = qualified_row(&typer.output.types, given);
+        let written: Expression = syntax_trees_expression(syntax, expression);
         transition wanted_qualified.domain == DomainBinding::Declared {
             true -> qualified()
             _ -> forgotten(syntax, wanted_qualified, given_qualified, written.kind == ExpressionKind::Integer)
@@ -165,7 +155,7 @@ crashes Trap
     }
 
     machine predicate_only(syntax: &SyntaxTrees, given: TypeRow) -> Admission {
-        let item: DomainItem = SyntaxTrees::domain_item(syntax, given.domain_item);
+        let item: DomainItem = syntax_trees_domain_item(syntax, given.domain_item);
         transition item.route_count == 0 {
             true -> exact()
             _ -> rejected()
@@ -197,7 +187,7 @@ crashes Trap
     // Access authority is settled before array/slice representation: a
     // write-only reference cannot acquire read authority through a view.
     machine viewed(typer: &Typer, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
-        let viewed: bool = Typer::views_array(typer, wanted, given);
+        let viewed: bool = views_array(typer, wanted, given);
         transition viewed {
             true -> reference_adaptation(wanted, given)
             false -> access(wanted, given, actual)
@@ -217,7 +207,7 @@ crashes Trap
 
     // A `&write T` destination carries a mutable reference to `T`; whether
     // the attenuation is spelled `&write` at the argument is judged where
-    // the admission is bound (`Typer::admit`), so a candidate taking it is
+    // the admission is bound (`typer_admit`), so a candidate taking it is
     // selected and its unspelled attenuation is named, not a missing
     // machine.
     machine attenuating(wanted: TypeRow, given: TypeRow) -> Admission {
@@ -263,7 +253,7 @@ crashes Trap
     }
 
     machine generic_data(syntax: &SyntaxTrees, wanted: TypeRow) -> Admission {
-        let applied: u64 in Trapping = Typer::applied_parameter_count(syntax, wanted.item);
+        let applied: u64 in Trapping = applied_parameter_count(syntax, wanted.item);
         transition applied > 0 {
             true -> exact()
             _ -> rejected()
@@ -302,10 +292,10 @@ crashes Trap
 // An anonymous number, `expression`, at a destination of row `wanted`: it
 // lands at a float format by one rounding, and an anonymous integer at a
 // fixed integer it fits.
-public machine Typer::literal_admission(typer: &Typer, expression: u64 in Trapping, wanted: TypeRow) -> Admission
+public machine literal_admission(typer: &Typer, expression: u64 in Trapping, wanted: TypeRow) -> Admission
 crashes Trap
 {
-    let actual: u64 in Trapping = Typing::expression_type(&typer.output, expression);
+    let actual: u64 in Trapping = typing_expression_type(&typer.output, expression);
     let float_destination: bool = wanted.kind == TypeKind::Builtin
         && (wanted.builtin == BuiltinType::F32 || wanted.builtin == BuiltinType::F64);
     transition float_destination {
@@ -323,10 +313,10 @@ crashes Trap
     // Integer landing requires an integral, in-range value
     // (wiki/spec/language/numeric_values.md).
     machine anonymous(typer: &Typer, expression: u64 in Trapping, wanted: TypeRow) -> Admission {
-        let value: ExactInteger = Typing::value(&typer.output, expression);
-        let denominator: u64 in Trapping = Typing::denominator(&typer.output, expression);
-        let fixed: bool = Typer::fixed_integer(wanted.builtin);
-        let fits: bool = ExactInteger::fits(wanted.builtin, value);
+        let value: ExactInteger = typing_value(&typer.output, expression);
+        let denominator: u64 in Trapping = typing_denominator(&typer.output, expression);
+        let fixed: bool = fixed_integer(wanted.builtin);
+        let fits: bool = exact_integer_fits(wanted.builtin, value);
         transition wanted.kind == TypeKind::Builtin && fixed {
             true -> landing(fits, denominator == 1)
             _ -> rejected()
@@ -368,17 +358,17 @@ crashes Trap
 // shared loan (only where `lend` allows one: a call argument), or reject at
 // the expression, or at an unlanded value's number that does not land.
 // Whether it was admitted.
-public machine Typer::admit(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool) -> bool
+public machine typer_admit(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool) -> bool
 crashes Trap
 {
-    let admission: Admission = Typer::admission(typer, syntax, destination, expression);
-    let actual: u64 in Trapping = Typing::expression_type(&typer.output, expression);
-    let given: TypeRow = TypeTable::row(&typer.output.types, actual);
+    let admission: Admission = typer_admission(typer, syntax, destination, expression);
+    let actual: u64 in Trapping = typing_expression_type(&typer.output, expression);
+    let given: TypeRow = type_table_row(&typer.output.types, actual);
     let chosen: bool = given.kind == TypeKind::AnonymousChoice || given.kind == TypeKind::AnonymousArray;
-    let blamed: u64 in Trapping = Typer::blamed_value(typer, syntax, destination, expression, chosen && admission != Admission::Landed);
-    let written: Expression = SyntaxTrees::expression(syntax, blamed);
-    let wanted: TypeRow = TypeTable::row(&typer.output.types, destination);
-    let spelled: Expression = SyntaxTrees::expression(syntax, expression);
+    let blamed: u64 in Trapping = blamed_value(typer, syntax, destination, expression, chosen && admission != Admission::Landed);
+    let written: Expression = syntax_trees_expression(syntax, blamed);
+    let wanted: TypeRow = type_table_row(&typer.output.types, destination);
+    let spelled: Expression = syntax_trees_expression(syntax, expression);
     let write_only: bool = wanted.kind == TypeKind::Reference && wanted.access == ReferenceAccess::WriteOnly;
     let attenuated: bool = spelled.kind == ExpressionKind::Unary && spelled.operator == OperatorKind::BorrowWrite;
     transition write_only && !attenuated {
@@ -412,20 +402,20 @@ crashes Trap
     }
 
     machine landed(typer: &mut Typer, destination: u64 in Trapping, expression: u64 in Trapping) -> bool {
-        Typing::set_expression_type(&mut typer.output, expression, destination);
-        Typing::set_adaptation(&mut typer.output, expression, Adaptation::Landed);
+        set_expression_type(&mut typer.output, expression, destination);
+        set_adaptation(&mut typer.output, expression, Adaptation::Landed);
         transition { _ -> admitted() }
     }
 
     machine chosen_arms(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> bool {
-        Typer::land(typer, syntax, destination, expression);
+        typer_land(typer, syntax, destination, expression);
         transition { _ -> admitted() }
     }
 
     // A call argument lends implicitly; elsewhere only a range slice, a
     // view of its collection.
     machine lent(typer: &mut Typer, syntax: &SyntaxTrees, written: Expression, expression: u64 in Trapping, lend: bool) -> bool {
-        let selector: Expression = SyntaxTrees::expression(syntax, written.right);
+        let selector: Expression = syntax_trees_expression(syntax, written.right);
         let sliced: bool = written.kind == ExpressionKind::Index && selector.kind == ExpressionKind::Range;
         transition lend || sliced {
             true -> mark_lent(typer, expression)
@@ -434,22 +424,22 @@ crashes Trap
     }
 
     machine qualified(typer: &mut Typer, expression: u64 in Trapping) -> bool {
-        Typing::set_adaptation(&mut typer.output, expression, Adaptation::Qualified);
+        set_adaptation(&mut typer.output, expression, Adaptation::Qualified);
         transition { _ -> admitted() }
     }
 
     machine read(typer: &mut Typer, expression: u64 in Trapping) -> bool {
-        Typing::set_adaptation(&mut typer.output, expression, Adaptation::Read);
+        set_adaptation(&mut typer.output, expression, Adaptation::Read);
         transition { _ -> admitted() }
     }
 
     machine mark_lent(typer: &mut Typer, expression: u64 in Trapping) -> bool {
-        Typing::set_adaptation(&mut typer.output, expression, Adaptation::SharedLend);
+        set_adaptation(&mut typer.output, expression, Adaptation::SharedLend);
         transition { _ -> admitted() }
     }
 
     machine reject(typer: &mut Typer, written: Expression, code: TypeDiagnosticCode) -> bool {
-        Typing::reject(&mut typer.output, code, written.source_span);
+        typing_reject(&mut typer.output, code, written.source_span);
         transition { _ -> refused() }
     }
 
@@ -464,7 +454,7 @@ crashes Trap
 
 // The value a refused admission names: an unlanded value's first number
 // that does not land, else the expression itself.
-machine Typer::blamed_value(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, chosen: bool) -> u64 in Trapping
+machine blamed_value(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, chosen: bool) -> u64 in Trapping
 crashes Trap
 {
     transition chosen {
@@ -473,7 +463,7 @@ crashes Trap
     }
 
     machine arm(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> u64 in Trapping {
-        let landing: Landing = Typer::landing(typer, syntax, destination, expression);
+        let landing: Landing = typer_landing(typer, syntax, destination, expression);
         transition { _ -> found(landing.value) }
     }
 
@@ -484,10 +474,10 @@ crashes Trap
 
 // Whether `expression` would be admitted at `destination`, lending allowed:
 // the test overload selection applies to each candidate.
-public machine Typer::admissible(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> bool
+public machine admissible(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> bool
 crashes Trap
 {
-    let admission: Admission = Typer::admission(typer, syntax, destination, expression);
+    let admission: Admission = typer_admission(typer, syntax, destination, expression);
     transition admission {
         Admission::Exact -> yes()
         Admission::Landed -> yes()
@@ -510,7 +500,7 @@ crashes Trap
 // Whether a reference to an array meets a slice reference of its element
 // and qualifier, a shared one from either access and an exclusive one from
 // an exclusive reference.
-public machine Typer::views_array(typer: &Typer, wanted: TypeRow, given: TypeRow) -> bool
+public machine views_array(typer: &Typer, wanted: TypeRow, given: TypeRow) -> bool
 crashes Trap
 {
     let access: bool = given.access == wanted.access || wanted.access == ReferenceAccess::Shared;
@@ -520,8 +510,8 @@ crashes Trap
     }
 
     machine referents(typer: &Typer, wanted: TypeRow, given: TypeRow) -> bool {
-        let array: TypeRow = TypeTable::row(&typer.output.types, given.inner);
-        let slice: TypeRow = TypeTable::row(&typer.output.types, wanted.inner);
+        let array: TypeRow = type_table_row(&typer.output.types, given.inner);
+        let slice: TypeRow = type_table_row(&typer.output.types, wanted.inner);
         let viewed: bool = array.kind == TypeKind::Array && slice.kind == TypeKind::Slice && array.inner == slice.inner
             && array.domain == slice.domain && array.domain_item == slice.domain_item;
         transition { _ -> answer(viewed) }

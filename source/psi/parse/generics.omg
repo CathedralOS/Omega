@@ -1,10 +1,3 @@
-use psi::parse::data;
-use psi::parse::input;
-use psi::parse::parser;
-use psi::parse::types;
-use psi::syntax::syntax;
-use psi::tokens::tokens;
-
 // `<parameter {, parameter}>` on a declaration head, entered at `<`:
 //
 //     parameter = `'` name                        lifetime
@@ -21,10 +14,10 @@ use psi::tokens::tokens;
 // Lifetimes precede every other binder. Each parameter is retained as soon
 // as it is whole, so a rejection keeps every parameter before it. Repeated
 // names are a resolution question, not a grammar one.
-public machine Parser::parse_generic_parameters(parser: &mut Parser, input: &TokenStream)
+public machine parse_generic_parameters(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
-    Parser::take_current(parser, input);
+    take_current(parser, input);
     parser.generic_saw_runtime = false;
     transition { _ -> parameter(parser, input) }
 
@@ -36,7 +29,7 @@ crashes Trap
     }
 
     machine opener(parser: &mut Parser, input: &TokenStream) {
-        let tick: bool = Parser::at_punctuation(parser, input, PunctuationKind::Apostrophe);
+        let tick: bool = at_punctuation(parser, input, PunctuationKind::Apostrophe);
         transition tick {
             true -> lifetime(parser, input)
             _ -> machine_word(parser, input)
@@ -51,17 +44,17 @@ crashes Trap
     }
 
     machine lifetime_name(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         let start: u64 in Trapping = parser.token_start;
-        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedGenericParameterName);
+        expect_name(parser, input, ParseDiagnosticCode::ExpectedGenericParameterName);
         transition parser.output.accepted {
-            true -> retain(parser, input, Parser::generic_parameter(parser, GenericParameterKind::Lifetime, start))
+            true -> retain(parser, input, parser_generic_parameter(parser, GenericParameterKind::Lifetime, start))
             _ -> done()
         }
     }
 
     machine machine_word(parser: &mut Parser, input: &TokenStream) {
-        let machine: bool = Parser::at_keyword(parser, input, KeywordKind::Machine);
+        let machine: bool = at_keyword(parser, input, KeywordKind::Machine);
         transition machine {
             true -> binder(parser, input, GenericParameterKind::Machine)
             _ -> const_word(parser, input)
@@ -69,7 +62,7 @@ crashes Trap
     }
 
     machine const_word(parser: &mut Parser, input: &TokenStream) {
-        let constant: bool = Parser::at_word(parser, input, "const");
+        let constant: bool = at_word(parser, input, "const");
         transition constant {
             true -> binder(parser, input, GenericParameterKind::Const)
             _ -> proposition_word(parser, input)
@@ -77,7 +70,7 @@ crashes Trap
     }
 
     machine proposition_word(parser: &mut Parser, input: &TokenStream) {
-        let proposition: bool = Parser::at_word(parser, input, "proposition");
+        let proposition: bool = at_word(parser, input, "proposition");
         transition proposition {
             true -> binder(parser, input, GenericParameterKind::Proposition)
             _ -> bare_name(parser, input)
@@ -86,11 +79,11 @@ crashes Trap
 
     // `machine`, `proposition` and `const` introduce a binder name.
     machine binder(parser: &mut Parser, input: &TokenStream, kind: GenericParameterKind) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         let start: u64 in Trapping = parser.token_start;
-        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedGenericParameterName);
+        expect_name(parser, input, ParseDiagnosticCode::ExpectedGenericParameterName);
         transition parser.output.accepted {
-            true -> binder_named(parser, input, Parser::generic_parameter(parser, kind, start))
+            true -> binder_named(parser, input, parser_generic_parameter(parser, kind, start))
             _ -> done()
         }
     }
@@ -103,7 +96,7 @@ crashes Trap
     }
 
     machine const_colon(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
-        Parser::expect_punctuation(parser, input, PunctuationKind::Colon,
+        expect_punctuation(parser, input, PunctuationKind::Colon,
             ParseDiagnosticCode::ExpectedGenericParameterColon
         );
         transition parser.output.accepted {
@@ -113,7 +106,7 @@ crashes Trap
     }
 
     machine bare_name(parser: &mut Parser, input: &TokenStream) {
-        let name: bool = Parser::at_name(parser, input);
+        let name: bool = at_name(parser, input);
         transition name {
             true -> type_parameter(parser, input)
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedGenericParameter)
@@ -124,15 +117,15 @@ crashes Trap
     // evidence binder, `[` opens the type parameter's bounds, and a tick is a
     // lifetime after a runtime binder.
     machine type_parameter(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         parser.name_start = parser.token_start;
         parser.name_end = parser.token_end;
-        let parameter: GenericParameter = Parser::generic_parameter(parser, GenericParameterKind::Type,
+        let parameter: GenericParameter = parser_generic_parameter(parser, GenericParameterKind::Type,
             parser.token_start
         );
-        let value: bool = Parser::at_punctuation(parser, input, PunctuationKind::Colon);
-        let evidence: bool = Parser::at_word(parser, input, "satisfies");
-        let tick: bool = Parser::at_punctuation(parser, input, PunctuationKind::Apostrophe);
+        let value: bool = at_punctuation(parser, input, PunctuationKind::Colon);
+        let evidence: bool = at_word(parser, input, "satisfies");
+        let tick: bool = at_punctuation(parser, input, PunctuationKind::Apostrophe);
         transition value {
             true -> value_colon(parser, input, parameter)
             _ -> evidence_word(parser, input, parameter, evidence, tick)
@@ -141,7 +134,7 @@ crashes Trap
 
     machine evidence_word(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter, evidence: bool, tick: bool) {
         transition evidence {
-            true -> evidence_trait(parser, input, Parser::with_generic_kind(parameter, GenericParameterKind::Evidence))
+            true -> evidence_trait(parser, input, with_generic_kind(parameter, GenericParameterKind::Evidence))
             _ -> type_tail(parser, input, parameter, tick)
         }
     }
@@ -149,10 +142,10 @@ crashes Trap
     // The satisfied trait application is the binder's type reference; an
     // implementation takes no property bounds.
     machine evidence_trait(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
-        Parser::take_current(parser, input);
-        Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedEvidenceTrait);
+        take_current(parser, input);
+        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedEvidenceTrait);
         transition parser.output.accepted {
-            true -> retain(parser, input, Parser::with_generic_type(parser, parameter, parser.type_result))
+            true -> retain(parser, input, with_generic_type(parser, parameter, parser.type_result))
             _ -> done()
         }
     }
@@ -165,20 +158,20 @@ crashes Trap
     }
 
     machine value_colon(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
-        Parser::take_current(parser, input);
-        transition { _ -> typed(parser, input, Parser::with_generic_kind(parameter, GenericParameterKind::Value)) }
+        take_current(parser, input);
+        transition { _ -> typed(parser, input, with_generic_kind(parameter, GenericParameterKind::Value)) }
     }
 
     machine typed(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
-        Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedGenericParameterType);
+        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedGenericParameterType);
         transition parser.output.accepted {
-            true -> bounds(parser, input, Parser::with_generic_type(parser, parameter, parser.type_result))
+            true -> bounds(parser, input, with_generic_type(parser, parameter, parser.type_result))
             _ -> done()
         }
     }
 
     machine bounds(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
-        let bracket: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBracket);
+        let bracket: bool = at_punctuation(parser, input, PunctuationKind::LeftBracket);
         transition bracket {
             true -> bounds_list(parser, input, parameter)
             _ -> retain(parser, input, parameter)
@@ -186,9 +179,9 @@ crashes Trap
     }
 
     machine bounds_list(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
-        Parser::parse_properties(parser, input);
+        parse_properties(parser, input);
         transition parser.output.accepted {
-            true -> retain(parser, input, Parser::with_generic_bounds(parser, parameter, parser.property_multiplicity))
+            true -> retain(parser, input, with_generic_bounds(parser, parameter, parser.property_multiplicity))
             _ -> done()
         }
     }
@@ -216,7 +209,7 @@ crashes Trap
     machine stored(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
         parser.output.generic_parameters[parser.output.generic_parameter_count] = parameter;
         parser.output.generic_parameter_count = parser.output.generic_parameter_count + 1;
-        let comma: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
+        let comma: bool = at_punctuation(parser, input, PunctuationKind::Comma);
         transition comma {
             true -> next(parser, input)
             _ -> close(parser, input)
@@ -224,18 +217,18 @@ crashes Trap
     }
 
     machine next(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         transition { _ -> parameter(parser, input) }
     }
 
     machine close(parser: &mut Parser, input: &TokenStream) {
-        Parser::expect_punctuation(parser, input, PunctuationKind::Greater,
+        expect_punctuation(parser, input, PunctuationKind::Greater,
             ParseDiagnosticCode::ExpectedGenericParameterEnd
         );
     }
 
     machine reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
-        Parser::reject_current(parser, input, code);
+        reject_current(parser, input, code);
     }
 
     machine done() {}
@@ -243,18 +236,18 @@ crashes Trap
 
 // A parameter named by the last name step, spanning from `start` through the
 // last taken token; the `with_` constructors add a type, kind or bounds.
-machine Parser::generic_parameter(parser: &Parser, kind: GenericParameterKind, start: u64 in Trapping) -> GenericParameter {
+machine parser_generic_parameter(parser: &Parser, kind: GenericParameterKind, start: u64 in Trapping) -> GenericParameter {
     GenericParameter {
         kind: kind,
-        name: Parser::identifier_span(parser, parser.name_start, parser.name_end),
+        name: identifier_span(parser, parser.name_start, parser.name_end),
         has_type_reference: false,
         type_reference: 0,
         bounds: DataMultiplicity::Affine,
-        source_span: Parser::source_span(parser, start, parser.token_end)
+        source_span: parser_source_span(parser, start, parser.token_end)
     }
 }
 
-machine Parser::with_generic_kind(parameter: GenericParameter, kind: GenericParameterKind) -> GenericParameter {
+machine with_generic_kind(parameter: GenericParameter, kind: GenericParameterKind) -> GenericParameter {
     GenericParameter {
         kind: kind,
         name: parameter.name,
@@ -265,7 +258,7 @@ machine Parser::with_generic_kind(parameter: GenericParameter, kind: GenericPara
     }
 }
 
-machine Parser::with_generic_type(
+machine with_generic_type(
     parser: &Parser,
     parameter: GenericParameter,
     type_reference: u64 in Trapping
@@ -276,11 +269,11 @@ machine Parser::with_generic_type(
         has_type_reference: true,
         type_reference: type_reference,
         bounds: parameter.bounds,
-        source_span: Parser::source_span(parser, parameter.source_span.span.start, parser.type_end)
+        source_span: parser_source_span(parser, parameter.source_span.span.start, parser.type_end)
     }
 }
 
-machine Parser::with_generic_bounds(
+machine with_generic_bounds(
     parser: &Parser,
     parameter: GenericParameter,
     bounds: DataMultiplicity
@@ -291,6 +284,6 @@ machine Parser::with_generic_bounds(
         has_type_reference: parameter.has_type_reference,
         type_reference: parameter.type_reference,
         bounds: bounds,
-        source_span: Parser::source_span(parser, parameter.source_span.span.start, parser.token_end)
+        source_span: parser_source_span(parser, parameter.source_span.span.start, parser.token_end)
     }
 }

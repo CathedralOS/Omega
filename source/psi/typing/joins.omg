@@ -1,10 +1,3 @@
-use psi::syntax::syntax;
-use psi::types::types;
-use psi::typing::admission;
-use psi::typing::landing;
-use psi::typing::statements;
-use psi::typing::typer;
-
 // The values one expression joins into one type: a value-position match's
 // arm values and a fixed-array literal's elements (wiki/spec/language/
 // patterns.md, "compatible arm values"). The first value of a fixed type
@@ -17,7 +10,7 @@ use psi::typing::typer;
 // arrays of one shape as that array (landing.omg).
 
 // The type of the first value of a fixed type, or zero.
-public machine Typer::fixed_join(typer: &Typer, syntax: &SyntaxTrees, values: JoinedValues) -> u64 in Trapping
+public machine fixed_join(typer: &Typer, syntax: &SyntaxTrees, values: JoinedValues) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> value(typer, syntax, values, 0) }
@@ -30,10 +23,10 @@ crashes Trap
     }
 
     machine candidate(typer: &Typer, syntax: &SyntaxTrees, values: JoinedValues, offset: u64 in Trapping) -> u64 in Trapping {
-        let handle: u64 in Trapping = SyntaxTrees::joined_value(syntax, values, offset);
-        let value_type: u64 in Trapping = Typing::expression_type(&typer.output, handle);
-        let unlanded: bool = Typer::unlanded(typer, value_type);
-        let never: bool = Typer::never_type(typer, value_type);
+        let handle: u64 in Trapping = joined_value(syntax, values, offset);
+        let value_type: u64 in Trapping = typing_expression_type(&typer.output, handle);
+        let unlanded: bool = typer_unlanded(typer, value_type);
+        let never: bool = never_type(typer, value_type);
         transition unlanded || never {
             true -> value(typer, syntax, values, offset + 1)
             _ -> found(value_type)
@@ -46,7 +39,7 @@ crashes Trap
 }
 
 // Each value meets the join's type exactly, by landing there, or as `Never`.
-public machine Typer::admit_joined(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, result_type: u64 in Trapping)
+public machine admit_joined(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, result_type: u64 in Trapping)
 crashes Trap
 {
     transition { _ -> value(typer, syntax, values, result_type, 0) }
@@ -59,8 +52,8 @@ crashes Trap
     }
 
     machine admission(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, result_type: u64 in Trapping, offset: u64 in Trapping) {
-        let handle: u64 in Trapping = SyntaxTrees::joined_value(syntax, values, offset);
-        let admission: Admission = Typer::admission(typer, syntax, result_type, handle);
+        let handle: u64 in Trapping = joined_value(syntax, values, offset);
+        let admission: Admission = typer_admission(typer, syntax, result_type, handle);
         transition admission {
             Admission::Exact -> value(typer, syntax, values, result_type, offset + 1)
             Admission::Landed -> adapted(typer, syntax, values, result_type, offset, handle)
@@ -77,12 +70,12 @@ crashes Trap
         offset: u64 in Trapping,
         handle: u64 in Trapping
     ) {
-        let admitted: bool = Typer::admit(typer, syntax, result_type, handle, false);
+        let admitted: bool = typer_admit(typer, syntax, result_type, handle, false);
         transition { _ -> value(typer, syntax, values, result_type, offset + 1) }
     }
 
     machine incompatible(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, admission: Admission) {
-        let value: Expression = SyntaxTrees::expression(syntax, handle);
+        let value: Expression = syntax_trees_expression(syntax, handle);
         transition admission {
             Admission::OutOfRange -> rejected(typer, value, TypeDiagnosticCode::LiteralOutOfRange)
             Admission::Fraction -> rejected(typer, value, TypeDiagnosticCode::AnonymousFraction)
@@ -91,7 +84,7 @@ crashes Trap
     }
 
     machine rejected(typer: &mut Typer, value: Expression, code: TypeDiagnosticCode) {
-        Typing::reject(&mut typer.output, code, value.source_span);
+        typing_reject(&mut typer.output, code, value.source_span);
     }
 
     machine done() {}
@@ -106,11 +99,11 @@ public data UnlandedJoin [copy] {
     mismatch: u64 in Trapping;
 }
 
-public machine Typer::unlanded_join(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues) -> UnlandedJoin
+public machine unlanded_join(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues) -> UnlandedJoin
 crashes Trap
 {
-    let choice_row: TypeRow = TypeRow::of(TypeKind::AnonymousChoice);
-    let choice: u64 in Trapping = TypeTable::intern(&mut typer.output.types, choice_row);
+    let choice_row: TypeRow = type_row_of(TypeKind::AnonymousChoice);
+    let choice: u64 in Trapping = type_table_intern(&mut typer.output.types, choice_row);
     transition { _ -> value(typer, syntax, values, choice, 0, 0) }
 
     machine value(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, choice: u64 in Trapping, shape: u64 in Trapping, offset: u64 in Trapping) -> UnlandedJoin {
@@ -121,10 +114,10 @@ crashes Trap
     }
 
     machine candidate(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, choice: u64 in Trapping, shape: u64 in Trapping, offset: u64 in Trapping) -> UnlandedJoin {
-        let handle: u64 in Trapping = SyntaxTrees::joined_value(syntax, values, offset);
-        let value_type: u64 in Trapping = Typing::expression_type(&typer.output, handle);
-        let row: TypeRow = TypeTable::row(&typer.output.types, value_type);
-        let value_shape: u64 in Trapping = Typer::scalar_or_array(row, value_type, choice);
+        let handle: u64 in Trapping = joined_value(syntax, values, offset);
+        let value_type: u64 in Trapping = typing_expression_type(&typer.output, handle);
+        let row: TypeRow = type_table_row(&typer.output.types, value_type);
+        let value_shape: u64 in Trapping = scalar_or_array(row, value_type, choice);
         transition value_shape == 0 || value_shape == shape {
             true -> value(typer, syntax, values, choice, shape, offset + 1)
             _ -> differing(typer, syntax, values, choice, shape, offset, handle, value_shape)
@@ -148,8 +141,8 @@ crashes Trap
     }
 
     machine finished(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, shape: u64 in Trapping) -> UnlandedJoin {
-        let first: u64 in Trapping = SyntaxTrees::joined_value(syntax, values, 0);
-        let first_type: u64 in Trapping = Typing::expression_type(&typer.output, first);
+        let first: u64 in Trapping = joined_value(syntax, values, 0);
+        let first_type: u64 in Trapping = typing_expression_type(&typer.output, first);
         transition shape > 0 {
             true -> joined(shape)
             _ -> joined(first_type)
@@ -167,7 +160,7 @@ crashes Trap
 
 // An unlanded value's shape: the anonymous choice for a scalar, its own type
 // for an anonymous array; zero for `Never`.
-machine Typer::scalar_or_array(row: TypeRow, handle: u64 in Trapping, choice: u64 in Trapping) -> u64 in Trapping {
+machine scalar_or_array(row: TypeRow, handle: u64 in Trapping, choice: u64 in Trapping) -> u64 in Trapping {
     transition row.kind {
         TypeKind::AnonymousArray -> shaped(handle)
         TypeKind::AnonymousInteger -> shaped(choice)

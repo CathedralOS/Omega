@@ -28,13 +28,13 @@ requires
     last_retained: bool;
 }
 
-machine SourceUnit::clear(source_unit: &mut SourceUnit, id: SourceId) {
+machine source_unit_clear(source_unit: &mut SourceUnit, id: SourceId) {
     source_unit.id = id;
     source_unit.length = 0;
     source_unit.last_retained = true;
 }
 
-machine SourceUnit::append(source_unit: &mut SourceUnit, byte: u8) {
+machine source_unit_append(source_unit: &mut SourceUnit, byte: u8) {
     source_unit.last_retained = false;
     transition source_unit.length < 131072 {
         true -> retain(source_unit, byte)
@@ -57,7 +57,7 @@ machine SourceUnit::append(source_unit: &mut SourceUnit, byte: u8) {
 // coordinate fail token recognition instead of performing an unchecked read.
 // The forwarded coordinate is proven against the array's own length: the
 // `length` range does not transport through the retained-length comparison.
-machine SourceUnit::byte_or_nul(source_unit: &SourceUnit, index: u64 in Trapping) -> u8 {
+machine source_unit_byte_or_nul(source_unit: &SourceUnit, index: u64 in Trapping) -> u8 {
     transition index < source_unit.length {
         true -> retain(source_unit, index)
         _ -> absent()
@@ -93,12 +93,12 @@ requires
     length: u64;
 }
 
-public machine ModulePath::clear(module_path: &mut ModulePath) {
+public machine module_path_clear(module_path: &mut ModulePath) {
     module_path.length = 0;
 }
 
 // Append one byte; the path's provision is exhausted when it reports false.
-public machine ModulePath::append(module_path: &mut ModulePath, byte: u8) -> bool {
+public machine module_path_append(module_path: &mut ModulePath, byte: u8) -> bool {
     transition module_path.length < 256 {
         true -> retain(module_path, byte)
         _ -> full()
@@ -177,7 +177,7 @@ requires
     dependency_count: u64;
 }
 
-public machine SourceSet::clear(sources: &mut SourceSet) {
+public machine source_set_clear(sources: &mut SourceSet) {
     sources.byte_count = 0;
     sources.path_byte_count = 0;
     sources.unit_count = 0;
@@ -188,7 +188,7 @@ public machine SourceSet::clear(sources: &mut SourceSet) {
 // Add a unit of package `package` as the next `SourceId`, or report false
 // when the package is not in the set or the set's provisions cannot hold
 // the unit.
-public machine SourceSet::add(
+public machine source_set_add(
     sources: &mut SourceSet,
     unit: &SourceUnit,
     package: u64 in Trapping,
@@ -205,7 +205,7 @@ crashes Trap
     }
 
     machine path(sources: &mut SourceSet, unit: &SourceUnit, package: u64 in Trapping, module_path: &ModulePath) -> bool {
-        let path: SourceRange = SourceSet::store_name(sources, module_path);
+        let path: SourceRange = store_name(sources, module_path);
         transition { _ -> bytes(sources, unit, package, path, 0) }
     }
 
@@ -218,7 +218,7 @@ crashes Trap
 
     machine unit_byte(sources: &mut SourceSet, unit: &SourceUnit, package: u64 in Trapping, path: SourceRange, index: u64 in Trapping) -> bool {
         let at: u64 in Trapping = (sources.byte_count as u64 in Trapping) + index;
-        let byte: u8 = SourceUnit::byte_or_nul(unit, index);
+        let byte: u8 = source_unit_byte_or_nul(unit, index);
         transition at < 4194304 {
             true -> store_unit_byte(sources, unit, package, path, index, at, byte)
             _ -> invalid()
@@ -281,7 +281,7 @@ crashes Trap
 // Add a package named `name`, or the toolchain package (whose name is
 // empty), as the next package index, or report false when the set's
 // provisions cannot hold it.
-public machine SourceSet::add_package(sources: &mut SourceSet, name: &ModulePath, toolchain: bool) -> bool
+public machine add_package(sources: &mut SourceSet, name: &ModulePath, toolchain: bool) -> bool
 crashes Trap
 {
     transition sources.package_count < 64 && name.length <= 16384 - sources.path_byte_count {
@@ -290,7 +290,7 @@ crashes Trap
     }
 
     machine store(sources: &mut SourceSet, name: &ModulePath, toolchain: bool) -> bool {
-        let range: SourceRange = SourceSet::store_name(sources, name);
+        let range: SourceRange = store_name(sources, name);
         let index: u64 in Trapping = sources.package_count as u64 in Trapping;
         transition index < 64 {
             true -> record(sources, index, range, toolchain)
@@ -314,7 +314,7 @@ crashes Trap
 // Add the edge by which `alias` names package `target` within package
 // `requester`'s `scope` imports, or report false when either package is not
 // in the set or the set's provisions cannot hold the edge.
-public machine SourceSet::add_dependency(
+public machine add_dependency(
     sources: &mut SourceSet,
     requester: u64 in Trapping,
     scope: DependencyScope,
@@ -338,7 +338,7 @@ crashes Trap
         alias: &ModulePath,
         target: u64 in Trapping
     ) -> bool {
-        let range: SourceRange = SourceSet::store_name(sources, alias);
+        let range: SourceRange = store_name(sources, alias);
         let index: u64 in Trapping = sources.dependency_count as u64 in Trapping;
         transition index < 256 {
             true -> record(sources, index, requester, scope, range, target)
@@ -368,7 +368,7 @@ crashes Trap
 
 // Append `name` to the path arena and give its range. Callers check the
 // arena's provision first, so running out of it is an internal fault.
-machine SourceSet::store_name(sources: &mut SourceSet, name: &ModulePath) -> SourceRange
+machine store_name(sources: &mut SourceSet, name: &ModulePath) -> SourceRange
 crashes Trap
 {
     transition { _ -> next(sources, name, 0) }
@@ -416,9 +416,9 @@ crashes Trap
 }
 
 // The byte at `index` of unit `source`, or NUL past the unit's end; as for
-// `SourceUnit::byte_or_nul`, the fallback makes a violated coordinate fail a
+// `source_unit_byte_or_nul`, the fallback makes a violated coordinate fail a
 // comparison rather than read another unit.
-public machine SourceSet::byte_or_nul(sources: &SourceSet, source: SourceId, index: u64 in Trapping) -> u8
+public machine source_set_byte_or_nul(sources: &SourceSet, source: SourceId, index: u64 in Trapping) -> u8
 crashes Trap
 {
     let unit: u64 in Trapping = source.value as u64 in Trapping;
@@ -460,7 +460,7 @@ crashes Trap
 // Whether two spans, of any units, spell the same bytes. Identifier
 // spellings are their source bytes under LEXICAL-PROFILE-V1 (no escapes), so
 // name comparison reads the units rather than a decoded copy.
-public machine SourceSet::spans_equal(sources: &SourceSet, left: SourceSpan, right: SourceSpan) -> bool
+public machine spans_equal(sources: &SourceSet, left: SourceSpan, right: SourceSpan) -> bool
 crashes Trap
 {
     transition left.span.end - left.span.start == right.span.end - right.span.start {
@@ -476,8 +476,8 @@ crashes Trap
     }
 
     machine compare(sources: &SourceSet, left: SourceSpan, right: SourceSpan, offset: u64 in Trapping) -> bool {
-        let left_byte: u8 = SourceSet::byte_or_nul(sources, left.source, left.span.start + offset);
-        let right_byte: u8 = SourceSet::byte_or_nul(sources, right.source, right.span.start + offset);
+        let left_byte: u8 = source_set_byte_or_nul(sources, left.source, left.span.start + offset);
+        let right_byte: u8 = source_set_byte_or_nul(sources, right.source, right.span.start + offset);
         transition left_byte == right_byte {
             true -> scan(sources, left, right, offset + 1)
             _ -> different()
@@ -494,7 +494,7 @@ crashes Trap
 }
 
 // Whether a span spells exactly `spelling`.
-public machine SourceSet::span_spells(sources: &SourceSet, span: SourceSpan, spelling: &[u8]) -> bool
+public machine span_spells(sources: &SourceSet, span: SourceSpan, spelling: &[u8]) -> bool
 crashes Trap
 {
     transition span.span.end - span.span.start == spelling.len {
@@ -510,7 +510,7 @@ crashes Trap
     }
 
     machine compare(sources: &SourceSet, span: SourceSpan, spelling: &[u8], index: u64 in Trapping) -> bool {
-        let source_byte: u8 = SourceSet::byte_or_nul(sources, span.source, span.span.start + index);
+        let source_byte: u8 = source_set_byte_or_nul(sources, span.source, span.span.start + index);
         let spelling_byte: u8 = spelling[index];
         transition source_byte == spelling_byte {
             true -> scan(sources, span, spelling, index + 1)
@@ -528,7 +528,7 @@ crashes Trap
 }
 
 // The byte at `index` of unit `unit`'s module path, or NUL past its end.
-public machine SourceSet::path_byte_or_nul(sources: &SourceSet, unit: u64 in Trapping, index: u64 in Trapping) -> u8
+public machine path_byte_or_nul(sources: &SourceSet, unit: u64 in Trapping, index: u64 in Trapping) -> u8
 crashes Trap
 {
     transition unit < sources.unit_count {
@@ -567,7 +567,7 @@ crashes Trap
 }
 
 // The length of unit `unit`'s module path; zero for no unit.
-public machine SourceSet::path_length(sources: &SourceSet, unit: u64 in Trapping) -> u64 in Trapping {
+public machine path_length(sources: &SourceSet, unit: u64 in Trapping) -> u64 in Trapping {
     transition unit < sources.unit_count && unit < 128 {
         true -> read(sources, unit)
         _ -> none()
@@ -583,7 +583,7 @@ public machine SourceSet::path_length(sources: &SourceSet, unit: u64 in Trapping
 }
 
 // The package unit `unit` belongs to; zero for no unit.
-public machine SourceSet::unit_package(sources: &SourceSet, unit: u64 in Trapping) -> u64 in Trapping {
+public machine unit_package(sources: &SourceSet, unit: u64 in Trapping) -> u64 in Trapping {
     transition unit < sources.unit_count && unit < 128 {
         true -> read(sources, unit)
         _ -> none()
@@ -599,7 +599,7 @@ public machine SourceSet::unit_package(sources: &SourceSet, unit: u64 in Trappin
 }
 
 // Package `package`'s row; an unnamed ordinary package for no package.
-public machine SourceSet::package_row(sources: &SourceSet, package: u64 in Trapping) -> PackageRow {
+public machine package_row(sources: &SourceSet, package: u64 in Trapping) -> PackageRow {
     transition package < sources.package_count && package < 64 {
         true -> read(sources, package)
         _ -> none()
@@ -616,7 +616,7 @@ public machine SourceSet::package_row(sources: &SourceSet, package: u64 in Trapp
 
 // Dependency edge `index`; for no edge, a build edge of no requester (64 is
 // past every package index).
-public machine SourceSet::dependency_row(sources: &SourceSet, index: u64 in Trapping) -> DependencyRow {
+public machine dependency_row(sources: &SourceSet, index: u64 in Trapping) -> DependencyRow {
     transition index < sources.dependency_count && index < 256 {
         true -> read(sources, index)
         _ -> none()
@@ -638,7 +638,7 @@ public machine SourceSet::dependency_row(sources: &SourceSet, index: u64 in Trap
 
 // Whether a span spells exactly the path-arena bytes of `name`, a package
 // name or dependency alias.
-public machine SourceSet::span_names(sources: &SourceSet, span: SourceSpan, name: SourceRange) -> bool
+public machine span_names(sources: &SourceSet, span: SourceSpan, name: SourceRange) -> bool
 crashes Trap
 {
     transition span.span.end - span.span.start == name.length {
@@ -654,8 +654,8 @@ crashes Trap
     }
 
     machine compare(sources: &SourceSet, span: SourceSpan, name: SourceRange, index: u64 in Trapping) -> bool {
-        let source_byte: u8 = SourceSet::byte_or_nul(sources, span.source, span.span.start + index);
-        let name_byte: u8 = SourceSet::name_byte_or_nul(sources, name.start + index);
+        let source_byte: u8 = source_set_byte_or_nul(sources, span.source, span.span.start + index);
+        let name_byte: u8 = name_byte_or_nul(sources, name.start + index);
         transition source_byte == name_byte {
             true -> scan(sources, span, name, index + 1)
             _ -> different()
@@ -672,7 +672,7 @@ crashes Trap
 }
 
 // The path-arena byte at `at`, or NUL past the arena's end.
-machine SourceSet::name_byte_or_nul(sources: &SourceSet, at: u64 in Trapping) -> u8 {
+machine name_byte_or_nul(sources: &SourceSet, at: u64 in Trapping) -> u8 {
     transition at < sources.path_byte_count && at < 16384 {
         true -> read(sources, at)
         _ -> absent()

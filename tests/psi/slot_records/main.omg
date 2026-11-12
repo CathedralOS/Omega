@@ -2,24 +2,21 @@
 // The product consumer admits a public slot only when a returned-borrow
 // origin names the same reference parameter as each qualification
 // precondition. An empty roster admits. A mismatched index does not.
-use psi::checks::checks;
-use psi::checking::checker;
-use psi::checking::slot_review;
-use psi::checking::slots;
+use psi;
 
 data Main {}
 
-machine Main::main(main: &mut Main) crashes Trap {
+machine main(main: &mut Main) crashes Trap {
     let mut checks: Checks;
-    Checks::clear_slot_records(&mut checks);
+    psi::clear_slot_records(&mut checks);
     let mut review: SlotReview;
-    SlotReview::prepare(&mut review);
-    let empty: bool = SlotReview::admits(&review, &checks);
-    let qualified: bool = Checks::push_slot_qualification(&mut checks, 0, 1);
-    let originated: bool = Checks::push_slot_origin(&mut checks, SlotOriginKind::Parameter, 0);
-    let matched: bool = SlotReview::admits(&review, &checks);
-    let extra: bool = Checks::push_slot_qualification(&mut checks, 1, 2);
-    let mismatched: bool = SlotReview::admits(&review, &checks);
+    psi::prepare(&mut review);
+    let empty: bool = psi::admits(&review, &checks);
+    let qualified: bool = psi::push_slot_qualification(&mut checks, 0, 1);
+    let originated: bool = psi::push_slot_origin(&mut checks, SlotOriginKind::Parameter, 0);
+    let matched: bool = psi::admits(&review, &checks);
+    let extra: bool = psi::push_slot_qualification(&mut checks, 1, 2);
+    let mismatched: bool = psi::admits(&review, &checks);
     transition empty && qualified && originated && matched && extra && !mismatched {
         true -> done()
         _ -> bad()
@@ -34,5 +31,5 @@ machine Main::main(main: &mut Main) crashes Trap {
 
 machine entry_start() crashes Trap {
     let mut storage: Main;
-    Main::main(&mut storage);
+    main(&mut storage);
 }

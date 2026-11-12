@@ -1,5 +1,3 @@
-use psi::source::source;
-
 // What checking concludes about a typed source set: its rejections, the
 // number of definedness obligations it discharged, and each machine's crash
 // routes. Checking runs after typing and owns the source obligations of
@@ -137,11 +135,11 @@ public data SlotParameterQualification [copy] {
 }
 
 // A pass moves on to another machine.
-public machine Checks::open_machine(checks: &mut Checks) {
+public machine open_machine(checks: &mut Checks) {
     checks.machine_accepted = true;
 }
 
-public machine Checks::reject(checks: &mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
+public machine checks_reject(checks: &mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
     transition checks.machine_accepted {
         true -> first(checks, code, source_span)
         _ -> done()
@@ -168,7 +166,7 @@ public machine Checks::reject(checks: &mut Checks, code: CheckDiagnosticCode, so
 }
 
 // The rejection at `index`, in the order checking found them.
-public machine Checks::diagnostic(checks: &Checks, index: u64 in Trapping) -> CheckDiagnostic
+public machine diagnostic(checks: &Checks, index: u64 in Trapping) -> CheckDiagnostic
 crashes Trap
 {
     transition index < checks.diagnostic_count && index < 64 {
@@ -187,7 +185,7 @@ crashes Trap
     }
 }
 
-public machine Checks::routes(checks: &Checks, machine: u64 in Trapping) -> CrashRoutes
+public machine checks_routes(checks: &Checks, machine: u64 in Trapping) -> CrashRoutes
 crashes Trap
 {
     transition machine < checks.machine_count {
@@ -204,7 +202,7 @@ crashes Trap
     }
 }
 
-public machine Checks::set_routes(checks: &mut Checks, machine: u64 in Trapping, routes: CrashRoutes)
+public machine set_routes(checks: &mut Checks, machine: u64 in Trapping, routes: CrashRoutes)
 crashes Trap
 {
     transition machine < checks.machine_count {
@@ -221,12 +219,12 @@ crashes Trap
     }
 }
 
-public machine Checks::clear_slot_records(checks: &mut Checks) {
+public machine clear_slot_records(checks: &mut Checks) {
     checks.slot_origin_count = 0;
     checks.slot_qualification_count = 0;
 }
 
-public machine Checks::push_slot_origin(
+public machine push_slot_origin(
     checks: &mut Checks,
     kind: SlotOriginKind,
     parameter_index: u64 in Trapping
@@ -252,7 +250,7 @@ crashes Trap
     }
 }
 
-public machine Checks::slot_origin(checks: &Checks, index: u64 in Trapping) -> SlotReturnedBorrowOrigin
+public machine slot_origin(checks: &Checks, index: u64 in Trapping) -> SlotReturnedBorrowOrigin
 crashes Trap
 {
     transition index < checks.slot_origin_count && index < 64 {
@@ -271,7 +269,7 @@ crashes Trap
     }
 }
 
-public machine Checks::push_slot_qualification(
+public machine push_slot_qualification(
     checks: &mut Checks,
     parameter_index: u64 in Trapping,
     domain_item: u64 in Trapping
@@ -305,7 +303,7 @@ crashes Trap
     }
 }
 
-public machine Checks::slot_qualification(checks: &Checks, index: u64 in Trapping) -> SlotParameterQualification
+public machine slot_qualification(checks: &Checks, index: u64 in Trapping) -> SlotParameterQualification
 crashes Trap
 {
     transition index < checks.slot_qualification_count && index < 64 {

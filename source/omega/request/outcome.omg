@@ -1,5 +1,3 @@
-use omega_language_std::console;
-
 // The outcome side of the standalone compiler request
 // (wiki/spec/build/compiler_request.md). A Complete result publishes the
 // unwrapped artifact; every other outcome publishes exactly one closed OCOUT
@@ -183,8 +181,8 @@ public data Outcome [copy] {
 }
 
 // `malformed_request` anchored at a request byte.
-public machine Outcome::malformed_request(offset: u64 in Trapping) -> Outcome {
-    let code: u64 in Trapping = RejectCode::number(RejectCode::MalformedRequest);
+public machine malformed_request(offset: u64 in Trapping) -> Outcome {
+    let code: u64 in Trapping = reject_code_number(RejectCode::MalformedRequest);
     Outcome {
         tag: OutcomeTag::Reject,
         space: CoordinateSpace::Request,
@@ -199,10 +197,10 @@ public machine Outcome::malformed_request(offset: u64 in Trapping) -> Outcome {
 
 // An Incomplete provision with its coordinate and requested amount, in the
 // provision's own coordinate space.
-public machine Outcome::incomplete(provision: Provision, coordinate: u64 in Trapping, requested: u64 in Trapping) -> Outcome {
-    let space: CoordinateSpace = Provision::space(provision);
-    let code: u64 in Trapping = Provision::number(provision);
-    let limit: u64 in Trapping = Provision::limit(provision);
+public machine outcome_incomplete(provision: Provision, coordinate: u64 in Trapping, requested: u64 in Trapping) -> Outcome {
+    let space: CoordinateSpace = provision_space(provision);
+    let code: u64 in Trapping = provision_number(provision);
+    let limit: u64 in Trapping = provision_limit(provision);
     Outcome {
         tag: OutcomeTag::Incomplete,
         space: space,
@@ -218,11 +216,11 @@ public machine Outcome::incomplete(provision: Provision, coordinate: u64 in Trap
 // A well-formed request whose semantic phases this compiler does not
 // implement yet: the provision covers the whole request, so it carries no
 // coordinate and no requested amount.
-public machine Outcome::coverage_request_semantics() -> Outcome {
-    Outcome::incomplete(Provision::CoverageRequestSemantics, 0, 0)
+public machine coverage_request_semantics() -> Outcome {
+    outcome_incomplete(Provision::CoverageRequestSemantics, 0, 0)
 }
 
-public machine RejectCode::number(code: RejectCode) -> u64 in Trapping {
+public machine reject_code_number(code: RejectCode) -> u64 in Trapping {
     transition code {
         RejectCode::MalformedRequest -> value(1)
         RejectCode::InvalidUtf8 -> value(2)
@@ -328,7 +326,7 @@ public machine RejectCode::number(code: RejectCode) -> u64 in Trapping {
     }
 }
 
-public machine RejectCode::space(code: RejectCode) -> CoordinateSpace {
+public machine reject_code_space(code: RejectCode) -> CoordinateSpace {
     transition code {
         RejectCode::MalformedRequest -> request()
         RejectCode::MissingEntry -> none()
@@ -348,7 +346,7 @@ public machine RejectCode::space(code: RejectCode) -> CoordinateSpace {
     }
 }
 
-public machine Provision::number(provision: Provision) -> u64 in Trapping {
+public machine provision_number(provision: Provision) -> u64 in Trapping {
     transition provision {
         Provision::RequestSubjectBytes -> value(1)
         Provision::RequestInvocationBytes -> value(2)
@@ -392,7 +390,7 @@ public machine Provision::number(provision: Provision) -> u64 in Trapping {
     }
 }
 
-public machine Provision::limit(provision: Provision) -> u64 in Trapping {
+public machine provision_limit(provision: Provision) -> u64 in Trapping {
     transition provision {
         Provision::RequestSubjectBytes -> value(67108864)
         Provision::RequestInvocationBytes -> value(1048576)
@@ -436,7 +434,7 @@ public machine Provision::limit(provision: Provision) -> u64 in Trapping {
     }
 }
 
-public machine Provision::space(provision: Provision) -> CoordinateSpace {
+public machine provision_space(provision: Provision) -> CoordinateSpace {
     transition provision {
         Provision::RequestSubjectBytes -> request()
         Provision::RequestInvocationBytes -> request()
@@ -481,7 +479,7 @@ public machine Provision::space(provision: Provision) -> CoordinateSpace {
 
 // The frame's extent: 48 bytes for canonical source, whose tail carries the
 // package and source-unit ordinals, and 40 bytes otherwise.
-public machine Outcome::frame_length(outcome: Outcome) -> u64 in Trapping {
+public machine frame_length(outcome: Outcome) -> u64 in Trapping {
     transition outcome.space {
         CoordinateSpace::CanonicalSource -> length(48)
         _ -> length(40)
@@ -496,7 +494,7 @@ public machine Outcome::frame_length(outcome: Outcome) -> u64 in Trapping {
 // coordinate space, two reserved zeros, then the code (`u32`) and the
 // coordinate, limit and requested amount (`u64`), all little-endian, then
 // for canonical source the package and source-unit ordinals (`u32`).
-public machine Outcome::frame_byte(outcome: Outcome, index: u64 in Trapping) -> u8
+public machine frame_byte(outcome: Outcome, index: u64 in Trapping) -> u8
 crashes Trap
 {
     transition index < 8 {
@@ -518,8 +516,8 @@ crashes Trap
     }
 
     machine header(outcome: Outcome, index: u64 in Trapping) -> u8 {
-        let tag: u8 = OutcomeTag::value(outcome.tag);
-        let space: u8 = CoordinateSpace::value(outcome.space);
+        let tag: u8 = outcome_tag_value(outcome.tag);
+        let space: u8 = coordinate_space_value(outcome.space);
         transition index {
             8 -> byte(tag)
             9 -> byte(space)
@@ -537,7 +535,7 @@ crashes Trap
     }
 
     machine coordinate(outcome: Outcome, index: u64 in Trapping) -> u8 {
-        let coordinate: u64 in Trapping = Outcome::published(outcome.coordinate);
+        let coordinate: u64 in Trapping = published(outcome.coordinate);
         transition index < 24 {
             true -> little_endian(coordinate, index - 16)
             _ -> limit(outcome, index)
@@ -545,7 +543,7 @@ crashes Trap
     }
 
     machine limit(outcome: Outcome, index: u64 in Trapping) -> u8 {
-        let limit: u64 in Trapping = Outcome::published(outcome.limit);
+        let limit: u64 in Trapping = published(outcome.limit);
         transition index < 32 {
             true -> little_endian(limit, index - 24)
             _ -> requested(outcome, index)
@@ -553,7 +551,7 @@ crashes Trap
     }
 
     machine requested(outcome: Outcome, index: u64 in Trapping) -> u8 {
-        let requested: u64 in Trapping = Outcome::published(outcome.requested);
+        let requested: u64 in Trapping = published(outcome.requested);
         transition index < 40 {
             true -> little_endian(requested, index - 32)
             _ -> tail(outcome, index)
@@ -568,7 +566,7 @@ crashes Trap
     }
 
     machine little_endian(value: u64 in Trapping, position: u64 in Trapping) -> u8 {
-        Outcome::byte_of(value, position)
+        byte_of(value, position)
     }
 
     machine byte(value: u8) -> u8 {
@@ -577,7 +575,7 @@ crashes Trap
 }
 
 // A published quantity: `min(quantity, INT32_MAX)`.
-machine Outcome::published(quantity: u64 in Trapping) -> u64 in Trapping {
+machine published(quantity: u64 in Trapping) -> u64 in Trapping {
     transition quantity > 2147483647 {
         true -> saturated()
         _ -> exact(quantity)
@@ -593,7 +591,7 @@ machine Outcome::published(quantity: u64 in Trapping) -> u64 in Trapping {
 }
 
 // The outcome's tag as the frame byte and the process exit value.
-public machine OutcomeTag::value(tag: OutcomeTag) -> u8 {
+public machine outcome_tag_value(tag: OutcomeTag) -> u8 {
     transition tag {
         OutcomeTag::Reject -> byte(1)
         OutcomeTag::Incomplete -> byte(2)
@@ -605,7 +603,7 @@ public machine OutcomeTag::value(tag: OutcomeTag) -> u8 {
     }
 }
 
-machine CoordinateSpace::value(space: CoordinateSpace) -> u8 {
+machine coordinate_space_value(space: CoordinateSpace) -> u8 {
     transition space {
         CoordinateSpace::None -> byte(0)
         CoordinateSpace::Request -> byte(1)
@@ -620,7 +618,7 @@ machine CoordinateSpace::value(space: CoordinateSpace) -> u8 {
 }
 
 // Byte `position` (0 lowest) of `value`.
-machine Outcome::byte_of(value: u64 in Trapping, position: u64 in Trapping) -> u8
+machine byte_of(value: u64 in Trapping, position: u64 in Trapping) -> u8
 crashes Trap
 {
     transition position < 8 {
