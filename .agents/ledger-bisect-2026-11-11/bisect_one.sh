@@ -36,6 +36,14 @@ git checkout -qf work/ledger-bisect-part-7
 python3 "$TMP_TOOLS/prepare_pin_snapshot.py" "$WITNESS"
 export BISECT_PIN_LEDGER=/tmp/ledger-bisect-pin/corpus_outcomes.txt
 export BISECT_PIN_STATE=/tmp/ledger-bisect-pin/witness_state.json
+WITNESS_FLOOR=$(python3 - "$WITNESS" "$ROOT" <<'PY'
+import json, pathlib, sys
+w, root = sys.argv[1:3]
+p = pathlib.Path(root) / ".agents/ledger-bisect-2026-11-11/witness_floors.json"
+floors = json.loads(p.read_text())
+print(floors.get(w, "759c80404428e6d9922a8b67cce32daf7e41a02e"))
+PY
+)
 
 run_witness_test() {
   set +e
@@ -46,37 +54,24 @@ run_witness_test() {
 }
 
 find_good_commit() {
-  local low=759c80404428e6d9922a8b67cce32daf7e41a02e
+  local floor
+  floor=$(python3 - "$WITNESS" <<'PY'
+import json, pathlib, sys
+w = sys.argv[1]
+floors = json.loads(pathlib.Path(".agents/ledger-bisect-2026-11-11/witness_floors.json").read_text())
+print(floors.get(w, ""))
+PY
+)
+  [[ -n "$floor" ]] || floor="759c80404428e6d9922a8b67cce32daf7e41a02e"
   git checkout -qf "$PIN"
   if run_witness_test; then
     echo "PIN tests good but expected bad" >&2
     echo ""
     return 1
   fi
-  git checkout -qf "$low"
-  if ! run_witness_test; then
-    local cur="$low"
-    local parent rc
-    while parent=$(git rev-parse "$cur^" 2>/dev/null); do
-      if is_ledger_only_commit "$parent"; then
-        cur="$parent"
-        continue
-      fi
-      git checkout -qf "$parent"
-      run_witness_test
-      rc=$?
-      if [[ "$rc" -eq 0 ]]; then
-        echo "$parent"
-        return 0
-      fi
-      cur="$parent"
-    done
-    echo ""
-    return 1
-  fi
   local -a revs=()
-  mapfile -t revs < <(git rev-list --first-parent "$PIN^" --not "$low")
-  local mid lo=0 hi=$((${#revs[@]} - 1)) found=""
+  mapfile -t revs < <(git rev-list --first-parent "$PIN^" --not "$floor")
+  local mid lo=0 hi=$((${#revs[@]} - 1)) found="" rc=125
   # rev-list is newest-first; seek newest ancestor that still tests good (0).
   while (( lo <= hi )); do
     mid=$(( (lo + hi) / 2 ))
@@ -99,8 +94,20 @@ find_good_commit() {
     echo "$found"
     return 0
   fi
-  echo "$low"
-  return 0
+  git checkout -qf "$floor"
+  if is_ledger_only_commit "$floor"; then
+    echo ""
+    return 1
+  fi
+  run_witness_test
+  rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    echo "$floor"
+    return 0
+  fi
+  echo "no good commit on first-parent line above floor $floor" >&2
+  echo ""
+  return 1
 }
 
 GOOD_CACHE="/tmp/ledger-bisect-good-${WITNESS//\//_}.sha"
