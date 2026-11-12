@@ -71,6 +71,11 @@ Existing claim and note fields remain intact. Historical future expiries,
 including `2099-01-01`, retain their recorded meaning; the command does not infer
 a replacement expiry from `claimed_utc` or `lease_minutes`.
 
+Every command fetches only the newest registry commit (`--depth=1`): each
+commit's message holds the whole record, and the reference's history runs to
+tens of thousands of them, so a full fetch could exhaust a cloud session's
+memory. The history stays on the remote.
+
 Mutations read the registry snapshot, create a new Git commit containing the
 updated record, and push with a compare-and-swap lease on its reference. A
 concurrent writer or network error can reject the push; inspect status before
