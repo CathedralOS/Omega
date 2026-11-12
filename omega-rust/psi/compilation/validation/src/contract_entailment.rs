@@ -10198,13 +10198,17 @@ pub(crate) mod collection_bounds {
         use typed_trees::expression::{BinaryOperator, ExpressionHandle, TableIndexedExpression};
         use typed_trees::types::TypeReferenceHandle;
 
+        /// A fixed array's bound is its type's extent, so its elements are
+        /// never read: a constant used as `SOURCE[0]` arrives as its copied
+        /// literal `[3]`, which has no structural value, and still has extent
+        /// 1. Only an open collection's length needs `collection`.
         pub(crate) fn proves_observed_bounds(
             program: &dyn crate::CheckingInput,
             judge: &StructuralJudge<'_>,
             indexed: &TableIndexedExpression,
             collection_type: TypeReferenceHandle,
             array_extent: Option<&crate::ResolvedArrayExtent>,
-            collection: StructuralTerm,
+            collection: impl FnOnce() -> Option<StructuralTerm>,
             mut operand: impl FnMut(
                 ExpressionHandle,
             )
@@ -10235,7 +10239,7 @@ pub(crate) mod collection_bounds {
                     program,
                     collection_type,
                     language_semantics::declaration_selection::CollectionMeasure::Length,
-                    || Some(collection),
+                    collection,
                 ) else {
                     return false;
                 };
@@ -10731,7 +10735,7 @@ pub(crate) mod collection_bounds {
                     indexed,
                     reference,
                     array_extent.as_ref(),
-                    collection.clone(),
+                    || Some(collection.clone()),
                     |source| {
                         let value = entry.arguments.get(position)?.as_ref()?.clone();
                         position += 1;
@@ -40816,7 +40820,6 @@ pub(crate) mod specification_calls {
                 } else {
                     None
                 };
-                let collection = caller.term(program, indexed.collection, prior_facts.captures)?;
                 let judge = prior_facts.structural_judge(program, caller, arguments)?;
                 Some(super::super::collection_bounds::proves_observed_bounds(
                     program,
@@ -40824,7 +40827,7 @@ pub(crate) mod specification_calls {
                     indexed,
                     reference,
                     array_extent.as_ref(),
-                    collection,
+                    || caller.term(program, indexed.collection, prior_facts.captures),
                     |source| {
                         Some((
                             caller.term(program, source, prior_facts.captures)?,
