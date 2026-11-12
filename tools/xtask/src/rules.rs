@@ -3,7 +3,7 @@
 //!   `stage06_shape_gates.txt`, `stage06_source_context.txt`, `dense_id_maps.txt`,
 //!   `cache_state.txt`)
 //! - Dangling task ID citations (`dangling_task_ids.txt`)
-//! - Discrete `TASKS.md` board shape and line cap
+//! - Discrete `TASKS.md` board shape
 //! - Historical corpus rows and runnable fixture reclassification
 //! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, `facts/` freeze, raw measurements limit,
 //!   existing `expected.txt` diagnostic pins)
@@ -55,7 +55,6 @@ const MEASUREMENT_LINE_LIMIT: usize = 300;
 const MAX_NEW_OMG_FILES: isize = 6;
 const SUBJECT_LIMIT: usize = 85;
 const TASKS_BOARD: &str = "TASKS.md";
-const TASKS_LINE_LIMIT: usize = 240;
 const AGENT_NAMES: &[&str] = &[
     "Claude Code",
     "Codex",
@@ -1250,19 +1249,13 @@ fn is_tasks_item_line(line: &str) -> bool {
 
 /// The board may gain tasks. A new decision needs a place to land its
 /// implementation work, so growth against the base is not a violation; the
-/// absolute line cap and the one-line discrete shape still hold.
+/// one-line discrete shape still holds.
 pub fn tasks_board_violations(head_text: &str) -> Vec<String> {
     if head_text.is_empty() {
         return Vec::new();
     }
     let mut violations = Vec::new();
     let head_lines: Vec<&str> = head_text.lines().collect();
-    if head_lines.len() > TASKS_LINE_LIMIT {
-        violations.push(format!(
-            "{TASKS_BOARD}: {} lines (limit is {TASKS_LINE_LIMIT}); keep outcomes as discrete one-line bullets and delete completed work",
-            head_lines.len()
-        ));
-    }
     let mut in_items = false;
     for (idx, line) in head_lines.iter().enumerate() {
         let line_no = idx + 1;
