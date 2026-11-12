@@ -19581,6 +19581,8 @@ fail/traits/implementation_value_mapped_region_mismatch rejected 14277ms expecte
 	machine `observed$specialized$f92ed324b5120a1d$0$4647` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 fail/traits/implementation_value_missing_const_equality rejected 13489ms expected @c7c5943cfb80
 	machine `probe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/traits/implementation_value_own_const_mismatch rejected 15539ms expected @11b4004c4ecf
+	machine `probe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 fail/traits/implementation_value_recursive_missing_const_equality rejected 13064ms expected @c7c5943cfb80
 	machine `probe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 fail/traits/implementation_value_region_mismatch rejected 10089ms expected @c7c5943cfb80
@@ -23921,14 +23923,14 @@ pass/facts/ieee_float_ordered_comparison_through_other_machine_exit checked 9810
 pass/facts/ieee_float_ordered_comparison_through_other_state_exit checked 9790ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/ieee_float_ordered_comparison_through_parameter_exit checked 9794ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/ieee_float_ordered_comparison_through_target_body_exit checked 8153ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/implementation_region_forwarding_through_call_result_exit checked 15283ms check-target:macos_arm64 @4815ea579d91
-pass/facts/implementation_region_forwarding_through_const_name_exit checked 15580ms check-target:macos_arm64 @4815ea579d91
-pass/facts/implementation_region_forwarding_through_field_exit checked 16864ms check-target:macos_arm64 @4815ea579d91
-pass/facts/implementation_region_forwarding_through_local_exit checked 16378ms check-target:macos_arm64 @4815ea579d91
-pass/facts/implementation_region_forwarding_through_match_join_exit checked 17762ms check-target:macos_arm64 @4815ea579d91
-pass/facts/implementation_region_forwarding_through_other_machine_exit checked 15117ms check-target:macos_arm64 @4815ea579d91
-pass/facts/implementation_region_forwarding_through_other_state_exit checked 15302ms check-target:macos_arm64 @4815ea579d91
-pass/facts/implementation_region_forwarding_through_parameter_exit checked 14990ms check-target:macos_arm64 @4815ea579d91
+pass/facts/implementation_region_forwarding_through_call_result_exit checked 20544ms check-target:macos_arm64 @11b4004c4ecf
+pass/facts/implementation_region_forwarding_through_const_name_exit checked 17296ms check-target:macos_arm64 @11b4004c4ecf
+pass/facts/implementation_region_forwarding_through_field_exit checked 16725ms check-target:macos_arm64 @11b4004c4ecf
+pass/facts/implementation_region_forwarding_through_local_exit checked 15362ms check-target:macos_arm64 @11b4004c4ecf
+pass/facts/implementation_region_forwarding_through_match_join_exit checked 24137ms check-target:macos_arm64 @11b4004c4ecf
+pass/facts/implementation_region_forwarding_through_other_machine_exit checked 15601ms check-target:macos_arm64 @11b4004c4ecf
+pass/facts/implementation_region_forwarding_through_other_state_exit checked 17534ms check-target:macos_arm64 @11b4004c4ecf
+pass/facts/implementation_region_forwarding_through_parameter_exit checked 22347ms check-target:macos_arm64 @11b4004c4ecf
 pass/facts/in_place_view_argument_through_call_result_exit checked 12157ms check-target:macos_arm64 @ca41410e2ee2+wt
 pass/facts/in_place_view_argument_through_const_name_exit checked 10996ms check-target:macos_arm64 @ca41410e2ee2+wt
 pass/facts/in_place_view_argument_through_field_exit checked 10919ms check-target:macos_arm64 @ca41410e2ee2+wt
