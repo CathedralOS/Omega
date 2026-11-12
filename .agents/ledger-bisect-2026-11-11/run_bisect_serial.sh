@@ -2,8 +2,9 @@
 set -euo pipefail
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 cd "$ROOT"
+git fetch origin work/ledger-bisect-part-4
 git checkout work/ledger-bisect-part-4
-git reset --hard 51e8c45c793007f211d0d9baee7de16767172444
+git reset --hard origin/work/ledger-bisect-part-4
 python3 <<'PY'
 import json
 import subprocess
