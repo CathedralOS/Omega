@@ -843,3 +843,37 @@ components do not reach this check today.
   published and the footprint omits a restored pair?
 
 Until answered, these components stay refused at native entry admission.
+
+### Q20 - May the Psi interpreter carry a host address that a native import returned?
+
+Decision name: `interpreter-host-address-carriage`.
+
+**Customer.** `tests/omega/pass/providers/foreign_address_result_release_exit`
+calls glibc `malloc`, receives an `addr`, and passes it unchanged to `free`. Its
+native leg exits 70 as authored. Under `omega run --both` the interpreter
+declines with `native-provider-adapter: native scalar differs from its admitted
+logical/storage codec`. It is the one `providers/foreign_*` fixture of the
+NORMALIZED-ABI-LOWERING acceptance that does not pass on both engines, and every
+program that keeps a native allocation handle meets the same refusal.
+
+**Gap.** [Host result validation](wiki/spec/terminal-psi/boundary_calls.md#host-result-validation)
+lets an embedding handler return an "exactly typed scalar", and `addr` is a
+scalar. But it also says: "The host must supply a legitimate owned value. An
+opaque identity number does not establish global allocation freshness against
+interpreter-created values or suspended callers." The interpreter has no runtime
+value for an address: its host-import scalar codec, borrowed-storage and
+scalar-record codecs and terminal installation all refuse `addr` scalars. The
+specification does not say whether a host-returned address may be admitted, and
+if so with what provenance, or what interpreter code may do with it.
+
+**Question.**
+
+- **(a)** May the interpreter admit a host-returned `addr` as an opaque
+  host-provenance value? Such a value could be stored, compared and passed back
+  to native imports, but never dereferenced, offset into or mixed with
+  interpreter-created addresses.
+- **(b)** Or must a program that holds a native address handle be refused by the
+  interpreter, so that `--both` cannot qualify it and the fixture is native-only?
+
+Until answered, the interpreter declines this fixture and the native leg alone
+runs it.
