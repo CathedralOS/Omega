@@ -1,0 +1,92 @@
+{
+  "pin_clusters": [
+    {
+      "cluster_id": "pin-0",
+      "count": 1,
+      "witness": "pass/facts/recoverable_replacement_window_through_target_body_exit",
+      "members": [
+        "pass/facts/recoverable_replacement_window_through_target_body_exit"
+      ],
+      "diag_sample": "`X86Repair::repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `X86Repair::repair::repair`, statement 3",
+      "diag_norm": "`_` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `_`, state",
+      "kind": "pass/run rejected"
+    },
+    {
+      "cluster_id": "pin-1",
+      "count": 1,
+      "witness": "pass/borrows/runtime_selected_reference_record_helper_exit",
+      "members": [
+        "pass/borrows/runtime_selected_reference_record_helper_exit"
+      ],
+      "diag_sample": "statement 8 mutates `first.value` while local borrow `first_input` is still active (borrowed at statement 4; its last use is at statement 9)",
+      "diag_norm": "statement N mutates `_` while local borrow `_` is still active (borrowed at statement N; its last use is at statement N)",
+      "kind": "pass/run rejected"
+    },
+    {
+      "cluster_id": "pin-2",
+      "count": 1,
+      "witness": "pass/providers/checked_operator_declaration_without_application",
+      "members": [
+        "pass/providers/checked_operator_declaration_without_application"
+      ],
+      "diag_sample": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Policy::identity\", reason: \"attached Unit closure is missing a checked boundary machine plan\", gap: None })",
+      "diag_norm": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Policy::identity\", reason: \"attached Unit closure is missing a checked boundary",
+      "kind": "pass/run rejected"
+    }
+  ],
+  "bisects": {
+    "pin-0": {
+      "witness": "pass/facts/recoverable_replacement_window_through_target_body_exit",
+      "good_commit": "d25889014d5e1a5f3770dacd77612125f046e372",
+      "breaking_commit": "22f215eb3e7d9814cb3e29f42856e56bb57e60ed",
+      "pr": "2078",
+      "mechanism": "psi: preserve common fields when matching case values (#2078) \u2014 omega-rust/psi/compilation/pipeline/structure-elaboration/, source/library/",
+      "status": "bisected",
+      "bisect_exit": 0
+    }
+  },
+  "fixed": [
+    "pass/atomics/runtime_stored_reference_atomic_events_exit",
+    "pass/facts/write_only_indexed_reborrow_through_call_result_exit",
+    "pass/facts/write_only_indexed_reborrow_through_const_name_exit",
+    "pass/facts/write_only_indexed_reborrow_through_field_exit",
+    "pass/facts/write_only_indexed_reborrow_through_local_exit",
+    "pass/facts/write_only_indexed_reborrow_through_match_join_exit",
+    "pass/recast/runtime_aggregate_slice_representation_recast_exit",
+    "pass/slices/saved_byte_predicate_fields_disjoint_exit",
+    "pass/dependent/state_arrival_byte_predicate_guarded_compile",
+    "pass/recast/runtime_inline_shared_slice_record_read_exit",
+    "pass/text/runtime_owned_string_byte_view_exit",
+    "fail/borrows/owned_capture_weaker_formal_qualification",
+    "pass/borrow/owned_capture_weaker_formal",
+    "fail/traits/dyn_finite_family_narrowed_provider"
+  ],
+  "slice_fixed_count": 14,
+  "slice_broken_count": 3,
+  "tsv": [
+    "pass/facts/recoverable_replacement_window_through_target_body_exit\tstill broken\t`X86Repair::repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `X86Repair::repair::repair`, state\tpin-0\n",
+    "pass/borrows/runtime_selected_reference_record_helper_exit\tstill broken\tstatement 8 mutates `first.value` while local borrow `first_input` is still active (borrowed at statement 4; its last use is at statement 9)\tpin-1\n",
+    "pass/providers/checked_operator_declaration_without_application\tstill broken\tterminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Policy::identity\", reason: \"attached Unit closure is missing a checked boundary machine plan\", gap: None })\tpin-2\n",
+    "pass/atomics/runtime_stored_reference_atomic_events_exit\tfixed on main\t\t\n",
+    "pass/facts/write_only_indexed_reborrow_through_call_result_exit\tfixed on main\t\t\n",
+    "pass/facts/write_only_indexed_reborrow_through_const_name_exit\tfixed on main\t\t\n",
+    "pass/facts/write_only_indexed_reborrow_through_field_exit\tfixed on main\t\t\n",
+    "pass/facts/write_only_indexed_reborrow_through_local_exit\tfixed on main\t\t\n",
+    "pass/facts/write_only_indexed_reborrow_through_match_join_exit\tfixed on main\t\t\n",
+    "pass/recast/runtime_aggregate_slice_representation_recast_exit\tfixed on main\t\t\n",
+    "pass/slices/saved_byte_predicate_fields_disjoint_exit\tfixed on main\t\t\n",
+    "pass/dependent/state_arrival_byte_predicate_guarded_compile\tfixed on main\t\t\n",
+    "pass/recast/runtime_inline_shared_slice_record_read_exit\tfixed on main\t\t\n",
+    "pass/text/runtime_owned_string_byte_view_exit\tfixed on main\t\t\n",
+    "fail/borrows/owned_capture_weaker_formal_qualification\tfixed on main\t\t\n",
+    "pass/borrow/owned_capture_weaker_formal\tfixed on main\t\t\n",
+    "fail/traits/dyn_finite_family_narrowed_provider\tfixed on main\t\t\n"
+  ],
+  "counts": {
+    "fixed": 14,
+    "broken": 3,
+    "host_only": 0,
+    "missing": 0,
+    "total": 17
+  }
+}

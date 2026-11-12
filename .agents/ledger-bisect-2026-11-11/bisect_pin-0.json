@@ -1,0 +1,9 @@
+{
+  "witness": "pass/facts/recoverable_replacement_window_through_target_body_exit",
+  "good_commit": "d25889014d5e1a5f3770dacd77612125f046e372",
+  "breaking_commit": "22f215eb3e7d9814cb3e29f42856e56bb57e60ed",
+  "pr": "2078",
+  "mechanism": "psi: preserve common fields when matching case values (#2078) — omega-rust/psi/compilation/pipeline/structure-elaboration/, source/library/",
+  "status": "bisected",
+  "bisect_exit": 0
+}
