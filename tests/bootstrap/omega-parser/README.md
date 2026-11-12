@@ -62,7 +62,7 @@ returning `000000000041` with status 0 and empty stderr — now that
 Bash execution; the PE artifact is proven byte-exact under wine but the
 MINGW/MSYS shell route itself has not run on Windows hardware.
 
-The current customer reuses one parser across thirty-seven invocations. Direct
+The current customer reuses one parser across fifty-nine invocations. Direct
 Boolean transition results retain ordinary expression rows; parameterized
 nested-machine transfers retain their argument rows. The retired `state`
 declaration spelling refuses, while `state` remains a usable identifier. A
@@ -74,6 +74,26 @@ Explicit carrier casts and single `+Domain` / `-Domain` entries
 retain distinct tags. Retired whole-type domain casts and unsupported multi-entry
 casts refuse. These parser observations do not establish runtime execution of
 the parsed programs; that belongs to the executable compiler customers.
+
+Borrow controls retain shared, mutable and write-only access, operand identity
+and operator spans. A borrow groups before its following domain cast; explicit
+grouping may instead put a cast inside the borrowed operand. The exact SourceId,
+SourceUnit and source_unit_clear declarations exercise record field casts,
+comma-separated data requirements, mutable zero initialization, field assignment
+and independent Unit completion. Their source bytes come from
+`source/psi/source/source.omg` at `cf97ce29165`. Empty outer machines retain their
+own entry before nested declarations. These are syntax/custody checks; the
+compiler's actual SourceUnit customer owns checking and native execution.
+
+
+Nested record controls preserve the authored Packet/Leaf literals and a literal
+terminal record result. Child rows publish before their parent while each
+literal's own fields remain contiguous and ordered. Calls inside fields preserve
+the surrounding call's arguments; grouped operators and prefixes use the same
+expression machinery. Explicit empty literals, malformed nesting, the bounded
+128-level context limit and successful reuse after failures check ownership and
+reset behavior. These remain parser checks; emitted record copies and returned
+records are exercised by the executable compiler customer.
 
 Four header controls were added in the historical twenty-invocation customer:
 termination and reach clauses in both orders retain their exact ranges, and
@@ -220,8 +240,8 @@ or proof evidence. No Windows profiling result is claimed.
 
 ## Bound customer entry
 
-The [customer](main.epsilon) entry is bound at 21,679 bytes, SHA-256
-`b01901def564a3629fbe546bb72ba167d451284a4bdc59fc8c0a7d3577d66be5`. The customer is the bound compiler closure followed by this entry.
+The [customer](main.epsilon) entry is bound at 38,045 bytes, SHA-256
+`50ec5053fd956e9291355246b64d741da8914130767538877e25599b33112385`. The customer is the bound compiler closure followed by this entry.
 `tools/bootstrap/omega/compiler_env.sh` checks the entry identity before every
 packing and `tests/bootstrap/omega-identity.sh` covers the refusals. The same
 pins stand inline in `gate.py`; they are records of this one subject, not

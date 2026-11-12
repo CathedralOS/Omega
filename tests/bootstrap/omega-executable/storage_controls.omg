@@ -1,0 +1,13 @@
+machine main() -> u8 {
+    let mut unit: SourceUnit;
+    let id: SourceId = SourceId { value: 77 as +Trapping };
+    unit.length = 19;
+    unit.last_retained = false;
+    source_unit_clear(&mut unit, id);
+    transition unit.id.value == id.value && unit.length == 0 && unit.last_retained {
+        true -> yes()
+        _ -> no()
+    }
+    machine yes() -> u8 { 42 }
+    machine no() -> u8 { 1 }
+}

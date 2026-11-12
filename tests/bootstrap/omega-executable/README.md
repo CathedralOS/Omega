@@ -63,12 +63,15 @@ different output directory. These are host controls, not language semantics.
 
 [The bootstrap compiler's coverage and storage contract](../../../bootstrap/5_omega/README.md)
 is authoritative for this gate. It admits a nullary `u8` entry and checked
-`u8`, `u32`, `bool`, and `u32 in Trapping` values through parameters, immutable locals,
+`u8`, `u32`, bounded-literal `u64`, `bool`, and `u32 in Trapping` values through parameters, locals,
 free calls and same-owner parameterized transfers. Runtime comparisons and
 short-circuit Boolean control preserve those types. All bodies and arms are
 checked before emission; reentrant ordinary-call graphs and unsupported
-facilities refuse without publishing a partial tape. Runtime numeric arithmetic,
-rich data, clauses and references remain outside this slice.
+facilities refuse without publishing a partial tape. Copy records, zero-established
+affine locals, projected field writes, Unit completion and scoped record-reference
+parameters now support the actual SourceUnit clear helper. Runtime numeric
+arithmetic, indexed access, richer domains and machine clauses remain outside
+this slice. The compiler README specifies the precise storage and loan boundaries.
 
 The source-built compiled peer also exposes `--omega-control`. It takes exact
 identifier-predicate declarations from the real lexer source and appends
@@ -77,6 +80,14 @@ and high `u32` inputs. [controls_control.epsilon](controls_control.epsilon)
 compiles that input plus generic parallel-transfer, comparison, short-circuit,
 and refusal/reset controls. The harness executes every emitted artifact through
 the Alpha seed. The compiler has no special case for this customer.
+
+The peer's `--omega-storage` customer similarly extracts exact SourceId,
+SourceUnit and `source_unit_clear` declarations from the actual source package,
+then appends [storage_controls.omg](storage_controls.omg).
+[controls_storage.epsilon](controls_storage.epsilon) checks that program plus
+seven generic storage programs, sixteen explicit refusals and a reset program;
+the harness executes all nine published artifacts. These are internal
+single-source compilation customers; they do not claim full package admission.
 
 The route selects `main` — the machine name `alpha_bootstrap::ProgramEntry`
 binds. Another source can be exercised without changing compiler code:

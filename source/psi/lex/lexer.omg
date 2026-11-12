@@ -27,7 +27,7 @@ data DecodedScalar [copy] {
 }
 
 public machine Lexer::initialize(lexer: &mut Lexer, source_id: u32 in Trapping) {
-    SourceUnit::clear(&mut lexer.source, SourceId { value: source_id });
+    source_unit_clear(&mut lexer.source, SourceId { value: source_id });
     TokenStream::clear(&mut lexer.output, SourceId { value: source_id });
     lexer.cursor = 0;
 }
