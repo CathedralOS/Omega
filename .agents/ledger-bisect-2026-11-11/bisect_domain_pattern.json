@@ -1,6 +1,10 @@
 {
   "witness": "pass/facts/domain_pattern_match_bound_through_field_exit",
   "good": "12a1feb4aa100ab41afd8cc59f53969c2ffc4009",
+  "narrow_bad": "647e274b14274e6d0e8a386df2ab66e7dd3e4f8d",
+  "parent": "aea7dbe2ae380673377b4a49b91b173e01e3137c",
+  "witness_verify_parent": "0 0 0",
+  "witness_verify_bad": "1 1 1",
   "bad": "51e8c45c793007f211d0d9baee7de16767172444",
   "breaking_commit": "66ee9999011ed557510ddd18f20ceca6cb4aa5ae",
   "pr": "1582",

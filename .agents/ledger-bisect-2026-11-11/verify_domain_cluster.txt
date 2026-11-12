@@ -1,0 +1,25 @@
+# Standard first-bad verification — domain_pattern cluster
+# Bad: 66ee9999011ed557510ddd18f20ceca6cb4aa5ae (PR #1582)
+# Parent (first-parent): aea7dbe2ae380673377b4a49b91b173e01e3137c
+
+## Witness pass/facts/domain_pattern_match_bound_through_field_exit
+
+| commit | run1 | run2 | run3 |
+| --- | ---: | ---: | ---: |
+| 66ee9999011ed557510ddd18f20ceca6cb4aa5ae | 1 | 1 | 1 |
+| aea7dbe2ae380673377b4a49b91b173e01e3137c | 0 | 0 | 0 |
+
+Parent confirmed exit 0 (not skip / not 125). At parent: checked vs PIN ledger expected checked.
+
+## Member (sole row)
+
+| fixture | aea7dbe2ae380673377b4a49b91b173e01e3137c | 66ee9999011ed557510ddd18f20ceca6cb4aa5ae |
+| --- | --- | --- |
+| pass/facts/domain_pattern_match_bound_through_field_exit | good (0) checked | bad (1) rejected (domain construction) |
+
+## Narrowed bisect range (full-range skip failure)
+
+- Full range: `git bisect start --first-parent` `51e8c45c793007f211d0d9baee7de16767172444` (PIN) .. `5c6c16d4d1867bcac99343285c5074169d7cbfbc` (distant good).
+- Failure: `error: bisect run failed: 'git bisect skip' exited with error code -1` after many steps returned exit 125 from `bisect_witness.sh` (ledger-only commits touching only `tests/omega/corpus_outcomes.txt` and/or `*.md`, plus ancient commits that do not build fixtures on this host).
+- Manual probes established bracket: `12a1feb4aa100ab41afd8cc59f53969c2ffc4009` good (exit 0), `647e274b14274e6d0e8a386df2ab66e7dd3e4f8d` bad (exit 1).
+- Narrow bisect: `git bisect start --first-parent` `647e274b14274e6d0e8a386df2ab66e7dd3e4f8d` `12a1feb4aa100ab41afd8cc59f53969c2ffc4009` → first bad `66ee9999011ed557510ddd18f20ceca6cb4aa5ae`.

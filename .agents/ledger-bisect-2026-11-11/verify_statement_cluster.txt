@@ -1,0 +1,37 @@
+# Standard first-bad verification — statement-successor cluster
+# Bad: d26fa952d579d52642970560c719d24fa2a89f8a (PR #1909)
+# Parent (first-parent): 82d2247b96e872df79f26ec9b7af2fdec0153ce7
+
+## Witness pass/facts/selected_native_code_layout_through_other_state_exit
+
+| commit | run1 | run2 | run3 |
+| --- | ---: | ---: | ---: |
+| d26fa952d579d52642970560c719d24fa2a89f8a | 1 | 1 | 1 |
+| 82d2247b96e872df79f26ec9b7af2fdec0153ce7 | 0 | 0 | 0 |
+
+Observed at bad (all runs): status=incomplete; lowering failure on witness (not PIN statement-successor text yet).
+
+## All 10 members vs fixed PIN ledger
+
+| fixture | 82d2247b96e872df79f26ec9b7af2fdec0153ce7 (parent) | d26fa952d579d52642970560c719d24fa2a89f8a (bad) |
+| --- | --- | --- |
+| pass/calls/native_code_layout_discarded_exit | good (0) checked | good (0) checked |
+| pass/facts/selected_native_code_layout_through_const_name_exit | good (0) checked | bad (1) incomplete |
+| pass/facts/selected_native_code_layout_through_field_exit | good (0) checked | bad (1) incomplete |
+| pass/facts/selected_native_code_layout_through_local_exit | good (0) checked | bad (1) incomplete |
+| pass/facts/selected_native_code_layout_through_match_join_exit | good (0) checked | good (0) checked |
+| pass/facts/selected_native_code_layout_through_other_state_exit | good (0) checked | bad (1) incomplete |
+| pass/facts/selected_native_code_layout_through_target_body_exit | good (0) checked | bad (1) incomplete |
+| pass/facts/source_indexed_family_alpha_positive | good (0) checked | good (0) checked |
+| pass/facts/source_indexed_family_recursive_index_positive | good (0) checked | good (0) checked |
+| pass/proofs/erased_mathematical_initializers | good (0) checked | good (0) checked |
+
+### Exceptions at first-bad (still meet PIN ledger at d26fa952d579d52642970560c719d24fa2a89f8a)
+
+Treat as a sibling subcluster until a later commit regresses them on the same diagnostic class:
+
+- pass/calls/native_code_layout_discarded_exit
+- pass/facts/selected_native_code_layout_through_match_join_exit
+- pass/facts/source_indexed_family_alpha_positive
+- pass/facts/source_indexed_family_recursive_index_positive
+- pass/proofs/erased_mathematical_initializers

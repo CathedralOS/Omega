@@ -1,0 +1,241 @@
+   Compiling phase-profile v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/phase-profile)
+   Compiling compiler-storage-derive v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/compiler-storage/derive)
+   Compiling optimization v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/optimization)
+   Compiling encoded-scalar-plan v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/instruction-set-architectures/encoded-scalar-plan)
+   Compiling x86-encoding v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/instruction-set-architectures/x86-encoding)
+   Compiling syntax-trees-derive v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/syntax-trees/derive)
+   Compiling platform-custody v0.1.0 (/agent/repos/omega/omega-rust/omega/foundation/platform-custody)
+   Compiling optimization-core v0.1.0 (/agent/repos/omega/omega-rust/omega/foundation/optimization-core)
+   Compiling bounded-process v0.1.0 (/agent/repos/omega/omega-rust/omega/foundation/bounded-process)
+   Compiling package-compilation v0.1.0 (/agent/repos/omega/omega-rust/omega/packages/package-compilation)
+   Compiling compiler-storage v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/compiler-storage)
+   Compiling artifacts v0.1.0 (/agent/repos/omega/omega-rust/omega/foundation/artifacts)
+   Compiling arena v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/arena)
+   Compiling numerics v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/numerics)
+   Compiling extents v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/extents)
+   Compiling semantic-vocabulary v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/semantic-vocabulary)
+   Compiling language-core v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/language-core)
+   Compiling filesystem-authority v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/filesystem-authority)
+   Compiling resolver-execution v0.1.0 (/agent/repos/omega/omega-rust/omega/packages/resolver-execution)
+   Compiling compiler v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/compiler)
+   Compiling omega v0.1.0 (/agent/repos/omega/omega-rust/omega/application/cli)
+   Compiling source v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/source)
+   Compiling layout-plans v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/layout-plans)
+   Compiling evaluation-accounting v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/evaluation-accounting)
+   Compiling symbols v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/symbols)
+   Compiling build-time-values v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/build-time-values)
+   Compiling language-semantics v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/language-semantics)
+   Compiling access-plans v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/access-plans)
+   Compiling diagnostics v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/diagnostics)
+   Compiling terminal-psi v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/terminal-psi)
+   Compiling target v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/target)
+   Compiling runtime-abi v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/runtime/runtime-abi)
+   Compiling register-model v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/register-model)
+   Compiling post-handoff-writer-plan v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/plans/post-handoff-writer-plan)
+   Compiling flow-effects v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/flow-effects)
+   Compiling proof-admission v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/proof/admission)
+   Compiling calling-conventions v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/calling-conventions)
+   Compiling function-identity v0.1.0 (/agent/repos/omega/omega-rust/omega/foundation/function-identity)
+   Compiling installation-evidence v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/runtime/installation-evidence)
+   Compiling terminal-fuel v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/terminal-psi/fuel)
+   Compiling typed-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/typed-trees)
+   Compiling terminal-semantics v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/terminal-psi/semantics)
+   Compiling syntax-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/syntax-trees)
+mbx[progress]: 15s elapsed; 20 hits, 3 misses, 0 bypassed, 22 not looked up; ~11.24s compiler work saved
+   Compiling terminal-codec v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/terminal-psi/codec)
+mbx[progress]: 30s elapsed; 20 hits, 3 misses, 0 bypassed, 23 not looked up; ~11.24s compiler work saved
+   Compiling terminal-installation v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/validation/terminal-installation)
+   Compiling effects v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/plans/effects)
+mbx[progress]: 45s elapsed; 20 hits, 3 misses, 0 bypassed, 25 not looked up; ~11.24s compiler work saved
+   Compiling abstract-operations v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/abstract-operations)
+   Compiling task-plans v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/runtime/task-plans)
+   Compiling target-operations v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/target-operations)
+   Compiling optimization-unit v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/abstract-operations/optimization-unit)
+mbx[progress]: 1m elapsed; 20 hits, 3 misses, 0 bypassed, 29 not looked up; ~11.24s compiler work saved
+   Compiling legalized-operations v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/target-operations/legalized-operations)
+   Compiling selected-instructions v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/selected-instructions)
+   Compiling backend-plan v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/plans/backend-plan)
+   Compiling normalized-foreign-call-plan v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/instruction-set-architectures/normalized-foreign-call-plan)
+   Compiling isa-x86_64 v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/instruction-set-architectures/isa-x86_64)
+   Compiling register-homes v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/register-homes)
+   Compiling isa-aarch64 v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/instruction-set-architectures/isa-aarch64)
+mbx[progress]: 1m 15s elapsed; 20 hits, 3 misses, 0 bypassed, 36 not looked up; ~11.24s compiler work saved
+   Compiling facts v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/checked-trees/facts)
+   Compiling component-description v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/artifacts/component-description)
+   Compiling checked-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/checked-trees)
+   Compiling boundary-applications v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/artifacts/boundary-applications)
+   Compiling provider-selection v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/realization/provider-selection)
+   Compiling register-environment v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/register-environment)
+   Compiling physical-instructions v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/post-allocation-machine)
+   Compiling representation-selections v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/validation/representation-planning/selections)
+   Compiling machine-code v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/machine-code)
+   Compiling provider-admission v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/realization/provider-admission)
+   Compiling optimization-unit-semantics v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics)
+   Compiling selected-instruction-analyses v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/selected-instructions/analyses)
+mbx[progress]: 1m 30s elapsed; 20 hits, 3 misses, 0 bypassed, 48 not looked up; ~11.24s compiler work saved
+   Compiling validation v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/validation)
+   Compiling abstract-operations-to-target-operations v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations)
+mbx[progress]: 1m 45s elapsed; 20 hits, 3 misses, 0 bypassed, 50 not looked up; ~11.24s compiler work saved
+   Compiling selected-instructions-to-register-homes v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes)
+mbx[progress]: 2m elapsed; 20 hits, 3 misses, 0 bypassed, 51 not looked up; ~11.24s compiler work saved
+   Compiling post-allocation-machine-to-selected-form-encoding v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding)
+   Compiling resolved-layout-to-resolved-layout v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout)
+   Compiling selected-form-encoding-to-resolved-layout v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout)
+   Compiling register-homes-to-post-allocation-machine v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine)
+   Compiling machine-emission v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/machine-emission)
+   Compiling lowered-psi v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/lowered-psi)
+   Compiling object-file v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/object/object-file)
+   Compiling program-entry-plan v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/plans/program-entry-plan)
+   Compiling image v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/images/image)
+   Compiling lowered-psi-to-lowered-psi v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi)
+   Compiling proof v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/proof)
+   Compiling symbol-resolved-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/symbol-resolved-trees)
+   Compiling typed-trees-to-typed-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees)
+   Compiling syntax-trees-to-symbol-resolved-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees)
+   Compiling lowered-psi-to-terminal-psi v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/08_lowered-psi-to-terminal-psi)
+   Compiling checked-trees-to-lowered-psi v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi)
+   Compiling terminal-interpreter v0.1.0 (/agent/repos/omega/omega-rust/psi/interpreter/terminal-interpreter)
+warning: unused import: `StructuralPathSegment`
+  --> omega-rust/psi/interpreter/terminal-interpreter/src/storage/scalar_array/loans.rs:15:5
+   |
+15 |     StructuralPathSegment, StructuralTypeShape,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+mbx[progress]: 3m elapsed; 20 hits, 3 misses, 0 bypassed, 68 not looked up; ~11.24s compiler work saved
+   Compiling tokens v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/tokens)
+   Compiling psi-terminal-production v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/psi-compiler/terminal-production)
+   Compiling symbol-resolved-trees-to-typed-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees)
+   Compiling typed-trees-to-checked-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees)
+warning: unused import: `CheckedUnitStructuralTypeShape`
+  --> omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup/mod.rs:46:36
+   |
+46 |     CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, Diagnostic, MachineSupplyMode,
+   |                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `terminal-interpreter` (lib) generated 1 warning (run `cargo fix --lib -p terminal-interpreter` to apply 1 suggestion)
+   Compiling checked-interpreter v0.1.0 (/agent/repos/omega/omega-rust/psi/interpreter/checked-interpreter)
+mbx[progress]: 4m elapsed; 20 hits, 3 misses, 0 bypassed, 73 not looked up; ~11.24s compiler work saved
+   Compiling tokens-to-syntax-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees)
+   Compiling source-files-to-tokens v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/00_source-files-to-tokens)
+   Compiling image-elf v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/images/image-elf)
+   Compiling image-macho v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/images/image-macho)
+   Compiling build-time-evaluation v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/build-time-evaluation)
+   Compiling image-pe v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/images/image-pe)
+   Compiling terminal-psi-to-abstract-operations v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations)
+mbx[progress]: 5m elapsed; 20 hits, 3 misses, 0 bypassed, 80 not looked up; ~11.24s compiler work saved
+   Compiling representation-planning v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/validation/representation-planning)
+   Compiling target-operations-to-selected-instructions v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions)
+   Compiling psi-compiler v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/psi-compiler)
+   Compiling build-declarations v0.1.0 (/agent/repos/omega/omega-rust/omega/packages/build-declarations)
+   Compiling image-emission v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/images/image-emission)
+   Compiling native-artifact v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/artifacts/native-artifact)
+   Compiling build-output v0.1.0 (/agent/repos/omega/omega-rust/omega/packages/build-output)
+   Compiling package-source v0.1.0 (/agent/repos/omega/omega-rust/omega/packages/source-acquisition)
+   Compiling layout v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/layout)
+   Compiling provider-planning v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/realization/provider-planning)
+   Compiling trust-model v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/realization/trust-model)
+   Compiling selected-dispatch v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/realization/selected-dispatch)
+   Compiling native-provider-runtime v0.1.0 (/agent/repos/omega/omega-rust/omega/interpreter/native-provider-runtime)
+mbx[progress]: 6m elapsed; 20 hits, 3 misses, 0 bypassed, 94 not looked up; ~11.24s compiler work saved
+   Compiling compilation-products v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/products)
+   Compiling terminal-runtime v0.1.0 (/agent/repos/omega/omega-rust/omega/interpreter/terminal-runtime)
+   Compiling abstract-operations-to-abstract-operations v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations)
+   Compiling selected-instructions-to-selected-instructions v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions)
+   Compiling native-production v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/native-production)
+   Compiling build-settings v0.1.0 (/agent/repos/omega/omega-rust/omega/build-system/build-settings)
+   Compiling package-evidence v0.1.0 (/agent/repos/omega/omega-rust/omega/packages/review-evidence)
+   Compiling package-manager v0.1.0 (/agent/repos/omega/omega-rust/omega/packages/package-manager)
+mbx[progress]: 7m elapsed; 20 hits, 3 misses, 0 bypassed, 103 not looked up; ~11.24s compiler work saved
+   Compiling orchestration v0.1.0 (/agent/repos/omega/omega-rust/omega/build-system/orchestration)
+warning: `typed-trees-to-checked-trees` (lib) generated 1 warning (run `cargo fix --lib -p typed-trees-to-checked-trees` to apply 1 suggestion)
+    Finished `dev` profile [optimized] target(s) in 7m 09s
+mbx[cache]: 20 hits, 3 misses, 106 not looked up, 104 incremental; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 886 compilations, each compiled once and served warm ever since
+warning: unused import: `StructuralPathSegment`
+  --> omega-rust/psi/interpreter/terminal-interpreter/src/storage/scalar_array/loans.rs:15:5
+   |
+15 |     StructuralPathSegment, StructuralTypeShape,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `terminal-interpreter` (lib) generated 1 warning (run `cargo fix --lib -p terminal-interpreter` to apply 1 suggestion)
+warning: unused import: `CheckedUnitStructuralTypeShape`
+  --> omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup/mod.rs:46:36
+   |
+46 |     CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, Diagnostic, MachineSupplyMode,
+   |                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `typed-trees-to-checked-trees` (lib) generated 1 warning (run `cargo fix --lib -p typed-trees-to-checked-trees` to apply 1 suggestion)
+   Compiling package-compilation v0.1.0 (/agent/repos/omega/omega-rust/omega/packages/package-compilation)
+   Compiling provider-planning v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/realization/provider-planning)
+   Compiling selected-dispatch v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/realization/selected-dispatch)
+   Compiling compilation-products v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/products)
+   Compiling package-evidence v0.1.0 (/agent/repos/omega/omega-rust/omega/packages/review-evidence)
+   Compiling build-settings v0.1.0 (/agent/repos/omega/omega-rust/omega/build-system/build-settings)
+mbx[progress]: 15s elapsed; 1 hits, 0 misses, 0 bypassed, 6 not looked up; ~77.5ms compiler work saved
+   Compiling compiler v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/compiler)
+   Compiling package-manager v0.1.0 (/agent/repos/omega/omega-rust/omega/packages/package-manager)
+   Compiling orchestration v0.1.0 (/agent/repos/omega/omega-rust/omega/build-system/orchestration)
+mbx[progress]: 30s elapsed; 1 hits, 0 misses, 0 bypassed, 9 not looked up; ~77.5ms compiler work saved
+warning: function `prepare_source_root` is never used
+  --> omega-rust/omega/compilation/compiler/tests/support/build_sequence.rs:18:8
+   |
+18 | pub fn prepare_source_root(invocation: &mut compiler::SourceCompilation) {
+   |        ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `return_package` is never used
+  --> omega-rust/omega/compilation/compiler/tests/support/build_sequence.rs:30:8
+   |
+30 | pub fn return_package(
+   |        ^^^^^^^^^^^^^^
+
+warning: function `print_execution_counts` is never used
+  --> omega-rust/omega/compilation/compiler/tests/support/build_sequence.rs:53:8
+   |
+53 | pub fn print_execution_counts(context: &str) {
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `compiler` (test "product_query_suspension") generated 3 warnings
+mbx[progress]: 45s elapsed; 1 hits, 0 misses, 1 bypassed, 15 not looked up; ~77.5ms compiler work saved
+warning: `compiler` (test "terminal_effect_readiness") generated 3 warnings (3 duplicates)
+warning: function `prepare_package_root` is never used
+ --> omega-rust/omega/compilation/compiler/tests/support/build_sequence.rs:6:8
+  |
+6 | pub fn prepare_package_root(invocation: &mut compiler::PackageBuildInvocation) {
+  |        ^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `prepare_source_root` is never used
+  --> omega-rust/omega/compilation/compiler/tests/support/build_sequence.rs:18:8
+   |
+18 | pub fn prepare_source_root(invocation: &mut compiler::SourceCompilation) {
+   |        ^^^^^^^^^^^^^^^^^^^
+
+mbx[progress]: 1m elapsed; 1 hits, 0 misses, 1 bypassed, 20 not looked up; ~77.5ms compiler work saved
+warning: `compiler` (test "package_review") generated 3 warnings (1 duplicate)
+    Finished `test` profile [optimized] target(s) in 1m 01s
+  Executable unittests src/lib.rs (target/debug/build/compiler/0619ac34285595ad/out/compiler-0619ac34285595ad)
+  Executable tests/access_view_calls.rs (target/debug/build/compiler/c8be1f4753827fa2/out/access_view_calls-c8be1f4753827fa2)
+  Executable tests/anonymous_module_owner.rs (target/debug/build/compiler/eff35832a8368702/out/anonymous_module_owner-eff35832a8368702)
+  Executable tests/corpus_runner.rs (target/debug/build/compiler/c94faf888b569c5f/out/corpus_runner-c94faf888b569c5f)
+  Executable tests/executed_fixture_discovery.rs (target/debug/build/compiler/3a11f6516ee004b4/out/executed_fixture_discovery-3a11f6516ee004b4)
+  Executable tests/package_review.rs (target/debug/build/compiler/64a3739582836784/out/package_review-64a3739582836784)
+  Executable tests/product_query_suspension.rs (target/debug/build/compiler/6d4edef1256bf431/out/product_query_suspension-6d4edef1256bf431)
+  Executable tests/retained_layout_match.rs (target/debug/build/compiler/6b1b989363ffcea3/out/retained_layout_match-6b1b989363ffcea3)
+  Executable tests/terminal_behavior_exclusions.rs (target/debug/build/compiler/d4f65f1ac87fdd46/out/terminal_behavior_exclusions-d4f65f1ac87fdd46)
+  Executable tests/terminal_decode_once.rs (target/debug/build/compiler/68babad7af1ed96e/out/terminal_decode_once-68babad7af1ed96e)
+  Executable tests/terminal_effect_readiness.rs (target/debug/build/compiler/ffaddbf02a5269f8/out/terminal_effect_readiness-ffaddbf02a5269f8)
+  Executable tests/terminal_entry_writeback.rs (target/debug/build/compiler/fde940ba549f3531/out/terminal_entry_writeback-fde940ba549f3531)
+mbx[cache]: 1 hits, 0 misses, 20 not looked up, 20 incremental, 1 bypassed; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 887 cache hits and counting. rustc thinks it has been busy.
+python3: can't open file '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/prepare_bisect_pin.py': [Errno 2] No such file or directory

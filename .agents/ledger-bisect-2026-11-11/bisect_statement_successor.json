@@ -1,6 +1,10 @@
 {
   "witness": "pass/facts/selected_native_code_layout_through_other_state_exit",
   "good": "5c6c16d4d1867bcac99343285c5074169d7cbfbc",
+  "parent": "82d2247b96e872df79f26ec9b7af2fdec0153ce7",
+  "witness_verify_parent": "0 0 0",
+  "witness_verify_bad": "1 1 1",
+  "member_verify_note": "5 of 10 members still ledger-good at first-bad; see verify_statement_cluster.txt",
   "bad": "51e8c45c793007f211d0d9baee7de16767172444",
   "breaking_commit": "d26fa952d579d52642970560c719d24fa2a89f8a",
   "pr": "1909",

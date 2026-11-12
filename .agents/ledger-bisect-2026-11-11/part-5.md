@@ -10,68 +10,101 @@ PIN: `51e8c45c793007f211d0d9baee7de16767172444`
 
 At PIN these rows re-cluster into **2** still-broken diagnostics (11 rows); **23** prior-slice rows are fixed on main.
 
-## Still-broken clusters at PIN
+## First-bad verification
 
-| rows | kind | diagnostic | witness | breaking commit | PR | mechanism | status |
-| ---: | --- | --- | --- | --- | --- | --- | --- |
-| 10 | pass/run | machine `main` state `entry` statement 0: stored call has no complete statement-successor effects: an invocati | `pass/facts/selected_native_code_layout_through_other_state_exit` | `d26fa952d579` | 1909 | psi: fuse terminal calls into the caller activation (#1909) | bisected |
+### Cluster A — statement-successor (10 rows at PIN)
 
-Members:
-- `pass/calls/native_code_layout_discarded_exit` (broken at PIN)
-- `pass/facts/selected_native_code_layout_through_const_name_exit` (broken at PIN)
-- `pass/facts/selected_native_code_layout_through_field_exit` (broken at PIN)
-- `pass/facts/selected_native_code_layout_through_local_exit` (broken at PIN)
-- `pass/facts/selected_native_code_layout_through_match_join_exit` (broken at PIN)
-- `pass/facts/selected_native_code_layout_through_other_state_exit` (broken at PIN)
-- `pass/facts/selected_native_code_layout_through_target_body_exit` (broken at PIN)
-- `pass/facts/source_indexed_family_alpha_positive` (broken at PIN)
-- `pass/facts/source_indexed_family_recursive_index_positive` (broken at PIN)
-- `pass/proofs/erased_mathematical_initializers` (broken at PIN)
+| | |
+|---|---|
+| **First bad** | `d26fa952d579d52642970560c719d24fa2a89f8a` (PR #1909) |
+| **First-parent good** | `82d2247b96e872df79f26ec9b7af2fdec0153ce7` |
+| **Bisect good used** | `5c6c16d4d1867bcac99343285c5074169d7cbfbc` |
+| **Witness** | `pass/facts/selected_native_code_layout_through_other_state_exit` |
 
-| 1 | pass/run | construction of `Selected` field `value` is not proven in domain `u64::AtLeast73` in consume state `entry` at  | `pass/facts/domain_pattern_match_bound_through_field_exit` | `66ee9999011e` | 1582 | psi: query validation's expression intervals at use, not as flow facts (#1582) | bisected |
+| commit | witness run1 | run2 | run3 |
+| --- | ---: | ---: | ---: |
+| `d26fa952d579d52642970560c719d24fa2a89f8a` | 1 | 1 | 1 |
+| `82d2247b96e872df79f26ec9b7af2fdec0153ce7` | 0 | 0 | 0 |
 
-Members:
-- `pass/facts/domain_pattern_match_bound_through_field_exit` (broken at PIN)
+All 10 members are **good** at parent and **not all bad** at first-bad. Five members stay ledger-good at `d26fa952d579d52642970560c719d24fa2a89f8a` (subcluster; see `.agents/ledger-bisect-2026-11-11/verify_statement_cluster.txt`). Witness triplet is **deterministic** (three runs, isolated `target/verify-<sha>` trees, fixed PIN ledger).
 
-## Fixed on main at PIN (prior-slice rows)
+**Mechanism (quoted hunks)** — terminal fusion widens `fused_states` and changes successor binding to use `local_storage::occupant` instead of `StructuralResult` source plan:
 
-- `fail/borrows/applied_provider_output_requires_backing`
-- `fail/borrows/copied_active_case_snapshot_retains_backing`
-- `fail/borrows/nested_machine_carried_live_child_rejected`
-- `fail/borrows/nested_machine_unit_output_local_escape_rejected`
-- `fail/build/receiver_view_writeback_local_escape`
-- `fail/facts/borrowed_store_call_through_call_result_rejected`
-- `fail/facts/borrowed_store_call_through_const_name_rejected`
-- `fail/facts/borrowed_store_call_through_match_join_rejected`
-- `fail/facts/borrowed_store_call_through_other_machine_rejected`
-- `fail/facts/borrowed_store_call_through_other_state_rejected`
-- `fail/facts/borrowed_store_call_through_parameter_rejected`
-- `fail/facts/borrowed_store_call_through_target_body_rejected`
-- `fail/facts/source_indexed_family_insufficient_consumer_bound`
-- `fail/generics/extraction_foreign_case`
-- `fail/host/descriptor_read_guarded_prefix_without_admitted_abi`
-- `fail/wire/reflection_local_field_loan_escape`
-- `pass/build/uefi_image_residence_observation`
-- `pass/domains/domain_pattern_match_bound_full_width_field_exit`
-- `pass/facts/target_family_callback_guarantee/target_body`
-- `pass/wire/library_compact_binary_packed_reflection_exit`
-- `pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit`
-- `pass/wire/runtime_wire_encode_interior_scalar_slice_exit`
-- `pass/wire/runtime_wire_exact_array_without_count_exit`
+```diff
+--- a/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/fused.rs
++++ b/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/fused.rs
+@@ -38,11 +43,11 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
+-    // Discover the recursive component, not every transitively reachable callee.
++/// Fuse every statically resolved terminal call into the caller's activation.
+ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
+@@ -58,110 +63,13 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
+-    // Discovery establishes forward reachability. Reverse reachability back
+-    // to the root keeps exactly its machine component.
+-    let mut owners = fused
+-        .iter()
+-        .map(|(owner, _)| owner.symbol)
+-        .collect::<Vec<_>>();
+-    ...
+-    fused.retain(|(owner, _)| retained[owners.iter().position(...).unwrap()]);
+```
 
-## Prior slice rows (report indices)
+```diff
+--- a/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/successors.rs
++++ b/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/successors.rs
+@@ -373,20 +373,25 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
+-                    && let Some(CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }) =
+-                        super::super::local_storage::source(program, source, operations, symbol)
++                    && let Some(binding_ordinal) =
++                        super::super::local_storage::occupant(program, source, operations, symbol)
+```
 
-- index 5: 25 rows, witness `pass/build/uefi_image_residence_observation` (22 truncated → 4 recovered)
-- index 45: 4 rows, witness `pass/wire/library_compact_binary_packed_reflection_exit` (0 truncated → 4 recovered)
-- index 85: 2 rows, witness `pass/domains/domain_pattern_match_bound_full_width_field_exit` (0 truncated → 2 recovered)
-- index 125: 1 rows, witness `pass/facts/target_family_callback_guarantee/target_body` (0 truncated → 1 recovered)
-- index 165: 1 rows, witness `fail/generics/extraction_foreign_case` (0 truncated → 1 recovered)
-- index 205: 1 rows, witness `fail/borrows/nested_machine_carried_live_child_rejected` (0 truncated → 1 recovered)
+### Cluster B — domain pattern (1 row at PIN)
+
+| | |
+|---|---|
+| **First bad** | `66ee9999011ed557510ddd18f20ceca6cb4aa5ae` (PR #1582) |
+| **First-parent good** | `aea7dbe2ae380673377b4a49b91b173e01e3137c` (exit **0**, not skipped) |
+| **Narrow good** | `12a1feb4aa100ab41afd8cc59f53969c2ffc4009` |
+| **Narrow bad bracket** | `647e274b14274e6d0e8a386df2ab66e7dd3e4f8d` |
+| **Witness** | `pass/facts/domain_pattern_match_bound_through_field_exit` |
+
+| commit | witness run1 | run2 | run3 |
+| --- | ---: | ---: | ---: |
+| `66ee9999011ed557510ddd18f20ceca6cb4aa5ae` | 1 | 1 | 1 |
+| `aea7dbe2ae380673377b4a49b91b173e01e3137c` | 0 | 0 | 0 |
+
+Sole member: good at parent (`checked`), bad at first-bad (`rejected`, domain construction diagnostic).
+
+**Narrowed range (full-range skip):** `git bisect run` from PIN `51e8c45c793007f211d0d9baee7de16767172444` to distant good `5c6c16d4d1867bcac99343285c5074169d7cbfbc` aborted with `git bisect skip` exit code -1 after many steps returned **125** — ledger-only commits (only `tests/omega/corpus_outcomes.txt` / `*.md`) and unbuildable ancient hosts (not PIN-classification skips). Manual probes: `12a1feb4aa100ab41afd8cc59f53969c2ffc4009` → 0, `647e274b14274e6d0e8a386df2ab66e7dd3e4f8d` → 1. Narrow bisect between those SHAs → `66ee9999011ed557510ddd18f20ceca6cb4aa5ae`.
+
+**Mechanism (quoted hunks)** — flow stops publishing validation expression intervals onto completed values:
+
+```diff
+--- a/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow/expression/result_facts.rs
++++ b/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow/expression/result_facts.rs
+@@ -180,40 +180,10 @@ impl Execution<'_, '_, '_> {
+-        if let Some(interval) =
+-            validation::expression_interval(self.context.expression_intervals, expression)
+-            && let Some(primitive) = self.program.primitive_type_reference(reference)
+-            ...
+-            if bounds.minimum <= bounds.maximum && (has_call_bounds || bounds != carrier_bounds) {
+-                integer_bounds = Some(bounds);
+-            }
+-        }
+```
+
+## Still-broken clusters at PIN (summary)
+
+| rows | witness | breaking commit | PR | status |
+| ---: | --- | --- | --- | --- |
+| 10 | `pass/facts/selected_native_code_layout_through_other_state_exit` | `d26fa952d579d52642970560c719d24fa2a89f8a` | 1909 | bisected (partial member flip at first-bad; see verify file) |
+| 1 | `pass/facts/domain_pattern_match_bound_through_field_exit` | `66ee9999011ed557510ddd18f20ceca6cb4aa5ae` | 1582 | bisected |
+
+## Fixed on main at PIN (23 rows)
+
+Listed in `.agents/ledger-bisect-2026-11-11/part-5.tsv` (`fixed_at_pin`).
 
 ## Commands
 
-- Host: `Linux cursor 6.12.113+ #1 SMP PREEMPT_DYNAMIC Mon Nov  9 16:04:37 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux`
-- Jobs: `OMEGA_CORPUS_JOBS=1`, direct `corpus_runner` via `.agents/ledger-bisect-2026-11-11/run_pin_corpus.sh`
-- Bisect: fixed `/tmp/ledger-bisect-corpus_outcomes.txt` + `/tmp/ledger-bisect-witness.json`; skip ledger-only commits (`corpus_outcomes.txt` / `*.md` only); good via first-parent walk
-- Statement-successor good: `5c6c16d4d1867bcac99343285c5074169d7cbfbc`
-- Domain-pattern narrow good: `12a1feb4aa100ab41afd8cc59f53969c2ffc4009`
+- Host: Linux x86_64, `OMEGA_CORPUS_JOBS=1`, direct `corpus_runner`, fixed PIN ledger via `git show 51e8c45c793007f211d0d9baee7de16767172444:tests/omega/corpus_outcomes.txt`
+- Verification artifacts: `verify_statement_cluster.txt`, `verify_domain_cluster.txt`

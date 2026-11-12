@@ -15,12 +15,14 @@ git -C "$ROOT" worktree add -f "$WT" "$COMMIT" >/dev/null
 export OMEGA_REPO="$WT"
 cd "$WT"
 export OMEGA_CORPUS_JOBS=1 CARGO_BUILD_JOBS=4 MBX_SCHEDULER_CPUS=4
-CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$ROOT/target" nice -n 19 mbx build -p omega < /dev/null >/dev/null
-CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$ROOT/target" nice -n 19 mbx test -p compiler corpus_runner --no-run < /dev/null >/dev/null
+TDIR="$ROOT/target/verify-${COMMIT:0:12}"
+mkdir -p "$TDIR"
+CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$TDIR" nice -n 19 mbx build -p omega < /dev/null >/dev/null
+CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$TDIR" nice -n 19 mbx test -p compiler corpus_runner --no-run < /dev/null >/dev/null
 export PIN_OBS="$LB/pin_full.txt"
 python3 "$LB/tools/prepare_bisect_pin.py" "$WITNESS" >/dev/null
 export BISECT_WITNESS="$WITNESS"
-RUNNER=$(ls -t "$ROOT"/target/debug/build/compiler/*/out/corpus_runner-* | head -1)
+RUNNER=$(ls -t "$TDIR"/debug/build/compiler/*/out/corpus_runner-* | head -1)
 export OMEGA_CORPUS_ROOT="$WT" OMEGA_LIBRARY_ROOT="$WT/source/library"
 witness_rc() {
   export OMEGA_CORPUS_FIXTURE_FILTER="$WITNESS" OMEGA_CORPUS_RECORDS=/tmp/bisect_one_record.txt
@@ -28,7 +30,9 @@ witness_rc() {
   nice -n 19 "$RUNNER" < /dev/null >/dev/null 2>&1 || true
   python3 "$LB/tools/bisect_test.py"
 }
-RC1=$(witness_rc); RC2=$(witness_rc); RC3=$(witness_rc)
+RC1=0; witness_rc || RC1=$?
+RC2=0; witness_rc || RC2=$?
+RC3=0; witness_rc || RC3=$?
 FILTER=$(IFS=,; echo "${MEMBERS[*]}")
 export OMEGA_CORPUS_FIXTURE_FILTER="$FILTER" OMEGA_CORPUS_RECORDS=/tmp/verify_members_record.txt
 rm -f /tmp/verify_members_record.txt
