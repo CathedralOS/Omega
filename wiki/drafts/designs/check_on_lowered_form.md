@@ -8,8 +8,8 @@ claimed. Amended the same day after every line of `omega-rust` was read at
 amendments, and the records are in the
 [compiler atlas](../../../.agents/atlas/compiler-2026-11-10/README.md).
 Amended 2026-11-11 after an outside review: route one's stop rule could not be
-evaluated, so [a four-condition gate](#the-gate) replaces it, and no new
-construct family is added until that gate passes.
+evaluated, so [a four-condition gate](#the-gate) replaces it. The owner lifted
+the pause on 2026-11-12: construct work proceeds alongside the four conditions.
 
 The checker proves facts about source trees and then hands them to lowering,
 which turns the trees into explicit values, places, blocks and edges. Facts are
