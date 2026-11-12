@@ -5037,6 +5037,23 @@ pub(crate) mod build_machines {
                         target.name,
                     )
                 });
+                // An artifact with target layout applications runs only under
+                // the selected target's layouts, so we admit them from the
+                // target's facts whenever the caller supplied them.
+                let layouts = match (target, &selected) {
+                    (Some(target), Some(selected)) => target
+                        .layout_target
+                        .map(|facts| {
+                            terminal_installation::admit_target_layouts(
+                                artifact.view(),
+                                selected,
+                                facts,
+                            )
+                        })
+                        .transpose()
+                        .map_err(|error| format!("invocation Terminal target layouts: {error}"))?,
+                    _ => None,
+                };
                 let installation = selected
                     .as_ref()
                     .map(|selected| {
@@ -5049,7 +5066,7 @@ pub(crate) mod build_machines {
                                 host_imports: &[],
                                 entry: None,
                                 target_machines: Some(selected),
-                                target_layouts: None,
+                                target_layouts: layouts.as_ref(),
                             },
                         )
                     })
