@@ -592,7 +592,7 @@ nowhere to keep that state:
 Until answered, test groups run only without services, and
 `BUILD-TEST-GROUPS` keeps its virtual-filesystem acceptance.
 
-### Q25 - Should the bundled `std` library be renamed `os` or `system`?
+### Q25 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
 
 Decision name: `operating-system-library-name`. Raised by Jarod for Zac.
 
@@ -609,6 +609,9 @@ in `core`, and heap allocation in `alloc`.
 - **(a)** `os`, or
 - **(b)** `system`, or
 - **(c)** keep `std`.
+
+And separately, rename `source/library/alloc` and every `alloc::` path to
+`allocation`, the spelled-out word, for the same reason (yes or no).
 
 Code is written by agents, so length is not a concern; the name should say
 what the library is. A rename is one mechanical change across the library,
