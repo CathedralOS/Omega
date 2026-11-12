@@ -87,7 +87,8 @@ def main() -> int:
                 return cur == "accepted"
 
             built = probe_subtype(mutant_path, original, accepted)
-            hole_subtype = built if built != "probe-not-built" else hole_subtype or "probe-not-built"
+            if built in {"inferred-entry", "unchecked", "probe-not-built"}:
+                hole_subtype = built
         parts[5:13] = [
             hand,
             spec_path,

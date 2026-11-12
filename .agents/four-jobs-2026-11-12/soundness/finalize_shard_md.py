@@ -165,6 +165,24 @@ def main() -> int:
     totals = _totals_from_tsv(tsv)
     totals["baseline_mutants"] = totals["mutants_run"]
     body = _md_lines(args.shard, Counters(), _holes_from_tsv(tsv), totals)
+    drop_rows = sum(
+        1
+        for line in tsv.read_text().splitlines()[1:]
+        if line.split("\t")[1:2] == ["drop_requires"]
+    )
+    body += [
+        "## drop_requires coverage note",
+        "",
+        "Shard 0 initially recorded **zero** `drop_requires` rows through the first ~968 fixtures because "
+        "`mut_drop_first_requires` used a broken parenthesis walk on `requires (...)` clauses (it never "
+        "closed the opening `(`) and only matched line-start `requires`, not **machine-header** "
+        "`machine … requires … {` forms. Other shards (~100 rows each) likely ran an earlier build "
+        "before that regression or used different fixture mix; the bug suppressed **all** drop mutants "
+        "here until `requires_span.py` fixed parsing and `backfill_drop_requires.py` re-ran the kind "
+        f"for fixtures already in `shard-{args.shard}.progress`. After backfill this shard has "
+        f"**{drop_rows}** `drop_requires` TSV rows.",
+        "",
+    ]
     body += fixture_reconcile(tsv, args.shard)
     body += write_section(
         "Hand verification: confirmed-hole (5)",

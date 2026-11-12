@@ -15,33 +15,33 @@ python3 .agents/four-jobs-2026-11-12/soundness/run_shard_mutations.py --shard 0 
 
 ## Counts
 
-- Fixtures visited this run: 175
-- Fixtures completed (progress file): 964
-- Originals skipped (not accepted): 41
-- Mutants generated (this run): 183
-- Mutants run (cumulative): 1079
+- Fixtures visited this run: 0
+- Fixtures completed (progress file): 1131
+- Originals skipped (not accepted): 52
+- Mutants generated (this run): 0
+- Mutants run (cumulative): 1907
 ## Mutant bucket table (sums to mutant total)
 
 | Bucket | Count |
 | --- | ---: |
-| confirmed-hole | 117 |
-| known-gap-q7-mut | 205 |
-| disagreement-valid | 0 |
-| valid-route-outside | 50 |
-| discarded-valid | 0 |
-| rejected-both | 707 |
+| confirmed-hole | 187 |
+| known-gap-q7-mut | 226 |
+| disagreement-valid | 3 |
+| valid-route-outside | 177 |
+| discarded-valid | 2 |
+| rejected-both | 1312 |
 | timeout | 0 |
 | failed-run | 0 |
-| no-mutation | 323 |
-| **mutant total** | **1079** |
+| no-mutation | 356 |
+| **mutant total** | **1907** |
 
-Baseline mutant total before this resume pass: 0. Delta explained in shard-0.meta.json.
+Baseline mutant total before this resume pass: 1907. Delta explained in shard-0.meta.json.
 
 Downgraded from pre-review `confirmed-invalid`: 0 (reclassified into the buckets above, chiefly `discarded-valid`).
 
-- Fixtures with corpus rows: 991
-- Confirmed-hole by mutation kind: {'remove_mut': 46, 'flip_borrow_mutability': 55, 'widen_requires': 16}
-- Confirmed-hole by accepted_by: {'current': 117}
+- Fixtures with corpus rows: 1131
+- Confirmed-hole by mutation kind: {'remove_mut': 48, 'flip_borrow_mutability': 59, 'widen_requires': 16, 'drop_requires': 64}
+- Confirmed-hole by accepted_by: {'current': 185, 'both': 2}
 
 ## Confirmed-invalid and known-gap rows
 
@@ -3908,3 +3908,1377 @@ Downgraded from pre-review `confirmed-invalid`: 0 (reclassified into the buckets
 - Spec (wiki/spec/language/ownership.md):
 
 > Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/slices/matched_window_before_later_field_effect/main.omg — remove_mut
+
+- Original: `tests/omega/pass/slices/matched_window_before_later_field_effect/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_slices_matched_window_b_3484831041/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L13: 0 -> Report { events: &holder.route[0..holder.which + 1], changed: change(&mut holder.which) }`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/slices/mutable_field_range_local_initializer_exit/main.omg — remove_mut
+
+- Original: `tests/omega/pass/slices/mutable_field_range_local_initializer_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_slices_mutable_field_ra_0bc6a015e8/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L23: let window: &mut [i32] = &mut context.items[1..3];`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/slices/returned_mutable_view_record_state_call/main.omg — remove_mut
+
+- Original: `tests/omega/pass/slices/returned_mutable_view_record_state_call/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_slices_returned_mutable_aa5061148e/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L8: Held { values: &mut values[0..count] }`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/slices/runtime_imported_range_views_exit/main.omg — remove_mut
+
+- Original: `tests/omega/pass/slices/runtime_imported_range_views_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_slices_runtime_imported_99e27f7130/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L19: Main::main(&mut entry_storage);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/slices/runtime_imported_range_views_exit/main.omg — flip_borrow_mutability
+
+- Original: `tests/omega/pass/slices/runtime_imported_range_views_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_slices_runtime_imported_99e27f7130/flip_borrow_mutability/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L19: Main::main(&mut entry_storage);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Reborrowing retains exact immediate parent lineage. Shared children freeze the parent's mutation; exclusive children suspend the corresponding parent branch.
+
+### tests/omega/pass/slices/runtime_inline_mutable_byte_window_call_write_exit/main.omg — remove_mut
+
+- Original: `tests/omega/pass/slices/runtime_inline_mutable_byte_window_call_write_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_slices_runtime_inline_m_2cb8b01c7e/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L17: let length: u64 = replace(&mut values[1..3]);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/slices/runtime_mutable_record_slice_result_reborrow_exit/main.omg — remove_mut
+
+- Original: `tests/omega/pass/slices/runtime_mutable_record_slice_result_reborrow_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_slices_runtime_mutable__287c335be5/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L2: machine middle(items: &mut [Cell; 3]) -> &mut [Cell] { &mut items[1..2] }`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/slices/runtime_nested_descriptor_scalar_store_exit/main.omg — remove_mut
+
+- Original: `tests/omega/pass/slices/runtime_nested_descriptor_scalar_store_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_slices_runtime_nested_d_fd32cd1185/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L38: let mut windows: [Window; 1] = [Window { cells: &mut cells[1..2], count: 0 }];`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/slices/runtime_nonzero_window_result_snapshot_exit/main.omg — remove_mut
+
+- Original: `tests/omega/pass/slices/runtime_nonzero_window_result_snapshot_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_slices_runtime_nonzero__1a31a69433/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L42: let first: u64 = receive(Windowing::window(choose(true), original), overwrite(&mut original, "123456789"), 11);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/slices/runtime_range_qualified_scalar_copy_exit/main.omg — remove_mut
+
+- Original: `tests/omega/pass/slices/runtime_range_qualified_scalar_copy_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_slices_runtime_range_qu_487dd612e1/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L4: let items: [i32 in Small; 3]; items[0]=11; items[1]=39; items[2]=13;`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/storage/runtime_bounded_effectful_initializer_exit/main.omg — remove_mut
+
+- Original: `tests/omega/pass/storage/runtime_bounded_effectful_initializer_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_storage_runtime_bounded_141e627f35/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L10: let mut value: u32 = produce(&mut counter);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/structs/runtime_mixed_common_field_store_exit/main.omg — remove_mut
+
+- Original: `tests/omega/pass/structs/runtime_mixed_common_field_store_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_structs_runtime_mixed_c_c9b863536e/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L34: replace(&mut context);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/targets/alpha_bootstrap_entry_beside_native_entries/main.omg — remove_mut
+
+- Original: `tests/omega/pass/targets/alpha_bootstrap_entry_beside_native_entries/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_targets_alpha_bootstrap_56905d8fa5/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L12: Main::main(&mut entry_storage);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/targets/alpha_bootstrap_entry_beside_native_entries/main.omg — flip_borrow_mutability
+
+- Original: `tests/omega/pass/targets/alpha_bootstrap_entry_beside_native_entries/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_targets_alpha_bootstrap_56905d8fa5/flip_borrow_mutability/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L12: Main::main(&mut entry_storage);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Reborrowing retains exact immediate parent lineage. Shared children freeze the parent's mutation; exclusive children suspend the corresponding parent branch.
+
+### tests/omega/pass/termination/progress_selector_owned_arrival_borrowed_reborrow_exit/main.omg — remove_mut
+
+- Original: `tests/omega/pass/termination/progress_selector_owned_arrival_borrowed_reborrow_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_termination_progress_se_d43af187bc/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L31: let result: u64 = select(&value, &mut calls);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/termination/runtime_quotient_result_rank_arrivals_exit/main.omg — remove_mut
+
+- Original: `tests/omega/pass/termination/runtime_quotient_result_rank_arrivals_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_termination_runtime_quo_1fcfa06cd3/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L119: Main::main(&mut entry_storage);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/termination/runtime_quotient_result_rank_arrivals_exit/main.omg — flip_borrow_mutability
+
+- Original: `tests/omega/pass/termination/runtime_quotient_result_rank_arrivals_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_termination_runtime_quo_1fcfa06cd3/flip_borrow_mutability/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L119: Main::main(&mut entry_storage);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Reborrowing retains exact immediate parent lineage. Shared children freeze the parent's mutation; exclusive children suspend the corresponding parent branch.
+
+### tests/omega/pass/traits/default_row_shadowed_captured_operand_exit/main.omg — remove_mut
+
+- Original: `tests/omega/pass/traits/default_row_shadowed_captured_operand_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_traits_default_row_shad_4d88939f64/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L33: Main::main(&mut entry_storage);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/traits/runtime_dyn_post_write_alternatives_exit/main.omg — remove_mut
+
+- Original: `tests/omega/pass/traits/runtime_dyn_post_write_alternatives_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_traits_runtime_dyn_post_f9f686ec7d/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L52: let observed: u64 = receive_ordered(invoke_selected(selected, &mut direct, &storage[..]), snapshot(direct, &mut direct_counter), overwrite(&mut direct));`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/run/calls/projected_call_domain_plain_exit/main.omg — remove_mut
+
+- Original: `tests/omega/run/calls/projected_call_domain_plain_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_run_calls_projected_call_dom_c4066ac54e/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L11: update(&mut cell);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/run/domains/qualified_fixed_byte_array_explicit_buffer_count_exit/main.omg — remove_mut
+
+- Original: `tests/omega/run/domains/qualified_fixed_byte_array_explicit_buffer_count_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_run_domains_qualified_fixed__c05ff4c091/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L7: set_count(&mut buffer, 6);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/run/domains/qualified_fixed_byte_array_write_only_exit/main.omg — remove_mut
+
+- Original: `tests/omega/run/domains/qualified_fixed_byte_array_write_only_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_run_domains_qualified_fixed__b6e1b0b1b4/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L15: let qualified_length: u64 = extent(&write buffer);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/run/facts/double_indexed_rmw_through_other_state_traps/main.omg — remove_mut
+
+- Original: `tests/omega/run/facts/double_indexed_rmw_through_other_state_traps/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_run_facts_double_indexed_rmw_3306b9cd17/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L8: transition { _ -> write(&mut grid, &mut rows, 1, 2, 2, 1) }`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/run/facts/float_comparison_route_through_other_machine_traps/main.omg — remove_mut
+
+- Original: `tests/omega/run/facts/float_comparison_route_through_other_machine_traps/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_run_facts_float_comparison_r_a3250537df/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L9: let equal: bool = comparator_equal(&mut comparator, 212.0, 212.0);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/run/facts/float_comparison_route_through_other_machine_traps/main.omg — flip_borrow_mutability
+
+- Original: `tests/omega/run/facts/float_comparison_route_through_other_machine_traps/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_run_facts_float_comparison_r_a3250537df/flip_borrow_mutability/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L9: let equal: bool = comparator_equal(&mut comparator, 212.0, 212.0);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Reborrowing retains exact immediate parent lineage. Shared children freeze the parent's mutation; exclusive children suspend the corresponding parent branch.
+
+### tests/omega/run/layouts/placed_stable_array/main.omg — remove_mut
+
+- Original: `tests/omega/run/layouts/placed_stable_array/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_run_layouts_placed_stable_ar_1b2c07c7f5/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L8: entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/run/slices/call_result_mutable_window_exit/main.omg — remove_mut
+
+- Original: `tests/omega/run/slices/call_result_mutable_window_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_run_slices_call_result_mutab_520c76b0c1/remove_mut/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **known-gap-q7-mut**
+- accepted_by: `current`
+- Broken obligation: `L34: write_pair(hold(window(&mut trace, 0)).values);`
+- Spec (wiki/spec/language/ownership.md):
+
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+
+### tests/omega/pass/asm/port_write_effect_contract/main.omg — drop_requires
+
+- Original: `tests/omega/pass/asm/port_write_effect_contract/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_asm_port_write_effect_c_972b932205/drop_requires/main.omg`
+- Current checker: `accepted`; route: `no-entry`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Compile-only hardware-model proof. Never execute port I/O on the host.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/borrows/opaque_incoming_nested_stored_byte_view_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/borrows/opaque_incoming_nested_stored_byte_view_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrows_opaque_incoming_f057633817/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // An exclusive byte view stored in a fixed array preserves its one-byte extent and byte 19 through owned transport.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/borrows/runtime_owned_subject_descriptor_replacement_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/borrows/runtime_owned_subject_descriptor_replacement_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrows_runtime_owned_s_fa1c685752/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A retained owned subject observes a guard-time descriptor replacement in its owned child.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/borrows/runtime_shared_view_record_presentation_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/borrows/runtime_shared_view_record_presentation_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrows_runtime_shared__6809b457d2/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Expected exit: 0. Stored and canonical shared views keep one backing pair.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/boundary/interleaved_structural_crash_formal_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/boundary/interleaved_structural_crash_formal_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_boundary_interleaved_st_12d0438fc3/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L18: // The entry owns ordinary local state; selection supplies no context.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/calls/completed_narrowing_result_case_bounds/main.omg — drop_requires
+
+- Original: `tests/omega/pass/calls/completed_narrowing_result_case_bounds/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_calls_completed_narrowi_994773e348/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A completed narrowing call retains its producer bounds through exact widening.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/calls/runtime_constructor_child_pure_calls_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/calls/runtime_constructor_child_pure_calls_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_calls_runtime_construct_0116bfd000/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Equal value-only call results retain ordinary denotational equality.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/calls/selected_crash_match_record_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/calls/selected_crash_match_record_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_calls_selected_crash_ma_4f05e5a011/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Expected exit: 0`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/comptime/runtime_generic_constructor_field_demand_extent_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/comptime/runtime_generic_constructor_field_demand_extent_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_comptime_runtime_generi_9e9492e92e/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A generic constructor's selected field establishes its standing bound before semantic extent evaluation.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/contracts/generic_effective_result_comparison_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/contracts/generic_effective_result_comparison_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_contracts_generic_effec_2655ee2e6e/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Expected exit: 0`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/contracts/proof_fact_indexed_domain_application/main.omg — drop_requires
+
+- Original: `tests/omega/pass/contracts/proof_fact_indexed_domain_application/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_contracts_proof_fact_in_b0871d8ee1/drop_requires/main.omg`
+- Current checker: `accepted`; route: `no-entry`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // An indexed domain application in proof-fact position`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/control_flow/invariant_member_subject_compile/main.omg — drop_requires
+
+- Original: `tests/omega/pass/control_flow/invariant_member_subject_compile/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_control_flow_invariant__008394ae76/drop_requires/main.omg`
+- Current checker: `accepted`; route: `no-entry`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A `transition` subject may read a `data where` member: `main.band.b``
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/dependent/case_where_common_field_window/main.omg — drop_requires
+
+- Original: `tests/omega/pass/dependent/case_where_common_field_window/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_dependent_case_where_co_e7ef881ddc/drop_requires/main.omg`
+- Current checker: `accepted`; route: `no-entry`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // CASE-CONSTRAINTS (ch12): a case `where` fact reads the case's own`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/dependent/data_where_arithmetic_bound_compile/main.omg — drop_requires
+
+- Original: `tests/omega/pass/dependent/data_where_arithmetic_bound_compile/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_dependent_data_where_ar_2068ad5c45/drop_requires/main.omg`
+- Current checker: `accepted`; route: `no-entry`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A `data where` bound may be an arithmetic expression: `Pair` is valid`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/dependent/data_where_disequality_compile/main.omg — drop_requires
+
+- Original: `tests/omega/pass/dependent/data_where_disequality_compile/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_dependent_data_where_di_42d0db8130/drop_requires/main.omg`
+- Current checker: `accepted`; route: `no-entry`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A `data where` clause may require a disequality: `Handle` is valid only`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/dependent/data_where_single_equality_compile/main.omg — drop_requires
+
+- Original: `tests/omega/pass/dependent/data_where_single_equality_compile/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_dependent_data_where_si_cec242458f/drop_requires/main.omg`
+- Current checker: `accepted`; route: `no-entry`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A `data where` clause may pin a field to one exact value: `Unit` is`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/dependent/data_where_u16_bound_compile/main.omg — drop_requires
+
+- Original: `tests/omega/pass/dependent/data_where_u16_bound_compile/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_dependent_data_where_u1_b3b3199a42/drop_requires/main.omg`
+- Current checker: `accepted`; route: `no-entry`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A `data where` bound applies at u16 width: `Port` is valid only while`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/dependent/invariant_field_store_compile/main.omg — drop_requires
+
+- Original: `tests/omega/pass/dependent/invariant_field_store_compile/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_dependent_invariant_fie_c679ccd255/drop_requires/main.omg`
+- Current checker: `accepted`; route: `no-entry`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A field store into a `data where` record re-proves the invariant at the`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/drops/contextual_core_drop_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/drops/contextual_core_drop_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_drops_contextual_core_d_22df35ecce/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Contextual cleanup crosses both core drop and an unrelated generic call chain.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/drops/result_cleanup_replacement_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/drops/result_cleanup_replacement_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_drops_result_cleanup_re_ef5ccd18f3/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Expected exit: 0`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/drops/runtime_nested_temporary_capture_cleanup_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/drops/runtime_nested_temporary_capture_cleanup_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_drops_runtime_nested_te_5b1efb427b/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L19: // The first ready member captures true before its sibling changes flag.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/drops/runtime_nominal_successor_argument_order_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/drops/runtime_nominal_successor_argument_order_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_drops_runtime_nominal_s_dcb037c3fc/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // This fixture explicitly assumes finite, normal completion of one byte write`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/drops/runtime_selected_projected_sibling_cleanup_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/drops/runtime_selected_projected_sibling_cleanup_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_drops_runtime_selected__a90cb6a2ed/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L2: // This fixture explicitly assumes finite, normal completion of one byte write`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/aggregate_struct_return_abi_through_match_join_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/aggregate_struct_return_abi_through_match_join_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_aggregate_struct__c701283a09/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Fact: a four-word structural aggregate returned and passed by value preserves field refinement bounds summing to 100u64 across indirect return homes when subtracting 100u64.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/as_slice_views_through_field_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/as_slice_views_through_field_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_as_slice_views_th_cbf3e39435/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A whole-array shared view of four noncopy Entries has length 4; reading its extent satisfies require_four(view.len).`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/body_bearing_comparison_ordered_field_calls_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/body_bearing_comparison_ordered_field_calls_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_body_bearing_comp_65d43bb294/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Equal f64-in-Marked carriers. The selected body returns false, the direct comparison is false, and the match arm misses with result 11.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/body_bearing_comparison_through_other_machine_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/body_bearing_comparison_through_other_machine_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_body_bearing_comp_13de44530e/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Equal f64-in-Marked carriers. The selected body returns false, the direct comparison is false, and the match arm misses with result 11.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/captured_storage_bounds_through_local_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/captured_storage_bounds_through_local_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_captured_storage__9aec5b07c3/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Counter's declared 0..16 bounds survive a disjoint field write and captured scalar read, so an incoming pumped < 16 guard admits pumped + 1.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/case_match_payload_loan_through_call_result_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/case_match_payload_loan_through_call_result_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_case_match_payloa_8955a60679/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A case-pattern expression match retains the selected stored exclusive loan while writing 41 to its original backing and preserving sibling 19.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/completed_integer_carrier_bounds_through_local_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/completed_integer_carrier_bounds_through_local_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_completed_integer_44a4e277de/drop_requires/main.omg`
+- Current checker: `accepted`; route: `accepted`
+- Hand check: **confirmed-hole**
+- accepted_by: `both`
+- Broken obligation: `L1: // A completed u8 value keeps 0..255 when widened to i32 and placed in a bounded record.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/descriptor_range_exclusive_loan_through_other_state_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/descriptor_range_exclusive_loan_through_other_state_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_descriptor_range__6768f5ee8f/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A match on one evaluation of a copyable flag selects a subrange of the chosen descriptor payload, the join records that selected range, and the consumer writes 41 through the first element of that recorded range, leaving the unselected payload unchanged.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/exclusive_observation_exposure_through_field_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/exclusive_observation_exposure_through_field_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_exclusive_observa_a204c6a65a/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A saved observation that items[0] is 7 stays provable across a complete, non-writing exclusive call on that element.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/free_entry_local_state_through_local_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/free_entry_local_state_through_local_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_free_entry_local__cc33d3d1f4/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A free entry owns and cleans an ordinary local tally of 7, and the hosted contract supplies no provisioned ZII context.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/generic_comparison_body_through_local_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/generic_comparison_body_through_local_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_generic_compariso_5edcd38ffb/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A generic comparison body returns false. The call records that boolean,`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/match_join_place_read_through_const_name_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/match_join_place_read_through_const_name_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_match_join_place__97b79f7b8b/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A borrowed match join records the selected place, and a later projection read uses that recorded referent. The consumer reads the joined field.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/match_reference_referent_through_other_machine_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/match_reference_referent_through_other_machine_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_match_reference_r_1fef883dc1/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A match selects one of two references, the join records that reference, and the consumer reads through the recorded reference.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/match_runtime_view_extent_through_match_join_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/match_runtime_view_extent_through_match_join_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_match_runtime_vie_573c6be3c9/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A match on one evaluation of a copyable flag selects an element view whose length is known only at run time, the join records the selected view's extent, and the consumer stores 41 at the last element of that recorded extent, leaving the unselected view and the neighbor canaries unchanged.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/may_write_named_state_through_other_state_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/may_write_named_state_through_other_state_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_may_write_named_s_0096ce0e69/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // An outer helper that calls an inner helper to pick one of two mutable inputs and write through that result preserves a disjoint index-bound fact on the other input.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/nested_record_field_borrow_bound_through_match_join_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/nested_record_field_borrow_bound_through_match_join_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_nested_record_fie_095561d0fc/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Fact: projecting a nested inner record field through a shared borrow preserves its exact static upper bound without moving either record, discharging exact subtraction 72u64 - quota across all nine places.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/nominal_reference_cleanup_through_call_result_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/nominal_reference_cleanup_through_call_result_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_nominal_reference_04e5ecf716/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A nominal owner retains its exclusive output reference through a shared call, then normal cleanup writes captured code 7 to the original backing.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/open_index_distributivity_through_other_machine_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/open_index_distributivity_through_other_machine_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_open_index_distri_e98f005860/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A selected open index operation records the distributivity law its trait declares, so a`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/recast_parent_restoration_through_other_state_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/recast_parent_restoration_through_other_state_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_recast_parent_res_1e4e1bba7d/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A scalar store of zero through the u32 view restores Pair.start and its mixed parent predicate before returning the parent.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/reflection_declaration_inspection_through_parameter_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/reflection_declaration_inspection_through_parameter_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_reflection_declar_4472bb05a6/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Fact: Authorized declaration inspection describes every field, including erased bindings, with its exact type and owner application while borrowing its context once.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/replaced_field_loan_through_match_join_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/replaced_field_loan_through_match_join_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_replaced_field_lo_bb9cd4ba47/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A reborrow after stored descriptor replacement writes 41 to incoming backing while preserving original 17 and sibling 7.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/saved_observation_snapshot_after_call_through_call_result_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/saved_observation_snapshot_after_call_through_call_result_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_saved_observation_c3694cff95/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A saved observation of an unwritten array element stays equal to 7 across a write to a disjoint element.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/saved_observation_snapshot_after_call_through_target_body_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/saved_observation_snapshot_after_call_through_target_body_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_saved_observation_7ecef72bbf/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A saved observation of an unwritten array element stays equal to 7 across a write to a disjoint element.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/shared_borrow_field_projection_through_match_join_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/shared_borrow_field_projection_through_match_join_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_shared_borrow_fie_782c670c78/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Fact: projecting a bounded field through a shared borrow preserves its exact static upper bound without moving the backing record, discharging exact subtraction 90u64 - used across all nine places.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/signed_arithmetic_shift_right_through_const_name_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/signed_arithmetic_shift_right_through_const_name_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_signed_arithmetic_45dd636eb9/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // An arithmetic right shift (`>>`) on a bounded signed `i64` value (`value >= 400i64 && value <= 400i64`) by a bounded shift count (`shift >= 2u32 && shift <= 2u32`) preserves sign and establishes the exact post-shift interval (`shifted >= 100i64 && shifted <= 100i64`), discharging exact subtraction `shifted - 100i64` with exit code `0`.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/sret_aggregate_return_bound_through_other_state_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/sret_aggregate_return_bound_through_other_state_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_sret_aggregate_re_c83582b2e5/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Fact: returning a 24-byte three-field structural record (Triple { a: u64, b: u64, c: u64 }) through an indirect sret aggregate return slot preserves its postcondition bound (result.c <= 90u64), discharging exact subtraction 90u64 - result.c across all nine places.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/typed_reflection_mutation_through_parameter_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/typed_reflection_mutation_through_parameter_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_typed_reflection__d2ea29438f/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Fact: authorized typed mutation lends each non-erased field exclusively to the selected callback once and restores the caller's access afterward.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/facts/write_only_match_join_through_other_state_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/facts/write_only_match_join_through_other_state_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_write_only_match__71a028ebdd/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A match on one evaluation of a copyable flag selects a write-only borrow of one slot, the join records that write-only loan, and the consumer stores 41 through the recorded loan, leaving the unselected slot and the neighbor canaries unchanged.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/generics/open_const_shadowed_binder_positive/main.omg — drop_requires
+
+- Original: `tests/omega/pass/generics/open_const_shadowed_binder_positive/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_generics_open_const_sha_db996979e5/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Expected exit: 0`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/generics/runtime_computed_ordinary_call_once_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/generics/runtime_computed_ordinary_call_once_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_generics_runtime_comput_334aa66c50/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Expected exit: 0`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/generics/runtime_index_carrier_call_saved_capture_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/generics/runtime_index_carrier_call_saved_capture_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_generics_runtime_index__0da0fa48ca/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Expected exit: 0`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/inline_asm/asm_runtime_register_scalar_variants_compile/main.omg — drop_requires
+
+- Original: `tests/omega/pass/inline_asm/asm_runtime_register_scalar_variants_compile/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_inline_asm_asm_runtime__aacf760e6c/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Native-production canary: privileged register events retain their scalar`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/layouts/guarded_policy_state_premise/main.omg — drop_requires
+
+- Original: `tests/omega/pass/layouts/guarded_policy_state_premise/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_layouts_guarded_policy__03ba365d75/drop_requires/main.omg`
+- Current checker: `accepted`; route: `no-entry`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // An unconditional policy enters a helper whose later state premise is`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/machines/private_frontier_enum_guard_observable_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/machines/private_frontier_enum_guard_observable_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_machines_private_fronti_6f806c5571/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Expected exit: 0`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/proofs/dyn_requirement_float_provider_alias_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/proofs/dyn_requirement_float_provider_alias_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_proofs_dyn_requirement__f898372bfb/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Expected exit: 0.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/proofs/scalar_field_snapshot_selector_writes_payload/main.omg — drop_requires
+
+- Original: `tests/omega/pass/proofs/scalar_field_snapshot_selector_writes_payload/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_proofs_scalar_field_sna_41dd12d01d/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // Expected exit: 0. The selector changes payload after the base is captured.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/providers/assumed_result_bound_other_state_exit/main.omg — drop_requires
+
+- Original: `tests/omega/pass/providers/assumed_result_bound_other_state_exit/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_providers_assumed_resul_5fcfd985da/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // The root-assumed u32 result <= 1 survives this boundary and indexes [7, 11] of length 2, observing 11; Supplied::get retains its own contract.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/providers/binding_where_record/main.omg — drop_requires
+
+- Original: `tests/omega/pass/providers/binding_where_record/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_providers_binding_where_d7289e73f1/drop_requires/main.omg`
+- Current checker: `accepted`; route: `no-entry`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L2: // A `data where` constrains a record's scalar field beside a service`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/pass/ranges/subject_field_where_fact_index_bound/main.omg — drop_requires
+
+- Original: `tests/omega/pass/ranges/subject_field_where_fact_index_bound/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_ranges_subject_field_wh_a9eddee41a/drop_requires/main.omg`
+- Current checker: `accepted`; route: `no-entry`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A data `where` fact bounds a field read through the machine's EXPLICIT`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/run/contracts/scalar_crash_route_trap/main.omg — drop_requires
+
+- Original: `tests/omega/run/contracts/scalar_crash_route_trap/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_run_contracts_scalar_crash_r_455104098e/drop_requires/main.omg`
+- Current checker: `accepted`; route: `accepted`
+- Hand check: **confirmed-hole**
+- accepted_by: `both`
+- Broken obligation: `L1: // Expected exit: trap. Every construct here is inside route one's scalar subset,`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+### tests/omega/run/facts/double_indexed_rmw_through_other_state_traps/main.omg — drop_requires
+
+- Original: `tests/omega/run/facts/double_indexed_rmw_through_other_state_traps/main.omg`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_run_facts_double_indexed_rmw_3306b9cd17/drop_requires/main.omg`
+- Current checker: `accepted`; route: `outside`
+- Hand check: **confirmed-hole**
+- accepted_by: `current`
+- Broken obligation: `L1: // A const write of 41 at grid[1][2] becomes 42 after grid[i][j] = grid[i][j] + 1 with i == 1 and j == 2, and rows[2].data[1] becomes 42 after the same increment while rows[2].tag stays 7.`
+- Spec (wiki/spec/language/machines.md#nested-machines-and-identity):
+
+> [modular] (wiki/spec/language/machines.md#nested-machines-and-identity) A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. | [authored] (wiki/spec/language/state_contracts.md#private-entry-inference) An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+## drop_requires coverage note
+
+Shard 0 initially recorded **zero** `drop_requires` rows through the first ~968 fixtures because `mut_drop_first_requires` used a broken parenthesis walk on `requires (...)` clauses (it never closed the opening `(`) and only matched line-start `requires`, not **machine-header** `machine … requires … {` forms. Other shards (~100 rows each) likely ran an earlier build before that regression or used different fixture mix; the bug suppressed **all** drop mutants here until `requires_span.py` fixed parsing and `backfill_drop_requires.py` re-ran the kind for fixtures already in `shard-0.progress`. After backfill this shard has **658** `drop_requires` TSV rows.
+
+## Fixture reconciliation
+
+| Metric | Count |
+| --- | ---: |
+| Fixtures in shard (index % 8 == 0) | 1131 |
+| Fixtures with any TSV row | 1131 |
+| No-mutation fixtures (`_no_mutations`) | 356 |
+| Mutated fixtures (≥1 mutant row) | 978 |
+| Mutant rows (excl. metadata) | 1907 |
+| Fixtures with >1 TSV row | 885 |
+
+Sample fixtures with multiple rows:
+
+- `tests/omega/pass/arithmetic/call_surviving_return_exit/main.omg` (2 rows)
+- `tests/omega/pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit/main.omg` (2 rows)
+- `tests/omega/pass/arithmetic/exact_cast_carries_bound_exit/main.omg` (2 rows)
+- `tests/omega/pass/arithmetic/indexed_divisor_requirement/main.omg` (3 rows)
+- `tests/omega/pass/arithmetic/nested_clamp_resolution_exit/main.omg` (2 rows)
+- `tests/omega/pass/arithmetic/reused_fixed_integer_operands_exit/main.omg` (2 rows)
+- `tests/omega/pass/arithmetic/runtime_comparison_signedness_exit/main.omg` (2 rows)
+- `tests/omega/pass/arithmetic/runtime_exact_projection_sibling_exit/main.omg` (4 rows)
+- `tests/omega/pass/arithmetic/runtime_full_width_unsigned_quotient_exit/main.omg` (2 rows)
+- `tests/omega/pass/arithmetic/runtime_nested_unsigned_witness_exit/main.omg` (3 rows)
+- `tests/omega/pass/arithmetic/runtime_returned_constructor_operation_exit/main.omg` (2 rows)
+- `tests/omega/pass/arithmetic/runtime_transition_arg_false_arm_narrowing_exit/main.omg` (2 rows)
+- `tests/omega/pass/arithmetic/runtime_unit_terminal_guarded_cast_exit/main.omg` (2 rows)
+- `tests/omega/pass/arithmetic/total_contract_guarded_division/main.omg` (3 rows)
+- `tests/omega/pass/arrays/runtime_index_recast/main.omg` (2 rows)
+
+_…and 870 more._
+
+## Hand verification: confirmed-hole (5)
+
+### tests/omega/pass/arrays/runtime_index_recast/main.omg — remove_mut
+
+- current=`accepted` route=`no-entry` verdict=`confirmed-hole`
+- obligation: `L9: entries[0] = FieldEntry {`
+- route_reason: ``
+- review_reason: `modular-entry hole: owned-local / borrow rules are checked obligations, not runtime traps`
+- hole_subtype: ``
+
+**Minimal diff**
+```diff
+@@ line 8 @@
+-     let mut entries: [FieldEntry; 64];
++     let entries: [FieldEntry; 64];
+```
+
+**omega** exit=0
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_arrays_runtime_index_re_895472a97d/remove_mut/main.omg; wrote_output=false
+
+```
+**route** exit=0
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_arrays_runtime_index_re_895472a97d/remove_mut/main.omg	current=accepted	current_us=2432324	root=compilation	route=no-entry
+
+```
+
+### tests/omega/pass/arrays/runtime_index_recast/main.omg — flip_borrow_mutability
+
+- current=`accepted` route=`no-entry` verdict=`confirmed-hole`
+- obligation: `L3: // `&main.bytes[main.position] as &mut RawView` views the byte at a`
+- route_reason: ``
+- review_reason: `modular-entry hole: owned-local / borrow rules are checked obligations, not runtime traps`
+- hole_subtype: ``
+
+**Minimal diff**
+```diff
+@@ line 3 @@
+- // `&mut main.bytes[main.position] as &mut RawView` views the byte at a
++ // `&main.bytes[main.position] as &mut RawView` views the byte at a
+```
+
+**omega** exit=0
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_arrays_runtime_index_re_895472a97d/flip_borrow_mutability/main.omg; wrote_output=false
+
+```
+**route** exit=0
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_arrays_runtime_index_re_895472a97d/flip_borrow_mutability/main.omg	current=accepted	current_us=2445324	root=compilation	route=no-entry
+
+```
+
+### tests/omega/pass/borrow/storage_address_window_identity_exit/main.omg — widen_requires
+
+- current=`accepted` route=`outside` verdict=`confirmed-hole`
+- obligation: `L1: // Expected exit: 0.`
+- route_reason: ``
+- review_reason: `modular-entry hole: spec cites check-time proof error, not a runtime panic`
+- hole_subtype: ``
+
+**Minimal diff**
+```diff
+@@ line 10 @@
+-     transition selected == original && selected != sibling && selected != 0 && independent_address != original {
++     transition selected == original && selected != sibling && selected == 0 && independent_address != original {
+```
+
+**omega** exit=0
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrow_storage_address__1a63b37784/widen_requires/main.omg; wrote_output=false
+
+```
+**route** exit=0
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrow_storage_address__1a63b37784/widen_requires/main.omg	current=accepted	current_us=3347387	root=compilation	route=outside	Unsupported: type fixed array
+
+```
+
+### tests/omega/pass/borrow/storage_address_window_identity_exit/main.omg — flip_borrow_mutability
+
+- current=`accepted` route=`outside` verdict=`confirmed-hole`
+- obligation: `L5: let independent_address: addr = address_of(&mut independent[1]);`
+- route_reason: ``
+- review_reason: `modular-entry hole: owned-local / borrow rules are checked obligations, not runtime traps`
+- hole_subtype: ``
+
+**Minimal diff**
+```diff
+@@ line 5 @@
+-     let independent_address: addr = address_of(&independent[1]);
++     let independent_address: addr = address_of(&mut independent[1]);
+```
+
+**omega** exit=0
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrow_storage_address__1a63b37784/flip_borrow_mutability/main.omg; wrote_output=false
+
+```
+**route** exit=0
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrow_storage_address__1a63b37784/flip_borrow_mutability/main.omg	current=accepted	current_us=3277425	root=compilation	route=outside	Unsupported: type fixed array
+
+```
+
+### tests/omega/pass/borrows/call_replaced_local_backing_releases_exit/main.omg — remove_mut
+
+- current=`accepted` route=`outside` verdict=`confirmed-hole`
+- obligation: `L15: x.value = 5;`
+- route_reason: ``
+- review_reason: `modular-entry hole: owned-local / borrow rules are checked obligations, not runtime traps`
+- hole_subtype: ``
+
+**Minimal diff**
+```diff
+@@ line 9 @@
+-     let mut x: B = B { value: 1 };
++     let x: B = B { value: 1 };
+```
+
+**omega** exit=0
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrows_call_replaced_l_b5c60db84c/remove_mut/main.omg; wrote_output=false
+
+```
+**route** exit=0
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrows_call_replaced_l_b5c60db84c/remove_mut/main.omg	current=accepted	current_us=3086014	root=compilation	route=outside	Unsupported: machine generic parameters
+
+```
+
+## Hand verification: known-gap-q7 remove_mut (5)
+
+### tests/omega/pass/arithmetic/runtime_unit_terminal_guarded_cast_exit/main.omg — remove_mut
+
+- current=`accepted` route=`outside` verdict=`known-gap-q7-mut`
+- obligation: `L4: located(&mut result, 5);`
+- route_reason: ``
+- review_reason: `Q7 missing-mut enforcement on `L4: located(&mut result, 5);``
+- hole_subtype: ``
+
+**omega** exit=0
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_arithmetic_runtime_unit_dc1f1a502f/remove_mut/main.omg; wrote_output=false
+
+```
+**route** exit=0
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_arithmetic_runtime_unit_dc1f1a502f/remove_mut/main.omg	current=accepted	current_us=3043405	root=compilation	route=outside	Unsupported: parameter mutable parameter
+
+```
+
+### tests/omega/pass/asm/atomic_release_disposition_replaced_contents_exit/main.omg — remove_mut
+
+- current=`accepted` route=`outside` verdict=`known-gap-q7-mut`
+- obligation: `L20: Completion::complete(ack, &mut word);`
+- route_reason: ``
+- review_reason: `Q7 missing-mut enforcement on `L20: Completion::complete(ack, &mut word);``
+- hole_subtype: ``
+
+**omega** exit=0
+```
+compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_asm_atomic_release_disp_b91482c80d/remove_mut/main.omg; wrote_output=false
+
+```
+**route** exit=0
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_asm_atomic_release_disp_b91482c80d/remove_mut/main.omg	current=accepted	current_us=2969783	root=compilation	route=outside	Unsupported: machine service reach
+
+```
+
+### tests/omega/pass/asm/checked_label_edges_exit/main.omg — remove_mut
+
+- current=`accepted` route=`outside` verdict=`known-gap-q7-mut`
+- obligation: `L23: Main::main(&mut entry_storage);`
+- route_reason: ``
+- review_reason: `Q7 missing-mut enforcement on `L23: Main::main(&mut entry_storage);``
+- hole_subtype: ``
+
+**omega** exit=0
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_asm_checked_label_edges_35e4663f16/remove_mut/main.omg; wrote_output=false
+
+```
+**route** exit=0
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_asm_checked_label_edges_35e4663f16/remove_mut/main.omg	current=accepted	current_us=2983760	root=compilation	route=outside	Unsupported: machine attached data
+
+```
+
+### tests/omega/pass/borrow/runtime_write_only_aggregate_selector_snapshot_exit/main.omg — remove_mut
+
+- current=`accepted` route=`outside` verdict=`known-gap-q7-mut`
+- obligation: `L54: Main::main(&mut entry_storage);`
+- route_reason: ``
+- review_reason: `Q7 missing-mut enforcement on `L54: Main::main(&mut entry_storage);``
+- hole_subtype: ``
+
+**omega** exit=0
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrow_runtime_write_on_97b8432341/remove_mut/main.omg; wrote_output=false
+
+```
+**route** exit=0
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrow_runtime_write_on_97b8432341/remove_mut/main.omg	current=accepted	current_us=3444148	root=compilation	route=outside	Unsupported: parameter mutable parameter
+
+```
+
+### tests/omega/pass/borrow/runtime_write_only_exclusive_reference_call_result_exit/main.omg — remove_mut
+
+- current=`accepted` route=`outside` verdict=`known-gap-q7-mut`
+- obligation: `L12: let slot: &write Held = &write held;`
+- route_reason: ``
+- review_reason: `Q7 missing-mut enforcement on `L12: let slot: &write Held = &write held;``
+- hole_subtype: ``
+
+**omega** exit=0
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrow_runtime_write_on_ffa91e3d99/remove_mut/main.omg; wrote_output=false
+
+```
+**route** exit=0
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrow_runtime_write_on_ffa91e3d99/remove_mut/main.omg	current=accepted	current_us=3154233	root=compilation	route=outside	Unsupported: parameter mutable parameter
+
+```
+
+## Hand verification: discarded drop_requires (5)
+
+### tests/omega/pass/facts/signed_exact_multiplication_bound_through_other_machine_exit/main.omg — drop_requires
+
+- current=`accepted` route=`accepted` verdict=`discarded-valid`
+- obligation: ``
+- route_reason: `obligation /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_signed_exact_mult_b7b55e48e8/drop_requires/main.omg 1 1 crash discharged-judged+interval - -; obligation /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_facts_signed_exact_mult_b7b55e48e8/drop_requires/main.omg 4 1 safety discharged-judged+interval formal -; obligation /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests`
+- review_reason: `removed requires not used by body without internal restatement`
+- hole_subtype: ``
+
+### tests/omega/pass/relevance/erased_scalar_forwarded_exit/main.omg — drop_requires
+
+- current=`accepted` route=`accepted` verdict=`discarded-valid`
+- obligation: ``
+- route_reason: `obligation /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_relevance_erased_scalar_2aa95098ed/drop_requires/main.omg 1 1 requirement discharged-judged+interval IntegerConstant -; obligation /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_relevance_erased_scalar_2aa95098ed/drop_requires/main.omg 3 1 requirement discharged-judged+interval formal -`
+- review_reason: `removed requires not used by body without internal restatement`
+- hole_subtype: ``

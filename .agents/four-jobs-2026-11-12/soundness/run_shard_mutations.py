@@ -34,23 +34,7 @@ def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9_]+", "_", text.lower())[:40] + "_" + h
 
 
-def mut_drop_first_requires(text: str) -> str | None:
-    m = re.search(r"^\s*requires\s", text, flags=re.MULTILINE)
-    if not m:
-        return None
-    start = m.start()
-    depth = 0
-    i = m.end()
-    while i < len(text):
-        c = text[i]
-        if c == "(":
-            depth += 1
-        elif c == ")":
-            if depth == 0:
-                return text[:start] + text[i + 1 :]
-            depth -= 1
-        i += 1
-    return None
+from requires_span import drop_first_requires as mut_drop_first_requires  # noqa: E402
 
 
 def mut_widen_requires_nonzero(text: str) -> str | None:

@@ -30,7 +30,7 @@ def probe_subtype(
     original: str,
     check_accepted: callable,
 ) -> str:
-    """Return inferred-entry if checker accepts mutant but rejects violating probe caller."""
+    """Return inferred-entry, unchecked, or probe-not-built for drop_requires holes."""
     callee = callee_machine(original)
     bad = violating_value_from_requires(original)
     if not callee or not bad or not mutant_path.exists():
@@ -45,4 +45,6 @@ def probe_subtype(
         probe_ok = check_accepted(stage / "main.omg")
     if mutant_ok and not probe_ok:
         return "inferred-entry"
+    if mutant_ok and probe_ok:
+        return "unchecked"
     return "probe-not-built"

@@ -142,20 +142,9 @@ def mutating_use(mutant: str, name: str) -> str | None:
 
 
 def extract_first_requires_clause(text: str) -> str | None:
-    m = re.search(r"^\s*requires\s", text, re.M)
-    if not m:
-        return None
-    start = m.end()
-    depth = 0
-    for i in range(start, len(text)):
-        c = text[i]
-        if c == "(":
-            depth += 1
-        elif c == ")":
-            if depth == 0:
-                return text[start:i].strip()
-            depth -= 1
-    return text[start:].strip()
+    from requires_span import extract_first_requires_clause as _clause  # noqa: WPS433
+
+    return _clause(text)
 
 
 def internal_restatement(mutant: str, requires_clause: str) -> str | None:
