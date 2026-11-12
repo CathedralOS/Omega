@@ -2829,27 +2829,52 @@ pub mod queries {
             })
         }
 
+        /*
+            Expressions a traversal has entered, indexed by arena slot. A walk
+            asks this once per edge, and callers share one across several
+            roots, so a list scan here made traversals quadratic in size.
+        */
+        #[derive(Default)]
+        pub struct EnteredExpressions(Vec<bool>);
+
+        impl EnteredExpressions {
+            // Returns false when the expression was already entered.
+            fn enter(&mut self, expression: ExpressionHandle) -> bool {
+                let slot = expression.arena_index() as usize;
+                if slot >= self.0.len() {
+                    self.0.resize(slot + 1, false);
+                }
+                !std::mem::replace(&mut self.0[slot], true)
+            }
+        }
+
+        /*
+            Calls `arm` on each expression of `root`'s subtree after its
+            children, skipping any already in `entered`, and marks each one it
+            enters. The pending nodes live in a stack the walk
+            owns, so subtree depth costs memory, not thread stack.
+        */
         pub fn visit_post_order(
             program: &dyn crate::CheckingInput,
             root: ExpressionHandle,
-            visited: &mut Vec<ExpressionHandle>,
+            entered: &mut EnteredExpressions,
             mut arm: impl FnMut(ExpressionHandle, &ExpressionNode),
         ) {
-            fn inner(
-                program: &dyn crate::CheckingInput,
-                expression: ExpressionHandle,
-                visited: &mut Vec<ExpressionHandle>,
-                arm: &mut dyn FnMut(ExpressionHandle, &ExpressionNode),
-            ) {
-                if !expression.is_valid() || visited.contains(&expression) {
-                    return;
+            let mut pending = vec![(root, false)];
+            let mut node_children = Vec::new();
+            while let Some((expression, children_done)) = pending.pop() {
+                if children_done {
+                    arm(expression, expression_table(program).expression(expression));
+                    continue;
                 }
-                visited.push(expression);
+                if !expression.is_valid() || !entered.enter(expression) {
+                    continue;
+                }
+                pending.push((expression, true));
                 let node = expression_table(program).expression(expression);
-                children(program, node, |child| inner(program, child, visited, arm));
-                arm(expression, node);
+                children(program, node, |child| node_children.push(child));
+                pending.extend(node_children.drain(..).rev().map(|child| (child, false)));
             }
-            inner(program, root, visited, &mut arm);
         }
 
         pub fn visit_pre_order(
@@ -2858,14 +2883,13 @@ pub mod queries {
             mut arm: impl FnMut(ExpressionHandle, &ExpressionNode) -> bool,
         ) -> bool {
             let mut pending = pending;
-            let mut visited = Vec::new();
+            let mut entered = EnteredExpressions::default();
             while let Some(expression) = pending.pop() {
                 if !expression_table(program).expression_is_valid(expression)
-                    || visited.contains(&expression)
+                    || !entered.enter(expression)
                 {
                     continue;
                 }
-                visited.push(expression);
                 let node = expression_table(program).expression(expression);
                 if arm(expression, node) {
                     return true;
@@ -2972,23 +2996,29 @@ pub mod queries {
             )
         }
 
+        // Appends `expression`'s subtree to `nodes` in pre-order, children in
+        // edge order, skipping anything in `seen`; the pending nodes live in a
+        // stack the walk owns, so depth costs memory rather than thread stack.
         pub(crate) fn collect_expression_nodes<Hashing: std::hash::BuildHasher>(
             program: &dyn crate::CheckingInput,
             expression: ExpressionHandle,
             nodes: &mut Vec<ExpressionHandle>,
             seen: &mut HashSet<ExpressionHandle, Hashing>,
         ) {
-            if !expression.is_valid() || !seen.insert(expression) {
-                return;
+            let mut pending = vec![expression];
+            let mut node_children = Vec::new();
+            while let Some(expression) = pending.pop() {
+                if !expression.is_valid() || !seen.insert(expression) {
+                    continue;
+                }
+                nodes.push(expression);
+                children(
+                    program,
+                    expression_table(program).expression(expression),
+                    |child| node_children.push(child),
+                );
+                pending.extend(node_children.drain(..).rev());
             }
-            nodes.push(expression);
-            children(
-                program,
-                expression_table(program).expression(expression),
-                |child| {
-                    collect_expression_nodes(program, child, nodes, seen);
-                },
-            );
         }
 
         pub fn single_segment_name_symbol(
