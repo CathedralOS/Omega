@@ -309,6 +309,7 @@ fn walk_states_serially<'program>(
     let mut scratch = PermissionWalkScratch::default();
     for (position, state_entry) in state_flows.iter().enumerate() {
         let (state_handle, state_flow) = state_entry;
+        let __before = crate::__mem_rss_mb();
         let prepared = prepare_walks(
             program,
             facts,
@@ -334,6 +335,15 @@ fn walk_states_serially<'program>(
         facts.flow.control.states.update_row(*state_handle, |row| {
             row.storage_transfers = storage_transfers
         });
+        let __after = crate::__mem_rss_mb();
+        if __after > __before + 20 {
+            eprintln!(
+                "MEMPROBE walk state {} +{}MB rss={}MB",
+                program.symbols.name(state_flow.state_symbol),
+                __after - __before,
+                __after
+            );
+        }
     }
     scratch
 }

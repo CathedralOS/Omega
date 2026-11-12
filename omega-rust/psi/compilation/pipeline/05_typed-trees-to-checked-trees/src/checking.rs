@@ -1073,6 +1073,7 @@ fn check_program(
     let proof_recipe_obligations = std::mem::take(&mut validated.constant_recipe_obligations);
     let integer_range_obligations =
         std::mem::take(&mut validated.validation_facts.integer_range_obligations);
+    crate::__mem_probe("before-build-check-facts");
     let built = build_check_facts(
         &program,
         &validated.proof_plan,
@@ -1104,6 +1105,7 @@ fn check_program(
         Ok(entailment) => entailment,
         Err(errors) => return Err(merge_overflow(&mut deferred_overflow, errors)),
     };
+    crate::__mem_probe("after-entailment");
     let program = program.with_prepared_effect_plans(&prepared_effects);
     facts.deferred_layout_applications = deferred_layout_applications.to_vec();
     facts.integer_range_obligations = integer_range_obligations;
@@ -1145,6 +1147,7 @@ fn check_program(
             Err(errors) => return Err(merge_overflow(&mut deferred_overflow, errors)),
         };
 
+    crate::__mem_probe("before-recording");
     if let Err(errors) = checks::check_checked_facts_recording(
         &program,
         &mut facts,
@@ -1157,6 +1160,7 @@ fn check_program(
     if !deferred_overflow.is_empty() {
         return Err(merge_overflow(&mut deferred_overflow, Vec::new()));
     }
+    crate::__mem_probe("after-recording");
     let (quotients, (cleanup, citations)) = validation::checking_thread_pool().install(|| {
         rayon::join(
             || crate::products::quotient_eligibility::check(&program, &facts),
@@ -1183,6 +1187,7 @@ fn check_program(
         .extend(proof_recipe_obligations);
     crate::published::facts::refresh_realized_contract_envelopes(&mut facts);
 
+    crate::__mem_probe("before-finalize");
     let mut facts = crate::execution::finalize_execution::finalize_execution(
         &program,
         facts,

@@ -10996,7 +10996,8 @@ pub(crate) fn build_check_facts<'program>(
     CheckFactFailure<'program>,
 > {
     let program: &dyn validation::CheckingInput = program_context;
-    let call_frames = validation::CallFrameResolver::new(program);
+crate::__mem_probe("bcf-start");
+        let call_frames = validation::CallFrameResolver::new(program);
     let borrow = build_borrow_facts(program, call_frames.as_ref())?;
     let mut values = build_value_facts(program, proof_plan);
     let mut operators = build_operator_facts(program, &values);
@@ -11066,6 +11067,7 @@ pub(crate) fn build_check_facts<'program>(
         },
         ..CheckFacts::default()
     };
+    crate::__mem_probe("before-loop");
     let mut claim_outcomes = crate::checks::ClaimOutcomePreparation::default();
     {
         mutation_summaries.prewarm(program, &prepared.borrow, call_frames.as_ref());
@@ -11115,6 +11117,7 @@ pub(crate) fn build_check_facts<'program>(
             program,
             &mut prepared.flow,
         )?;
+        crate::__mem_probe("before-permission");
         let permission_outcome = crate::checks::prepare_permission_events(
             program,
             &mut prepared,
@@ -11152,9 +11155,11 @@ pub(crate) fn build_check_facts<'program>(
         they are released before the publication phases below allocate theirs
         rather than at the end of this function.
     */
+    crate::__mem_probe("loop-done");
     drop(previous_construction);
     drop(walk_memory);
     drop(semantic);
+    crate::__mem_probe("loop-dropped");
     let completed =
         program_context.clone_with_storage_graph(std::sync::Arc::new(prepared.flow.clone()));
     match finish_check_facts(
@@ -11230,10 +11235,13 @@ fn finish_check_facts(
                 &prepared.flow,
                 &prepared.proof,
             )?;
+    crate::__mem_probe("before-cleanup-deps");
     let dependencies =
         crate::flow::derive_cleanup_effect_dependencies(program, &operational, &prepared)?;
+    crate::__mem_probe("before-dynamic-deps");
     let dynamic_dependencies =
         crate::flow::dynamic_effect_dependencies::derive(program, &prepared)?;
+    crate::__mem_probe("after-dynamic-deps");
     let (operational, service_reach_inference) =
         if dependencies.is_empty() && dynamic_dependencies.calls.is_empty() {
             (operational, service_reach_inference)
@@ -11250,6 +11258,7 @@ fn finish_check_facts(
         operational: operational.clone(),
         service_reaches: service_reach_inference.clone(),
     };
+    crate::__mem_probe("effects-inferred");
     let completed = program_context.clone_with_prepared_effect_plans(&prepared_effects);
     let program: &dyn validation::CheckingInput = &completed;
     let call_frames = validation::CallFrameResolver::new(program);

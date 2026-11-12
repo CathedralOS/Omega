@@ -7204,6 +7204,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 attempts[index] = attempt;
             }
         }
+crate::__mem_probe("unit-effect-after-fanout");
         let mut log = ChangeLog::default();
         let mut position = 0;
         while let Some(&machine) = bodies.get(position) {
@@ -7255,6 +7256,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         }
     };
 
+crate::__mem_probe("unit-effect-bodies-done");
     let planned = planned_machines(&candidates, &composed_machines, &partial_affine_machines);
     let mut gaps = construction_gaps
         .into_iter()

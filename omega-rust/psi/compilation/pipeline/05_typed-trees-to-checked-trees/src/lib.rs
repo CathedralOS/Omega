@@ -84,3 +84,33 @@ pub use products::product_pruning::{
     consumes these; the compiler does not run an additional validation pass.
 */
 pub use ::validation::{AsmAuthorityAdmission, data_requires_establishment};
+
+#[doc(hidden)]
+pub fn __mem_probe(label: &str) {
+    if std::env::var_os("OMEGA_MEM_PROBE").is_none() {
+        return;
+    }
+    let status = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
+    let field = |name: &str| {
+        status
+            .lines()
+            .find(|line| line.starts_with(name))
+            .and_then(|line| line.split_whitespace().nth(1))
+            .and_then(|kb| kb.parse::<u64>().ok())
+            .unwrap_or(0)
+            / 1024
+    };
+    eprintln!("MEMPROBE {label}: rss={}MB hwm={}MB", field("VmRSS:"), field("VmHWM:"));
+}
+
+#[doc(hidden)]
+pub fn __mem_rss_mb() -> u64 {
+    if std::env::var_os("OMEGA_MEM_PROBE").is_none() {
+        return 0;
+    }
+    std::fs::read_to_string("/proc/self/statm")
+        .ok()
+        .and_then(|s| s.split_whitespace().nth(1).and_then(|p| p.parse::<u64>().ok()))
+        .map(|pages| pages * 4096 / (1024 * 1024))
+        .unwrap_or(0)
+}
