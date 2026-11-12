@@ -32,30 +32,30 @@ def require_identity(label, data, size, digest):
 # The bound D member identities from omega_compiler.epsilon.sources, in
 # manifest order — the packed closure is their plain concatenation.
 MEMBER_RECORDS = [
-    ("representations.epsilon", 37177,
-     "6915edb40ac01068f39c7aa4d8d6e56fc7953de58a175a81efc48d517cb2b006"),
+    ("representations.epsilon", 37399,
+     "501c10c82150c29f57c0d6c5eef98ae82ca815d7fe922ab945dbbab520c6adbd"),
     ("request_and_utf8.epsilon", 23678,
      "fe55376ff4c64ca61a045fee84c7856d4eefdda502832b967f680517150577e5"),
     ("lexical_classification.epsilon", 2520,
      "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
     ("lexer.epsilon", 44432,
      "2a9c30ce9e66959bb33070937aba53e955461686bb221b128ec54801813f4c89"),
-    ("parser.epsilon", 393445,
-     "775a7f2904d9a2ce2b49f416624ba5e64627aa599593e98566fd66b6622d856d"),
+    ("parser.epsilon", 394816,
+     "6442b820e20cdf555ff3cc46226258134e30c8a2fa3729d326928e7639d833f4"),
     ("alpha_tape.epsilon", 30832,
      "26e943b2386e1f27761951af92d163cdaa54f32bdd990aa4694b91f10cb095a3"),
-    ("scalar_compilation.epsilon", 224619,
-     "47683114856abf1fea7f7fe73fbb84d5e2a2e23c5db653f3b26081554a0f1ad8"),
+    ("scalar_compilation.epsilon", 239280,
+     "2b0fd7b984992866eff5120149943b649d2905efd56cc1cbf7fa0dfabaa0e43a"),
     ("outcome.epsilon", 13989,
      "a36fabd20ccecd3c15ba8dc10044567a11c0f60e92661277c11728121be65a4e"),
     ("source_set.epsilon", 6151,
      "b948dc79d0ea31ddb7a3e66e6ed5d1ef194659dd5ec8177bd5911b3a3f05ff9b"),
-    ("declaration_resolution.epsilon", 25624,
-     "31b4349b05d32c853e0ccf171f703952057730f9a9ae46a130d4b2fc4ec30744"),
+    ("declaration_resolution.epsilon", 25849,
+     "d5327eeb7bb744f40653f17b37ef25505c92b782148070745d554ccb3a6f4329"),
 ]
 
-PACKED_RECORD = (802467,
-                 "b822576f03fb8e9ea8868b350fe45cc50c0484e4f6cee590be4ef89d95a5eaa4")
+PACKED_RECORD = (818946,
+                 "30f8b6de9e15312b4445c2194cbdb857bf5b2e27f08caa59281c5b0170fc088f")
 
 CUSTOMER_RECORDS = {
     "omega_lexical": (1486,

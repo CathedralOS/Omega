@@ -31,7 +31,7 @@ closure work are tracked in [`../../TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRA
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `omega_compiler.epsilon.sources` | Canonical ordered membership, byte lengths, and SHA-256 identities of Epsilon-written compiler closure `D`. | Delete only when an adjacent compiler input format carries and verifies the same source-member custody directly. |
-| `*.epsilon` | Eight members separated into representations, request/UTF-8 validation, lexical classification, lexing, parsing, Alpha tape construction, scalar compilation, and outcome encoding. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
+| `*.epsilon` | Ten members separate representations, request/UTF-8 validation, lexing/parsing, source-set ownership and resolution, Alpha tape construction, scalar compilation, and outcome encoding. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
 
 Target identity is an exact immutable compiler-invocation input. `build.omg`
 under [`../../source/omega/`](../../../source/omega) does not declare a support
@@ -43,10 +43,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 21,760 lines / 802,467 bytes with SHA-256
-`b822576f03fb8e9ea8868b350fe45cc50c0484e4f6cee590be4ef89d95a5eaa4`.
+manifest materializes 22,134 lines / 818,946 bytes with SHA-256
+`30f8b6de9e15312b4445c2194cbdb857bf5b2e27f08caa59281c5b0170fc088f`.
 The manifest itself is 1,674 bytes, SHA-256
-`29a5cabc70989102dcfcaf492266b1d1d5e675a330ddc9bd6ed7077f4a460f24`;
+`65039f0df7cca55124ed7781ba57a49ed01913071914a9961ac0acb1e580c6ec`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -664,3 +664,43 @@ source unit and fixes public diagnostic/outcome framing at the outer compiler
 edge. A
 public validate/advance split would be false authority, while revalidating the
 whole view at every token would be quadratic; neither belongs in the compiler.
+
+### Executed nominal values and source-set construction
+
+The current 818,946-byte compiler closure above compiles the unchanged source
+`NumericBase` declaration and `lexer_digit_in_base` machine. A 2,143-byte Omega
+customer checks all 256 bytes against four independently written base predicates.
+The source-constructed native Epsilon evaluator `b1cc4441…fe2e0` compiled it to
+5,972 Alpha bytes (`2549c1a5…6077d7`); the executable exits 42. The same invocation
+checks the parsed payload refusal, rebuilds the default nullary sum, and compiles
+a namespace call across two supplied source units/packages. Removing the direct
+edge refuses without a partial tape; restoring it produces the same 32-byte
+Alpha tape (`9b296423…f3617d`), again exiting 42.
+
+That invocation took 397.410 seconds with 4,972,452 KiB child peak RSS on one
+shared CPU. Its 826,054-byte Epsilon source is
+`c0a97e83da77dcea839d206e22b6ed209bb0a2c7eeae5ea67ef8c218f813b48b`;
+request identity is
+`26797a045d9cef3f50bd17410a011a45c3c623b09fdb462d2041b9027735280b`.
+Its complete observation matches the independent model byte for byte:
+`0aea09be26dd2ad86b37885ce3220ba4957c72cc9a10909a90c57ff28be073d2`.
+This reuses the constructed evaluator; it is not a new cold construction.
+
+The existing control customer now covers 19 emitted executables and 37
+refusal/reset checks (57.610 seconds in the model). Ten additional construction
+entry observations cover source-order changes, duplicate package display names,
+private and competing imports, non-transitive file imports, namespace qualification
+and Unit call statements. The complete parser customer, including the distinction
+between `ns::call()` and `value.call()`, passes in the model. The storage customer
+also passes all 13 executables and 36 refusals using the actual ordinary-byte
+`SourceUnit`/`ModulePath` representation; its canary and boundary checks are unchanged.
+
+The actual Omega compiler closure was also supplied to the production Epsilon
+construction entry: 265 units / 3,698,937 source bytes, request
+`d8217eeb57d3801b3a6413291013dd0bb0d6d8323ea0c77c59807202b7b8031b`.
+The independent model consumed it in 144.051 seconds (978,020 KiB peak RSS)
+and returned `Incomplete` at packed-source coordinate 841, unit zero relative
+711: the `crashes` clause of construction `main.omg`'s `malformed` machine.
+This is a measured whole-input frontier, not an Omega compiler artifact or a
+self-rebuild. The existing missing effects, broader source constructs and full
+public request admission remain separate compiler work.

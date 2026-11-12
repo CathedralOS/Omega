@@ -172,6 +172,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     self.statement_start = 0;
     self.statement_first_path_member = 0;
     self.statement_path_member_count = 0;
+    self.statement_name_member_count = 0;
     self.statement_starts_at_self = 0;
     self.call_first_machine_argument = 0;
     self.call_first_argument = 0;
@@ -4725,11 +4726,13 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state begin_named_statement_path() {
         self.statement_starts_at_self = 0;
+        self.statement_name_member_count = 1;
         transition true { true -> begin_statement_path() }
     }
 
     state begin_self_statement_path() {
         self.statement_starts_at_self = 1;
+        self.statement_name_member_count = 0;
         transition true { true -> begin_statement_path() }
     }
 
@@ -4785,6 +4788,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state statement_path_tail_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Dot -> next_statement_path_member()
+            OmegaPunctuationKind::ColonColon -> qualify_statement_path()
             OmegaPunctuationKind::Less -> begin_statement_call_static_arguments()
             OmegaPunctuationKind::LeftParen -> begin_statement_call()
             OmegaPunctuationKind::LeftBrace -> begin_statement_struct_literal()
@@ -4815,15 +4819,29 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         }
     }
 
+    state qualify_statement_path() {
+        transition (self.statement_starts_at_self == 0) &&
+            (self.statement_name_member_count == self.statement_path_member_count) {
+            true -> retain_statement_qualification()
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_statement_qualification() {
+        self.statement_name_member_count = self.statement_name_member_count + 1;
+        transition true { true -> next_statement_path_member() }
+    }
+
     state begin_statement_struct_literal() {
         self.argument_first_path_member = self.statement_first_path_member;
         self.argument_path_member_count = self.statement_path_member_count;
         self.argument_starts_at_self = self.statement_starts_at_self;
-        self.argument_name_member_count = 1;
+        self.argument_name_member_count = self.statement_name_member_count;
         self.argument_path_kind = OmegaPathExpressionKind::Name;
         self.expression_consumer = OmegaExpressionConsumer::ExpressionStatement;
-        transition self.statement_starts_at_self {
-            0 -> begin_struct_literal_from_path()
+        transition (self.statement_starts_at_self == 0) &&
+            (self.statement_name_member_count == self.statement_path_member_count) {
+            true -> begin_struct_literal_from_path()
             _ -> incomplete_root()
         }
     }
@@ -4842,7 +4860,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.call_first_path_member = self.statement_first_path_member;
         self.call_path_member_count = self.statement_path_member_count;
         self.call_starts_at_self = self.statement_starts_at_self;
-        self.call_name_member_count = 0;
+        self.call_name_member_count = self.statement_name_member_count;
         self.call_start = self.statement_start;
         transition self.scan.punctuation {
             OmegaPunctuationKind::Less -> begin_call_static_arguments()
@@ -4872,7 +4890,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             self.statement_path_member_count;
         self.expressions[self.expression_count].payload2 =
             self.statement_starts_at_self;
-        self.expressions[self.expression_count].payload3 = 0;
+        self.expressions[self.expression_count].payload3 = self.statement_name_member_count;
         self.expressions[self.expression_count].payload4 = 0;
         self.expressions[self.expression_count].payload5 = 0;
         transition self.statement_path_member_count {
@@ -4897,11 +4915,18 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state retain_named_statement_path_expression(continuation: i32) {
         self.expressions[self.expression_count].path_kind =
             OmegaPathExpressionKind::Name;
-        self.expressions[self.expression_count].payload3 = 1;
+        self.expressions[self.expression_count].payload3 = self.statement_name_member_count;
         transition true { true -> finish_statement_path_expression(continuation) }
     }
 
     state classify_member_statement_path_expression(continuation: i32) {
+        transition self.statement_name_member_count == self.statement_path_member_count {
+            true -> retain_named_statement_path_expression(continuation)
+            _ -> retain_member_statement_path_expression(continuation)
+        }
+    }
+
+    state retain_member_statement_path_expression(continuation: i32) {
         self.expressions[self.expression_count].path_kind =
             OmegaPathExpressionKind::Member;
         transition self.statement_starts_at_self {
@@ -4911,7 +4936,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state retain_named_member_statement_path_expression(continuation: i32) {
-        self.expressions[self.expression_count].payload3 = 1;
+        self.expressions[self.expression_count].payload3 = self.statement_name_member_count;
         transition true { true -> finish_statement_path_expression(continuation) }
     }
 
@@ -6837,6 +6862,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state retain_call_expression_bounded() {
+        self.call_expressions[self.call_expression_count].name_member_count = self.call_name_member_count;
         self.call_expressions[self.call_expression_count].has_receiver =
             self.call_has_receiver;
         self.call_expressions[self.call_expression_count].receiver =

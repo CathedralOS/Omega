@@ -506,7 +506,7 @@ machine OmegaScalarCompiler::call_has_static_target(&mut self, call: OmegaCallEx
     }
     state receiver(row: OmegaExpressionSyntax) {
         transition row.path_kind {
-            OmegaPathExpressionKind::Name -> return 1
+            OmegaPathExpressionKind::Name -> return call.name_member_count == row.payload1 + 1
             _ -> return 0
         }
     }
@@ -521,7 +521,13 @@ machine OmegaScalarCompiler::resolve_call_machine(
     }
     state receiver(row: OmegaExpressionSyntax) {
         transition row.path_kind {
-            OmegaPathExpressionKind::Name -> return self.resolve_machine(source,
+            OmegaPathExpressionKind::Name -> named(row)
+            _ -> return -1
+        }
+    }
+    state named(row: OmegaExpressionSyntax) {
+        transition call.name_member_count == row.payload1 + 1 {
+            true -> return self.resolve_machine(source,
                 self.parser.members[row.payload0].start, call.target.end)
             _ -> return -1
         }

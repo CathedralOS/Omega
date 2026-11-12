@@ -662,7 +662,7 @@ improved; they do not establish that either realization meets the whole-chain
 independent-reviewability goal. This debt belongs in the comparison alongside
 execution time, memory and trust assumptions.
 
-## Nominal-case construction observation (unfinished)
+## Earlier nominal-case construction interruption
 
 The candidate bootstrap compiler at `501411f37fe18b55b4e068811c36258f318b002b`
 adds nullary copy sums for the unchanged source-Psi `NumericBase` declaration and
@@ -689,5 +689,8 @@ payload declaration. The corrected payload-layout refusal and subsequent default
 reset passed a separate 11.655-second model run, asserting one parsed payload
 field and the declaration-anchored refusal. The interrupted native request kept
 its original bytes and cannot establish that corrected layout boundary.
-The next construction input is the actual Omega-written compiler source closure;
-further small-customer expansion and validation-only retries are deferred.
+The subsequent bounded native invocation completed on the actual classifier,
+corrected payload/default reset and two-package source-set construction. Its
+current source identities, execution results and measured whole-compiler refusal
+are recorded in [the bootstrap compiler](../interpreted/5_omega/README.md#executed-nominal-values-and-source-set-construction).
+The interrupted observation above remains tied to its original bytes.
