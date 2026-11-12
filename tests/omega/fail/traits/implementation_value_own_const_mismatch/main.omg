@@ -1,8 +1,11 @@
-// Static control: selected implementation applications retain their own const operands.
+// Static control: selected implementation applications retain their own const operands
+// when the constructed value depends on them. `mark` is an inline member, a new machine
+// over the whole telescope; `pass/traits/implementation_value_unused_const_one_value`
+// is the empty `Tag` where the operand creates no identity.
 const ZERO: u64 = 0u64;
 const EIGHT: u64 = 8u64;
-trait Tag {}
-Choice<const Value: u64> satisfies Tag {}
+trait Tag { machine mark(); }
+Choice<const Value: u64> satisfies Tag { machine mark() {} }
 data Holder<Implementation satisfies Tag> [copy] { value: u64; }
 machine probe(value: Holder<Choice<ZERO>>) -> Holder<Choice<EIGHT>> { value }
 machine main() {}

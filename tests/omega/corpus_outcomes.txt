@@ -9511,39 +9511,39 @@ fail/facts/ieee_float_ordered_comparison_through_parameter_rejected rejected 977
 fail/facts/ieee_float_ordered_comparison_through_target_body_rejected rejected 9757ms expected @911f6617ba9e
 	cannot prove requires contract for call verify_window from X86Probe::probe: reading.value >= 1.0 && reading.value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
 	cannot prove requires contract for call verify_window from ArmProbe::probe: reading.value >= 1.0 && reading.value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
-fail/facts/implementation_region_forwarding_through_call_result_rejected rejected 12331ms expected @4815ea579d91
+fail/facts/implementation_region_forwarding_through_call_result_rejected rejected 37640ms expected @c7c5943cfb80
 	machine `observed` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `exercise` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-	machine `observed$specialized$f92ed324b5120a1d$0$4644` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/facts/implementation_region_forwarding_through_const_name_rejected rejected 10531ms expected @4815ea579d91
+	machine `observed$specialized$f92ed324b5120a1d$0$4649` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/implementation_region_forwarding_through_const_name_rejected rejected 18542ms expected @c7c5943cfb80
 	machine `observed` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `exercise` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	machine `observed$specialized$f92ed324b5120a1d$0$4644` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/facts/implementation_region_forwarding_through_field_rejected rejected 11971ms expected @4815ea579d91
+	machine `observed$specialized$f92ed324b5120a1d$0$4649` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/implementation_region_forwarding_through_field_rejected rejected 32093ms expected @c7c5943cfb80
 	machine `observed` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `exercise` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	machine `observed$specialized$f92ed324b5120a1d$0$4645` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/facts/implementation_region_forwarding_through_local_rejected rejected 15224ms expected @4815ea579d91
+	machine `observed$specialized$f92ed324b5120a1d$0$4651` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/implementation_region_forwarding_through_local_rejected rejected 32478ms expected @c7c5943cfb80
 	machine `observed` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `exercise` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	machine `observed$specialized$f92ed324b5120a1d$0$4642` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/facts/implementation_region_forwarding_through_match_join_rejected rejected 13388ms expected @4815ea579d91
+	machine `observed$specialized$f92ed324b5120a1d$0$4647` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/implementation_region_forwarding_through_match_join_rejected rejected 15614ms expected @c7c5943cfb80
 	machine `observed` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `exercise` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-	machine `observed$specialized$f92ed324b5120a1d$0$4645` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/facts/implementation_region_forwarding_through_other_machine_rejected rejected 11035ms expected @4815ea579d91
+	machine `observed$specialized$f92ed324b5120a1d$0$4650` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/implementation_region_forwarding_through_other_machine_rejected rejected 24550ms expected @c7c5943cfb80
 	machine `observed` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `exercise` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	machine `observed$specialized$f92ed324b5120a1d$0$4647` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/facts/implementation_region_forwarding_through_other_state_rejected rejected 11655ms expected @4815ea579d91
+	machine `observed$specialized$f92ed324b5120a1d$0$4652` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/implementation_region_forwarding_through_other_state_rejected rejected 30841ms expected @c7c5943cfb80
 	machine `observed` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `exercise` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	machine `observed$specialized$f92ed324b5120a1d$0$4647` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/facts/implementation_region_forwarding_through_parameter_rejected rejected 10868ms expected @4815ea579d91
+	machine `observed$specialized$f92ed324b5120a1d$0$4652` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/implementation_region_forwarding_through_parameter_rejected rejected 28339ms expected @c7c5943cfb80
 	machine `observed` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `carry` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-	machine `carry$specialized$19d4628e06f90d7a$0$4648` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-	machine `observed$specialized$f92ed324b5120a1d$0$4654` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+	machine `carry$specialized$19d4628e06f90d7a$0$4653` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+	machine `observed$specialized$f92ed324b5120a1d$0$4659` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 fail/facts/implementation_region_forwarding_through_target_body_rejected rejected 2379ms unexpected @d25b32be7ef5
 	data `Holder` cannot bind implementation `Implementation`: conformance application `Choice<'selected, 7>` supplies undeclared lifetime argument `'selected'; declare it in the lexical owner's lifetime telescope
 fail/facts/in_place_view_argument_through_call_result_rejected rejected 6882ms expected @ca41410e2ee2+wt
@@ -19525,22 +19525,24 @@ fail/traits/implementation_call_unknown_requirement rejected 621ms expected @ccd
 	implementation `NormalIncrement` has no row for requirement `decrement`
 fail/traits/implementation_method_argument_not_map_capture rejected 220ms expected @ccdb99ca2214
 	generic conformance `Selected` requires 1 explicit non-lifetime argument(s), got 0; expected subject and trait shape never fill its own telescope
-fail/traits/implementation_value_call_missing_const_equality rejected 12763ms expected @4815ea579d91
+fail/traits/implementation_value_call_missing_const_equality rejected 20363ms expected @c7c5943cfb80
 	machine `probe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/traits/implementation_value_mapped_const_mismatch rejected 6454ms expected @4815ea579d91
-	generic machine `forward` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `observed$specialized$f92ed324b5120a1d$0$4642` state `observed$specialized$f92ed324b5120a1d$0$4642::entry`: Const slot `N` conflicts: 8 [identity named(integer-const(8)); supplier unretained] versus 7 [identity named(integer-const(7)); supplier exercise]
-fail/traits/implementation_value_mapped_region_mismatch rejected 13278ms expected @4815ea579d91
+fail/traits/implementation_value_mapped_const_mismatch rejected 5629ms expected @c7c5943cfb80
+	generic machine `forward` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `observed$specialized$f92ed324b5120a1d$0$4647` state `observed$specialized$f92ed324b5120a1d$0$4647::entry`: Const slot `N` conflicts: 8 [identity named(integer-const(8)); supplier unretained] versus 7 [identity named(integer-const(7)); supplier exercise]
+fail/traits/implementation_value_mapped_region_mismatch rejected 14277ms expected @c7c5943cfb80
 	machine `observed` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `exercise` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	machine `observed$specialized$f92ed324b5120a1d$0$4642` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/traits/implementation_value_missing_const_equality rejected 13724ms expected @4815ea579d91
+	machine `observed$specialized$f92ed324b5120a1d$0$4647` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/traits/implementation_value_missing_const_equality rejected 13489ms expected @c7c5943cfb80
 	machine `probe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/traits/implementation_value_own_const_mismatch rejected 14560ms expected @4815ea579d91
+fail/traits/implementation_value_own_const_mismatch rejected 15539ms expected @11b4004c4ecf
 	machine `probe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/traits/implementation_value_recursive_missing_const_equality rejected 14331ms expected @4815ea579d91
+fail/traits/implementation_value_recursive_missing_const_equality rejected 13064ms expected @c7c5943cfb80
 	machine `probe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/traits/implementation_value_region_mismatch rejected 12246ms expected @4815ea579d91
+fail/traits/implementation_value_region_mismatch rejected 10089ms expected @c7c5943cfb80
 	machine `probe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/traits/implementation_value_selected_machine_mismatch rejected 20524ms expected @c7c5943cfb80
+	machine `convert` state `entry` return value expects `Holder<Second>`, but the value is delivered as `Holder<First>`
 fail/traits/inherited_default_ambiguous rejected 631ms expected @ccdb99ca2214
 	implementation `CounterResettable` has 2 rows named `reset` (`LeftReset::reset`, `RightReset::reset`); a call through the implementation must select exactly one
 fail/traits/inherited_nominal_requirement_conflicting_parents rejected 1955ms expected @4a802009dabd
@@ -23905,14 +23907,14 @@ pass/facts/ieee_float_ordered_comparison_through_other_machine_exit checked 9810
 pass/facts/ieee_float_ordered_comparison_through_other_state_exit checked 9790ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/ieee_float_ordered_comparison_through_parameter_exit checked 9794ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/ieee_float_ordered_comparison_through_target_body_exit checked 8153ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/implementation_region_forwarding_through_call_result_exit checked 15283ms check-target:macos_arm64 @4815ea579d91
-pass/facts/implementation_region_forwarding_through_const_name_exit checked 15580ms check-target:macos_arm64 @4815ea579d91
-pass/facts/implementation_region_forwarding_through_field_exit checked 16864ms check-target:macos_arm64 @4815ea579d91
-pass/facts/implementation_region_forwarding_through_local_exit checked 16378ms check-target:macos_arm64 @4815ea579d91
-pass/facts/implementation_region_forwarding_through_match_join_exit checked 17762ms check-target:macos_arm64 @4815ea579d91
-pass/facts/implementation_region_forwarding_through_other_machine_exit checked 15117ms check-target:macos_arm64 @4815ea579d91
-pass/facts/implementation_region_forwarding_through_other_state_exit checked 15302ms check-target:macos_arm64 @4815ea579d91
-pass/facts/implementation_region_forwarding_through_parameter_exit checked 14990ms check-target:macos_arm64 @4815ea579d91
+pass/facts/implementation_region_forwarding_through_call_result_exit checked 20544ms check-target:macos_arm64 @11b4004c4ecf
+pass/facts/implementation_region_forwarding_through_const_name_exit checked 17296ms check-target:macos_arm64 @11b4004c4ecf
+pass/facts/implementation_region_forwarding_through_field_exit checked 16725ms check-target:macos_arm64 @11b4004c4ecf
+pass/facts/implementation_region_forwarding_through_local_exit checked 15362ms check-target:macos_arm64 @11b4004c4ecf
+pass/facts/implementation_region_forwarding_through_match_join_exit checked 24137ms check-target:macos_arm64 @11b4004c4ecf
+pass/facts/implementation_region_forwarding_through_other_machine_exit checked 15601ms check-target:macos_arm64 @11b4004c4ecf
+pass/facts/implementation_region_forwarding_through_other_state_exit checked 17534ms check-target:macos_arm64 @11b4004c4ecf
+pass/facts/implementation_region_forwarding_through_parameter_exit checked 22347ms check-target:macos_arm64 @11b4004c4ecf
 pass/facts/implementation_region_forwarding_through_target_body_exit rejected 2712ms check-target:macos_arm64 @d25b32be7ef5
 	data `Holder` cannot bind implementation `Implementation`: conformance application `Choice<'selected, 7>` supplies undeclared lifetime argument `'selected'; declare it in the lexical owner's lifetime telescope
 pass/facts/in_place_view_argument_through_call_result_exit checked 12157ms check-target:macos_arm64 @ca41410e2ee2+wt
@@ -28655,12 +28657,13 @@ pass/traits/generic_trait_parent_binds_requirement checked 2593ms @ccdb99ca2214
 pass/traits/implementation_argument_category_collision checked 11458ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/implementation_argument_mixed_telescope checked 2274ms @ccdb99ca2214
 pass/traits/implementation_argument_region_mapping checked 2453ms @ccdb99ca2214
-pass/traits/implementation_value_call_const_equality checked 18132ms check-target:macos_arm64 @4815ea579d91
-pass/traits/implementation_value_contextual_const_equality checked 17118ms check-target:macos_arm64 @4815ea579d91
-pass/traits/implementation_value_mapped_region_identity checked 5981ms check-target:macos_arm64 @68b6f6ba6c2f
-pass/traits/implementation_value_own_const_identity checked 14815ms check-target:macos_arm64 @4815ea579d91
-pass/traits/implementation_value_recursive_const_permutation checked 15972ms check-target:macos_arm64 @4815ea579d91
-pass/traits/implementation_value_region_identity checked 17299ms check-target:macos_arm64 @4815ea579d91
+pass/traits/implementation_value_call_const_equality checked 36945ms check-target:macos_arm64 @c7c5943cfb80
+pass/traits/implementation_value_contextual_const_equality checked 36659ms check-target:macos_arm64 @c7c5943cfb80
+pass/traits/implementation_value_mapped_region_identity checked 31316ms check-target:macos_arm64 @c7c5943cfb80
+pass/traits/implementation_value_own_const_identity checked 29815ms check-target:macos_arm64 @c7c5943cfb80
+pass/traits/implementation_value_recursive_const_permutation checked 29693ms check-target:macos_arm64 @c7c5943cfb80
+pass/traits/implementation_value_region_identity checked 32368ms check-target:macos_arm64 @c7c5943cfb80
+pass/traits/implementation_value_unused_const_one_value checked 63860ms check-target:macos_arm64 @c7c5943cfb80
 pass/traits/inherited_nominal_requirement_application_exit checked 5852ms check-target:macos_arm64 @07aa19d13db7
 pass/traits/inherited_nominal_requirement_diamond_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
 pass/traits/inherited_nominal_requirement_exit checked 2546ms check-target:macos_arm64 @45a5c677e255
@@ -29089,6 +29092,7 @@ run/stores/runtime_float_store_selector_snapshot_exit checked 54937ms check-targ
 run/testing/application_calling_test_differs_from_baseline checked 22428ms application-baseline-machines:differs application-baseline-sections:scalar_applications,identities,calling_abi_signatures,unoptimized_behavior,machines check-target:macos_arm64 @88a99972fd19
 run/testing/registered_group_application_baseline checked 6635ms check-target:macos_arm64 @88a99972fd19
 run/testing/registered_group_runs_on_both_engines checked 20529ms application-baseline-machines:same application-baseline-sections:scalar_applications,identities,calling_abi_signatures check-target:macos_arm64 @88a99972fd19
+run/traits/implementation_value_same_selections checked 16558ms check-target:macos_arm64 @c7c5943cfb80
 run/traits/named_map_record_result_contract checked 2913ms check-target:macos_arm64 @ccdb99ca2214
 run/traits/selection_row_existing_machines checked 11572ms check-target:macos_arm64 @e1baccf0876c
 run/traits/selection_row_law_selected_operation checked 43036ms check-target:macos_arm64 @11c3b1370df7

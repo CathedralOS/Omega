@@ -39,7 +39,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **OPERATION-RECORD-IMPLEMENTATIONS.** Make implementations ordinary checked records of callable selections and evidence ([design](wiki/drafts/designs/operation_record_implementations.md)).
   - Finish callable selections, typed/erased fields, constraints, open/closed contracts and static/runtime materialization.
-  - Unify empty/generic record identity; migrate marker customers. Complete general evidence citation, explicit inherited fields and computed Build providers.
+  - Unify identity for instantiated defaults, generic constructors, call static arguments. Complete general evidence citation, explicit inherited fields and computed Build providers.
   Acceptance: the design's cases pass `--both`; reusing a machine needs no forwarding member.
 
 - **OWNED-ACTIVATIONS.** Expose activation execution custody with typed replies ([design](wiki/drafts/designs/owned_activations.md)), after the record model.

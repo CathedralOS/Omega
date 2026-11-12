@@ -121,11 +121,15 @@ pub(crate) mod conformance {
             }
                 })
                 .collect(),
+            value_identity: Default::default(),
         };
         conformance.type_parameters = lowerer
             .with_type_reference_exposure(conformance_exposure, |lowerer| {
                 lower_type_parameters(lowerer, source_type_parameters)
             })?;
+        conformance.value_identity = lowerer
+            .typed_trees
+            .implementation_value_identity(&conformance);
         lowerer.typed_trees.push_conformance(conformance);
         Ok(())
     }
