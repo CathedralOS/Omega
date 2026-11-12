@@ -1,116 +1,406 @@
-~ pass/arithmetic/runtime_remainder_result_cast_exit: REGRESSED (checked -> rejected)
-~ pass/arithmetic/runtime_transitive_bit_value_exit: moved (rejected -> rejected)
-~ pass/borrows/borrow_guarded_window_write_and_call: moved (rejected -> rejected)
-~ pass/borrows/foreign_output_captured_reference_exit: moved (rejected -> rejected)
-~ pass/borrows/returned_record_case_field_store_exit: REGRESSED (checked -> rejected)
-~ pass/borrows/runtime_reassigned_view_capture_exit: REGRESSED (checked -> rejected)
-~ pass/borrows/runtime_stored_carrier_exchange_exit: moved (incomplete -> rejected)
-~ pass/calls/native_code_layout_forward_machine_exit: REGRESSED (checked -> rejected)
-~ pass/calls/native_code_layout_region_snapshot_exit: REGRESSED (checked -> rejected)
-~ pass/calls/native_code_layout_uncalled_boundary_exit: REGRESSED (checked -> rejected)
-~ pass/calls/native_code_layout_uncalled_cycle_exit: REGRESSED (checked -> rejected)
-~ pass/calls/runtime_indexed_case_pool_transition_exit: REGRESSED (checked -> timeout)
-~ pass/components/independent_same_spelling_packages: REGRESSED (checked -> rejected)
-~ pass/contracts/adapter_result_membership_forwarded: moved (rejected -> rejected)
-~ pass/contracts/float_guard_disjoint_operand_write: moved (rejected -> rejected)
-~ pass/contracts/runtime_float_entry_relations_exit: moved (rejected -> rejected)
-~ pass/contracts/runtime_float_fused_crash_guard_exit: moved (rejected -> rejected)
-~ pass/expressions/match_owned_computed_arm_arguments: REGRESSED (checked -> rejected)
-~ pass/facts/as_slice_views_generic_through_field_exit: REGRESSED (checked -> rejected)
-~ pass/facts/as_slice_views_generic_through_local_exit: REGRESSED (checked -> rejected)
-~ pass/facts/match_loan_last_use_through_field_exit: REGRESSED (checked -> rejected)
-~ pass/facts/match_loan_last_use_through_local_exit: REGRESSED (checked -> rejected)
-~ pass/facts/nested_result_extent_through_field_exit: REGRESSED (checked -> rejected)
-~ pass/filesystem/runtime_portable_copy_errors_exit: REGRESSED (checked -> timeout)
-~ pass/filesystem/runtime_portable_directory_names_exit: REGRESSED (checked -> timeout)
-~ pass/filesystem/runtime_portable_zero_descriptor_exit: REGRESSED (checked -> timeout)
-~ pass/float/build_runtime_semantics_twins_windows_x64: moved (rejected -> rejected)
-~ pass/float/build_runtime_semantics_twins_x86_baseline: moved (rejected -> rejected)
-~ pass/float/public_class_result_contract_import_exit: moved (rejected -> rejected)
-~ pass/float/public_integer_input_contract_import_exit: moved (rejected -> rejected)
-~ pass/float/trapping_raw_finite_operand_capture_proof: moved (checked -> checked)
-~ pass/generics/record_const_named_literal_equivalence: moved (rejected -> rejected)
-~ pass/generics/runtime_computed_nested_const_call_exit: REGRESSED (checked -> rejected)
-~ pass/generics/runtime_const_data_machine_call_exit: moved (rejected -> rejected)
-~ pass/layouts/declaration_only_initializer_formation: REGRESSED (checked -> rejected)
-~ pass/layouts/placed_primitive_mixed_backing_rejected: moved (rejected -> rejected)
-~ pass/layouts/runtime_placed_accessor_writeback_exit: moved (incomplete -> checked)
-~ pass/memory/runtime_linear_native_allocation_exit: REGRESSED (checked -> rejected)
-~ pass/optimizer/pre_allocation_joint_frontier_exit: REGRESSED (checked -> rejected)
-~ pass/ownership/runtime_match_observation_cleanup_exit: REGRESSED (checked -> rejected)
-~ pass/progress/provider_receiver_progress_installation: REGRESSED (checked -> rejected)
-~ pass/proofs/admitted_premises_long_equality_chain: REGRESSED (checked -> rejected)
-~ pass/proofs/float_guarded_negated_result_contract: REGRESSED (checked -> rejected)
-~ pass/proofs/proposition_relation_hierarchy_compile: REGRESSED (checked -> rejected)
-~ pass/proofs/reviewed_mathematical_data_contract_exit: REGRESSED (checked -> rejected)
-~ pass/proofs/runtime_sequential_ranked_components_exit: moved (rejected -> rejected)
-~ pass/providers/checked_fixed_operator_dispatch_exit: REGRESSED (checked -> rejected)
-~ pass/providers/linear_structural_provider_return_exit: moved (rejected -> rejected)
-~ pass/providers/opaque_write_only_checked_alternative: moved (rejected -> rejected)
-~ pass/providers/provider_type_slot_missing_selection: moved (rejected -> rejected)
-~ pass/providers/qualified_foreign_result_forwarding: moved (rejected -> rejected)
-~ pass/providers/table_leaf_dispatch_parameter_exit: REGRESSED (checked -> rejected)
-~ pass/relevance/runtime_static_proof_namespace_exit: REGRESSED (checked -> rejected)
-~ pass/slices/runtime_namespace_range_contract_exit: REGRESSED (checked -> rejected)
-~ pass/slices/runtime_nested_stored_view_return_exit: REGRESSED (checked -> rejected)
-~ pass/slices/runtime_reborrowed_partition_append_exit: moved (rejected -> rejected)
-~ pass/slices/runtime_state_selected_nested_view_exit: moved (rejected -> rejected)
-~ pass/slices/stored_element_view_runtime_destination: moved (rejected -> rejected)
-~ pass/targets/private_target_supplies_remain_disclosed: REGRESSED (checked -> rejected)
-~ pass/targets/retained_target_provider_family_exit: REGRESSED (checked -> rejected)
-~ pass/tasks/task_runtime_machine_selection_compile: REGRESSED (checked -> rejected)
-~ pass/termination/measure_borrowed_projection_range: REGRESSED (checked -> rejected)
-~ pass/text/qualified_byte_owner_state_loan_cycle_exit: moved (rejected -> rejected)
-~ pass/text/runtime_slice_indexed_string_guard_exit: moved (rejected -> rejected)
-~ pass/traits/public_method_const_prefix_inference_exit: REGRESSED (checked -> rejected)
-~ pass/wire/runtime_wire_exact_array_without_count_exit: REGRESSED (checked -> rejected)
-~ pass/write_only/returned_destination_transport_exit: REGRESSED (checked -> rejected)
-~ fail/arithmetic/bounded_store_consumed_before_repair: REGRESSED (rejected -> rejected)
-~ fail/arithmetic/guarded_read_count_exceeds_target: REGRESSED (rejected -> rejected)
-~ fail/arithmetic/guarded_read_count_unguarded_arrival: REGRESSED (rejected -> rejected)
-~ fail/arithmetic/zii_range_excludes_zero_rejected: REGRESSED (rejected -> rejected)
-~ fail/borrows/evidence_bound_record_result_keeps_loan: REGRESSED (rejected -> rejected)
-~ fail/borrows/inline_carried_reference_holds_backing: REGRESSED (rejected -> rejected)
-~ fail/borrows/reference_carrier_store_while_shared: REGRESSED (rejected -> checked)
-~ fail/borrows/region_store_live_sibling_reference: REGRESSED (rejected -> checked)
-~ fail/borrows/replaced_carrier_keeps_new_backing_loan: REGRESSED (rejected -> rejected)
-~ fail/borrows/runtime_slice_result_retains_backing: REGRESSED (rejected -> rejected)
-~ fail/boundary/named_foreign_provider_wrong_table: REGRESSED (rejected -> checked)
-~ fail/calls/callback_shared_program_excluded_trap: moved (rejected -> rejected)
-+ fail/calls/final_value_recursive_operand_is_not_tail: new fixture (rejected)
-~ fail/comptime/recipe_extent_index_refused_at_closure: moved (rejected -> rejected)
-~ fail/constraints/computed_local_value_invalidated: REGRESSED (rejected -> checked)
-~ fail/contracts/recursive_result_bound_changed_actual: REGRESSED (rejected -> rejected)
-~ fail/contracts/replacement_call_child_false_snapshot: REGRESSED (rejected -> rejected)
-~ fail/core/guarded_trap_ceiling_other_site_rejected: moved (rejected -> rejected)
-~ fail/dependent/case_where_unproved_bound_rejected: REGRESSED (rejected -> rejected)
-~ fail/domains/byte_predicate_declared_callee_crash: REGRESSED (rejected -> checked)
-~ fail/domains/terminal_result_domain_missing_overload: moved (rejected -> rejected)
-~ fail/facts/source_indexed_family_same_rank_recursion: moved (rejected -> rejected)
-~ fail/generics/captured_map_foreign_nominal_region: REGRESSED (rejected -> rejected)
-~ fail/generics/grouped_decimal_const_suffix_rejected: moved (rejected -> rejected)
-~ fail/generics/record_const_distinct_completed_calls: moved (rejected -> rejected)
-~ fail/generics/record_const_foreign_nominal_carrier: REGRESSED (rejected -> rejected)
-~ fail/generics/runtime_value_recipe_join_bound_loss: REGRESSED (rejected -> rejected)
-~ fail/layouts/callee_integer_at_rhs_exposes_origin: REGRESSED (rejected -> rejected)
-~ fail/layouts/declaration_only_initializer_formation: REGRESSED (rejected -> rejected)
-~ fail/layouts/plan_laid_policy_without_plan_machine: REGRESSED (rejected -> rejected)
-~ fail/layouts/portable_layout_constant_composition: REGRESSED (rejected -> rejected)
-~ fail/modules/packaged_structured_const_wrong_carrier: moved (rejected -> rejected)
-~ fail/ownership/selected_storage_join_unrelated_root: REGRESSED (rejected -> rejected)
-~ fail/proofs/inductive_climbing_sum_step_false_twin: REGRESSED (rejected -> rejected)
-~ fail/proofs/kernel_integer_subtract_order_false_twin: REGRESSED (rejected -> rejected)
-~ fail/providers/table_leaf_without_dispatch_borrow: REGRESSED (rejected -> rejected)
-~ fail/range/refined_element_view_outside_field_domain: REGRESSED (rejected -> rejected)
-~ fail/ranges/correlated_store_selector_retires_bound: REGRESSED (rejected -> rejected)
-~ fail/recast/recast_slice_where_invalid_indexed_store: REGRESSED (rejected -> rejected)
-~ fail/slices/empty_fixed_array_slice_wrong_element: moved (rejected -> rejected)
-~ fail/slices/window_extent_does_not_establish_bounds: REGRESSED (rejected -> rejected)
-~ fail/traits/conformance_unused_lifetime_undeclared: REGRESSED (rejected -> rejected)
-~ fail/traits/explicit_implementation_const_identity: REGRESSED (rejected -> rejected)
-~ fail/traits/explicit_implementation_unrelated_trait: REGRESSED (rejected -> rejected)
-~ fail/traits/prepared_callable_wrong_member_source: REGRESSED (rejected -> rejected)
-~ fail/traits/structural_identity_executable_equality: REGRESSED (rejected -> checked)
-~ fail/traits/structural_identity_rebound_reference: REGRESSED (rejected -> rejected)
-~ fail/wire/returned_preserving_remainder_input_write: REGRESSED (rejected -> rejected)
-~ run/borrows/transition_guard_descriptor_fallthrough: REGRESSED (checked -> rejected)
+pass/arithmetic/runtime_remainder_result_cast_exit rejected 10729ms check-target:macos_arm64
+	machine `bounded_remainder` cannot prove ensures contract proof fact `result < divisor` on the transition arm guarded by `<always>`
+pass/arithmetic/runtime_transitive_bit_value_exit rejected 1530ms check-target:macos_arm64
+	shift count in machine `calculate` state `entry` return value is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+pass/borrows/borrow_guarded_window_write_and_call rejected 640ms check-target:macos_arm64
+	tests/omega/pass/borrows/borrow_guarded_window_write_and_call/main.omg:9:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found punctuation `{`
+pass/borrows/foreign_output_captured_reference_exit rejected 2216ms check-target:macos_arm64
+	completed output has no captured lifetime-input receipt; completed output from `again` in machine `repeat`, state `entry` (Handle { arena_index: 2715, generation: 1 }), statement 0, call 0, loan Handle { arena_index: 14, generation: 1 }
+pass/borrows/returned_record_case_field_store_exit rejected 7997ms check-target:macos_arm64
+	cannot establish assignment invariants: partial write enclosure has no exact active-case frontier
+	cannot establish assignment invariants: partial write enclosure has no exact active-case frontier
+	cannot establish assignment invariants: partial write enclosure has no exact active-case frontier
+	cannot establish assignment invariants: partial write enclosure has no exact active-case frontier
+pass/borrows/runtime_dependent_forwarded_window_exit rejected 2594ms check-target:macos_arm64
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/borrows/runtime_reassigned_view_capture_exit rejected 2082ms check-target:macos_arm64
+	cannot establish assignment invariants: source parent type is unavailable
+	cannot establish assignment invariants: source parent type is unavailable
+pass/borrows/runtime_stored_carrier_exchange_exit rejected 2251ms check-target:macos_arm64
+	state `unchanged` receives `second_retired.values` while local borrow `windows` is still active (borrowed at statement 5; its last use is at statement 13)
+	statement 5 creates local borrow `windows` while local borrow `retired` is still active (borrowed at statement 5; its last use is at statement 7)
+	statement 10 creates local borrow `windows` while local borrow `second_retired` is still active (borrowed at statement 10; its last use is at statement 11)
+	statement 10 creates local borrow `second_retired` while local borrow `windows` is still active (borrowed at statement 5; its last use is at statement 13)
+pass/build/dependency_generated_source_unimported rejected 1284ms
+	quoted byte literal has 41 source byte(s), but owned fixed byte array `[u8; 38]` requires exactly 38; fixed-array literal copying neither truncates nor pads
+pass/calls/native_code_layout_forward_machine_exit rejected 1154ms check-target:linux_x86_64
+	copied call lost its ordinary and realized Value operand roster
+pass/calls/native_code_layout_region_snapshot_exit rejected 1604ms check-target:macos_arm64
+	machine `capture` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/calls/native_code_layout_uncalled_boundary_exit rejected 1716ms check-target:linux_x86_64
+	machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/calls/native_code_layout_uncalled_cycle_exit rejected 1740ms check-target:macos_arm64
+	machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/calls/nonreturning_record_match_stopped_exit checked 10738ms check-target:macos_arm64
+pass/calls/runtime_indexed_case_pool_transition_exit timeout 120000ms
+pass/calls/runtime_state_reference_field_result_exit checked 10491ms check-target:macos_arm64
+pass/calls/statement_call_recursive_overload_compile rejected 1220ms
+	machine call cycle: `walk`, `descend` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/components/independent_same_spelling_packages rejected 6297ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(21) has no admitted mechanism
+pass/contracts/adapter_result_membership_forwarded rejected 2242ms check-target:macos_arm64
+	cannot prove ensures contract for exit from direct at statement 0: result in Token::Ready; the returned value does not establish this domain
+pass/contracts/borrowed_descriptor_guarded_end_exit checked 3124ms check-target:macos_arm64
+pass/contracts/float_guard_disjoint_operand_write rejected 2168ms check-target:macos_arm64
+	call from `read` to `invalid` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+pass/contracts/runtime_float_entry_relations_exit rejected 2205ms check-target:macos_arm64
+	call from `same` to `invalid` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `same` has an uncovered Trap crash at statement 1; publish a same-cause `crashes` route whose guard covers this site
+pass/contracts/runtime_float_fused_crash_guard_exit rejected 2232ms check-target:macos_arm64
+	call from `ping` to `pong` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `ping` has an uncovered Trap crash at statement 1; publish a same-cause `crashes` route whose guard covers this site
+	call from `pong` to `finish` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `pong` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+	call from `pong` to `ping` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `pong` has an uncovered Trap crash at statement 1; publish a same-cause `crashes` route whose guard covers this site
+pass/contracts/runtime_later_arm_call_requires_exit incomplete 7915ms check-target:macos_arm64
+	`entry_start` calls `Main::main`, which calls `sum`; `sum` has no executable body: this compiler does not lower its declaration of it yet (state graph: natural ranks)
+pass/drops/borrowed_temporary_normal_completion_exit rejected 2053ms check-target:macos_arm64
+	temporary backing lifetime coverage is unavailable for an operand of `entry` in state `entry` at statement 22
+pass/drops/runtime_owner_scoped_generic_cleanup_exit checked 3167ms check-target:macos_arm64
+pass/expressions/match_owned_computed_arm_arguments rejected 6998ms check-target:macos_arm64
+	Exact integer cast in machine `exit` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+pass/expressions/match_owned_mixed_projection_reads rejected 6923ms check-target:macos_arm64
+	Exact integer cast in machine `exit` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+pass/expressions/match_owned_parameter_field_subject rejected 6908ms check-target:macos_arm64
+	Exact integer cast in machine `exit` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+pass/facts/as_slice_views_generic_through_field_exit rejected 2476ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_through_local_exit rejected 2883ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/finite_family_exclusive_result/const_name checked 3458ms check-target:macos_arm64
+pass/facts/finite_family_exclusive_result/match_join checked 3381ms check-target:macos_arm64
+pass/facts/finite_family_exclusive_result/parameter checked 3417ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_call_result checked 3891ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_const_name checked 3848ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_match_join checked 4037ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_other_state checked 3768ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_parameter checked 3849ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_target_body checked 4063ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_parameter checked 3957ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_const_name checked 3808ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_match_join checked 4188ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_parameter checked 4076ms check-target:macos_arm64
+pass/facts/match_loan_last_use_through_field_exit rejected 2333ms check-target:macos_arm64
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+pass/facts/match_loan_last_use_through_local_exit rejected 2256ms check-target:macos_arm64
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+pass/facts/nested_result_extent_through_field_exit rejected 14761ms check-target:macos_arm64
+	cannot prove subslice range end bound `0..bound.end` is within unknown slice length of `buffer` in trial::entry
+pass/facts/placed_stable_write_through_field_exit checked 6292ms check-target:macos_arm64
+pass/facts/target_family_callback_guarantee/field checked 3425ms check-target:macos_arm64
+pass/facts/target_family_callback_guarantee/local checked 3318ms check-target:macos_arm64
+pass/facts/target_family_contract_operand/const_name checked 3611ms check-target:macos_arm64
+pass/facts/target_family_contract_operand/match_join checked 3530ms check-target:macos_arm64
+pass/facts/target_family_contract_operand/other_state checked 3543ms check-target:macos_arm64
+pass/facts/target_family_contract_operand/parameter checked 3538ms check-target:macos_arm64
+pass/facts/target_family_contract_operand/target_body checked 3393ms check-target:macos_arm64
+pass/filesystem/runtime_portable_copy_errors_exit timeout 120000ms
+pass/filesystem/runtime_portable_directory_names_exit timeout 120005ms
+pass/filesystem/runtime_portable_zero_descriptor_exit timeout 120013ms
+pass/float/build_runtime_semantics_twins_windows_x64 rejected 12462ms check-target:windows_x86_64
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(8), BoundaryMachineId(9), BoundaryMachineId(10), BoundaryMachineId(11), BoundaryMachineId(12), BoundaryMachineId(13), BoundaryMachineId(14), BoundaryMachineId(15), BoundaryMachineId(33), BoundaryMachineId(34), BoundaryMachineId(35), BoundaryMachineId(36), BoundaryMachineId(37), BoundaryMachineId(38), BoundaryMachineId(39), BoundaryMachineId(40), BoundaryMachineId(41), BoundaryMachineId(42), BoundaryMachineId(43), BoundaryMachineId(44), BoundaryMachineId(45), BoundaryMachineId(46), BoundaryMachineId(47), BoundaryMachineId(48), BoundaryMachineId(49), BoundaryMachineId(50), BoundaryMachineId(51), BoundaryMachineId(52), BoundaryMachineId(53), BoundaryMachineId(54)]
+pass/float/build_runtime_semantics_twins_x86_baseline rejected 12043ms check-target:linux_x86_64
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(8), BoundaryMachineId(9), BoundaryMachineId(10), BoundaryMachineId(11), BoundaryMachineId(12), BoundaryMachineId(13), BoundaryMachineId(14), BoundaryMachineId(15), BoundaryMachineId(33), BoundaryMachineId(34), BoundaryMachineId(35), BoundaryMachineId(36), BoundaryMachineId(37), BoundaryMachineId(38), BoundaryMachineId(39), BoundaryMachineId(40), BoundaryMachineId(41), BoundaryMachineId(42), BoundaryMachineId(43), BoundaryMachineId(44), BoundaryMachineId(45), BoundaryMachineId(46), BoundaryMachineId(47), BoundaryMachineId(48), BoundaryMachineId(49), BoundaryMachineId(50), BoundaryMachineId(51), BoundaryMachineId(52), BoundaryMachineId(53), BoundaryMachineId(54)]
+pass/float/computed_comparison_literal_landing_exit checked 3152ms check-target:macos_arm64
+pass/float/constructor_requirement_result_policy_exit checked 3065ms check-target:macos_arm64
+pass/float/public_class_result_contract_import_exit rejected 2131ms check-target:macos_arm64
+	specification call `F32::classify` has no observation-free, reach-free, crash-free value denotation
+pass/float/public_integer_input_contract_import_exit rejected 2079ms check-target:macos_arm64
+	specification call `F32::classify` has no observation-free, reach-free, crash-free value denotation
+	specification call `F32::classify` has no observation-free, reach-free, crash-free value denotation
+pass/float/runtime_qualified_carrier_conversion_exit checked 3160ms check-target:macos_arm64
+pass/float/runtime_refined_conversion_target_exit checked 3077ms check-target:macos_arm64
+pass/float/trapping_raw_finite_operand_capture_proof checked 3064ms check-target:macos_arm64
+pass/float/trapping_raw_finite_semantic_result_proof checked 3082ms check-target:macos_arm64
+pass/generics/open_const_selected_private_dependency checked 3986ms check-target:macos_arm64
+pass/generics/record_const_named_literal_equivalence rejected 1273ms check-target:macos_arm64
+	conformance `Selected` parameter `Setting` requires a const argument, but `<structural type>` has another static category
+	conformance `Selected` parameter `Setting` requires a const argument, but `<structural type>` has another static category
+pass/generics/runtime_captured_map_two_method_tuples checked 6957ms check-target:macos_arm64 terminal-inspections:match
+pass/generics/runtime_computed_nested_const_call_exit rejected 1168ms check-target:macos_arm64
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "generated generic application does not match its exact retained instance origin", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(32), span: Span { start: 252, end: 257 } }), resolved_location: None })
+pass/generics/runtime_const_data_machine_call_exit rejected 6101ms check-target:macos_arm64
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "exact arithmetic in closed const argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `table_size(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).", exceeded_provision: None, source_span: None, resolved_location: None })
+pass/layouts/declaration_only_initializer_formation rejected 1435ms
+	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-UNUSED` is not build-time admissible: a checked crash route remains possible (Trap); calls: [extent]; constant evaluation requires proof that no crash route can occur before execution"))
+pass/layouts/placed_primitive_mixed_backing_rejected rejected 7765ms check-target:macos_arm64
+	native artifact fragment object publication failed: placed backing geometry at MachineId(16)/OperationId(112): actual backing does not meet the placed schema, extent or base congruence
+pass/layouts/runtime_placed_accessor_writeback_exit checked 6868ms check-target:macos_arm64
+pass/memory/runtime_linear_native_allocation_exit rejected 2545ms check-target:linux_x86_64
+	cannot prove ensures contract for exit from HeapProvider::allocate at statement 0: result in Allocation::Held; the returned value does not establish this domain
+pass/optimizer/pre_allocation_joint_frontier_exit rejected 3095ms check-target:macos_arm64
+	selected optimizations `SelectedSameBlockCopyI64RemovalV1`, `SelectedRedundantExtensionRemovalV1`, `SelectedAddressOffsetFoldV1`, `SelectedConstantBooleanFoldV1`, `SelectedConstantBranchFoldV1`, `SelectedDeadCompareRemovalV1`, `SelectedRedundantCompareRemovalV1`, `SelectedEquivalentCompareRemovalV1`, `SelectedCopiedCallOperandFoldV1`, `SelectedStoredLoadForwardingV1` failed in the complete verified optimizer pipeline during selected/physical validation: common physical staging failed: SelectedOptimization(PreAllocation(PreAllocationBudgetExceeded { required: OptimizationWorkUsage { rule_evaluations: 41, candidates: 41, validation_steps: 4918568, commits: 2, iterations: 1 }, budget: OptimizationWorkBudget { rule_evaluations: 1000000, candidates: 100000, validation_steps: 4000000, commits: 100000, iterations: 1000000 } })); no alternate compiler route was run and no output was installed
+pass/ownership/runtime_match_observation_cleanup_exit rejected 2754ms check-target:macos_arm64
+	cannot plan contextual call cleanup against the executable hook roster: machine `structural_result`, state `entry`, statement 1, call 1: completed operand `issue(&mut counter)` (Handle { arena_index: 13477, generation: 1 }) has no selected normal death
+pass/progress/provider_receiver_progress_installation rejected 3057ms check-target:linux_x86_64
+	provider completion for `named-callable(path(nominal\\(package-owner\\(32:78d666a3ef4ce09f7a7e4a1f30f7d6cfa9b721b34150cbe9ca889272b1820a23\\)\\,path\\(Scheduler::notify\\)\\)),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:78d666a3ef4ce09f7a7e4a1f30f7d6cfa9b721b34150cbe9ca889272b1820a23\\\\\\)\\\\\\,path\\\\\\(SchedulerProvider\\\\\\)\\\\\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:78d666a3ef4ce09f7a7e4a1f30f7d6cfa9b721b34150cbe9ca889272b1820a23\\\\\\)\\\\\\,path\\\\\\(SchedulerHandle\\\\\\)\\\\\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` disagrees with its exact retained requirement contract
+pass/proofs/admitted_premises_long_equality_chain rejected 1339ms
+	machine `chained` cannot prove ensures contract proof fact `result == value16 + 16` on the transition arm guarded by `<always>`
+pass/proofs/descriptor_bound_call_after_element_call rejected 1289ms
+	cannot prove requires contract for call demand from filter: partition.count <= partition.records.len (needs fact `partition.count <= partition.records.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/proofs/float_guarded_negated_result_contract rejected 1340ms
+	machine `retain_when_false` ensures contract proof fact `flag || !flag && Float.meaning64(result) == Float.meaning64(value)` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+	machine `retain_when_negated` ensures contract proof fact `flag || Float.meaning64(result) == Float.meaning64(value)` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+	machine `absolute_f32` ensures contract proof fact `value == 0.0 && F32.meaning(result) == F32.meaning(0.0) || value < 0.0 && F32.meaning(result) == FloatSemantics.negate(FloatFormat, F32.meaning(value)) || value != 0.0 && !value < 0.0 && F32.meaning(result) == F32.meaning(value)` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+	machine `absolute_f64` ensures contract proof fact `value == 0.0 && F64.meaning(result) == F64.meaning(0.0) || value < 0.0 && F64.meaning(result) == FloatSemantics.negate(FloatFormat, F64.meaning(value)) || value != 0.0 && !value < 0.0 && F64.meaning(result) == F64.meaning(value)` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+pass/proofs/loop_postcondition_after_element_store rejected 1319ms
+	cannot prove ensures contract for exit from retain at statement 0: result <= count
+pass/proofs/proposition_relation_hierarchy_compile rejected 1336ms
+	checked machine `related_reflexive` cannot establish proposition ensure `boolean:value == value` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
+	checked machine `related_symmetric` cannot establish proposition ensure `boolean:right == left` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
+	checked machine `related_transitive` cannot establish proposition ensure `boolean:left == right` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
+	checked machine `related_reflexive_named` cannot establish proposition ensure `boolean:item == item` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
+	checked machine `related_symmetric_flipped` cannot establish proposition ensure `boolean:left == right` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
+	machine `related_antisymmetric` cannot prove ensures contract proof fact `left == right` from the requires contract
+pass/proofs/reviewed_mathematical_data_contract_exit rejected 3714ms check-target:macos_arm64
+	cannot prove requires contract for call capacity from geometry: pages >= 1 && pages <= 512 && __transition_subject#95.indices.pt_index < 512 && target <= 0xffffffffff000 (needs fact `pages >= 1 && pages <= 512 && first < 512 && target <= 0xffffffffff000` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/proofs/runtime_sequential_ranked_components_exit rejected 7996ms check-target:macos_arm64
+	terminating machine descend reaches recursive component `loop`, which has no `terminates by` ranking -- spell one on that component
+pass/proofs/selected_specification_requires_exact checked 1447ms
+pass/proofs/selected_specification_requires_renamed checked 1456ms
+pass/proofs/selected_specification_requires_state checked 1483ms
+pass/providers/build_product_adapter_frontiers_exit rejected 1874ms check-target:macos_arm64
+	anonymous source tests/omega/pass/providers/build_product_adapter_frontiers_exit/support/values.omg belongs to a different reconciled package at Product join
+pass/providers/checked_fixed_operator_dispatch_exit rejected 8092ms check-target:macos_arm64
+	boundary requirement `CheckedMath::select_left` in package Some(PackageKeyIdentity([16, 55, 161, 70, 75, 255, 80, 58, 92, 208, 187, 145, 84, 137, 49, 200, 80, 189, 159, 34, 234, 155, 101, 4, 187, 206, 201, 154, 217, 213, 190, 172])) resolves to 0 selected ProviderPlans; expected exactly one
+pass/providers/foreign_indirect_record_distinct_exit rejected 3066ms check-target:linux_x86_64
+	no provider is selected for boundary requirement `AllocationProbe::statistics`, which the program entry reaches on target `linux_x86_64`
+	no provider is selected for boundary requirement `AllocationProbe::exit_with`, which the program entry reaches on target `linux_x86_64`
+	no provider is selected for boundary requirement `AllocationProbe::allocate`, which the program entry reaches on target `linux_x86_64`
+	no provider is selected for boundary requirement `AllocationProbe::release`, which the program entry reaches on target `linux_x86_64`
+pass/providers/linear_structural_provider_return_exit rejected 8560ms check-target:macos_arm64
+	cannot prove ensures contract for exit from TokenProviderTokenFlowImplementation::forward at statement 0: result in Carry::AcrossSuspend
+pass/providers/opaque_write_only_checked_alternative rejected 2923ms check-target:macos_arm64
+	cannot prove default-domain field requirement for return from ErasedWriteCode::write at statement 2: storage requires Storage::Issued
+	cannot prove default-domain field requirement for call write from main::entry: parameter storage requires Storage::Issued
+pass/providers/provider_type_slot_missing_selection rejected 3529ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Pick::choose`, which the program entry reaches on target `macos_arm64`
+pass/providers/qualified_foreign_result_forwarding rejected 1443ms
+	machine `forward` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/providers/table_leaf_dispatch_parameter_exit rejected 3096ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Measure::length`, which the program entry reaches on target `macos_arm64`
+	no provider is selected for boundary requirement `Absolute::value`, which the program entry reaches on target `macos_arm64`
+pass/recast/runtime_byte_region_state_transfer_exit checked 3898ms check-target:macos_arm64
+pass/recast/runtime_captured_guard_conjunction_exit checked 3179ms check-target:macos_arm64
+pass/recast/runtime_field_precondition_capture_exit checked 10182ms check-target:macos_arm64
+pass/relevance/runtime_static_proof_namespace_exit rejected 837ms check-target:macos_arm64
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot compare `Natural` values with `==`: structural equality is synthesized only through a named implementation -- declare `NaturalEquality satisfies Equatable<Natural> { }` to synthesize structural equality, or use `core::Identity<Natural>(left, right)` for mathematical identity", exceeded_provision: None, source_span: None, resolved_location: None })
+pass/slices/runtime_helper_stored_view_return_exit rejected 2298ms check-target:macos_arm64
+	statement 3 creates local borrow `windows` while local borrow `returned` is still active (borrowed at statement 3; its last use is at statement 4)
+pass/slices/runtime_namespace_range_contract_exit rejected 2325ms check-target:macos_arm64
+	cannot prove requires contract for call middle from Main::main: 1 <= 3 && 3 <= main.bytes.len (needs fact `start <= end && end <= bytes.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+pass/slices/runtime_nested_stored_view_return_exit rejected 2204ms check-target:macos_arm64
+	returned view has no complete formation frontier
+pass/slices/runtime_reborrowed_partition_append_exit rejected 1595ms check-target:macos_arm64
+	machine `main` state `entry` statement 4: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/slices/runtime_state_selected_nested_view_exit rejected 2299ms check-target:macos_arm64
+	returned view has no complete formation frontier
+pass/slices/saved_byte_predicate_alias_disjoint_exit checked 3063ms check-target:macos_arm64
+pass/slices/saved_byte_predicate_fields_disjoint_exit checked 3126ms check-target:macos_arm64
+pass/slices/stored_element_view_runtime_destination rejected 1639ms check-target:macos_arm64
+	machine `main` state `entry` statement 3: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/targets/private_target_supplies_remain_disclosed rejected 7350ms check-target:macos_arm64
+	unknown canonical target profile `reserved_target`
+pass/targets/retained_target_provider_family_exit rejected 6442ms check-target:macos_arm64
+	unknown canonical target profile `reserved_target`
+pass/tasks/task_runtime_machine_selection_compile rejected 3256ms check-target:macos_arm64 terminal-inspections:failed
+	generic machine `CanaryTaskRuntime::start` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `CanaryTaskRuntimeProvider::start$specialized$4885fcffee9211fa$0$4787` state `CanaryTaskRuntimeProvider::start$specialized$4885fcffee9211fa$0$4787::start`: Type slot `Arguments` conflicts: Token[1 constraint] [identity constrained(named(name(nominal\\(package-owner\\(32:f8715ae42dcadbaf9328fcff5a07fd831aeced2a89238cefed87488fd197fba2\\)\\,path\\(Token\\)\\))),compiler-domain(family(carry),permission(across-suspend))); supplier Main::probe] versus Token [identity named(name(nominal\\(package-owner\\(32:f8715ae42dcadbaf9328fcff5a07fd831aeced2a89238cefed87488fd197fba2\\)\\,path\\(Token\\)\\))); supplier unretained]
+	generic machine `CanaryTaskRuntime::try_start` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `CanaryTaskRuntimeProvider::try_start$specialized$de38beb17ecb2100$0$4790` state `CanaryTaskRuntimeProvider::try_start$specialized$de38beb17ecb2100$0$4790::try_start`: Type slot `Arguments` conflicts: Token[1 constraint] [identity constrained(named(name(nominal\\(package-owner\\(32:f8715ae42dcadbaf9328fcff5a07fd831aeced2a89238cefed87488fd197fba2\\)\\,path\\(Token\\)\\))),compiler-domain(family(carry),permission(across-suspend))); supplier Main::probe] versus Token [identity named(name(nominal\\(package-owner\\(32:f8715ae42dcadbaf9328fcff5a07fd831aeced2a89238cefed87488fd197fba2\\)\\,path\\(Token\\)\\))); supplier unretained]
+	inspection Main::main admission: [Diagnostic { severity: Error, message: "generic machine `CanaryTaskRuntime::start` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `CanaryTaskRuntimeProvider::start$specialized$4885fcffee9211fa$0$4787` state `CanaryTaskRuntimeProvider::start$specialized$4885fcffee9211fa$0$4787::start`: Type slot `Arguments` conflicts: Token[1 constraint] [identity constrained(named(name(nominal\\\\(package-owner\\\\(32:f8715ae42dcadbaf9328fcff5a07fd831aeced2a89238cefed87488fd197fba2\\\\)\\\\,path\\\\(Token\\\\)\\\\))),compiler-domain(family(carry),permission(across-suspend))); supplier Main::probe] versus Token [identity named(name(nominal\\\\(package-owner\\\\(32:f8715ae42dcadbaf9328fcff5a07fd831aeced2a89238cefed87488fd197fba2\\\\)\\\\,path\\\\(Token\\\\)\\\\))); supplier unretained]", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(33), span: Span { start: 1198, end: 1203 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("task_runtime_machine_selection_compile"), path: "tests/omega/pass/tasks/task_runtime_machine_selection_compile/main.omg", line: 25, column: 192 }) }, Diagnostic { severity: Error, message: "generic machine `CanaryTaskRuntime::try_start` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `CanaryTaskRuntimeProvider::try_start$specialized$de38beb17ecb2100$0$4790` state `CanaryTaskRuntimeProvider::try_start$specialized$de38beb17ecb2100$0$4790::try_start`: Type slot `Arguments` conflicts: Token[1 constraint] [identity constrained(named(name(nominal\\\\(package-owner\\\\(32:f8715ae42dcadbaf9328fcff5a07fd831aeced2a89238cefed87488fd197fba2\\\\)\\\\,path\\\\(Token\\\\)\\\\))),compiler-domain(family(carry),permission(across-suspend))); supplier Main::probe] versus Token [identity named(name(nominal\\\\(package-owner\\\\(32:f8715ae42dcadbaf9328fcff5a07fd831aeced2a89238cefed87488fd197fba2\\\\)\\\\,path\\\\(Token\\\\)\\\\))); supplier unretained]", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(33), span: Span { start: 1453, end: 1462 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("task_runtime_machine_selection_compile"), path: "tests/omega/pass/tasks/task_runtime_machine_selection_compile/main.omg", line: 26, column: 215 }) }]
+pass/termination/measure_borrowed_projection_range rejected 1391ms
+	machine call cycle: `walk` -- the arriving rank reference is missing its exact public subject; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/text/qualified_byte_owner_state_loan_cycle_exit rejected 5942ms check-target:macos_arm64
+	tests/omega/pass/text/qualified_byte_owner_state_loan_cycle_exit/main.omg:35:72: a cast names its domains either with entries (`as T +D`) or with the older `as T in D`, not both
+pass/text/runtime_slice_indexed_string_guard_exit rejected 8192ms check-target:macos_arm64
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `Main::main` state `main` at statement 7: assignment has no complete incoming storage prefix
+pass/traits/public_method_const_prefix_inference_exit rejected 3019ms check-target:macos_arm64
+	selected provider requirement `named-callable(path(nominal\\(package-owner\\(32:50187d20f5ab362680078abce1e937d491e407fce9082e69143e84b7ed0f95a0\\)\\,path\\(Echo::pair\\)\\)),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\($T0\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\($T0\\)\\)\\)\\)),result-dispatch())` has no emitted exact declaration candidate
+pass/wire/runtime_wire_exact_array_without_count_exit rejected 6182ms check-target:macos_arm64
+	machine structural equation remains unsolved in a noncall static argument
+pass/write_only/returned_destination_transport_exit rejected 2309ms check-target:macos_arm64
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `main` state `entry` at statement 15: destination descriptor has no complete captured suppliers
+fail/arithmetic/bounded_store_consumed_before_repair rejected 1256ms unexpected
+	machine `Counter::replace` state `replace` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
+	machine `Counter::replace` state `replace` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 2 in machine `Counter::replace` state `replace`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/arithmetic/guarded_read_count_exceeds_target rejected 1279ms unexpected
+	cannot complete a call at statement 2 in machine `store` state `entry`: this write left the `requires` facts of `reader` (data `Reader`) unproved; restore them first
+fail/arithmetic/guarded_read_count_unguarded_arrival rejected 1395ms unexpected
+	cannot complete a call at statement 2 in machine `store` state `entry`: this write left the `requires` facts of `reader` (data `Reader`) unproved; restore them first
+fail/arithmetic/zii_range_excludes_zero_rejected rejected 1269ms unexpected
+	partial exact remainder in machine `main` state `entry` local `remainder`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/borrows/evidence_bound_record_result_keeps_loan rejected 1294ms unexpected
+	normal call `forward` (Handle { arena_index: 13385, generation: 1 }) in machine `invalid` state `entry` statement 2: completed result reference permissions are unavailable
+fail/borrows/inline_carried_reference_holds_backing rejected 2143ms unexpected
+	temporary backing lifetime coverage is unavailable for an operand of `entry` in state `entry` at statement 0
+fail/borrows/reference_carrier_store_while_shared checked 1456ms
+fail/borrows/region_store_live_sibling_reference checked 1481ms
+fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1205ms unexpected
+	machine `reject_live_write` state `entry` expression type application uses undeclared lifetime argument `'storage' in `Carrier`; declare it in the owner's generic parameter list
+fail/borrows/runtime_slice_result_retains_backing rejected 1269ms unexpected
+	returned projection does not match this invocation and result path
+fail/boundary/named_foreign_provider_wrong_table checked 2951ms
+fail/build/build_satisfier_trait_signature_mismatch rejected 594ms unexpected
+	machine satisfaction target `ExtentRootProvider::grant` does not resolve to an exact trait requirement or top-level `boundary requirement`
+fail/build/root_binding_foreign_helper_private_entry rejected 3ms unexpected
+	failed to resolve tests/omega/fail/build/root_binding_foreign_helper_private_entry/support/configure.omg: captured entry is absent: support
+fail/calls/callback_shared_program_excluded_trap rejected 10373ms expected
+	1 authored behavior exclusion(s) could not be satisfied
+	behavior exclusion violated: crash cause Trap is reachable in machine `PointHandler::visit` (Terminal machine 5) at crash terminator in block 10
+	the selected composition retains crash cause Trap through machine `PointHandler::visit` (Terminal machine 5) declared here
+fail/calls/final_value_recursive_operand_is_not_tail rejected 1229ms unexpected
+	`walk(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> walk(..)` on a measured machine, or iterate with an explicit stack.
+fail/calls/terminal_state_jump_block_acknowledgement rejected 1288ms unexpected
+	call to `done` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
+fail/comptime/recipe_extent_index_refused_at_closure rejected 9710ms unexpected
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(8)]
+fail/constraints/computed_local_value_invalidated checked 1495ms
+fail/contracts/normal_return_written_state_premise rejected 1407ms unexpected
+	cannot prove ensures contract for exit from wrong at statement 0: result.code == 7 && original.value != 0
+fail/contracts/recursive_result_bound_changed_actual rejected 2279ms unexpected
+	machine `descend` cannot prove ensures contract proof fact `result <= previous` on the transition arm guarded by `__transition_subject#43 == true`
+fail/contracts/replacement_call_child_false_snapshot rejected 1260ms unexpected
+	machine `false_producer` ensures contract proof fact `result == 9` is disproved by constant arithmetic on the transition arm guarded by `<always>`
+fail/control_flow/transition_value_without_result rejected 1204ms unexpected
+	machine `Counter::wipe` state `wipe` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`
+	machine `step` state `entry` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`
+	machine `step` state `entry` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`
+	machine `one` state `entry` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`
+fail/core/guarded_trap_ceiling_other_site_rejected rejected 7674ms unexpected
+	call from `pack` to `check_high` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `pack` has an uncovered Trap crash at statement 1; publish a same-cause `crashes` route whose guard covers this site
+fail/dependent/case_where_unproved_bound_rejected rejected 1311ms unexpected
+	data `Interval` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/domains/byte_predicate_declared_callee_crash checked 1410ms
+fail/domains/terminal_result_domain_missing_overload rejected 1089ms unexpected
+	named machine call `nominal(package-owner(32:0d93bc13d4bec2a8b538323878893a64eb549872ce96bcc3299369f895e2f510),path(value))` has no overload for result dispatch set `declared:package:0d93bc13d4bec2a8b538323878893a64eb549872ce96bcc3299369f895e2f510:product::f64::Time` and parameter signature ``
+fail/domains/terminal_result_domain_unestablished rejected 1306ms unexpected
+	cannot prove scalar result domain for return from missing at statement 0: i32::Issued
+fail/drops/temporary_cleanup_later_state_initializer rejected 1357ms unexpected
+	cannot prove automatic cleanup requires at selected edge from formed state entry after statement 0: Token does not establish drop_token clause `token.value == 7`
+fail/expressions/owned_match_subject_consumed_source rejected 2116ms unexpected
+	selected descriptor has no live evaluated carrier custody
+fail/facts/foreign_nested_record_backing_call_result rejected 3131ms expected
+	statement 5 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_nested_record_backing_const_name rejected 2883ms expected
+	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_nested_record_backing_match_join rejected 3338ms expected
+	statement 7 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 9)
+	statement 7 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 9)
+	statement 7 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 9)
+fail/facts/foreign_nested_record_backing_other_state rejected 3166ms expected
+	statement 5 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_nested_record_backing_parameter rejected 2932ms expected
+	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_nested_record_backing_target_body rejected 2909ms expected
+	statement 5 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_mutable_borrow_parameter rejected 2932ms expected
+	statement 4 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_shared_borrow_const_name rejected 2944ms expected
+	statement 3 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/foreign_retained_shared_borrow_match_join rejected 2831ms expected
+	statement 6 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 8)
+	statement 6 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
+	statement 6 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
+fail/facts/foreign_retained_shared_borrow_parameter rejected 3086ms expected
+	statement 3 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/source_indexed_family_same_rank_recursion rejected 2164ms unexpected
+	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/generics/captured_map_foreign_nominal_region rejected 1149ms unexpected
+	static operand changed its retained selected application
+fail/generics/grouped_decimal_const_suffix_rejected rejected 782ms unexpected
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "closed const argument constant expression call argument `4` does not form parameter `right` of `Float::divide`: actual no retained result type, required f64", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(30), span: Span { start: 95, end: 96 } }), resolved_location: None })
+fail/generics/record_const_distinct_completed_calls rejected 2589ms expected
+	cannot prove ensures contract for exit from misplaced at statement 1: result >= 7
+fail/generics/record_const_foreign_nominal_carrier rejected 1338ms unexpected
+	const argument `Setting` has no static value with its exact declared carrier
+fail/generics/runtime_index_carrier_match_mismatch rejected 1277ms unexpected
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+fail/generics/runtime_value_recipe_join_bound_loss rejected 2407ms unexpected
+	exact arithmetic in value argument `Limit` of `Index` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/layouts/callee_integer_at_rhs_exposes_origin rejected 1920ms unexpected
+	machine `Main::main` state `main` statement 3: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/layouts/declaration_only_initializer_formation rejected 1531ms unexpected
+	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-UNUSED` is not build-time admissible: a checked crash route remains possible (Trap); calls: [extent]; constant evaluation requires proof that no crash route can occur before execution"))
+fail/layouts/fixed_layout_policy_borrowed_content checked 4179ms
+fail/layouts/plan_laid_policy_without_plan_machine rejected 6820ms unexpected
+	generic data `NotAPolicy` expected 0 arguments but got 1
+fail/layouts/portable_layout_constant_composition rejected 4747ms unexpected
+	failed scalar accounting probe missed its authored refusal
+fail/layouts/target_layout_call_checks_all_widths rejected 3247ms expected
+	IntegerAt call in program requires every performed value to fit its physical storage: performed integer value is not proven to fit
+fail/modules/ambiguous_numeric_callable_not_builtin rejected 1081ms unexpected
+	named call `max` is ambiguous between declaration namespaces
+fail/modules/packaged_structured_const_wrong_carrier rejected 1971ms unexpected
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "indexed-domain selected constant has canonical type `named(name(nominal\\\\(package-owner\\\\(32:2a7c1be4c2f9cc4e10dd77d18f15a2d14cb20f00ba1fa5331b4b90082341890f\\\\)\\\\,path\\\\(ImpostorToken\\\\)\\\\)))`, expected `named(name(nominal\\\\(package-owner\\\\(32:c2b9af57878fbbaf8fe969edcadd6f81076f1bb1663ddaa61cd7a97b2478cf40\\\\)\\\\,path\\\\(Token\\\\)\\\\)))`", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/modules/selected_constant_nominal_call_mismatch rejected 1048ms unexpected
+	constant initializer: constant initializer result does not match its declared carrier
+fail/ownership/selected_storage_join_unrelated_root rejected 2709ms unexpected
+	callable `rejoin` has an invalid content-conservation contract: content conservation requires the sealed typed core::Identity: expression has no checked mathematical application
+fail/proofs/inductive_climbing_sum_step_false_twin rejected 1268ms unexpected
+	exact arithmetic in machine `Main::climb` ensures contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Main::climb` ensures contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	machine `Main::climb` cannot prove ensures contract proof fact `result >= acc + limit - index` on the transition arm guarded by `__transition_subject#19 == true`
+fail/proofs/kernel_integer_subtract_order_false_twin rejected 1313ms unexpected
+	terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the rank produced by the selected view
+	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/proofs/nested_machine_computed_rank_preserving rejected 1274ms expected
+	proof-only machine call cycle: `descend`, `forward` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path
+fail/proofs/static_machine_result_partial_contract rejected 1399ms expected
+	machine `unproved` ensures contract proof fact `core::Identity<Nat>(project<Read>(index), Nat)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+	specification call `project` has no observation-free, reach-free, crash-free value denotation: the selected closure has effects, reaches, or unresolved call targets
+	specification call `project` has no observation-free, reach-free, crash-free value denotation: the selected closure has effects, reaches, or unresolved call targets
+fail/providers/applied_binding_unused_const_overflow rejected 944ms unexpected
+	integer node `u8(256)` does not fit exact carrier `u8`
+fail/providers/borrowed_membership_current_subject rejected 1398ms unexpected
+	state `read_after` receives `item` as both mutable and read-only
+	cannot prove requires contract for call read_after from later_operand: item in Item::Selected in state `entry`
+	cannot prove requires contract for call read from after_mutation: item in Item::Selected in state `entry`
+	cannot prove requires contract for call read from sibling: pair.right in Item::Selected in state `entry`
+	cannot prove requires contract for call read from join: item in Item::Selected in state `entry`
+fail/providers/portable_slot_cannot_lend_raw_binding rejected 30926ms unexpected
+	state `write` expects 2 argument(s), got 3
+	machine `Main::main` state `main` reads a nested member `host`, but data `Filesystem` has no field `host` (check the spelling of the field name)
+fail/providers/table_leaf_without_dispatch_borrow rejected 2900ms unexpected
+	no provider is selected for boundary requirement `Measure::length`, which the program entry reaches on target `linux_x86_64`
+fail/range/refined_element_view_outside_field_domain rejected 1316ms unexpected
+	cannot complete return from machine `store` state `entry`: this write left the `requires` facts of `cells[*]` (data `Cell`) unproved; restore them first
+fail/ranges/correlated_store_selector_retires_bound rejected 1303ms unexpected
+	cannot complete return from machine `write` state `entry`: this write left the `requires` facts of `output[0]` (data `Limited`) unproved; restore them first
+fail/recast/recast_slice_where_invalid_indexed_store rejected 1313ms unexpected
+	cannot complete return from machine `write_invalid` state `entry`: this write left the `requires` facts of `values[*]` (data `Exact`) unproved; restore them first
+fail/slices/empty_fixed_array_slice_wrong_element rejected 1220ms unexpected
+	argument `items` for state `empty` expects `&[u64]`, got `named value`; expected carrier `ref(slice(named(name(u64))))`, declared place carrier `array(named(name(i32)),literal(0))`
+fail/slices/window_extent_does_not_establish_bounds rejected 2325ms unexpected
+	returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source; source Handle { arena_index: 1, generation: 44 } in main::entry statement 0: no exact invocation access supplies this descriptor; carrier Some("ref(slice(named(name(u8))))"), expected None, path [] (0 segments)
+fail/termination/bounded_distance_moving_call_bound rejected 1312ms expected
+	machine call cycle: `first`, `second` -- rank range membership, selected view bounds, or nonincrease is unproven at a call site; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/self_call_rank_reset_before_descent rejected 1444ms unexpected
+	machine call cycle: `reset`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/stale_state_rank_premise_rejected rejected 1485ms unexpected
+	machine call cycle: `Main::count`, `hold`, `Main::next` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/traits/conformance_unused_lifetime_undeclared rejected 1222ms unexpected
+	static operand changed its retained selected application
+fail/traits/evidence_binder_wrong_trait_arguments rejected 1235ms expected
+	generic machine `apply` cannot bind `Operations` to conformance `GaugeIncrement`: expected a complete `Incrementable` implementation with the instantiated trait arguments
+fail/traits/explicit_implementation_const_identity rejected 1105ms unexpected
+	`<structural type>` implements `Consumer<Value, SelectedReading<Value, Tag>>`, not the `Consumer<i32, <structural type>>` this call of `Consumer::tag` names; expected [named(name(i32)), generic(name(nominal\\(package-owner\\(32:aa5c06e2ff08c75a632c544a2c57402ddf32e2b4d5dda5664d2b9d9c675889ea\\)\\,path\\(SelectedReading\\)\\)),named(name(i32)),integer(7))], supplied [named(name(i32)), generic(name(nominal\\(package-owner\\(32:aa5c06e2ff08c75a632c544a2c57402ddf32e2b4d5dda5664d2b9d9c675889ea\\)\\,path\\(SelectedReading\\)\\)),named(name(i32)),integer(19))]
+fail/traits/explicit_implementation_unrelated_trait rejected 1062ms unexpected
+	`<structural type>` implements `Weighed<Card>`, which neither is nor inherits `Ranked`, the trait that declares `Ranked::compare`
+fail/traits/prepared_callable_wrong_member_source rejected 1331ms unexpected
+	machine `flip` state `entry` does not satisfy trait `Flipping` machine `flip`: conformance borrow contract: callable type does not preserve its region identity [result-validation; actual reference Handle { arena_index: 3016, generation: 1 }; required reference Handle { arena_index: 4099, generation: 1 }; last rejected comparison Some(RejectedRegionComparison { reference: Handle { arena_index: 3012, generation: 1 }, actual_declaration: Handle { arena_index: 1587, generation: 1 }, required_declaration: Handle { arena_index: 2625, generation: 1 }, actual: Some(Captured(Handle { arena_index: 1587, generation: 1 }, 0)), required: Some(Captured(Handle { arena_index: 1587, generation: 1 }, 1)) }); required: owner flip Handle { arena_index: 2625, generation: 1 }, supplier flip Handle { arena_index: 1587, generation: 1 }, fresh 0, names [], own slots [], bindings [], applications [[]], substitutions [(Handle { arena_index: 2623, generation: 1 }, Handle { arena_index: 3008, generation: 1 }), (Handle { arena_index: 2624, generation: 1 }, Handle { arena_index: 3010, generation: 1 })], scope starts [0]; actual: owner flip Handle { arena_index: 1587, generation: 1 }, supplier flip Handle { arena_index: 1587, generation: 1 }, fresh 2, names [("left", Captured(Handle { arena_index: 1587, generation: 1 }, 0)), ("right", Captured(Handle { arena_index: 1587, generation: 1 }, 1)), ("left", Captured(Handle { arena_index: 1587, generation: 1 }, 0)), ("right", Captured(Handle { arena_index: 1587, generation: 1 }, 1))], own slots [(LifetimeParameterIdentity { declaration: Handle { arena_index: 1587, generation: 1 }, ordinal: 0 }, Fresh(0)), (LifetimeParameterIdentity { declaration: Handle { arena_index: 1587, generation: 1 }, ordinal: 1 }, Fresh(1))], bindings [], applications [], substitutions [], scope starts []]; callable returned view has a different input-source relation
+fail/traits/structural_identity_executable_equality checked 1451ms
+fail/traits/structural_identity_rebound_reference rejected 793ms unexpected
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot compare `Packet` values with `==`: structural equality is synthesized only through a named implementation -- declare `PacketEquality satisfies Equatable<Packet> { }` to synthesize structural equality, or use `core::Identity<Packet>(left, right)` for mathematical identity", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/wire/returned_preserving_remainder_input_write rejected 7738ms unexpected
+	returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source; source Handle { arena_index: 32, generation: 361 } in Main::main::main statement 3: no exact invocation access supplies this descriptor; carrier Some("ref(slice(named(name(u8))))"), expected None, path [] (0 segments); source Handle { arena_index: 33, generation: 361 } in Main::main::main statement 3: completed descriptor formation is unresolved; carrier Some("ref(slice(named(name(u8))))"), expected None, path [] (0 segments)
+run/borrows/transition_guard_descriptor_fallthrough rejected 7778ms check-target:macos_arm64
+	state `checked` receives `buffer.values[0]::Some.payload.target` without an exact retained backing for its loan: the access has no unique completed operand
