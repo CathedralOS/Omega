@@ -508,7 +508,6 @@ mod tests {
             own: 7,
         };
         assert!(crate::encode_beside(&stray, &ambient, limits).is_err());
-
     }
 
     #[test]

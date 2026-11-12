@@ -568,7 +568,13 @@ pub(crate) mod checked_slice {
         }
         let sources = program.symbols.source_map()?;
         let encoded = compiler_storage::encode_beside(program, &sources, LIMITS).ok()?;
-        slice_key(KEY_DOMAIN, reuse, sources, admission.declarations, &[&encoded])
+        slice_key(
+            KEY_DOMAIN,
+            reuse,
+            sources,
+            admission.declarations,
+            &[&encoded],
+        )
     }
 
     /// The verified payload stored under `key`, if any.
@@ -672,10 +678,7 @@ pub(crate) mod checked_slice {
             let store = Memory::default();
             let checked = checked_trees::CheckedTrees::default();
             super::save(&reuse(&store), &key(1), &checked);
-            assert_eq!(
-                super::load(&reuse(&store), &key(1)),
-                Some(checked)
-            );
+            assert_eq!(super::load(&reuse(&store), &key(1)), Some(checked));
             assert_eq!(super::load(&reuse(&store), &key(2)), None);
         }
 
