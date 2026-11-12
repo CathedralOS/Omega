@@ -28,8 +28,9 @@ sh tests/bootstrap/omega-executable/run.sh
 ```
 
 The gate requires Python 3, the selected checked-in Alpha seed and the existing
-shell tools; macOS also requires `codesign`. Starting from the admitted Beta
-tape in that seed, it rebuilds Beta from source, uses the rebuilt compiler to
+shell tools; macOS also requires `codesign`. It stamps the separately admitted
+[Beta tape](../../../bootstrap/1_beta/AUDIT.md) into the selected Alpha container,
+rebuilds Beta from source, and uses the rebuilt compiler to
 construct the Gamma evaluator from source, and compares both tapes exactly
 with their bound artifacts. It executes those constructed bytes to reconstruct
 the Epsilon execution receipt through the Gamma-written Delta compiler, checks
@@ -37,7 +38,10 @@ the complete Epsilon-written Omega compiler plus its request-route entry,
 seals the source into the canonical request, and stamps and executes only the
 actual successful output.
 No Rust compiler, host parser, host typechecker, or host code generator supplies
-the program's meaning. Python frames, invokes, compares, and stores bytes.
+the program's meaning. The packing and stamping helpers remain trusted byte
+transport. Python frames, invokes, compares, and stores bytes. The separate
+[Alpha-to-Beta gate](../alpha-beta-edge.sh) also checks native-container source
+provenance; this ordinary executable gate does not rebuild the native seed.
 
 Outputs live in ignored `build/omega-executable/`, including `program.tape` and
 `program.exe`. The executable is the host's Alpha VM container carrying the

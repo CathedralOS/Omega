@@ -6,6 +6,11 @@ TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$TEST_DIR/../.." && pwd -P)
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 
+# Reuse the built developer verifier for each copied/archive fixture. Its
+# explicit --root selects the fixture; the source construction has no Rust step.
+OMEGA_XTASK_BIN=${OMEGA_XTASK_BIN:-"$OMEGA_REPO_ROOT/target/debug/xtask"}
+export OMEGA_XTASK_BIN
+
 command -v git >/dev/null 2>&1 || {
   echo "bootstrap owner inventory: skipped (git absent)"
   exit 0

@@ -172,8 +172,7 @@ for omission_step in $(find "$OMEGA_REPO_ROOT/tools/bootstrap" \
 do
   set -- "$@" --steps "$omission_step"
 done
-python3 "$OMEGA_REPO_ROOT/tools/rust_producer_omission.py" \
-  --root "$OMEGA_REPO_ROOT" "$@" --require omitted ||
+sh "$OMEGA_REPO_ROOT/tools/rust_producer_omission.sh" "$@" ||
   fail "produced closure carries the Rust producer"
 
 # The enumerated compiler sources must be exactly the bound chain artifacts:
