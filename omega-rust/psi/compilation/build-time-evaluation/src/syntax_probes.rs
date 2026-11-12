@@ -527,11 +527,11 @@ pub(crate) fn initializer_selection_inputs(
     Ok(InitializerSelectionInputs { authored, probe })
 }
 
-pub(crate) fn normalize_type_aliases(
+pub(crate) fn normalize_declared_types(
     syntax: syntax_trees::SyntaxTrees,
     context: &crate::build_time_evaluation::BuildTimeSources<'_>,
 ) -> Result<syntax_trees::SyntaxTrees, Vec<diagnostics::Diagnostic>> {
-    syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_type_aliases(
+    syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_declared_types(
         normalization_request(
             syntax,
             context.sources.clone(),

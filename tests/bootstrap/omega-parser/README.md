@@ -86,6 +86,15 @@ own entry before nested declarations. These are syntax/custody checks; the
 compiler's actual SourceUnit customer owns checking and native execution.
 
 
+Machine-entry predicates use the same expression ledger as data predicates.
+Outer and nested state rows retain disjoint requirement ranges, including empty
+Unit entries and bodyless external leaves. Controls cover mixed data/machine
+ownership, repeated and comma-separated predicates, calls and indexed operands,
+return-type/clause boundaries, malformed or empty clauses, and parser reuse.
+Unimplemented header clauses remain explicit coverage refusals. Parsing retains
+syntax only; the bootstrap compiler must separately check every entry predicate
+and refuse predicate forms outside its semantic coverage.
+
 Nested record controls preserve the authored Packet/Leaf literals and a literal
 terminal record result. Child rows publish before their parent while each
 literal's own fields remain contiguous and ordered. Calls inside fields preserve

@@ -16,8 +16,7 @@ satisfies Other::call
     value
 }
 
-machine register<machine Selected>(value: i32) -> i32
-requires machine Selected satisfies Handler::call;
+machine register<const Selected: Handler::call>(value: i32) -> i32
 {
     Selected(value)
 }

@@ -5710,7 +5710,7 @@ pub(crate) mod build_machines {
                      _ -> work
                  }
                  machine through(node: Node, index: u64, work: u64) -> u64
-                 requires work >= 1 && index <= 7
+                 requires work >= 1 && index <= 7 && node.count <= 8
                  {
                      descend(node, index + 1, work)
                  }

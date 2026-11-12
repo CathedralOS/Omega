@@ -1,0 +1,7 @@
+// The trait's type argument cannot be supplied to its nongeneric requirement member.
+trait Contract<Value> {
+    machine invoke(value: Value) -> Value;
+}
+
+machine retain<const Callback: Contract::invoke<u32>>() {}
+machine main() {}

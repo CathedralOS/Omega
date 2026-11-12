@@ -937,6 +937,15 @@ pub(crate) mod bodies {
                 syntax_trees: &mut SyntaxTrees,
                 input: Input<'tokens, 'source>,
             ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
+                /*
+                    Captured subjects are named by where the transition starts
+                    in its file and their place in its subject list. The
+                    parser splits files into pages by worker count, and each
+                    page numbers its own expressions, so a name taken from an
+                    expression's arena index changed with the host's thread
+                    count and so did every checked record holding it.
+                */
+                let transition_start = input.tokens.first().map_or(0, |token| token.span.start);
                 let (mut subject, mut input) = if input.at_punctuation(PunctuationKind::LeftBrace) {
                     (
                         Vec::new(),
@@ -953,14 +962,13 @@ pub(crate) mod bodies {
                 };
 
                 let mut subject_captures: Vec<(Identifier, ExpressionHandle)> = Vec::new();
-                for subject_expression in &mut subject {
+                for (place, subject_expression) in subject.iter_mut().enumerate() {
                     if expression_is_closed_boolean(syntax_trees, *subject_expression) {
                         continue;
                     }
                     let captured = *subject_expression;
                     let name = Identifier::generated(format!(
-                        "__transition_subject#{}",
-                        captured.arena_index()
+                        "__transition_subject#{transition_start}.{place}"
                     ));
                     let path_start = syntax_trees
                         .expressions

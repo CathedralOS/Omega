@@ -3135,6 +3135,12 @@ pub(crate) mod access_views {
                     visit_expression(syntax, *expression, binders, deferred);
                     false
                 }
+                TypeReferenceNode::StaticSelection(selection) => visit_static_arguments(
+                    syntax,
+                    std::slice::from_ref(selection),
+                    binders,
+                    deferred,
+                ),
                 TypeReferenceNode::Unit => false,
             }
         }
@@ -3144,13 +3150,24 @@ pub(crate) mod access_views {
             arguments: &[StaticMachineArgument],
             binders: &[&str],
             deferred: &mut Vec<TypeReferenceHandle>,
-        ) {
+        ) -> bool {
+            let mut depends = false;
             for argument in arguments {
-                visit_type(syntax, argument.type_reference, binders, deferred);
+                depends |= visit_type(syntax, argument.type_reference, binders, deferred);
                 if let Some(application) = &argument.application {
-                    visit_static_arguments(syntax, &application.arguments, binders, deferred);
+                    depends |=
+                        visit_static_arguments(syntax, &application.arguments, binders, deferred);
+                    if let Some(member) = syntax.expressions.static_member(application.member) {
+                        depends |= visit_static_arguments(
+                            syntax,
+                            std::slice::from_ref(member),
+                            binders,
+                            deferred,
+                        );
+                    }
                 }
             }
+            depends
         }
 
         fn visit_statement(

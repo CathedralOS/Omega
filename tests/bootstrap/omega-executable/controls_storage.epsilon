@@ -38,6 +38,12 @@ machine Main::main(&mut self) {
         self.positive("data Leaf [copy] {word:u8;} machine change(target:&mut Leaf)->Leaf {target.word=9;Leaf{word:target.word}} machine first(a:Leaf,b:Leaf)->Leaf {a} machine main()->u8 {let mut original:Leaf=Leaf{word:7};let saved:Leaf=first(original,change(&mut original));transition saved.word==7 && original.word==9 {true->yes() _->no()} machine yes()->u8 {48} machine no()->u8 {1}}", 48, 17);
         // The index is captured before a disjoint selector field changes in the RHS.
         self.positive("data Cursor [copy] requires value <= 1, { value:u64; } data Buffer {bytes:[u8;2];cursor:Cursor;} machine change(target:&mut Cursor)->u8 {target.value=1;7} machine main()->u8 {let mut buffer:Buffer;buffer.bytes[buffer.cursor.value]=change(&mut buffer.cursor);transition buffer.bytes[0]==7 && buffer.bytes[1]==0 && buffer.cursor.value==1 {true->yes() _->no()} machine yes()->u8 {44} machine no()->u8 {1}}", 44, 18);
+        // An explicit scalar entry contract is discharged from the caller guard.
+        self.positive("data B {bytes:[u8;2];} machine choose(index:u64)->u8 {transition index<2 {true->read(index) _->miss()} machine read(index:u64)->u8 requires index<2 {let b:B;b.bytes[index]} machine miss()->u8{2}} machine main()->u8{choose(1)}", 0, 20);
+        // A shared nested transfer keeps the original incoming referent.
+        self.positive("data B {bytes:[u8;2];} machine read(source:&B)->u8 {transition{_->forward(source)} machine forward(source:&B)->u8 {source.bytes[0]}} machine main()->u8 {let mut b:B;b.bytes[0]=51;read(&b)}", 51, 21);
+        // An exclusive call mutating a disjoint sibling preserves the indexed field contract.
+        self.positive("data Cell requires length<=2,{bytes:[u8;2];length:u64;} data Pair {left:Cell;right:Cell;} machine mutate(cell:&mut Cell){cell.length=2;} machine choose(pair:&mut Pair)->u8 {transition pair.left.length<2 {true->read(pair) _->miss()} machine read(pair:&mut Pair)->u8 requires pair.left.length<2 {mutate(&mut pair.right);pair.left.bytes[pair.left.length]} machine miss()->u8{2}} machine main()->u8 {let mut pair:Pair;pair.left.bytes[0]=53;choose(&mut pair)}", 53, 22);
         // borrow immutable
         self.refusal("data Leaf [copy] { word: u32 in Trapping; } machine replace(target: &mut Leaf, value: Leaf) { target.word = value.word; } machine main() -> u8 { let target: Leaf; let value: Leaf; replace(&mut target,value); 42 }", 1, 40);
         // later overlap read
@@ -83,6 +89,24 @@ machine Main::main(&mut self) {
         self.refusal("public machine compare(value:u64 in Trapping)->bool {value==0} machine main()->u8 {42}", 2, 69);
         // A tail transfer cannot reuse a local backing while its shared loan remains live.
         self.refusal("data Cell {value:u8;} machine main()->u8 {let seed:Cell=Cell{value:0};transition{_->again(&seed,42,false)} machine again(view:&Cell,n:u8,done:bool)->u8 {let temp:Cell=Cell{value:n};transition done {true->view.value _->again(&temp,44,true)}}}", 2, 70);
+        // An unchecked arrival cannot inherit the target contract.
+        self.refusal("data B {bytes:[u8;2];} machine choose(index:u64)->u8 {transition{_->read(index)} machine read(index:u64)->u8 requires index<2 {let b:B;b.bytes[index]}} machine main()->u8{0}", 2, 71);
+        // A true requirement does not invent a numeric bound.
+        self.refusal("data B {bytes:[u8;2];} machine choose(index:u64)->u8 requires true {let b:B;b.bytes[index]} machine main()->u8{0}", 2, 72);
+        // A prior direct write kills the entry version.
+        self.refusal("data Cell requires length<=2,{bytes:[u8;2];length:u64;} machine read(cell:&mut Cell)->u8 requires cell.length<2 {cell.length=2;cell.bytes[cell.length]} machine main()->u8{0}", 2, 73);
+        // An earlier argument call kills an overlapping entry version within the same expression.
+        self.refusal("data Cell requires length<=2,{bytes:[u8;2];length:u64;} data Outer{cell:Cell;} machine mutate(cell:&mut Cell)->u8{cell.length=2;0} machine combine(first:u8,second:u8)->u8{second} machine victim(outer:&mut Outer)->u8 requires outer.cell.length<2 {combine(mutate(&mut outer.cell),outer.cell.bytes[outer.cell.length])} machine main()->u8{0}", 2, 74);
+        // A mutating Boolean RHS cannot preserve the earlier left guard.
+        self.refusal("data Cell requires length<=2,{bytes:[u8;2];length:u64;} machine mutate(cell:&mut Cell)->bool{cell.length=2;true} machine choose(cell:&mut Cell)->u8 {transition cell.length<2 && mutate(&mut cell) {true->read(cell) _->miss()} machine read(cell:&mut Cell)->u8 requires cell.length<2 {cell.bytes[cell.length]} machine miss()->u8{0}} machine main()->u8{0}", 2, 75);
+        // A bare exclusive transfer retains its loan through later arguments.
+        self.refusal("data C {value:u8;} machine write(view:&mut C)->u8 {transition{_->next(view,view.value)} machine next(view:&mut C,value:u8)->u8 {value}} machine main()->u8 {let mut c:C;write(&mut c)}", 1, 76);
+        // A nested reference cannot substitute local backing for its incoming owner reference.
+        self.refusal("data C {value:u8;} machine read(view:&C)->u8 {let local:C;transition{_->next(&local)} machine next(view:&C)->u8 {view.value}} machine main()->u8 {let c:C;read(&c)}", 2, 77);
+        // A literal violating an authored callee contract cannot compile.
+        self.refusal("machine read(index:u64)->u8 requires index<2 {0} machine main()->u8{read(2)}", 2, 78);
+        // Unbounded plain unsigned addition remains outside the proved arithmetic profile.
+        self.refusal("machine add(value:u64)->u64 {value+1} machine main()->u8{0}", 2, 79);
         self.positive("machine main() -> u8 { 59 }", 59, 90);
     }
 }
