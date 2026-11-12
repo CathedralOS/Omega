@@ -1,0 +1,73 @@
+pass/borrow/owned_capture_weaker_formal rejected 1348ms
+	cannot prove requires contract for call observe from main: cells[0] in Cell::Issued in state `entry`
+pass/build/const_index_dependency_order_exit rejected 780ms check-target:macos_arm64
+	generated generic application does not match its exact retained instance origin
+pass/contracts/runtime_mutable_owned_collection_poststate_exit rejected 2068ms check-target:macos_arm64
+	statement 4 reads `view` without an exact retained backing for its loan
+pass/facts/target_family_contract_operand/target_body checked 3083ms check-target:macos_arm64
+pass/generics/runtime_computed_nested_const_call_exit rejected 988ms check-target:macos_arm64
+	generated generic application does not match its exact retained instance origin
+pass/proofs/case_call_premises rejected 713ms
+	cannot compare `Tree` values with `==`: structural equality is synthesized only through a named implementation -- declare `TreeEquality satisfies Equatable<Tree> { }` to synthesize structural equality, or use `core::Identity<Tree>(left, right)` for mathematical identity
+pass/proofs/cauchy_predicates_compile rejected 712ms
+	cannot compare `Nat` values with `==`: structural equality is synthesized only through a named implementation -- declare `NatEquality satisfies Equatable<Nat> { }` to synthesize structural equality, or use `core::Identity<Nat>(left, right)` for mathematical identity
+pass/proofs/citation_requires_discharged checked 12091ms
+pass/proofs/defined_proposition_premises rejected 721ms
+	cannot compare `Point` values with `==`: structural equality is synthesized only through a named implementation -- declare `PointEquality satisfies Equatable<Point> { }` to synthesize structural equality, or use `core::Identity<Point>(left, right)` for mathematical identity
+pass/proofs/family_carrier_relation_laws rejected 697ms
+	proposition `chained` expects 2 proof-static binder argument(s), received 0
+pass/proofs/lemma_requires_citation checked 1356ms
+pass/proofs/nat_metric_triangle_compile checked 1571ms
+pass/proofs/static_machine_result_projection checked 1275ms
+pass/recast/returned_same_type_view_capture_exit checked 2962ms check-target:macos_arm64
+pass/relevance/runtime_static_proof_namespace_exit rejected 692ms check-target:macos_arm64
+	cannot compare `Natural` values with `==`: structural equality is synthesized only through a named implementation -- declare `NaturalEquality satisfies Equatable<Natural> { }` to synthesize structural equality, or use `core::Identity<Natural>(left, right)` for mathematical identity
+pass/traits/structural_array_crash_identity_exit rejected 8823ms check-target:macos_arm64
+	cannot compare `Floats` values with `==`: structural equality is synthesized only through a named implementation -- declare `FloatsEquality satisfies Equatable<Floats> { }` to synthesize structural equality, or use `core::Identity<Floats>(left, right)` for mathematical identity
+fail/borrows/owned_capture_weaker_formal_qualification rejected 1216ms unexpected
+	cannot prove requires contract for call observe from main: cells[0] in Cell::Issued in state `entry`
+	cannot prove requires contract for call observe from main: cells[0] in Cell::Issued in state `entry`
+fail/build/helper_contract_context rejected 587ms unexpected
+	machine `incorrect` ensures contract proof fact `result == 4` is disproved by constant arithmetic on the transition arm guarded by `<always>`
+fail/constants/predicate_constant_generic_static_index_fence rejected 804ms unexpected
+	const parameter `Value` of `Indexed` has an ineligible index type: indices require finite structural values with decidable equality and one canonical form
+fail/contracts/replacement_call_child_false_snapshot rejected 1174ms unexpected
+	machine `false_producer` ensures contract proof fact `result == 9` is disproved by constant arithmetic on the transition arm guarded by `<always>`
+fail/expressions/cast_result_range rejected 1199ms unexpected
+	machine `main` ensures contract proof fact `result <= 10` is disproved by constant arithmetic on the transition arm guarded by `<always>`
+fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected rejected 2067ms unexpected
+	machine `produce_xored` ensures contract proof fact `result >= 40 && result <= 63` is disproved by constant arithmetic on the transition arm guarded by `<always>`
+fail/float/state_constructor_ieee_reflexivity rejected 696ms unexpected
+	cannot compare against payload-bearing case `Chain::Cons` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `ChainEquality satisfies Equatable<Chain> { }` to synthesize structural equality, or use `core::Identity` with complete values and their carrier for mathematical identity
+fail/generics/const_data_argument_out_of_range rejected 727ms unexpected
+	integer node `u8(300)` does not fit exact carrier `u8`
+fail/generics/dependent_const_carrier_range rejected 740ms unexpected
+	integer node `u8(256)` does not fit exact carrier `u8`
+fail/generics/grouped_decimal_const_fraction_rejected rejected 698ms unexpected
+	anonymous operand `25/8` is not an integer in closed const argument; type an operand before division if integer division was intended
+fail/generics/grouped_decimal_const_suffix_rejected rejected 692ms unexpected
+	closed const argument constant expression call argument `4` does not form parameter `right` of `Float::divide`: actual no retained result type, required f64
+fail/generics/grouped_decimal_const_zero_division_rejected rejected 721ms unexpected
+	division by zero in closed const argument: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
+fail/modules/packaged_structured_const_wrong_carrier rejected 1626ms unexpected
+	indexed-domain selected constant has canonical type `named(name(nominal\\(package-owner\\(32:2a7c1be4c2f9cc4e10dd77d18f15a2d14cb20f00ba1fa5331b4b90082341890f\\)\\,path\\(ImpostorToken\\)\\)))`, expected `named(name(nominal\\(package-owner\\(32:c2b9af57878fbbaf8fe969edcadd6f81076f1bb1663ddaa61cd7a97b2478cf40\\)\\,path\\(Token\\)\\)))`
+fail/proofs/accepted_axiom_engine_veto rejected 7179ms expected
+	accepted boundary machine `false_axiom` claims `core::Identity<Nat>(Nat, Nat)`, which the engine REFUTES structurally -- a refutable statement is a compile error, grants notwithstanding (chapter 10 engine veto)
+fail/proofs/citation_requires_bearing_rejected rejected 7230ms expected
+	machine `conditional_cite` cites `sym`, but the callee's requires fact `core::Identity<Nat>(a, b)` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
+	machine `conditional_cite` ensures contract proof fact `core::Identity<Nat>(y, x)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/proofs/nat_metric_false_gap_zero rejected 1179ms expected
+	machine `false_gap_zero` ensures contract proof fact `core::Identity<Nat>(nat_gap(Nat, Nat), Nat)` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
+fail/proofs/structural_application_decreasing_false_rejected rejected 1931ms expected
+	machine `closed_question` ensures contract proof fact `core::Identity<Nat>(collapse(Nat), Nat)` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
+fail/traits/structural_identity_distinct_values rejected 1175ms expected
+	machine `inspect` has an uncovered Abort crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/traits/structural_identity_exact_carrier rejected 1078ms expected
+	invalid mathematical application `right`: mathematical result does not preserve its declared carrier and policy
+fail/traits/structural_identity_rebound_reference rejected 1133ms expected
+	call from `inspect` to `leaf` at statement 2 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
+	machine `inspect` has an uncovered Abort crash at statement 2; publish a same-cause `crashes` route whose guard covers this site
+	call from `inspect` to `leaf` at statement 4 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
+	machine `inspect` has an uncovered Abort crash at statement 4; publish a same-cause `crashes` route whose guard covers this site
+	call from `inspect` to `leaf` at statement 5 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
+	machine `inspect` has an uncovered Abort crash at statement 5; publish a same-cause `crashes` route whose guard covers this site

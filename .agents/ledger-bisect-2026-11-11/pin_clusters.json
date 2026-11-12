@@ -1,0 +1,143 @@
+[
+  {
+    "cluster_id": 0,
+    "rows": 5,
+    "kind": "pass/run rejected",
+    "diag_norm": "cannot compare `_` values with `_`: structural equality is synthesized only through a named implementation -- declare `_` to synthesize structural equality, or ",
+    "diag": "cannot compare `Tree` values with `==`: structural equality is synthesized only through a named implementation -- declare `TreeEquality satisfies Equatable<Tree> { }` to synthesize structural equality, or use `core::Identity<Tree>(left, right)` for mathematical identity",
+    "witness": "pass/relevance/runtime_static_proof_namespace_exit",
+    "members": [
+      "pass/proofs/case_call_premises",
+      "pass/proofs/cauchy_predicates_compile",
+      "pass/proofs/defined_proposition_premises",
+      "pass/relevance/runtime_static_proof_namespace_exit",
+      "pass/traits/structural_array_crash_identity_exit"
+    ]
+  },
+  {
+    "cluster_id": 1,
+    "rows": 4,
+    "kind": "fail wrong reason",
+    "diag_norm": "machine `_` ensures contract proof fact `_` is disproved by constant arithmetic on the transition arm guarded by `_`",
+    "diag": "machine `incorrect` ensures contract proof fact `result == 4` is disproved by constant arithmetic on the transition arm guarded by `<always>`",
+    "witness": "fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected",
+    "members": [
+      "fail/build/helper_contract_context",
+      "fail/contracts/replacement_call_child_false_snapshot",
+      "fail/expressions/cast_result_range",
+      "fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected"
+    ]
+  },
+  {
+    "cluster_id": 2,
+    "rows": 2,
+    "kind": "pass/run rejected",
+    "diag_norm": "generated generic application does not match its exact retained instance origin",
+    "diag": "generated generic application does not match its exact retained instance origin",
+    "witness": "pass/generics/runtime_computed_nested_const_call_exit",
+    "members": [
+      "pass/build/const_index_dependency_order_exit",
+      "pass/generics/runtime_computed_nested_const_call_exit"
+    ]
+  },
+  {
+    "cluster_id": 3,
+    "rows": 2,
+    "kind": "fail wrong reason",
+    "diag_norm": "integer node `_` does not fit exact carrier `_`",
+    "diag": "integer node `u8(300)` does not fit exact carrier `u8`",
+    "witness": "fail/generics/const_data_argument_out_of_range",
+    "members": [
+      "fail/generics/const_data_argument_out_of_range",
+      "fail/generics/dependent_const_carrier_range"
+    ]
+  },
+  {
+    "cluster_id": 4,
+    "rows": 1,
+    "kind": "fail wrong reason",
+    "diag_norm": "anonymous operand `_` is not an integer in closed const argument; type an operand before division if integer division was intended",
+    "diag": "anonymous operand `25/8` is not an integer in closed const argument; type an operand before division if integer division was intended",
+    "witness": "fail/generics/grouped_decimal_const_fraction_rejected",
+    "members": [
+      "fail/generics/grouped_decimal_const_fraction_rejected"
+    ]
+  },
+  {
+    "cluster_id": 5,
+    "rows": 1,
+    "kind": "fail wrong reason",
+    "diag_norm": "cannot compare against payload-bearing case `_` with `_`: structural equality is synthesized only through a named implementation -- match on the case in a trans",
+    "diag": "cannot compare against payload-bearing case `Chain::Cons` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `ChainEquality satisfies Equatable<Chain> { }` to synthesize structural equality, or use `core::Identity` with complete values and their carrier for mathematical identity",
+    "witness": "fail/float/state_constructor_ieee_reflexivity",
+    "members": [
+      "fail/float/state_constructor_ieee_reflexivity"
+    ]
+  },
+  {
+    "cluster_id": 6,
+    "rows": 1,
+    "kind": "fail wrong reason",
+    "diag_norm": "cannot prove requires contract for call observe from main: cells[N] in Cell::Issued in state `_`",
+    "diag": "cannot prove requires contract for call observe from main: cells[0] in Cell::Issued in state `entry`",
+    "witness": "fail/borrows/owned_capture_weaker_formal_qualification",
+    "members": [
+      "fail/borrows/owned_capture_weaker_formal_qualification"
+    ]
+  },
+  {
+    "cluster_id": 7,
+    "rows": 1,
+    "kind": "fail wrong reason",
+    "diag_norm": "closed const argument constant expression call argument `_` does not form parameter `_` of `_`: actual no retained result type, required f64",
+    "diag": "closed const argument constant expression call argument `4` does not form parameter `right` of `Float::divide`: actual no retained result type, required f64",
+    "witness": "fail/generics/grouped_decimal_const_suffix_rejected",
+    "members": [
+      "fail/generics/grouped_decimal_const_suffix_rejected"
+    ]
+  },
+  {
+    "cluster_id": 8,
+    "rows": 1,
+    "kind": "fail wrong reason",
+    "diag_norm": "const parameter `_` of `_` has an ineligible index type: indices require finite structural values with decidable equality and one canonical form",
+    "diag": "const parameter `Value` of `Indexed` has an ineligible index type: indices require finite structural values with decidable equality and one canonical form",
+    "witness": "fail/constants/predicate_constant_generic_static_index_fence",
+    "members": [
+      "fail/constants/predicate_constant_generic_static_index_fence"
+    ]
+  },
+  {
+    "cluster_id": 9,
+    "rows": 1,
+    "kind": "fail wrong reason",
+    "diag_norm": "division by zero in closed const argument: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.",
+    "diag": "division by zero in closed const argument: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.",
+    "witness": "fail/generics/grouped_decimal_const_zero_division_rejected",
+    "members": [
+      "fail/generics/grouped_decimal_const_zero_division_rejected"
+    ]
+  },
+  {
+    "cluster_id": 10,
+    "rows": 1,
+    "kind": "fail wrong reason",
+    "diag_norm": "indexed-domain selected constant has canonical type `_`, expected `_`",
+    "diag": "indexed-domain selected constant has canonical type `named(name(nominal\\\\(package-owner\\\\(32:2a7c1be4c2f9cc4e10dd77d18f15a2d14cb20f00ba1fa5331b4b90082341890f\\\\)\\\\,path\\\\(ImpostorToken\\\\)\\\\)))`, expected `named(name(nominal\\\\(package-owner\\\\(32:c2b9af57878fbbaf8fe969edcadd6f81076f1bb1663ddaa61cd7a97b2478cf40\\\\)\\\\,path\\\\(Token\\\\)\\\\)))`",
+    "witness": "fail/modules/packaged_structured_const_wrong_carrier",
+    "members": [
+      "fail/modules/packaged_structured_const_wrong_carrier"
+    ]
+  },
+  {
+    "cluster_id": 11,
+    "rows": 1,
+    "kind": "pass/run rejected",
+    "diag_norm": "proposition `_` expects N proof-static binder argument(s), received N",
+    "diag": "proposition `chained` expects 2 proof-static binder argument(s), received 0",
+    "witness": "pass/proofs/family_carrier_relation_laws",
+    "members": [
+      "pass/proofs/family_carrier_relation_laws"
+    ]
+  }
+]

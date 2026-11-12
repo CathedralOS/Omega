@@ -1,0 +1,177 @@
+{
+  "measured_prior": "741270df60f7eab218e879eb6771d2bc75e64c00",
+  "prior_slice_indices": [
+    4,
+    44,
+    84,
+    124,
+    164,
+    204
+  ],
+  "clusters": [
+    {
+      "prior_index": 4,
+      "prior_rows": 27,
+      "prior_kind": "fail wrong reason",
+      "prior_diag_sample": "authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity",
+      "prior_witness": "fail/float/state_constructor_ieee_reflexivity",
+      "prior_breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members_explicit": [
+        "fail/float/state_constructor_ieee_reflexivity",
+        "fail/proofs/accepted_axiom_engine_veto",
+        "fail/proofs/citation_requires_bearing_rejected"
+      ],
+      "members_truncated": 24,
+      "members_recovered": [
+        "fail/constants/predicate_constant_generic_static_index_fence",
+        "fail/float/state_constructor_ieee_reflexivity",
+        "fail/generics/const_data_argument_out_of_range",
+        "fail/generics/dependent_const_carrier_range",
+        "fail/generics/grouped_decimal_const_fraction_rejected",
+        "fail/generics/grouped_decimal_const_suffix_rejected",
+        "fail/generics/grouped_decimal_const_zero_division_rejected",
+        "fail/modules/packaged_structured_const_wrong_carrier",
+        "fail/proofs/accepted_axiom_engine_veto",
+        "fail/proofs/citation_requires_bearing_rejected",
+        "fail/proofs/nat_metric_false_gap_zero",
+        "fail/proofs/structural_application_decreasing_false_rejected",
+        "fail/traits/structural_identity_distinct_values",
+        "fail/traits/structural_identity_exact_carrier",
+        "fail/traits/structural_identity_rebound_reference",
+        "pass/build/const_index_dependency_order_exit",
+        "pass/generics/runtime_computed_nested_const_call_exit",
+        "pass/proofs/case_call_premises",
+        "pass/proofs/cauchy_predicates_compile",
+        "pass/proofs/citation_requires_discharged",
+        "pass/proofs/defined_proposition_premises",
+        "pass/proofs/family_carrier_relation_laws",
+        "pass/proofs/lemma_requires_citation",
+        "pass/proofs/nat_metric_triangle_compile",
+        "pass/proofs/static_machine_result_projection",
+        "pass/relevance/runtime_static_proof_namespace_exit",
+        "pass/traits/structural_array_crash_identity_exit"
+      ]
+    },
+    {
+      "prior_index": 40,
+      "prior_rows": 4,
+      "prior_kind": "fail wrong reason",
+      "prior_diag_sample": "machine `incorrect` ensures contract proof fact `result == 4` is disproved by constant arithmeti",
+      "prior_witness": "fail/build/helper_contract_context",
+      "prior_breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members_explicit": [
+        "fail/build/helper_contract_context",
+        "fail/contracts/replacement_call_child_false_snapshot",
+        "fail/expressions/cast_result_range",
+        "fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected"
+      ],
+      "members_truncated": 0,
+      "members_recovered": [
+        "fail/build/helper_contract_context",
+        "fail/contracts/replacement_call_child_false_snapshot",
+        "fail/expressions/cast_result_range",
+        "fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected"
+      ]
+    },
+    {
+      "prior_index": 96,
+      "prior_rows": 2,
+      "prior_kind": "fail wrong reason",
+      "prior_diag_sample": "cannot prove requires contract for call observe from main: cells[0] in Cell::Issued in state `en",
+      "prior_witness": "fail/borrows/owned_capture_weaker_formal_qualification",
+      "prior_breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members_explicit": [
+        "fail/borrows/owned_capture_weaker_formal_qualification",
+        "pass/borrow/owned_capture_weaker_formal"
+      ],
+      "members_truncated": 0,
+      "members_recovered": [
+        "fail/borrows/owned_capture_weaker_formal_qualification",
+        "pass/borrow/owned_capture_weaker_formal"
+      ]
+    },
+    {
+      "prior_index": 193,
+      "prior_rows": 1,
+      "prior_kind": "pass/run rejected",
+      "prior_diag_sample": "authored Operator declaration selection occurrence 578 (`<=` in tests/omega/pass/facts/target_fa",
+      "prior_witness": "pass/facts/target_family_contract_operand/target_body",
+      "prior_breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members_explicit": [
+        "pass/facts/target_family_contract_operand/target_body"
+      ],
+      "members_truncated": 0,
+      "members_recovered": [
+        "pass/facts/target_family_contract_operand/target_body"
+      ]
+    },
+    {
+      "prior_index": 217,
+      "prior_rows": 1,
+      "prior_kind": "pass/run rejected",
+      "prior_diag_sample": "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `capture",
+      "prior_witness": "pass/recast/returned_same_type_view_capture_exit",
+      "prior_breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members_explicit": [
+        "pass/recast/returned_same_type_view_capture_exit"
+      ],
+      "members_truncated": 0,
+      "members_recovered": [
+        "pass/recast/returned_same_type_view_capture_exit"
+      ]
+    },
+    {
+      "prior_index": 157,
+      "prior_rows": 1,
+      "prior_kind": "pass/run rejected",
+      "prior_diag_sample": "statement 4 reads `view` without an exact retained backing for its loan",
+      "prior_witness": "pass/contracts/runtime_mutable_owned_collection_poststate_exit",
+      "prior_breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members_explicit": [
+        "pass/contracts/runtime_mutable_owned_collection_poststate_exit"
+      ],
+      "members_truncated": 0,
+      "members_recovered": [
+        "pass/contracts/runtime_mutable_owned_collection_poststate_exit"
+      ]
+    }
+  ],
+  "fixtures": [
+    "fail/borrows/owned_capture_weaker_formal_qualification",
+    "fail/build/helper_contract_context",
+    "fail/constants/predicate_constant_generic_static_index_fence",
+    "fail/contracts/replacement_call_child_false_snapshot",
+    "fail/expressions/cast_result_range",
+    "fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected",
+    "fail/float/state_constructor_ieee_reflexivity",
+    "fail/generics/const_data_argument_out_of_range",
+    "fail/generics/dependent_const_carrier_range",
+    "fail/generics/grouped_decimal_const_fraction_rejected",
+    "fail/generics/grouped_decimal_const_suffix_rejected",
+    "fail/generics/grouped_decimal_const_zero_division_rejected",
+    "fail/modules/packaged_structured_const_wrong_carrier",
+    "fail/proofs/accepted_axiom_engine_veto",
+    "fail/proofs/citation_requires_bearing_rejected",
+    "fail/proofs/nat_metric_false_gap_zero",
+    "fail/proofs/structural_application_decreasing_false_rejected",
+    "fail/traits/structural_identity_distinct_values",
+    "fail/traits/structural_identity_exact_carrier",
+    "fail/traits/structural_identity_rebound_reference",
+    "pass/borrow/owned_capture_weaker_formal",
+    "pass/build/const_index_dependency_order_exit",
+    "pass/contracts/runtime_mutable_owned_collection_poststate_exit",
+    "pass/facts/target_family_contract_operand/target_body",
+    "pass/generics/runtime_computed_nested_const_call_exit",
+    "pass/proofs/case_call_premises",
+    "pass/proofs/cauchy_predicates_compile",
+    "pass/proofs/citation_requires_discharged",
+    "pass/proofs/defined_proposition_premises",
+    "pass/proofs/family_carrier_relation_laws",
+    "pass/proofs/lemma_requires_citation",
+    "pass/proofs/nat_metric_triangle_compile",
+    "pass/proofs/static_machine_result_projection",
+    "pass/recast/returned_same_type_view_capture_exit",
+    "pass/relevance/runtime_static_proof_namespace_exit",
+    "pass/traits/structural_array_crash_identity_exit"
+  ]
+}
