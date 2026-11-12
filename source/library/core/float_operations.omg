@@ -12,7 +12,7 @@
 
 use omega::language::core::float_format;
 use omega::language::core::float_meaning;
-use omega::language::core::float_semantics;
+use omega::language::core::FloatSemantics;
 
 use omega::language::core::float_provider;
 
