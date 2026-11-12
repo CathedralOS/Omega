@@ -5157,11 +5157,46 @@ pub(crate) mod captured_returns {
             if !source_identity.is_valid() {
                 return None;
             }
-            if source_identity == result_identity {
+            if source_identity == result_identity
+                || self.qualification_presents_result(source, result, result_path)
+            {
                 return Some(extent);
             }
             self.collection_region_presents_result(source, result, result_path)
                 .then_some(ReferenceOriginExtent::WithinRegion)
+        }
+
+        /*
+            A returned qualification view (`ticket as &Ticket in Ticket::Observed`
+            over `Ticket in Ticket::Labelled` storage) presents the same storage
+            under different declared constraints. The cast's own judgment
+            proved that qualification; the returned origin names the storage,
+            so it is the same origin when both types agree once their declared
+            constraints are removed. A representation change still differs here
+            and keeps refusing (recasts carry their own presentation).
+        */
+        fn qualification_presents_result(
+            &self,
+            source: TypeReferenceHandle,
+            result: TypeReferenceHandle,
+            result_path: &[facts::PlaceSegment],
+        ) -> bool {
+            let Some(result) =
+                crate::project_type_reference_from_segments(self.program, result, result_path)
+            else {
+                return false;
+            };
+            let storage = |reference: TypeReferenceHandle| {
+                let referee = crate::reference_shell(self.program, reference)
+                    .map_or(reference, |shell| shell.referee);
+                self.program
+                    .normalized_type_identity(crate::peel_declared_constraints(
+                        self.program,
+                        referee,
+                    ))
+            };
+            let (source, result) = (storage(source), storage(result));
+            source.is_valid() && source == result
         }
 
         fn collection_region_presents_result(
@@ -9634,6 +9669,42 @@ pub fn release_boundary(
     (order.successor(last) == Some(state.statement_nodes.len()))
         .then(|| u32::try_from(state.statement_nodes.len()).ok())
         .flatten()
+        .or_else(|| reassigned_release_statement(program, facts, machine, state.symbol, handle))
+}
+
+/*
+A write can overwrite a loan's exact projected place before the carrier's
+last use, as a `&mut` call that stores a new reference into one borrowed
+field of a call-result record does. That loan ends with the overwriting
+statement even though the carrier is used again; sibling loans of the same
+carrier keep their own expiry. Callers reach this only after the last-use,
+state-exit and end-of-state boundaries all decline, so programs those rules
+already place keep their placement.
+*/
+pub fn reassigned_release_statement(
+    program: &dyn CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    handle: arena::Handle<checked_trees::BorrowLoanFact>,
+) -> Option<u32> {
+    let weakening = loan_weakening(facts, machine, state, handle)?;
+    let checked_trees::FlowInvalidationSource::Statement { statement_index } = weakening.source
+    else {
+        return None;
+    };
+    if weakening.reason != checked_trees::FlowBorrowWeakeningReason::LocalReassigned {
+        return None;
+    }
+    let state = program.state_by_symbol(state)?;
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let last_use = facts.borrow.loans.get(handle).last_use_statement_index;
+    if !order.at_or_before(statement_index, last_use) {
+        return None;
+    }
+    u32::try_from(order.successor(statement_index)?).ok()
 }
 
 fn state_flow(

@@ -1,2 +1,1 @@
-cannot prove scalar result domain
-Below
+domain constraint `Below` for the const leaf value is false

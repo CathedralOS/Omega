@@ -421,9 +421,8 @@ pub(crate) mod equivalence_selection {
         if !symbol.is_valid() || name.as_str() != "Equivalence" {
             return false;
         }
-        let source_matches = program
-            .symbol_toolchain_relative_path(symbol)
-            .is_some_and(|relative| relative == std::path::Path::new(CORE_EQUIVALENCE_SOURCE));
+        let source_matches = program.symbols.core_source(symbol)
+            == Some(language_core::core_vocabulary::CoreSource::Relation);
         let Some(definition) = program.trait_definition_by_symbol(symbol) else {
             return false;
         };

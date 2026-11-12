@@ -2,7 +2,9 @@ use shared::main;
 
 machine build(builder: &mut Build) {
     Build::package(builder, "sibling_e");
-    Build::build_depend_as(builder, "shared", Source::Path { location: "../shared" });
+    let mut shared_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../shared" });
+    dependency::with_alias(&mut shared_dependency, "shared");
+    let shared_registration: DependencyRegistration = Build::build_dependency(builder, shared_dependency);
     let observed: i32 = seed();
     transition observed == 3 {
         true -> done()

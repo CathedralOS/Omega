@@ -1,0 +1,443 @@
+name: Post-merge check
+
+# Checks main after merge, since nothing heavier than `admission` runs before
+# it (wiki/drafts/designs/ci_rebuild_plan.md). One run at a time: while a run
+# is active, GitHub keeps only the newest pending push, so a burst of merges
+# is verified as one batch.
+#
+# `post-merge-check` lints the workspace and runs the smoke programs. `plan`,
+# `build` and `shard` check the corpus rows the batch's changed paths reach:
+# the corpus runner is compiled once, in `build`, and every shard downloads
+# it. A shard that cannot get it, or gets one built from another commit,
+# fails; it never compiles one or checks no rows. `report` writes the verdict
+# and the batch's pull requests to the run summary.
+#
+# Pull requests do not edit tests/omega/corpus_outcomes.txt. `ledger` writes
+# the rows the shards measured to it and pushes that one commit to main. The
+# run reverts nothing.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # The plan job reads this workflow's earlier runs to find where the last
+  # judged batch ended.
+  actions: read
+
+concurrency:
+  group: post-merge-check
+  cancel-in-progress: false
+
+jobs:
+  post-merge-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: '4'
+      CARGO_INCREMENTAL: '0'
+      CARGO_TARGET_DIR: /tmp/ot
+      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
+      CARGO_BUILD_FINGERPRINT: content
+      OMEGA_CORPUS_JOBS: '2'
+      OMEGA_CORPUS_FIXTURE_SECS: '300'
+      RUST_MIN_STACK: '67108864'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ env.CARGO_TARGET_DIR }}
+          key: post-merge-check-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
+          restore-keys: |
+            post-merge-check-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+      - name: Install verified mbx
+        shell: bash
+        run: bash tools/xtask/bootstrap-mbx.sh
+      - name: Check production dependency boundaries
+        run: mbx xtask check-boundary
+      - name: Lint every workspace target
+        run: mbx clippy --locked --keep-going --workspace --all-targets -- -D warnings
+      - name: Run a sample natively and in the interpreter
+        run: mbx xtask sample-gate --filter samples/cli/facts/length/local < /dev/null
+      - name: Check the lowered route's verdicts on fixture programs
+        run: mbx test --locked -p compiler --test lowered_route_subjects --test lowered_route_generics
+
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      skip: ${{ steps.plan.outputs.skip }}
+      shards: ${{ steps.plan.outputs.shards }}
+      needs_base: ${{ steps.plan.outputs.needs_base }}
+      base: ${{ steps.batch.outputs.base }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          # Deep enough to hold a batch; the base is fetched by name below
+          # when it is older than this.
+          fetch-depth: 100
+      - name: Find the batch this run judges
+        id: batch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # The batch starts where the last run that reached a verdict ended.
+          # A run GitHub replaced while it waited judged nothing, so its commit
+          # belongs to this batch.
+          base=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow post-merge-check.yml --branch main \
+            --status completed --limit 20 --json headSha,conclusion,databaseId \
+            --jq "[.[] | select(.databaseId != $GITHUB_RUN_ID) | select(.conclusion == \"success\" or .conclusion == \"failure\")][0].headSha // empty" || true)
+          case "$BEFORE" in ''|0000000000000000000000000000000000000000) BEFORE= ;; esac
+          base=${base:-${BEFORE:-HEAD^1}}
+          git cat-file -e "$base^{commit}" 2>/dev/null || git fetch -q --depth 100 origin "$base" || true
+          if ! git merge-base --is-ancestor "$base" HEAD 2>/dev/null; then
+            echo "The last judged commit ($base) is not an ancestor of this one; judging the last commit alone."
+            base=HEAD^1
+          fi
+          base=$(git rev-parse "$base")
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Batch"
+            echo
+            echo "Commits main gained since the last judged commit \`${base:0:10}\`. A row or a check this run reports as broken was broken by one of them."
+            echo
+            git log --reverse --format='- `%h` %s' "$base..HEAD"
+          } | tee "$RUNNER_TEMP/batch.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Install verified mbx
+        shell: bash
+        run: bash tools/xtask/bootstrap-mbx.sh
+      - name: Choose the rows this batch can affect
+        id: plan
+        env:
+          BASE: ${{ steps.batch.outputs.base }}
+        run: |
+          mkdir -p build/corpus-gate
+          mbx xtask corpus-gate plan --base "$BASE" --shards 8 --shard-secs 2200 --out build/corpus-gate/plan.json
+          cp "$RUNNER_TEMP/batch.md" build/corpus-gate/batch.md
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: post-merge-plan
+          path: |
+            build/corpus-gate/plan.json
+            build/corpus-gate/batch.md
+          retention-days: 7
+
+  # Compile the compiler and its corpus runner once for every shard.
+  build:
+    needs: plan
+    if: needs.plan.outputs.skip == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      # 'true' once the runner the shards need is uploaded.
+      runner: ${{ steps.runner-ready.outputs.built }}
+      # 'true' once the base commit's runner is uploaded as well.
+      base: ${{ steps.base-ready.outputs.built }}
+    # The container, user and path of a cloud session and of the warm-build
+    # job, so main's published build is reused and the runner built here runs
+    # in the shards (tools/warm_build.sh).
+    container:
+      image: ubuntu:24.04
+      options: --user root
+    env:
+      HOME: /root
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
+          echo "/root/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Check out the commit at the session path
+        run: |
+          git config --global --add safe.directory '*'
+          git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /home/user/Omega
+          git -C /home/user/Omega fetch -q origin "${{ github.sha }}"
+          git -C /home/user/Omega checkout -q --detach "${{ github.sha }}"
+      - name: Set up the host and restore main's warm build
+        run: cd /home/user/Omega && bash tools/ci/corpus_host.sh
+      - name: Build the compiler and the corpus runner
+        if: needs.plan.outputs.skip == 'false'
+        run: |
+          cd /home/user/Omega
+          # A session is not a CI job: Cargo and mbx change their defaults when
+          # CI is set, and the warm build was made without it.
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx build --locked -p omega < /dev/null
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx xtask corpus-gate build --out build/corpus-gate/runner < /dev/null
+          cp target/debug/omega build/corpus-gate/runner/omega
+          # An artifact upload drops file modes; the archive keeps the
+          # binaries executable.
+          tar -C build/corpus-gate -cf build/corpus-gate/runner.tar runner
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        id: runner-upload
+        if: needs.plan.outputs.skip == 'false'
+        with:
+          name: post-merge-runner
+          path: /home/user/Omega/build/corpus-gate/runner.tar
+          if-no-files-found: error
+          retention-days: 2
+      - name: Tell the shards the runner is available
+        id: runner-ready
+        if: steps.runner-upload.outcome == 'success'
+        run: echo "built=true" >> "$GITHUB_OUTPUT"
+      # The base commit's runner tells a row main had already lost before this
+      # batch from one the batch broke. If these steps fail, a shard that
+      # needs the base builds it itself.
+      - name: Build the base commit's corpus runner
+        id: base
+        if: needs.plan.outputs.skip == 'false' && needs.plan.outputs.needs_base == 'true'
+        continue-on-error: true
+        run: |
+          cd /home/user/Omega
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx xtask corpus-gate build --at "${{ needs.plan.outputs.base }}" \
+            --out build/corpus-gate/runner-base < /dev/null
+          tar -C build/corpus-gate -cf build/corpus-gate/runner-base.tar runner-base
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        id: base-upload
+        if: steps.base.outcome == 'success'
+        continue-on-error: true
+        with:
+          name: post-merge-runner-base
+          path: /home/user/Omega/build/corpus-gate/runner-base.tar
+          if-no-files-found: error
+          retention-days: 2
+      - name: Tell the shards the base runner is available
+        id: base-ready
+        if: steps.base-upload.outcome == 'success'
+        run: echo "built=true" >> "$GITHUB_OUTPUT"
+
+  shard:
+    needs: [plan, build]
+    if: ${{ !cancelled() && needs.plan.outputs.skip == 'false' && needs.build.outputs.runner == 'true' }}
+    name: shard ${{ matrix.shard }}
+    runs-on: ubuntu-24.04
+    # Long enough to run a worse row twice and then at the base commit.
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    container:
+      image: ubuntu:24.04
+      options: --user root
+    env:
+      HOME: /root
+      OMEGA_CORPUS_JOBS: '4'
+      # Hosted runners are slower than the hosts the ledger was timed on.
+      OMEGA_CORPUS_FIXTURE_SECS: '300'
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
+          echo "/root/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Check out the commit at the session path
+        run: |
+          git config --global --add safe.directory '*'
+          git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /home/user/Omega
+          git -C /home/user/Omega fetch -q origin "${{ github.sha }}"
+          git -C /home/user/Omega checkout -q --detach "${{ github.sha }}"
+      - name: Set up the host and restore main's warm build
+        run: cd /home/user/Omega && bash tools/ci/corpus_host.sh
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: post-merge-plan
+          path: /home/user/Omega/build/corpus-gate
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: post-merge-runner
+          path: /home/user/Omega/build/corpus-gate
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: needs.build.outputs.base == 'true'
+        with:
+          name: post-merge-runner-base
+          path: /home/user/Omega/build/corpus-gate
+      - name: Unpack the prebuilt runners
+        run: |
+          cd /home/user/Omega/build/corpus-gate
+          tar -xf runner.tar
+          if [ "${{ needs.build.outputs.base }}" = true ]; then
+            tar -xf runner-base.tar
+            echo "BASE_RUNNER=--base-runner build/corpus-gate/runner-base" >> "$GITHUB_ENV"
+          fi
+      - name: Check this shard's rows against the ledger
+        run: |
+          cd /home/user/Omega
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx xtask corpus-gate check --plan build/corpus-gate/plan.json --shard "${{ matrix.shard }}" \
+            --out build/corpus-gate/runs \
+            --runner build/corpus-gate/runner ${BASE_RUNNER:-} < /dev/null
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: post-merge-shard-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: |
+            /home/user/Omega/build/corpus-gate/runs/
+          if-no-files-found: warn
+          retention-days: 7
+
+  # Pull requests do not edit the ledger; this job writes what the shards
+  # measured. It records every row whose outcome differs from the ledger,
+  # better or worse, stamped with the commit it was measured at.
+  ledger:
+    needs: [plan, build, shard]
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.plan.outputs.skip == 'false' && needs.build.outputs.runner == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    outputs:
+      recorded: ${{ steps.record.outputs.changed }}
+      pushed: ${{ steps.push.outputs.pushed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The push below uses this checkout's token.
+          persist-credentials: true
+          fetch-depth: 2
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: post-merge-shard-*
+          path: ${{ runner.temp }}/shards
+      - name: Install verified mbx
+        shell: bash
+        run: bash tools/xtask/bootstrap-mbx.sh
+      - name: Splice the measured rows into the ledger
+        id: record
+        run: |
+          # One file per shard, in the flat directory the report reads. A
+          # shard that stopped before it measured anything left no file, and
+          # its rows keep their ledger lines.
+          mkdir -p "$RUNNER_TEMP/records"
+          n=0
+          for file in "$RUNNER_TEMP"/shards/*/records.txt "$RUNNER_TEMP"/shards/*/*/records.txt; do
+            [ -f "$file" ] || continue
+            n=$((n + 1))
+            cp "$file" "$RUNNER_TEMP/records/shard-$n.txt"
+          done
+          echo "Shards with measurements: $n"
+          if [ "$n" = 0 ]; then
+            echo "changed=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mbx xtask corpus-gate sweep-report --records "$RUNNER_TEMP/records" \
+            --body "$RUNNER_TEMP/ledger-body.md" --observed "$RUNNER_TEMP/observed.txt" < /dev/null
+      - name: Commit the ledger to main
+        id: push
+        if: steps.record.outputs.changed != '' && steps.record.outputs.changed != '0'
+        env:
+          CHANGED: ${{ steps.record.outputs.changed }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/omega/corpus_outcomes.txt
+          git commit -q -m "tests: record $CHANGED corpus rows the post-merge check measured" \
+            -m "The post-merge check ran the corpus rows that the batch ending at ${GITHUB_SHA:0:12} can reach and found $CHANGED whose outcome differs from the ledger. This commit records them as measured, better or worse; each row carries that commit as its stamp. Run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID names the rows and the batch's pull requests."
+          # Main may have moved while the shards ran. Pull requests do not
+          # edit the ledger, so the commit replays cleanly; if it does not,
+          # nothing is pushed and the rows stay unrecorded.
+          commit=$(git rev-parse HEAD)
+          for attempt in 1 2 3; do
+            git fetch -q origin main
+            git checkout -q --detach FETCH_HEAD
+            if ! git cherry-pick "$commit" > /dev/null; then
+              git cherry-pick --abort || true
+              echo "The ledger commit does not replay onto main; not pushed." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+            if git push -q origin HEAD:main; then
+              echo "pushed=true" >> "$GITHUB_OUTPUT"
+              echo "Recorded $CHANGED ledger rows on main as $(git rev-parse --short HEAD)." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          echo "Main refused the ledger commit (a ruleset that blocks direct pushes, or three lost races). $CHANGED rows are measured but not recorded." | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+  report:
+    needs: [post-merge-check, plan, build, shard, ledger]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: post-merge-plan
+          path: artifacts/post-merge-plan
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          pattern: post-merge-shard-*
+          path: artifacts
+      - name: Report what this batch did to main
+        env:
+          CHECKS: ${{ needs.post-merge-check.result }}
+          PLAN: ${{ needs.plan.result }}
+          SKIP: ${{ needs.plan.outputs.skip }}
+          BUILD: ${{ needs.build.result }}
+          RUNNER: ${{ needs.build.outputs.runner }}
+          SHARDS: ${{ needs.shard.result }}
+          LEDGER: ${{ needs.ledger.result }}
+          RECORDED: ${{ needs.ledger.outputs.recorded }}
+        run: |
+          red=0
+          say() { echo "$1" | tee -a "$GITHUB_STEP_SUMMARY"; }
+          bad() { say "- **Broken:** $1"; red=1; }
+          ok() { say "- $1"; }
+          say "## Post-merge verdict for \`${GITHUB_SHA:0:10}\`"
+          say ""
+          if [ "$CHECKS" = success ]; then
+            ok "Boundaries, workspace lint, the sample and the lowered-route tests pass."
+          else
+            bad "the \`post-merge-check\` job failed or did not finish ($CHECKS); its log names the step."
+          fi
+          if [ "$PLAN" != success ]; then
+            bad "the plan job did not succeed ($PLAN); no corpus row was judged."
+          elif [ "$SKIP" = true ]; then
+            ok "Nothing the corpus reads changed; no rows to check."
+          elif [ "$BUILD" != success ] || [ "$RUNNER" != true ]; then
+            bad "the corpus runner was not built ($BUILD); no row was checked."
+          elif [ "$SHARDS" = success ]; then
+            ok "Every selected corpus row is at least as good as the ledger."
+          else
+            bad "a corpus shard failed or did not finish ($SHARDS). Rows that moved:"
+            say ""
+            found=0
+            for summary in artifacts/post-merge-shard-*/summary.md artifacts/post-merge-shard-*/*/summary.md; do
+              [ -f "$summary" ] || continue
+              found=1
+              cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+              echo >> "$GITHUB_STEP_SUMMARY"
+            done
+            [ "$found" = 1 ] || say "No shard wrote a summary; a shard that stopped early judged no rows."
+          fi
+          case "$LEDGER" in
+            success) if [ -n "$RECORDED" ] && [ "$RECORDED" != 0 ]; then ok "Recorded $RECORDED measured rows in the ledger on main."; else ok "No ledger row differs from what was measured."; fi ;;
+            skipped) ;;
+            *) bad "the ledger job failed or did not finish ($LEDGER); measured rows were not recorded." ;;
+          esac
+          say ""
+          batch=$(ls artifacts/post-merge-plan/batch.md artifacts/post-merge-plan/*/batch.md 2>/dev/null | head -1)
+          if [ "$red" = 1 ]; then
+            say "### Blamed"
+            say ""
+            say "One of the batch's pull requests broke what is listed above. This run names the batch and does not narrow it further."
+            say ""
+            if [ -n "$batch" ]; then sed '1,/^$/d' "$batch" | sed '1,/^$/d' >> "$GITHUB_STEP_SUMMARY"; fi
+            exit 1
+          fi

@@ -1,6 +1,8 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "owner_const_name");
-    Build::depend_as(builder, "shared", Source::Path { location: "../library" });
+    let mut shared_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../library" });
+    dependency::with_alias(&mut shared_dependency, "shared");
+    let shared_registration: DependencyRegistration = Build::dependency(builder, shared_dependency);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
