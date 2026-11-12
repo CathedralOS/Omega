@@ -62,8 +62,8 @@ package is the "real" one.
 2. Make the subject set explicit request state and carry it through
    orchestration, including dependency Build execution and generated source.
 3. Replace post-hoc graph filtering with discovery during checking. Extend the
-   dependency graph with type and data references, which the Q2 audit did not
-   traverse.
+   dependency graph with type and data references, which the validation-subjects
+   audit did not traverse.
 4. Add `Build::validate`, the workspace default, and full validation of the
    admitted revision in install, update and audit. How `Build::validate`
    names a dependency, and how a bundled library becomes a subject, waits on

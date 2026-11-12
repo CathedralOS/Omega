@@ -8,7 +8,6 @@ use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use checked_trees::typed_trees::service_declarations::signatures::PreparedBoundarySignatures;
 use checked_trees::typed_trees::service_declarations::signatures::calling_applications::PreparedCallingInstance;
 use diagnostics::Diagnostic;
-use representation_selections::OpaqueRepresentationSelection;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use semantic_vocabulary::{CallingAbiIdentity, CallingSignatureId};
 use std::sync::{Arc, Weak};
@@ -61,7 +60,7 @@ impl CallingSourcePreparation {
     pub fn capture(
         checked: &Arc<checked_trees::CheckedTrees>,
         services: ServiceCatalog<'_>,
-        opaque_selections: &[OpaqueRepresentationSelection],
+        opaque_reviews: Arc<[super::PreparedOpaqueReviewSelection]>,
         providers: super::CallingPolicyProviderInputs<'_>,
     ) -> Result<Self, Vec<Diagnostic>> {
         if !std::ptr::eq(&*checked.typed, services.context().typed)
@@ -79,7 +78,6 @@ impl CallingSourcePreparation {
             )]);
         }
         let calling = signatures.calling();
-        let mut opaque_reviews = None;
         let mut requests = Vec::new();
         let mut has_pending = false;
         for request in calling.requests() {
@@ -108,14 +106,8 @@ impl CallingSourcePreparation {
                                     ]
                                 }),
                         };
-                        let rows = capture_signatures(
-                            typed,
-                            signatures,
-                            instance,
-                            request.span,
-                            opaque_selections,
-                            &mut opaque_reviews,
-                        );
+                        let rows =
+                            capture_signatures(signatures, instance, request.span, &opaque_reviews);
                         has_pending |=
                             policy_name.is_ok() && rows.as_ref().is_ok_and(|rows| !rows.is_empty());
                         captured.push(CallingSourceInstance {
@@ -159,12 +151,10 @@ impl CallingSourcePreparation {
 }
 
 fn capture_signatures(
-    typed: &checked_trees::typed_trees::TypedTrees,
     signatures: &PreparedBoundarySignatures,
     instance: &PreparedCallingInstance,
     span: source::SourceSpan,
-    opaque_selections: &[OpaqueRepresentationSelection],
-    opaque_reviews: &mut Option<Arc<[super::signature_review::PreparedOpaqueReviewSelection]>>,
+    opaque_reviews: &Arc<[super::PreparedOpaqueReviewSelection]>,
 ) -> Result<Vec<CallingSourceSignature>, Vec<Diagnostic>> {
     let mut captured = Vec::new();
     for application in signatures.calling().signatures(instance) {
@@ -183,9 +173,7 @@ fn capture_signatures(
                 requirement: declaration.symbol,
                 review: super::signature_review::PreparedCallingReview::prepare(
                     declaration,
-                    Arc::clone(opaque_reviews.get_or_insert_with(|| {
-                        super::signature_review::prepare_opaque_reviews(typed, opaque_selections)
-                    })),
+                    Arc::clone(opaque_reviews),
                 ),
             });
         }
