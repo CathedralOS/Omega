@@ -2330,8 +2330,36 @@ mod replay {
             prepare_selected_execution(&probe, selected.provider_bodies, selected.operators)
                 .map_err(|reason| super::failure(source::SourceSpan::default(), reason))?
                 .unwrap_or(probe);
+        // A replayed initializer reads the constants its probes reference,
+        // including one named only by a type extent such as `[u64; SIZE]`;
+        // the realized program must retain their declarations.
+        let referenced_constants = typed_trees::references::collect_selected_program_references(
+            &probe,
+            &typed_trees::references::DeclarationSelection::from_symbols(
+                probe_symbols.iter().copied(),
+            ),
+        )
+        .symbols
+        .into_iter()
+        .filter(|symbol| probe.symbols.get(*symbol).kind == symbols::SymbolKind::Const)
+        .collect::<Vec<_>>();
+        if std::env::var("OMEGA_DBG_CONST").is_ok() {
+            eprintln!(
+                "CONSTDBG replay roots add [{}]",
+                referenced_constants
+                    .iter()
+                    .map(|symbol| probe.symbols.name(*symbol).to_owned())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+        }
+        let replay_roots = probe_symbols
+            .iter()
+            .copied()
+            .chain(referenced_constants)
+            .collect::<Vec<_>>();
         let replay_execution =
-            PreparedEvaluationInputs::domain_for_program(&probe, &probe_symbols, &[]);
+            PreparedEvaluationInputs::domain_for_program(&probe, &replay_roots, &[]);
         let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probe, &replay_execution)?;
         let checked = super::invocations::CheckedInitializers::prepare(
             &prepared,
