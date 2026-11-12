@@ -1088,3 +1088,135 @@ tests/omega/pass/borrows/inline_carried_reference_exit/main.omg	pass	outside	rej
 tests/omega/pass/borrows/loan_scalar_copies/main.omg	pass	outside	accepted	n-a	no program entry	1.447
 tests/omega/pass/borrows/loop_descriptor_reformation_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.899
 tests/omega/pass/borrows/nested_machine_carried_recurrent_selector_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	11.104
+tests/omega/pass/borrows/nested_reference_crossings_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.274
+tests/omega/pass/borrows/opaque_incoming_nested_projected_record_result_exit/main.omg	pass	outside	accepted	n-a	type reference	2.930
+tests/omega/pass/borrows/overwritten_intermediate_descriptor_releases_backing_exit/main.omg	pass	outside	rejected	n-a	machine generic parameters	2.233
+tests/omega/pass/borrows/predicate_reference_field_retarget_exit/main.omg	pass	outside	accepted	n-a	type reference	2.874
+tests/omega/pass/borrows/projected_reference_record_argument_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.296
+tests/omega/pass/borrows/rebound_parameter_keeps_earlier_copy_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	3.231
+tests/omega/pass/borrows/retained_envelope_refs/main.omg	pass	outside	accepted	n-a	no program entry	1.586
+tests/omega/pass/borrows/returned_record_method_receiver_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.124
+tests/omega/pass/borrows/runtime_affine_local_scalar_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.238
+tests/omega/pass/borrows/runtime_byte_view_element_loan_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.335
+tests/omega/pass/borrows/runtime_case_byte_field_length_cleanup_exit/main.omg	pass	outside	accepted	n-a	type generic data	2.907
+tests/omega/pass/borrows/runtime_computed_case_copy_order_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	3.080
+tests/omega/pass/borrows/runtime_copied_byte_predicate_snapshot_exit/main.omg	pass	outside	accepted	n-a	machine attached data	3.094
+tests/omega/pass/borrows/runtime_dependent_window_byte_payload_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	3.468
+tests/omega/pass/borrows/runtime_dyn_image_result_snapshot_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	3.234
+tests/omega/pass/borrows/runtime_forwarded_indexed_reference_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	3.444
+tests/omega/pass/borrows/runtime_index_mut_loan_write_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.805
+tests/omega/pass/borrows/runtime_indexed_reference_call_regions/main.omg	pass	outside	accepted	n-a	type reference	2.836
+tests/omega/pass/borrows/runtime_measured_range_record_domains_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.883
+tests/omega/pass/borrows/runtime_mutable_window_parent_restoration_exit/main.omg	pass	outside	accepted	n-a	type fixed array	2.910
+tests/omega/pass/borrows/runtime_nested_reference_array_bounded_read_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.950
+tests/omega/pass/borrows/runtime_owned_reference_carrier_scalar_operand_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.824
+tests/omega/pass/borrows/runtime_projected_reference_call_return_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.987
+tests/omega/pass/borrows/runtime_reassigned_view_capture_exit/main.omg	pass	outside	rejected	n-a	parameter mutable parameter	2.043
+tests/omega/pass/borrows/runtime_reentered_mutable_array_loan_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.022
+tests/omega/pass/borrows/runtime_reference_carrier_state_loan_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.910
+tests/omega/pass/borrows/runtime_reference_result_alias_case_payload_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.339
+tests/omega/pass/borrows/runtime_returned_mutable_window_restoration_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.973
+tests/omega/pass/borrows/runtime_scalar_call_stored_carrier_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.880
+tests/omega/pass/borrows/runtime_selected_reference_mutation_complement_exit/main.omg	pass	outside	rejected	n-a	machine generic parameters	2.018
+tests/omega/pass/borrows/runtime_selected_stored_carrier_retired_parent_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.853
+tests/omega/pass/borrows/runtime_shared_temporary_call_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.167
+tests/omega/pass/borrows/runtime_stored_boolean_reference_exit/main.omg	pass	outside	accepted	n-a	type generic data	2.844
+tests/omega/pass/borrows/runtime_stored_reference_leaf_constructor_transfer_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.648
+tests/omega/pass/borrows/runtime_tail_recursive_disjoint_field_fact_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.932
+tests/omega/pass/borrows/runtime_whole_referent_case_store_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.073
+tests/omega/pass/borrows/runtime_writeonly_reference_array_state_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.885
+tests/omega/pass/borrows/static_carrier_reference_read_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.013
+tests/omega/pass/borrows/structural_operand_view_catalog_exit/main.omg	pass	outside	accepted	n-a	type reference	2.769
+tests/omega/pass/borrows/suspension_projected_call_view_reborrow_selected_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.815
+tests/omega/pass/borrows/suspension_saved_reference_view_earlier_operand_capture_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.887
+tests/omega/pass/borrows/target_family_backing_alternatives_exit/main.omg	pass	outside	accepted	n-a	machine target selection	2.880
+tests/omega/pass/borrows/writeonly_record_field_store_variants/main.omg	pass	outside	accepted	n-a	machine service reach	12.038
+tests/omega/pass/boundary/static_foreign_scalar_result_locals_exit/main.omg	pass	outside	accepted	n-a	machine service reach	13.035
+tests/omega/pass/build/activation_yields_without_replay/main.omg	pass	accepted	accepted	agree		3.430
+tests/omega/pass/build/build_package_root/main.omg	pass	outside	accepted	n-a	no program entry	1.557
+tests/omega/pass/build/component_assumption_policy_accepted/mechanism/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.818
+tests/omega/pass/build/crash_exclusion_closed_provider_exit/main.omg	pass	outside	accepted	n-a	machine service reach	3.280
+tests/omega/pass/build/dependency_generated_source_unimported/kit/main.omg	pass	error	stopped	n-a		0.601
+tests/omega/pass/build/discarded_provider_selection_exit/main.omg	pass	outside	accepted	n-a	machine service reach	10.305
+tests/omega/pass/build/executed_project_identity_exit/main.omg	pass	accepted	accepted	agree		4.390
+tests/omega/pass/build/freestanding_unselected_completion/main.omg	pass	outside	accepted	n-a	no program entry	10.410
+tests/omega/pass/build/interrupt_return_cathedral_ack/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	13.219
+tests/omega/pass/build/native_component_case_loan_cycle/producer/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	3.139
+tests/omega/pass/build/nested_generated_dependency_dual_purpose/main.omg	pass	accepted	accepted	agree		5.092
+tests/omega/pass/build/package_owned_callable_identity/library/main.omg	pass	outside	accepted	n-a	no program entry	1.490
+tests/omega/pass/build/project_session_shared_budget_exit/main.omg	pass	accepted	accepted	agree		2.986
+tests/omega/pass/build/provider_package_generated_owner_exit/main.omg	pass	outside	accepted	n-a	machine service reach	5.020
+tests/omega/pass/build/readiness_generated_dependency_diamond/backing/main.omg	pass	outside	accepted	n-a	no program entry	4.217
+tests/omega/pass/build/runtime_calling_register_copy_exit/main.omg	pass	outside	accepted	n-a	type data with custody	10.195
+tests/omega/pass/build/runtime_retained_const_application_exit/shapes/main.omg	pass	outside	accepted	n-a	no program entry	1.439
+tests/omega/pass/build/sibling_module_slot_family_rows_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.952
+tests/omega/pass/build/terminal_project_requests/main.omg	pass	accepted	accepted	agree		3.297
+tests/omega/pass/build/uefi_selected_context_entry/main.omg	pass	outside	accepted	n-a	machine service reach	11.837
+tests/omega/pass/calls/ambient_receiver_scalar_return_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.431
+tests/omega/pass/calls/borrowed_float_scalar_result_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.434
+tests/omega/pass/calls/callback_future_registration_cycle/main.omg	pass	outside	accepted	n-a	machine service reach	13.674
+tests/omega/pass/calls/callback_private_materialization/main.omg	pass	outside	accepted	n-a	machine service reach	13.081
+tests/omega/pass/calls/completed_effectful_result_requirement_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.830
+tests/omega/pass/calls/copy_projection_from_borrowed_receiver/main.omg	pass	outside	accepted	n-a	machine service reach	12.208
+tests/omega/pass/calls/ensures_result_membership_state_graph_issuer_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.850
+tests/omega/pass/calls/guarded_arm_tail_call_to_state_machine_exit/main.omg	pass	outside	accepted	n-a	machine attached data	11.940
+tests/omega/pass/calls/local_array_direct_read_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.190
+tests/omega/pass/calls/local_record_leaf_loan_scalar_calls_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.106
+tests/omega/pass/calls/mutable_output_host_call/main.omg	pass	outside	accepted	n-a	machine service reach	11.871
+tests/omega/pass/calls/native_code_layout_lifetime_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.805
+tests/omega/pass/calls/nested_call_footprints_follow_occurrences/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.763
+tests/omega/pass/calls/nested_self_call_argument_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.114
+tests/omega/pass/calls/nonreturning_record_match_normal_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.573
+tests/omega/pass/calls/outcome_specific_nested_formals/main.omg	pass	outside	accepted	n-a	contract result binding	3.057
+tests/omega/pass/calls/owned_state_parameter_call_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.187
+tests/omega/pass/calls/recursive_unit_positive_requires_control_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.292
+tests/omega/pass/calls/retained_receiver_argument_order_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.085
+tests/omega/pass/calls/runtime_atomic_case_shared_argument_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.922
+tests/omega/pass/calls/runtime_boundary_loop_projected_subslice_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.279
+tests/omega/pass/calls/runtime_case_terminal_payload_result_exit/main.omg	pass	outside	accepted	n-a	type data with custody	3.302
+tests/omega/pass/calls/runtime_constructed_borrowed_payload_arguments_exit/main.omg	pass	outside	rejected	n-a	parameter mutable parameter	2.237
+tests/omega/pass/calls/runtime_constructor_child_named_state_captures_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.790
+tests/omega/pass/calls/runtime_cyclic_state_reference_result_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.977
+tests/omega/pass/calls/runtime_exact_division_call_span_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.609
+tests/omega/pass/calls/runtime_foreign_scalar_indirect_widths_exit/main.omg	pass	outside	accepted	n-a	type fixed array	12.330
+tests/omega/pass/calls/runtime_guarded_terminal_array_operands_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	3.078
+tests/omega/pass/calls/runtime_heterogeneous_case_argument_exit/main.omg	pass	outside	accepted	n-a	machine attached data	3.091
+tests/omega/pass/calls/runtime_lifetime_only_constructor_result_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.451
+tests/omega/pass/calls/runtime_loop_rotation_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.308
+tests/omega/pass/calls/runtime_mutable_owned_computation_arguments_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.813
+tests/omega/pass/calls/runtime_nested_continuation_exit/main.omg	pass	accepted	accepted	agree		2.835
+tests/omega/pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.617
+tests/omega/pass/calls/runtime_qualified_record_call_results_reused_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.728
+tests/omega/pass/calls/runtime_selected_local_owner_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.790
+tests/omega/pass/calls/runtime_static_tail_local_custody_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.779
+tests/omega/pass/calls/runtime_temporary_lending_order_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.793
+tests/omega/pass/calls/runtime_value_call_return_types_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.140
+tests/omega/pass/calls/scalar_range_argument_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.819
+tests/omega/pass/calls/selected_crash_formal_saved_argument_exit/main.omg	pass	outside	accepted	n-a	machine type equations, owned data or conformances	2.907
+tests/omega/pass/calls/static_binding_authority/main.omg	pass	outside	accepted	n-a	no program entry	1.279
+tests/omega/pass/calls/structural_mut_to_shared_argument/main.omg	pass	outside	accepted	n-a	machine attached data	2.742
+tests/omega/pass/calls/terminal_call_acknowledgements_declarations/main.omg	pass	outside	accepted	n-a	no program entry	1.294
+tests/omega/pass/calls/value_call_param_effect_arm/main.omg	pass	outside	accepted	n-a	machine service reach	12.267
+tests/omega/pass/capabilities/boundary_trait_multiple_effects/main.omg	pass	outside	accepted	n-a	no program entry	1.253
+tests/omega/pass/capabilities/selected_synchronous_helper_ceiling_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.808
+tests/omega/pass/cases/arm_rename_waive/main.omg	pass	outside	accepted	n-a	no program entry	1.358
+tests/omega/pass/cases/case_where_match/main.omg	pass	outside	accepted	n-a	no program entry	1.368
+tests/omega/pass/cases/mid_arm_value_return/main.omg	pass	outside	accepted	n-a	no program entry	1.411
+tests/omega/pass/cases/runtime_constructor_subject_range_exit/main.omg	pass	outside	accepted	n-a	type reference	3.063
+tests/omega/pass/cases/write_only_case_postcondition_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.832
+tests/omega/pass/collections/case_array_literal_row_store_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.863
+tests/omega/pass/collections/element_view_indexed_read/main.omg	pass	outside	accepted	n-a	machine service reach	12.608
+tests/omega/pass/collections/indexed_row_array_literal_store/main.omg	pass	outside	accepted	n-a	machine service reach	11.870
+tests/omega/pass/collections/owned_array_scalar_comparisons/main.omg	pass	outside	accepted	n-a	no program entry	1.245
+tests/omega/pass/collections/runtime_argmax_index_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.557
+tests/omega/pass/collections/runtime_case_array_element_write_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.746
+tests/omega/pass/collections/runtime_computed_nested_borrow_call_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	3.234
+tests/omega/pass/collections/runtime_dutch_flag_partition_exit/main.omg	pass	outside	accepted	n-a	machine service reach	13.623
+tests/omega/pass/collections/runtime_fixed_array_projected_write_exit/main.omg	pass	outside	accepted	n-a	machine service reach	13.370
+tests/omega/pass/collections/runtime_frame_indexed_param_read_exit/main.omg	pass	outside	accepted	n-a	machine attached data	12.364
+tests/omega/pass/collections/runtime_indexed_float_field_compare_exit/main.omg	pass	outside	accepted	n-a	machine service reach	13.177
+tests/omega/pass/collections/runtime_member_decrement_index_bound_exit/main.omg	pass	outside	accepted	n-a	machine service reach	13.106
+tests/omega/pass/collections/runtime_offset_view_case_observation_exit/main.omg	pass	outside	accepted	n-a	type reference	3.068
+tests/omega/pass/collections/runtime_projected_range_call_nonempty_requirement_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	3.213
+tests/omega/pass/collections/runtime_shared_array_dot_product_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.665
+tests/omega/pass/collections/runtime_three_indexed_record_float_read_exit/main.omg	pass	outside	accepted	n-a	machine service reach	13.777
