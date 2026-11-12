@@ -55,11 +55,9 @@ impl FixtureSelection {
 
 #[cfg(test)]
 mod tests {
-    use super::FixtureSelection;
-
     #[test]
     fn exact_paths_exclude_prefix_neighbors_and_keep_all_requested_rows() {
-        let selection = FixtureSelection::exact([
+        let selection = super::FixtureSelection::exact([
             "pass/build/native_component_reuse".to_owned(),
             "fail/contracts/missing_guarantee".to_owned(),
         ])
@@ -73,17 +71,20 @@ mod tests {
 
     #[test]
     fn ordinary_fragment_filters_still_select_prefix_neighbors() {
-        let selection = FixtureSelection::fragments(" build/native_component_reuse,fail/proofs ");
+        let selection =
+            super::FixtureSelection::fragments(" build/native_component_reuse,fail/proofs ");
         assert!(selection.matches("pass/build/native_component_reuse_foreign"));
         assert!(selection.matches("fail/proofs/control"));
         assert!(!selection.matches("pass/proofs/control"));
-        assert!(FixtureSelection::fragments(" , ").is_unfiltered());
+        assert!(super::FixtureSelection::fragments(" , ").is_unfiltered());
     }
 
     #[test]
     fn empty_or_duplicate_exact_requests_refuse_instead_of_running_unfiltered() {
-        assert!(FixtureSelection::exact([]).is_err());
-        assert!(FixtureSelection::exact([String::new()]).is_err());
-        assert!(FixtureSelection::exact(["pass/a/b".to_owned(), "pass/a/b".to_owned()]).is_err());
+        assert!(super::FixtureSelection::exact([]).is_err());
+        assert!(super::FixtureSelection::exact([String::new()]).is_err());
+        assert!(
+            super::FixtureSelection::exact(["pass/a/b".to_owned(), "pass/a/b".to_owned()]).is_err()
+        );
     }
 }

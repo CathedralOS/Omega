@@ -591,6 +591,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let mut native = false;
     let mut native_target: Option<String> = None;
     let mut interpret = false;
+    let mut check_sites = false;
     let mut list_pinned = false;
     let mut sweep = std::env::var("OMEGA_CORPUS_SWEEP").is_ok_and(|v| !v.is_empty());
     let mut golden: Option<PathBuf> = None;
@@ -601,7 +602,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         match args[i].as_str() {
             "-h" | "--help" => {
                 println!(
-                    "usage: cargo xtask corpus [--list-pinned-regressions] [--filter <fragments>] [--shard <k/N>] [--record] [--native] [--native-target <target>] [--interpret] [--both] [--golden <path>] [--runner <path>] [--sweep]"
+                    "usage: cargo xtask corpus [--list-pinned-regressions] [--filter <fragments>] [--shard <k/N>] [--record] [--native] [--native-target <target>] [--interpret] [--both] [--check-sites] [--golden <path>] [--runner <path>] [--sweep]"
                 );
                 return Ok(());
             }
@@ -609,6 +610,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             "--record" => record = true,
             "--native" => native = true,
             "--interpret" => interpret = true,
+            "--check-sites" => check_sites = true,
             "--both" => {
                 native = true;
                 interpret = true;
@@ -753,7 +755,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         &shard,
         native.then_some(target),
         interpret,
-        false,
+        check_sites,
         &evidence,
     )
     .map_err(|e| {
