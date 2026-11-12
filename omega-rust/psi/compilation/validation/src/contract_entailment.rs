@@ -73576,6 +73576,17 @@ pub(crate) mod structural_judgment {
                 }
 
                 pub(crate) fn graph_place_invalidated(&self, place: &CanonicalPlace) -> bool {
+                    self.graph_place_observation_invalidated(
+                        place,
+                        crate::completed_storage::StoredObservation::Contents,
+                    )
+                }
+
+                pub(crate) fn graph_place_observation_invalidated(
+                    &self,
+                    place: &CanonicalPlace,
+                    observation: crate::completed_storage::StoredObservation,
+                ) -> bool {
                     let (Some(graph), Some(at)) = (self.storage_graph(), self.storage_version)
                     else {
                         return false;
@@ -73600,14 +73611,15 @@ pub(crate) mod structural_judgment {
                             }
                             _ => true,
                         };
-                    match crate::completed_storage::at_snapshot(
+                    // An unresolved query cannot preserve an entry value.
+                    match crate::completed_storage::sources_at_snapshot(
                         self.program,
                         graph,
                         at.snapshot,
                         place,
-                        crate::completed_storage::StoredObservation::Contents,
+                        observation,
                     ) {
-                        None => false,
+                        None => true,
                         Some(crate::completed_storage::StoredOperand::Alternatives(
                             alternatives,
                         )) => alternatives.iter().any(invalidates),
@@ -73628,18 +73640,6 @@ pub(crate) mod structural_judgment {
                         .filter_map(|statement| statement.as_local_data())
                         .find(|local| local.symbol == symbol)
                         .map(|local| local.initial_value)
-                }
-
-                pub(crate) fn graph_observation_invalidated(
-                    &self,
-                    expression: ExpressionHandle,
-                ) -> bool {
-                    let Some(place) =
-                        crate::canonical_place_from_expression(self.program, expression)
-                    else {
-                        return false;
-                    };
-                    self.graph_place_invalidated(&place)
                 }
 
                 pub(crate) fn graph_binding_invalidated(&self, symbol: SymbolHandle) -> bool {
@@ -76103,19 +76103,8 @@ pub(crate) mod structural_judgment {
                         self.retire_unversioned_storage(state)?;
                     }
                 }
-                let program = self.program;
                 let mut facts = std::mem::take(&mut self.premise_facts);
-                facts.retain(|fact| {
-                    let mut expressions = Vec::new();
-                    crate::queries::expression_traversal::collect_expression_tree(
-                        program,
-                        *fact,
-                        &mut expressions,
-                    );
-                    !expressions
-                        .iter()
-                        .any(|expression| self.storage_observation_invalidated(*expression))
-                });
+                facts.retain(|fact| self.entry_storage_observations_preserved(*fact));
                 self.premise_facts = facts;
                 Some(())
             }
@@ -77725,23 +77714,95 @@ pub(crate) mod structural_judgment {
                 if !self.requires_value_preservation() {
                     return true;
                 }
-                let mut expressions = Vec::new();
-                crate::queries::expression_traversal::collect_expression_tree(
-                    self.program,
-                    expression,
-                    &mut expressions,
-                );
-                !expressions
-                    .into_iter()
-                    .any(|expression| self.storage_observation_invalidated(expression))
+                use crate::completed_storage::StoredObservation;
+
+                let scope = self.runtime_declaration_scope();
+                let mut pending = vec![(expression, StoredObservation::Contents)];
+                let mut seen = std::collections::HashSet::with_hasher(symbols::BuildSymbolHasher);
+                while let Some((expression, observation)) = pending.pop() {
+                    let binding_only = matches!(observation, StoredObservation::Binding);
+                    if !expression.is_valid() || !seen.insert((expression, binding_only)) {
+                        continue;
+                    }
+                    let node = self.program.expression_table.expression(expression);
+                    if let Some(receiver) = self.storage_measure_receiver(scope, expression) {
+                        pending.push((receiver, StoredObservation::Binding));
+                        continue;
+                    }
+                    if self.storage_place_observation_invalidated(expression, observation) {
+                        return false;
+                    }
+                    let receiver = self.storage_field_receiver(scope, expression);
+                    crate::queries::expression_traversal::children(self.program, node, |child| {
+                        let observation = if receiver == Some(child) {
+                            StoredObservation::Binding
+                        } else {
+                            StoredObservation::Contents
+                        };
+                        pending.push((child, observation));
+                    });
+                }
+                true
             }
 
-            pub(crate) fn storage_observation_invalidated(
+            pub(crate) fn storage_measure_receiver(
+                &self,
+                scope: StorageScope<'_>,
+                expression: ExpressionHandle,
+            ) -> Option<ExpressionHandle> {
+                let ExpressionNode::Member(member) =
+                    self.program.expression_table.expression(expression)
+                else {
+                    return None;
+                };
+                let (machine, state) = scope?;
+                let reference = crate::expression_result_type_reference(
+                    self.program,
+                    machine,
+                    state,
+                    member.receiver,
+                )?;
+                crate::collection_operations::collection_measure_member(
+                    self.program,
+                    member,
+                    crate::collection_operations::MeasureReceiver::Declared(reference),
+                )?;
+                Some(member.receiver)
+            }
+
+            pub(crate) fn storage_field_receiver(
+                &self,
+                scope: StorageScope<'_>,
+                expression: ExpressionHandle,
+            ) -> Option<ExpressionHandle> {
+                let ExpressionNode::Member(member) =
+                    self.program.expression_table.expression(expression)
+                else {
+                    return None;
+                };
+                let (machine, state) = scope?;
+                let reference = crate::expression_result_type_reference(
+                    self.program,
+                    machine,
+                    state,
+                    member.receiver,
+                )?;
+                let reference =
+                    crate::field_domains::readable_type_reference(self.program, reference)?;
+                crate::applied_data_member_field(self.program, reference, member)?;
+                Some(member.receiver)
+            }
+
+            pub(crate) fn storage_place_observation_invalidated(
                 &self,
                 expression: ExpressionHandle,
+                observation: crate::completed_storage::StoredObservation,
             ) -> bool {
                 if self.graph_storage_mode() {
-                    return self.graph_observation_invalidated(expression);
+                    return crate::canonical_place_from_expression(self.program, expression)
+                        .is_some_and(|place| {
+                            self.graph_place_observation_invalidated(&place, observation)
+                        });
                 }
                 crate::value_custody::places::expression_root_symbol(
                     expression,
@@ -77749,6 +77810,16 @@ pub(crate) mod structural_judgment {
                     self.machine_symbol,
                 )
                 .is_some_and(|symbol| self.invalidated_storage.contains(&symbol))
+            }
+
+            pub(crate) fn storage_observation_invalidated(
+                &self,
+                expression: ExpressionHandle,
+            ) -> bool {
+                self.storage_place_observation_invalidated(
+                    expression,
+                    crate::completed_storage::StoredObservation::Contents,
+                )
             }
 
             pub(crate) fn storage_binding_invalidated(&self, symbol: SymbolHandle) -> bool {
@@ -83312,18 +83383,40 @@ pub(crate) mod structural_judgment {
             scope: Option<(&Machine, &State, TypeReferenceHandle)>,
             depth: usize,
         ) -> Option<StructuralTerm> {
+            self.callee_term_with_observation(
+                expression,
+                environment,
+                static_observations,
+                scope,
+                crate::completed_storage::StoredObservation::Contents,
+                depth,
+            )
+        }
+
+        fn callee_term_with_observation(
+            &self,
+            expression: ExpressionHandle,
+            environment: &[(String, StructuralTerm)],
+            static_observations: StaticObservations<'_>,
+            scope: Option<(&Machine, &State, TypeReferenceHandle)>,
+            observation: crate::completed_storage::StoredObservation,
+            depth: usize,
+        ) -> Option<StructuralTerm> {
             if depth >= 32 {
                 return None;
             }
             enum Pending {
-                Read(ExpressionHandle),
+                Read(
+                    ExpressionHandle,
+                    crate::completed_storage::StoredObservation,
+                ),
                 Join(ExpressionHandle),
             }
-            let mut pending = vec![Pending::Read(expression)];
+            let mut pending = vec![Pending::Read(expression, observation)];
             let mut values = Vec::new();
             while let Some(step) = pending.pop() {
                 match step {
-                    Pending::Read(expression) => {
+                    Pending::Read(expression, observation) => {
                         if let Some((_, value)) = self
                             .normal_results
                             .iter()
@@ -83343,14 +83436,21 @@ pub(crate) mod structural_judgment {
                             })
                         {
                             pending.push(Pending::Join(expression));
-                            pending.push(Pending::Read(binary.right));
-                            pending.push(Pending::Read(binary.left));
+                            pending.push(Pending::Read(
+                                binary.right,
+                                crate::completed_storage::StoredObservation::Contents,
+                            ));
+                            pending.push(Pending::Read(
+                                binary.left,
+                                crate::completed_storage::StoredObservation::Contents,
+                            ));
                         } else {
                             values.push(self.callee_term_leaf(
                                 expression,
                                 environment,
                                 static_observations,
                                 scope,
+                                observation,
                                 depth,
                             )?);
                         }
@@ -83378,6 +83478,7 @@ pub(crate) mod structural_judgment {
             environment: &[(String, StructuralTerm)],
             static_observations: StaticObservations<'_>,
             scope: Option<(&Machine, &State, TypeReferenceHandle)>,
+            observation: crate::completed_storage::StoredObservation,
             depth: usize,
         ) -> Option<StructuralTerm> {
             if depth >= 32 {
@@ -83512,12 +83613,21 @@ pub(crate) mod structural_judgment {
                     program,
                     member,
                     reference,
-                    || child_term!(member.receiver),
+                    || {
+                        self.callee_term_with_observation(
+                            member.receiver,
+                            environment,
+                            static_observations,
+                            scope,
+                            crate::completed_storage::StoredObservation::Binding,
+                            depth + 1,
+                        )
+                    },
                 )
             {
                 return Some(measure);
             }
-            if self.storage_observation_invalidated(expression) {
+            if self.storage_place_observation_invalidated(expression, observation) {
                 if super::struct_trace() {
                     eprintln!(
                         "STRUCT term-storage-refused caller={:?} expression={}",
@@ -83723,7 +83833,27 @@ pub(crate) mod structural_judgment {
                             path: member.member.as_str().to_owned(),
                         });
                     }
-                    let receiver_term = child_term!(member.receiver)?;
+                    // Selecting a field observes its receiver's address, not all
+                    // sibling contents. The field itself keeps its demanded read.
+                    let receiver_observation = if self
+                        .storage_field_receiver(
+                            scope.map(|(machine, state, _)| (machine, state)),
+                            expression,
+                        )
+                        .is_some()
+                    {
+                        crate::completed_storage::StoredObservation::Binding
+                    } else {
+                        crate::completed_storage::StoredObservation::Contents
+                    };
+                    let receiver_term = self.callee_term_with_observation(
+                        member.receiver,
+                        environment,
+                        static_observations,
+                        scope,
+                        receiver_observation,
+                        depth + 1,
+                    )?;
                     self.observed_field_term(receiver_term, member.member.as_str(), depth)
                 }
                 ExpressionNode::StructLiteral(literal) => {
