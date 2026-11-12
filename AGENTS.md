@@ -172,13 +172,7 @@ with at most a single focused positive/negative fixture pair under
 
 1. **Choose the outcome and root-cause cluster:** Honor explicit user scope
    first. Otherwise repair any unclaimed active `main` regression, then take:
-   - First, the [lowered-form checker](wiki/drafts/designs/check_on_lowered_form.md):
-     its product route, gate conditions and lanes outrank every `TASKS.md` item
-     (owner ruling, 2026-11-12). When a lane needs a construct a migration below
-     owns, build it in the lowered-form checker, not in Psi 05, validation or
-     Psi 06, which it replaces. Repair code it retires only to unblock CI or close
-     a soundness hole.
-   - Then, unassigned items in `TASKS.md`'s `## Priority (human-set only)` section.
+   - First, unassigned items in `TASKS.md`'s `## Priority (human-set only)` section.
    - Second, wide-blast-radius ratified surface migrations (`NESTED-MACHINE-UNIFICATION`,
      `CANONICALIZE-SCALAR-RANGE-CONTRACTS`, `STATIC-MACHINE-MIGRATION`,
      `BUILD-OWNED-TARGET-SELECTION`, `BUILD-OWNED-NATIVE-BINDINGS`,

@@ -658,7 +658,7 @@ The owner ruled on 2026-11-12 that this work outranks every other compiler
 item, including the `TASKS.md` priority migrations: a construct a lane needs
 is built in the lowered-form checker, not in the stages it replaces, and those
 stages are repaired only to unblock CI or close a soundness hole
-([AGENTS.md](../../../AGENTS.md#priority-and-continuous-execution)).
+(`LOWERED-FORM-CHECKER` at the top of [the task board](../../../TASKS.md)).
 
 Since the owner lifted the pause on 2026-11-12, the remaining construct
 families run alongside [the gate](#the-gate)'s conditions, in two

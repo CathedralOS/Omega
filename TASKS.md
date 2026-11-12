@@ -11,6 +11,12 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## Priority (human-set only)
 
+- **LOWERED-FORM-CHECKER.** Replace Psi 05, validation and Psi 06 with the [lowered-form checker](wiki/drafts/designs/check_on_lowered_form.md); this outranks every item below (owner ruling, 2026-11-12).
+  - Build its product route: product selection, provider inventory, target preparation and the entry receipt read the route's published Terminal Psi.
+  - Close the gate: root the entry-contract source, carry generic certificates into specializations, retire the first fully governed scope.
+  - Build constructs a lane needs here, not in the stages it replaces; repair those only to unblock CI or close a soundness hole.
+  Acceptance: the four gate conditions pass on main and Psi 05, validation and Psi 06 are deleted.
+
 - **NESTED-MACHINE-UNIFICATION.** Replace `state` with nested machines ([machines.md](wiki/spec/language/machines.md#nested-machines-and-identity), [state_contracts.md](wiki/spec/language/state_contracts.md)).
   - Resolve recursive scopes, elaborate flat identities, and reject runtime capture or code after trailing declarations.
   - Complete [local inference](wiki/drafts/designs/local_inference_and_contracts.md), cyclic arrivals, normal returns, loans, restoration, linear custody, and SCC rank measures across call shapes.
