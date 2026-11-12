@@ -101,9 +101,13 @@ machine name or data attachment participates. For example, a hosted Windows
 `ProgramEntry` joins the `WindowsProcessEntry::enter` process arrival under the
 `WindowsX86_64CallingPolicy` calling policy to the `ProgramStorageEntry::enter`
 semantic continuation through the `WindowsX86_64Application` boundary schema's
-generated bridge; the authored contract's `u32` return maps to the process
-exit code, and no physical arrival parameters are exposed to source unless its
-explicit installed contract declares and establishes them.
+generated bridge. The `u32` that the loader reads as the process exit code
+is the result of the physical arrival, `WindowsProcessEntry::enter() -> u32`,
+which the generated bridge returns; the bound source machine continues through
+`ProgramStorageEntry::enter`, which has no result, so `ProgramEntry` binds a
+machine that returns nothing and the exit status comes from `ProcessExit`. No
+physical arrival parameters are exposed to source unless its explicit
+installed contract declares and establishes them.
 
 The platform calling plan validates the generated physical shell; the target's
 entry shape validates the selected source signature. Resolve the slot first,
