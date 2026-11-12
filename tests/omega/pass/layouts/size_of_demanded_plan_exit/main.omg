@@ -1,0 +1,44 @@
+// Expected exit: 0
+// A size query demands and validates the selected layout without a stored instance.
+use omega::language::core::layout;
+use omega_language_std::console;
+
+CompactBits satisfies FixedLayout<Flags> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
+    reaches none terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry {
+            key: schema.fields[0].key,
+            representation: FieldPlan::At { offset: 0 },
+        };
+        LayoutPlan {
+            entries: entries,
+            entry_count: 1,
+            size_fixed: 1,
+            size_is_dynamic: false,
+            align: 1,
+        }
+    }
+}
+
+data Flags { present: bool; }
+
+data Main {
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    transition DEMANDED_BYTES == 1u64 {
+        true -> good(main)
+        false -> bad(main)
+    }
+    machine good(main: &mut Main) { Console::exit_process(0); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
+}
+
+const DEMANDED_BYTES: u64 = size_of<LayoutStorage<Flags, CompactBits>>();
+
+// The entry owns its backing; the layout selection supplies no storage.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

@@ -1,1 +1,1 @@
-schema instance has no runtime layout
+alignment 0 is not a positive power of two
