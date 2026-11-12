@@ -7503,18 +7503,28 @@ mod carry {
                     continue;
                 };
                 let condition = summary.suspension_dependency;
+                let Some(dependencies) = facts
+                    .operational
+                    .dependency_parameters
+                    .span(condition.parameters)
+                else {
+                    diagnostics.push(Diagnostic::error(
+                        "possibly suspending call lost its exact callback dependency span"
+                            .to_owned(),
+                    ));
+                    continue;
+                };
                 let conditional_permission = !condition.concrete
-                    && !condition.parameters.is_empty()
-                    && facts
-                        .operational
-                        .dependency_parameters
-                        .span_or_empty(condition.parameters)
-                        .iter()
-                        .all(|dependency| {
-                            static_scope
-                                .iter()
-                                .any(|parameter| parameter.symbol == *dependency)
-                        });
+                    && !dependencies.is_empty()
+                    && dependencies.iter().all(|dependency| {
+                        static_scope.iter().any(|parameter| {
+                            parameter.symbol == *dependency
+                                && matches!(
+                                    parameter.kind,
+                                    typed_trees::data::TypeParameterKind::Machine { .. }
+                                )
+                        })
+                    });
 
                 let call_site = validation::find_call_site(
                     program,

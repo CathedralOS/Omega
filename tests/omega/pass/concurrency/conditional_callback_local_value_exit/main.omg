@@ -28,12 +28,18 @@ suspends {
     let callback_result: u32 = suspend Callback(value);
     kept
 }
+public machine retain_value<T, const Callback: machine(value: u32) -> u32 suspends>(generic_kept: T, value: u32) -> T
+suspends {
+    let callback_result: u32 = suspend Callback(value);
+    generic_kept
+}
 machine main() crashes Trap {
     let observed: u32 = suspend retain<quiet>(73u32);
     let unmarked: u32 = retain<quiet>(73u32);
     let recursive: u32 = first<quiet>(3, 73u32);
     let allowed: u32 = suspend retain_scalar<may_pause>(73u32);
-    transition observed == 73u32 && unmarked == 73u32 && recursive == 73u32 && allowed == 73u32 { true -> done() _ -> bad() }
+    let generic_allowed: u32 = suspend retain_value<u32, may_pause>(73u32, 73u32);
+    transition observed == 73u32 && unmarked == 73u32 && recursive == 73u32 && allowed == 73u32 && generic_allowed == 73u32 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

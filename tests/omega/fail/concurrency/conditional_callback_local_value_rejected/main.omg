@@ -29,9 +29,15 @@ suspends {
     let independent_result: u32 = suspend independent(value);
     observe(kept)
 }
+public machine retain_value<T, const Callback: machine(value: u32) -> u32 suspends>(generic_kept: T, value: u32) -> T
+suspends {
+    let callback_result: u32 = suspend Callback(value);
+    generic_kept
+}
 machine main() suspends {
     let selected: u32 = suspend retain<may_pause>(73u32);
     let wide: u32 = suspend retain<private_wide>(73u32);
     let recursive: u32 = suspend first<may_pause>(3, 73u32);
     let fixed_result: u32 = suspend fixed<quiet>(73u32);
+    let generic_forbidden: Kept = suspend retain_value<Kept, may_pause>(Kept { value: 73u32 }, 73u32);
 }
