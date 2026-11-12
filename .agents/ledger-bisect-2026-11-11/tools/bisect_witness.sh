@@ -2,7 +2,7 @@
 # git bisect run helper using frozen PIN observation; 125 skips ledger-only commits.
 set -euo pipefail
 WITNESS="${BISECT_WITNESS:?}"
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${OMEGA_REPO:-/agent/repos/omega}"
 TOOLS="$(dirname "$0")"
 cd "$ROOT"
 

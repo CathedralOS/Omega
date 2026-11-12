@@ -18,6 +18,7 @@ git checkout -f work/ledger-bisect-part-10
 
 export BISECT_WITNESS="$WITNESS"
 export BISECT_PIN="$PIN"
+export OMEGA_REPO="$ROOT"
 
 cp "$ROOT/tests/omega/corpus_outcomes.txt" /tmp/pin_corpus_outcomes.txt 2>/dev/null || true
 python3 "$TOOLS/pin_snapshot.py" "$WITNESS" /tmp/part10_pin_measure.txt >/tmp/pin_snap_${CLUSTER_ID}.json
