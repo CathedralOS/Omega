@@ -17,7 +17,7 @@ Measured commit (PIN): `51e8c45c793007f211d0d9baee7de16767172444`
 | 3 | pass/run rejected | cannot establish assignment invariants: performed write has unknown destination origins | `pass/borrows/runtime_selected_reference_mutation_complement_exit` | `b7e951cdab51dda4e199f3fd33c53a0408fe72db` | 1242 | psi #1242 assignment_windows/post_store_predicates tighten post-store destination supplier capture | bisected |
 | 2 | incomplete | `main` calls `exercise`, which calls `window`; `window` has no executable body | `pass/facts/computed_record_window_through_other_machine_exit` | `2174c0d10bb146aea6a86f55262bc536feb86ea3` | 1313 | omega #1313 provider settlement prefers product providers over terminal demand | bisected |
 | 1 | pass/run rejected | cannot prove requires contract for call compute from write | `pass/facts/match_computed_root_through_other_state_exit` | `d30fccc7aae65a2358024cf39788d1007e2661b4` | 2276 | psi #2276 private-machine requires proving stops carrying computed-root counter facts into compute | bisected |
-| 1 | pass/run rejected | machine `received` state `entry` statement 6: operand has no complete completed call-slot relation | `pass/generics/generic_result_parameter_receipt` | `5ab4e12334fba74babfc3ae8d9992572fba307e6` | 348 | psi #348 nested invocation contracts drop completed call-slot relation for generic results | bisected |
+| 1 | pass/run rejected | machine `received` state `entry` statement 6: operand has no complete completed call-slot relation | `pass/generics/generic_result_parameter_receipt` | `1bb9690b80851e6b149c9a414b3317439183a882` | 1819 | compiler #1819 `loans.rs` maps `StoredReferenceRelationRefusal::Unavailable(_)` to missing call-slot relation | bisected (PIN regression; sparse walk #348 superseded) |
 
 Members:
 - `pass/borrows/runtime_selected_reference_mutation_complement_exit` — still broken
@@ -59,7 +59,7 @@ Members:
 - Re-measure command: `OMEGA_CORPUS_FIXTURE_FILTER=<11 fixtures> OMEGA_CORPUS_RECORDS=... corpus_runner`
 - Sanity anchor: `741270df60f7eab218e879eb6771d2bc75e64c00`
 - Good commits used for `git bisect`: see **Acceptance verification** (exponential jump + newest-good refinement + triple confirm at good SHA)
-- Logs: `part-31-verify.log`, `part-31-members.log`, `part-31-good-walk.log`, `part-31-good-confirm.log`, `part-31-fixture-audit.log`
+- Logs: `part-31-verify.log`, `part-31-members.log`, `part-31-good-walk.log`, `part-31-good-confirm.log`, `part-31-fixture-audit.log`, `part-31-ledger-checked.log`, `part-31-rebisect-c3.log`
 
 ## Acceptance verification
 
@@ -72,7 +72,8 @@ Frozen PIN ledger + per-witness specs: `python3 setup_pin_specs.py` → `/tmp/le
 | c0 | `pass/borrows/runtime_selected_reference_mutation_complement_exit` | `b7e951cdab51dda4e199f3fd33c53a0408fe72db` (#1242) | 1,1,1 | `c0b334362da0ce997052dc277a639af7471555e9` | 0,0,0 |
 | c1 | `pass/facts/computed_record_window_through_other_machine_exit` | `2174c0d10bb146aea6a86f55262bc536feb86ea3` (#1313) | 1,1,1 | `bebbe455e7517a069862d87aead2f1ca911588c3` | 0,0,0 |
 | c2 | `pass/facts/match_computed_root_through_other_state_exit` | `d30fccc7aae65a2358024cf39788d1007e2661b4` (#2276) | 1,1,1 | `6f0eea318690404f6d4e3d962434415493382377` | 0,0,0 |
-| c3 | `pass/generics/generic_result_parameter_receipt` | `5ab4e12334fba74babfc3ae8d9992572fba307e6` (#348) | 1,1,1 | `eab58bf427c48063e3fcf597e4550ca53ac7cb8c` | 0,0,0 |
+| c3 (PIN regression) | `pass/generics/generic_result_parameter_receipt` | `1bb9690b80851e6b149c9a414b3317439183a882` (#1819, fp idx 599) | 1,1,1 | `96ecfb7c12877f0a60fe20c62334f4a1fd973d4a` (#1873, fp idx 600) | 0,0,0 |
+| c3 (sparse walk, historical) | `pass/generics/generic_result_parameter_receipt` | `5ab4e12334fba74babfc3ae8d9992572fba307e6` (#348 squash merge, fp idx 1997) | 1,1,1 | `eab58bf427c48063e3fcf597e4550ca53ac7cb8c` (pre-merge main, fp idx 1998; **not** PR 348) | 0,0,0 |
 
 ### Member rows at first-bad and parent (corpus status)
 
@@ -84,10 +85,38 @@ Frozen PIN ledger + per-witness specs: `python3 setup_pin_specs.py` → `/tmp/le
 | c1 | `bebbe455e7517a069862d87aead2f1ca911588c3` | both → `checked` |
 | c2 | `d30fccc7aae65a2358024cf39788d1007e2661b4` | `match_computed_root_through_other_state_exit` → `rejected` |
 | c2 | `6f0eea318690404f6d4e3d962434415493382377` | → `checked` |
-| c3 | `5ab4e12334fba74babfc3ae8d9992572fba307e6` | `generic_result_parameter_receipt` → `rejected` |
-| c3 | `eab58bf427c48063e3fcf597e4550ca53ac7cb8c` | → `checked` (not build skip; witness ran in ~1.5s) |
+| c3 (PIN) | `1bb9690b80851e6b149c9a414b3317439183a882` | `generic_result_parameter_receipt` → `rejected` |
+| c3 (PIN) | `96ecfb7c12877f0a60fe20c62334f4a1fd973d4a` | → `checked` |
+| c3 (hist #348) | `5ab4e12334fba74babfc3ae8d9992572fba307e6` | → `rejected` |
+| c3 (hist #348) | `eab58bf427c48063e3fcf597e4550ca53ac7cb8c` | → `checked` |
 
-#348 parent fixture audit (`eab58bf427c48063e3fcf597e4550ca53ac7cb8c`): `tests/omega/pass/generics/generic_result_parameter_receipt/main.omg` present; `build.omg` absent (pre-build-era layout); `source/library` and `tests/omega/corpus_outcomes.txt` present; frozen PIN ledger row `pass/generics/generic_result_parameter_receipt checked`.
+`5ab4e12334fba74babfc3ae8d9992572fba307e6` is the GitHub squash-merge commit for PR #348; its sole parent is `eab58bf427c48063e3fcf597e4550ca53ac7cb8c` (first-parent child of the merge, not labeled #348). Both commits lie on the PIN first-parent chain (idx 1997 / 1998). Triple witness at merge and parent: `part-31-rebisect-c3.log` (`c3-historical-348` / `c3-historical-348-parent`).
+
+#348 parent fixture audit (`eab58bf427c48063e3fcf597e4550ca53ac7cb8c`): `tests/omega/pass/generics/generic_result_parameter_receipt/main.omg` present; `build.omg` absent (pre-build-era layout); `source/library` and `tests/omega/corpus_outcomes.txt` present; frozen PIN ledger row `pass/generics/generic_result_parameter_receipt checked` (witness `rejected` on PIN; ledger stale vs runtime — see below).
+
+### Ledger `checked` vs witness (c0, c3)
+
+Per frozen PIN ledger, broken rows still show `checked`. For each cluster member, `git log --first-parent $PIN -G'<fixture> checked'` on `tests/omega/corpus_outcomes.txt` finds the newest first-parent commit that re-wrote the row as `checked`, then triple `corpus_runner` at that commit with fresh `CARGO_TARGET_DIR=/tmp/ledger-bisect-target-<sha12>/` (`part-31-ledger-checked.log`, `run_triple_scoped.sh`).
+
+**c0 (assignment pass trio + `returned_destination_transport_exit`)**
+
+| fixture | newest `checked` writer (fp idx) | fixture first in ledger | triple at writer |
+| --- | --- | --- | --- |
+| `runtime_selected_reference_mutation_complement_exit` | `6ace467e4f78bb55d5d3e6727539e4a47814ec0a` (#1807, 662) | `c64728d90e83036051d52fb69961b786423230c6` (#889) | 1,1,1 |
+| `runtime_uniform_projected_reference_selection_exit` | same #1807 | same #889 | 1,1,1 |
+| `returned_destination_transport_exit` | same #1807 | `15c0fedffd3f10b7cb397cd21c0a1aad5dcd9a9c` | 1,1,1 |
+
+Witness already fails at the newest ledger writer; writer is **newer** than sparse first-bad `b7e951cdab51dda4e199f3fd33c53a0408fe72db` (#1242, fp idx 1211) but exits are **not** `0,0,0`, so **no** first-parent re-bisect from #1807. PIN `checked` is stale ledger: bulk corpus touch in #1807 did not match witness (`rejected` on PIN and at idx 662). Original #1242 boundary and hunks stand.
+
+**c3 (`generic_result_parameter_receipt`)**
+
+| role | commit (fp idx) | triple |
+| --- | --- | --- |
+| newest bulk `checked` writer toward PIN | `6ace467e4f78bb55d5d3e6727539e4a47814ec0a` (#1807, 662) | 0,0,0 |
+| PIN row stamp host (`@ada93c78b02f+wt`) | `ada93c78b02f2f5c031fc8513f9ff13c9641f29a` (#1226, 1228) | 1,1,1 |
+| fixture add | `42ef40205f19c7797b352647f55b82519407191c` | — |
+
+Witness **passes** at #1807 and **fails** on PIN → first-parent re-bisect from idx 662 (`6ace467e…`) down to PIN (`51e8c45c…`). Bracket refinement (`part-31-rebisect-c3.log`): good through idx 600–661; **PIN-regression first-bad** `1bb9690b80851e6b149c9a414b3317439183a882` (#1819, idx 599) triple 1,1,1; parent `96ecfb7c12877f0a60fe20c62334f4a1fd973d4a` (#1873, idx 600) triple 0,0,0. Sparse exponential walk to ancient #348 skipped this good stretch (witness 0,0,0 at #1807). PIN ledger `checked` predates the regression (#1226 stamp host already sees `rejected`).
 
 ### Newest good (bisect) SHAs — confirmed by walk scripts on branch
 
@@ -133,4 +162,12 @@ Plus `storage_effects.rs` requires `capture_storage_place` for scalar-view store
 +                root
 ```
 
-**c3 / #348** (`5ab4e12334fba74babfc3ae8d9992572fba307e6`) — **mechanism not established** (large `call_cycles` proof-SCC refactor; no diff hunk references `completed call-slot relation` or `operand has no complete completed call-slot relation`).
+**c3 / PIN regression #1819** (`1bb9690b80851e6b149c9a414b3317439183a882`) — `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow/loans.rs`:
+
+```diff
+-            validation::StoredReferenceRelationRefusal::Unavailable => {
++            validation::StoredReferenceRelationRefusal::Unavailable(_) => {
+                 return Err("operand has no complete completed call-slot relation");
+```
+
+**c3 / historical sparse #348** (`5ab4e12334fba74babfc3ae8d9992572fba307e6`) — **mechanism not established** for the PIN failure (large `call_cycles` proof-SCC refactor; no diff hunk cites `completed call-slot relation`). Superseded for PIN boundary by #1819 re-bisect above.
