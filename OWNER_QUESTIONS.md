@@ -591,3 +591,29 @@ nowhere to keep that state:
 
 Until answered, test groups run only without services, and
 `BUILD-TEST-GROUPS` keeps its virtual-filesystem acceptance.
+
+### Q25 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
+
+Decision name: `operating-system-library-name`. Raised by Jarod for Zac.
+
+**Customer.** Everyone reading or writing Omega imports. `std` does not say
+what the library is. Its contents are the program's connection to the
+operating system: files (`filesystem`, the POSIX and Windows filesystem
+hosts), the console, clocks and time, process exit, macOS and Windows GUI,
+the calling conventions for OS calls, and each target's program entry
+(`targets/`). Everything that works without an operating system already lives
+in `core`, and heap allocation in `alloc`.
+
+**Question.** Rename `source/library/std` and every `std::` path to:
+
+- **(a)** `os`, or
+- **(b)** `system`, or
+- **(c)** keep `std`.
+
+And separately, rename `source/library/alloc` and every `alloc::` path to
+`allocation`, the spelled-out word, for the same reason (yes or no).
+
+Code is written by agents, so length is not a concern; the name should say
+what the library is. A rename is one mechanical change across the library,
+fixtures, samples and documentation, landed in one pull request at a time
+chosen to avoid in-flight work.
