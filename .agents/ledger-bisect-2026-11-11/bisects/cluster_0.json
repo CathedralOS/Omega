@@ -1,9 +1,10 @@
 {
   "witness": "pass/relevance/runtime_static_proof_namespace_exit",
-  "breaking_commit": "",
+  "good_commit": "280530acad9f875e26a236925aaee34996d9766c",
+  "breaking_commit": "ad3cf2407872ee6ed049f8d4c13ac744c00cf0b5",
   "pr": null,
-  "mechanism": "no first-parent good commit found (witness still regressed at ledger stamp and 120 parents of 759c80404428)",
+  "mechanism": "git bisect landed on ledger-only commit ad3cf2407872; witness script should skip these \u2014 re-run",
   "status": "propagated",
   "bisect_exit": 2,
-  "stability": "unknown"
+  "stability": "deterministic"
 }

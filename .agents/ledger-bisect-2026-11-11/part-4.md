@@ -13,7 +13,7 @@ PIN: `51e8c45c793007f211d0d9baee7de16767172444`
 
 | rows | kind | diagnostic | witness | breaking commit | PR | mechanism | status | stability |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 5 | pass/run rejected | cannot compare `Tree` values with `==`: structural equality is synthesized only through a named implementation | `pass/relevance/runtime_static_proof_namespace_exit` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
+| 5 | pass/run rejected | cannot compare `Tree` values with `==`: structural equality is synthesized only through a named implementation | `pass/relevance/runtime_static_proof_namespace_exit` | `ad3cf2407872` |  | git bisect landed on ledger-only commit ad3cf2407872; witness script should skip these — r | propagated | deterministic |
 Members: `pass/proofs/case_call_premises`, `pass/proofs/cauchy_predicates_compile`, `pass/proofs/defined_proposition_premises`, `pass/relevance/runtime_static_proof_namespace_exit`, `pass/traits/structural_array_crash_identity_exit`
 
 | 4 | fail wrong reason | machine `incorrect` ensures contract proof fact `result == 4` is disproved by constant arithmetic on the trans | `fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
