@@ -119,7 +119,25 @@ def run_omega(main: Path) -> tuple[str, float, str]:
     return verdict, time.monotonic() - t0, out[:800]
 
 
-def run_route(main: Path) -> tuple[str, float, str]:
+def extract_route_reason(raw: str, route: str) -> str:
+    parts: list[str] = []
+    for line in raw.splitlines():
+        if line.startswith("diagnostic\t"):
+            parts.append(line.split("\t")[-1].strip()[:240])
+        elif line.startswith("fallback\t"):
+            parts.append("fallback: " + line.split("\t", 4)[-1].strip()[:200])
+        elif line.startswith("current-diagnostic\t"):
+            parts.append("current: " + line.split("\t")[-1].strip()[:200])
+    for line in raw.splitlines():
+        if line.startswith("program\t"):
+            tail = "\t".join(line.split("\t")[2:])
+            if "Unsupported" in tail or route in ("outside", "no-entry", "unreached"):
+                parts.append(tail[:300])
+            break
+    return " | ".join(parts[:4])[:600]
+
+
+def run_route(main: Path) -> tuple[str, float, str, str]:
     t0 = time.monotonic()
     try:
         r = subprocess.run(
@@ -129,7 +147,8 @@ def run_route(main: Path) -> tuple[str, float, str]:
             timeout=TIMEOUT,
         )
     except subprocess.TimeoutExpired as e:
-        return "timeout", time.monotonic() - t0, (e.stdout or "")[:800]
+        raw = (e.stdout or "") + (e.stderr or "")
+        return "timeout", time.monotonic() - t0, raw[:1200], "timeout"
     route = "error"
     raw = r.stdout or ""
     for line in raw.splitlines():
@@ -137,7 +156,8 @@ def run_route(main: Path) -> tuple[str, float, str]:
             parts = {kv.split("=", 1)[0]: kv.split("=", 1)[1] for kv in line.split("\t")[2:] if "=" in kv}
             route = parts.get("route", "error")
             break
-    return route, time.monotonic() - t0, raw[:800]
+    reason = extract_route_reason(raw, route)
+    return route, time.monotonic() - t0, raw[:1200], reason
 
 
 def load_checkpoint() -> set[str]:
@@ -162,8 +182,9 @@ def main() -> None:
         if write_header:
             tsv.write(
                 "fixture\ttier\tmutation_kind\tmutant_path\tcurrent_verdict\t"
-                "route_verdict\tagree\thand_verdict\tspec_file\tspec_quote\t"
-                "obligation_line\tcurrent_out\troute_out\tcurrent_s\troute_s\n"
+                "route_verdict\troute_reason\tagree\thand_verdict\tverdict_reason\t"
+                "spec_file\tspec_quote\tobligation_line\tcurrent_out\troute_out\t"
+                "current_s\troute_s\n"
             )
 
         for fi, fixture in enumerate(fixtures):
@@ -188,7 +209,7 @@ def main() -> None:
             for kind, mutated in muts:
                 main_omg.write_text(mutated, encoding="utf-8")
                 cur, cs, c_out = run_omega(main_omg)
-                rt, rs, r_out = run_route(main_omg)
+                rt, rs, r_out, r_reason = run_route(main_omg)
                 agree = "agree" if cur == rt else "disagree"
                 if cur == "timeout" or rt == "timeout":
                     hand = "timeout"
@@ -203,14 +224,16 @@ def main() -> None:
                 dest_rel = str(dest.relative_to(REPO))
                 tsv.write(
                     f"{fixture}\t{tier_of(fixture)}\t{kind}\t{dest_rel}\t{cur}\t{rt}\t"
-                    f"{agree}\t{hand}\t\t\t\t{c_out.replace(chr(9),' ').replace(chr(10),' ')}\t"
+                    f"{r_reason.replace(chr(9),' ').replace(chr(10),' ')}\t{agree}\t{hand}\t\t\t\t\t"
+                    f"{c_out.replace(chr(9),' ').replace(chr(10),' ')}\t"
                     f"{r_out.replace(chr(9),' ').replace(chr(10),' ')}\t{cs:.3f}\t{rs:.3f}\n"
                 )
                 tsv.flush()
             if not muts:
                 tsv.write(
-                    f"{fixture}\t{tier_of(fixture)}\tnone\t\trejected\trejected\tagree\t"
-                    f"discarded-no-mutation\t\t\t\t\t\t0\t0\n"
+                    f"{fixture}\t{tier_of(fixture)}\tnone\t\trejected\trejected\t"
+                    f"no mutation generated\tagree\tdiscarded-no-mutation\tno applicable mutator\t"
+                    f"\t\t\t\t\t0\t0\n"
                 )
                 tsv.flush()
             shutil.rmtree(staging, ignore_errors=True)

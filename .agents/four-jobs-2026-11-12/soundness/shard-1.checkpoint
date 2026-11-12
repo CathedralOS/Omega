@@ -23,3 +23,13 @@ tests/omega/pass/asm/proposition_label_contracts_exit/main.omg
 tests/omega/pass/asm/scratch_zero_flag_survives_move_exit/main.omg
 tests/omega/pass/atomics/runtime_atomic_boolean_orderings_exit/main.omg
 tests/omega/pass/atomics/runtime_atomic_fetch_add_exit/main.omg
+tests/omega/pass/atomics/runtime_shared_case_waived_atomic_exit/main.omg
+tests/omega/pass/borrow/explicit_aggregate_lifetime_selects_source/main.omg
+tests/omega/pass/borrow/projected_record_state_loan_split_exit/main.omg
+tests/omega/pass/borrow/runtime_relational_scalar_handback_exit/main.omg
+tests/omega/pass/borrow/runtime_write_only_array_indexed_calls_exit/main.omg
+tests/omega/pass/borrow/runtime_write_only_exclusive_reference_detached_child_exit/main.omg
+tests/omega/pass/borrow/runtime_write_only_qualified_array_element_exit/main.omg
+tests/omega/pass/borrow/runtime_write_only_reference_aggregate_detached_exit/main.omg
+tests/omega/pass/borrow/stored_write_only_metadata/main.omg
+tests/omega/pass/borrows/borrow_returned_window_write_and_call/main.omg
