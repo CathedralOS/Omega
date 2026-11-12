@@ -83,6 +83,8 @@ def main() -> int:
         return 0
     if outcome_matches_bad(status, dn, obs):
         return 1
+    if tier == "pass" and status == obs["pin_bad_status"]:
+        return 1
     return 125
 
 

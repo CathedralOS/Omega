@@ -20,11 +20,20 @@ export BISECT_WITNESS="$WITNESS"
 export BISECT_PIN="$PIN"
 export OMEGA_REPO="$ROOT"
 
-cp "$ROOT/tests/omega/corpus_outcomes.txt" /tmp/pin_corpus_outcomes.txt 2>/dev/null || true
-python3 "$TOOLS/pin_snapshot.py" "$WITNESS" /tmp/part10_pin_measure.txt >/tmp/pin_snap_${CLUSTER_ID}.json
+git show "$PIN:tests/omega/corpus_outcomes.txt" >/tmp/pin_corpus_outcomes.txt
+python3 "$TOOLS/pin_snapshot.py" "$WITNESS" "$ROOT/.agents/ledger-bisect-2026-11-11/part10_pin_measure.txt" >/tmp/pin_snap_${CLUSTER_ID}.json
 
-echo "Finding good commit for $WITNESS ..." >&2
-GOOD="$(python3 "$TOOLS/find_good_commit.py" "$WITNESS")"
+if [[ -n "${BISECT_GOOD:-}" ]]; then
+  GOOD="$BISECT_GOOD"
+else
+  echo "Warm build at PIN before good search ..." >&2
+  git checkout -f "$PIN"
+  chmod -R u+w "$ROOT/target" 2>/dev/null || true
+  bash "$TOOLS/bisect_witness.sh" >/dev/null 2>&1 || true
+  git checkout -f work/ledger-bisect-part-10
+  echo "Finding good commit for $WITNESS ..." >&2
+  GOOD="$(python3 "$TOOLS/find_good_commit.py" "$WITNESS")"
+fi
 echo "good=$GOOD" >&2
 
 git bisect reset 2>/dev/null || true
