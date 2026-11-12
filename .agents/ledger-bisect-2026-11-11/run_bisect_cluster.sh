@@ -31,9 +31,12 @@ if [[ "$pin_ec" -ne 1 ]]; then
 fi
 
 FINDLOG="/tmp/find-good-${CLUSTER_ID}.log"
-SAVED_FIND="$ROOT/.agents/ledger-bisect-2026-11-11/find-good-${CLUSTER_ID}.log"
-if [[ -f "$SAVED_FIND" ]]; then
-  cp "$SAVED_FIND" "$FINDLOG"
+SAVED_BRANCH=work/ledger-bisect-part-21
+SAVED_PATH=".agents/ledger-bisect-2026-11-11/find-good-${CLUSTER_ID}.log"
+if git show "$SAVED_BRANCH:$SAVED_PATH" >"$FINDLOG" 2>/dev/null; then
+  :
+elif [[ -f "$ROOT/$SAVED_PATH" ]]; then
+  cp "$ROOT/$SAVED_PATH" "$FINDLOG"
 else
   : >"$FINDLOG"
 fi
@@ -85,7 +88,8 @@ if [[ -z "$GOOD" ]]; then
   done
 fi
 git checkout -f -q "$PIN"
-cp "$FINDLOG" "$ROOT/.agents/ledger-bisect-2026-11-11/find-good-${CLUSTER_ID}.log" 2>/dev/null || true
+mkdir -p /tmp/ledger-bisect-saved
+cp "$FINDLOG" "/tmp/ledger-bisect-saved/find-good-${CLUSTER_ID}.log" 2>/dev/null || true
 if [[ -z "$GOOD" ]]; then
   echo "cluster=$CLUSTER_ID witness=$WITNESS status=propagated reason=no_good_on_first_parent"
   exit 0
