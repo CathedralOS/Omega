@@ -8891,9 +8891,9 @@ fail/facts/fixed_layout_reference_readback_through_local_wrong_region_rejected r
 	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
 	machine `update$specialized$e79fe363183e2bf6$0$4863` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
 	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/facts/fixed_layout_reference_readback_through_match_join_wrong_region_rejected rejected 9924ms expected @bc53b23707f6
+fail/facts/fixed_layout_reference_readback_through_match_join_wrong_region_rejected rejected 59561ms expected @14237126e671
 	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
-	machine `update$specialized$e79fe363183e2bf6$0$4866` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4689` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
 	machine `observe` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 	machine `observe` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 fail/facts/fixed_layout_reference_readback_through_other_machine_wrong_region_rejected rejected 10184ms expected @bc53b23707f6
@@ -23646,7 +23646,7 @@ pass/facts/fixed_layout_reference_readback_through_call_result_exit checked 1167
 pass/facts/fixed_layout_reference_readback_through_const_name_exit checked 11493ms check-target:macos_arm64 @bc53b23707f6
 pass/facts/fixed_layout_reference_readback_through_field_exit checked 11555ms check-target:macos_arm64 @bc53b23707f6
 pass/facts/fixed_layout_reference_readback_through_local_exit checked 11593ms check-target:macos_arm64 @bc53b23707f6
-pass/facts/fixed_layout_reference_readback_through_match_join_exit checked 11554ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_match_join_exit checked 67536ms check-target:macos_arm64 @14237126e671
 pass/facts/fixed_layout_reference_readback_through_other_machine_exit checked 11853ms check-target:macos_arm64 @bc53b23707f6
 pass/facts/fixed_layout_reference_readback_through_other_state_exit checked 11732ms check-target:macos_arm64 @bc53b23707f6
 pass/facts/fixed_layout_reference_readback_through_parameter_exit checked 11730ms check-target:macos_arm64 @bc53b23707f6

@@ -76,6 +76,19 @@ ran the relay and selected implementation after their compiler repairs. The
 original mixed runs that found those refusals remain failed. These are retained
 Mac observations, not executions of the November 6 producer.
 
+The strengthened match place passed focused Mac ARM64 qualification at source
+`14237126e6711b79496ca3614bb3bb409d807d96`: checking had no diagnostics, native
+and Psi both exited 0, and its wrong-lifetime twin retained the intended refusal.
+With that same authenticated optimized producer, inverted selection still exited
+0 under the original weak oracle. The strengthened oracle instead produced
+native SIGTRAP and a Psi trap under the same inversion. The qualification
+restored both source copies and retained their exact bytes and producer profiles
+under claim `18e72ffe338ce3b00000000018e7969b`.
+
+Fresh Windows x64, Linux x64 and Linux ARM64 execution of the strengthened match
+place remains open under the parent. The scoped Mac result does not replace the
+historical evidence for unchanged places or close the full row or parent task.
+
 All four hosted ProgramEntry bindings and corpus mirrors are present. The
 original match place supplied both branch inputs but returned identical arm
 results. Its old oracle therefore accepted inverted branch selection. The
