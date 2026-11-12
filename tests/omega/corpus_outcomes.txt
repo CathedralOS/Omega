@@ -26390,7 +26390,7 @@ pass/float/runtime_named_float_to_integer_conversion_exit checked 447632ms check
 pass/float/runtime_named_fma_sequence_exit checked 15445ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_named_format_conversion_exit checked 16029ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_named_policy_conversion_composition_exit checked 428199ms check-target:macos_arm64 @ff514b7f093c
-pass/float/runtime_named_policy_result_exit checked 14189ms check-target:macos_arm64 @ccdb99ca2214
+pass/float/runtime_named_policy_result_exit checked 144231ms check-target:macos_arm64 @4797bfaf5f64
 pass/float/runtime_nested_float_min_max_exit checked 16259ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_owned_mutable_float_parameter_exit checked 6769ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_qualified_carrier_conversion_exit checked 6857ms check-target:macos_arm64 @ccdb99ca2214
@@ -27139,7 +27139,7 @@ pass/operators/runtime_declared_range_guarded_collection_exit checked 3733ms che
 pass/operators/runtime_declared_reference_index_capture_exit checked 3406ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/runtime_generic_copy_index_result_projection_exit checked 3938ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/runtime_generic_reference_selector_snapshot_exit checked 6639ms check-target:macos_arm64 @911f6617ba9e
-pass/operators/runtime_named_unit_statement_effects_exit checked 4455ms check-target:macos_arm64 @ccdb99ca2214
+pass/operators/runtime_named_unit_statement_effects_exit checked 35460ms check-target:macos_arm64 @4797bfaf5f64
 pass/operators/runtime_selected_operator_requires_after_effects_exit checked 6439ms check-target:macos_arm64 @12385533695f
 pass/operators/runtime_xorshift_prng_exit checked 13755ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/slice_index_bounds_from_operator_contract checked 8246ms @93ac4da811fe
@@ -27633,11 +27633,11 @@ pass/providers/build_product_adapter_frontiers_exit rejected 951ms check-target:
 pass/providers/calling_application_region_scopes_exit checked 4336ms check-target:macos_arm64 @5d84e10310e4+wt
 pass/providers/canonical_inherited_provider_instances_exit checked 3219ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/checked_boundary_operator_const_application_alternate_exit checked 161757ms check-target:macos_arm64 @12385533695f
-pass/providers/checked_boundary_operator_physical_custody checked 9520ms check-target:macos_arm64 boundary-provider-controls:match terminal-inspections:match @478546d89e31
+pass/providers/checked_boundary_operator_physical_custody checked 201321ms check-target:macos_arm64 boundary-provider-controls:match terminal-inspections:match @4797bfaf5f64
 pass/providers/checked_boundary_requirement_dispatch_exit checked 15252ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/checked_const_application_copied_scope checked 171621ms check-target:macos_arm64 @12385533695f
-pass/providers/checked_fixed_operator_dispatch_exit checked 108436ms check-target:macos_arm64 @12385533695f
-pass/providers/checked_fixed_operator_physical_custody checked 108131ms check-target:macos_arm64 @12385533695f
+pass/providers/checked_fixed_operator_dispatch_exit checked 96440ms check-target:macos_arm64 @4797bfaf5f64
+pass/providers/checked_fixed_operator_physical_custody checked 115259ms check-target:macos_arm64 @4797bfaf5f64
 pass/providers/closed_boundary_callback_contract checked 134962ms check-target:linux_x86_64 @6e30f0a63175
 pass/providers/closed_callback_repeated_application checked 107815ms check-target:linux_x86_64 @6e30f0a63175
 pass/providers/component_owner_provider_override_compile checked 3351ms check-target:macos_arm64 @ccdb99ca2214
@@ -27693,7 +27693,7 @@ pass/providers/linear_structural_provider_pure_exit checked 74877ms check-target
 pass/providers/linear_structural_provider_return_exit rejected 81587ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @10b4c36f3bb2
 	terminal-artifact production failed: Lowering(MissingUnitDomainPlan { domain: SemanticDomainId(0), name: "" })
 pass/providers/local_record_foreign_borrow_exit checked 52736ms check-target:macos_arm64 @e8e0e531e729
-pass/providers/module_named_operator_result_domain_satisfaction checked 251786ms check-target:macos_arm64 @ff514b7f093c
+pass/providers/module_named_operator_result_domain_satisfaction checked 96373ms check-target:macos_arm64 @4797bfaf5f64
 pass/providers/named_boundary_applied_issuance checked 2394ms @ccdb99ca2214
 pass/providers/named_boundary_issuance_ordinary_guarantee checked 2294ms @ccdb99ca2214
 pass/providers/named_boundary_mutable_issuance checked 2612ms @ccdb99ca2214
