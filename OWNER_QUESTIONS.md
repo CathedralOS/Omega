@@ -209,53 +209,6 @@ Until answered `Build::validate` is not implemented and the release gate has
 no full-package check of `core` and `std`. Ordinary checks already treat only
 the root package as a subject.
 
-### Q4 - May a guard on one copy bound a place restored from another copy of the same version?
-
-Decision name: `restored-scalar-value-facts` (scope of the copy that is guarded).
-
-**Customer.** `tests/omega/fail/contracts/scalar_copy_guard_after_source_restore`
-reads `main.items[selector]` twice, into `copied` and `saved`, with no write
-between the reads. It then writes `0` to that element, writes `saved` back,
-and branches on `copied >= 48 && copied <= 49`. The `true` arm calls
-`bounded`, which requires `main.items[selector]` to lie in `48..=49`. When the
-program runs the requirement always holds: both copies hold the value the
-element had before the two writes, and the element holds that value again.
-The fixture pins "cannot prove requires contract". The current checker
-accepts it (`mbx xtask corpus --filter` reports `rejected -> checked` at
-`c507708a7a`), and the ledger row is recorded `checked` here. The fixture
-was last edited on 2026-10-27, before the decision below.
-
-**Gap.** The ratified text reads as describing this exact program:
-
-- [Terminal fact validity](wiki/spec/terminal-psi/fact_validity.md#restored-scalar-values):
-  *"For integer copies `copied` and `saved` of that same version, their
-  equality survives later writes to the original storage. A restoring store
-  of `saved` introduces an equality for the new storage version at its
-  captured destination. A guard on `copied` can then prove bounds on a later
-  read of that version."*
-- [State contracts](wiki/spec/language/state_contracts.md#restoring-a-saved-scalar-value)
-  (named decision `restored-scalar-value-facts`, ratified 2026-11-02):
-  *"Writing the saved value back establishes a new equality between the
-  current contents of that exact destination and the saved value. A
-  subsequent guard on the copy may therefore justify a requirement on the
-  restored contents."*
-
-Read together, the program is valid and the fixture contradicts the
-specification. Only the state-contracts sentence says "the copy" in the
-singular. It could be read as admitting only a guard on `saved` itself, not
-on a second copy of the same version.
-
-**Question.**
-
-- **(a)** Does a guard on any integer copy of the restored version justify
-  the requirement, as the fact-validity text says? Then the program is valid.
-  The fixture moves to `pass/` or is retired, and the checker is unchanged.
-- **(b)** Or does only a guard on the copy that was written back justify it?
-  Then the fact-validity sentence narrows and the checker must stop relating
-  `copied` to the restored element.
-
-Until answered the row stays as recorded and the checker is unchanged.
-
 ### Q5 - May a denotational call observe a record with shared reference fields through a shared reference?
 
 Decision name: `shared-observation-denotational-content`.
@@ -418,49 +371,6 @@ governs exclusive lending:
 - **(b)** Or does an exclusive loan require a `mut` binding? Then admission
   rejects `&mut saved`, the fixture's pinned fragment changes to that
   refusal, and the lending files above add `mut`.
-
-Until answered the row stays as recorded and the checker is unchanged.
-
-### Q8 - Does a cyclic `invokes` graph between unselected providers reject a program with no Build?
-
-Decision name: `unselected-synchronous-invocation-cycle`.
-
-**Customer.** `tests/omega/fail/capabilities/cyclic_synchronous_invocation`
-declares boundary traits `Alpha` and `Beta` whose requirements invoke each
-other, and providers `AlphaProvider::alpha_checked` and
-`BetaProvider::beta_checked` whose bodies call the other trait. It has no
-`build.omg`: no Build selects either provider and no program entry exists.
-Its header still says *"Both selected checked providers realize one direct
-synchronous edge"*. The fixture pins "cyclic synchronous `invokes` graph".
-The current checker accepts it (`rejected -> checked` at `a4dd6090e`), and
-`omega --check` already accepted it at `5209eac45` (2026-11-03). The ledger
-row read `rejected` from the unreachable stamp `@ccdb99ca2214`. It is recorded
-`checked` here, as main measures it at `11582c84f`.
-
-The selected case is already pinned with Builds that select both providers
-and bind an entry: `fail/capabilities/selected_synchronous_cycle`,
-`selected_synchronous_helper_cycle` and `selected_applied_synchronous_cycle`
-all reject with the same fragment on main.
-
-**Gap.** [Direct synchronous invocation](wiki/spec/language/effects.md#direct-synchronous-invocation)
-says *"Composition makes two checks ... The complete realized graph of
-possible edges, inventory included, is acyclic"* and *"A row that no
-selected provider uses is a broader ceiling, not an error."*
-[Callback registration](wiki/spec/build/private_callbacks.md#registration-and-lifetime)
-says *"The direct synchronous invocation graph must be acyclic"* without
-naming whether the graph is the selected realization or every declared
-`satisfies` implementation. Build-owned selection means a program without a
-Build realizes no provider.
-
-**Question.**
-
-- **(a)** Is acyclicity a composition check on the selected realization
-  only? Then this program is valid, the fixture is stale (it predates
-  Build-owned selection), and it is retired or moved to `pass/`, since the
-  selected siblings keep the rejection pinned.
-- **(b)** Or must the checked bodies of every declared provider form an
-  acyclic `invokes` graph whether or not a Build selects them? Then the check
-  leaves backend provider planning and runs at source checking.
 
 Until answered the row stays as recorded and the checker is unchanged.
 
