@@ -5434,6 +5434,39 @@ mod reference_retirement {
         }
 
         /*
+            A reference local initialized as `owner` or `&owner` for a whole local
+            with an established home names that home: it has no storage of its own,
+            so like an unmaterialized alias its loan ends at its release boundary.
+            A match transition's `__transition_subject#N` over a local is the case
+            that needs it.
+        */
+        fn aliases_established_home(
+            &self,
+            initializer: typed_trees::expression::ExpressionHandle,
+        ) -> bool {
+            let mut target = initializer;
+            if let typed_trees::expression::ExpressionNode::Borrow(borrow) =
+                self.program.expression_table.expression(target)
+            {
+                target = borrow.target;
+            }
+            let typed_trees::expression::ExpressionNode::Name(path) =
+                self.program.expression_table.expression(target)
+            else {
+                return false;
+            };
+            path.symbol.is_valid()
+                && path.symbol == path.head_symbol
+                && self
+                    .program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    == 1
+                && self.owner_home_established(path.symbol)
+        }
+
+        /*
             Calls can publish receiving loans through results or stored effects.
             The supplying occurrence, not the syntactic placement of the call,
             identifies which receivers must finish before its backing may retire.
@@ -5608,13 +5641,13 @@ mod reference_retirement {
                         .results
                         .iter()
                         .any(|(_, root)| *root == PlaceRoot::Symbol(loan.owner_symbol))
-                    && u32::try_from(ordinal).ok().is_some_and(|ordinal| {
+                    && (u32::try_from(ordinal).ok().is_some_and(|ordinal| {
                         self.facts
                             .values
                             .structural_values
                             .root_for_expression(self.state.symbol, ordinal, alias.initial_value)
                             .is_none()
-                    });
+                    }) || self.aliases_established_home(alias.initial_value));
                 return unmaterialized_alias
                     && release_boundary(
                         self.program,
