@@ -1483,11 +1483,11 @@ pub use value_custody::places::binding_observations::{
 };
 pub use value_custody::places::collection_operations;
 pub use value_custody::places::declared_reference_access;
-pub use value_custody::reference_access::bare_range_view_source;
 pub use value_custody::places::{
     applied_data_member_field, declaration_type_reference, declared_case_projection_field,
     state_root_type,
 };
+pub use value_custody::reference_access::bare_range_view_source;
 pub use value_custody::static_inline_storage::{
     runtime_inline_array_extent, validate_prepared_inline_storage,
 };

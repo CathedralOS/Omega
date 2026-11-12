@@ -3434,8 +3434,11 @@ mod permission_sources {
             declared borrow whose referee matches its target.
         */
         if projection.is_empty()
-            && let Some((machine, checked_state)) =
-                validation::machine_state_by_symbols(program, state.machine_symbol, state.state_symbol)
+            && let Some((machine, checked_state)) = validation::machine_state_by_symbols(
+                program,
+                state.machine_symbol,
+                state.state_symbol,
+            )
             && validation::bare_range_view_source(
                 program,
                 machine,
