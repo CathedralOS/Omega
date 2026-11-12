@@ -131,15 +131,44 @@ def drop_requires_removed_line(original: str, mutant: str) -> str:
     return ""
 
 
-def drop_requires_validity(original: str, mutant: str) -> Validity:
-    removed = drop_requires_removed_line(original, mutant)
-    if not removed:
-        return Validity(False, "", "no requires removed", None, False)
-    tokens = [
+def _requires_content_tokens(removed: str) -> list[str]:
+    return [
         token
         for token in re.findall(r"[A-Za-z_][\w]*|\d+", removed)
         if token not in {"requires", "true", "&&", "||"}
     ]
+
+
+def internal_restates_removed(removed: str, mutant: str) -> tuple[bool, str]:
+    """Transition/guard inside the machine restates the removed requires (mutant stays valid)."""
+    tokens = _requires_content_tokens(removed)
+    if not tokens:
+        return False, ""
+    for line in mutant.splitlines():
+        stripped = line.strip()
+        inside = stripped.startswith("transition") or re.match(r"^if\s+", stripped)
+        if not inside and "->" not in stripped:
+            continue
+        hit = sum(1 for token in tokens[:6] if token in stripped)
+        if hit >= 2 or (hit >= 1 and re.search(r"==|<=|>=|<|>", stripped)):
+            return True, stripped
+    return False, ""
+
+
+def drop_requires_validity(original: str, mutant: str) -> Validity:
+    removed = drop_requires_removed_line(original, mutant)
+    if not removed:
+        return Validity(False, "", "no requires removed", None, False)
+    restated, restate_line = internal_restates_removed(removed, mutant)
+    if restated:
+        return Validity(
+            False,
+            f"removed `{removed}` | restated `{restate_line}`",
+            "internal transition/guard restates removed requires (valid; outside-caller modular rule N/A)",
+            None,
+            False,
+        )
+    tokens = _requires_content_tokens(removed)
     for line in mutant.splitlines():
         stripped = line.strip()
         if stripped.startswith(("requires", "machine ", "data ", "//")):

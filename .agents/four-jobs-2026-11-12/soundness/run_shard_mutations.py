@@ -341,26 +341,40 @@ def spec_quote_for_kind(kind: str) -> str:
 
 
 def probe_drop_requires_subtype(mutant_path: Path, mutant: str, removed: str) -> str:
-    """Add a violating caller; compare accept/reject (fix5 inferred-entry vs unchecked)."""
+    """Violating caller outside the machine: inferred-entry vs unchecked; else probe-not-built."""
+    from mutant_classify import internal_restates_removed
+
     if not removed:
+        return "probe-not-built"
+    if internal_restates_removed(removed, mutant)[0]:
         return ""
-    calls = re.findall(r"(?m)^\s+([A-Za-z_][\w]*)\(", mutant)
+    calls = [
+        match
+        for match in re.findall(r"(?m)^\s+([A-Za-z_][\w]*)\(", mutant)
+        if match not in {"machine", "data", "use", "let"}
+    ]
     if not calls:
-        return "unchecked"
+        return "probe-not-built"
     target = calls[0]
     numeric = re.search(r"==\s*(\d+)", removed)
-    bad = "0" if numeric else "0"
+    if not numeric:
+        return "probe-not-built"
+    bad = "0"
     probe_src = mutant.rstrip() + f"\n\nmachine __violation_probe__() {{\n    {target}({bad});\n}}\n"
     probe_file = mutant_path.parent / "main.probe-violation.omg"
-    probe_file.write_text(probe_src, encoding="utf-8")
-    mutant_ok, _ = run_omega_check(mutant_path)
-    probe_ok, _ = run_omega_check(probe_file)
-    probe_file.unlink(missing_ok=True)
+    try:
+        probe_file.write_text(probe_src, encoding="utf-8")
+        mutant_ok, _ = run_omega_check(mutant_path)
+        probe_ok, _ = run_omega_check(probe_file)
+    except OSError:
+        return "probe-not-built"
+    finally:
+        probe_file.unlink(missing_ok=True)
     if mutant_ok == "accepted" and probe_ok == "rejected":
         return "inferred-entry"
     if mutant_ok == "accepted" and probe_ok == "accepted":
         return "unchecked"
-    return ""
+    return "probe-not-built"
 
 
 def bucket_counts_from_rows(rows: list[MutantRecord]) -> dict[str, int]:

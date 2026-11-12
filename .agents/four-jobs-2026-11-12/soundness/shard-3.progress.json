@@ -645,11 +645,17 @@
     "tests/omega/pass/facts/representation_conversion_through_other_machine_exit/main.omg",
     "tests/omega/pass/facts/required_output_path/match_join/main.omg",
     "tests/omega/pass/facts/resident_backing_field_exit/main.omg",
-    "tests/omega/pass/facts/resident_backing_plain_ram_exit/main.omg"
+    "tests/omega/pass/facts/resident_backing_plain_ram_exit/main.omg",
+    "tests/omega/pass/facts/result_cleanup_guarantees_through_const_name_exit/main.omg",
+    "tests/omega/pass/facts/returned_indexed_linear_residual_through_call_result_exit/main.omg",
+    "tests/omega/pass/facts/returned_indexed_linear_residual_through_target_body_exit/main.omg",
+    "tests/omega/pass/facts/returned_linear_residual_through_parameter_exit/main.omg",
+    "tests/omega/pass/facts/returned_write_destination_through_other_state_exit/main.omg",
+    "tests/omega/pass/facts/runtime_count_index_through_other_machine_exit/main.omg"
   ],
   "counts": {
     "fixtures": 1130,
-    "fixtures_processed": 644,
-    "mutants_generated": 1209
+    "fixtures_processed": 650,
+    "mutants_generated": 1229
   }
 }
