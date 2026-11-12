@@ -19,10 +19,10 @@ def git(*args: str) -> str:
 
 def ledger_only(commit: str) -> bool:
     try:
-        parent = git(f"rev-parse {commit}^1")
+        parent = git("rev-parse", f"{commit}^1")
     except subprocess.CalledProcessError:
         return False
-    files = git(f"diff --name-only {parent} {commit}").splitlines()
+    files = git("diff", "--name-only", parent, commit).splitlines()
     if not files:
         return False
     return all(f == "tests/omega/corpus_outcomes.txt" or f.endswith(".md") for f in files)
@@ -46,7 +46,7 @@ def main() -> int:
         print("usage: bisect_pin_manual.py WITNESS GOOD BAD OUT.json", file=sys.stderr)
         return 2
     witness, good, bad, out = sys.argv[1:5]
-    commits = [c for c in git(f"rev-list --first-parent --reverse {good}..{bad}").splitlines() if c]
+    commits = [c for c in git("rev-list", "--first-parent", "--reverse", f"{good}..{bad}").splitlines() if c]
     if not commits:
         print("empty revision range", file=sys.stderr)
         return 1
@@ -84,8 +84,8 @@ def main() -> int:
             hi = mid - 1
         else:
             lo = mid + 1
-    parent = git(f"rev-parse {first_bad}^1")
-    subj = git(f"log -1 --format=%s {first_bad}")
+    parent = git("rev-parse", f"{first_bad}^1")
+    subj = git("log", "-1", "--format=%s", first_bad)
     pr = None
     m = re.search(r"#(\d+)", subj)
     if m:
