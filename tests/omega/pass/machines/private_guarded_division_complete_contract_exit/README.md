@@ -4,7 +4,7 @@ The signed guard excludes zero and the primitive `MIN / -1` pair; the unsigned
 guard transports a saved Boolean relationship through a private helper.
 The outer `requires true` contracts prevent either proof from specializing
 against `main`'s convenient arguments. Every arrival must prove the private
-helper's inferred requirement. Native and Terminal Psi exits must both be zero;
+helper's inferred requirement. Native and Psi exits must both be zero;
 the runtime oracle exercises ordinary division, zero, and the signed excluded
 pair. The existing `private_division_signed_pair_control`,
 `private_division_mixed_arrival_control`, and
