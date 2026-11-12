@@ -1,4 +1,5 @@
-// An acknowledgement on a nonblocking terminal call must still reject.
+// Expected exit: 0
+// A nonblocking terminal call permits a conservative block acknowledgement.
 machine ready() -> bool { true }
 machine relay() -> bool {
     transition { _ -> block ready() }

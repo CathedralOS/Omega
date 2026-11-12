@@ -1,1 +1,1 @@
-call acknowledgements must match exactly
+call to `invoke` has operational envelope `suspend` but acknowledges neither suspension nor blocking
