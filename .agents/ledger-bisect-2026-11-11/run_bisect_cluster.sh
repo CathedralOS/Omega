@@ -6,8 +6,9 @@ PIN=51e8c45c793007f211d0d9baee7de16767172444
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 TOOLHOME=/tmp/ledger-bisect-part-21-tools
 mkdir -p "$TOOLHOME"
-rsync -a "$ROOT/.agents/ledger-bisect-2026-11-11/tools/" "$TOOLHOME/tools/"
-rsync -a "$ROOT/.agents/ledger-bisect-2026-11-11/prepare_witness.sh" "$ROOT/.agents/ledger-bisect-2026-11-11/part21_observed.txt" "$TOOLHOME/"
+mkdir -p "$TOOLHOME/tools"
+cp -a "$ROOT/.agents/ledger-bisect-2026-11-11/tools/." "$TOOLHOME/tools/"
+cp -a "$ROOT/.agents/ledger-bisect-2026-11-11/prepare_witness.sh" "$ROOT/.agents/ledger-bisect-2026-11-11/part21_observed.txt" "$TOOLHOME/"
 cd "$ROOT"
 SCRIPT="$TOOLHOME/tools/bisect_witness.sh"
 export BISECT_WITNESS="$WITNESS"
