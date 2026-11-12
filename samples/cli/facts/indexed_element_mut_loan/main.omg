@@ -18,7 +18,7 @@ data Main { hits: i32 in Wrapping; }
 
 machine Main::main(main: &mut Main) crashes Trap {
     main.hits = 0;
-    let rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
+    let mut rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
     let from_index: u64 = 1;
     bump(&mut rooms[from_index]);
     transition rooms[0].exit_count == 0 && rooms[1].exit_count == 11 {

@@ -37,7 +37,7 @@ boundary trait SelectedScope {
 CheckedScope satisfies SelectedScope {
     machine scope() reaches Console crashes Trap
 {
- let room: Room = Room { count: 10 };
+ let mut room: Room = Room { count: 10 };
  transition { _ -> observe(&mut room) }
  machine observe(room: &mut Room) {
   Console::write_byte(79);

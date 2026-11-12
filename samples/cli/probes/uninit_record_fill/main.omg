@@ -27,7 +27,7 @@ machine read_x() -> i32 in Trapping {
 
 machine Main::main(main: &mut Main) {
     main.hits = 0;
-    let point: Point;
+    let mut point: Point;
     point.x = 7;
     point.y = 12;
     let observed: i32 = read_x() as i32;

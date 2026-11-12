@@ -8,7 +8,7 @@ machine bump(room: &mut Room) {
 machine exercise(from_index: u64) -> bool
 requires from_index < 2
 {
-    let rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
+    let mut rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
     transition { _ -> apply(&mut rooms, from_index) }
     machine apply(rooms: &mut [Room; 2], selected: u64) -> bool
     requires selected < 2

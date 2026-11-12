@@ -8,7 +8,7 @@ machine bump(room: &mut Room) {
 machine exercise(from_index: u64, alternate: u64, flag: bool) -> bool
 requires from_index < 2 && alternate == from_index
 {
-    let rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
+    let mut rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
     let selected: u64 = match flag { true -> from_index, false -> alternate };
     bump(&mut rooms[selected]);
     (from_index == 0 && rooms[0].exit_count == 1 && rooms[1].exit_count == 10)

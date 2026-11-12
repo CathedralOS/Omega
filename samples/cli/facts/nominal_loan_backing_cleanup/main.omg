@@ -2,7 +2,7 @@
 data Room dropped by drop_room { count: u32 in Wrapping; }
 machine drop_room(room: &mut Room) { room.count = 99; }
 machine main() crashes Trap {
- let room: Room = Room { count: 10 };
+ let mut room: Room = Room { count: 10 };
  transition { _ -> observe(&mut room) }
  machine observe(room: &mut Room) { transition room.count == 10 { true -> done() false -> bad() } }
  machine done() {}

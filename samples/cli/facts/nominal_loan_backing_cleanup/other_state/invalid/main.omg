@@ -32,7 +32,7 @@ reaches Console
 }
 machine scope() reaches Console crashes Trap {
  transition { _ -> prepare() }
- machine prepare() { let room: Room = Room { count: 11 }; transition { _ -> observe(&mut room) }
+ machine prepare() { let mut room: Room = Room { count: 11 }; transition { _ -> observe(&mut room) }
  }
  machine observe(room: &mut Room) {
   Console::write_byte(79);
