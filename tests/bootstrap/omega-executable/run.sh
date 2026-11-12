@@ -2,7 +2,7 @@
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-GATE_ENVS="alpha/seed_env.sh delta/compiler_env.sh epsilon/evaluator_env.sh omega/compiler_env.sh"
+GATE_ENVS="alpha/seed_env.sh beta/artifact_env.sh delta/compiler_env.sh epsilon/evaluator_env.sh omega/compiler_env.sh"
 . "$GATE_DIR/../../gate_env.sh"
 
 # --identity is a lone flag: it materializes every bound artifact and checks
@@ -53,8 +53,9 @@ materialize_delta_support "$OUTPUT_DIR/support.bin"
 materialize_epsilon_evaluator "$OUTPUT_DIR/epsilon_compiler.delta"
 materialize_omega_compiler "$OUTPUT_DIR/omega_compiler.epsilon"
 require_omega_executable_entries_identity
-materialize_gamma_evaluator "$OUTPUT_DIR/evaluator.exe" >/dev/null
+require_beta_compiler_identity
 if [ "$IDENTITY_ONLY" = 1 ]; then
+    materialize_gamma_evaluator "$OUTPUT_DIR/evaluator.exe" >/dev/null
     # The executing path delegates its remaining pins to gate.py; this leg
     # covers the execution-adapter record through its shared env-file
     # identity instead.
@@ -62,4 +63,16 @@ if [ "$IDENTITY_ONLY" = 1 ]; then
     echo "Omega executable: identity legs green; execution legs need a seed host"
     exit 0
 fi
+# Start from the audited Alpha container and admitted Beta tape. Successor
+# execution uses the constructed bytes, with every native status checked by
+# set -e before comparison or publication as the next executable.
+materialize_beta_compiler "$OUTPUT_DIR/beta-seed.exe" >/dev/null
+"$OUTPUT_DIR/beta-seed.exe" < "$OMEGA_PATH_BETA_COMPILER_SOURCE" > "$OUTPUT_DIR/beta.tape"
+cmp "$OUTPUT_DIR/beta.tape" "$OMEGA_PATH_BETA_COMPILER_TAPE"
+stamp_seed "$OUTPUT_DIR/beta.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$OUTPUT_DIR/beta.exe" >/dev/null
+require_gamma_evaluator_identity
+"$OUTPUT_DIR/beta.exe" < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" > "$OUTPUT_DIR/gamma.tape"
+cmp "$OUTPUT_DIR/gamma.tape" "$OMEGA_PATH_GAMMA_EVALUATOR_TAPE"
+stamp_seed "$OUTPUT_DIR/gamma.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$OUTPUT_DIR/evaluator.exe" >/dev/null
+echo "Beta self-reconstruction and Gamma source construction: byte-exact"
 python3 "$GATE_PY" "$OUTPUT_DIR_ARG" "$DRIVER_ARG" "$@"
