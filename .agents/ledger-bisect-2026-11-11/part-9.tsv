@@ -1,4 +1,4 @@
-fixture	pin_class	diagnostic_short	cluster_slug	first_bad		first_bad_pr	good_anchor	bisect_status
+fixture	pin_class	diagnostic_short	cluster_slug	first_bad	first_bad_pr	good_anchor	bisect_status
 pass/facts/computed_record_window_through_call_result_exit	still_broken	Terminal boundary application has no unique exact selected row: requirement `named-callable(path(nominal\\(toolchain-owner\\,path\\(Float::equal\\)	index-9-float-boundary	—	—	773b8422694b5a8e64b43284bcba1ceb6de2b1e9	not_bisected
 pass/facts/computed_record_window_through_const_name_exit	still_broken	Terminal boundary application has no unique exact selected row: requirement `named-callable(path(nominal\\(toolchain-owner\\,path\\(Float::equal\\)	index-9-float-boundary	—	—	773b8422694b5a8e64b43284bcba1ceb6de2b1e9	not_bisected
 pass/facts/computed_record_window_through_field_exit	still_broken	Terminal boundary application has no unique exact selected row: requirement `named-callable(path(nominal\\(toolchain-owner\\,path\\(Float::equal\\)	index-9-float-boundary	—	—	773b8422694b5a8e64b43284bcba1ceb6de2b1e9	not_bisected
