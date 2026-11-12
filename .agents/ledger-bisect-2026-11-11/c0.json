@@ -6,7 +6,7 @@
   "break": "22f215eb3e7d9814cb3e29f42856e56bb57e60ed",
   "pr": "2078",
   "subject": "psi: preserve common fields when matching case values (#2078)",
-  "mechanism": "psi: preserve common fields when matching case values (#2078) | commit 22f215eb3e7d9814cb3e29f42856e56bb57e60ed Author: BrilliantWasp <brilliantwasp@proton.me> Date:   Sun Nov 8 20:35:58 2026 +0000      psi: preserve common fields when matching case values (#2078)     ",
+  "mechanism": "case-pattern common-field preservation stopped lowering two_children observation cleanup (#2078)",
   "diff_stat": " .../runtime/runtime-abi/src/descriptor_io.rs       |   24 +-; .../src/execution/host_imports/descriptor_io.rs    |   37 +-; .../src/bodies_and_transitions.rs                  |    7 +-; .../01_tokens-to-syntax-trees/src/expressions.rs   |    3 +; .../src/type_syntax_and_patterns.rs                |   60 +-; .../src/lowering.rs                                |    4 +; .../src/symbols_expression_paths.rs                |   23 +-; .../src/symbols_expressions.rs                     |    2 +; .../src/call_and_product_selections.rs             |    3 +; .../src/expression_lowering.rs                     |  132 +-; .../src/body_cloning_and_rewriting.rs              |    2 +; .../src/data_and_product_operands.rs               |    4 +;",
   "status": "bisected",
   "reason": "",
