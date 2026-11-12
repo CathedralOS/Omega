@@ -5,6 +5,10 @@
 // missing delivery would read 0 and exit 71). The negative twin
 // fail/capabilities/windows_applied_requirement_import_mismatch calls
 // `Magnitude<u32>::of` against the same binding and must find no supply.
+// build.omg also binds `Magnitude<i64>::of` to `labs`: a different slot, so the
+// two locators do not conflict, and nothing here uses it. The twin
+// fail/capabilities/windows_applied_requirement_import_conflict gives one
+// application both locators and must be refused.
 use omega_language_std::console;
 public boundary trait Magnitude<Value> { machine of(value: i32) -> i32 reaches; }
 data Main { m: i32; v: i32; }

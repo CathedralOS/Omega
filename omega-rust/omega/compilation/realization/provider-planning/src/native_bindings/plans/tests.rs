@@ -104,3 +104,50 @@ fn a_valid_locator_for_a_target_that_is_not_selected_forms_no_candidate() {
     .expect("a valid locator on another target is checked, then left unselected");
     assert!(plans.is_empty());
 }
+
+fn applied(mut supply: NativeBuildSupply, application: &str) -> NativeBuildSupply {
+    supply.selection.application_identity = Some(application.into());
+    supply
+}
+
+#[test]
+fn rows_bound_at_applications_nothing_uses_form_no_candidate() {
+    // A generic boundary has a slot only for the applications the product
+    // uses, so two distinct unused applications are checked and then supply
+    // nothing, even with different locators.
+    let plans = form(&[
+        applied(
+            supply(
+                ProductTarget::LinuxX86_64,
+                NativeBindingLocator::Syscall { number: 60 },
+            ),
+            "Clock<i32>",
+        ),
+        applied(
+            supply(
+                ProductTarget::LinuxX86_64,
+                NativeBindingLocator::Syscall { number: 61 },
+            ),
+            "Clock<i64>",
+        ),
+    ])
+    .expect("an application nothing uses has no slot to supply");
+    assert!(plans.is_empty());
+}
+
+#[test]
+fn a_row_without_an_application_still_requires_its_service_schema() {
+    // Only an applied row may be absent from the product; a boundary without
+    // parameters always has its one surface.
+    let refused = form(&[supply(
+        ProductTarget::LinuxX86_64,
+        NativeBindingLocator::Syscall { number: 60 },
+    )])
+    .expect_err("a missing surface is not silently skipped for a bare requirement");
+    assert!(
+        refused
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("no complete service schema")),
+        "{refused:?}"
+    );
+}

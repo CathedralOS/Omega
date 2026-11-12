@@ -160,10 +160,10 @@ pub mod native_bindings {
                 "native binding lost its exact requirement operand",
             ));
         };
-            let symbol = resolve_product_path(typed, &operand.path, operand.source_span, ProductOperandRole::Requirement)
+        let symbol = resolve_product_path(typed, &operand.path, operand.source_span, ProductOperandRole::Requirement)
             .ok_or_else(|| Diagnostic::error(format!("native binding operand `{}` does not resolve to one visible Product boundary requirement", operand.path)).with_source_span(operand.source_span))?;
-            requirement_owner(typed, symbol, None)
-                .map_err(|reason| Diagnostic::error(reason).with_source_span(operand.source_span))
+        requirement_owner(typed, symbol, None)
+            .map_err(|reason| Diagnostic::error(reason).with_source_span(operand.source_span))
     }
 
     /*
@@ -181,7 +181,8 @@ pub mod native_bindings {
         {
             return None;
         }
-        let occurrences = typed_trees::product_operand::collect_product_selection_occurrences(typed);
+        let occurrences =
+            typed_trees::product_operand::collect_product_selection_occurrences(typed);
         let mut owners = occurrences
             .iter()
             .filter(|occurrence| typed.same_product_request_source(&occurrence.request, request))

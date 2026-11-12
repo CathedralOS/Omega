@@ -96,13 +96,25 @@ impl CallingCandidate {
     ) -> Result<Self, Vec<Diagnostic>> {
         let surface =
             if let ProviderSchemaDeclaration::BoundaryTrait(receiver) = derived.provenance.schema {
-                let surface = match &derived.provenance.named_application {
-                    Some(application) => services.retain_named_application(
+                // A native Build plan bound at one closed application of a
+                // generic boundary has no named implementation to read that
+                // application from; its plan identity carries it, and the
+                // calling plans must be attached to that applied surface.
+                let native_application = derived
+                    .provenance
+                    .row_realizations
+                    .iter()
+                    .any(|row| matches!(row, crate::ProviderRowRealization::BuildNative(_)))
+                    .then(|| derived.plan.application_identity())
+                    .flatten();
+                let surface = match (&derived.provenance.named_application, native_application) {
+                    (Some(application), _) => services.retain_named_application(
                         application.declaration,
                         application.capture,
                         receiver,
                     ),
-                    None => services.retain_declaration(derived.provenance.schema),
+                    (None, Some(application)) => services.retain_application(receiver, application),
+                    (None, None) => services.retain_declaration(derived.provenance.schema),
                 }
                 .ok_or_else(|| {
                     vec![Diagnostic::error(
