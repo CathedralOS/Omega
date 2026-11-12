@@ -1,5 +1,4 @@
 use omega_language_std::calling;
-use omega::language::core::external_binding;
 
 public data InitializerPolicy { }
 public InitializerCalling satisfies CallingPolicy {
@@ -23,6 +22,8 @@ satisfies CallingPolicy::plan
         output.state.initial_regime = MachineRegime::X86Long64;
         output.state.permitted_transitive_use.general_registers = true;
         output.state.permitted_transitive_use.flags = true;
+        output.state.permitted_transitive_use.instruction_pointer = true;
+        output.state.permitted_transitive_use.stack_pointer = true;
         output.state.stack = EntryStack::ProviderSelected;
         output.state.preemption = Preemption::NotApplicable;
         BoundaryPlanResult::Accepted { plan: output }
@@ -141,21 +142,6 @@ public boundary trait OnceRegistrar: Calling<OnceCalling> {
 
 public data Initialization { }
 public machine Initialization::call() satisfies Initializer::call { }
-
-linux_x86_64 machine once_binding() -> ForeignBinding<9, 12, 10> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6",
-            symbol: "pthread_once",
-            version: "GLIBC_2.34",
-        },
-    }
-}
-
-linux_x86_64 machine once_leaf<machine Handler>(word: &mut i32) -> i32
-requires machine Handler satisfies Initializer::call;
-satisfies OnceRegistrar::execute
-via once_binding();
 
 data Main { word: i32; status: i32; }
 
