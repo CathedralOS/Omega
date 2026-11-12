@@ -1,0 +1,27 @@
+pass/borrow/runtime_write_only_exclusive_reference_nested_call_operand_exit rejected 2489ms
+	view formation has incomplete permission suppliers at its captured source
+pass/borrows/runtime_dependent_callback_window_byte_exit rejected 2546ms
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/borrows/runtime_dependent_forwarded_window_exit rejected 2726ms
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/borrows/runtime_dependent_window_byte_payload_exit rejected 2669ms
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/borrows/runtime_dependent_window_image_sibling_exit rejected 2757ms
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/borrows/runtime_dependent_window_region_disjoint_write_exit rejected 2639ms
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/facts/target_family_callback_guarantee/local built 3375ms
+pass/generics/runtime_dependent_callback_renamed_formals_exit rejected 2842ms
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/generics/runtime_dependent_window_parameter_index_exit rejected 2843ms
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/ownership/runtime_carried_loan_field_replacement_exit rejected 10048ms
+	machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`; declare it in the owner's generic parameter list
+pass/traits/applied_conformance_captured_fresh_regions_exit rejected 2142ms
+	machine `Reader::read` state `read` does not satisfy trait `Reading` machine `read`: conformance borrow contract: callable input does not preserve its captured region identity [input-inference parameter 1; actual reference Handle { arena_index: 1223, generation: 1 }; required reference Handle { arena_index: 3588, generation: 1 }; last rejected comparison Some(RejectedRegionComparison { reference: Handle { arena_index: 1223, generation: 1 }, actual_declaration: Handle { arena_index: 1244, generation: 1 }, required_declaration: Handle { arena_index: 2106, generation: 1 }, actual: Some(Fresh(0)), required: Some(Fresh(0)) }); required: owner read Handle { arena_index: 2106, generation: 1 }, supplier Reader Handle { arena_index: 1230, generation: 1 }, fresh 1, names [("scope", Captured(Handle { arena_index: 2106, generation: 1 }, 0)), ("scope", Fresh(0))], own slots [(LifetimeParameterIdentity { declaration: Handle { arena_index: 2106, generation: 1 }, ordinal: 0 }, Fresh(0))], bindings [], applications [[]], substitutions [(Handle { arena_index: 2105, generation: 1 }, Handle { arena_index: 4121, generation: 1 })], scope starts [0]; actual: owner Reader::read Handle { arena_index: 1244, generation: 1 }, supplier Reader::read Handle { arena_index: 1244, generation: 1 }, fresh 1, names [("scope", Captured(Handle { arena_index: 1230, generation: 1 }, 0)), ("scope", Captured(Handle { arena_index: 1244, generation: 1 }, 0)), ("scope", Fresh(0))], own slots [(LifetimeParameterIdentity { declaration: Handle { arena_index: 1244, generation: 1 }, ordinal: 0 }, Fresh(0))], bindings [], applications [], substitutions [], scope starts []]
+pass/borrows/carried_loan_replacement rejected 1185ms
+	machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`; declare it in the owner's generic parameter list
+fail/arithmetic/indexed_divisor_copied_selector_storage_write rejected 1101ms unexpected
+	division by zero in machine `quotient` state `entry` return value: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
+fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1156ms unexpected
+	machine `reject_live_write` state `entry` expression type application uses undeclared lifetime argument `'storage' in `Carrier`; declare it in the owner's generic parameter list

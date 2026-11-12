@@ -1,0 +1,58 @@
+{
+  "clusters": [
+    {
+      "cluster_id": "c23_dependent_callback",
+      "report_index": 23,
+      "witness": "pass/borrows/runtime_dependent_callback_window_byte_exit",
+      "pin_status": "rejected",
+      "pin_first_diagnostic": "cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`",
+      "expected_good_status": "checked",
+      "still_broken_at_pin": false
+    },
+    {
+      "cluster_id": "c63_lifetime_carrier",
+      "report_index": 63,
+      "witness": "pass/borrows/carried_loan_replacement",
+      "pin_status": "rejected",
+      "pin_first_diagnostic": "machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`; declare it in the owner's generic parameter list",
+      "expected_good_status": "checked",
+      "still_broken_at_pin": true
+    },
+    {
+      "cluster_id": "c103_division_by_zero",
+      "report_index": 103,
+      "witness": "fail/arithmetic/indexed_divisor_copied_selector_storage_write",
+      "pin_status": "rejected",
+      "pin_first_diagnostic": "division by zero in machine `quotient` state `entry` return value: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.",
+      "expected_good_status": "rejected",
+      "still_broken_at_pin": false
+    },
+    {
+      "cluster_id": "c143_view_permission",
+      "report_index": 143,
+      "witness": "pass/borrow/runtime_write_only_exclusive_reference_nested_call_operand_exit",
+      "pin_status": "rejected",
+      "pin_first_diagnostic": "view formation has incomplete permission suppliers at its captured source",
+      "expected_good_status": "checked",
+      "still_broken_at_pin": false
+    },
+    {
+      "cluster_id": "c183_operator_selection",
+      "report_index": 183,
+      "witness": "pass/facts/target_family_callback_guarantee/local",
+      "pin_status": "checked",
+      "pin_first_diagnostic": "",
+      "expected_good_status": "checked",
+      "still_broken_at_pin": false
+    },
+    {
+      "cluster_id": "c223_trait_reading",
+      "report_index": 223,
+      "witness": "pass/traits/applied_conformance_captured_fresh_regions_exit",
+      "pin_status": "rejected",
+      "pin_first_diagnostic_prefix": "machine `Reader::read` state `read` does not satisfy trait `Reading` machine `read`: conformance borrow contract: callable input does not preserve its captured region identity",
+      "expected_good_status": "checked",
+      "still_broken_at_pin": true
+    }
+  ]
+}

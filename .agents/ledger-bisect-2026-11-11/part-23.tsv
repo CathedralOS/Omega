@@ -1,0 +1,3 @@
+fail/borrows/replaced_carrier_keeps_new_backing_loan	fixed	machine `reject_live_write` state `entry` expression type application uses undeclared lifetime argument `'storage' in `C	c63_lifetime_carrier
+pass/borrows/carried_loan_replacement	broken	machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`;	c63_lifetime_carrier
+pass/ownership/runtime_carried_loan_field_replacement_exit	broken	machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`;	c63_lifetime_carrier

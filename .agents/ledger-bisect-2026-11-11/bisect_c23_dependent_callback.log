@@ -1,0 +1,2 @@
+cluster=c23_dependent_callback witness=pass/borrows/runtime_dependent_callback_window_byte_exit spec=/tmp/ledger_bisect_part23_spec_c23_dependent_callback.json
+PIN sanity 1: exit 125

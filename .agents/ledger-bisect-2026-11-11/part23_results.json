@@ -1,0 +1,23 @@
+{
+  "pin": "51e8c45c793007f211d0d9baee7de16767172444",
+  "clusters": [
+    {
+      "cluster_id": "c63_lifetime_carrier",
+      "report_index": 63,
+      "rows": 3,
+      "kind": "pass/run rejected",
+      "diag": "machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`",
+      "witness": "pass/borrows/carried_loan_replacement",
+      "members": [
+        "fail/borrows/replaced_carrier_keeps_new_backing_loan",
+        "pass/borrows/carried_loan_replacement",
+        "pass/ownership/runtime_carried_loan_field_replacement_exit"
+      ],
+      "breaking_commit": "ccd41080b4c87d58f5b924c2e1a10552510ab32c",
+      "pr": "1945",
+      "mechanism": "#1945 retains generic constructor/type-inference payloads through owned construction destinations, breaking Carrier lifetime applications",
+      "status": "bisected",
+      "good_commit": "de25db89edf196dc1bf697a9c34886669d66b694"
+    }
+  ]
+}

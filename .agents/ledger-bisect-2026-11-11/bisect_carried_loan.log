@@ -1,0 +1,10 @@
+running '.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 1247 revisions left to test after this (roughly 10 steps)
+[e7e26813fd1ada12f5c28763465966922ce41dbb] compiler: move retained nested record bindings into Build (#1207)
+running '.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 623 revisions left to test after this (roughly 9 steps)
+[bc5653300ef32890aa1d38c33b039a2ab76beb4c] psi: prove selector arrival across every fixed slot (#1848)
+running '.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 311 revisions left to test after this (roughly 8 steps)
+[43ba5756faf0c4baf8b004a55ad358044cadeae3] tests: re-record eight guard and layout rows that check again on main (#2165)
+running '.agents/ledger-bisect-2026-11-11/bisect_witness.sh'

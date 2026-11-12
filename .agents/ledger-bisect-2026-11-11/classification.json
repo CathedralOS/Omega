@@ -1,0 +1,49 @@
+{
+  "counts": {
+    "fixed": 11,
+    "broken": 3,
+    "host_only": 0,
+    "missing": 0,
+    "total": 14
+  },
+  "fixed": [
+    "pass/borrows/runtime_dependent_callback_window_byte_exit",
+    "pass/borrows/runtime_dependent_forwarded_window_exit",
+    "pass/borrows/runtime_dependent_window_byte_payload_exit",
+    "pass/borrows/runtime_dependent_window_image_sibling_exit",
+    "pass/borrows/runtime_dependent_window_region_disjoint_write_exit",
+    "pass/generics/runtime_dependent_callback_renamed_formals_exit",
+    "pass/generics/runtime_dependent_window_parameter_index_exit",
+    "fail/borrows/replaced_carrier_keeps_new_backing_loan",
+    "fail/arithmetic/indexed_divisor_copied_selector_storage_write",
+    "pass/borrow/runtime_write_only_exclusive_reference_nested_call_operand_exit",
+    "pass/facts/target_family_callback_guarantee/local"
+  ],
+  "broken": [
+    "pass/borrows/carried_loan_replacement",
+    "pass/ownership/runtime_carried_loan_field_replacement_exit",
+    "pass/traits/applied_conformance_captured_fresh_regions_exit"
+  ],
+  "host_only": [],
+  "missing": [],
+  "broken_detail": {
+    "pass/borrows/carried_loan_replacement": {
+      "diag": "machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`; declare it in the owner's generic parameter list",
+      "diag_norm": "machine `_` state `_` expression type application uses undeclared lifetime argument `_`Carrier`; declare it in the owner's generic parameter list",
+      "main_status": "rejected",
+      "ledger_status": "checked"
+    },
+    "pass/ownership/runtime_carried_loan_field_replacement_exit": {
+      "diag": "machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`; declare it in the owner's generic parameter list",
+      "diag_norm": "machine `_` state `_` expression type application uses undeclared lifetime argument `_`Carrier`; declare it in the owner's generic parameter list",
+      "main_status": "rejected",
+      "ledger_status": "checked"
+    },
+    "pass/traits/applied_conformance_captured_fresh_regions_exit": {
+      "diag": "machine `Reader::read` state `read` does not satisfy trait `Reading` machine `read`: conformance borrow contract: callable input does not preserve its captured region identity [input-inference parameter 1; actual reference Handle { arena_index: 1223, generation: 1 }; required reference Handle { arena_index: 3588, generation: 1 }; last rejected comparison Some(RejectedRegionComparison { reference: Handle { arena_index: 1223, generation: 1 }, actual_declaration: Handle { arena_index: 1244, generation: 1 }, required_declaration: Handle { arena_index: 2106, generation: 1 }, actual: Some(Fresh(0)), required: Some(Fresh(0)) }); required: owner read Handle { arena_index: 2106, generation: 1 }, supplier Reader Handle { arena_index: 1230, generation: 1 }, fresh 1, names [(\"scope\", Captured(Handle { arena_index: 2106, generation: 1 }, 0)), (\"scope\", Fresh(0))], own slots [(LifetimeParameterIdentity { declaration: Handle { arena_index: 2106, generation: 1 }, ordinal: 0 }, Fresh(0))], bindings [], applications [[]], substitutions [(Handle { arena_index: 2105, generation: 1 }, Handle { arena_index: 4121, generation: 1 })], scope starts [0]; actual: owner Reader::read Handle { arena_index: 1244, generation: 1 }, supplier Reader::read Handle { arena_index: 1244, generation: 1 }, fresh 1, names [(\"scope\", Captured(Handle { arena_index: 1230, generation: 1 }, 0)), (\"scope\", Captured(Handle { arena_index: 1244, generation: 1 }, 0)), (\"scope\", Fresh(0))], own slots [(LifetimeParameterIdentity { declaration: Handle { arena_index: 1244, generation: 1 }, ordinal: 0 }, Fresh(0))], bindings [], applications [], substitutions [], scope starts []]",
+      "diag_norm": "machine `_` state `_` does not satisfy trait `_` machine `_`: conformance borrow contract: callable input does not preserve its captured region identity [input-",
+      "main_status": "rejected",
+      "ledger_status": "checked"
+    }
+  }
+}

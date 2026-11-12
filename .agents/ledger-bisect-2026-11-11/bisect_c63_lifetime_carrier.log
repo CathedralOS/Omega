@@ -1,0 +1,89 @@
+cluster=c63_lifetime_carrier witness=pass/borrows/carried_loan_replacement spec=/tmp/ledger_bisect_part23_spec_c63_lifetime_carrier.json
+PIN sanity 1: exit 1
+PIN sanity 2: exit 1
+de25db89edf196dc1bf697a9c34886669d66b694
+good=de25db89edf196dc1bf697a9c34886669d66b694
+good sanity 1: exit 0
+good sanity 2: exit 0
+Bisecting: 2495 revisions left to test after this (roughly 11 steps)
+[304e48eb95f6a3e2e1b927706969b6d2da61114d] omega: own the cone step contract once per walked family
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 1247 revisions left to test after this (roughly 10 steps)
+[e7e26813fd1ada12f5c28763465966922ce41dbb] compiler: move retained nested record bindings into Build (#1207)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 623 revisions left to test after this (roughly 9 steps)
+[bc5653300ef32890aa1d38c33b039a2ab76beb4c] psi: prove selector arrival across every fixed slot (#1848)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 311 revisions left to test after this (roughly 8 steps)
+[43ba5756faf0c4baf8b004a55ad358044cadeae3] tests: re-record eight guard and layout rows that check again on main (#2165)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 311 revisions left to test after this (roughly 8 steps)
+[a0dc02583d95185bfb34fb2f9e1dd5b680530892] docs: ratify validation subjects for scoped checking (#2180)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 163 revisions left to test after this (roughly 7 steps)
+[799eeb14958b61b84105624ac3e841743bbcab51] psi: index prepared trait views and skip a repeat preparation that cannot write (#2022)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 81 revisions left to test after this (roughly 6 steps)
+[73c0f983346371af1094d396708d1a812216f5c0] tools: record the windows_x86_64 release gates (#1882)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 40 revisions left to test after this (roughly 5 steps)
+[750e1c7f00d1a43a24b461e272c9190a3ac9f7c2] psi: derive termination progress per call component, callees first (#1980)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 20 revisions left to test after this (roughly 4 steps)
+[98e84ec0c22a4d34023bcf8565d29a236b3cab85] psi: keep Build imports from changing assembly checks (#1963)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 9 revisions left to test after this (roughly 3 steps)
+[0b53c8a4e109e8d6ef3a9bbabc29c52529317a48] psi: reduce work when checking shared atomic stores (#1930)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 2 steps)
+[7dcc766bcbdc56b93d1d827d10d5fffb8d99f4a8] compiler: allow one call to supply all 33 Cathedral handlers (#1952)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 2 revisions left to test after this (roughly 1 step)
+[ccd41080b4c87d58f5b924c2e1a10552510ab32c] psi: retain generic constructor arguments when receiving owned values (#1945)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[7b6948c0ebe7b8c0d8c6f527ad9e8fdc62ffc394] psi: keep field rules when build scripts share application types (#1947)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+ccd41080b4c87d58f5b924c2e1a10552510ab32c is the first bad commit
+commit ccd41080b4c87d58f5b924c2e1a10552510ab32c
+Author: Zachary Canann <zacharycanann@gmail.com>
+Date:   Fri Nov 6 04:33:52 2026 +0000
+
+    psi: retain generic constructor arguments when receiving owned values (#1945)
+    
+    * psi: retain generic constructor arguments when receiving owned values
+    
+    Generic run descriptors could not receive constructed linear fields because their phantom type arguments disappeared before ownership checking. Retain the exact receiving application as type inference input, substitute caller-selected arguments at call destinations, and clone this type payload when specializing bodies. Field and domain obligations remain independently checked. The focused runtime witness covers distinct returned and inline applications; its invalid count still rejects. Multi-cell Run custody and generic Vec remain unfinished.
+    
+    * psi: pin generic owned constructor inference and invariant rejection
+
+ .../src/expressions/construction_destinations.rs   | 297 +++++++++++++++++++++
+ .../src/expressions/fixed_byte_array_literals.rs   | 238 -----------------
+ .../src/expressions/mod.rs                         |   2 +-
+ .../src/lowerer.rs                                 |   2 +-
+ .../src/constructed_results.rs                     |  56 ++--
+ .../src/constructed_results/identity_context.rs    |  64 +++--
+ .../src/monomorphization/body_cloning.rs           |  20 ++
+ .../src/preparation/runtime_index_fields.rs        |  73 +++--
+ .../src/value_custody/struct_literals.rs           |   2 +-
+ tests/omega/corpus_outcomes.txt                    |  11 +-
+ .../expected.txt                                   |   1 +
+ .../phantom_owned_constructor_unproved/main.omg    |  46 ++++
+ .../README.md                                      |  12 +
+ .../build.omg                                      |   7 +
+ .../main.omg                                       |  48 ++++
+ 15 files changed, 573 insertions(+), 306 deletions(-)
+ create mode 100644 omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expressions/construction_destinations.rs
+ delete mode 100644 omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expressions/fixed_byte_array_literals.rs
+ create mode 100644 tests/omega/fail/generics/phantom_owned_constructor_unproved/expected.txt
+ create mode 100644 tests/omega/fail/generics/phantom_owned_constructor_unproved/main.omg
+ create mode 100644 tests/omega/pass/generics/runtime_phantom_owned_constructor_exit/README.md
+ create mode 100644 tests/omega/pass/generics/runtime_phantom_owned_constructor_exit/build.omg
+ create mode 100644 tests/omega/pass/generics/runtime_phantom_owned_constructor_exit/main.omg
+bisect found first bad commit
+Previous HEAD position was 7b6948c0ebe psi: keep field rules when build scripts share application types (#1947)
+HEAD is now at 51e8c45c793 psi: check a body over a const value parameter once and carry its proofs (#2505)
+first_bad=# first bad commit: [ccd41080b4c87d58f5b924c2e1a10552510ab32c
+pr=
+subject=
+mechanism=unknown
