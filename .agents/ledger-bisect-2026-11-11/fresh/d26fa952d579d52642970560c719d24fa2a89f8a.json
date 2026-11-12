@@ -1,0 +1,93 @@
+{
+  "commit": "d26fa952d579d52642970560c719d24fa2a89f8a",
+  "witness": "pass/facts/selected_native_code_layout_through_other_state_exit",
+  "target_dir": "/tmp/bisect-target-d26fa952d579d52642970560c719d24fa2a89f8a",
+  "runner": "/tmp/bisect-target-d26fa952d579d52642970560c719d24fa2a89f8a/debug/build/compiler/c94faf888b569c5f/out/corpus_runner-c94faf888b569c5f",
+  "pin_exits": [
+    0,
+    0,
+    0
+  ],
+  "ledger_exits": [
+    125,
+    125,
+    125
+  ],
+  "witness_obs": [
+    "incomplete|`main` calls `witness`; `witness` has no executable body: this compiler does not lower a transition of it yet (state loan parents: captured reference leaves have no resources); in ",
+    "incomplete|`main` calls `witness`; `witness` has no executable body: this compiler does not lower a transition of it yet (state loan parents: captured reference leaves have no resources); in ",
+    "incomplete|`main` calls `witness`; `witness` has no executable body: this compiler does not lower a transition of it yet (state loan parents: captured reference leaves have no resources); in "
+  ],
+  "members": [
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_const_name_exit",
+      "status": "incomplete",
+      "diag": "`main` calls `witness`; `witness` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `witness::entry`,",
+      "ledger_ok": false,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_field_exit",
+      "status": "incomplete",
+      "diag": "`main` calls `witness`; `witness` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `witness::entry`,",
+      "ledger_ok": false,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_local_exit",
+      "status": "incomplete",
+      "diag": "`main` calls `witness`; `witness` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `witness::entry`,",
+      "ledger_ok": false,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_other_state_exit",
+      "status": "incomplete",
+      "diag": "`main` calls `witness`; `witness` has no executable body: this compiler does not lower a transition of it yet (state loan parents: captured reference leaves have no resources); in state `witness::entr",
+      "ledger_ok": false,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_target_body_exit",
+      "status": "incomplete",
+      "diag": "`CheckedLayoutProbe::target_witness` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `query_layout:",
+      "ledger_ok": false,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/calls/native_code_layout_discarded_exit",
+      "status": "checked",
+      "diag": "",
+      "ledger_ok": true,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_match_join_exit",
+      "status": "checked",
+      "diag": "",
+      "ledger_ok": true,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/facts/source_indexed_family_alpha_positive",
+      "status": "checked",
+      "diag": "",
+      "ledger_ok": true,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/facts/source_indexed_family_recursive_index_positive",
+      "status": "checked",
+      "diag": "",
+      "ledger_ok": true,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/proofs/erased_mathematical_initializers",
+      "status": "checked",
+      "diag": "",
+      "ledger_ok": true,
+      "pin_class": false
+    }
+  ]
+}

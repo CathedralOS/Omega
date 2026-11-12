@@ -1,0 +1,33 @@
+running '/tmp/fresh-bisect/bisect_pin_fresh.sh'
+Bisecting: 282 revisions left to test after this (roughly 8 steps)
+[a57a98724283ea6fe911d453032c1366e2cb8d7f] docs: let a mutable borrow drop any domain its lender can re-add (#2268)
+running '/tmp/fresh-bisect/bisect_pin_fresh.sh'
+Bisecting: 282 revisions left to test after this (roughly 8 steps)
+[b41edeff5a19d09a8cb52b82eeed5cabb0b00035] psi: join specialized case literals to the receiving variant (#2003)
+running '/tmp/fresh-bisect/bisect_pin_fresh.sh'
+Bisecting: 36 revisions left to test after this (roughly 5 steps)
+[f6cfbbbd84cb7ab010e7ebafba3cb542c56b23db] psi: prepare the permission walk's pure per-state queries on the checking pool (#1949)
+running '/tmp/fresh-bisect/bisect_pin_fresh.sh'
+Bisecting: 18 revisions left to test after this (roughly 4 steps)
+[07301d6612988eacde667d9e8be12a60800600a9] psi: supply nominal identity in the proof payload test (#1979)
+running '/tmp/fresh-bisect/bisect_pin_fresh.sh'
+Bisecting: 8 revisions left to test after this (roughly 3 steps)
+[5c85123a85d4e9d43bf771ff9db4f09a053995ee] docs: ratify invariant repair through existing contracts (#1964)
+running '/tmp/fresh-bisect/bisect_pin_fresh.sh'
+Bisecting: 8 revisions left to test after this (roughly 3 steps)
+[b4470b60587d8ef78a58c10626047a86afb041aa] psi: retain qualified elements through owned storage (#1953)
+running '/tmp/fresh-bisect/bisect_pin_fresh.sh'
+Bisecting: 7 revisions left to test after this (roughly 3 steps)
+[7198f568763c6dae7d02668838a1616c631c70aa] compiler: keep saved references usable after pointer replacement (#1818)
+running '/tmp/fresh-bisect/bisect_pin_fresh.sh'
+Bisecting: 3 revisions left to test after this (roughly 2 steps)
+[1ca5ce4de8d18c1feb9479d8a60362e84867f529] compiler: retain zero-sized values in owned storage (#1958)
+running '/tmp/fresh-bisect/bisect_pin_fresh.sh'
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[c35f4550249860b906dc7819989f879b09acc66b] build: select installed-entry transmit code with explicit target rows (#1946)
+running '/tmp/fresh-bisect/bisect_pin_fresh.sh'
+There are only 'skip'ped commits left to test.
+The first bad commit could be any of:
+5c85123a85d4e9d43bf771ff9db4f09a053995ee
+7198f568763c6dae7d02668838a1616c631c70aa
+We cannot bisect more!

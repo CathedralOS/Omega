@@ -1,0 +1,16 @@
+commit=7198f568763c6dae7d02668838a1616c631c70aa
+target=/tmp/bisect-target-7198f568763c6dae7d02668838a1616c631c70aa
+runner=/tmp/bisect-target-7198f568763c6dae7d02668838a1616c631c70aa/debug/build/compiler/c94faf888b569c5f/out/corpus_runner-c94faf888b569c5f
+pass/facts/selected_native_code_layout_through_other_state_exit pin=1 1 1 ledger=1 1 1
+pass/calls/native_code_layout_discarded_exit pin=1 1 1 ledger=1 1 1
+pass/facts/selected_native_code_layout_through_const_name_exit	rejected	ledger_ok=False	pin_class=True	machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/selected_native_code_layout_through_field_exit	rejected	ledger_ok=False	pin_class=True	machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/selected_native_code_layout_through_local_exit	rejected	ledger_ok=False	pin_class=True	machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/selected_native_code_layout_through_other_state_exit	rejected	ledger_ok=False	pin_class=True	machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/selected_native_code_layout_through_target_body_exit	rejected	ledger_ok=False	pin_class=True	machine `query_layout` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavail
+pass/calls/native_code_layout_discarded_exit	rejected	ledger_ok=False	pin_class=True	machine `main` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/selected_native_code_layout_through_match_join_exit	rejected	ledger_ok=False	pin_class=True	machine `marked_layout` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavai
+pass/facts/source_indexed_family_alpha_positive	rejected	ledger_ok=False	pin_class=True	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/source_indexed_family_recursive_index_positive	rejected	ledger_ok=False	pin_class=True	machine `main` state `entry` statement 4: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/proofs/erased_mathematical_initializers	rejected	ledger_ok=False	pin_class=True	machine `main` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+EDGE_DONE

@@ -1,0 +1,93 @@
+{
+  "commit": "82d2247b96e872df79f26ec9b7af2fdec0153ce7",
+  "witness": "pass/facts/selected_native_code_layout_through_other_state_exit",
+  "target_dir": "/tmp/bisect-target-82d2247b96e872df79f26ec9b7af2fdec0153ce7",
+  "runner": "/tmp/bisect-target-82d2247b96e872df79f26ec9b7af2fdec0153ce7/debug/build/compiler/c94faf888b569c5f/out/corpus_runner-c94faf888b569c5f",
+  "pin_exits": [
+    0,
+    0,
+    0
+  ],
+  "ledger_exits": [
+    0,
+    0,
+    0
+  ],
+  "witness_obs": [
+    "checked|",
+    "checked|",
+    "checked|"
+  ],
+  "members": [
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_const_name_exit",
+      "status": "checked",
+      "diag": "",
+      "ledger_ok": true,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_field_exit",
+      "status": "checked",
+      "diag": "",
+      "ledger_ok": true,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_local_exit",
+      "status": "checked",
+      "diag": "",
+      "ledger_ok": true,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_other_state_exit",
+      "status": "checked",
+      "diag": "",
+      "ledger_ok": true,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_target_body_exit",
+      "status": "checked",
+      "diag": "",
+      "ledger_ok": true,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/calls/native_code_layout_discarded_exit",
+      "status": "checked",
+      "diag": "",
+      "ledger_ok": true,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_match_join_exit",
+      "status": "checked",
+      "diag": "",
+      "ledger_ok": true,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/facts/source_indexed_family_alpha_positive",
+      "status": "checked",
+      "diag": "",
+      "ledger_ok": true,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/facts/source_indexed_family_recursive_index_positive",
+      "status": "checked",
+      "diag": "",
+      "ledger_ok": true,
+      "pin_class": false
+    },
+    {
+      "fixture": "pass/proofs/erased_mathematical_initializers",
+      "status": "checked",
+      "diag": "",
+      "ledger_ok": true,
+      "pin_class": false
+    }
+  ]
+}

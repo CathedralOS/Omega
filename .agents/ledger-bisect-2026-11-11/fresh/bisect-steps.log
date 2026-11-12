@@ -1,0 +1,7 @@
+b41edeff5a19d09a8cb52b82eeed5cabb0b00035 pin=1 a2_ledger=1 psi: join specialized case literals to the receiving variant (#2003)
+f6cfbbbd84cb7ab010e7ebafba3cb542c56b23db pin=0 a2_ledger=0 psi: prepare the permission walk's pure per-state queries on the checking pool (
+07301d6612988eacde667d9e8be12a60800600a9 pin=1 a2_ledger=1 psi: supply nominal identity in the proof payload test (#1979)
+b4470b60587d8ef78a58c10626047a86afb041aa pin=0 a2_ledger=0 psi: retain qualified elements through owned storage (#1953)
+7198f568763c6dae7d02668838a1616c631c70aa pin=1 a2_ledger=1 compiler: keep saved references usable after pointer replacement (#1818)
+1ca5ce4de8d18c1feb9479d8a60362e84867f529 pin=0 a2_ledger=0 compiler: retain zero-sized values in owned storage (#1958)
+c35f4550249860b906dc7819989f879b09acc66b pin=0 a2_ledger=0 build: select installed-entry transmit code with explicit target rows (#1946)

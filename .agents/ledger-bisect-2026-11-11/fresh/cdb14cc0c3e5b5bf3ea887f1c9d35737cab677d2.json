@@ -1,0 +1,93 @@
+{
+  "commit": "cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2",
+  "witness": "pass/facts/selected_native_code_layout_through_other_state_exit",
+  "target_dir": "/tmp/bisect-target-cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2",
+  "runner": "/tmp/bisect-target-cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2/debug/build/compiler/dc98a1221ef83d1e/out/corpus_runner-dc98a1221ef83d1e",
+  "pin_exits": [
+    1,
+    1,
+    1
+  ],
+  "ledger_exits": [
+    1,
+    1,
+    1
+  ],
+  "witness_obs": [
+    "rejected|machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+    "rejected|machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+    "rejected|machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable"
+  ],
+  "members": [
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_const_name_exit",
+      "status": "rejected",
+      "diag": "machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "ledger_ok": false,
+      "pin_class": true
+    },
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_field_exit",
+      "status": "rejected",
+      "diag": "machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "ledger_ok": false,
+      "pin_class": true
+    },
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_local_exit",
+      "status": "rejected",
+      "diag": "machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "ledger_ok": false,
+      "pin_class": true
+    },
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_other_state_exit",
+      "status": "rejected",
+      "diag": "machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "ledger_ok": false,
+      "pin_class": true
+    },
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_target_body_exit",
+      "status": "rejected",
+      "diag": "machine `query_layout` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "ledger_ok": false,
+      "pin_class": true
+    },
+    {
+      "fixture": "pass/calls/native_code_layout_discarded_exit",
+      "status": "rejected",
+      "diag": "machine `main` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "ledger_ok": false,
+      "pin_class": true
+    },
+    {
+      "fixture": "pass/facts/selected_native_code_layout_through_match_join_exit",
+      "status": "rejected",
+      "diag": "machine `marked_layout` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "ledger_ok": false,
+      "pin_class": true
+    },
+    {
+      "fixture": "pass/facts/source_indexed_family_alpha_positive",
+      "status": "rejected",
+      "diag": "machine `main` state `entry` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "ledger_ok": false,
+      "pin_class": true
+    },
+    {
+      "fixture": "pass/facts/source_indexed_family_recursive_index_positive",
+      "status": "rejected",
+      "diag": "machine `main` state `entry` statement 4: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "ledger_ok": false,
+      "pin_class": true
+    },
+    {
+      "fixture": "pass/proofs/erased_mathematical_initializers",
+      "status": "rejected",
+      "diag": "machine `main` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "ledger_ok": false,
+      "pin_class": true
+    }
+  ]
+}
