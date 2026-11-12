@@ -17,6 +17,13 @@ An unsigned remainder by a divisor that is not a literal has the kernel's
 relational form instead: `result < divisor` from `0 < divisor`
 (`remainder_below_divisor`). That is an order step between two values, and a
 bound on the result through the divisor's bound.
+
+An exact remainder by a divisor that is not a literal also takes a bound from
+its dividend, for either sign: it lies between zero and the dividend, so
+`dividend <= U` gives `result <= max(U, 0)` and `L <= dividend` gives
+`min(L, 0) <= result`, once the divisor is proved positive or below minus one
+(`remainder_within_dividend`). The kernel trusts that statement as a
+provisional rule; its mathematical core does not derive it.
 */
 
 use std::cmp::Ordering;
@@ -183,6 +190,78 @@ impl Prover<'_> {
                     ),
                 )
             })
+    }
+
+    /// A bound on `output == dividend % divisor`, an exact remainder whose
+    /// divisor is a value no literal fixes, from the dividend's bound: the
+    /// kernel's remainder-within-dividend form, a provisional rule
+    /// (`AcceptedProofRule::IntegerRemainderWithinDividend`). It needs the
+    /// divisor proved positive or proved below minus one, and maps
+    /// `dividend <= U` to `output <= max(U, 0)` and `L <= dividend` to
+    /// `min(L, 0) <= output`. `None` when the kernel refuses the witness (a
+    /// literal or landed divisor is `chain_step`'s) or either premise is
+    /// unproved.
+    pub(super) fn remainder_within_dividend(
+        &mut self,
+        axiom: usize,
+        output: &ScalarTerm,
+        expression: &ScalarTerm,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let ScalarTerm::ExactIntegerRemainder {
+            scalar_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        let (dividend, divisor) = (left.as_ref(), right.as_ref());
+        let witness = IntegerAffineWitness {
+            root: dividend.clone(),
+            target: output.clone(),
+            definition_axioms: vec![axiom],
+            literal_axioms: vec![None],
+        };
+        let form = check_integer_affine_witness(self.context, self.axioms, &witness).ok()?;
+        let dividend_bound = self.evidence(dividend, direction).ok()?;
+        let nonzero = match self.positive(*scalar_type, divisor) {
+            Some(positive) => positive,
+            None if scalar_type.sign() == IntegerSign::Signed => {
+                let minus_one = ScalarTerm::integer(
+                    *scalar_type,
+                    semantic_vocabulary::IntegerValue::Signed(-1),
+                )
+                .ok()?;
+                self.prove(&Proposition::LessThan(divisor.clone(), minus_one))
+                    .ok()?
+            }
+            None => return None,
+        };
+        let parts = vec![dividend_bound, nonzero];
+        let root =
+            Proposition::Conjunction(parts.iter().map(|part| part.conclusion.clone()).collect());
+        let image = map_integer_affine_bound(&form, &root).ok()?;
+        let literal = match (&image, direction) {
+            (Proposition::LessOrEqual(left, right), Direction::Upper) if left == output => {
+                right.integer_value()
+            }
+            (Proposition::LessOrEqual(left, right), Direction::Lower) if right == output => {
+                left.integer_value()
+            }
+            _ => None,
+        }?
+        .1;
+        Some(Bound {
+            literal,
+            proof: node(
+                image,
+                ProofRule::IntegerAffineBound {
+                    root_bound: Box::new(node(root, ProofRule::ConjunctionIntroduction(parts))),
+                    witness,
+                },
+            ),
+        })
     }
 
     /// The kernel's image of an exact left shift's operand bounds: a bound in
