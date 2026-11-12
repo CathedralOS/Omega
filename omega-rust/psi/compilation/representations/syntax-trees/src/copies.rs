@@ -499,6 +499,11 @@ pub(crate) mod body_copies {
                         arguments,
                     })
                 }
+                TypeReferenceNode::StaticSelection(selection) => {
+                    let selection = self.copy_static_machine_argument(other, selection);
+                    self.type_references
+                        .insert(TypeReferenceNode::StaticSelection(selection))
+                }
                 TypeReferenceNode::ConstExpression(expression) => {
                     let expression = self.copy_expression_handle(other, *expression);
                     self.type_references
@@ -1783,6 +1788,9 @@ pub(crate) mod item_copies {
                         },
                         TypeParameterKind::Machine { contract } => TypeParameterKind::Machine {
                             contract: contract.as_ref().map(|contract| match contract {
+                                MachineParameterContract::Inferred => {
+                                    MachineParameterContract::Inferred
+                                }
                                 MachineParameterContract::RequirementIdentity => {
                                     MachineParameterContract::RequirementIdentity
                                 }

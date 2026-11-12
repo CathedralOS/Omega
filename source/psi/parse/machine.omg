@@ -1,12 +1,3 @@
-use psi::parse::callable_header;
-use psi::parse::generics;
-use psi::parse::input;
-use psi::parse::parser;
-use psi::parse::statement;
-use psi::parse::types;
-use psi::syntax::syntax;
-use psi::tokens::tokens;
-
 // What precedes a machine declaration's `machine` keyword: where the
 // declaration starts, `public`, a target name (`linux_arm64 machine ...`),
 // `boundary`, and whether it stands at the root or inside a trait or a
@@ -35,7 +26,7 @@ public data MachineHead [copy] {
 // primitive, a requirement, a boundary provider) is checking's question, not
 // the grammar's. A trait or conformance member names no owner, and only a
 // root declaration is retained as a root.
-public machine Parser::parse_machine(parser: &mut Parser, input: &TokenStream, head: MachineHead)
+public machine parse_machine(parser: &mut Parser, input: &TokenStream, head: MachineHead)
 crashes Trap
 {
     parser.machine_parent = 0;
@@ -52,11 +43,11 @@ crashes Trap
     }
 
     machine machine_full(parser: &mut Parser, input: &TokenStream) {
-        Parser::reject_current(parser, input, ParseDiagnosticCode::MachineCapacityExceeded);
+        reject_current(parser, input, ParseDiagnosticCode::MachineCapacityExceeded);
     }
 
     machine keyword(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         parser.machine_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
         parser.machine_generic_count = 0;
         parser.machine_contract_count = 0;
@@ -66,7 +57,7 @@ crashes Trap
         parser.machine_token_end = 0;
         parser.machine_first_component = 0;
         parser.machine_component_count = 0;
-        Parser::parse_operator_token(parser, input);
+        parse_operator_token(parser, input);
         let tokened: bool = parser.machine_operator != OperatorToken::None;
         let member: bool = parser.machine_container == MachineContainer::Conformance;
         transition parser.output.accepted {
@@ -84,12 +75,12 @@ crashes Trap
     }
 
     machine token_refused(parser: &mut Parser) {
-        SyntaxTrees::reject(&mut parser.output, ParseDiagnosticCode::OperatorTokenNotAdmitted,
+        syntax_trees_reject(&mut parser.output, ParseDiagnosticCode::OperatorTokenNotAdmitted,
             parser.source, parser.machine_token_start, parser.machine_token_end);
     }
 
     machine name(parser: &mut Parser, input: &TokenStream) {
-        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedMachineName);
+        expect_name(parser, input, ParseDiagnosticCode::ExpectedMachineName);
         transition parser.output.accepted {
             true -> first_name(parser, input)
             _ -> done()
@@ -102,8 +93,8 @@ crashes Trap
         parser.machine_owner_end = 0;
         parser.machine_name_start = parser.name_start;
         parser.machine_name_end = parser.name_end;
-        let separator: bool = Parser::at_punctuation(parser, input, PunctuationKind::ColonColon);
-        let at_root: bool = Parser::machine_at_root(parser.machine_container) && parser.machine_parent == 0;
+        let separator: bool = at_punctuation(parser, input, PunctuationKind::ColonColon);
+        let at_root: bool = machine_at_root(parser.machine_container) && parser.machine_parent == 0;
         transition separator && at_root {
             true -> owned_name(parser, input)
             _ -> generic_list(parser, input)
@@ -111,11 +102,11 @@ crashes Trap
     }
 
     machine owned_name(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         parser.machine_has_owner = true;
         parser.machine_owner_start = parser.machine_name_start;
         parser.machine_owner_end = parser.machine_name_end;
-        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedMachineName);
+        expect_name(parser, input, ParseDiagnosticCode::ExpectedMachineName);
         transition parser.output.accepted {
             true -> owned_named(parser, input)
             _ -> done()
@@ -129,9 +120,9 @@ crashes Trap
     }
 
     machine generic_list(parser: &mut Parser, input: &TokenStream) {
-        let generic: bool = Parser::at_punctuation(parser, input, PunctuationKind::Less);
+        let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
         let ordered: bool = parser.machine_container == MachineContainer::Measure
-            && Parser::at_word(parser, input, "lexicographic");
+            && at_word(parser, input, "lexicographic");
         transition generic {
             true -> generics(parser, input)
             _ -> lexicographic_word(parser, input, ordered)
@@ -148,9 +139,9 @@ crashes Trap
     // `lexicographic { field, field }`: a bodyless measure ranking by the
     // tuple of its owner's named fields, kept as a member run.
     machine components_open(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         parser.machine_first_component = parser.output.member_count as u64 in Trapping;
-        Parser::expect_punctuation(parser, input, PunctuationKind::LeftBrace, ParseDiagnosticCode::ExpectedMeasureComponent);
+        expect_punctuation(parser, input, PunctuationKind::LeftBrace, ParseDiagnosticCode::ExpectedMeasureComponent);
         transition parser.output.accepted {
             true -> component(parser, input)
             _ -> done()
@@ -158,7 +149,7 @@ crashes Trap
     }
 
     machine component(parser: &mut Parser, input: &TokenStream) {
-        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedMeasureComponent);
+        expect_name(parser, input, ParseDiagnosticCode::ExpectedMeasureComponent);
         transition parser.output.accepted && parser.output.member_count < 32000 {
             true -> component_retained(parser, input)
             _ -> component_full(parser, input)
@@ -173,10 +164,10 @@ crashes Trap
     }
 
     machine component_retained(parser: &mut Parser, input: &TokenStream) {
-        parser.output.members[parser.output.member_count] = Parser::identifier_span(parser, parser.name_start, parser.name_end);
+        parser.output.members[parser.output.member_count] = identifier_span(parser, parser.name_start, parser.name_end);
         parser.output.member_count = parser.output.member_count + 1;
         parser.machine_component_count = parser.machine_component_count + 1;
-        let more: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
+        let more: bool = at_punctuation(parser, input, PunctuationKind::Comma);
         transition more {
             true -> component_separator(parser, input)
             _ -> components_close(parser, input)
@@ -184,14 +175,14 @@ crashes Trap
     }
 
     machine component_separator(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         transition { _ -> component(parser, input) }
     }
 
     // A lexicographic measure owns empty parameter, clause, statement, state
     // and contract ranges at the tables' ends.
     machine components_close(parser: &mut Parser, input: &TokenStream) {
-        Parser::expect_punctuation(parser, input, PunctuationKind::RightBrace, ParseDiagnosticCode::ExpectedMeasureComponent);
+        expect_punctuation(parser, input, PunctuationKind::RightBrace, ParseDiagnosticCode::ExpectedMeasureComponent);
         parser.machine_first_parameter = parser.output.parameter_count as u64 in Trapping;
         parser.machine_parameter_count = 0;
         parser.machine_has_return_type = false;
@@ -216,11 +207,11 @@ crashes Trap
     }
 
     machine rejected(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
-        Parser::reject_current(parser, input, code);
+        reject_current(parser, input, code);
     }
 
     machine generics(parser: &mut Parser, input: &TokenStream) {
-        Parser::parse_generic_parameters(parser, input);
+        parse_generic_parameters(parser, input);
         parser.machine_generic_count =
             (parser.output.generic_parameter_count as u64 in Trapping) - parser.machine_first_generic;
         transition parser.output.accepted {
@@ -230,7 +221,7 @@ crashes Trap
     }
 
     machine signature(parser: &mut Parser, input: &TokenStream) {
-        Parser::parse_signature(parser, input);
+        parse_signature(parser, input);
         transition parser.output.accepted {
             true -> clauses(parser, input)
             _ -> done()
@@ -242,8 +233,8 @@ crashes Trap
         parser.machine_parameter_count = parser.signature_parameter_count;
         parser.machine_has_return_type = parser.signature_has_return_type;
         parser.machine_return_type = parser.signature_return_type;
-        let owner: ClauseOwner = Parser::machine_clause_owner(parser.machine_container);
-        Parser::parse_callable_header(parser, input, owner);
+        let owner: ClauseOwner = machine_clause_owner(parser.machine_container);
+        parse_callable_header(parser, input, owner);
         transition parser.output.accepted {
             true -> header_end(parser, input)
             _ -> done()
@@ -251,7 +242,7 @@ crashes Trap
     }
 
     machine header_end(parser: &mut Parser, input: &TokenStream) {
-        let bodyless: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
+        let bodyless: bool = at_punctuation(parser, input, PunctuationKind::Semicolon);
         transition bodyless {
             true -> signature_end(parser, input)
             _ -> body_open(parser, input)
@@ -259,7 +250,7 @@ crashes Trap
     }
 
     machine body_open(parser: &mut Parser, input: &TokenStream) {
-        Parser::expect_punctuation(parser, input, PunctuationKind::LeftBrace,
+        expect_punctuation(parser, input, PunctuationKind::LeftBrace,
             ParseDiagnosticCode::ExpectedMachineBody
         );
         transition parser.output.accepted {
@@ -270,7 +261,7 @@ crashes Trap
 
     // A bodyless declaration owns an empty executable range at the tables' ends.
     machine signature_end(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         parser.machine_first_statement = parser.output.statement_count as u64 in Trapping;
         parser.machine_statement_count = 0;
         transition parser.output.machine_count < 10240 {
@@ -280,7 +271,7 @@ crashes Trap
     }
 
     machine entry_statements(parser: &mut Parser, input: &TokenStream) {
-        Parser::parse_statements(parser, input, ParseDiagnosticCode::ExpectedMachineBodyEnd);
+        parse_statements(parser, input, ParseDiagnosticCode::ExpectedMachineBodyEnd);
         transition parser.output.accepted {
             true -> entry_statements_retained(parser, input)
             _ -> done()
@@ -301,8 +292,8 @@ crashes Trap
     // The current declaration handle is the parser stack; closing a child resumes its
     // exact lexical parent without keeping invocation-local header scratch alive.
     machine member(parser: &mut Parser, input: &TokenStream) {
-        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBrace);
-        let nested: bool = Parser::at_keyword(parser, input, KeywordKind::Machine);
+        let closing: bool = at_punctuation(parser, input, PunctuationKind::RightBrace);
+        let nested: bool = at_keyword(parser, input, KeywordKind::Machine);
         transition closing {
             true -> close(parser, input)
             false -> nested_member(parser, input, nested)
@@ -324,7 +315,7 @@ crashes Trap
     }
 
     machine nested_header(parser: &mut Parser, input: &TokenStream) {
-        Parser::load_current(parser, input);
+        load_current(parser, input);
         let token: Token = input.tokens[parser.current_index];
         parser.machine_parent = parser.machine_current + 1;
         parser.machine_start = token.start as u64 in Trapping;
@@ -338,11 +329,11 @@ crashes Trap
     }
 
     machine body_end_rejected(parser: &mut Parser, input: &TokenStream) {
-        Parser::reject_current(parser, input, ParseDiagnosticCode::ExpectedMachineBodyEnd);
+        reject_current(parser, input, ParseDiagnosticCode::ExpectedMachineBodyEnd);
     }
 
     machine close(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         let current: u64 in Trapping = parser.machine_current;
         transition current < 10240 {
             true -> close_bounded(parser, input, current)
@@ -353,7 +344,7 @@ crashes Trap
     machine close_bounded(parser: &mut Parser, input: &TokenStream, current: u64 in Trapping)
     requires current < 10240
     {
-        let item: MachineItem = SyntaxTrees::machine_item(&parser.output, current);
+        let item: MachineItem = machine_item(&parser.output, current);
         parser.output.machines[current].source_span.span.end = parser.token_end as u64 in Trapping;
         transition { _ -> completed(parser, input, current, item.parent) }
     }
@@ -374,8 +365,8 @@ crashes Trap
 
     machine root_completion(parser: &mut Parser, input: &TokenStream, current: u64 in Trapping) {
         parser.machine_result = current;
-        let item: MachineItem = SyntaxTrees::machine_item(&parser.output, current);
-        let at_root: bool = Parser::machine_at_root(item.container);
+        let item: MachineItem = machine_item(&parser.output, current);
+        let at_root: bool = machine_at_root(item.container);
         transition at_root {
             true -> root(parser, input, current)
             false -> done()
@@ -386,8 +377,8 @@ crashes Trap
         let machine_index: u64 in Trapping = parser.output.machine_count as u64 in Trapping;
         parser.output.machines[parser.output.machine_count] = MachineItem {
             has_owner: parser.machine_has_owner,
-            owner: Parser::identifier_span(parser, parser.machine_owner_start, parser.machine_owner_end),
-            name: Parser::identifier_span(parser, parser.machine_name_start, parser.machine_name_end),
+            owner: identifier_span(parser, parser.machine_owner_start, parser.machine_owner_end),
+            name: identifier_span(parser, parser.machine_name_start, parser.machine_name_end),
             first_generic_parameter: parser.machine_first_generic,
             generic_parameter_count: parser.machine_generic_count,
             first_parameter: parser.machine_first_parameter,
@@ -403,18 +394,18 @@ crashes Trap
             first_expression: parser.machine_first_expression,
             expression_count: (parser.output.expression_count as u64 in Trapping) - parser.machine_first_expression,
             has_target: parser.machine_has_target,
-            target: Parser::identifier_span(parser, parser.machine_target_start, parser.machine_target_end),
+            target: identifier_span(parser, parser.machine_target_start, parser.machine_target_end),
             is_boundary: parser.machine_is_boundary,
             container: parser.machine_container,
             is_public: parser.machine_is_public,
             operator: parser.machine_operator,
-            token: Parser::identifier_span(parser, parser.machine_token_start, parser.machine_token_end),
+            token: identifier_span(parser, parser.machine_token_start, parser.machine_token_end),
             first_contract: parser.machine_first_contract,
             contract_count: parser.machine_contract_count,
             every_requirement: false,
             first_component: parser.machine_first_component,
             component_count: parser.machine_component_count,
-            source_span: Parser::source_span(parser, parser.machine_start, parser.token_end)
+            source_span: parser_source_span(parser, parser.machine_start, parser.token_end)
         };
         parser.output.machine_count = parser.output.machine_count + 1;
         parser.machine_current = machine_index;
@@ -435,13 +426,13 @@ crashes Trap
         parser.output.roots[parser.output.root_count] = RootItem {
             kind: RootItemKind::Machine,
             item_index: machine_index,
-            source_span: SyntaxTrees::machine_item(&parser.output, machine_index).source_span
+            source_span: machine_item(&parser.output, machine_index).source_span
         };
         parser.output.root_count = parser.output.root_count + 1;
     }
 
     machine root_full(parser: &mut Parser, input: &TokenStream) {
-        Parser::reject_current(parser, input, ParseDiagnosticCode::RootCapacityExceeded);
+        reject_current(parser, input, ParseDiagnosticCode::RootCapacityExceeded);
     }
 
     machine done() {}
@@ -449,7 +440,7 @@ crashes Trap
 
 // A trait member reads its clauses as a trait member: `requires` after its
 // `;` is the trait's body parent.
-machine Parser::machine_clause_owner(container: MachineContainer) -> ClauseOwner {
+machine machine_clause_owner(container: MachineContainer) -> ClauseOwner {
     transition container {
         MachineContainer::Trait -> member()
         _ -> declaration()
@@ -468,10 +459,10 @@ machine Parser::machine_clause_owner(container: MachineContainer) -> ClauseOwner
 // wiki/spec/language/expressions.md: an arithmetic or comparison token,
 // `[]` or `[..]`. Any other token leaves no token, and the name follows.
 // The token lands in `machine_operator` and its span in `machine_token_*`.
-machine Parser::parse_operator_token(parser: &mut Parser, input: &TokenStream)
+machine parse_operator_token(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
-    Parser::load_current(parser, input);
+    load_current(parser, input);
     transition parser.current_present {
         true -> token(parser, input)
         _ -> done()
@@ -497,16 +488,16 @@ crashes Trap
     }
 
     machine single(parser: &mut Parser, input: &TokenStream, operator: OperatorToken) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         parser.machine_token_start = parser.token_start;
         transition { _ -> close(parser, operator) }
     }
 
     // `[]` indexes and `[..]` slices a range.
     machine bracket(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         parser.machine_token_start = parser.token_start;
-        let ranged: bool = Parser::at_punctuation(parser, input, PunctuationKind::DotDot);
+        let ranged: bool = at_punctuation(parser, input, PunctuationKind::DotDot);
         transition ranged {
             true -> range(parser, input)
             _ -> bracket_close(parser, input, OperatorToken::Index)
@@ -514,12 +505,12 @@ crashes Trap
     }
 
     machine range(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         transition { _ -> bracket_close(parser, input, OperatorToken::Range) }
     }
 
     machine bracket_close(parser: &mut Parser, input: &TokenStream, operator: OperatorToken) {
-        Parser::expect_punctuation(parser, input, PunctuationKind::RightBracket, ParseDiagnosticCode::UnknownOperatorToken);
+        expect_punctuation(parser, input, PunctuationKind::RightBracket, ParseDiagnosticCode::UnknownOperatorToken);
         transition parser.output.accepted {
             true -> close(parser, operator)
             _ -> done()
@@ -535,7 +526,7 @@ crashes Trap
 }
 
 // Append one contract row.
-public machine Parser::retain_contract(parser: &mut Parser, input: &TokenStream, contract: Contract)
+public machine retain_contract(parser: &mut Parser, input: &TokenStream, contract: Contract)
 crashes Trap
 {
     transition parser.output.contract_count < 256 {
@@ -549,11 +540,11 @@ crashes Trap
     }
 
     machine full(parser: &mut Parser, input: &TokenStream) {
-        Parser::reject_current(parser, input, ParseDiagnosticCode::ContractCapacityExceeded);
+        reject_current(parser, input, ParseDiagnosticCode::ContractCapacityExceeded);
     }
 }
 
-machine Parser::machine_at_root(container: MachineContainer) -> bool {
+machine machine_at_root(container: MachineContainer) -> bool {
     transition container {
         MachineContainer::Root -> root()
         MachineContainer::Measure -> root()
@@ -571,10 +562,10 @@ machine Parser::machine_at_root(container: MachineContainer) -> bool {
 
 // `[(parameters)] [-> Type]`, shared by machine and state heads. The result
 // lands in the `signature_*` scratch fields.
-machine Parser::parse_signature(parser: &mut Parser, input: &TokenStream)
+machine parse_signature(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
-    Parser::parse_parameters(parser, input);
+    parse_parameters(parser, input);
     parser.signature_has_return_type = false;
     parser.signature_return_type = 0;
     transition parser.output.accepted {
@@ -583,7 +574,7 @@ crashes Trap
     }
 
     machine return_type(parser: &mut Parser, input: &TokenStream) {
-        let arrow: bool = Parser::at_punctuation(parser, input, PunctuationKind::Arrow);
+        let arrow: bool = at_punctuation(parser, input, PunctuationKind::Arrow);
         transition arrow {
             true -> return_type_taken(parser, input)
             _ -> done()
@@ -591,8 +582,8 @@ crashes Trap
     }
 
     machine return_type_taken(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
-        Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedMachineReturnType);
+        take_current(parser, input);
+        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedMachineReturnType);
         transition parser.output.accepted {
             true -> return_type_retained(parser)
             _ -> done()
@@ -610,20 +601,20 @@ crashes Trap
 // `[([mut] name: Type, ...)]`, the parameter list of a machine, state or
 // proposition head; `mut` lets the body assign the parameter. The range lands in `signature_first_parameter` and
 // `signature_parameter_count`.
-machine Parser::parse_parameters(parser: &mut Parser, input: &TokenStream)
+machine parse_parameters(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
     parser.signature_first_parameter = parser.output.parameter_count as u64 in Trapping;
     parser.signature_parameter_count = 0;
-    let listed: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftParen);
+    let listed: bool = at_punctuation(parser, input, PunctuationKind::LeftParen);
     transition listed {
         true -> parameters(parser, input)
         _ -> done()
     }
 
     machine parameters(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
-        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightParen);
+        take_current(parser, input);
+        let closing: bool = at_punctuation(parser, input, PunctuationKind::RightParen);
         transition closing {
             true -> close(parser, input)
             _ -> parameter(parser, input, ParseDiagnosticCode::ExpectedMachineParameterOrEnd)
@@ -638,14 +629,14 @@ crashes Trap
     }
 
     machine parameter_full(parser: &mut Parser, input: &TokenStream) {
-        Parser::reject_current(parser, input, ParseDiagnosticCode::ParameterCapacityExceeded);
+        reject_current(parser, input, ParseDiagnosticCode::ParameterCapacityExceeded);
     }
 
     // `mut` before a name marks the parameter mutable; a parameter named
     // `mut` is followed by its colon.
     machine parameter_name(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
-        let marked: bool = Parser::at_word(parser, input, "mut");
-        let named: bool = Parser::next_is_punctuation(parser, input, PunctuationKind::Colon);
+        let marked: bool = at_word(parser, input, "mut");
+        let named: bool = next_is_punctuation(parser, input, PunctuationKind::Colon);
         parser.parameter_mutable = marked && !named;
         transition marked && !named {
             true -> mutable_name(parser, input, code)
@@ -654,12 +645,12 @@ crashes Trap
     }
 
     machine mutable_name(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         transition { _ -> parameter_named(parser, input, code) }
     }
 
     machine parameter_named(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
-        Parser::expect_name(parser, input, code);
+        expect_name(parser, input, code);
         transition parser.output.accepted {
             true -> parameter_marker(parser, input)
             _ -> done()
@@ -669,7 +660,7 @@ crashes Trap
     machine parameter_marker(parser: &mut Parser, input: &TokenStream) {
         parser.parameter_name_start = parser.name_start;
         parser.parameter_name_end = parser.name_end;
-        Parser::parse_erased_marker(parser, input);
+        parse_erased_marker(parser, input);
         transition parser.output.accepted {
             true -> parameter_colon(parser, input)
             _ -> done()
@@ -677,7 +668,7 @@ crashes Trap
     }
 
     machine parameter_colon(parser: &mut Parser, input: &TokenStream) {
-        Parser::expect_punctuation(parser, input, PunctuationKind::Colon,
+        expect_punctuation(parser, input, PunctuationKind::Colon,
             ParseDiagnosticCode::ExpectedMachineParameterColon
         );
         transition parser.output.accepted {
@@ -687,7 +678,7 @@ crashes Trap
     }
 
     machine parameter_type(parser: &mut Parser, input: &TokenStream) {
-        Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedMachineParameterType);
+        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedMachineParameterType);
         transition parser.output.accepted {
             true -> retain_capacity(parser, input)
             _ -> done()
@@ -705,15 +696,15 @@ crashes Trap
     machine retain(parser: &mut Parser, input: &TokenStream) {
         let parameter: u64 in Trapping = parser.output.parameter_count as u64 in Trapping;
         let type_end: u64 in Trapping = parser.type_end;
-        Parser::record_erased(parser, ErasedBindingKind::Parameter, parameter, type_end);
+        record_erased(parser, ErasedBindingKind::Parameter, parameter, type_end);
         parser.output.parameters[parameter] = Parameter {
-            name: Parser::identifier_span(parser, parser.parameter_name_start, parser.parameter_name_end),
+            name: identifier_span(parser, parser.parameter_name_start, parser.parameter_name_end),
             type_reference: parser.type_result,
             is_mutable: parser.parameter_mutable,
-            source_span: Parser::source_span(parser, parser.parameter_name_start, parser.type_end)
+            source_span: parser_source_span(parser, parser.parameter_name_start, parser.type_end)
         };
         parser.output.parameter_count = (parameter + 1) as u64;
-        let separator: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
+        let separator: bool = at_punctuation(parser, input, PunctuationKind::Comma);
         transition separator {
             true -> separator_taken(parser, input)
             _ -> parameter_end(parser, input)
@@ -722,12 +713,12 @@ crashes Trap
 
     // A comma always introduces another parameter: there is no trailing comma.
     machine separator_taken(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         transition { _ -> parameter(parser, input, ParseDiagnosticCode::ExpectedMachineParameter) }
     }
 
     machine parameter_end(parser: &mut Parser, input: &TokenStream) {
-        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightParen);
+        let closing: bool = at_punctuation(parser, input, PunctuationKind::RightParen);
         transition closing {
             true -> close(parser, input)
             _ -> parameter_end_rejected(parser, input)
@@ -735,11 +726,11 @@ crashes Trap
     }
 
     machine parameter_end_rejected(parser: &mut Parser, input: &TokenStream) {
-        Parser::reject_current(parser, input, ParseDiagnosticCode::ExpectedMachineParameterEnd);
+        reject_current(parser, input, ParseDiagnosticCode::ExpectedMachineParameterEnd);
     }
 
     machine close(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         parser.signature_parameter_count =
             (parser.output.parameter_count as u64 in Trapping) - parser.signature_first_parameter;
     }

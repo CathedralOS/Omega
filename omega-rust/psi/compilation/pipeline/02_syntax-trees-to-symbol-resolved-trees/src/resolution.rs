@@ -47,6 +47,72 @@ mod body_completion {
     use syntax_trees::types::TypeReferenceHandle;
 
     /*
+        An inferred callable type makes its defining uses declaration inputs.
+        Demand those existing bodies (and their lexical children) through the
+        ordinary completion owner; selection itself grants no checking evidence.
+    */
+    pub(super) fn complete_callable_type_dependencies(
+        lowerer: &mut Lowerer,
+        syntax: &SyntaxTrees,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if lowerer.pending_callable_types.is_empty() {
+            return Ok(());
+        }
+        let program = &lowerer.symbol_resolved_trees;
+        let mut demanded = Vec::with_capacity(program.machines.len());
+        let mut by_symbol: Vec<Option<(SymbolHandle, bool)>> = Vec::new();
+        // Lowering stores lexical parents before their nested declarations.
+        for machine in program.machines.iter() {
+            let inherited = if machine.lexical_parent.is_valid() {
+                let parent = program.machines.get(machine.lexical_parent).symbol;
+                by_symbol
+                    .get(parent.arena_index() as usize)
+                    .copied()
+                    .flatten()
+                    .filter(|(known, _)| *known == parent)
+                    .map(|(_, demand)| demand)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "callable type inference lost its preceding lexical declaration owner",
+                        )]
+                    })?
+            } else {
+                false
+            };
+            let demand = inherited
+                || program
+                    .machine_type_parameters(machine)
+                    .iter()
+                    .any(crate::selection::callable_inference::pending);
+            demanded.push(demand);
+            let slot = machine.symbol.arena_index() as usize;
+            if by_symbol.len() <= slot {
+                by_symbol.resize(slot + 1, None);
+            }
+            by_symbol[slot] = Some((machine.symbol, demand));
+        }
+        let pending = lowerer
+            .pending_machine_bodies
+            .iter()
+            .filter(|body| demanded[body.machine_ordinal])
+            .cloned()
+            .collect::<Vec<_>>();
+        if pending.is_empty() {
+            return Ok(());
+        }
+        let mut completed = Vec::with_capacity(pending.len());
+        for body in &pending {
+            complete_machine_body(lowerer, syntax, body).map_err(|error| vec![error])?;
+            completed.push(lowerer.symbol_resolved_trees.machines[body.machine_ordinal].symbol);
+        }
+        crate::symbols::assign_body_symbols(lowerer, &completed)?;
+        lowerer
+            .pending_machine_bodies
+            .retain(|body| !demanded.get(body.machine_ordinal).copied().unwrap_or(false));
+        Ok(())
+    }
+
+    /*
         Receipt replay needs the original helper closure before a resolved frontier
         can publish. Complete that demand on its current owner: constructing a
         frontier first would replay receipts against Deferred implementations. This
@@ -1214,6 +1280,8 @@ pub(crate) mod lowerer {
     pub(crate) struct Lowerer {
         pub(crate) defer_machine_bodies: bool,
         pub(crate) pending_machine_bodies: Vec<crate::lowering::machine::PendingMachineBody>,
+        pub(crate) pending_callable_types:
+            Vec<arena::Handle<symbol_resolved_trees::data::TypeParameter>>,
         pub(crate) pending_type_inputs: Vec<super::type_inputs::LoweredTypeInputs>,
         pub(crate) supplied_operand_owners:
             Vec<(syntax_trees::item::ItemHandle, OperandLifetimeOwnerHandle)>,
@@ -1413,6 +1481,7 @@ pub(crate) mod lowerer {
             Self {
                 defer_machine_bodies: false,
                 pending_machine_bodies: Vec::new(),
+                pending_callable_types: Vec::new(),
                 pending_type_inputs: Vec::new(),
                 supplied_operand_owners: Vec::new(),
                 declaration_inputs: Vec::new(),
@@ -2601,7 +2670,13 @@ fn finish_resolution(
             .append_completed_body_tables(&predecessor, &completed_machines),
         None => lowerer.symbol_resolved_trees.rebuild_tables(),
     }
-    finish_resolved_tables(lowerer, inputs, &machines)
+    finish_resolved_tables(lowerer, inputs, &machines)?;
+    selection::callable_inference::infer(
+        &mut lowerer.symbol_resolved_trees,
+        &lowerer.pending_callable_types,
+    )?;
+    lowerer.pending_callable_types.clear();
+    Ok(())
 }
 
 /*
@@ -2609,6 +2684,7 @@ fn finish_resolution(
     table normalization and append-only authored implementation completion.
 */
 fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
+    body_completion::complete_callable_type_dependencies(lowerer, syntax)?;
     constant::finalize_const_declarations(
         syntax,
         &mut lowerer.symbol_resolved_trees,
@@ -2885,5 +2961,164 @@ mod primitive_family_binding_tests {
                 "{source_text}"
             );
         }
+    }
+
+    fn scoped_sources(
+        units: &[(&str, &str, source::DependencyScope, source::SourceOrigin)],
+    ) -> Result<symbol_resolved_trees::SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
+        let mut sources = source::SourceMap::default();
+        let mut syntax = syntax_trees::SyntaxTrees::default();
+        for (path, text, scope, origin) in units {
+            let path = std::path::PathBuf::from(path);
+            let root = path.parent().unwrap().to_path_buf();
+            let source = sources
+                .add_checked_instance(
+                    path,
+                    *text,
+                    root,
+                    None,
+                    *origin,
+                    source::SourceResolutionStratum::Base,
+                    *scope,
+                )
+                .source_id;
+            let tokens = Lexer::new(text).tokenize().unwrap();
+            let unit = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+            syntax.extend_from(&unit);
+        }
+        resolve(ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+    }
+
+    #[test]
+    fn domain_token_homes_keep_distinct_build_and_product_instances() {
+        use source::{DependencyScope, SourceOrigin};
+        let text = "domain<T, const U: u64> T::Quantity<U>;\n\
+            machine + Quantity::add(left: u32 in Quantity<1>, right: u32 in Quantity<1>) \
+            -> u32 in Quantity<1> { left }";
+        let program = scoped_sources(&[
+            (
+                "core/units.omg",
+                text,
+                DependencyScope::Build,
+                SourceOrigin::Toolchain,
+            ),
+            (
+                "core/units.omg",
+                text,
+                DependencyScope::Product,
+                SourceOrigin::Toolchain,
+            ),
+        ])
+        .unwrap();
+        let domains = program.domain_definitions.iter().collect::<Vec<_>>();
+        assert_eq!(domains.len(), 2);
+        assert_ne!(domains[0].symbol, domains[1].symbol);
+        for domain in domains {
+            assert_eq!(
+                domain.semantic_roles.denotation_dimension,
+                Some(domain.semantic_id)
+            );
+        }
+    }
+
+    #[test]
+    fn inactive_retained_token_bindings_do_not_rejoin_a_product_frontier() {
+        use source::{DependencyScope, SourceOrigin};
+        let text = "domain<T, const U: u64> T::Quantity<U>;\n\
+            machine + Quantity::add(left: u32 in Quantity<1>, right: u32 in Quantity<1>) \
+            -> u32 in Quantity<1> { left }";
+        let mut program = scoped_sources(&[
+            (
+                "core/units.omg",
+                text,
+                DependencyScope::Build,
+                SourceOrigin::Toolchain,
+            ),
+            (
+                "core/units.omg",
+                text,
+                DependencyScope::Product,
+                SourceOrigin::Toolchain,
+            ),
+        ])
+        .unwrap();
+        let mut sources = program.symbols.source_map().unwrap().as_ref().clone();
+        sources.retain_selected_sources(|file| file.dependency_scope == DependencyScope::Product);
+        program.symbols = program
+            .symbols
+            .begin_source_activation(std::sync::Arc::new(sources), Vec::new())
+            .unwrap()
+            .finish();
+        assert_eq!(
+            program
+                .machines
+                .iter()
+                .filter(|machine| program.symbols.symbol_source_is_selected(machine.symbol))
+                .count(),
+            1
+        );
+        super::reject_duplicate_direct_token_bindings(&program).unwrap();
+
+        // A newly selected binding still has to name its semantic home. The
+        // retained inactive copy must neither reject the valid twin nor supply
+        // missing qualification to the invalid one.
+        for qualified in [true, false] {
+            let suffix = if qualified { " in Quantity<1>" } else { "" };
+            let text = format!(
+                "machine - Quantity::subtract(left: u32{suffix}, right: u32{suffix}) -> u32{suffix} {{ left }}"
+            );
+            let mut sources = program.symbols.source_map().unwrap().as_ref().clone();
+            let source = sources
+                .add_checked_instance(
+                    "core/current.omg".into(),
+                    text.clone(),
+                    "core".into(),
+                    None,
+                    SourceOrigin::Toolchain,
+                    source::SourceResolutionStratum::Base,
+                    DependencyScope::Product,
+                )
+                .source_id;
+            let tokens = Lexer::new(&text).tokenize().unwrap();
+            let syntax =
+                tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+            let result = resolve(ResolutionRequest {
+                syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+                retained_base: Some(std::sync::Arc::new(program.clone())),
+            });
+            if qualified {
+                result.unwrap();
+            } else {
+                let errors = result.unwrap_err();
+                assert!(
+                    errors
+                        .iter()
+                        .any(|error| error.message.contains("no operand names the carrier of")),
+                    "{errors:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_unimported_same_leaf_domain_does_not_supply_an_operand_home() {
+        use source::{DependencyScope, SourceOrigin};
+        let errors = scoped_sources(&[
+            ("foreign/domain.omg", "public domain u32::Mine;", DependencyScope::Product, SourceOrigin::User),
+            ("requester/main.omg", "boundary machine - Comparison::subtract(left: u32 in Mine, right: u32 in Mine) -> u32;", DependencyScope::Product, SourceOrigin::User),
+        ]).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains(PRIMITIVE_FAMILY)),
+            "{errors:?}"
+        );
     }
 }

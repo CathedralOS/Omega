@@ -1,0 +1,16 @@
+; Exercise the actual next compiler's source encoder. The source span is a
+; checked-name fixture; the emitted body is supplied by that encoder's API.
+(def main ((source Bytes)) Bytes
+  (let view EpsilonSourceView (epsilon_source_whole source)
+    (bytes_concat
+      (epsilon_emit_compiled_function view
+        (EpsilonUnqualifiedName 0 (bytes_length source)
+          (EpsilonNameSpan 0 (bytes_length source)))
+        (EpsilonPlainMachineInputs 0 0
+          (MoreEpsilonParameters
+            (EpsilonParameterSyntax 0 0 (EpsilonNameSpan 0 (bytes_length source))
+              (EpsilonI32Type 0 0))
+            NoEpsilonParameters))
+        (epsilon_emit_integer 42))
+      (bytes_concat "; signed decimal edge: "
+        (epsilon_emit_decimal -9223372036854775808)))))

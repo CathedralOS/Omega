@@ -164,14 +164,6 @@ impl CompletedBuild {
 }
 
 impl PackageBuildInvocation {
-    pub fn advance(
-        &mut self,
-        returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
-    ) -> Result<super::checking::BuildAdvance, CompileFailure> {
-        // Advancing past provider defaults checks the root Build program, which
-        // needs the compiler's large stack like every other session entry.
-        super::run_on_compile_thread(|| self.source.advance(returned))
-    }
     pub fn product_queries(&self) -> super::checking::ProductQueries {
         self.source.product_queries()
     }

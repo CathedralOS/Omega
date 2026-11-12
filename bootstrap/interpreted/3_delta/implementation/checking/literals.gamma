@@ -1,0 +1,38 @@
+; Byte literals are source data, never identifier spellings or executable forms.
+; A closing quote belongs to the token; delimiters inside the literal are bytes.
+; Zero reports a malformed/unclosed token because every successful end is positive.
+(def byte_literal_escape_marker ((byte Int)) Int (eq byte 92))
+
+; The small escape alphabet serves readable compiler source templates. Unknown
+; escapes and raw control bytes are refused rather than silently normalized.
+(def byte_literal_escape_value ((byte Int)) Int
+  (if (eq byte 'n') 10
+    (if (eq byte 'r') 13
+      (if (eq byte 't') 9
+        (if (eq byte '"') '"'
+          (if (byte_literal_escape_marker byte) 92 -1))))))
+
+(def byte_literal_scan ((index Int)) Int
+  (if (eq index (source_length)) 0
+    (let byte Int (source_read index)
+      (if (eq byte '"') (+ index 1)
+        (if (byte_literal_escape_marker byte)
+          (if (lt (+ index 1) (source_length))
+            (if (lt (byte_literal_escape_value (source_read (+ index 1))) 0)
+              0
+              (byte_literal_scan (+ index 2)))
+            0)
+          (if (lt byte 32) 0 (byte_literal_scan (+ index 1))))))))
+
+(def byte_literal_boundary ((after Int)) Int
+  (if (eq after (source_length)) 1
+    (let byte Int (source_read after)
+      (if (is_space byte) 1
+        (if (eq byte '(') 1
+          (if (eq byte ')') 1 (eq byte ';')))))))
+
+(def byte_literal_valid ((start Int) (after Int)) Int
+  (let end Int (byte_literal_scan (+ start 1))
+    (if end
+      (if (eq end after) (byte_literal_boundary after) 0)
+      0)))

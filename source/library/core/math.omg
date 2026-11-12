@@ -4,7 +4,6 @@
 // retain their selected core meaning, including operand-order-dependent NaNs,
 // signed zeros and nearest-even square root; these names have no compiler role.
 
-use omega::language::core::float_operations;
 
 // Fixed-width integer helpers use Exact arithmetic. Signed absolute value
 // excludes the unrepresentable minimum; clamp rejects inverted bounds. The

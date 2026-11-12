@@ -3,18 +3,12 @@
 // Decode/encode entirely in owned scratch before writing the requested caller
 // byte prefix. read_link returns bytes, excludes NUL, and can fill count exactly
 // like the portable POSIX operation; it does not claim a full-path result.
-use filesystem_host;
-use windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-use omega::language::core::numeric_conversion;
-use targets::windows_x86_64::windows_filesystem_impl;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_metadata_native;
-use targets::windows_x86_64::windows_filesystem_paths;
-use targets::windows_x86_64::windows_filesystem_path_query_native;
-use targets::windows_x86_64::windows_filesystem_reparse_native;
-use targets::windows_x86_64::windows_filesystem_private_handles;
-use targets::windows_x86_64::windows_filesystem_reparse_data;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::narrow_i64_to_i32_exact;
+use omega::language::core::widen_i32_to_i64;
+use omega::language::core::narrow_u64_to_i64_exact;
+use omega::language::core::narrow_i32_to_u64_exact;
+use omega::language::core::narrow_i64_to_u64_wrapping;
 
 machine windows_open_reparse(path: &[u16; 4096] in WindowsNativePath) -> i64 in WindowsPrivateNonalertFileOrAbsent
 reaches FilesystemMetadataQuery {

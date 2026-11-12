@@ -34,7 +34,7 @@ materialize_omega_compiler "$TMP/compiler.epsilon" ||
   fail "materialization of the bound closure failed"
 require_bound_identity "materialized compiler" "$TMP/compiler.epsilon" \
   "$OMEGA_COMPILER_PACKED_SIZE" "$OMEGA_COMPILER_PACKED_SHA256" \
-  "bootstrap/5_omega/README.md" ||
+  "bootstrap/interpreted/5_omega/README.md" ||
   fail "materialized closure differs from the bound identity"
 echo "materialize: packed compiler is exactly the bound member bytes"
 

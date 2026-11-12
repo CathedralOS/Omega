@@ -4,7 +4,7 @@
 under the retained pre-migration arm-return profile. It does not yet establish
 refinement against the ratified expression-arm result rule; that migration is
 retained under **OMEGA-D** in [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md).
-Under section 12 of the [Epsilon contract](../../../bootstrap/4_epsilon/LANGUAGE.md), the
+Under section 12 of the [Epsilon contract](../../../bootstrap/interpreted/4_epsilon/LANGUAGE.md), the
 canonical evaluator edge (the packed `epsilon_compiler.delta.sources` closure
 plus the canonical entry, reconstructed through the bound Delta compiler and
 executed on the bound Gamma tape, all identities pinned in
@@ -18,7 +18,7 @@ profile, with exact observation comparison.
 [`model.py`](model.py) is a test-owned reconstruction of the pre-migration Epsilon v1
 profile — lexer, parser, closed-reason checking with exact coordinates, and
 the `RunEpsilon` observation — written from
-[`bootstrap/4_epsilon/LANGUAGE.md`](../../../bootstrap/4_epsilon/LANGUAGE.md)
+[`bootstrap/interpreted/4_epsilon/LANGUAGE.md`](../../../bootstrap/interpreted/4_epsilon/LANGUAGE.md)
 rather than from the evaluator's Delta sources. The evaluator's published
 observation must equal the model's derived bytes on every input; neither side
 is the oracle, so a disagreement is a witnessed conformance gap whichever side
@@ -27,7 +27,7 @@ the contract contradicts.
 The current model reproduces the old evaluator's pattern-arrow probe
 (`return_is_bare`) for optional arm-level returns. That is historical
 implementation behavior, not the ratified
-[expression-arm rule](../../../bootstrap/4_epsilon/LANGUAGE.md#8-machines-states-and-transitions).
+[expression-arm rule](../../../bootstrap/interpreted/4_epsilon/LANGUAGE.md#8-machines-states-and-transitions).
 The future migration must derive the model from that rule independently of the
 evaluator, remove the probe, and preserve the ordinary observation and resource
 contracts. Constructs

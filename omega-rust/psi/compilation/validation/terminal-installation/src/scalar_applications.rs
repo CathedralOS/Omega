@@ -1287,6 +1287,8 @@ pub(crate) mod abi_storage_tests {
                         callable: identity,
                         result_type: terminal_psi::TerminalIdentityIndex::ABSENT,
                         contract: [1; 32],
+                        published_may_suspend: false,
+                        published_may_block: false,
                         specialization: None,
                     },
                 ),

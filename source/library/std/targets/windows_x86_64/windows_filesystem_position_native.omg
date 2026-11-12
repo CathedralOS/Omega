@@ -4,7 +4,8 @@
 // ObjectBasicInformation is handle bookkeeping, not a file-name/type query.
 // https://learn.microsoft.com/windows/win32/api/winternl/nf-winternl-ntqueryobject
 // https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-reopenfile
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
 
 // Four DWORD fields followed by 40 uninterpreted reserved bytes. QWORD storage
 // for the reserved region supplies eight-byte alignment without changing its

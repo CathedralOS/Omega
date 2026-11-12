@@ -13,14 +13,14 @@
 # omega_compiler.epsilon.sources is the ordered source authority whose
 # EpsilonSourceClosureV1 rows bind every member length, digest, and path, and
 # repacking it reproduces the packed compiler bytes pinned in
-# bootstrap/5_omega/README.md. A digest here is an identity check that the
+# bootstrap/interpreted/5_omega/README.md. A digest here is an identity check that the
 # bytes being materialized are the bound ones; it is not a proof that D
 # implements Omega. Changing a member or the manifest invalidates the
 # dependent evidence and must update every record.
 OMEGA_COMPILER_MANIFEST_SIZE=1339
-OMEGA_COMPILER_MANIFEST_SHA256=e2e86c7f779b4b0eb30e373c183f6aec53281ec338b5756df1421cb24d473238
-OMEGA_COMPILER_PACKED_SIZE=706044
-OMEGA_COMPILER_PACKED_SHA256=9f6abccac3ceab338541d78a77e912388146a51e3d60f0ebd326013cec670baa
+OMEGA_COMPILER_MANIFEST_SHA256=0cf9a9b5b49beecd4ad6e309876651ee3fb4dd01609efa11148edf591d4f80e7
+OMEGA_COMPILER_PACKED_SIZE=749173
+OMEGA_COMPILER_PACKED_SHA256=4b94fda7d672b3b27173077cdf57075824c0ecc6c56275338936a9c65b39a896
 
 # Bound gate-local entries packed on top of the bound member bytes. Each
 # omega-* gate appends its own customer entry after the packed D closure —
@@ -32,8 +32,8 @@ OMEGA_COMPILER_PACKED_SHA256=9f6abccac3ceab338541d78a77e912388146a51e3d60f0ebd32
 # identity check on the entry source; it is not a proof of the gate's
 # judgment. Changing an entry changes the packed customer and must update
 # every record together.
-OMEGA_PARSER_ENTRY_SIZE=38045
-OMEGA_PARSER_ENTRY_SHA256=50ec5053fd956e9291355246b64d741da8914130767538877e25599b33112385
+OMEGA_PARSER_ENTRY_SIZE=58867
+OMEGA_PARSER_ENTRY_SHA256=4a8cbbcf6525fa9a719f54769906f508a9c078d73f69adcce5849b574304a772
 OMEGA_OUTCOME_ENTRY_SIZE=19632
 OMEGA_OUTCOME_ENTRY_SHA256=ce58f84f280c4f7682cb4be3f9db1763a165fb82afffa0cd5da8df413c21fa16
 OMEGA_REQUEST_ENTRY_SIZE=4112
@@ -87,10 +87,10 @@ require_omega_compiler_identity() {
   require_bound_identity "omega_compiler.epsilon.sources" \
     "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" \
     "$OMEGA_COMPILER_MANIFEST_SIZE" "$OMEGA_COMPILER_MANIFEST_SHA256" \
-    "bootstrap/5_omega/README.md" || return $?
+    "bootstrap/interpreted/5_omega/README.md" || return $?
   require_packed_closure_identity "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" compiler.epsilon \
     "$OMEGA_COMPILER_PACKED_SIZE" "$OMEGA_COMPILER_PACKED_SHA256" \
-    "bootstrap/5_omega/README.md" "canonical Omega D closure" "Omega D source closure"
+    "bootstrap/interpreted/5_omega/README.md" "canonical Omega D closure" "Omega D source closure"
 }
 
 # materialize_omega_compiler DEST : write the canonical packed compiler D

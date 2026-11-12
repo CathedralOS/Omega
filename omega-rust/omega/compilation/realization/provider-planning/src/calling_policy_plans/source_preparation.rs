@@ -128,6 +128,9 @@ impl CallingSourcePreparation {
                     Some(file) if file.origin == source::SourceOrigin::Toolchain => {
                         DeclarationCustody::Toolchain
                     }
+                    Some(file) if file.origin == source::SourceOrigin::ToolchainContract => {
+                        DeclarationCustody::ToolchainContract
+                    }
                     Some(file) => file
                         .package_identity
                         .map(DeclarationCustody::Package)

@@ -45,7 +45,7 @@ impl AnonymousSourceCapture {
     pub fn is_admitted_toolchain_contract_source(&self, file: &source::SourceFile) -> bool {
         self.sources.get(file.source_id) == Some(file)
             && self.sources.source_is_selected(file.source_id)
-            && file.origin == source::SourceOrigin::Toolchain
+            && file.origin == source::SourceOrigin::ToolchainContract
             && file.package_identity.is_none()
             && file.dependency_scope == source::DependencyScope::Product
             && file.resolution_stratum == source::SourceResolutionStratum::Base

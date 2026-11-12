@@ -338,6 +338,8 @@ mod correspondence_tests {
             callable: identities.intern("unit::callback()"),
             result_type: identities.intern("u64"),
             contract: [9; 32],
+            published_may_suspend: false,
+            published_may_block: false,
             specialization: None,
         };
         let mut prepared = PreparedCallbackDeclarations::default();

@@ -995,9 +995,11 @@ mod expressions {
         match syntax.statements.statement(statement) {
             StatementNode::LocalData(local) => inputs.push(local.type_reference),
             StatementNode::Call(call) => {
-                visit_static_argument_type_inputs(&call.machine_arguments, &mut |reference| {
-                    inputs.push(reference)
-                });
+                visit_static_argument_type_inputs(
+                    syntax,
+                    &call.machine_arguments,
+                    &mut |reference| inputs.push(reference),
+                );
             }
             _ => {}
         }
@@ -1043,13 +1045,14 @@ mod expressions {
                 visit(*reference)
             }
             ExpressionNode::Call(call) => {
-                visit_static_argument_type_inputs(&call.machine_arguments, visit)
+                visit_static_argument_type_inputs(syntax, &call.machine_arguments, visit)
             }
             _ => {}
         }
     }
 
     pub(in crate::preparation::generic_data) fn visit_static_argument_type_inputs(
+        syntax: &SyntaxTrees,
         arguments: &[syntax_trees::expression::StaticMachineArgument],
         visit: &mut impl FnMut(syntax_trees::types::TypeReferenceHandle),
     ) {
@@ -1058,7 +1061,10 @@ mod expressions {
                 visit(argument.type_reference);
             }
             if let Some(application) = &argument.application {
-                visit_static_argument_type_inputs(&application.arguments, visit);
+                visit_static_argument_type_inputs(syntax, &application.arguments, visit);
+                if let Some(member) = syntax.expressions.static_member(application.member) {
+                    visit_static_argument_type_inputs(syntax, std::slice::from_ref(member), visit);
+                }
             }
         }
     }

@@ -15,8 +15,8 @@ AUDITOR=${OMEGA_XTASK_BIN:-"$OMEGA_REPO_ROOT/target/debug/xtask"}
 # build-time checkout must not choose the input root under review.
 if [ "$#" -eq 0 ]; then
     cd "$OMEGA_REPO_ROOT"
-    manifests=$(find bootstrap/0_alpha bootstrap/1_beta bootstrap/2_gamma \
-        bootstrap/3_delta bootstrap/4_epsilon bootstrap/5_omega bootstrap/proofs \
+    manifests=$(find bootstrap/interpreted/0_alpha bootstrap/interpreted/1_beta bootstrap/interpreted/2_gamma \
+        bootstrap/interpreted/3_delta bootstrap/interpreted/4_epsilon bootstrap/interpreted/5_omega bootstrap/proofs \
         -type f -name '*.sources' | LC_ALL=C sort)
     steps=$(find tools/bootstrap -type f -name '*.sh' \
         ! -name 'check-chain-hygiene.sh' | LC_ALL=C sort)

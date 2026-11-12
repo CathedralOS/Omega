@@ -8,7 +8,6 @@
 // CR4.CET is an unsupported environment and is refused before mutation.
 // False leaves the selector and table unchanged. Architectural faults remain
 // faults; success does not establish an installed interrupt root.
-use omega::language::core::assembly;
 
 public boundary trait CodeSegmentControl {
     machine reload<const Entries: u64>(gdt: &mut [u64; Entries], selector: u16) -> bool

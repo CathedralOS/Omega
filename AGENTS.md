@@ -13,12 +13,13 @@ state machines:
 - `omega-rust/` — the Rust reference producer and differential comparator.
 - `source/psi/` + `source/omega/` — the Omega-written product compiler.
 - `source/library/` — bundled `omega::` packages (`name.omg` or `name/mod.omg`).
-- `bootstrap/{0_alpha,…,5_omega}/` — the trust-minimizing bootstrap chain (`bootstrap/proofs/` holds Gamma-written derivation checking; scripts resolve locations via `tools/bootstrap/paths.sh`).
+- `bootstrap/interpreted/{0_alpha,…,5_omega}/` — the trust-minimizing bootstrap chain (`bootstrap/proofs/` holds Gamma-written derivation checking; scripts resolve locations via `tools/bootstrap/paths.sh`).
 
 **Public naming:** Follow [public names](wiki/README.md#public-names): the portable
 IR, artifact, interpreter and CLI subsystem are **Psi**. **Terminal Psi** names
 only the internal compiler stage/representation. Keep internal paths and wire
 identifiers intact; do not export that stage label into help, reports or guides.
+For execution results, write "native/Psi agreement" or "Psi exit 0".
 
 **The goal is a complete compiler that ships.** Follow `.agents/skills/advance/SKILL.md`
 (`/advance`) to execute work, `.agents/skills/coordinator-review/SKILL.md` to
@@ -81,9 +82,10 @@ A PR in a compiler lane (`psi`, `omega`, `backend`, `compiler`, `build`,
 and its net change in red corpus rows:
 `Gate: <release-gate> | red rows: <change>`, where the name comes from the release
 matrix in [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
-A negative number means rows turned green; it is your statement of what the
-change does, checked on main after merge. Work that turns
-no row green is allowed but must say what it unlocks:
+A negative number means fewer failing rows: two failing rows made green are
+`red rows: -2`, not `red rows: 2`. Count the demonstrated baseline-to-candidate
+outcome changes, not the number of fixes or files. Main checks the claim after
+merge. Work that turns no existing row green is allowed but must say what it unlocks:
 `Gate: <release-gate> | red rows: 0 | unlocks: <rows or capability>`.
 
 ## Law of completion
@@ -317,7 +319,7 @@ reads the allowed lanes from this table:
 | Lane | Responsibility and current path anchors |
 | --- | --- |
 | `alpha`, `beta`, `gamma`, `delta`, `epsilon` | The corresponding language rung in `bootstrap/<rung>/`, including its compiler/evaluator, Rust reference tooling, and rung-specific tests. |
-| `bootstrap-omega` | The Epsilon-written first Omega compiler D in `bootstrap/5_omega/` and its tests. Never shorten to `omega`. |
+| `bootstrap-omega` | The Epsilon-written first Omega compiler D in `bootstrap/interpreted/5_omega/` and its tests. Never shorten to `omega`. |
 | `bootstrap` | Cross-rung reconstruction, trust-chain edges, artifact provenance, `tests/bootstrap/`, and `tools/bootstrap/`. |
 | `psi` | Target-neutral source semantics through Terminal Psi in `omega-rust/psi/` or `source/psi/`. |
 | `omega` | The Terminal-Psi-consuming compiler stage in `omega-rust/omega/compilation/{representations,pipeline,realization}/` or `source/omega/`. |

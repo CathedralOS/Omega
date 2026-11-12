@@ -967,7 +967,7 @@ pub(crate) mod task_activation {
             let mut claims = live
                 .claims
                 .iter()
-                .map(|claim| live_claim_identity(typed, claim))
+                .map(|claim| live_claim_identity(typed, &claim.claim_identity))
                 .collect::<Result<Vec<_>, _>>()?;
             claims.sort_unstable();
             if claims.windows(2).any(|pair| pair[0] == pair[1]) {

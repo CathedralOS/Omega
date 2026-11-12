@@ -44,15 +44,15 @@ def reference(evaluator, source, payload=b""):
     return execute(evaluator, struct.pack("<I", len(source)) + source + payload)
 
 
-def compile_program(work, source, name="subject", compiler=Compiler):
-    tape = work / (name + ".tape")
+def compile_program(work, source, name="subject", compiler=Compiler, realize=stamp):
+    tape = work / (name + (".tape" if realize is stamp else ".elf"))
     tape.write_bytes(compiler(source).compile())
     executable = work / name
-    stamp(tape, executable)
+    realize(tape, executable)
     return executable
 
 
-def controls(work, evaluator, compiler=Compiler):
+def controls(work, evaluator, compiler=Compiler, realize=stamp):
     cases = [
         ("constant", "(def main () Int 42)", b"", (0, b"*")),
         ("wrap", "(def main () Int (+ 18446744073709551615 43))", b"", (0, b"*")),
@@ -89,7 +89,7 @@ def controls(work, evaluator, compiler=Compiler):
     ]
     for label, text, payload, expected in cases:
         source = text.encode("ascii")
-        actual = execute(compile_program(work, source, compiler=compiler), payload)
+        actual = execute(compile_program(work, source, compiler=compiler, realize=realize), payload)
         original = reference(evaluator, source, payload)
         assert actual == original == expected, (label, actual, original, expected)
     invalid = [
@@ -141,7 +141,7 @@ def controls(work, evaluator, compiler=Compiler):
         previous = getattr(gamma, field)
         try:
             setattr(gamma, field, limit)
-            actual = execute(compile_program(work, source, compiler=compiler), payload)
+            actual = execute(compile_program(work, source, compiler=compiler, realize=realize), payload)
         finally:
             setattr(gamma, field, previous)
         assert actual == expected, (field, actual, expected)
@@ -157,13 +157,14 @@ def pack(manifest, output, prefix=None):
     return output.read_bytes()
 
 
-def customer(work, evaluator, producer=Compiler):
-    source = pack("bootstrap/3_delta/implementation/implementation.gamma.sources",
-                  work / "delta.gamma", "bootstrap/3_delta/delta_compiler.gamma")
-    support = pack("bootstrap/3_delta/support/support.gamma.sources", work / "support.bin")
+def customer(work, evaluator, producer=Compiler, realize=stamp):
+    source = pack("bootstrap/interpreted/3_delta/implementation/implementation.gamma.sources",
+                  work / "delta.gamma", "bootstrap/interpreted/3_delta/delta_compiler.gamma")
+    support = pack("bootstrap/interpreted/3_delta/support/support.gamma.sources", work / "support.bin")
     started = time.monotonic()
-    compiler = compile_program(work, source, "delta", compiler=producer)
-    print(f"Delta customer: {len(source)} source bytes -> {(work / 'delta.tape').stat().st_size} tape bytes; compilation {time.monotonic()-started:.3f}s", flush=True)
+    compiler = compile_program(work, source, "delta", compiler=producer, realize=realize)
+    artifact = work / ("delta.tape" if realize is stamp else "delta.elf")
+    print(f"Delta customer: {len(source)} source bytes -> {artifact.stat().st_size} artifact bytes; compilation {time.monotonic()-started:.3f}s", flush=True)
     delta = b"(def main ((source Bytes)) Bytes (bytes_concat source source))\n"
     request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(delta)) + delta + support
     (work / "request.bin").write_bytes(request)
@@ -174,7 +175,7 @@ def customer(work, evaluator, producer=Compiler):
     assert actual == original and actual[0] == 0, (actual[0], original[0], len(actual[1]), len(original[1]))
     receipt = actual[1]
     (work / "receipt.gamma").write_bytes(receipt)
-    result = compile_program(work, receipt, "receipt", compiler=producer)
+    result = compile_program(work, receipt, "receipt", compiler=producer, realize=realize)
     for payload in (b"", b"ABC", bytes(range(256))):
         assert execute(result, payload) == reference(evaluator, receipt, payload) == (0, payload * 2)
     for request in (b"", b"DCREQ\x01\x00\x00" + struct.pack("<II", 0, 0)):
@@ -182,11 +183,12 @@ def customer(work, evaluator, producer=Compiler):
     print(f"Delta customer: exact receipt {len(receipt)} bytes sha256={hashlib.sha256(receipt).hexdigest()}; compiled execution {elapsed:.3f}s (functional run, not a comparative benchmark)", flush=True)
 
 
-def epsilon_customer(work, producer=Compiler):
-    closure = pack("bootstrap/4_epsilon/epsilon_compiler.delta.sources", work / "epsilon.delta")
+def epsilon_customer(work, producer=Compiler, realize=stamp):
+    closure = pack("bootstrap/interpreted/4_epsilon/epsilon_compiler.delta.sources", work / "epsilon.delta")
     subject = closure + (ROOT / "tests/epsilon/evaluator-entry/evaluator_entry.delta").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
                + subject + (work / "support.bin").read_bytes())
+    (work / "epsilon-request.bin").write_bytes(request)
     started = time.monotonic()
     status, receipt = execute(work / "delta", request)
     assert status == 0, (status, receipt[:40])
@@ -195,7 +197,7 @@ def epsilon_customer(work, producer=Compiler):
     shell('. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"; '
           '. "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/evaluator_env.sh"; '
           'require_epsilon_evaluator_entry_receipt_identity "$1"', work / "epsilon.gamma")
-    executable = compile_program(work, receipt, "epsilon", compiler=producer)
+    executable = compile_program(work, receipt, "epsilon", compiler=producer, realize=realize)
     console = b"""boundary trait Console {
   machine exit_process(return_code: i32) -> never;
   machine write_byte(value: i32);
@@ -216,7 +218,8 @@ machine Main::main(&mut self) {
         assert execute(executable, request) == (0, expected)
     short = execute(executable, b"")
     assert short == (0, struct.pack("<8sBBHIQQQ", b"\xffEEOUT\x01\x00", 1, 1, 0, 1, 0, 0, 0))
-    print(f"Epsilon customer: reconstructed bound {len(receipt)}-byte receipt in {elapsed:.3f}s; {(work / 'epsilon.tape').stat().st_size} Alpha bytes; exit, stdin, trap, reject and malformed-envelope observations passed", flush=True)
+    artifact = work / ("epsilon.tape" if realize is stamp else "epsilon.elf")
+    print(f"Epsilon customer: reconstructed bound {len(receipt)}-byte receipt in {elapsed:.3f}s; {artifact.stat().st_size} artifact bytes; exit, stdin, trap, reject and malformed-envelope observations passed", flush=True)
 
 
 def epsilon_request(closure, source, stdin):
@@ -225,7 +228,7 @@ def epsilon_request(closure, source, stdin):
 
 
 def omega_customer(work, timeout, controls=False):
-    closure = pack("bootstrap/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
+    closure = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
     gate = ROOT / "tests/bootstrap/omega-executable"
     source = closure + (gate / ("controls_b.epsilon" if controls else "main_ocreq.epsilon")).read_bytes()
     # Reuse the existing byte-only request framer; it does not evaluate source.
@@ -256,7 +259,7 @@ def omega_customer(work, timeout, controls=False):
 
 def omega_values_customer(work, timeout):
     """Execute the source-owned parameter/local/call checks and their tapes."""
-    closure = pack("bootstrap/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
+    closure = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
     entry = (ROOT / "tests/bootstrap/omega-executable/controls_values.epsilon").read_bytes()
     source = closure + entry
     request = epsilon_request((work / "epsilon.delta").read_bytes(), source, b"")
@@ -287,7 +290,7 @@ def omega_values_customer(work, timeout):
 
 def omega_control_customer(work, timeout):
     """Compile the repository lexer predicates and execute scalar controls."""
-    closure = pack("bootstrap/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
+    closure = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
     gate = ROOT / "tests/bootstrap/omega-executable"
     lexer = (ROOT / "source/psi/lex/lexer.omg").read_bytes()
     declarations = []
@@ -326,11 +329,13 @@ def omega_control_customer(work, timeout):
 
 def omega_storage_customer(work, timeout):
     """Compile exact SourceUnit declarations and execute generic storage checks."""
-    closure = pack("bootstrap/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
+    closure = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
     gate = ROOT / "tests/bootstrap/omega-executable"
     unit = (ROOT / "source/psi/source/source.omg").read_bytes()
     declarations = []
-    for marker in (b"public data SourceId ", b"public data SourceUnit\n", b"machine source_unit_clear("):
+    for marker in (b"public data SourceId ", b"public data SourceUnit\n", b"machine source_unit_clear(",
+                   b"machine source_unit_append(", b"machine source_unit_byte_or_nul(",
+                   b"public data ModulePath\n", b"public machine module_path_append("):
         start = unit.index(marker)
         end = unit.index(b"\n}", start) + 2
         declarations.append(unit[start:end])
@@ -346,7 +351,7 @@ def omega_storage_customer(work, timeout):
     (work / "storage-observation.bin").write_bytes(observation)
     assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
     offset = 5
-    for index, expected in enumerate((42, 43, 44, 45, 46, 0, 2, 48, 59)):
+    for index, expected in enumerate((42, 43, 44, 45, 46, 0, 2, 48, 44, 0, 51, 53, 59)):
         assert offset + 5 <= len(observation), ("truncated artifact frame", index)
         code = observation[offset]
         length = struct.unpack_from("<I", observation, offset + 1)[0]
@@ -360,7 +365,7 @@ def omega_storage_customer(work, timeout):
         stamp(tape, executable)
         assert execute(executable) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
-    print(f"Omega storage: nine executables, actual SourceUnit clear and 16 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
+    print(f"Omega storage: thirteen executables, actual SourceUnit append/read and ModulePath boundaries, 36 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
 def main():
@@ -372,7 +377,7 @@ def main():
     parser.add_argument("--omega-controls", action="store_true", help="run its existing changed-source, rejection, and reset controls")
     parser.add_argument("--omega-values", action="store_true", help="run the parameter, local, nested-call and refusal customer")
     parser.add_argument("--omega-control", action="store_true", help="run actual lexer predicates and typed runtime control checks")
-    parser.add_argument("--omega-storage", action="store_true", help="run actual SourceUnit clear and record/reference controls")
+    parser.add_argument("--omega-storage", action="store_true", help="run actual SourceUnit append/read and checked storage controls")
     parser.add_argument("--omega-timeout", type=int,
                         help="Omega observation seconds (default: 7200 for runtime/storage controls, otherwise 1800)")
     args = parser.parse_args()

@@ -273,31 +273,22 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                             dependencies,
                         })));
                     } else {
-                        match invocation.advance(Ok(None)).map_err(Compilation)? {
-                            compiler::BuildAdvance::Continue => pending.push(Work::Start {
-                                acquired,
+                        let mut build = ExecutedSourceBuild {
+                            build: ReturnedPackageBuild {
                                 invocation,
-                                dependencies,
-                            }),
-                            compiler::BuildAdvance::Complete(returned) => {
-                                let mut build = ExecutedSourceBuild {
-                                    build: ReturnedPackageBuild {
-                                        invocation,
-                                        returned: returned.map_err(Compilation)?,
-                                    },
-                                    dependencies,
-                                };
-                                let demands = source_result(&mut build.build)?
-                                    .demanded_sources()
-                                    .to_vec()
-                                    .into_iter();
-                                pending.push(Work::CompletedDependencies {
-                                    acquired,
-                                    build,
-                                    demands,
-                                });
-                            }
-                        }
+                                returned: None,
+                            },
+                            dependencies,
+                        };
+                        let demands = source_result(&mut build.build)?
+                            .demanded_sources()
+                            .to_vec()
+                            .into_iter();
+                        pending.push(Work::CompletedDependencies {
+                            acquired,
+                            build,
+                            demands,
+                        });
                     }
                 }
                 Work::CompletedDependencies {
@@ -379,30 +370,19 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                         )));
                     } else if step.returned {
                         let LiveBuild {
-                            acquired,
-                            mut invocation,
+                            invocation,
                             activation,
                             dependencies,
                             ..
                         } = *build;
                         let returned = Some(activation.complete().map_err(Source)?);
-                        let advanced = invocation.advance(Ok(returned));
-                        match advanced.map_err(Compilation)? {
-                            compiler::BuildAdvance::Continue => pending.push(Work::Start {
-                                acquired,
+                        completed = Some(CompletedWork::Build(ExecutedSourceBuild {
+                            build: ReturnedPackageBuild {
                                 invocation,
-                                dependencies,
-                            }),
-                            compiler::BuildAdvance::Complete(returned) => {
-                                completed = Some(CompletedWork::Build(ExecutedSourceBuild {
-                                    build: ReturnedPackageBuild {
-                                        invocation,
-                                        returned: returned.map_err(Compilation)?,
-                                    },
-                                    dependencies,
-                                }));
-                            }
-                        }
+                                returned,
+                            },
+                            dependencies,
+                        }));
                     } else if let Some(request) = step.awaiting_provider {
                         let (alias, declaration) =
                             request.backing.path.split_once("::").ok_or_else(|| {

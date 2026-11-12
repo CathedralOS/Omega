@@ -2874,6 +2874,179 @@ pub mod contract_identities {
     use typed_trees::typed_trees::MachineSpecializationCommitment;
     use typed_trees::typed_trees::MachineTemplateCommitment;
 
+    struct PreparedTemplateContract {
+        template: SymbolHandle,
+        bytes: Vec<u8>,
+        base_commitment: [u8; 32],
+        commitment: MachineTemplateCommitment,
+        suspension: flow_effects::ContractDependency<bool, Vec<u32>>,
+        blocking: flow_effects::ContractDependency<bool, Vec<u32>>,
+        carry: Vec<flow_effects::ConditionalCarryRequirement>,
+    }
+
+    fn prepare_template_contract(
+        program: &dyn crate::CheckingInput,
+        machine_index: usize,
+        effects: &crate::PreparedEffectPlans,
+        carry: &checked_trees::CarryFacts,
+    ) -> Result<PreparedTemplateContract, Diagnostic> {
+        let machine = &program.machines()[machine_index];
+        let captured = program
+            .conformance_by_symbol(program.declaration_scope_parent(machine.symbol))
+            .map(|map| program.conformance_type_parameters(map))
+            .unwrap_or(&[]);
+        let capture_binders = type_parameter_binders(captured, &[])
+            .into_iter()
+            .map(|(symbol, name)| (symbol, format!("$capture{name}")))
+            .collect::<Vec<_>>();
+        let binders =
+            type_parameter_binders(program.machine_type_parameters(machine), &capture_binders);
+        let operational = &effects.operational;
+        let summary = operational
+            .machine_by_symbol(machine.symbol)
+            .ok_or_else(|| {
+                Diagnostic::error("generic contract lost its checked operational summary")
+            })?;
+        let dependency = |source: flow_effects::ContractDependency<bool>| -> Result<_, Diagnostic> {
+            let parameters = operational
+                .dependency_parameters
+                .span(source.parameters)
+                .ok_or_else(|| {
+                    Diagnostic::error("generic contract has a stale callback dependency span")
+                })?;
+            let mut positions = parameters.iter().map(|parameter| {
+                binders.iter().position(|(symbol, _)| symbol == parameter)
+                    .and_then(|position| u32::try_from(position).ok())
+                    .ok_or_else(|| Diagnostic::error("generic callback dependency is outside its exact declaration telescope"))
+            }).collect::<Result<Vec<_>, _>>()?;
+            positions.sort_unstable();
+            positions.dedup();
+            Ok(flow_effects::ContractDependency {
+                concrete: source.concrete,
+                parameters: positions,
+            })
+        };
+        let suspension = dependency(summary.suspension_dependency)?;
+        let blocking = dependency(summary.blocking_dependency)?;
+        let mut requirements = Vec::new();
+        for crossing in carry
+            .suspension_crossings
+            .iter()
+            .filter(|crossing| crossing.machine == machine.symbol)
+        {
+            if crossing.condition.concrete || crossing.condition.parameters.is_empty() {
+                continue;
+            }
+            let state = program
+                .machine_states(machine)
+                .iter()
+                .position(|state| state.symbol == crossing.state)
+                .ok_or_else(|| {
+                    Diagnostic::error("conditional carry crossing lost its declaration state")
+                })?;
+            let condition = dependency(crossing.condition)?;
+            for live in &crossing.live_values {
+                if live.effective.suspension == language_semantics::CarrySuspension::Allowed {
+                    continue;
+                }
+                let subject = live
+                    .origin
+                    .map_declarations(|symbol| scoped_symbol(program, symbol, &binders))?;
+                let mut claims = live
+                    .claims
+                    .iter()
+                    .map(|claim| canonical_claim(program, *claim, &binders))
+                    .collect::<Result<Vec<_>, _>>()?;
+                claims.sort();
+                claims.dedup();
+                requirements.push(flow_effects::ConditionalCarryRequirement {
+                    state: u32::try_from(state).map_err(|_| {
+                        Diagnostic::error("conditional carry state exceeds the publication range")
+                    })?,
+                    statement_index: u64::try_from(crossing.statement_index).map_err(|_| {
+                        Diagnostic::error(
+                            "conditional carry statement exceeds the publication range",
+                        )
+                    })?,
+                    call_ordinal: u64::try_from(crossing.call_ordinal).map_err(|_| {
+                        Diagnostic::error(
+                            "conditional carry call ordinal exceeds the publication range",
+                        )
+                    })?,
+                    subject,
+                    value_type: program.type_identity_request_text(TypeIdentityRequest {
+                        binders: &binders,
+                        ..TypeIdentityRequest::ordinary(live.type_reference)
+                    }),
+                    claims,
+                    condition: condition.clone(),
+                });
+            }
+        }
+        requirements.sort();
+        requirements.dedup();
+        let bytes = canonical_template_contract_bytes(
+            program,
+            machine_index,
+            &effects.service_reaches,
+            operational,
+        )?;
+        let base_commitment = template_base_commitment(&bytes);
+        let commitment = flow_effects::template_contract_commitment(
+            base_commitment,
+            binders.len(),
+            &suspension,
+            &blocking,
+            &requirements,
+        )
+        .map(MachineTemplateCommitment::from_digest)
+        .map_err(Diagnostic::error)?;
+        Ok(PreparedTemplateContract {
+            template: machine.symbol,
+            bytes,
+            base_commitment,
+            commitment,
+            suspension,
+            blocking,
+            carry: requirements,
+        })
+    }
+
+    fn scoped_symbol(
+        program: &dyn crate::CheckingInput,
+        symbol: SymbolHandle,
+        binders: &[(SymbolHandle, String)],
+    ) -> Result<String, Diagnostic> {
+        if let Some((_, name)) = binders.iter().find(|(binder, _)| *binder == symbol) {
+            return Ok(name.clone());
+        }
+        if !symbol.is_valid() {
+            return Err(Diagnostic::error(
+                "conditional carry provenance lost its scoped declaration",
+            ));
+        }
+        Ok(program.symbols.display_path(symbol, "::"))
+    }
+
+    fn canonical_claim(
+        program: &dyn crate::CheckingInput,
+        claim: language_semantics::PermissionArrival<SymbolHandle>,
+        binders: &[(SymbolHandle, String)],
+    ) -> Result<language_semantics::PermissionArrival<String>, Diagnostic> {
+        if matches!(
+            claim.claim_identity,
+            language_semantics::PermissionClaimIdentity::Unknown
+        ) || matches!(
+            claim.provenance,
+            language_semantics::PermissionProvenance::Unknown
+        ) {
+            return Err(Diagnostic::error(
+                "conditional carry requires the receiving claim and its exact acquisition join",
+            ));
+        }
+        claim.map_declarations(|symbol| scoped_symbol(program, symbol, binders))
+    }
+
     pub fn canonical_template_contract_bytes(
         program: &dyn crate::CheckingInput,
         machine_index: usize,
@@ -3077,31 +3250,39 @@ pub mod contract_identities {
         hash.finish()
     }
 
-    pub fn machine_template_commitment(
-        canonical_template_contract_bytes: &[u8],
-    ) -> MachineTemplateCommitment {
+    fn template_base_commitment(canonical_template_contract_bytes: &[u8]) -> [u8; 32] {
         let mut strong = DomainDigestEncoder::new(b"omega.machine-template.v3\0");
         strong.raw(canonical_template_contract_bytes);
-        MachineTemplateCommitment::from_digest(strong.finish())
+        strong.finish()
     }
 
     pub fn generic_machine_template_report_fingerprint(
         program: &dyn crate::CheckingInput,
         machine_symbol: SymbolHandle,
+        carry: &checked_trees::CarryFacts,
     ) -> Option<u64> {
-        let bytes = canonical_template_bytes_for_symbol(program, machine_symbol)?;
-        Some(fnv1a_report_fingerprint(&bytes))
+        let prepared = prepared_template_for_symbol(program, machine_symbol, carry)?;
+        Some(fnv1a_report_fingerprint(&prepared.commitment.as_bytes()))
     }
 
-    fn canonical_template_bytes_for_symbol(
+    fn prepared_template_for_symbol(
         program: &dyn crate::CheckingInput,
         machine_symbol: SymbolHandle,
-    ) -> Option<Vec<u8>> {
+        carry: &checked_trees::CarryFacts,
+    ) -> Option<PreparedTemplateContract> {
         let machine_index = generic_machine_index(program, machine_symbol)?;
         let operational = crate::infer_operational_may(program);
         let service_reaches = crate::infer_service_reaches(program, &operational);
-        canonical_template_contract_bytes(program, machine_index, &service_reaches, &operational)
-            .ok()
+        prepare_template_contract(
+            program,
+            machine_index,
+            &crate::PreparedEffectPlans {
+                operational,
+                service_reaches,
+            },
+            carry,
+        )
+        .ok()
     }
 
     fn generic_machine_index(
@@ -3118,9 +3299,9 @@ pub mod contract_identities {
     pub fn generic_machine_template_commitment(
         program: &dyn crate::CheckingInput,
         machine_symbol: SymbolHandle,
+        carry: &checked_trees::CarryFacts,
     ) -> Option<MachineTemplateCommitment> {
-        let bytes = canonical_template_bytes_for_symbol(program, machine_symbol)?;
-        Some(machine_template_commitment(&bytes))
+        Some(prepared_template_for_symbol(program, machine_symbol, carry)?.commitment)
     }
 
     pub fn accepted_template_commitment(
@@ -3136,8 +3317,9 @@ pub mod contract_identities {
         program: &dyn crate::CheckingInput,
         contracts: &checked_trees::MachineContractPlans,
         effects: &crate::PreparedEffectPlans,
+        carry: &checked_trees::CarryFacts,
     ) -> Result<CheckedSpecializationIdentities, Vec<Diagnostic>> {
-        let mut templates: Vec<(SymbolHandle, Vec<u8>, MachineTemplateCommitment)> = Vec::new();
+        let mut templates: Vec<PreparedTemplateContract> = Vec::new();
         let mut identities = Vec::with_capacity(
             program.machine_specializations.len() + program.captured_machine_applications.len(),
         );
@@ -3233,14 +3415,9 @@ pub mod contract_identities {
                         "capture application lost its authored template",
                     )]
                 })?;
-            let template_bytes = canonical_template_contract_bytes(
-                program,
-                index,
-                &effects.service_reaches,
-                &effects.operational,
-            )
-            .map_err(|diagnostic| vec![diagnostic])?;
-            let template_commitment = machine_template_commitment(&template_bytes);
+            let prepared = prepare_template_contract(program, index, effects, carry)
+                .map_err(|diagnostic| vec![diagnostic])?;
+            let template_commitment = prepared.commitment;
             let mut digest = DomainDigestEncoder::new(b"omega.machine-capture-application.v1\0");
             digest.raw(&template_commitment.as_bytes());
             let bytes = canonical_capture_application_bytes(program, contracts, capture)
@@ -3248,7 +3425,11 @@ pub mod contract_identities {
             digest.raw(&bytes);
             identities.push(checked_trees::CheckedMachineSpecializationIdentity {
                 instance: capture.instance,
+                template_base_commitment: prepared.base_commitment,
                 template_contract_commitment: template_commitment,
+                suspension_dependency: prepared.suspension,
+                blocking_dependency: prepared.blocking,
+                conditional_carry: prepared.carry.into_boxed_slice(),
                 machine_argument_contract_commitments: captured_machine_contracts(
                     program, contracts, capture,
                 )
@@ -3260,7 +3441,7 @@ pub mod contract_identities {
         for specialization in &program.machine_specializations {
             let template_index = match templates
                 .iter()
-                .position(|(symbol, _, _)| *symbol == specialization.template)
+                .position(|template| template.template == specialization.template)
             {
                 Some(template_index) => template_index,
                 None => {
@@ -3271,21 +3452,16 @@ pub mod contract_identities {
                                 "generic specialization lost its authored template declaration",
                             )]
                         })?;
-                    let bytes = canonical_template_contract_bytes(
-                        program,
-                        machine_index,
-                        &effects.service_reaches,
-                        &effects.operational,
-                    )
-                    .map_err(|diagnostic| vec![diagnostic])?;
-                    let commitment = machine_template_commitment(&bytes);
+                    let prepared =
+                        prepare_template_contract(program, machine_index, effects, carry)
+                            .map_err(|diagnostic| vec![diagnostic])?;
                     let template_index = templates.len();
-                    templates.push((specialization.template, bytes, commitment));
+                    templates.push(prepared);
                     template_index
                 }
             };
-            let (_, template_bytes, template_commitment) = &templates[template_index];
-            let mut composed_template_bytes = template_bytes.clone();
+            let template = &templates[template_index];
+            let mut composed_template_bytes = template.bytes.clone();
             if let Some(capture_identity) = identities
                 .iter()
                 .find(|identity| identity.instance == specialization.template)
@@ -3300,7 +3476,7 @@ pub mod contract_identities {
                     specialization,
                     &effects.operational,
                     &composed_template_bytes,
-                    *template_commitment,
+                    template,
                 )
                 .map_err(|diagnostic| vec![diagnostic])?,
             );
@@ -3442,8 +3618,9 @@ pub mod contract_identities {
         specialization: &typed_trees::typed_trees::MachineSpecialization,
         operational: &flow_effects::OperationalPlan,
         template_contract_bytes: &[u8],
-        template_contract_commitment: MachineTemplateCommitment,
+        template: &PreparedTemplateContract,
     ) -> Result<checked_trees::CheckedMachineSpecializationIdentity, Diagnostic> {
+        let template_contract_commitment = template.commitment;
         let instance = program
             .machine_by_symbol(specialization.instance)
             .ok_or_else(|| {
@@ -3528,7 +3705,11 @@ pub mod contract_identities {
         strong.raw(&bytes);
         Ok(checked_trees::CheckedMachineSpecializationIdentity {
             instance: specialization.instance,
+            template_base_commitment: template.base_commitment,
             template_contract_commitment,
+            suspension_dependency: template.suspension.clone(),
+            blocking_dependency: template.blocking.clone(),
+            conditional_carry: template.carry.clone().into_boxed_slice(),
             machine_argument_contract_commitments: machine_contract_commitments.into_boxed_slice(),
             commitment: MachineSpecializationCommitment::from_digest(strong.finish()),
         })

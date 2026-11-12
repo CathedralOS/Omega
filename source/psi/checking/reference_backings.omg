@@ -1,16 +1,3 @@
-use psi::checking::checker;
-use psi::checking::evaluation;
-use psi::checking::loans;
-use psi::checking::places;
-use psi::checking::reference_origins;
-use psi::checking::references;
-use psi::checks::checks;
-use psi::source::source;
-use psi::syntax::syntax;
-use psi::types::types;
-use psi::resolution::resolution;
-use psi::checking::obligations;
-
 // A result's possible backing is separate from its logical proof subject.
 // Groups and their edge spans are immutable after publication. Transporting
 // a view never redirects an older alias to a later call's actual arguments.
@@ -21,17 +8,17 @@ public data ReferenceView [copy] {
 
 // Publish once at the common call boundary, before any actual is released.
 // A roster is may-alias evidence, never equality or borrowing permission.
-public machine Checker::publish_reference_backings(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression)
+public machine publish_reference_backings(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression)
 crashes Trap
 {
-    let type_handle: u64 in Trapping = Typing::expression_type(typing, node);
-    let retained: bool = Checker::holds_references(syntax, typing, type_handle);
+    let type_handle: u64 in Trapping = typing_expression_type(typing, node);
+    let retained: bool = holds_references(syntax, typing, type_handle);
     transition retained {
         true -> opened(checker, syntax, resolution, typing, node, expression, type_handle)
         false -> {}
     }
     machine opened(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping) {
-        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Call, node, 0, type_handle);
+        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Call, node, 0, type_handle);
         transition place > 0 && place <= 256 && checker.reference_view_count < 256 {
             true -> group(checker, syntax, resolution, typing, expression, place, checker.reference_view_count)
             false -> full(checker, expression.source_span)
@@ -51,7 +38,7 @@ crashes Trap
     requires place > 0
     requires place <= 256
     {
-        let count: u64 in Trapping = Checker::operand_count(expression);
+        let count: u64 in Trapping = operand_count(expression);
         transition offset < count {
             true -> argument(checker, syntax, resolution, typing, expression, place, group, offset)
             false -> home(checker, typing, expression, place, group + 1)
@@ -62,16 +49,16 @@ crashes Trap
     requires place > 0
     requires place <= 256
     {
-        let handle: u64 in Trapping = Checker::operand(syntax, expression, offset);
-        Checker::append_argument_backing(checker, syntax, resolution, typing, expression, group, handle);
+        let handle: u64 in Trapping = checker_operand(syntax, expression, offset);
+        append_argument_backing(checker, syntax, resolution, typing, expression, group, handle);
         transition { _ -> next(checker, syntax, resolution, typing, expression, place, group, offset + 1) }
     }
     machine home(checker: &mut Checker, typing: &Typing, expression: Expression, place: u64 in Trapping, backing: u64 in Trapping)
     requires place > 0
     requires place <= 256
     {
-        let entry: Place = Checker::place_at(checker, place - 1);
-        let home: u64 in Trapping = Checker::place(checker, typing, PlaceKind::View, backing, 0, entry.type_handle);
+        let entry: Place = place_at(checker, place - 1);
+        let home: u64 in Trapping = checker_place(checker, typing, PlaceKind::View, backing, 0, entry.type_handle);
         transition home > 0 && home <= 256 {
             true -> publish(checker, place - 1, home - 1, backing)
             false -> full(checker, expression.source_span)
@@ -88,15 +75,15 @@ crashes Trap
         checker.reference_origins[home] = origin;
     }
     machine full(checker: &mut Checker, source_span: SourceSpan) {
-        Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, source_span);
+        checks_reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, source_span);
     }
 }
 
-machine Checker::append_argument_backing(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: Expression, group: u64 in Trapping, handle: u64 in Trapping)
+machine append_argument_backing(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: Expression, group: u64 in Trapping, handle: u64 in Trapping)
 requires group < 256
 crashes Trap
 {
-    let adaptation: Adaptation = Typing::adaptation(typing, handle);
+    let adaptation: Adaptation = typing_adaptation(typing, handle);
     transition adaptation == Adaptation::Read {
         true -> {}
         false -> typed(checker, syntax, resolution, typing, call, group, handle)
@@ -104,9 +91,9 @@ crashes Trap
     machine typed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: Expression, group: u64 in Trapping, handle: u64 in Trapping)
     requires group < 256
     {
-        let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
-        let row: TypeRow = TypeTable::row(&typing.types, type_handle);
-        transition row.kind == TypeKind::Reference || Typing::adaptation(typing, handle) == Adaptation::SharedLend {
+        let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
+        let row: TypeRow = type_table_row(&typing.types, type_handle);
+        transition row.kind == TypeKind::Reference || typing_adaptation(typing, handle) == Adaptation::SharedLend {
             true -> reference(checker, syntax, resolution, typing, call, group, handle)
             false -> carrier(checker, syntax, typing, call, group, handle, type_handle)
         }
@@ -114,7 +101,7 @@ crashes Trap
     machine reference(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: Expression, group: u64 in Trapping, handle: u64 in Trapping)
     requires group < 256
     {
-        let value: Value = Checker::value_at(checker, handle);
+        let value: Value = value_at(checker, handle);
         transition value.place > 0 {
             true -> placed(checker, call, group, value.place)
             false -> footprint(checker, syntax, resolution, typing, call, group, handle)
@@ -123,13 +110,13 @@ crashes Trap
     machine placed(checker: &mut Checker, call: Expression, group: u64 in Trapping, place: u64 in Trapping)
     requires group < 256
     {
-        let origin: ReferenceOrigin = Checker::exact_reference_origin(checker, place);
-        Checker::append_reference_backing(checker, group, origin, call.source_span);
+        let origin: ReferenceOrigin = exact_reference_origin(checker, place);
+        append_reference_backing(checker, group, origin, call.source_span);
     }
     machine footprint(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: Expression, group: u64 in Trapping, handle: u64 in Trapping)
     requires group < 256
     {
-        let place: u64 in Trapping = Checker::written_origin(checker, syntax, resolution, typing, handle);
+        let place: u64 in Trapping = written_origin(checker, syntax, resolution, typing, handle);
         transition place > 0 {
             true -> located(checker, call, group, place)
             false -> unknown(checker, call, group)
@@ -138,12 +125,12 @@ crashes Trap
     machine located(checker: &mut Checker, call: Expression, group: u64 in Trapping, place: u64 in Trapping)
     requires group < 256
     {
-        Checker::append_reference_backing(checker, group, ReferenceOrigin::Footprint { place: place }, call.source_span);
+        append_reference_backing(checker, group, ReferenceOrigin::Footprint { place: place }, call.source_span);
     }
     machine carrier(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, call: Expression, group: u64 in Trapping, handle: u64 in Trapping, type_handle: u64 in Trapping)
     requires group < 256
     {
-        let retained: bool = Checker::holds_references(syntax, typing, type_handle);
+        let retained: bool = holds_references(syntax, typing, type_handle);
         transition retained {
             true -> carried(checker, call, group, handle)
             false -> {}
@@ -152,8 +139,8 @@ crashes Trap
     machine carried(checker: &mut Checker, call: Expression, group: u64 in Trapping, handle: u64 in Trapping)
     requires group < 256
     {
-        let value: Value = Checker::value_at(checker, handle);
-        let backing: u64 in Trapping = Checker::reference_view_backing(checker, value.place);
+        let value: Value = value_at(checker, handle);
+        let backing: u64 in Trapping = reference_view_backing(checker, value.place);
         transition backing > 0 {
             true -> inherited(checker, call, group, value.place, backing)
             false -> unknown(checker, call, group)
@@ -162,7 +149,7 @@ crashes Trap
     machine inherited(checker: &mut Checker, call: Expression, group: u64 in Trapping, place: u64 in Trapping, backing: u64 in Trapping)
     requires group < 256
     {
-        Checker::append_reference_backing(checker, group, ReferenceOrigin::View { place: place, backing: backing }, call.source_span);
+        append_reference_backing(checker, group, ReferenceOrigin::View { place: place, backing: backing }, call.source_span);
     }
     // An owned carrier without a complete published roster may contain
     // unmaterialized reference fields/elements. Existing visible paths are
@@ -171,11 +158,11 @@ crashes Trap
     machine unknown(checker: &mut Checker, call: Expression, group: u64 in Trapping)
     requires group < 256
     {
-        Checker::append_reference_backing(checker, group, ReferenceOrigin::Unknown, call.source_span);
+        append_reference_backing(checker, group, ReferenceOrigin::Unknown, call.source_span);
     }
 }
 
-machine Checker::append_reference_backing(checker: &mut Checker, group: u64 in Trapping, origin: ReferenceOrigin, source_span: SourceSpan)
+machine append_reference_backing(checker: &mut Checker, group: u64 in Trapping, origin: ReferenceOrigin, source_span: SourceSpan)
 requires group < 256
 crashes Trap
 {
@@ -194,6 +181,6 @@ crashes Trap
         checker.reference_views[group] = view;
     }
     machine full(checker: &mut Checker, source_span: SourceSpan) {
-        Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, source_span);
+        checks_reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, source_span);
     }
 }

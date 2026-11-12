@@ -28,7 +28,7 @@ its symbol was declared in, never from a path or a name:
 */
 
 use semantic_vocabulary::{MachineId, PackageKeyIdentity};
-use source::{DependencyScope, SourceOrigin};
+use source::DependencyScope;
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 
@@ -63,7 +63,7 @@ impl Program<'_> {
                     Unserved::Declaration("declaration without a source file"),
                 )
             })?;
-        let dependency = file.origin == SourceOrigin::Toolchain
+        let dependency = file.origin.is_toolchain()
             || file.dependency_scope == DependencyScope::Build
             || file
                 .package_identity

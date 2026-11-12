@@ -86,7 +86,7 @@ fn toolchain_site<'a>(
     file: &'a source::SourceFile,
     declaration: &'a str,
 ) -> Option<language_core::sealed_intrinsics::SealedDeclarationSite<'a>> {
-    if file.origin != source::SourceOrigin::Toolchain || file.package_identity.is_some() {
+    if !file.origin.is_toolchain() || file.package_identity.is_some() {
         return None;
     }
     Some(language_core::sealed_intrinsics::SealedDeclarationSite {

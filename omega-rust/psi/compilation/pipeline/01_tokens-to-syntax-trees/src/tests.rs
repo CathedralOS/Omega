@@ -1970,6 +1970,68 @@ pub(crate) mod definitions_and_contracts {
     }
 
     #[test]
+    fn parses_typed_structural_callback_with_its_complete_envelope() {
+        let source = r#"
+        public machine retain<
+            const Callback: machine(value: u32) -> u32 reaches none suspends blocks crashes none
+                requires value > 0u32, value <= 100u32
+                ensures result >= value,
+            const Count: u32
+        >(value: u32) -> u32 suspends blocks { suspend block Callback(value) }
+        "#;
+        let parsed = super::parse_source(source, "typed callback should parse");
+        let machine = super::root_machine(&parsed, "generic machine");
+        let parameters = parsed.items.type_parameters(machine.type_parameters);
+        assert_eq!(parameters.len(), 2);
+        let syntax_trees::item::TypeParameterKind::Machine {
+            contract: Some(syntax_trees::item::MachineParameterContract::Structural(contract)),
+        } = &parameters[0].kind
+        else {
+            panic!("Callback should retain its structural contract");
+        };
+        assert_eq!(contract.name.as_str(&parsed), "Callback");
+        assert_eq!(parsed.items.state_parameters(contract.parameters).len(), 1);
+        assert!(contract.return_type.is_valid());
+        assert!(contract.suspends);
+        assert!(contract.blocks);
+        assert!(contract.declares_no_crash_route);
+        assert_eq!(contract.service_reach_keyword_source_spans.len(), 1);
+        assert_eq!(
+            parsed.items.capability_contracts(contract.contracts).len(),
+            2
+        );
+        assert!(matches!(
+            parameters[1].kind,
+            syntax_trees::item::TypeParameterKind::Const { .. }
+        ));
+    }
+
+    #[test]
+    fn typed_callable_delimiters_preserve_nested_signatures_and_regular_fact_lists() {
+        let source = r#"
+        machine outer<const Factory: machine<const Inner: machine()>>() {}
+        public boundary trait Transfer {
+            machine transfer(value: u32) -> u32
+            reaches none
+            ensures result >= value, result <= 100u32;
+        }
+        "#;
+        let parsed = super::parse_source(source, "callable delimiters should parse");
+        let machine = super::root_machine(&parsed, "generic machine");
+        let parameters = parsed.items.type_parameters(machine.type_parameters);
+        let syntax_trees::item::TypeParameterKind::Machine {
+            contract: Some(syntax_trees::item::MachineParameterContract::Structural(contract)),
+        } = &parameters[0].kind
+        else {
+            panic!("Factory contract");
+        };
+        assert_eq!(
+            parsed.items.type_parameters(contract.type_parameters).len(),
+            1
+        );
+    }
+
+    #[test]
     fn parses_machine_parameter_with_mandatory_contract() {
         let source = r#"
         data Card {}
@@ -4253,6 +4315,53 @@ pub(crate) mod expression_stack {
                 .count(),
             7 * 1024 - 1,
         );
+    }
+
+    /// Nested groups, calls, indexes, struct literals and matches are parsed
+    /// by the expression frame loop, so nesting costs heap frames rather than
+    /// host stack: a thousand levels of each fit a 256 KiB thread stack.
+    #[test]
+    fn nested_expressions_parse_on_a_small_thread_stack() {
+        const LEVELS: usize = 1000;
+        let shapes = [
+            format!("{}value{}", "(".repeat(LEVELS), ")".repeat(LEVELS)),
+            format!("{}value{}", "compute(".repeat(LEVELS), ")".repeat(LEVELS)),
+            format!("{}0{}", "table[".repeat(LEVELS), "]".repeat(LEVELS)),
+            format!(
+                "{}value{}",
+                "Pair { left: ".repeat(LEVELS),
+                " }".repeat(LEVELS)
+            ),
+            format!(
+                "{}subject{}",
+                "match ".repeat(LEVELS),
+                " { _ -> 1 }".repeat(LEVELS)
+            ),
+            format!(
+                "{}0{}",
+                "-(table[1 + ".repeat(LEVELS / 2),
+                "].field)".repeat(LEVELS / 2)
+            ),
+        ];
+        for (shape, source) in shapes.into_iter().enumerate() {
+            let nodes = std::thread::Builder::new()
+                .stack_size(256 * 1024)
+                .spawn(move || {
+                    parse_expression(&source)
+                        .0
+                        .expressions
+                        .iter_expressions()
+                        .count()
+                })
+                .expect("spawn small-stack parser thread")
+                .join()
+                .expect("parse nested expression on a small stack");
+            // Parentheses add no node; every other shape adds one per level.
+            assert!(
+                nodes >= if shape == 0 { 1 } else { LEVELS },
+                "shape {shape}"
+            );
+        }
     }
 }
 pub(crate) mod inline_assembly {

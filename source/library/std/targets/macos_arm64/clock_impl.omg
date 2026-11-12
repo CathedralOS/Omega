@@ -4,8 +4,7 @@
 // descriptors. The leaf states poll's own parameters through the one-member
 // `DarwinClockWait` trait, and `DarwinClock::sleep` is an ordinary
 // checked adapter over it.
-use omega::language::core::numeric_conversion;
-use clock;
+use omega::language::core::narrow_u32_to_i32_wrapping;
 
 // The darwin timed wait. It is the `Clock` service's own wait, so the
 // one-member `DarwinClockWait` trait reaches `Clock` and the adapter calling

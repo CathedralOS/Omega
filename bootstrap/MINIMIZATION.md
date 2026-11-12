@@ -27,8 +27,8 @@ Variants are peers. Use separate worktrees and branches to advance materially
 different approaches concurrently. No variant is designated selected during
 exploration. Share useful discoveries and comparison inputs without requiring a
 common implementation or premature convergence. A merged variant change is not
-selection of that architecture. Current numbered source directories describe the
-interpreted variant; their existence grants it no privileged status.
+selection of that architecture. The numbered source directories under
+`interpreted/` describe that variant; their existence grants it no privileged status.
 
 Use **bootstrap compiler** for the compiler that first builds the Omega compiler,
 and **Omega compiler** for the product. Historical C/D labels and artifact paths
@@ -38,6 +38,15 @@ specified semantics; unsupported cases fail explicitly. File/hash allowlists,
 source-specific recognizers and manufactured output do not count as compilation.
 
 ## Retention test
+
+The Omega-written compiler should follow the structure of
+[`omega-rust`](../omega-rust) as closely as practical: corresponding pipeline
+stages, Psi/Omega ownership boundaries, representations and core mechanisms.
+This is a structural reference, not a requirement for line-by-line translation.
+Reasonable simplifications and improvements are welcome. Keep the implementation
+within a deliberate subset of the language it implements so that this structural
+correspondence does not force every product-language facility into the bootstrap
+compiler. Required source semantics and safety checks remain binding.
 
 Every retained language feature, runtime mechanism, tool and sidecar must serve
 an actual successor compiler or necessary invocation/validation. Compare deletion,

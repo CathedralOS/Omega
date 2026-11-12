@@ -8,7 +8,6 @@
 // The current GDTR must name this exact table. The non-null GDT selector must
 // have RPL0 and name present DPL0 writable data with reserved L=0.
 // A separate successful code-selector reload is not rolled back by this call.
-use omega::language::core::assembly;
 
 public data DataSelectors { ds: u16; es: u16; ss: u16; fs: u16; gs: u16; }
 

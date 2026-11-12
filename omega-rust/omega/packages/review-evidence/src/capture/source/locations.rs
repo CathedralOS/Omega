@@ -37,7 +37,7 @@ pub(crate) fn canonical_source_span_location(
                 source_file.path.display()
             ))?,
         ),
-        source::SourceOrigin::Toolchain => {
+        source::SourceOrigin::Toolchain | source::SourceOrigin::ToolchainContract => {
             PackageReviewSourceLocationOwner::Toolchain(toolchain_source_identity(
                 source_file,
                 compilation.custody.sources().exact_toolchain_sources(),

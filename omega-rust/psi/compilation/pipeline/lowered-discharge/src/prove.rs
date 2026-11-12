@@ -53,8 +53,14 @@ use terminal_check_tables::values::ValueRow;
 
 mod ranges;
 
+use crate::known::{Fact, is_branch_fact};
+
 /// Why no certificate was built. Diagnostic only.
 pub(crate) type Unproven = &'static str;
+
+/// One obligation's case work, shared by all of its recursive searches.
+/// Running out supplies no premise or partial certificate.
+const CASE_BRANCH_BUDGET: usize = 64;
 
 /// Whether this prover has rules for `goal`'s form at all, decided from the
 /// form alone. It mirrors `Prover::prove_direct`: truth and falsehood,
@@ -140,15 +146,6 @@ enum Slot {
     Done(Option<Bound>),
 }
 
-/// One hypothesis or one conjunct of it, with the node that yields it.
-struct Fact {
-    proposition: Proposition,
-    proof: ProofNode,
-    /// The semantic axiom index when this fact is a whole axiom, which the
-    /// definition-bound rules cite.
-    axiom: Option<usize>,
-}
-
 #[cfg(test)]
 thread_local! {
     /// How many provers were started on this thread: the reuse tests assert
@@ -171,9 +168,14 @@ pub(crate) struct Prover<'a> {
     /// Whether relations between values are searched (off only to measure
     /// what they buy).
     relations: bool,
-    /// Whether a failed goal may be split over a disjunctive fact; off inside
-    /// a branch, so splits do not nest.
+    /// Whether a failed goal may split over a disjunctive fact. Guard
+    /// contradiction search disables this to avoid re-entering itself.
     case_split: bool,
+    /// Shared with each branch/implication and returned after its search.
+    remaining_case_branches: usize,
+    /// A branch already assumes one alternative of each cut on this path.
+    /// Splitting that exact predicate again supplies no new information.
+    active_cuts: Vec<Proposition>,
 }
 
 fn node(conclusion: Proposition, rule: ProofRule) -> ProofNode {
@@ -283,67 +285,6 @@ fn ex_falso(absurd: ProofNode, goal: &Proposition) -> ProofNode {
     )
 }
 
-/// The facts transport may substitute: `v == t` for a Boolean value `v` (an
-/// operation result equation, a callee guarantee or a block invariant's
-/// definition of a join parameter) or for any value defined as a literal.
-/// A Boolean literal on the right is a branch fact, not a definition. The
-/// kernel keeps the first definition of each subject, as this does.
-fn definitions(facts: &[Fact]) -> Vec<(Proposition, ProofNode)> {
-    facts
-        .iter()
-        .filter(|fact| match &fact.proposition {
-            Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition) => {
-                match definition {
-                    ScalarTerm::Boolean(_) => fact.axiom.is_some(),
-                    ScalarTerm::Integer { .. } => true,
-                    _ => subject.scalar_type() == ScalarType::Boolean,
-                }
-            }
-            _ => false,
-        })
-        .map(|fact| (fact.proposition.clone(), fact.proof.clone()))
-        .collect()
-}
-
-/// `c == true` or `c == false` for a Boolean value `c`.
-fn is_branch_fact(proposition: &Proposition) -> bool {
-    matches!(
-        proposition,
-        Proposition::Equal(
-            ScalarTerm::Value {
-                scalar_type: ScalarType::Boolean,
-                ..
-            },
-            ScalarTerm::Boolean(_),
-        )
-    )
-}
-
-fn flatten(
-    proposition: &Proposition,
-    proof: ProofNode,
-    axiom: Option<usize>,
-    facts: &mut Vec<Fact>,
-) {
-    if let Proposition::Conjunction(parts) = proposition {
-        for (conjunct, part) in parts.iter().enumerate() {
-            let eliminated = node(
-                part.clone(),
-                ProofRule::ConjunctionElimination {
-                    conjunction: Box::new(proof.clone()),
-                    conjunct,
-                },
-            );
-            flatten(part, eliminated, None, facts);
-        }
-    }
-    facts.push(Fact {
-        proposition: proposition.clone(),
-        proof,
-        axiom,
-    });
-}
-
 impl<'a> Prover<'a> {
     pub(crate) fn new(
         context: &'a PropositionContext,
@@ -354,47 +295,8 @@ impl<'a> Prover<'a> {
     ) -> Self {
         #[cfg(test)]
         SEARCHES.with(|searches| searches.set(searches.get() + 1));
-        let mut facts = Vec::new();
-        for (index, assumption) in assumptions.iter().enumerate() {
-            let proof = node(assumption.clone(), ProofRule::Assumption { index });
-            flatten(assumption, proof, None, &mut facts);
-        }
-        for (index, axiom) in axioms.iter().enumerate() {
-            let proof = node(axiom.clone(), ProofRule::SemanticAxiom { index });
-            flatten(axiom, proof, Some(index), &mut facts);
-        }
-        // A branch fact `c == true` says what `c`'s comparison says. Transport
-        // it through the definitions of Boolean values and constants, so
-        // integer values stay values and their bounds stay findable; the
-        // kernel recomputes the same transport (`ValueEqualityTransport`).
-        let equations = definitions(&facts);
-        if !equations.is_empty() {
-            let premises: Vec<(Proposition, ProofNode)> = facts
-                .iter()
-                .filter(|fact| fact.axiom.is_none() && is_branch_fact(&fact.proposition))
-                .map(|fact| (fact.proposition.clone(), fact.proof.clone()))
-                .collect();
-            for (premise, proof) in premises {
-                let Ok(transported) = check_value_equality_denotation(
-                    context,
-                    &premise,
-                    equations.iter().map(|(equation, _)| equation),
-                ) else {
-                    continue;
-                };
-                if transported == premise {
-                    continue;
-                }
-                let proof = node(
-                    transported.clone(),
-                    ProofRule::ValueEqualityTransport {
-                        premise: Box::new(proof),
-                        equalities: equations.iter().map(|(_, proof)| proof.clone()).collect(),
-                    },
-                );
-                flatten(&transported, proof, None, &mut facts);
-            }
-        }
+        let crate::known::Known { facts, equations } =
+            crate::known::Known::new(context, assumptions, axioms, values);
         Self {
             context,
             assumptions,
@@ -407,6 +309,8 @@ impl<'a> Prover<'a> {
                 .collect(),
             relations,
             case_split: true,
+            remaining_case_branches: CASE_BRANCH_BUDGET,
+            active_cuts: Vec::new(),
         }
     }
 
@@ -458,7 +362,6 @@ impl<'a> Prover<'a> {
         .map(|()| primitive(proposition, PrimitiveJudgment::ClosedIntegerRelation))
     }
 
-    /// A certificate whose conclusion is exactly `goal`.
     /// A certificate whose conclusion is exactly `goal`: directly, or by a
     /// case split over a disjunctive fact.
     pub(crate) fn prove(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
@@ -487,7 +390,11 @@ impl<'a> Prover<'a> {
             return Ok(split);
         }
         self.unreachable(goal)
-            .ok_or(direct.err().unwrap_or("no proof"))
+            .ok_or(if self.remaining_case_branches == 0 {
+                "the bounded disjunction search was exhausted"
+            } else {
+                direct.err().unwrap_or("no proof")
+            })
     }
 
     /// `goal` at a point no execution reaches: what is known there is
@@ -593,13 +500,21 @@ impl<'a> Prover<'a> {
                 _ => None,
             })
             .collect();
-        'disjunctions: for (parts, proof) in disjunctions {
+        for (parts, proof) in disjunctions {
+            if self.active_cuts.contains(&proof.conclusion) {
+                continue;
+            }
+            self.active_cuts.push(proof.conclusion.clone());
             let mut branches = Vec::with_capacity(parts.len());
             for part in &parts {
                 let Some(branch) = self.branch(part, goal) else {
-                    continue 'disjunctions;
+                    break;
                 };
                 branches.push(branch);
+            }
+            self.active_cuts.pop();
+            if branches.len() != parts.len() {
+                continue;
             }
             return Some(node(
                 goal.clone(),
@@ -614,6 +529,7 @@ impl<'a> Prover<'a> {
 
     /// One alternative: the kernel adds it as the next assumption.
     fn branch(&mut self, part: &Proposition, goal: &Proposition) -> Option<ProofNode> {
+        self.remaining_case_branches = self.remaining_case_branches.checked_sub(1)?;
         let local = node(
             part.clone(),
             ProofRule::Assumption {
@@ -632,8 +548,12 @@ impl<'a> Prover<'a> {
             self.values,
             self.relations,
         );
-        branch.case_split = false;
-        branch.prove(goal).ok()
+        branch.case_split = self.case_split;
+        branch.remaining_case_branches = self.remaining_case_branches;
+        branch.active_cuts.clone_from(&self.active_cuts);
+        let proof = branch.prove(goal);
+        self.remaining_case_branches = branch.remaining_case_branches;
+        proof.ok()
     }
 
     /// `goal` from an alternative that contradicts what is known: chained
@@ -677,7 +597,11 @@ impl<'a> Prover<'a> {
             self.relations,
         );
         under.case_split = self.case_split;
-        let body = under.prove(conclusion)?;
+        under.remaining_case_branches = self.remaining_case_branches;
+        under.active_cuts.clone_from(&self.active_cuts);
+        let body = under.prove(conclusion);
+        self.remaining_case_branches = under.remaining_case_branches;
+        let body = body?;
         Ok(node(
             goal.clone(),
             ProofRule::ImplicationIntroduction {
@@ -698,6 +622,13 @@ impl<'a> Prover<'a> {
     fn prove_structural(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
         if let Some(fact) = self.facts.iter().find(|fact| &fact.proposition == goal) {
             return Ok(fact.proof.clone());
+        }
+        if let Some(absurd) = self
+            .facts
+            .iter()
+            .find(|fact| fact.proposition == Proposition::Falsehood)
+        {
+            return Ok(ex_falso(absurd.proof.clone(), goal));
         }
         match goal {
             Proposition::Truth => Ok(primitive(Proposition::Truth, PrimitiveJudgment::Truth)),

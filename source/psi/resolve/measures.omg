@@ -1,15 +1,9 @@
-use psi::resolution::resolution;
-use psi::resolve::names;
-use psi::resolve::resolver;
-use psi::source::source;
-use psi::syntax::syntax;
-
 // Declared measures (wiki/spec/language/termination.md#ranking): a computed
 // measure `measure Owner::Name(subject: T) -> R { body }` has one parameter,
 // a result type and a one-expression body; a lexicographic measure `measure
 // Owner::Name lexicographic { fields }` names a data declaration `Owner` and
 // fields of it, each recorded by member handle for the checker's ranking.
-public machine Resolver::check_measures(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine check_measures(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, 0) }
@@ -22,7 +16,7 @@ crashes Trap
     }
 
     machine item(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
-        let declared: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        let declared: MachineItem = machine_item(syntax, index);
         transition declared.container == MachineContainer::Measure {
             true -> measure(resolver, sources, syntax, index, declared)
             _ -> next(resolver, sources, syntax, index + 1)
@@ -46,7 +40,7 @@ crashes Trap
     }
 
     machine owner(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
-        let binding: ValueBinding = Resolver::data_name(sources, syntax, declared.owner.source_span);
+        let binding: ValueBinding = data_name(sources, syntax, declared.owner.source_span);
         transition binding {
             ValueBinding::Data { item } -> component(resolver, sources, syntax, index, declared, item, 0)
             _ -> reject(resolver, ResolveDiagnosticCode::MeasureForm, declared.owner.source_span)
@@ -78,8 +72,8 @@ crashes Trap
         offset: u64 in Trapping,
         field_offset: u64 in Trapping
     ) {
-        let data: DataItem = SyntaxTrees::data_item(syntax, item);
-        let name: IdentifierSpan = SyntaxTrees::member(syntax, declared.first_component + offset);
+        let data: DataItem = syntax_trees_data_item(syntax, item);
+        let name: IdentifierSpan = syntax_trees_member(syntax, declared.first_component + offset);
         transition field_offset < data.field_count {
             true -> compare(resolver, sources, syntax, index, declared, item, offset, field_offset, data, name)
             _ -> reject(resolver, ResolveDiagnosticCode::UnknownMeasureComponent, name.source_span)
@@ -99,8 +93,8 @@ crashes Trap
         name: IdentifierSpan
     ) {
         let handle: u64 in Trapping = data.first_field + field_offset;
-        let candidate_field: DataField = SyntaxTrees::field(syntax, handle);
-        let same: bool = SourceSet::spans_equal(sources, candidate_field.name.source_span, name.source_span);
+        let candidate_field: DataField = syntax_trees_field(syntax, handle);
+        let same: bool = spans_equal(sources, candidate_field.name.source_span, name.source_span);
         transition same {
             true -> bound(resolver, sources, syntax, index, declared, item, offset, handle)
             _ -> candidate(resolver, sources, syntax, index, declared, item, offset, field_offset + 1)
@@ -117,12 +111,12 @@ crashes Trap
         offset: u64 in Trapping,
         handle: u64 in Trapping
     ) {
-        NameResolution::set_component_field(&mut resolver.output, declared.first_component + offset, handle + 1);
+        set_component_field(&mut resolver.output, declared.first_component + offset, handle + 1);
         transition { _ -> component(resolver, sources, syntax, index, declared, item, offset + 1) }
     }
 
     machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
-        NameResolution::reject(&mut resolver.output, code, source_span);
+        name_resolution_reject(&mut resolver.output, code, source_span);
     }
 
     machine done() {}

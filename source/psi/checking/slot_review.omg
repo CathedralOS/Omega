@@ -1,5 +1,3 @@
-use psi::checks::checks;
-
 // Admission of the public slot records a trait requirement publishes.
 // An empty roster formed no selector slot. A qualification that shares the
 // compilation with a returned borrow must name one of those origins.
@@ -7,9 +5,9 @@ use psi::checks::checks;
 
 public data SlotReview {}
 
-public machine SlotReview::prepare(review: &mut SlotReview) {}
+public machine prepare(review: &mut SlotReview) {}
 
-public machine SlotReview::admits(review: &SlotReview, checks: &Checks) -> bool
+public machine admits(review: &SlotReview, checks: &Checks) -> bool
 crashes Trap
 {
     transition { _ -> origins(review, checks, 0) }
@@ -22,7 +20,7 @@ crashes Trap
     }
 
     machine origin(review: &SlotReview, checks: &Checks, index: u64 in Trapping) -> bool {
-        let row: SlotReturnedBorrowOrigin = Checks::slot_origin(checks, index);
+        let row: SlotReturnedBorrowOrigin = slot_origin(checks, index);
         transition row.kind == SlotOriginKind::Parameter {
             true -> origin_index(review, checks, index, row.parameter_index)
             _ -> origins(review, checks, index + 1)
@@ -49,7 +47,7 @@ crashes Trap
     }
 
     machine qualification(review: &SlotReview, checks: &Checks, index: u64 in Trapping) -> bool {
-        let row: SlotParameterQualification = Checks::slot_qualification(checks, index);
+        let row: SlotParameterQualification = slot_qualification(checks, index);
         transition row.domain_item < 1024 && row.parameter_index < 1024 {
             true -> qualifications(review, checks, index + 1)
             _ -> refuse()
@@ -88,8 +86,8 @@ crashes Trap
         index: u64 in Trapping,
         origin_index: u64 in Trapping
     ) -> bool {
-        let qualification: SlotParameterQualification = Checks::slot_qualification(checks, index);
-        let origin: SlotReturnedBorrowOrigin = Checks::slot_origin(checks, origin_index);
+        let qualification: SlotParameterQualification = slot_qualification(checks, index);
+        let origin: SlotReturnedBorrowOrigin = slot_origin(checks, origin_index);
         let matched: bool = origin.kind == SlotOriginKind::Parameter
             && origin.parameter_index == qualification.parameter_index;
         transition matched {

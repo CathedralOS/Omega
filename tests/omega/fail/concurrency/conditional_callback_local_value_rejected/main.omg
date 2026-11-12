@@ -1,0 +1,79 @@
+// A selected suspending callback and an independent suspender both require ordinary carry permission.
+use omega::language::core::drop;
+
+data Receipt [
+    linear,
+    carry(suspension: forbidden, cpu: any, thread: any, address: movable)
+] dropped by drop_receipt { value: u32; }
+
+machine drop_receipt(receipt: &mut Receipt) {}
+
+machine acquire(value: u32) -> Receipt {
+    let receipt: Receipt = Receipt { value: value };
+    receipt
+}
+
+machine consume(receipt: Receipt) -> u32 {
+    let value: u32 = receipt.value;
+    drop(receipt);
+    value
+}
+
+public machine retain_claim<
+    const Callback: machine(value: u32) -> u32 suspends
+>(value: u32) -> u32 suspends {
+    let claimed_receipt: Receipt = acquire(value);
+    let ignored: u32 = suspend Callback(value);
+    consume(claimed_receipt)
+}
+
+public machine forward_claim<
+    const Renamed: machine(value: u32) -> u32 suspends
+>(value: u32) -> u32 suspends {
+    suspend retain_claim<Renamed>(value)
+}
+
+data Kept [carry(suspension: forbidden, cpu: any, thread: any, address: movable)] { value: u32; }
+machine observe(kept: Kept) -> u32 { kept.value }
+public machine retain<const Callback: machine(value: u32) -> u32 suspends>(value: u32) -> u32
+suspends {
+    let kept: Kept = Kept { value: value };
+    let callback_result: u32 = suspend Callback(value);
+    observe(kept)
+}
+public machine quiet(value: u32) -> u32 { value }
+public machine may_pause(value: u32) -> u32 suspends { value }
+machine private_wide(value: u32) -> u32 suspends { value }
+public machine first<const Callback: machine(value: u32) -> u32 suspends>(remaining: i32 in Wrapping, value: u32) -> u32
+suspends {
+    transition remaining > 0 {
+        true -> suspend second<Callback>(remaining - 1, value)
+        _ -> suspend retain<Callback>(value)
+    }
+}
+public machine second<const Forwarded: machine(value: u32) -> u32 suspends>(remaining: i32 in Wrapping, value: u32) -> u32
+suspends {
+    suspend first<Forwarded>(remaining, value)
+}
+public machine independent(value: u32) -> u32 suspends { value }
+public machine fixed<const Callback: machine(value: u32) -> u32 suspends>(value: u32) -> u32
+suspends {
+    let kept: Kept = Kept { value: value };
+    let callback_result: u32 = suspend Callback(value);
+    let independent_result: u32 = suspend independent(value);
+    observe(kept)
+}
+public machine retain_value<T, const Callback: machine(value: u32) -> u32 suspends>(generic_kept: T, value: u32) -> T
+suspends {
+    let callback_result: u32 = suspend Callback(value);
+    generic_kept
+}
+machine main() suspends {
+    let acquired: u32 = suspend forward_claim<may_pause>(73u32);
+    let direct_acquired: u32 = suspend retain_claim<may_pause>(61u32);
+    let selected: u32 = suspend retain<may_pause>(73u32);
+    let wide: u32 = suspend retain<private_wide>(73u32);
+    let recursive: u32 = suspend first<may_pause>(3, 73u32);
+    let fixed_result: u32 = suspend fixed<quiet>(73u32);
+    let generic_forbidden: Kept = suspend retain_value<Kept, may_pause>(Kept { value: 73u32 }, 73u32);
+}

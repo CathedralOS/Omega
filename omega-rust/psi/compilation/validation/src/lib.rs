@@ -293,6 +293,7 @@ pub mod compiler_evaluation {
         }
         match program.symbols.symbol_source_origin(symbol) {
             Some(source::SourceOrigin::Toolchain) => DeclarationCustody::Toolchain,
+            Some(source::SourceOrigin::ToolchainContract) => DeclarationCustody::ToolchainContract,
             Some(source::SourceOrigin::User) => DeclarationCustody::UnownedUser,
             None => DeclarationCustody::Missing,
         }
@@ -1787,10 +1788,11 @@ pub use declarations::traits::{
     revalidate_named_implementation, revalidate_top_level_requirement_realization,
 };
 pub use machine_calls::effect_inference::{
-    declared_machine_invocations, declared_signature_invocations,
+    DirectCallOperational, declared_machine_invocations, declared_signature_invocations,
     fixed_installation_boundary_service_reach, has_self_forwarded_boundary_parameter,
     infer_operational_may, infer_operational_may_for_dependencies, infer_service_reaches,
-    infer_synchronous_invocations, invocation_target_label, trait_signature_service_reach,
+    infer_synchronous_invocations, invocation_target_label, signature_operational,
+    trait_signature_service_reach,
 };
 pub use machine_calls::effects::{
     AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,

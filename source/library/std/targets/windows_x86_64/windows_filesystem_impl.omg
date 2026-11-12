@@ -3,30 +3,12 @@
 // Control/path operations live below windows_filesystem_control; borrowed-buffer
 // mode, pinning and completion flow lives below windows_filesystem_transfer.
 // The calling policy describes representation, never custody or authority.
-use omega::language::core::filesystem_authority;
-use windows_filesystem_host;
-use filesystem_host;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_transfer_native;
-use targets::windows_x86_64::windows_filesystem_control;
-use targets::windows_x86_64::windows_filesystem_transfer;
-use targets::windows_x86_64::windows_filesystem_metadata;
-use targets::windows_x86_64::windows_filesystem_metadata_native;
-use targets::windows_x86_64::windows_filesystem_file_control;
-use targets::windows_x86_64::windows_filesystem_file_control_native;
-use targets::windows_x86_64::windows_filesystem_position;
-use targets::windows_x86_64::windows_filesystem_position_native;
-use targets::windows_x86_64::windows_filesystem_directory;
-use targets::windows_x86_64::windows_filesystem_directory_entry;
-use targets::windows_x86_64::windows_filesystem_directory_native;
-use targets::windows_x86_64::windows_filesystem_path_query;
-use targets::windows_x86_64::windows_filesystem_path_query_native;
-use targets::windows_x86_64::windows_filesystem_lock;
-use targets::windows_x86_64::windows_filesystem_lock_native;
-use targets::windows_x86_64::windows_filesystem_reparse;
-use targets::windows_x86_64::windows_filesystem_reparse_native;
-use targets::windows_x86_64::filesystem_removal::native;
-use targets::windows_x86_64::filesystem_removal::removal;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 
 data WindowsFilesystemNativeProvider { }
 

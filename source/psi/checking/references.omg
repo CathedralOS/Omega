@@ -1,14 +1,3 @@
-use psi::checking::reference_origins;
-use psi::checking::aliases;
-use psi::checking::checker;
-use psi::checking::evaluation;
-use psi::checking::flow;
-use psi::checking::places;
-use psi::checks::checks;
-use psi::resolution::resolution;
-use psi::syntax::syntax;
-use psi::types::types;
-
 // Proof provenance of borrowed storage, separate from ownership's access
 // authorization (state_contracts.md#mutation-and-subject-identity). A local
 // reference captures its initializer's already normalized storage origin;
@@ -30,13 +19,13 @@ use psi::types::types;
 // The containing storage of an untracked element or range is still known
 // when its collection is. Stop at an unknown reference: its containing
 // record is not its referent. This recovers footprints, never borrow rights.
-public machine Checker::storage_origin(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+public machine storage_origin(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> node(checker, syntax, typing, handle, 0) }
 
     machine node(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
-        let value: Value = Checker::value_at(checker, handle);
+        let value: Value = value_at(checker, handle);
         transition value.place > 0 {
             true -> found(value.place)
             _ -> unplaced(checker, syntax, typing, handle, depth)
@@ -44,9 +33,9 @@ crashes Trap
     }
 
     machine unplaced(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
-        let expression: Expression = SyntaxTrees::expression(syntax, handle);
-        let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
-        let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+        let expression: Expression = syntax_trees_expression(syntax, handle);
+        let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
+        let row: TypeRow = type_table_row(&typing.types, type_handle);
         let borrow: bool = expression.kind == ExpressionKind::Unary
             && (expression.operator == OperatorKind::Borrow || expression.operator == OperatorKind::BorrowMutable
                 || expression.operator == OperatorKind::BorrowWrite);
@@ -69,7 +58,7 @@ crashes Trap
 
 // Initialization writes binding storage; later assignments through a
 // reference use the referent returned by reference_value instead.
-public machine Checker::initialize_place(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value)
+public machine initialize_place(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value)
 crashes Trap
 {
     transition place > 0 && place <= 256 {
@@ -78,8 +67,8 @@ crashes Trap
     }
 
     machine typed(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value) {
-        let entry: Place = Checker::place_at(checker, place - 1);
-        let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
+        let entry: Place = place_at(checker, place - 1);
+        let row: TypeRow = type_table_row(&typing.types, entry.type_handle);
         transition row.kind == TypeKind::Reference {
             true -> capture(checker, place - 1, value.place)
             _ -> owned(checker, typing, place, value)
@@ -89,12 +78,12 @@ crashes Trap
     machine capture(checker: &mut Checker, index: u64 in Trapping, origin: u64 in Trapping)
     requires index < 256
     {
-        let captured: ReferenceOrigin = Checker::exact_reference_origin(checker, origin);
-        Checker::record_reference_origin(checker, index, captured);
+        let captured: ReferenceOrigin = exact_reference_origin(checker, origin);
+        record_reference_origin(checker, index, captured);
     }
 
     machine owned(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value) {
-        Checker::bind_place(checker, typing, place, value);
+        bind_place(checker, typing, place, value);
     }
 
     machine done() {}
@@ -103,19 +92,19 @@ crashes Trap
 // Shared-reference local assignment replaces the binding (exclusive names
 // instead denote their referent). Other reference binding storage is not
 // represented by the local-origin table and remains an explicit refusal.
-public machine Checker::replace_reference(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, value: Value) -> bool
+public machine replace_reference(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, value: Value) -> bool
 crashes Trap
 {
-    let expression: Expression = SyntaxTrees::expression(syntax, statement.target);
-    let type_handle: u64 in Trapping = Typing::expression_type(typing, statement.target);
-    let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+    let expression: Expression = syntax_trees_expression(syntax, statement.target);
+    let type_handle: u64 in Trapping = typing_expression_type(typing, statement.target);
+    let row: TypeRow = type_table_row(&typing.types, type_handle);
     transition expression.kind == ExpressionKind::Name && row.kind == TypeKind::Reference && row.access == ReferenceAccess::Shared {
         true -> binding(checker, syntax, resolution, typing, statement, value, type_handle)
         _ -> other()
     }
 
     machine binding(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, value: Value, type_handle: u64 in Trapping) -> bool {
-        let binding: ValueBinding = NameResolution::value_binding(resolution, statement.target);
+        let binding: ValueBinding = value_binding(resolution, statement.target);
         transition binding {
             ValueBinding::Local { statement as declaration } -> local(checker, syntax, resolution, typing, statement, declaration, value, type_handle)
             _ -> unknown(checker, statement)
@@ -123,17 +112,17 @@ crashes Trap
     }
 
     machine local(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, declaration: u64 in Trapping, value: Value, type_handle: u64 in Trapping) -> bool {
-        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Local, declaration, 0, type_handle);
+        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Local, declaration, 0, type_handle);
         // Replaying a condition through this binding would now read the
         // replacement referent. Existing captured references keep theirs.
-        Checker::forget_aliases(checker, place);
-        Checker::initialize_place(checker, typing, place, value);
-        Checker::capture_footprint(checker, syntax, resolution, typing, place, type_handle, statement.value, value);
+        forget_aliases(checker, place);
+        initialize_place(checker, typing, place, value);
+        capture_footprint(checker, syntax, resolution, typing, place, type_handle, statement.value, value);
         true
     }
 
     machine unknown(checker: &mut Checker, statement: Statement) -> bool {
-        Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, statement.source_span);
+        checks_reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, statement.source_span);
         true
     }
 
@@ -147,7 +136,7 @@ crashes Trap
 // footprint: a write through the local forgets that storage's contents
 // (flow.omg), as a direct store to the element would, and a read through
 // it is unknown. `type_handle` is the local's declared type.
-public machine Checker::capture_footprint(
+public machine capture_footprint(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -159,14 +148,14 @@ public machine Checker::capture_footprint(
 )
 crashes Trap
 {
-    let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+    let row: TypeRow = type_table_row(&typing.types, type_handle);
     transition row.kind == TypeKind::Reference && value.place == 0 && place > 0 && place <= 256 {
         true -> located(checker, syntax, resolution, typing, place, initializer)
         _ -> done()
     }
 
     machine located(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, place: u64 in Trapping, initializer: u64 in Trapping) {
-        let footprint: u64 in Trapping = Checker::written_origin(checker, syntax, resolution, typing, initializer);
+        let footprint: u64 in Trapping = written_origin(checker, syntax, resolution, typing, initializer);
         transition footprint > 0 {
             true -> captured(checker, place - 1, footprint)
             _ -> done()
@@ -176,7 +165,7 @@ crashes Trap
     machine captured(checker: &mut Checker, index: u64 in Trapping, footprint: u64 in Trapping)
     requires index < 256
     {
-        Checker::record_reference_origin(checker, index, ReferenceOrigin::Footprint { place: footprint });
+        record_reference_origin(checker, index, ReferenceOrigin::Footprint { place: footprint });
     }
 
     machine done() {}
@@ -184,7 +173,7 @@ crashes Trap
 
 // The footprint a reference local captured (one-based place), zero when
 // it captured an exact origin or nothing.
-public machine Checker::local_footprint(checker: &Checker, place: u64 in Trapping) -> u64 in Trapping
+public machine local_footprint(checker: &Checker, place: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition place > 0 && place <= 256 {
@@ -210,17 +199,17 @@ crashes Trap
     }
 }
 
-// The storage a write at `handle` lands in: `Checker::storage_origin`,
+// The storage a write at `handle` lands in: `storage_origin`,
 // and, through a name, the footprint its reference local captured. A
 // lent exclusive argument keeps the origin without footprints, since the
 // callee writes through the reference, not within the footprint.
-public machine Checker::written_origin(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+public machine written_origin(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> node(checker, syntax, resolution, typing, handle, 0) }
 
     machine node(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
-        let value: Value = Checker::value_at(checker, handle);
+        let value: Value = value_at(checker, handle);
         transition value.place > 0 {
             true -> found(value.place)
             _ -> unplaced(checker, syntax, resolution, typing, handle, depth)
@@ -228,9 +217,9 @@ crashes Trap
     }
 
     machine unplaced(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
-        let expression: Expression = SyntaxTrees::expression(syntax, handle);
-        let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
-        let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+        let expression: Expression = syntax_trees_expression(syntax, handle);
+        let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
+        let row: TypeRow = type_table_row(&typing.types, type_handle);
         let borrow: bool = expression.kind == ExpressionKind::Unary
             && (expression.operator == OperatorKind::Borrow || expression.operator == OperatorKind::BorrowMutable
                 || expression.operator == OperatorKind::BorrowWrite);
@@ -250,7 +239,7 @@ crashes Trap
     }
 
     machine bound(checker: &Checker, resolution: &NameResolution, handle: u64 in Trapping) -> u64 in Trapping {
-        let binding: ValueBinding = NameResolution::value_binding(resolution, handle);
+        let binding: ValueBinding = value_binding(resolution, handle);
         transition binding {
             ValueBinding::Local { statement } -> local(checker, statement)
             _ -> unknown()
@@ -258,8 +247,8 @@ crashes Trap
     }
 
     machine local(checker: &Checker, statement: u64 in Trapping) -> u64 in Trapping {
-        let place: u64 in Trapping = Checker::find_place(checker, PlaceKind::Local, statement, 0);
-        let footprint: u64 in Trapping = Checker::local_footprint(checker, place);
+        let place: u64 in Trapping = find_place(checker, PlaceKind::Local, statement, 0);
+        let footprint: u64 in Trapping = local_footprint(checker, place);
         footprint
     }
 
@@ -275,12 +264,12 @@ crashes Trap
 // The storage a store at `target` writes within when the target has no
 // place of its own: a field or element slot lies within its base's
 // storage, whatever the slot's type, and anything else is where its write
-// lands (`Checker::written_origin`).
-public machine Checker::store_origin(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, target: u64 in Trapping) -> u64 in Trapping
+// lands (`written_origin`).
+public machine store_origin(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, target: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    let value: Value = Checker::value_at(checker, target);
-    let expression: Expression = SyntaxTrees::expression(syntax, target);
+    let value: Value = value_at(checker, target);
+    let expression: Expression = syntax_trees_expression(syntax, target);
     let slot: bool = expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index;
     transition value.place > 0 {
         true -> placed(value.place)
@@ -295,7 +284,7 @@ crashes Trap
     }
 
     machine within(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping {
-        let origin: u64 in Trapping = Checker::written_origin(checker, syntax, resolution, typing, handle);
+        let origin: u64 in Trapping = written_origin(checker, syntax, resolution, typing, handle);
         origin
     }
 
@@ -307,7 +296,7 @@ crashes Trap
 // A reference expression's value denotes its live referent. Parameter roots
 // are incoming storage; a local has only its captured origin. Neither the
 // type nor a call's postcondition proves where a returned reference points.
-public machine Checker::reference_value(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) -> Value
+public machine reference_value(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) -> Value
 crashes Trap
 {
     transition place > 0 {
@@ -316,25 +305,25 @@ crashes Trap
     }
 
     machine typed(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) -> Value {
-        let entry: Place = Checker::place_at(checker, place - 1);
+        let entry: Place = place_at(checker, place - 1);
         transition entry.kind == PlaceKind::Call {
             true -> publication(checker, typing, place, entry)
             false -> value(checker, typing, place, entry)
         }
     }
     machine publication(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, entry: Place) -> Value {
-        let origin: ReferenceOrigin = Checker::reference_origin(checker, place);
+        let origin: ReferenceOrigin = reference_origin(checker, place);
         transition origin {
             ReferenceOrigin::View { place as home, backing } -> published(checker, typing, home)
             _ -> value(checker, typing, place, entry)
         }
     }
     machine published(checker: &mut Checker, typing: &Typing, home: u64 in Trapping) -> Value {
-        let entry: Place = Checker::place_at(checker, home - 1);
+        let entry: Place = place_at(checker, home - 1);
         transition { _ -> value(checker, typing, home, entry) }
     }
     machine value(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, entry: Place) -> Value {
-        let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
+        let row: TypeRow = type_table_row(&typing.types, entry.type_handle);
         transition row.kind == TypeKind::Reference {
             true -> reference(checker, typing, place, entry)
             _ -> owned(checker, place)
@@ -380,7 +369,7 @@ crashes Trap
     }
 
     machine field(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, entry: Place) -> Value {
-        let origin: ReferenceOrigin = Checker::reference_origin(checker, place);
+        let origin: ReferenceOrigin = reference_origin(checker, place);
         transition origin {
             ReferenceOrigin::Exact { place as captured } -> viewed(checker, typing, captured, entry.type_handle)
             ReferenceOrigin::View { place as observed, backing } -> viewed(checker, typing, observed, entry.type_handle)
@@ -390,7 +379,7 @@ crashes Trap
     }
 
     machine incoming(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, entry: Place) -> Value {
-        transition Checker::incoming_reference_field(checker, entry.parent) {
+        transition incoming_reference_field(checker, entry.parent) {
             true -> parameter(checker, typing, place, entry.type_handle)
             _ -> unknown()
         }
@@ -400,10 +389,10 @@ crashes Trap
     // the storage's bits, not the facts held of its own carrier: it denotes
     // the storage without its subject.
     machine viewed(checker: &Checker, typing: &Typing, origin: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
-        let storage: Place = Checker::place_at(checker, origin - 1);
-        let read: u64 in Trapping = Checker::read_type(typing, type_handle);
-        let viewing: BuiltinType = Checker::carrier(typing, read);
-        let holding: BuiltinType = Checker::place_carrier(typing, storage.kind, storage.type_handle);
+        let storage: Place = place_at(checker, origin - 1);
+        let read: u64 in Trapping = checker_read_type(typing, type_handle);
+        let viewing: BuiltinType = checker_carrier(typing, read);
+        let holding: BuiltinType = place_carrier(typing, storage.kind, storage.type_handle);
         transition viewing == holding {
             true -> owned(checker, origin)
             _ -> foreign(origin)
@@ -411,7 +400,7 @@ crashes Trap
     }
 
     machine foreign(origin: u64 in Trapping) -> Value {
-        let value: Value = Value::at_place(origin);
+        let value: Value = at_place(origin);
         value
     }
 
@@ -419,9 +408,9 @@ crashes Trap
     // contents. Enter it lazily, after the state's by-value parameter
     // subjects, whose numbering the arrival projection owns.
     machine parameter(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
-        let read: u64 in Trapping = Checker::read_type(typing, type_handle);
-        let carrier: BuiltinType = Checker::carrier(typing, read);
-        let scalar: bool = Checker::has_subject(carrier);
+        let read: u64 in Trapping = checker_read_type(typing, type_handle);
+        let carrier: BuiltinType = checker_carrier(typing, read);
+        let scalar: bool = has_subject(carrier);
         transition scalar {
             true -> scalar_referent(checker, typing, place, read)
             _ -> owned(checker, place)
@@ -429,18 +418,18 @@ crashes Trap
     }
 
     machine scalar_referent(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
-        let referent: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Referent, 0, place, type_handle);
-        let value: Value = Checker::place_value(checker, referent);
+        let referent: u64 in Trapping = checker_place(checker, typing, PlaceKind::Referent, 0, place, type_handle);
+        let value: Value = place_value(checker, referent);
         value
     }
 
     machine owned(checker: &Checker, place: u64 in Trapping) -> Value {
-        let value: Value = Checker::place_value(checker, place);
+        let value: Value = place_value(checker, place);
         value
     }
 
     machine unknown() -> Value {
-        let value: Value = Value::unknown();
+        let value: Value = value_unknown();
         value
     }
 }

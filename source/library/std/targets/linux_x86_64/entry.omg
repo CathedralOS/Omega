@@ -1,6 +1,4 @@
-use omega::language::core::extent;
-use calling;
-use entry_shapes;
+use omega::language::core::ProgramStorageEntry;
 
 // The Linux kernel enters a static ELF executable with rsp pointing at the
 // initial process-stack image ([argc][argv...][NULL][envp...][NULL][auxv...])

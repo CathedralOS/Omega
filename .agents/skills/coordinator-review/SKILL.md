@@ -19,6 +19,13 @@ passes. A coordinator may run the same checklist on any diff it has a concern
 about; workers do not wait for it. Neither side polls or schedules timers;
 completion messages wake the session.
 
+Before requesting the squash merge, read the exact PR description that will
+become its commit body against [Explain the change](../../../AGENTS.md#explain-the-change).
+Check its row-count delta and public runtime names as well as its source and
+validation claims. Correct the description before merging; updating a PR after
+merge does not correct the published squash message. This is part of author
+self-review, not an additional approval gate.
+
 ## 2. The 5-Point Coordinator Review Checklist
 
 Before merging, inspect the actual diff:

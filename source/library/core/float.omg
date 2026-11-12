@@ -1,4 +1,4 @@
-module core::float;
+module float;
 
 // Ordinary IEEE format and representation operations. Reads through checked
 // scalar views preserve presented bits; classification never performs float

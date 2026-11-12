@@ -1,5 +1,3 @@
-use console;
-
 // Exact windows_x86_64 Console leaves. The named NativeConsole implementation
 // in std/console.omg forwards to these target declarations.
 //
@@ -12,7 +10,9 @@ use console;
 // i32 cell (x86-64 is little-endian), so the cell's upper bytes stay zero.
 // Process termination is kernel32's `ExitProcess`; nothing is buffered above
 // it, so no output is lost at exit.
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i32_to_u8_wrapping;
+use omega::language::core::narrow_i32_to_u8_trapping;
+use omega::language::core::widen_u8_to_i32;
 
 // The leaf requirements below carry no source realization: each one is a
 // package-owned boundary row whose DLL locator lives in `std/build.omg`

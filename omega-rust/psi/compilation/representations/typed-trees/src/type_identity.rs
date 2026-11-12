@@ -1092,8 +1092,10 @@ pub(crate) mod derived_declarations {
                     .iter()
                     .any(|symbol| {
                         program.symbols.symbol_package_identity(*symbol).is_none()
-                            && program.symbols.symbol_source_origin(*symbol)
-                                != Some(source::SourceOrigin::Toolchain)
+                            && !program
+                                .symbols
+                                .symbol_source_origin(*symbol)
+                                .is_some_and(source::SourceOrigin::is_toolchain)
                     })
             {
                 return Err("derived placed declaration contains an unowned nominal operand");
@@ -2050,8 +2052,10 @@ pub(crate) mod identity_context {
             if self.qualification == TypeIdentityQualification::Ordinary
                 && (program.symbols.builtin_type_atom(symbol).is_some()
                     || (program.symbols.symbol_package_identity(symbol).is_none()
-                        && program.symbols.symbol_source_origin(symbol)
-                            != Some(source::SourceOrigin::Toolchain)))
+                        && !program
+                            .symbols
+                            .symbol_source_origin(symbol)
+                            .is_some_and(source::SourceOrigin::is_toolchain)))
             {
                 return path;
             }
@@ -2063,8 +2067,10 @@ pub(crate) mod identity_context {
             }
             let owner = if let Some(package) = program.symbols.symbol_package_identity(symbol) {
                 PackageQualifiedNominalOwner::Package(package.digest())
-            } else if program.symbols.symbol_source_origin(symbol)
-                == Some(source::SourceOrigin::Toolchain)
+            } else if program
+                .symbols
+                .symbol_source_origin(symbol)
+                .is_some_and(source::SourceOrigin::is_toolchain)
             {
                 program
                     .symbols
@@ -7893,6 +7899,9 @@ impl TypedTrees {
         }
         match self.symbols.symbol_source_origin(symbol) {
             Some(source::SourceOrigin::Toolchain) => Ok(format!("toolchain::{path}")),
+            Some(source::SourceOrigin::ToolchainContract) => {
+                Ok(format!("toolchain-contract::{path}"))
+            }
             Some(origin) => Err(format!(
                 "declaration `{path}` has non-hermetic source origin `{origin:?}`"
             )),

@@ -46,7 +46,7 @@ WIN_SEED="$OMEGA_PATH_ALPHA/alpha_x64_windows.exe"
 MAC_SEED="$OMEGA_PATH_ALPHA/alpha_arm64_macos"
 LIN_SEED="$OMEGA_PATH_ALPHA/alpha_x64_linux"
 CONTAINER_PY="$TEST_DIR/container.py"
-INVENTORY="bootstrap/0_alpha/README.md"
+INVENTORY="bootstrap/interpreted/0_alpha/README.md"
 
 # The Linux seed's bound identity is parsed from the retention inventory;
 # seed_env.sh now carries the third container's constants for host selection,

@@ -231,8 +231,11 @@ fn fetch_snapshot(repo: &Path) -> Result<(String, ClaimsRecord), u8> {
     if version.is_empty() {
         return Ok((String::new(), ClaimsRecord::default()));
     }
+    // Only the newest record matters: each commit's message is the whole
+    // registry, and the ref's history is tens of thousands of such commits,
+    // so a full fetch can exhaust a session's memory.
     let _ = Command::new("git")
-        .args(["fetch", "-q", "origin", CLAIMS_REF])
+        .args(["fetch", "-q", "--depth=1", "origin", CLAIMS_REF])
         .current_dir(repo)
         .stdin(Stdio::null())
         .status();

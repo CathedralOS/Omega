@@ -10,9 +10,9 @@
 . "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/seed_env.sh"
 
 # Bound Beta-to-Gamma edge subject. These are the same identities pinned by
-# bootstrap/2_gamma/EVALUATOR_PROFILE.md ("The selected implementation is"),
+# bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md ("The selected implementation is"),
 # repeated in tests/gamma/heap-boundary/evaluator.tsv and required by
-# bootstrap/3_delta/delta_compiler.composed. A digest here is an identity
+# bootstrap/interpreted/3_delta/delta_compiler.composed. A digest here is an identity
 # check that the bytes being stamped are the selected evaluator; it is not a
 # proof that the evaluator implements Gamma. Changing the source or tape
 # invalidates the dependent evidence and must update every record.
@@ -28,10 +28,10 @@ GAMMA_EVALUATOR_TAPE_SHA256=9a5f9acc2eeadb46ae1f1922fe7e7efaf379045c719152d6e1bb
 require_gamma_evaluator_identity() {
   require_bound_identity "gamma_evaluator.beta" "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" \
     "$GAMMA_EVALUATOR_SOURCE_SIZE" "$GAMMA_EVALUATOR_SOURCE_SHA256" \
-    "bootstrap/2_gamma/EVALUATOR_PROFILE.md" || return $?
+    "bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md" || return $?
   require_bound_identity "gamma_evaluator_bytecode.tape" "$OMEGA_PATH_GAMMA_EVALUATOR_TAPE" \
     "$GAMMA_EVALUATOR_TAPE_SIZE" "$GAMMA_EVALUATOR_TAPE_SHA256" \
-    "bootstrap/2_gamma/EVALUATOR_PROFILE.md" || return $?
+    "bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md" || return $?
 }
 
 materialize_gamma_evaluator() {

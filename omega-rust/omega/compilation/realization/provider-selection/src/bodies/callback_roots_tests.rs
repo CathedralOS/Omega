@@ -82,6 +82,8 @@ fn installed_module() -> TerminalModule {
             callable: name,
             result_type: name,
             contract: [ordinal as u8; 32],
+            published_may_suspend: false,
+            published_may_block: false,
             specialization: None,
         };
         let mut body = machine(

@@ -3,8 +3,7 @@
 // storage: its reference carries the address through the native call ABI.
 // Both kernel fields are signed 64-bit integers, in seconds/nanoseconds order.
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/time_types.h
-use omega::language::core::numeric_conversion;
-use clock;
+use omega::language::core::widen_u32_to_i64;
 
 public data LinuxArmClockSleepRequest { seconds: i64; nanoseconds: i64; }
 

@@ -5,7 +5,7 @@
 // can use its full native bound without adding another width-specific import.
 // https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-getfinalpathnamebyhandlew
 // https://learn.microsoft.com/windows/win32/api/stringapiset/nf-stringapiset-widechartomultibyte
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemMetadataQuery;
 
 
 boundary trait WindowsFilesystemPathIo {

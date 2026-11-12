@@ -1,8 +1,4 @@
-use psi::parse::parser;
-use psi::syntax::syntax;
-use psi::tokens::tokens;
-
-machine Parser::initialize_cursor(parser: &mut Parser) {
+machine initialize_cursor(parser: &mut Parser) {
     parser.cursor = 0;
     parser.current_index = 0;
     parser.current_present = false;
@@ -10,7 +6,7 @@ machine Parser::initialize_cursor(parser: &mut Parser) {
 
 // One checked dynamic-selection boundary retains only a bounded index witness;
 // callers read the canonical typed token directly from the borrowed stream.
-machine Parser::load_current(parser: &mut Parser, input: &TokenStream) {
+machine load_current(parser: &mut Parser, input: &TokenStream) {
     parser.current_present = false;
     transition parser.cursor < input.token_count {
         true -> array_bound(parser, parser.cursor as u64)
@@ -36,7 +32,7 @@ machine Parser::load_current(parser: &mut Parser, input: &TokenStream) {
     }
 }
 
-machine Parser::advance(parser: &mut Parser, input: &TokenStream) {
+machine parser_advance(parser: &mut Parser, input: &TokenStream) {
     parser.cursor = parser.cursor + 1;
 }
 
@@ -45,7 +41,7 @@ machine Parser::advance(parser: &mut Parser, input: &TokenStream) {
 // to the next token; otherwise it rejects with `code` at the token, or at the
 // source end when input is exhausted. Callers continue only while
 // `output.accepted` holds.
-machine Parser::expect_punctuation(
+machine expect_punctuation(
     parser: &mut Parser,
     input: &TokenStream,
     expected: PunctuationKind,
@@ -53,47 +49,47 @@ machine Parser::expect_punctuation(
 )
 crashes Trap
 {
-    let present: bool = Parser::at_punctuation(parser, input, expected);
+    let present: bool = at_punctuation(parser, input, expected);
     transition present {
         true -> take(parser, input)
         _ -> reject(parser, input, code)
     }
 
     machine take(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
     }
 
     machine reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
-        Parser::reject_current(parser, input, code);
+        reject_current(parser, input, code);
     }
 }
 
 // A name: an identifier or any keyword except `self`, matching the data
 // grammar's name rule. The name's span lands in `name_start`/`name_end`.
-machine Parser::expect_name(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode)
+machine expect_name(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode)
 crashes Trap
 {
-    let present: bool = Parser::at_name(parser, input);
+    let present: bool = at_name(parser, input);
     transition present {
         true -> take(parser, input)
         _ -> reject(parser, input, code)
     }
 
     machine take(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         parser.name_start = parser.token_start;
         parser.name_end = parser.token_end;
     }
 
     machine reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
-        Parser::reject_current(parser, input, code);
+        reject_current(parser, input, code);
     }
 }
 
-machine Parser::at_punctuation(parser: &mut Parser, input: &TokenStream, expected: PunctuationKind) -> bool
+machine at_punctuation(parser: &mut Parser, input: &TokenStream, expected: PunctuationKind) -> bool
 crashes Trap
 {
-    Parser::load_current(parser, input);
+    load_current(parser, input);
     transition parser.current_present {
         true -> loaded(parser, input, expected)
         _ -> absent()
@@ -116,10 +112,10 @@ crashes Trap
     }
 }
 
-machine Parser::at_keyword(parser: &mut Parser, input: &TokenStream, expected: KeywordKind) -> bool
+machine at_keyword(parser: &mut Parser, input: &TokenStream, expected: KeywordKind) -> bool
 crashes Trap
 {
-    Parser::load_current(parser, input);
+    load_current(parser, input);
     transition parser.current_present {
         true -> loaded(parser, input, expected)
         _ -> absent()
@@ -142,10 +138,10 @@ crashes Trap
     }
 }
 
-machine Parser::at_name(parser: &mut Parser, input: &TokenStream) -> bool
+machine at_name(parser: &mut Parser, input: &TokenStream) -> bool
 crashes Trap
 {
-    Parser::load_current(parser, input);
+    load_current(parser, input);
     transition parser.current_present {
         true -> loaded(parser, input)
         _ -> absent()
@@ -172,19 +168,19 @@ crashes Trap
 
 // Record the current token's span and advance past it.
 // Callers have already established that a token is present.
-machine Parser::take_current(parser: &mut Parser, input: &TokenStream)
+machine take_current(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
     let token: Token = input.tokens[parser.current_index];
     parser.token_start = token.start;
     parser.token_end = token.end;
-    Parser::advance(parser, input);
+    parser_advance(parser, input);
 }
 
-machine Parser::reject_current(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode)
+machine reject_current(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode)
 crashes Trap
 {
-    Parser::load_current(parser, input);
+    load_current(parser, input);
     transition parser.current_present {
         true -> at_token(parser, input, code)
         _ -> at_end(parser, code)
@@ -192,11 +188,11 @@ crashes Trap
 
     machine at_token(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         let token: Token = input.tokens[parser.current_index];
-        SyntaxTrees::reject(&mut parser.output, code, parser.source, token.start, token.end);
+        syntax_trees_reject(&mut parser.output, code, parser.source, token.start, token.end);
     }
 
     machine at_end(parser: &mut Parser, code: ParseDiagnosticCode) {
-        SyntaxTrees::reject(&mut parser.output, code, parser.source, parser.source_length, parser.source_length);
+        syntax_trees_reject(&mut parser.output, code, parser.source, parser.source_length, parser.source_length);
     }
 }
 
@@ -207,20 +203,20 @@ crashes Trap
 // (wiki/spec/proofs/contracts.md#explicit-erased-bindings): `[` must open
 // exactly that marker. Records whether it was spelled in
 // `binding_erased`.
-public machine Parser::parse_erased_marker(parser: &mut Parser, input: &TokenStream)
+public machine parse_erased_marker(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
     parser.binding_erased = false;
-    let opened: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBracket);
+    let opened: bool = at_punctuation(parser, input, PunctuationKind::LeftBracket);
     transition opened {
         true -> marker(parser, input)
         _ -> done()
     }
 
     machine marker(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         parser.binding_erased_start = parser.token_start;
-        let erased: bool = Parser::at_word(parser, input, "erased");
+        let erased: bool = at_word(parser, input, "erased");
         transition erased {
             true -> word(parser, input)
             _ -> reject(parser, input)
@@ -228,20 +224,20 @@ crashes Trap
     }
 
     machine word(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
-        Parser::expect_punctuation(parser, input, PunctuationKind::RightBracket, ParseDiagnosticCode::ExpectedErasedMarker);
+        take_current(parser, input);
+        expect_punctuation(parser, input, PunctuationKind::RightBracket, ParseDiagnosticCode::ExpectedErasedMarker);
         parser.binding_erased = parser.output.accepted;
     }
 
     machine reject(parser: &mut Parser, input: &TokenStream) {
-        Parser::reject_current(parser, input, ParseDiagnosticCode::ExpectedErasedMarker);
+        reject_current(parser, input, ParseDiagnosticCode::ExpectedErasedMarker);
     }
 
     machine done() {}
 }
 
 // Record binding `handle` of `kind` as erased when its marker was spelled.
-public machine Parser::record_erased(parser: &mut Parser, kind: ErasedBindingKind, handle: u64 in Trapping, end: u64 in Trapping)
+public machine record_erased(parser: &mut Parser, kind: ErasedBindingKind, handle: u64 in Trapping, end: u64 in Trapping)
 crashes Trap
 {
     transition parser.binding_erased {
@@ -260,23 +256,23 @@ crashes Trap
         parser.output.erased_bindings[parser.output.erased_binding_count] = ErasedBinding {
             kind: kind,
             handle: handle,
-            source_span: Parser::source_span(parser, parser.binding_erased_start, end)
+            source_span: parser_source_span(parser, parser.binding_erased_start, end)
         };
         parser.output.erased_binding_count = parser.output.erased_binding_count + 1;
         parser.binding_erased = false;
     }
 
     machine full(parser: &mut Parser) {
-        SyntaxTrees::reject(&mut parser.output, ParseDiagnosticCode::ErasedBindingCapacityExceeded, parser.source, parser.binding_erased_start, parser.token_end);
+        syntax_trees_reject(&mut parser.output, ParseDiagnosticCode::ErasedBindingCapacityExceeded, parser.source, parser.binding_erased_start, parser.token_end);
     }
 
     machine done() {}
 }
 
-machine Parser::at_word(parser: &mut Parser, input: &TokenStream, spelling: &[u8]) -> bool
+machine at_word(parser: &mut Parser, input: &TokenStream, spelling: &[u8]) -> bool
 crashes Trap
 {
-    Parser::load_current(parser, input);
+    load_current(parser, input);
     transition parser.current_present {
         true -> loaded(parser, input, spelling)
         _ -> absent()
@@ -291,7 +287,7 @@ crashes Trap
     }
 
     machine spelled(input: &TokenStream, start: u64 in Trapping, length: u64 in Trapping, spelling: &[u8]) -> bool {
-        Parser::decoded_spells(input, start, length, spelling)
+        decoded_spells(input, start, length, spelling)
     }
 
     machine absent() -> bool {
@@ -300,10 +296,10 @@ crashes Trap
 }
 
 // Whether the current token is an integer literal.
-machine Parser::at_integer(parser: &mut Parser, input: &TokenStream) -> bool
+machine at_integer(parser: &mut Parser, input: &TokenStream) -> bool
 crashes Trap
 {
-    Parser::load_current(parser, input);
+    load_current(parser, input);
     transition parser.current_present {
         true -> loaded(parser, input)
         _ -> absent()
@@ -329,47 +325,47 @@ crashes Trap
 // Whether the token after the current one is `expected`, leaving the cursor
 // where it was: the one-token lookahead that tells a contextual word from an
 // ordinary name, as `block f()` from `block(x)`.
-machine Parser::next_is_punctuation(parser: &mut Parser, input: &TokenStream, expected: PunctuationKind) -> bool
+machine next_is_punctuation(parser: &mut Parser, input: &TokenStream, expected: PunctuationKind) -> bool
 crashes Trap
 {
     let cursor: u64 in Trapping = parser.cursor;
     parser.cursor = parser.cursor + 1;
-    let present: bool = Parser::at_punctuation(parser, input, expected);
+    let present: bool = at_punctuation(parser, input, expected);
     parser.cursor = cursor;
-    Parser::load_current(parser, input);
+    load_current(parser, input);
     present
 }
 
 // Whether the token after the current one is the keyword `expected`, leaving
 // the cursor where it was: a target name before `machine`.
-machine Parser::next_is_keyword(parser: &mut Parser, input: &TokenStream, expected: KeywordKind) -> bool
+machine next_is_keyword(parser: &mut Parser, input: &TokenStream, expected: KeywordKind) -> bool
 crashes Trap
 {
     let cursor: u64 in Trapping = parser.cursor;
     parser.cursor = parser.cursor + 1;
-    let present: bool = Parser::at_keyword(parser, input, expected);
+    let present: bool = at_keyword(parser, input, expected);
     parser.cursor = cursor;
-    Parser::load_current(parser, input);
+    load_current(parser, input);
     present
 }
 
 // Whether the token after the current one is an identifier spelling exactly
 // `spelling`, leaving the cursor where it was: a conformance's name before
 // `satisfies`, or a target name before `boundary`.
-machine Parser::next_is_word(parser: &mut Parser, input: &TokenStream, spelling: &[u8]) -> bool
+machine next_is_word(parser: &mut Parser, input: &TokenStream, spelling: &[u8]) -> bool
 crashes Trap
 {
     let cursor: u64 in Trapping = parser.cursor;
     parser.cursor = parser.cursor + 1;
-    let present: bool = Parser::at_word(parser, input, spelling);
+    let present: bool = at_word(parser, input, spelling);
     parser.cursor = cursor;
-    Parser::load_current(parser, input);
+    load_current(parser, input);
     present
 }
 
 // Whether the token after the current one is `expected` and starts exactly at
 // `end`, with no source between them.
-machine Parser::next_is_adjacent_punctuation(
+machine next_is_adjacent_punctuation(
     parser: &mut Parser,
     input: &TokenStream,
     expected: PunctuationKind,
@@ -379,7 +375,7 @@ crashes Trap
 {
     let cursor: u64 in Trapping = parser.cursor;
     parser.cursor = parser.cursor + 1;
-    let present: bool = Parser::at_punctuation(parser, input, expected);
+    let present: bool = at_punctuation(parser, input, expected);
     transition present {
         true -> adjacent(parser, input, cursor, end)
         _ -> restore(parser, input, cursor, false)
@@ -392,7 +388,7 @@ crashes Trap
 
     machine restore(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping, result: bool) -> bool {
         parser.cursor = cursor;
-        Parser::load_current(parser, input);
+        load_current(parser, input);
         result
     }
 }
@@ -404,22 +400,22 @@ crashes Trap
 // generic conformance `Name<...> satisfies`. No expression begins with two
 // names except a cast `x as T`, a membership `x in D` and an acknowledged
 // call `suspend f()`, `block f()`.
-machine Parser::at_declaration_head(parser: &mut Parser, input: &TokenStream) -> bool
+machine at_declaration_head(parser: &mut Parser, input: &TokenStream) -> bool
 crashes Trap
 {
-    let uses: bool = Parser::at_keyword(parser, input, KeywordKind::Use);
-    let declares_data: bool = Parser::at_keyword(parser, input, KeywordKind::Data);
-    let declares_machine: bool = Parser::at_keyword(parser, input, KeywordKind::Machine);
-    let is_public: bool = Parser::at_keyword(parser, input, KeywordKind::Public);
+    let uses: bool = at_keyword(parser, input, KeywordKind::Use);
+    let declares_data: bool = at_keyword(parser, input, KeywordKind::Data);
+    let declares_machine: bool = at_keyword(parser, input, KeywordKind::Machine);
+    let is_public: bool = at_keyword(parser, input, KeywordKind::Public);
     transition uses || declares_data || declares_machine || is_public {
         true -> head()
         _ -> first_name(parser, input)
     }
 
     machine first_name(parser: &mut Parser, input: &TokenStream) -> bool {
-        let named: bool = Parser::at_name(parser, input);
-        let suspends: bool = Parser::at_word(parser, input, "suspend");
-        let blocks: bool = Parser::at_word(parser, input, "block");
+        let named: bool = at_name(parser, input);
+        let suspends: bool = at_word(parser, input, "suspend");
+        let blocks: bool = at_word(parser, input, "block");
         transition named && !suspends && !blocks {
             true -> second_name(parser, input)
             _ -> expression()
@@ -427,17 +423,17 @@ crashes Trap
     }
 
     machine second_name(parser: &mut Parser, input: &TokenStream) -> bool {
-        let family: bool = Parser::at_word(parser, input, "domain");
+        let family: bool = at_word(parser, input, "domain");
         let cursor: u64 in Trapping = parser.cursor;
         parser.cursor = parser.cursor + 1;
-        let named: bool = Parser::at_name(parser, input);
-        let cast: bool = Parser::at_keyword(parser, input, KeywordKind::As);
-        let membership: bool = Parser::at_word(parser, input, "in");
-        let generic: bool = Parser::at_punctuation(parser, input, PunctuationKind::Less);
-        let bracketed: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBracket);
+        let named: bool = at_name(parser, input);
+        let cast: bool = at_keyword(parser, input, KeywordKind::As);
+        let membership: bool = at_word(parser, input, "in");
+        let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
+        let bracketed: bool = at_punctuation(parser, input, PunctuationKind::LeftBracket);
         parser.cursor = cursor;
-        Parser::load_current(parser, input);
-        let conformance: bool = Parser::generic_conformance_ahead(parser, input);
+        load_current(parser, input);
+        let conformance: bool = generic_conformance_ahead(parser, input);
         named && !cast && !membership || family && (generic || bracketed) || conformance
     }
 
@@ -454,7 +450,7 @@ crashes Trap
 // satisfies`: a `<` follows, its matching `>` closes a run of tokens a
 // generic parameter list can spell, and `satisfies` follows that `>`. The
 // scan reads tokens without moving the cursor.
-machine Parser::generic_conformance_ahead(parser: &Parser, input: &TokenStream) -> bool
+machine generic_conformance_ahead(parser: &Parser, input: &TokenStream) -> bool
 crashes Trap
 {
     transition { _ -> next(input, parser.cursor + 1) }
@@ -524,7 +520,7 @@ crashes Trap
     }
 
     machine spelled(input: &TokenStream, start: u64 in Trapping, length: u64 in Trapping) -> bool {
-        Parser::decoded_spells(input, start, length, "satisfies")
+        decoded_spells(input, start, length, "satisfies")
     }
 
     machine absent() -> bool {
@@ -533,7 +529,7 @@ crashes Trap
 }
 
 // Whether the decoded bytes `start..start + length` spell exactly `spelling`.
-machine Parser::decoded_spells(input: &TokenStream, start: u64 in Trapping, length: u64 in Trapping, spelling: &[u8]) -> bool
+machine decoded_spells(input: &TokenStream, start: u64 in Trapping, length: u64 in Trapping, spelling: &[u8]) -> bool
 crashes Trap
 {
     transition length == spelling.len {

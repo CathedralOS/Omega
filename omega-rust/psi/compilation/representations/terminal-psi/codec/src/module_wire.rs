@@ -343,6 +343,8 @@ pub(crate) mod boundary_application_wire {
                         machine: nominal("owner::body"),
                         state: nominal("owner::entry"),
                         contract: [3; 32],
+                        published_may_suspend: false,
+                        published_may_block: false,
                         specialization,
                     },
                 };
@@ -414,6 +416,8 @@ pub(crate) mod callback_application_wire {
                         terminal_psi::TerminalIdentityIndex(12),
                     ),
                     contract: [5; 32],
+                    published_may_suspend: false,
+                    published_may_block: false,
                     specialization: None,
                 },
             };
@@ -3175,6 +3179,9 @@ pub(crate) mod proof_scope_wire {
                         semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing => {
                             writer.u8(4)
                         }
+                        semantic_vocabulary::compiler_evaluation::DeclarationCustody::ToolchainContract => {
+                            writer.u8(5)
+                        }
                     }
                     writer.len("compiler-evaluation services", facts.effects.services.len())?;
                     for service in &facts.effects.services {
@@ -3406,6 +3413,7 @@ pub(crate) mod proof_scope_wire {
                     2 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Toolchain,
                     3 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::UnownedUser,
                     4 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
+                    5 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::ToolchainContract,
                     tag => return Err(CodecError::InvalidTag("compiler-evaluation custody", tag)),
                 };
                 Ok(

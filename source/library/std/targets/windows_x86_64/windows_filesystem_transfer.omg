@@ -12,12 +12,12 @@
 // that generic NtQueryInformationFile requests cannot pend. A generic pending
 // fallback may neither free output storage nor wait on an unrelated operation's
 // shared file-handle signal. Do not widen the class/length contract silently.
-use windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-use omega::language::core::numeric_conversion;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_impl;
-use targets::windows_x86_64::windows_filesystem_transfer_native;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::widen_i32_to_i64;
+use omega::language::core::widen_u32_to_i64;
+use omega::language::core::narrow_u64_to_i64_wrapping;
+use omega::language::core::narrow_i64_to_u64_wrapping;
 
 // This query-and-pin operation is the exact private issuer. No separate
 // constructor can classify a number from caller-supplied mode bits. The OS

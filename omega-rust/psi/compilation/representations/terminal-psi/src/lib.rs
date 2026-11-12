@@ -249,6 +249,8 @@ pub mod prepared_roots {
                 callable: table.intern("qualified-callable"),
                 result_type: table.intern("qualified-result"),
                 contract: [17; 32],
+                published_may_suspend: false,
+                published_may_block: false,
                 specialization: Some(CheckedMachineSpecialization {
                     capture: None,
                     template: NominalDeclarationIdentity::new(table.intern("package::Template")),
@@ -1173,3 +1175,8 @@ pub use direct_calls::{
 };
 
 pub use language_core::descriptor_tables::{SegmentRegister, SegmentReload};
+
+pub use flow_effects::{
+    ConditionalCarryRequirement, ContractDependency, template_contract_commitment,
+    validate_published_dependency,
+};

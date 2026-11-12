@@ -5,11 +5,10 @@
 // Owned opens add SECURITY_SQOS_PRESENT with the zero Anonymous level: a
 // file-like endpoint must not inherit permission to impersonate the caller.
 // The raw create_file API still preserves its caller's explicit native flags.
-use filesystem;
-use filesystem_host;
-use windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-use targets::windows_x86_64::filesystem::errors;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 
 windows_x86_64 machine windows_filesystem_opened(handle: u64) -> OpenResult
 invokes WindowsFilesystemHost

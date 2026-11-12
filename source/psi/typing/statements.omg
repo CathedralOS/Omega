@@ -1,14 +1,3 @@
-use psi::resolution::resolution;
-use psi::source::source;
-use psi::syntax::syntax;
-use psi::types::types;
-use psi::typing::admission;
-use psi::typing::calls;
-use psi::typing::coverage;
-use psi::typing::expressions;
-use psi::typing::patterns;
-use psi::typing::typer;
-
 // One body's statements in authored order. A `let` initializer meets its
 // declared type, an assignment its place's, and a final unterminated
 // expression the body's result. A non-Unit result cannot be silently
@@ -19,7 +8,7 @@ use psi::typing::typer;
 // parameters, a terminal machine call's result the body's result, and `-> {}`
 // completes a unit body (wiki/spec/language/state_contracts.md). Its arms
 // cover its subject (coverage.omg).
-public machine Typer::type_body(
+public machine type_body(
     typer: &mut Typer,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
@@ -40,7 +29,7 @@ crashes Trap
     }
 
     machine statement(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, end: u64 in Trapping, result: u64 in Trapping) {
-        Typer::type_statement(typer, sources, syntax, resolution, index, result);
+        type_statement(typer, sources, syntax, resolution, index, result);
         transition { _ -> next(typer, sources, syntax, resolution, index + 1, end, result) }
     }
 
@@ -50,7 +39,7 @@ crashes Trap
 // An executable declaration that reaches its end completes with Unit. A
 // terminal statement or a Never expression has no fallthrough completion.
 // Bodyless signatures make no executable completion claim.
-public machine Typer::require_body_completion(typer: &mut Typer, syntax: &SyntaxTrees, item: MachineItem, result: u64 in Trapping)
+public machine require_body_completion(typer: &mut Typer, syntax: &SyntaxTrees, item: MachineItem, result: u64 in Trapping)
 crashes Trap
 {
     transition item.has_body && typer.output.accepted && result != typer.output.unit {
@@ -64,7 +53,7 @@ crashes Trap
         }
     }
     machine statement(typer: &mut Typer, syntax: &SyntaxTrees, item: MachineItem, index: u64 in Trapping) {
-        let statement: Statement = SyntaxTrees::statement(syntax, index);
+        let statement: Statement = syntax_trees_statement(syntax, index);
         let terminal: bool = statement.kind == StatementKind::Tail || statement.kind == StatementKind::Crash || statement.kind == StatementKind::Transition;
         transition terminal {
             true -> done()
@@ -78,23 +67,23 @@ crashes Trap
         }
     }
     machine value(typer: &mut Typer, syntax: &SyntaxTrees, item: MachineItem, index: u64 in Trapping, expression: u64 in Trapping) {
-        let value_type: u64 in Trapping = Typing::expression_type(&typer.output, expression);
-        let never: bool = Typer::never_type(typer, value_type);
+        let value_type: u64 in Trapping = typing_expression_type(&typer.output, expression);
+        let never: bool = never_type(typer, value_type);
         transition never {
             true -> done()
             false -> next(typer, syntax, item, index + 1)
         }
     }
     machine missing(typer: &mut Typer, item: MachineItem) {
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::TerminalResultMismatch, item.source_span);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::TerminalResultMismatch, item.source_span);
     }
     machine done() {}
 }
 
-machine Typer::type_statement(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, result: u64 in Trapping)
+machine type_statement(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, result: u64 in Trapping)
 crashes Trap
 {
-    let statement: Statement = SyntaxTrees::statement(syntax, index);
+    let statement: Statement = syntax_trees_statement(syntax, index);
     transition statement.kind {
         StatementKind::Let -> local(typer, sources, syntax, resolution, statement)
         StatementKind::Assign -> assign(typer, sources, syntax, resolution, statement)
@@ -113,8 +102,8 @@ crashes Trap
     }
 
     machine initialized(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement) {
-        Typer::type_tree(typer, sources, syntax, resolution, statement.value);
-        let declared: u64 in Trapping = Typing::reference_type(&typer.output, statement.type_reference);
+        type_tree(typer, sources, syntax, resolution, statement.value);
+        let declared: u64 in Trapping = reference_type(&typer.output, statement.type_reference);
         transition typer.output.accepted {
             true -> admit(typer, syntax, declared, statement.value)
             _ -> done()
@@ -122,10 +111,10 @@ crashes Trap
     }
 
     machine assign(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement) {
-        Typer::type_tree(typer, sources, syntax, resolution, statement.target);
-        Typer::type_tree(typer, sources, syntax, resolution, statement.value);
-        let place: bool = Typer::is_place(syntax, resolution, statement.target);
-        let destination: u64 in Trapping = Typer::place_type(typer, syntax, statement.target);
+        type_tree(typer, sources, syntax, resolution, statement.target);
+        type_tree(typer, sources, syntax, resolution, statement.value);
+        let place: bool = is_place(syntax, resolution, statement.target);
+        let destination: u64 in Trapping = place_type(typer, syntax, statement.target);
         transition typer.output.accepted && place {
             true -> assigned(typer, syntax, resolution, statement, destination)
             _ -> assign_rejected(typer, syntax, statement, place)
@@ -133,7 +122,7 @@ crashes Trap
     }
 
     machine assigned(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement, destination: u64 in Trapping) {
-        let writable: bool = Typer::writable_place(typer, syntax, resolution, statement.target);
+        let writable: bool = writable_place(typer, syntax, resolution, statement.target);
         transition writable {
             true -> admit(typer, syntax, destination, statement.value)
             _ -> immutable(typer, syntax, statement)
@@ -141,12 +130,12 @@ crashes Trap
     }
 
     machine immutable(typer: &mut Typer, syntax: &SyntaxTrees, statement: Statement) {
-        let target: Expression = SyntaxTrees::expression(syntax, statement.target);
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::ImmutablePlace, target.source_span);
+        let target: Expression = syntax_trees_expression(syntax, statement.target);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::ImmutablePlace, target.source_span);
     }
 
     machine assign_rejected(typer: &mut Typer, syntax: &SyntaxTrees, statement: Statement, place: bool) {
-        let target: Expression = SyntaxTrees::expression(syntax, statement.target);
+        let target: Expression = syntax_trees_expression(syntax, statement.target);
         transition typer.output.accepted && !place {
             true -> not_a_place(typer, target)
             _ -> done()
@@ -154,9 +143,9 @@ crashes Trap
     }
 
     machine evaluated(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement) {
-        Typer::type_tree(typer, sources, syntax, resolution, statement.value);
-        let value_type: u64 in Trapping = Typing::expression_type(&typer.output, statement.value);
-        let never: bool = Typer::never_type(typer, value_type);
+        type_tree(typer, sources, syntax, resolution, statement.value);
+        let value_type: u64 in Trapping = typing_expression_type(&typer.output, statement.value);
+        let never: bool = never_type(typer, value_type);
         transition !typer.output.accepted || value_type == typer.output.unit || never {
             true -> done()
             _ -> silently_discarded(typer, syntax, statement)
@@ -164,14 +153,14 @@ crashes Trap
     }
 
     machine silently_discarded(typer: &mut Typer, syntax: &SyntaxTrees, statement: Statement) {
-        let value: Expression = SyntaxTrees::expression(syntax, statement.value);
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::SilentDiscard, value.source_span);
+        let value: Expression = syntax_trees_expression(syntax, statement.value);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::SilentDiscard, value.source_span);
     }
 
     // Only a call's result is dropped intentionally.
     machine discarded(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement) {
-        let value: Expression = SyntaxTrees::expression(syntax, statement.value);
-        Typer::type_tree(typer, sources, syntax, resolution, statement.value);
+        let value: Expression = syntax_trees_expression(syntax, statement.value);
+        type_tree(typer, sources, syntax, resolution, statement.value);
         transition !typer.output.accepted || value.kind == ExpressionKind::Call {
             true -> done()
             _ -> discards_no_call(typer, value)
@@ -179,11 +168,11 @@ crashes Trap
     }
 
     machine discards_no_call(typer: &mut Typer, value: Expression) {
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::DiscardsNoCall, value.source_span);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::DiscardsNoCall, value.source_span);
     }
 
     machine tail(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement, result: u64 in Trapping) {
-        Typer::type_tree(typer, sources, syntax, resolution, statement.value);
+        type_tree(typer, sources, syntax, resolution, statement.value);
         transition typer.output.accepted {
             true -> admit(typer, syntax, result, statement.value)
             _ -> done()
@@ -198,8 +187,8 @@ crashes Trap
     }
 
     machine subject(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement, result: u64 in Trapping) {
-        Typer::type_tree(typer, sources, syntax, resolution, statement.value);
-        let subject_type: u64 in Trapping = Typing::expression_type(&typer.output, statement.value);
+        type_tree(typer, sources, syntax, resolution, statement.value);
+        let subject_type: u64 in Trapping = typing_expression_type(&typer.output, statement.value);
         transition typer.output.accepted && subject_type == 0 {
             true -> subject_absent(typer, syntax, statement)
             _ -> arms(typer, sources, syntax, resolution, statement, result, subject_type)
@@ -207,12 +196,12 @@ crashes Trap
     }
 
     machine subject_absent(typer: &mut Typer, syntax: &SyntaxTrees, statement: Statement) {
-        let subject_expression: Expression = SyntaxTrees::expression(syntax, statement.value);
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::NotAValue, subject_expression.source_span);
+        let subject_expression: Expression = syntax_trees_expression(syntax, statement.value);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::NotAValue, subject_expression.source_span);
     }
 
     machine arms(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement, result: u64 in Trapping, subject_type: u64 in Trapping) {
-        Typer::type_arms(typer, sources, syntax, resolution, statement, result, subject_type, 0);
+        type_arms(typer, sources, syntax, resolution, statement, result, subject_type, 0);
         transition typer.output.accepted {
             true -> coverage(typer, sources, syntax, resolution, statement, subject_type)
             _ -> done()
@@ -221,7 +210,7 @@ crashes Trap
 
     machine coverage(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement, subject_type: u64 in Trapping) {
         let range: ArmRange = ArmRange { matched: false, first: statement.first_arm, count: statement.arm_count };
-        let covered: bool = Typer::covers(typer, sources, syntax, resolution, range, subject_type);
+        let covered: bool = covers(typer, sources, syntax, resolution, range, subject_type);
         transition covered {
             true -> done()
             _ -> uncovered(typer, statement)
@@ -229,22 +218,22 @@ crashes Trap
     }
 
     machine uncovered(typer: &mut Typer, statement: Statement) {
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::UncoveredDispatch, statement.source_span);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::UncoveredDispatch, statement.source_span);
     }
 
     machine admit(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, value: u64 in Trapping) {
-        let admitted: bool = Typer::admit(typer, syntax, destination, value, false);
+        let admitted: bool = typer_admit(typer, syntax, destination, value, false);
     }
 
     machine not_a_place(typer: &mut Typer, target: Expression) {
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::NotAPlace, target.source_span);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::NotAPlace, target.source_span);
     }
 
     machine done() {}
 }
 
 // The arms of a transition over `subject_type` (zero for a subjectless block).
-machine Typer::type_arms(
+machine type_arms(
     typer: &mut Typer,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
@@ -271,9 +260,9 @@ crashes Trap
         subject_type: u64 in Trapping,
         offset: u64 in Trapping
     ) {
-        let arm: TransitionArm = SyntaxTrees::arm(syntax, statement.first_arm + offset);
-        Typer::type_pattern(typer, sources, syntax, resolution, arm, subject_type);
-        Typer::type_guard_clause(typer, sources, syntax, resolution, arm);
+        let arm: TransitionArm = syntax_trees_arm(syntax, statement.first_arm + offset);
+        type_pattern(typer, sources, syntax, resolution, arm, subject_type);
+        type_guard_clause(typer, sources, syntax, resolution, arm);
         transition typer.output.accepted {
             true -> target(typer, sources, syntax, resolution, statement, result, subject_type, offset, arm)
             _ -> done()
@@ -291,7 +280,7 @@ crashes Trap
         offset: u64 in Trapping,
         arm: TransitionArm
     ) {
-        Typer::type_target(typer, sources, syntax, resolution, arm, result);
+        type_target(typer, sources, syntax, resolution, arm, result);
         transition { _ -> arms_next(typer, sources, syntax, resolution, statement, result, subject_type, offset + 1) }
     }
 
@@ -316,7 +305,7 @@ crashes Trap
 
 // An arm's `if` guard is Boolean, typed after the pattern so its binders
 // are known.
-machine Typer::type_guard_clause(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm)
+machine type_guard_clause(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm)
 crashes Trap
 {
     transition arm.has_guard && typer.output.accepted {
@@ -325,8 +314,8 @@ crashes Trap
     }
 
     machine typed(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm) {
-        Typer::type_tree(typer, sources, syntax, resolution, arm.guard);
-        let guard_type: u64 in Trapping = Typing::expression_type(&typer.output, arm.guard);
+        type_tree(typer, sources, syntax, resolution, arm.guard);
+        let guard_type: u64 in Trapping = typing_expression_type(&typer.output, arm.guard);
         transition typer.output.accepted && guard_type != typer.output.boolean {
             true -> not_boolean(typer, syntax, arm)
             _ -> done()
@@ -334,8 +323,8 @@ crashes Trap
     }
 
     machine not_boolean(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm) {
-        let written: Expression = SyntaxTrees::expression(syntax, arm.guard);
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::NotBoolean, written.source_span);
+        let written: Expression = syntax_trees_expression(syntax, arm.guard);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::NotBoolean, written.source_span);
     }
 
     machine done() {}
@@ -343,7 +332,7 @@ crashes Trap
 
 // An arm's pattern: a guard is Boolean, a literal or a case meets the
 // subject as its head does, and a case binds its fields.
-machine Typer::type_pattern(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping)
+machine type_pattern(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping)
 crashes Trap
 {
     transition arm.kind {
@@ -354,8 +343,8 @@ crashes Trap
     }
 
     machine guard(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm) {
-        Typer::type_tree(typer, sources, syntax, resolution, arm.pattern);
-        let guard_type: u64 in Trapping = Typing::expression_type(&typer.output, arm.pattern);
+        type_tree(typer, sources, syntax, resolution, arm.pattern);
+        let guard_type: u64 in Trapping = typing_expression_type(&typer.output, arm.pattern);
         transition typer.output.accepted && guard_type != typer.output.boolean {
             true -> not_boolean(typer, syntax, arm)
             _ -> done()
@@ -363,7 +352,7 @@ crashes Trap
     }
 
     machine head(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping) {
-        Typer::type_tree(typer, sources, syntax, resolution, arm.pattern);
+        type_tree(typer, sources, syntax, resolution, arm.pattern);
         transition typer.output.accepted {
             true -> headed(typer, sources, syntax, resolution, arm, subject_type)
             _ -> done()
@@ -371,9 +360,9 @@ crashes Trap
     }
 
     machine headed(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping) {
-        let named: u64 in Trapping = Typer::pattern_head(typer, syntax, resolution, arm, subject_type);
-        let base: u64 in Trapping = Typer::referent(typer, subject_type);
-        let subject_row: TypeRow = TypeTable::row(&typer.output.types, base);
+        let named: u64 in Trapping = pattern_head(typer, syntax, resolution, arm, subject_type);
+        let base: u64 in Trapping = typer_referent(typer, subject_type);
+        let subject_row: TypeRow = type_table_row(&typer.output.types, base);
         transition named > 0 && typer.output.accepted {
             true -> named_case(typer, sources, syntax, resolution, arm, subject_row, named - 1)
             _ -> done()
@@ -389,7 +378,7 @@ crashes Trap
         subject_row: TypeRow,
         data_case: u64 in Trapping
     ) {
-        let declared: DataItem = SyntaxTrees::data_item(syntax, subject_row.item);
+        let declared: DataItem = syntax_trees_data_item(syntax, subject_row.item);
         transition { _ -> fields(typer, sources, syntax, resolution, arm, subject_row, declared, data_case, 0) }
     }
 
@@ -411,9 +400,9 @@ crashes Trap
     }
 
     machine complete_pattern(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, arm: TransitionArm, declared: DataItem, data_case: u64 in Trapping) {
-        let selected: DataCase = SyntaxTrees::data_case(syntax, data_case);
+        let selected: DataCase = syntax_trees_data_case(syntax, data_case);
         let expected: u64 in Trapping = (declared.field_count as u64 in Trapping) + (selected.payload_field_count as u64 in Trapping);
-        Typer::validate_pattern_fields(typer, sources, syntax, arm, expected);
+        validate_pattern_fields(typer, sources, syntax, arm, expected);
     }
 
     machine field(
@@ -428,10 +417,10 @@ crashes Trap
         offset: u64 in Trapping
     ) {
         let handle: u64 in Trapping = arm.first_field + offset;
-        let pattern_field: PatternField = SyntaxTrees::pattern_field(syntax, handle);
-        let target: MemberTarget = Typer::member_target(sources, syntax, declared, true, data_case, pattern_field.name);
-        Typing::set_binder_member(&mut typer.output, handle, target);
-        let reference: u64 in Trapping = Typer::target_reference(syntax, target);
+        let pattern_field: PatternField = syntax_trees_pattern_field(syntax, handle);
+        let target: MemberTarget = member_target(sources, syntax, declared, true, data_case, pattern_field.name);
+        set_binder_member(&mut typer.output, handle, target);
+        let reference: u64 in Trapping = target_reference(syntax, target);
         transition reference < 18446744073709551615 {
             true -> field_typed(typer, sources, syntax, resolution, arm, subject_row, declared, data_case, offset, handle, pattern_field, reference)
             _ -> unknown_field(typer, pattern_field)
@@ -452,8 +441,8 @@ crashes Trap
         pattern_field: PatternField,
         reference: u64 in Trapping
     ) {
-        let written: u64 in Trapping = Typing::reference_type(&typer.output, reference);
-        let field_type: u64 in Trapping = Typer::substitute(typer, syntax, written, subject_row, pattern_field.source_span);
+        let written: u64 in Trapping = reference_type(&typer.output, reference);
+        let field_type: u64 in Trapping = substitute(typer, syntax, written, subject_row, pattern_field.source_span);
         transition pattern_field.has_value {
             true -> field_value(typer, sources, syntax, resolution, arm, subject_row, declared, data_case, offset, pattern_field, field_type)
             _ -> field_binder(typer, sources, syntax, resolution, arm, subject_row, declared, data_case, offset, handle, field_type)
@@ -473,7 +462,7 @@ crashes Trap
         handle: u64 in Trapping,
         field_type: u64 in Trapping
     ) {
-        Typing::set_binder_type(&mut typer.output, handle, field_type);
+        set_binder_type(&mut typer.output, handle, field_type);
         transition { _ -> fields(typer, sources, syntax, resolution, arm, subject_row, declared, data_case, offset + 1) }
     }
 
@@ -490,7 +479,7 @@ crashes Trap
         pattern_field: PatternField,
         field_type: u64 in Trapping
     ) {
-        Typer::type_tree(typer, sources, syntax, resolution, pattern_field.value);
+        type_tree(typer, sources, syntax, resolution, pattern_field.value);
         transition typer.output.accepted {
             true -> field_value_admit(typer, sources, syntax, resolution, arm, subject_row, declared, data_case, offset, pattern_field, field_type)
             _ -> done()
@@ -510,17 +499,17 @@ crashes Trap
         pattern_field: PatternField,
         field_type: u64 in Trapping
     ) {
-        let admitted: bool = Typer::admit(typer, syntax, field_type, pattern_field.value, false);
+        let admitted: bool = typer_admit(typer, syntax, field_type, pattern_field.value, false);
         transition { _ -> fields(typer, sources, syntax, resolution, arm, subject_row, declared, data_case, offset + 1) }
     }
 
     machine not_boolean(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm) {
-        let pattern: Expression = SyntaxTrees::expression(syntax, arm.pattern);
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::NotBoolean, pattern.source_span);
+        let pattern: Expression = syntax_trees_expression(syntax, arm.pattern);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::NotBoolean, pattern.source_span);
     }
 
     machine unknown_field(typer: &mut Typer, pattern_field: PatternField) {
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::UnknownPatternField, pattern_field.source_span);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::UnknownPatternField, pattern_field.source_span);
     }
 
     machine done() {}
@@ -533,10 +522,10 @@ crashes Trap
 // compare intrinsically (wiki/spec/language/patterns.md: scalars use value
 // patterns); `_` has no pattern. The named case plus one; zero for any
 // other arm or a rejection.
-public machine Typer::pattern_head(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping) -> u64 in Trapping
+public machine pattern_head(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    let base: u64 in Trapping = Typer::referent(typer, subject_type);
+    let base: u64 in Trapping = typer_referent(typer, subject_type);
     transition arm.kind {
         ArmPatternKind::Case -> case_pattern(typer, syntax, resolution, arm, base)
         ArmPatternKind::Literal -> value(typer, syntax, arm, base)
@@ -544,9 +533,9 @@ crashes Trap
     }
 
     machine value(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, base: u64 in Trapping) -> u64 in Trapping {
-        let admitted: bool = Typer::admit(typer, syntax, base, arm.pattern, false);
-        let integer: bool = Typer::intrinsic_equality(typer, syntax, base);
-        let float: bool = Typer::float_like(typer, base);
+        let admitted: bool = typer_admit(typer, syntax, base, arm.pattern, false);
+        let integer: bool = intrinsic_equality(typer, syntax, base);
+        let float: bool = float_like(typer, base);
         transition !admitted || integer || float {
             true -> none()
             _ -> incomparable(typer, syntax, arm)
@@ -554,14 +543,14 @@ crashes Trap
     }
 
     machine incomparable(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm) -> u64 in Trapping {
-        let pattern: Expression = SyntaxTrees::expression(syntax, arm.pattern);
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedEquality, pattern.source_span);
+        let pattern: Expression = syntax_trees_expression(syntax, arm.pattern);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::UnsupportedEquality, pattern.source_span);
         transition { _ -> none() }
     }
 
     machine case_pattern(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, base: u64 in Trapping) -> u64 in Trapping {
-        let binding: ValueBinding = NameResolution::value_binding(resolution, arm.pattern);
-        let subject_row: TypeRow = TypeTable::row(&typer.output.types, base);
+        let binding: ValueBinding = value_binding(resolution, arm.pattern);
+        let subject_row: TypeRow = type_table_row(&typer.output.types, base);
         transition binding {
             ValueBinding::DataCase { item, data_case } -> named_case(typer, syntax, arm, subject_row, item, data_case)
             _ -> valued(typer, syntax, arm, base)
@@ -585,8 +574,8 @@ crashes Trap
     }
 
     machine other_data(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm) -> u64 in Trapping {
-        let pattern: Expression = SyntaxTrees::expression(syntax, arm.pattern);
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::CaseOfOtherData, pattern.source_span);
+        let pattern: Expression = syntax_trees_expression(syntax, arm.pattern);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::CaseOfOtherData, pattern.source_span);
         transition { _ -> none() }
     }
 
@@ -601,7 +590,7 @@ crashes Trap
 
 // A terminal target forwards the selected call's result, its own value, or
 // Unit. Every form meets the current declaration's independent result.
-machine Typer::type_target(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, result: u64 in Trapping)
+machine type_target(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, result: u64 in Trapping)
 crashes Trap
 {
     transition arm.target_kind == ArmTargetKind::Unit {
@@ -617,7 +606,7 @@ crashes Trap
     }
 
     machine target(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, result: u64 in Trapping) {
-        Typer::type_tree(typer, sources, syntax, resolution, arm.target);
+        type_tree(typer, sources, syntax, resolution, arm.target);
         transition typer.output.accepted {
             true -> completes(typer, syntax, arm, result)
             _ -> done()
@@ -625,20 +614,20 @@ crashes Trap
     }
 
     machine completes(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, result: u64 in Trapping) {
-        let admitted: bool = Typer::admit(typer, syntax, result, arm.target, false);
+        let admitted: bool = typer_admit(typer, syntax, result, arm.target, false);
     }
 
     machine mismatch(typer: &mut Typer, source_span: SourceSpan) {
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::TerminalResultMismatch, source_span);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::TerminalResultMismatch, source_span);
     }
 
     machine done() {}
 }
 
 // Whether type `handle` is `Never`.
-machine Typer::never_type(typer: &Typer, handle: u64 in Trapping) -> bool
+machine never_type(typer: &Typer, handle: u64 in Trapping) -> bool
 crashes Trap
 {
-    let row: TypeRow = TypeTable::row(&typer.output.types, handle);
+    let row: TypeRow = type_table_row(&typer.output.types, handle);
     row.kind == TypeKind::Builtin && row.builtin == BuiltinType::Never
 }

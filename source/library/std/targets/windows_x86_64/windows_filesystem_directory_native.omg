@@ -4,9 +4,8 @@
 // consumed. An undersized buffer is an error, never a successful truncated scan.
 // https://learn.microsoft.com/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntquerydirectoryfile
 // https://learn.microsoft.com/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_names_information
-use omega::language::core::filesystem_authority;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_private_handles;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::DirectoryEnumeration;
 
 // Acquisition creates a fresh noninheritable synchronous nonalert object. The
 // issuer and iterator keep it private through final completion and close: no

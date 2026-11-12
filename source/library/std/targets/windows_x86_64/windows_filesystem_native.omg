@@ -1,6 +1,10 @@
 // Exact Windows filesystem native contracts and DLL locators. The public raw
 // service owns operations; this private, complete native map owns their ABI.
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 
 // The exact fixed buffer is classified before foreign scanning can observe it.
 // Boundary contracts carry this structural identity, not an array read disguised

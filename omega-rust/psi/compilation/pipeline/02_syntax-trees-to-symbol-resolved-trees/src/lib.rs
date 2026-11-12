@@ -91,6 +91,7 @@ pub mod pre_resolution {
     pub use crate::preparation::declaration_selection::{
         select_data_declarations, select_data_declarations_with_retained,
     };
+    pub use crate::preparation::declared_types::normalize_declared_types;
     pub use crate::preparation::generic_data::{
         ClosedConstArguments, ClosedDeclarationConstantUses, GenericDataRequest,
         canonicalize_declared_const_definition, closed_array_extent_expressions,
@@ -99,7 +100,6 @@ pub mod pre_resolution {
         normalize_initializer_probe_data, retain_deferred_array_extent,
     };
     pub use crate::preparation::trait_defaults::synthesize_trait_defaults;
-    pub use crate::preparation::type_aliases::normalize_type_aliases;
     pub use crate::resolution::{
         ConstArgumentSelection, ConstDestinationObligation, ConstInitializerPayload,
         ConstInitializerSelection, prepare_const_initializer_selection,

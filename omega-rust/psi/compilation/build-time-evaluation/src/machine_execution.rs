@@ -2634,6 +2634,24 @@ pub(crate) mod admission {
             checked_operators: Option<&checked_trees::CheckedOperatorFacts>,
         ) -> Option<SelectionViolation> {
             let program = input.typed_program();
+            if let Some(custody) = custody {
+                let requester = match custody {
+                    BuildTimeInvocationCustody::Source(source) => {
+                        package_for_source(program, source)
+                    }
+                    BuildTimeInvocationCustody::Symbol(symbol) => {
+                        package_for_symbol(program, symbol)
+                    }
+                };
+                if let Some(message) = closed_contract_selection_violation(
+                    program,
+                    requester,
+                    package_for_symbol(program, root.symbol),
+                    "build-time root",
+                ) {
+                    return Some(SelectionViolation::unlocated(message));
+                }
+            }
             if let Some(authority) = authority {
                 let Some(custody) = custody else {
                     return Some(SelectionViolation::unlocated(
@@ -2675,6 +2693,16 @@ pub(crate) mod admission {
                     .filter(|call| call.source_machine_symbol == source_machine.symbol)
                 {
                     let Some(target_machine) = call.target_machine(program) else {
+                        if let Some(operator) = target_operator_symbol(program, call)
+                            && let Some(message) = closed_contract_selection_violation(
+                                program,
+                                package_for_symbol(program, source_machine.symbol),
+                                package_for_symbol(program, operator),
+                                "build-time named operator call",
+                            )
+                        {
+                            return Some(SelectionViolation::unlocated(message));
+                        }
                         let Some(authority) = authority else {
                             continue;
                         };
@@ -2721,6 +2749,17 @@ pub(crate) mod admission {
                             && row.provider_machine == target_machine
                             && row.provider_state == call.target_state_symbol
                     });
+                    if !delegated
+                        && !provider_delegated
+                        && let Some(message) = closed_contract_selection_violation(
+                            program,
+                            package_for_symbol(program, source_machine.symbol),
+                            package_for_symbol(program, target_machine),
+                            &context,
+                        )
+                    {
+                        return Some(SelectionViolation::unlocated(message));
+                    }
                     if !delegated
                         && !provider_delegated
                         && let Some(authority) = authority
@@ -3311,6 +3350,7 @@ pub(crate) mod admission {
         #[derive(Debug, Clone, Copy)]
         enum PackageCustody {
             Toolchain,
+            ToolchainContract(SourceSpan),
             Package(PackageKeyIdentity),
             UnownedUser,
             Missing,
@@ -3319,6 +3359,9 @@ pub(crate) mod admission {
         fn package_for_source(program: &TypedTrees, source: SourceSpan) -> PackageCustody {
             match program.symbols.source_file(source) {
                 Some(file) if file.origin == SourceOrigin::Toolchain => PackageCustody::Toolchain,
+                Some(file) if file.origin == SourceOrigin::ToolchainContract => {
+                    PackageCustody::ToolchainContract(source)
+                }
                 Some(file) => file
                     .package_identity
                     .map(PackageCustody::Package)
@@ -3333,19 +3376,113 @@ pub(crate) mod admission {
             }
             match program.symbols.symbol_source_origin(symbol) {
                 Some(SourceOrigin::Toolchain) => PackageCustody::Toolchain,
+                Some(SourceOrigin::ToolchainContract) => program
+                    .symbols
+                    .symbol_provenance_source_span(symbol)
+                    .map(PackageCustody::ToolchainContract)
+                    .unwrap_or(PackageCustody::Missing),
                 Some(SourceOrigin::User) => PackageCustody::UnownedUser,
                 None => PackageCustody::Missing,
             }
         }
 
+        fn closed_contract_selection_violation(
+            program: &TypedTrees,
+            requester: PackageCustody,
+            owner: PackageCustody,
+            context: &str,
+        ) -> Option<String> {
+            match (requester, owner) {
+                (
+                    PackageCustody::ToolchainContract(requester),
+                    PackageCustody::ToolchainContract(owner),
+                ) if program.symbols.same_source_package(requester, owner) => None,
+                (PackageCustody::ToolchainContract(_), PackageCustody::Toolchain)
+                | (PackageCustody::Toolchain, PackageCustody::ToolchainContract(_)) => None,
+                (PackageCustody::ToolchainContract(_), _)
+                | (_, PackageCustody::ToolchainContract(_)) => {
+                    Some(format!("{context} crosses closed-contract owner custody"))
+                }
+                _ => None,
+            }
+        }
+
+        #[test]
+        fn closed_contract_selection_keeps_roots_and_scopes_without_package_authority() {
+            let mut sources = source::SourceMap::default();
+            let mut spans = Vec::new();
+            for (ordinal, (owner, scope)) in [
+                ("std", source::DependencyScope::Product),
+                ("std", source::DependencyScope::Product),
+                ("other", source::DependencyScope::Product),
+                ("std", source::DependencyScope::Build),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let root = std::path::PathBuf::from(owner);
+                let file = sources.add_checked_instance(
+                    root.join(format!("{ordinal}.omg")),
+                    "name",
+                    root,
+                    None,
+                    SourceOrigin::ToolchainContract,
+                    source::SourceResolutionStratum::Base,
+                    scope,
+                );
+                spans.push(file.source_span(source::Span::new(0, 4)));
+            }
+            let program = TypedTrees {
+                symbols: symbols::SymbolTableBuilder::with_sources_and_top_level_bindings(
+                    Some(std::sync::Arc::new(sources)),
+                    Vec::new(),
+                )
+                .finish(),
+                ..TypedTrees::default()
+            };
+            let requester = package_for_source(&program, spans[0]);
+            assert!(
+                closed_contract_selection_violation(
+                    &program,
+                    requester,
+                    package_for_source(&program, spans[1]),
+                    "same cohort"
+                )
+                .is_none()
+            );
+            for span in &spans[2..] {
+                assert!(
+                    closed_contract_selection_violation(
+                        &program,
+                        requester,
+                        package_for_source(&program, *span),
+                        "unrelated cohort"
+                    )
+                    .is_some()
+                );
+            }
+        }
+
         fn require_selection(
-            _program: &TypedTrees,
+            program: &TypedTrees,
             requester: PackageCustody,
             owner: PackageCustody,
             authority: &dyn BuildTimeSelectionAuthority,
             context: &str,
         ) -> Option<String> {
+            if let Some(message) =
+                closed_contract_selection_violation(program, requester, owner, context)
+            {
+                return Some(message);
+            }
             match (requester, owner) {
+                (PackageCustody::ToolchainContract(_), PackageCustody::ToolchainContract(_)) => {
+                    None
+                }
+                (PackageCustody::ToolchainContract(_), PackageCustody::Package(_))
+                | (PackageCustody::Package(_), PackageCustody::ToolchainContract(_)) => {
+                    Some(format!("{context} crosses closed-contract owner custody"))
+                }
                 (PackageCustody::Toolchain, _) | (_, PackageCustody::Toolchain) => None,
                 (PackageCustody::Package(requester), PackageCustody::Package(owner))
                     if authority.allows_declaration_selection(requester, owner) =>
@@ -5573,7 +5710,7 @@ pub(crate) mod build_machines {
                      _ -> work
                  }
                  machine through(node: Node, index: u64, work: u64) -> u64
-                 requires work >= 1 && index <= 7
+                 requires work >= 1 && index <= 7 && node.count <= 8
                  {
                      descend(node, index + 1, work)
                  }

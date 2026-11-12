@@ -205,7 +205,6 @@ impl PreparedBuildExecution {
             optimization_report_request: completed.optimization_report,
             evaluation_usage: Some(usage),
             observation_summary: Some(observation_summary),
-            toolchain_provider_defaults: None,
             selected_build_machine_symbol: Some(self.machine.symbol),
             generated_sources,
         })

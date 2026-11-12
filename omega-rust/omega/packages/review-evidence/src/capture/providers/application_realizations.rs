@@ -362,7 +362,7 @@ fn expression_is_owned_by_package(
             "boundary application expression {expression:?} has no retained source file",
         ))?;
     match source.origin {
-        source::SourceOrigin::Toolchain => Ok(false),
+        source::SourceOrigin::Toolchain | source::SourceOrigin::ToolchainContract => Ok(false),
         source::SourceOrigin::User => source
             .package_identity
             .map(|owner| owner == package)

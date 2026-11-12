@@ -1391,6 +1391,7 @@ pub(crate) mod contracts {
 
             while !input.at_punctuation(PunctuationKind::Semicolon)
                 && !input.at_punctuation(PunctuationKind::LeftBrace)
+                && !input.tokens.is_empty()
             {
                 if input.at_contextual("requires")
                     && input
@@ -1866,53 +1867,9 @@ pub(crate) mod parameters {
                     continue;
                 }
 
-                let (nested_generic_parameters, after_type_parameters) = parse_generic_parameters(
-                    syntax_trees,
-                    after_name,
-                    GenericParameterSyntax::StaticBinders,
-                )?;
-                let nested_type_parameters = nested_generic_parameters.type_parameters;
-                let (parameters, after_parameters) =
-                    parse_optional_parameters(syntax_trees, after_type_parameters)?;
-                let (return_type, after_return) =
-                    parse_optional_return_type(syntax_trees, after_parameters)?;
-                let ((), after_nested_contracts) = parse_machine_parameter_contracts(
-                    syntax_trees,
-                    nested_type_parameters,
-                    after_return,
-                )?;
-                let (clauses, rest) = parse_signature_clauses(
-                    syntax_trees,
-                    after_nested_contracts,
-                    nested_type_parameters,
-                )?;
-                validate_machine_parameter_contracts(syntax_trees, nested_type_parameters, rest)?;
-                if clauses.service_reach_is_installation_bound {
-                    return Err(rest.error_here(
-                "`reaches <= Bound` is installation-selected and cannot appear on a structural machine parameter",
-            ));
-                }
+                let (contract, rest) =
+                    parse_structural_machine_contract(syntax_trees, name, after_name)?;
                 let rest = take_machine_contract_terminator(rest)?;
-
-                let contract = syntax_trees::item::StateSignature {
-                    name: name.clone(),
-                    lifetime_parameters: nested_generic_parameters.lifetime_parameters,
-                    type_parameters: nested_type_parameters,
-                    parameters,
-                    native_callback_parameters: Vec::new(),
-                    return_type,
-                    service_reach_keyword_source_spans: clauses.service_reach_keyword_source_spans,
-                    service_reaches: clauses.service_reaches,
-                    invokes: clauses.invokes,
-                    suspends_keyword_source_spans: clauses.suspends_keyword_source_spans,
-                    blocks_keyword_source_spans: clauses.blocks_keyword_source_spans,
-                    suspends: clauses.suspends,
-                    blocks: clauses.blocks,
-                    contracts: clauses.contracts,
-                    terminates_guarantee: clauses.terminates_guarantee,
-                    declares_no_crash_route: clauses.declares_no_crash_route,
-                    ..crate::grammar::parameters::parse_parameters::blank_state_signature()
-                };
                 let parameter =
                     &mut syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index];
                 parameter.kind = syntax_trees::item::TypeParameterKind::Machine {
@@ -1922,6 +1879,116 @@ pub(crate) mod parameters {
             }
 
             Ok(((), input))
+        }
+
+        pub(crate) fn parse_structural_machine_contract<'tokens, 'source>(
+            syntax_trees: &mut SyntaxTrees,
+            name: syntax_trees::identifier::Identifier,
+            input: Input<'tokens, 'source>,
+        ) -> ParseResult<'tokens, 'source, syntax_trees::item::StateSignature> {
+            let (nested_generic_parameters, after_type_parameters) = parse_generic_parameters(
+                syntax_trees,
+                input,
+                GenericParameterSyntax::StaticBinders,
+            )?;
+            let nested_type_parameters = nested_generic_parameters.type_parameters;
+            let (parameters, after_parameters) =
+                parse_optional_parameters(syntax_trees, after_type_parameters)?;
+            let (return_type, after_return) =
+                parse_optional_return_type(syntax_trees, after_parameters)?;
+            let ((), after_nested_contracts) = parse_machine_parameter_contracts(
+                syntax_trees,
+                nested_type_parameters,
+                after_return,
+            )?;
+            let (clauses, rest) = parse_signature_clauses(
+                syntax_trees,
+                after_nested_contracts,
+                nested_type_parameters,
+            )?;
+            validate_machine_parameter_contracts(syntax_trees, nested_type_parameters, rest)?;
+            if clauses.service_reach_is_installation_bound {
+                return Err(rest.error_here(
+                "`reaches <= Bound` is installation-selected and cannot appear on a structural machine parameter",
+            ));
+            }
+            let contract = syntax_trees::item::StateSignature {
+                name: name.clone(),
+                lifetime_parameters: nested_generic_parameters.lifetime_parameters,
+                type_parameters: nested_type_parameters,
+                parameters,
+                native_callback_parameters: Vec::new(),
+                return_type,
+                service_reach_keyword_source_spans: clauses.service_reach_keyword_source_spans,
+                service_reaches: clauses.service_reaches,
+                invokes: clauses.invokes,
+                suspends_keyword_source_spans: clauses.suspends_keyword_source_spans,
+                blocks_keyword_source_spans: clauses.blocks_keyword_source_spans,
+                suspends: clauses.suspends,
+                blocks: clauses.blocks,
+                contracts: clauses.contracts,
+                terminates_guarantee: clauses.terminates_guarantee,
+                declares_no_crash_route: clauses.declares_no_crash_route,
+                ..crate::grammar::parameters::parse_parameters::blank_state_signature()
+            };
+            Ok((contract, rest))
+        }
+
+        pub(crate) fn parse_typed_machine_contract<'tokens, 'source>(
+            syntax_trees: &mut SyntaxTrees,
+            name: syntax_trees::identifier::Identifier,
+            input: Input<'tokens, 'source>,
+        ) -> ParseResult<'tokens, 'source, syntax_trees::item::StateSignature> {
+            // A contract may contain comparisons and comma-separated facts.
+            // Try complete contracts at the enclosing generic delimiters, keeping
+            // their punctuation out of the ordinary signature parser. Failed
+            // attempts publish no syntax, just like static argument parsing.
+            let mut bounded = input;
+            for delimiter in [PunctuationKind::LeftBrace, PunctuationKind::Semicolon] {
+                if let Ok((prefix, _)) =
+                    bounded.split_at_top_level_punctuation(delimiter, "contract boundary")
+                {
+                    bounded = prefix;
+                }
+            }
+            let mut boundaries = Vec::new();
+            for delimiter in [
+                PunctuationKind::Greater,
+                PunctuationKind::GreaterGreater,
+                PunctuationKind::Comma,
+            ] {
+                let mut remaining = bounded;
+                while let Ok((_, rest)) =
+                    remaining.split_at_top_level_punctuation(delimiter, "generic delimiter")
+                {
+                    let index = input.tokens.len()
+                        - rest.tokens.len()
+                        - (input.tokens.len() - bounded.tokens.len());
+                    let paired = delimiter == PunctuationKind::GreaterGreater;
+                    if paired {
+                        boundaries.push((index, false));
+                    }
+                    boundaries.push((index, paired));
+                    remaining = rest.restarted(&rest.tokens[1..]);
+                }
+            }
+            boundaries.sort_unstable();
+            for (index, paired) in boundaries.into_iter().rev() {
+                let end = index + usize::from(paired);
+                let mut prefix = input;
+                prefix.tokens = &input.tokens[..end];
+                let attempt = syntax_trees.append_checkpoint();
+                if let Ok((contract, mut rest)) =
+                    parse_structural_machine_contract(syntax_trees, name.clone(), prefix)
+                    && rest.tokens.is_empty()
+                    && (!paired || rest.at_punctuation(PunctuationKind::Greater))
+                {
+                    rest.resume_tokens(&input.tokens[end..]);
+                    return Ok((contract, rest));
+                }
+                syntax_trees.rewind_appended(attempt);
+            }
+            Err(input.error_here("expected a complete callable contract followed by `,` or `>`"))
         }
 
         pub(crate) fn validate_machine_parameter_contracts(
@@ -2039,6 +2106,30 @@ pub(crate) mod parameters {
             let (parameters, rest) = parse_generic_parameters(&mut trees, input, syntax)?;
             assert!(rest.tokens.is_empty());
             Ok((trees, parameters))
+        }
+
+        #[test]
+        fn typed_callable_binders_keep_the_existing_declaration_boundaries() {
+            for syntax in SYNTAX_CHOICES {
+                assert_eq!(
+                    parse_parameters("<const Callback: machine()>", syntax).is_ok(),
+                    !matches!(syntax, GenericParameterSyntax::TypeAndConst),
+                );
+            }
+            assert!(
+                parse_parameters(
+                    "<const Callback: machine()>",
+                    GenericParameterSyntax::MathematicalDefinition,
+                )
+                .is_err()
+            );
+            assert!(
+                parse_parameters(
+                    "<const Callback: machine>",
+                    GenericParameterSyntax::MachineDeclaration,
+                )
+                .is_ok()
+            );
         }
 
         #[test]
@@ -2341,8 +2432,37 @@ pub(crate) mod parameters {
                     let input = input.take_contextual("const")?;
                     let (name, input) = input.take_identifier()?;
                     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
-                    let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
-                    (name, TypeParameterKind::Const { type_reference }, input)
+                    if input.at_keyword(tokens::KeywordKind::Machine) {
+                        if !allow_machine_parameters {
+                            return Err(input.error_here(
+                                "a static callable parameter is not admitted in this parameter list",
+                            ));
+                        }
+                        let input = input.take_keyword(tokens::KeywordKind::Machine, "machine")?;
+                        let (contract, input) = if input.at_punctuation(PunctuationKind::LeftParen)
+                            || input.at_punctuation(PunctuationKind::Less)
+                        {
+                            let (signature, rest) = super::contracts::parse_typed_machine_contract(
+                                syntax_trees,
+                                name.clone(),
+                                input,
+                            )?;
+                            (MachineParameterContract::Structural(signature), rest)
+                        } else {
+                            (MachineParameterContract::Inferred, input)
+                        };
+                        (
+                            name,
+                            TypeParameterKind::Machine {
+                                contract: Some(contract),
+                            },
+                            input,
+                        )
+                    } else {
+                        let (type_reference, input) =
+                            parse_type_reference_handle(syntax_trees, input)?;
+                        (name, TypeParameterKind::Const { type_reference }, input)
+                    }
                 } else if input.at_keyword(tokens::KeywordKind::Machine) {
                     if !allow_machine_parameters {
                         return Err(input.error_here(

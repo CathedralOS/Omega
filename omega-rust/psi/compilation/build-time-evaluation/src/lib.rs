@@ -207,7 +207,7 @@ pub(crate) mod build_time_evaluation {
             source_context,
         } = request;
         let syntax_trees =
-            crate::syntax_probes::normalize_type_aliases(syntax_trees, &source_context)?;
+            crate::syntax_probes::normalize_declared_types(syntax_trees, &source_context)?;
         let syntax_trees = const_initializers::evaluate(syntax_trees, &source_context)?;
         let syntax_trees = const_generic_expressions::evaluate(syntax_trees, &source_context)?;
         let syntax_trees = crate::const_evaluation::const_qualifications::prove_ready(

@@ -4,7 +4,7 @@ Standalone source compilation entry points (`compile_sources`, `check_source`, `
 
 Standalone `.omg` compilations (without an enclosing package project) still
 execute any local `build.omg` activation through the shared `build_execution::execute_build`
-loop between `begin_*` and `complete_*`, so the compiler crate itself never
+between `begin_*` and `complete_*`, so the compiler crate itself never
 steps a `build.omg` interpreter:
 - `compile_sources`: compiles a single or multi-target `CompileRequest` batch
   and finishes any native outputs through `native_completion::complete_products`.
@@ -24,20 +24,9 @@ pub fn compile_sources(
 ) -> Result<compiler::CompileOutcomes, Vec<Diagnostic>> {
     compiler::checked::run_on_compile_thread(|| {
         let mut prepared = compiler.begin_compilation(request)?;
-        let returned = loop {
-            let mut queries = prepared.product_queries();
-            let returned = crate::compile::build_execution::execute_build(
-                prepared.execution(),
-                queries.as_mut(),
-            );
-            match prepared
-                .advance(returned)
-                .map_err(CompileFailure::into_diagnostics)?
-            {
-                compiler::BuildAdvance::Continue => continue,
-                compiler::BuildAdvance::Complete(returned) => break returned,
-            }
-        };
+        let mut queries = prepared.product_queries();
+        let returned =
+            crate::compile::build_execution::execute_build(prepared.execution(), queries.as_mut());
         let products = compiler.complete_compilation(prepared, returned)?;
         let mut outcomes = Vec::with_capacity(products.len());
         let products = products
@@ -61,7 +50,7 @@ pub fn check_source(
 ) -> compilation_products::CheckedCompileOutcome {
     let result = compiler::checked::run_on_compile_thread(|| {
         let mut prepared = compiler.begin_source_compilation(request)?;
-        let returned = execute_prepared_source_build(&mut prepared)?;
+        let returned = execute_prepared_source_build(&mut prepared);
         Ok::<_, CompileFailure>(compiler.complete_source_check(prepared, returned))
     });
     match result {
@@ -83,7 +72,7 @@ pub fn check_source_keeping_typed_frontier(
 ) -> compiler::TypedFrontierCheck {
     compiler::checked::run_on_compile_thread(|| {
         let mut prepared = compiler.begin_source_compilation(request)?;
-        let returned = execute_prepared_source_build(&mut prepared)?;
+        let returned = execute_prepared_source_build(&mut prepared);
         Ok::<_, CompileFailure>(compiler.check_keeping_typed_frontier(
             compiler::TypedFrontierRequest::Source {
                 source: prepared,
@@ -106,9 +95,7 @@ pub fn produce_source(
             .map_err(|failure| {
                 compiler::CompilationProductError::Production(failure.into_diagnostics())
             })?;
-        let returned = execute_prepared_source_build(&mut prepared).map_err(|failure| {
-            compiler::CompilationProductError::Production(failure.into_diagnostics())
-        })?;
+        let returned = execute_prepared_source_build(&mut prepared);
         compiler
             .complete_source_product(prepared, returned, product)
             .and_then(crate::complete_product)
@@ -117,16 +104,7 @@ pub fn produce_source(
 
 fn execute_prepared_source_build(
     prepared: &mut compiler::SourceCompilation,
-) -> Result<Result<Option<build_settings::ReturnedBuild>, CompileFailure>, CompileFailure> {
-    loop {
-        let mut queries = prepared.product_queries();
-        let returned = crate::compile::build_execution::execute_build(
-            prepared.execution(),
-            Some(&mut queries),
-        );
-        match prepared.advance(returned)? {
-            compiler::BuildAdvance::Continue => continue,
-            compiler::BuildAdvance::Complete(returned) => return Ok(returned),
-        }
-    }
+) -> Result<Option<build_settings::ReturnedBuild>, CompileFailure> {
+    let mut queries = prepared.product_queries();
+    crate::compile::build_execution::execute_build(prepared.execution(), Some(&mut queries))
 }

@@ -55,7 +55,7 @@
 3 omega-rust/psi/compilation/representations/checked-trees/src/admissibility_and_borrow.rs
 4 omega-rust/psi/compilation/representations/checked-trees/src/facts.rs
 1 omega-rust/psi/compilation/representations/checked-trees/src/flow.rs
-4 omega-rust/psi/compilation/representations/checked-trees/src/flow_ownership_and_roots.rs
+3 omega-rust/psi/compilation/representations/checked-trees/src/flow_ownership_and_roots.rs
 7 omega-rust/psi/compilation/representations/checked-trees/src/flow_terminal.rs
 8 omega-rust/psi/compilation/representations/checked-trees/src/operators_and_proof.rs
 3 omega-rust/psi/compilation/representations/checked-trees/src/values_and_views.rs

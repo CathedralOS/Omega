@@ -87,15 +87,15 @@ expect_result accepted 'archive with independent bootstrap peer'
 
 for rung in 0_alpha 1_beta 2_gamma
 do
-  mkdir "$FIXTURE_ROOT/bootstrap/$rung/nested"
+  mkdir "$FIXTURE_ROOT/bootstrap/interpreted/$rung/nested"
   expect_result rejected "nested directory in $rung" 'flat rung contains subdirectories'
-  rmdir "$FIXTURE_ROOT/bootstrap/$rung/nested"
+  rmdir "$FIXTURE_ROOT/bootstrap/interpreted/$rung/nested"
 done
 for rung in 3_delta 4_epsilon 5_omega
 do
-  mkdir "$FIXTURE_ROOT/bootstrap/$rung/compiler"
+  mkdir "$FIXTURE_ROOT/bootstrap/interpreted/$rung/compiler"
   expect_result rejected "redundant compiler directory in $rung" 'redundant compiler directory remains'
-  rmdir "$FIXTURE_ROOT/bootstrap/$rung/compiler"
+  rmdir "$FIXTURE_ROOT/bootstrap/interpreted/$rung/compiler"
 done
 
 git -C "$FIXTURE_ROOT" init -q
@@ -145,14 +145,14 @@ printf 'cargo build --release\n' > "$FIXTURE_ROOT/tools/bootstrap/omega/forged_e
 expect_result rejected 'bootstrap step invoking the Rust toolchain' \
   'produced closure carries the Rust producer'
 rm "$FIXTURE_ROOT/tools/bootstrap/omega/forged_env.sh"
-cp "$FIXTURE_ROOT/bootstrap/5_omega/omega_compiler.epsilon.sources" \
+cp "$FIXTURE_ROOT/bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources" \
   "$FIXTURE_PARENT/omega_compiler.epsilon.sources"
 printf 'member 0000000000000000000000000000000000000000000000000000000000000009 1 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 omega-rust/forged.epsilon\n' \
-  >> "$FIXTURE_ROOT/bootstrap/5_omega/omega_compiler.epsilon.sources"
+  >> "$FIXTURE_ROOT/bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources"
 expect_result rejected 'manifest member inside omega-rust/' \
   'produced closure carries the Rust producer'
 cp "$FIXTURE_PARENT/omega_compiler.epsilon.sources" \
-  "$FIXTURE_ROOT/bootstrap/5_omega/omega_compiler.epsilon.sources"
+  "$FIXTURE_ROOT/bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources"
 expect_result accepted 'restored manifests omit the Rust producer again'
 
 echo 'bootstrap owner inventory: archive, checkout, peer, flat-layout, gate-prefix, and Rust-producer omission cases pass'

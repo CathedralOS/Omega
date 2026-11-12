@@ -2,15 +2,16 @@
 
 This peer removes the Gamma interpretation layer after constructing a Gamma
 compiler from source. [`compiler.gamma`](compiler.gamma) and
-[`frontend.gamma`](frontend.gamma) compile Gamma to independent Alpha tapes.
+[`frontend.gamma`](frontend.gamma), with the
+[`Alpha backend`](alpha_backend.gamma), compile Gamma to independent Alpha tapes.
 Their first customer is the existing Gamma-written Delta compiler, which
 constructs the Delta-written Epsilon evaluator. Its Gamma receipt is compiled
 to another independent tape and runs the Epsilon-written bootstrap compiler.
 No variant is selected by this experiment.
 
 The source construction starts from the checked-in native
-[Alpha seed](../0_alpha/README.md), the separately admitted
-[Beta compiler tape](../1_beta/AUDIT.md), and the host OS. It stamps that tape
+[Alpha seed](../interpreted/0_alpha/README.md), the separately admitted
+[Beta compiler tape](../interpreted/1_beta/AUDIT.md), and the host OS. It stamps that tape
 into Alpha, reconstructs Beta from its source, and uses the reconstructed Beta
 compiler to construct the Gamma evaluator from Beta source. Both tapes must
 match their bound artifacts exactly. The constructed Gamma evaluator then runs
@@ -88,7 +89,7 @@ artifact untouched. Successful compilation replaces it atomically.
 
 ## Meaning and storage
 
-[`../2_gamma/LANGUAGE.md`](../2_gamma/LANGUAGE.md) governs the source language.
+[`../2_gamma/LANGUAGE.md`](../interpreted/2_gamma/LANGUAGE.md) governs the source language.
 The compiler validates every function and both branches before publishing code.
 It supports wrapping words, checked scalar boundaries, immutable pairs,
 sequential grouped bindings, mutually visible functions, proper tail calls,
@@ -388,9 +389,10 @@ not reported as reruns on these final bytes.
 result. The bootstrap compiler now has checked record storage, copy-value
 transport, field writes, scoped shared/mutable reference parameters, independent
 Unit completion and a bounded default-domain solver. Its detailed supported
-semantics and refusals remain in [the compiler contract](../5_omega/README.md).
-This closes one actual successor helper; indexed SourceUnit append/read and the
-complete Omega compiler remain unfinished. The integrated compiler source grows
+semantics and refusals remain in [the compiler contract](../interpreted/5_omega/README.md).
+That observation closed one actual successor helper; the complete Omega
+compiler remained unfinished. The later append/read customer below extends it.
+The integrated compiler source grows
 from 645,486 to 706,044 bytes (60,558 bytes, about 9.4%), including the shared
 parser extensions. This is the audit cost of generic record/place support, not
 a claim that the complete construction is now smaller or optimal.
@@ -475,3 +477,100 @@ subsequently accepted that unchanged SourceUnit source through checked lowering
 and CanonicalTerminalArtifact in 320.101 seconds. This supplies independent
 admission/lowering correspondence, not native/Psi runtime evidence or a semantic
 stage in the bootstrap chain.
+
+
+The compiler source is composed in order from `compiler.gamma`,
+`frontend.gamma`, and `alpha_backend.gamma`. Shared frontend and lowering remain
+one semantic owner; `../independent/native.gamma` is an alternative realization,
+not an additional stage in this peer. Source composition changes function IDs
+and therefore compiler bytes; earlier source/tape identities above remain
+historical evidence for their exact recorded inputs. The Alpha backend retains
+the audited seed-hole limit; native output has its own buffered-image limit.
+
+After that split, a fresh cold construction used the 33,605-byte composed
+source (`8cc6f6ce3d29ff38a7f94c48857ac6036f0fe09110a442087ebbbb98d48cee86`)
+to produce a 458,402-byte tape
+(`25b8c1875dd866f885654c5344a16153f3a434eff9555196657f5f0249ef1af1`).
+Both Alpha-executed rebuilds matched exactly, and the 32 semantic/15 refusal
+controls passed. Reference construction took 89.270 seconds on a shared host;
+it is a functional observation. The independent peer's native executable of
+this same compiler source separately emitted the identical Alpha tape.
+
+
+## Explicit storage contracts through actual append/read helpers
+
+The expanded storage customer compiles the actual SourceUnit clear/append/read
+and ModulePath append declarations. Their private helper requirements now state
+the existing guarded upper bounds, and shared/mutable array-shell views express
+the intended plain-byte access. The executable checks empty/final/full append,
+absent reads, retained flags and bytes, ModulePath capacity, and clear's canary.
+The generic controls retain both a disjoint mutation that preserves the bound
+and an earlier-argument mutation that invalidates it within one expression.
+
+The final source-owned Epsilon observation passed in 3411.948 seconds,
+with all 13 emitted Alpha executables producing their expected result and empty
+output. All 36 refusal/reset checks passed without publishing a partial tape.
+The complete 12,666-byte observation matches the independent model byte-for-byte:
+`2cea12d28e8fad007802cac92f6c2838e387b387f9cbe22d68cbb1e627a5a7a6`.
+The model took 17.808 seconds; it is a development comparison, not a construction
+stage. Captured execution inputs remained unchanged.
+
+The bootstrap compiler is 749,173 bytes,
+`4b94fda7d672b3b27173077cdf57075824c0ecc6c56275338936a9c65b39a896`;
+the complete Epsilon customer is 763,256 bytes,
+`ab66dc787783d86a11e9705352f1843efac5ffd77a9c1db7f7b217b66662d42c`.
+The exact extracted Omega program is 3,729 bytes,
+`1db5ce53884cb7e02bc4bb2968ff985875448425562eefd1eae47cabbfedaac4`;
+its 6,099-byte tape is
+`03b0acfdf8ba67b365856bc7ac3667d841c27a1e0e4e843cc2c0242001bf8d93`.
+This uses the already source-constructed 16,789,856-byte Epsilon executable
+`09e43db0cfe48e8217fec1d571d5e8f9e5e15ed0ef29d4aea884d77acf473eab`
+and 617,354-byte Epsilon source
+`4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e`.
+It is actual reference execution, not a fresh cold Gamma reconstruction.
+
+The compiler closure grew 34,773 bytes from the preceding indexed-storage
+milestone. The cost covers shared requirement parsing, checked arrival bounds,
+exact-range mutation tracking, bounded addition and safe incoming-reference
+transfer. It does not establish full package construction or reproducible
+Omega self-compilation; record/enum arrays, larger storage and broader language
+facilities remain necessary for the complete compiler source. The separate
+103-invocation parser model suite passed on identical parser inputs in 7.584
+seconds; this receipt does not claim a source-owned rerun of that entire suite.
+
+The subsequent directory relocation was integrated without changing any
+compiler member, parser fixture, actual SourceUnit declaration or runtime byte.
+The relocated model invocation passed the same 13 executables and 36 refusals
+in 18.921 seconds, producing the identical complete request, observation and
+tapes. Closure, identity and path checks were rerun after relocation. The
+source-owned receipt above retains its original pre-relocation input custody;
+it is not presented as a second reference execution. An earlier interrupted
+invocation produced no completed receipt and supplies no acceptance claim.
+
+### Native Epsilon correspondence for the same storage customer
+
+The independent peer's already source-constructed native Epsilon evaluator ran
+the exact frozen PR2722 request in 907.570 seconds. All 13 emitted Alpha
+executables and 36 refusal controls passed; the complete observation and every
+tape matched the Alpha-VM receipt above byte-for-byte. This checks an actual
+Omega-compiler source helper customer, not complete Omega product construction.
+
+The 767,037-byte request has SHA-256
+`1bce7413e7085408fd052a0cb786ff08f3f2f99bee2e69e6a8a5f633e1a81048`. Compiler, customer and
+Delta-closure identities are the same as above. The reused native executable
+is 26,119,826 bytes,
+`b1cc4441a52ec91feae60d958ada4c400122ce070a2ec66bdd8982c16bbfe2e0`,
+constructed in [PR2719](https://github.com/CathedralOS/Omega/pull/2719). Its
+729,060-byte canonical evaluator-entry Gamma receipt is
+`bec9011e5216557a59ba701ac2a4112774e5f48240c729b95ffc8297f704c368`,
+identical to the earlier Alpha-VM evaluator's receipt. This invocation reused
+that constructed runtime; it is not another cold construction.
+
+Both realizations use the shared monotonic 32-byte pair allocation with no
+garbage collection. A nonstopping sample observed a native high-water RSS of
+16,436,004 KiB and 16,803,601,088 allocated pair bytes; the final maximum RSS
+was not recorded. No resource failure, budget change or source mutation occurred.
+The 907.570-second native and 3,411.948-second VM observations ran on a shared
+host at different times; these are functional timings, not a controlled
+performance benchmark. Stronger assurance and the remaining native construction
+work stay explicit in [the independent peer](../independent/README.md).

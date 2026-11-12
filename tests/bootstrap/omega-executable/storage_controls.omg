@@ -3,8 +3,23 @@ machine main() -> u8 {
     let id: SourceId = SourceId { value: 77 as +Trapping };
     unit.length = 19;
     unit.last_retained = false;
+    (&mut unit.bytes as -Trapping)[0] = 77;
     source_unit_clear(&mut unit, id);
-    transition unit.id.value == id.value && unit.length == 0 && unit.last_retained {
+    let canary: u8 = (&unit.bytes as -Trapping)[0];
+    source_unit_append(&mut unit, 41);
+    let first: u8 = source_unit_byte_or_nul(&unit, 0 as +Trapping);
+    let absent: u8 = source_unit_byte_or_nul(&unit, 1 as +Trapping);
+    unit.length = 131071;
+    source_unit_append(&mut unit, 42);
+    let last: u8 = source_unit_byte_or_nul(&unit, 131071 as +Trapping);
+    let retained: bool = unit.last_retained;
+    source_unit_append(&mut unit, 55);
+    let preserved: u8 = source_unit_byte_or_nul(&unit, 131071 as +Trapping);
+    let mut path: ModulePath;
+    path.length = 255;
+    let path_last: bool = module_path_append(&mut path, 73);
+    let path_full: bool = module_path_append(&mut path, 99);
+    transition unit.id.value == id.value && canary == 77 && first == 41 && absent == 0 && last == 42 && retained && unit.length == 131072 && !unit.last_retained && preserved == 42 && path_last && !path_full && path.length == 256 && (&path.bytes as -Trapping)[255] == 73 {
         true -> yes()
         _ -> no()
     }

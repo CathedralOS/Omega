@@ -1,10 +1,6 @@
 // Install handlers while keeping their table, stacks and shared context alive.
 // Build selects the registrar and callback slot; the compiler checks their
 // exact contracts before publishing the interrupt table.
-use omega::language::core::assembly;
-use omega::language::core::interrupt;
-use omega::language::core::layout;
-use omega::language::core::representation;
 
 // The selected provider defines the opaque acknowledgement's bytes. The fields
 // report its exact installed occurrence and live debt; constructing this plain

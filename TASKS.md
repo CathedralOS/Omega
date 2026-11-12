@@ -7,9 +7,18 @@ Use [advance](.agents/skills/advance/SKILL.md) and [sample loop](AGENTS.md#the-s
 - **ITERATION-PERFORMANCE.** Restore a usable edit/build/run workflow when a bottleneck measurably obstructs development.
 - **VALIDATION-ENVIRONMENT.** Restore bounded test selection or harness feedback while preserving runtime oracles.
 
-Delete completed bullets; keep discrete work lines without growing the board. [Ownership](omega-rust/pipeline.md): Psi owns source through Terminal Psi; Omega owns realization.
+Write each item so any agent can start from it alone: current state, files and entry points, the next step, and how to know it is done. Delete completed bullets. [Ownership](omega-rust/pipeline.md): Psi owns source through Terminal Psi; Omega owns realization.
 
 ## Priority (human-set only)
+
+- **LOWERED-FORM-CHECKER.** Outranks every item below (owner ruling, 2026-11-12). The [lowered-form checker](wiki/drafts/designs/check_on_lowered_form.md) lowers first and proves on unsealed Terminal Psi; it replaces Psi 05, validation and Psi 06 (about 790k lines) once no program needs them. Read that record's "The decision", "The gate" and "Lane order" first.
+  - Where it stands: the router (`omega-rust/omega/compilation/compiler/src/checked/checking/lowered_route.rs`) lets the route's verdict govern a whole compilation and falls back on `Unsupported`; gate conditions 1 and 2 hold except rooting the entry-contract source; generic forms are judged once (#2674); references and loans started (#2685). Tests: `compiler/tests/lowered_route_{subjects,generics,governance,publication,messages}.rs`.
+  - Step 1, product route: a program only the route accepts stops with "no product route yet" because product selection, the provider inventory, target preparation and the program-entry receipt read Psi 05's trees. Feed them the route's published module (`AcceptedClosure::publish` in `psi/compilation/pipeline/lowered-discharge/src/verdict.rs`, #2666), one at a time, keeping the old path for fallbacks. Done when `run/calls/scalar_contract_route_exit` runs from the default compile and route-only programs pass `omega run --both`.
+  - Step 2, gate: root `std/targets/<target>/entry.omg` so the four `fail/build/*entry*` programs the route accepts are rejected (no ad-hoc entry rule); wire `reverify_specialization` (`lowered-discharge`) into the compile so stage-04 specializations decide carried certificates instead of searching; then ask the owner whether condition 3 is met.
+  - Step 3, lanes in order of programs unblocked, re-measured first: owned non-`[copy]` data and affine locals, entry machines taking their own state (`Main::main(&mut Main)`), the rest of generics, Q8 caller-inferred helper facts (5 signed `shift_left` rows), calls and callee summaries. After each, run `cargo xtask stage-coverage` on newly governed programs.
+  - Step 4, condition 4: delete the old-stage code only fully governed programs reach; report lines deleted beside lines the route needed, and check time before and after.
+  - Rule: build a construct a lane needs in the route, not in the stages it replaces; repair those only to unblock CI or close a soundness hole. Pushed wip worth landing first: `work/psi-flat-term-tables`, and single commits on `work/compiler-typed-library-slices` (subject naming) and `work/psi-effect-memory` (bounded planning window).
+  Acceptance: the four gate conditions pass on main and Psi 05, validation and Psi 06 are deleted with every corpus row still green.
 
 - **NESTED-MACHINE-UNIFICATION.** Replace `state` with nested machines ([machines.md](wiki/spec/language/machines.md#nested-machines-and-identity), [state_contracts.md](wiki/spec/language/state_contracts.md)).
   - Resolve recursive scopes, elaborate flat identities, and reject runtime capture or code after trailing declarations.
@@ -52,7 +61,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: one portable call selects per-target implementations from one Terminal artifact under `omega run --both`.
 
 - **TARGET-REALIZED-FLOAT-ARITHMETIC.** Realize canonical `f32`/`f64` operations from the selected target's declared table ([design](wiki/drafts/designs/target_realized_float_arithmetic.md)); retire their Build provider selection.
-  - Add the checked-machine realization entry kind beside catalog intrinsic and unsupported in `target::CanonicalFloatRealization`; retire core's now selection-free `build.omg` activation (`State::Defaults`, `CompletedProviderDefaults::from_captured_toolchain`) while keeping differential-evidence identities; profile remaining `select_provider` cost inside this item.
+  - Add the checked-machine realization entry kind beside catalog intrinsic and unsupported in `target::CanonicalFloatRealization`; profile remaining `select_provider` cost inside this item.
   Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions.
 
 - **BUILD-OWNED-NATIVE-BINDINGS.** Replace `via` with [Build-owned bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding).
@@ -72,7 +81,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 ## Pipeline route
 
 - **PIPELINE-ARCHITECTURE-ENFORCEMENT.** Enforce the single-pass Psi (`00–07`) + Build + per-target Omega (`00–09`) [pipeline](omega-rust/pipeline.md) in `target_batch.rs`.
-  - Admit dependency contexts ([scoped_execution.md](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)), run `build.omg` and Psi `00–07` once, clear `FIREWALL_ALLOWANCES` in `tools/check_native_boundary.py`, and drop 256 MiB stacks (source depth is bounded only by memory and time, per [compiler_request.md](wiki/spec/build/compiler_request.md)).
+  - Admit dependency contexts ([scoped_execution.md](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)), run `build.omg` and Psi `00–07` once, clear `FIREWALL_ALLOWANCES` in `tools/check_native_boundary.py`, store recursive terms as flat tables in memory ([pipeline](omega-rust/pipeline.md)), and drop 256 MiB stacks (source depth is bounded only by memory and time, per [compiler_request.md](wiki/spec/build/compiler_request.md)).
   Acceptance: two-target builds run Psi `00–07` and Build once and Omega `00–09` once per target with clean boundary guards.
 
 - **VALIDATION-SUBJECTS.** Implement [validation subjects](wiki/drafts/designs/validation_subjects.md): check the selected packages in full and dependencies only through their required semantic closure.
@@ -192,7 +201,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: `samples/cli/facts/{opaque_closed_carrier_exchange,foreign_retained_*,foreign_nested_record_backing}` and `providers/foreign_*` pass `omega run --both`.
 
 - **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**, **PSI-CLAIM-ADMISSION**) Complete [source proofs](wiki/spec/proofs/foundation.md) and [Psi preparation](wiki/drafts/designs/psi_claim_admission.md). Emit code 36.
-  Acceptance: [kernel, admission and performance controls](wiki/drafts/designs/psi_claim_admission.md#acceptance), including existing proof samples through `--both`.
+  Acceptance: [kernel/admission/performance](wiki/drafts/designs/psi_claim_admission.md#acceptance), [borrowed reads](wiki/drafts/designs/borrowed_proof_inputs.md#acceptance) and existing proof samples through `--both`.
 
 ## Build-level behavior exclusions
 

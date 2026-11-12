@@ -89,7 +89,7 @@ impl ExtentDomain {
 }
 
 /// The `reflect.omg` declarations reflection elaboration is written against.
-/// They live in module `core::reflect`, so their package paths carry that prefix.
+/// They live in module `reflect`, so their package paths carry that prefix.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReflectionDeclaration {
     /// `schema<T>()`.
@@ -316,55 +316,55 @@ const ROWS: &[CoreVocabularyRow] = &[
     ),
     row(
         "reflect.omg",
-        "core::reflect::schema",
+        "reflect::schema",
         REFLECT,
         CoreVocabulary::Reflection(ReflectionDeclaration::Schema),
     ),
     row(
         "reflect.omg",
-        "core::reflect::TypeSchema",
+        "reflect::TypeSchema",
         REFLECT,
         CoreVocabulary::Reflection(ReflectionDeclaration::TypeSchema),
     ),
     row(
         "reflect.omg",
-        "core::reflect::CaseInfo",
+        "reflect::CaseInfo",
         REFLECT,
         CoreVocabulary::Reflection(ReflectionDeclaration::CaseInfo),
     ),
     row(
         "reflect.omg",
-        "core::reflect::FieldInfo",
+        "reflect::FieldInfo",
         REFLECT,
         CoreVocabulary::Reflection(ReflectionDeclaration::FieldInfo),
     ),
     row(
         "reflect.omg",
-        "core::reflect::visit_runtime_fields",
+        "reflect::visit_runtime_fields",
         REFLECT,
         CoreVocabulary::Reflection(ReflectionDeclaration::VisitRuntimeFields),
     ),
     row(
         "reflect.omg",
-        "core::reflect::visit_runtime_fields_mut",
+        "reflect::visit_runtime_fields_mut",
         REFLECT,
         CoreVocabulary::Reflection(ReflectionDeclaration::VisitRuntimeFieldsMut),
     ),
     row(
         "reflect.omg",
-        "core::reflect::inspect_record_fields",
+        "reflect::inspect_record_fields",
         REFLECT,
         CoreVocabulary::Reflection(ReflectionDeclaration::InspectRecordFields),
     ),
     row(
         "reflect.omg",
-        "core::reflect::visit_active_fields",
+        "reflect::visit_active_fields",
         REFLECT,
         CoreVocabulary::Reflection(ReflectionDeclaration::VisitActiveFields),
     ),
     row(
         "reflect.omg",
-        "core::reflect::visit_active_fields_mut",
+        "reflect::visit_active_fields_mut",
         REFLECT,
         CoreVocabulary::Reflection(ReflectionDeclaration::VisitActiveFieldsMut),
     ),
@@ -593,12 +593,12 @@ mod tests {
             CoreVocabularyCatalog::classify(site("extent.omg", "Resident", EXTENT)),
             Some(CoreVocabulary::ExtentDomain(ExtentDomain::Resident))
         );
-        // `reflect.omg` declares `module core::reflect`: rows use the full
+        // `reflect.omg` declares `module reflect`: rows use the full
         // package path, and the bare name matches nothing.
         assert_eq!(
             CoreVocabularyCatalog::classify(site(
                 "reflect.omg",
-                "core::reflect::inspect_record_fields",
+                "reflect::inspect_record_fields",
                 REFLECT
             )),
             Some(CoreVocabulary::Reflection(
@@ -607,6 +607,14 @@ mod tests {
         );
         assert_eq!(
             CoreVocabularyCatalog::classify(site("reflect.omg", "inspect_record_fields", REFLECT)),
+            None
+        );
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site(
+                "reflect.omg",
+                "core::reflect::inspect_record_fields",
+                REFLECT
+            )),
             None
         );
     }
