@@ -1,0 +1,25 @@
+// `relay` promises `result <= 10`. Its body returns `forward<T>(item, limit)
+// + 1`, and `forward` promises only `result <= 10`, so the body can return
+// 11 at every type. The run twin `run/generics/type_parameter_contract`
+// differs only in this bound, which there is 11.
+machine forward<T>(item: T, limit: u32) -> u32
+requires limit <= 10
+ensures result <= 10
+crashes none
+{
+    limit
+}
+machine relay<T>(item: T, limit: u32) -> u32
+requires limit <= 10
+ensures result <= 10
+crashes none
+{
+    forward<T>(item, limit) + 1
+}
+machine main() crashes Trap {
+    let small: u32 = relay<u8>(3u8, 4);
+    let flagged: u32 = relay<bool>(true, 9);
+    transition small == 5 && flagged == 10 { true -> done() false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

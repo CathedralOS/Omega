@@ -23,6 +23,7 @@ use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, d
 use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
 mod ranges;
+mod type_parameters;
 mod value_parameters;
 
 fn integer_type(sign: IntegerSign) -> IntegerType {
@@ -3060,7 +3061,9 @@ fn a_dispatch_edge_establishes_its_case_and_the_wildcard_edge_establishes_none()
         .collect();
     assert_eq!(
         refused,
-        ["a case payload is accessed on a path that does not establish its case"]
+        [
+            "cannot prove selected case for payload access: a path to this access does not establish the case"
+        ]
     );
 }
 
