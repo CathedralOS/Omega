@@ -13,13 +13,20 @@ run incomplete, and every such outcome refuses the application. Every test
 must execute on at least one engine; an engine that is unavailable before any
 guest effect is reported, never counted as a pass.
 
-This slice provides only pure execution: no filesystem, native service, clock
-or standard input is delegated to the interpreter, and selected test services
-(virtual filesystems) are not yet supported.
+A group without services delegates no filesystem, native service, clock or
+standard input. A group that names std's `FilesystemService` slot runs every
+invocation over a private filesystem this runner creates empty for it, as an
+operating system supplies a real one: the interpreter answers the program's
+kernel filesystem calls from its own in-memory namespace, and the native
+executable runs in a fresh mount namespace whose root is an empty tmpfs
+(`bounded_process::run_in_private_root`). Neither can reach a host path, so the program cannot widen
+the backing to the real filesystem; where a host cannot supply the private
+filesystem, that engine is reported unavailable rather than run on the host's.
 */
 
 use compilation_products::{
-    CompileReport, PendingTestProduct, TestRootIdentity, TestRosterEntry, TestRosterStatus,
+    CompileReport, PendingTestProduct, TestFilesystem, TestRootIdentity, TestRosterEntry,
+    TestRosterStatus,
 };
 use compiler::CompilationOutput;
 use diagnostics::Diagnostic;
@@ -82,22 +89,31 @@ fn run_test(
             ));
         }
     };
-    let interpreted = interpret(&report, identity.target);
+    let interpreted = interpret(&report, identity.target, identity.filesystem);
     let native = if target::TargetProfile::host_if_supported() == Some(identity.target) {
-        execute_native(report)
+        execute_native(report, identity.filesystem)
     } else {
         EngineOutcome::Unavailable("its target does not execute on this host".to_owned())
     };
     let mut engines = Vec::new();
     let mut unavailable = Vec::new();
+    let mut failures = Vec::new();
     for (engine, outcome) in [("Psi interpreter", interpreted), ("native", native)] {
         match outcome {
             EngineOutcome::Passed => engines.push(engine.to_owned()),
+            // Every engine's failure is reported, so a disagreement between
+            // them is visible rather than hidden behind the first.
             EngineOutcome::Failed(reason) => {
-                return Err(format!("failed on the {engine} engine: {reason}"));
+                failures.push(format!("failed on the {engine} engine: {reason}"));
             }
             EngineOutcome::Unavailable(reason) => unavailable.push(format!("{engine}: {reason}")),
         }
+    }
+    if !failures.is_empty() {
+        if !engines.is_empty() {
+            failures.push(format!("passed on the {} engine", engines.join(" and ")));
+        }
+        return Err(failures.join("; "));
     }
     if engines.is_empty() {
         return Err(format!(
@@ -111,7 +127,30 @@ fn run_test(
     })
 }
 
-fn interpret(report: &CompileReport, target: target::TargetProfile) -> EngineOutcome {
+fn interpret(
+    report: &CompileReport,
+    target: target::TargetProfile,
+    filesystem: TestFilesystem,
+) -> EngineOutcome {
+    // The interpreter's private namespace answers Linux kernel filesystem
+    // calls; other targets' filesystem imports have no private backing yet.
+    let filesystem = match filesystem {
+        TestFilesystem::Unprovided => terminal_runtime::TerminalFilesystemDelegation::Unprovided,
+        TestFilesystem::Private
+            if matches!(
+                target,
+                target::TargetProfile::LinuxX64 | target::TargetProfile::LinuxArm64
+            ) =>
+        {
+            terminal_runtime::TerminalFilesystemDelegation::Private
+        }
+        TestFilesystem::Private => {
+            return EngineOutcome::Unavailable(format!(
+                "the interpreter supplies its private test filesystem only for Linux targets, not `{}`",
+                target.target_name()
+            ));
+        }
+    };
     let Some(artifact) = report
         .retained_native_program()
         .map(|program| program.psi_artifact())
@@ -128,7 +167,7 @@ fn interpret(report: &CompileReport, target: target::TargetProfile) -> EngineOut
         entry: None,
         native_provider: None,
         native_services: terminal_runtime::TerminalNativeServiceDelegation::Unprovided,
-        filesystem: terminal_runtime::TerminalFilesystemDelegation::Unprovided,
+        filesystem,
         x86_flags,
         memory_ordering: terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(
             target,
@@ -168,7 +207,7 @@ fn interpret(report: &CompileReport, target: target::TargetProfile) -> EngineOut
     }
 }
 
-fn execute_native(report: CompileReport) -> EngineOutcome {
+fn execute_native(report: CompileReport, filesystem: TestFilesystem) -> EngineOutcome {
     let directory =
         match platform_custody::temporary_directory::TemporaryDirectory::create("test", false) {
             Ok(directory) => directory,
@@ -183,10 +222,20 @@ fn execute_native(report: CompileReport) -> EngineOutcome {
             Ok(published) => published,
             Err(reason) => return EngineOutcome::Failed(format!("cannot be published: {reason}")),
         };
-    let output = match std::process::Command::new(&executable)
-        .stdin(std::process::Stdio::null())
-        .output()
-    {
+    let output = match filesystem {
+        TestFilesystem::Unprovided => std::process::Command::new(&executable)
+            .stdin(std::process::Stdio::null())
+            .output(),
+        TestFilesystem::Private => {
+            match bounded_process::run_in_private_root(&executable, directory.path()) {
+                Ok(output) => output,
+                Err(bounded_process::PrivateRootUnavailable(reason)) => {
+                    return EngineOutcome::Unavailable(reason);
+                }
+            }
+        }
+    };
+    let output = match output {
         Ok(output) => output,
         Err(error) => {
             return EngineOutcome::Unavailable(format!("cannot be spawned: {error}"));

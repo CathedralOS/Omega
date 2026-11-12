@@ -1472,7 +1472,8 @@ pub(crate) mod provider_selections {
                 operation @ (BuildOperation::ProviderSelection
                 | BuildOperation::AssumedBindingContract
                 | BuildOperation::ServiceAudit
-                | BuildOperation::TestGroupRegistration),
+                | BuildOperation::TestGroupRegistration
+                | BuildOperation::TestGroupService),
             ) = BuildOperation::from_call_target(call.target.as_str())
             else {
                 return Ok(None);
@@ -1487,7 +1488,8 @@ pub(crate) mod provider_selections {
                 }
                 BuildOperation::AssumedBindingContract
                 | BuildOperation::ServiceAudit
-                | BuildOperation::TestGroupRegistration => {
+                | BuildOperation::TestGroupRegistration
+                | BuildOperation::TestGroupService => {
                     let [builder] = arguments else {
                         return trap(format!(
                             "{} registration takes exactly the mutable Build argument",

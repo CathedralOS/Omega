@@ -120,9 +120,7 @@ pub(crate) mod build_selections {
         // facet, the operand it was authored on; every other selection by the
         // original Build value.
         let preparation = find(match &request {
-            BuildSelectionRequest::Declaration(binding)
-                if binding.operation == BuildOperation::TestGroupRegistration =>
-            {
+            BuildSelectionRequest::Declaration(binding) if binding.operation.uses_tests_facet() => {
                 "prepare_tests"
             }
             _ => "prepare",
@@ -1890,7 +1888,7 @@ pub(crate) mod product_selections {
         ordinary_count: usize,
     ) -> Option<symbols::SymbolHandle> {
         use symbol_resolved_trees::expression::ExpressionNode;
-        if name != BuildOperation::TestGroupRegistration.authored_spelling()
+        if !BuildOperation::from_call_target(name).is_some_and(BuildOperation::uses_tests_facet)
             || target.is_valid()
             || ordinary_count != 0
             || !receiver.is_valid()
@@ -1998,6 +1996,8 @@ pub(crate) mod product_selections {
                 | BuildOperation::ServiceAudit
                 | BuildOperation::BoundaryAcceptance => "one bare declaration operand",
                 BuildOperation::TestGroupRegistration => "one exact trait machine requirement operand",
+                BuildOperation::TestGroupService =>
+                    "a registered group's trait machine requirement and one boundary service slot operand",
                 BuildOperation::WireCompatibilityRequest =>
                     "four schema declaration operands and compatibility facts",
                 _ => "two bare declaration operands",

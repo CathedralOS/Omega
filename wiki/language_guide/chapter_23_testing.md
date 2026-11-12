@@ -55,15 +55,17 @@ crashing.
 
 ## Services and fixtures
 
-A test that uses a service gets a provider from the build, such as an
-in-memory filesystem:
+A test that uses a service names its slot, and the test runner supplies it.
+For std's `FilesystemService` the runner supplies a private in-memory
+filesystem, so ordinary filesystem calls in the test reach it the way they
+reach a real one:
 
 ```omega
 let memory: TestGroup = builder.tests.group<Tests::memory>();
-memory.service<Filesystem, MemoryFilesystem>();
+builder.tests.service<Tests::memory, FilesystemService>();
 ```
 
-Every test starts with fresh provider state. Build fixture data inside the
+Every test starts with fresh service state; the filesystem is empty. Build fixture data inside the
 test and pass it to helpers as arguments. A dependency's tests cannot turn the
 in-memory filesystem you gave them into access to the real one.
 

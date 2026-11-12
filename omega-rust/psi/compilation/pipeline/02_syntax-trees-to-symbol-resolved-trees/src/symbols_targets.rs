@@ -586,6 +586,10 @@ mod calls {
                 ) => {
                     assign_assumed_binding_argument_symbol(symbols, argument);
                 }
+                // The group's requirement is a machine; the slot a boundary trait.
+                Some(BuildOperation::TestGroupService) if index == 0 => {
+                    assign_assumed_binding_argument_symbol(symbols, argument);
+                }
                 Some(BuildOperation::RepresentationSelection) => {
                     assign_representation_selection_argument_symbol(symbols, argument, index == 0);
                 }

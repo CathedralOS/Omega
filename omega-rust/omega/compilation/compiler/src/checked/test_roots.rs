@@ -13,7 +13,7 @@ none of its test-only machines join the application's roots.
 */
 
 use compilation_products::{
-    CheckedProductSource, TestRootIdentity, TestRosterEntry, TestRosterStatus,
+    CheckedProductSource, TestFilesystem, TestRootIdentity, TestRosterEntry, TestRosterStatus,
 };
 use diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -29,11 +29,49 @@ pub(crate) struct TestRootSelection {
     pub(crate) notes: Vec<TestRosterEntry>,
 }
 
+/*
+The runner backs exactly one service: std's `FilesystemService` slot, with a
+private filesystem created empty for each invocation
+(wiki/spec/build/testing.md#group-configuration-and-authority). The slot is
+recognized by its exact declaration in the package named `omega_language_std`,
+never by a leaf name another package could reuse; any other slot is refused
+rather than run without its service or over the host's.
+*/
+const STD_PACKAGE: &str = "omega_language_std";
+const STD_FILESYSTEM_SLOT: &str = "FilesystemService";
+
+fn group_filesystem(
+    source: &CheckedProductSource,
+    inputs: &package_compilation::PackageCompilationInputs,
+    group: &build_time_evaluation::test_groups::TestGroupRegistration,
+) -> Result<TestFilesystem, Vec<Diagnostic>> {
+    let symbols = &source.program.typed.symbols;
+    let mut filesystem = TestFilesystem::Unprovided;
+    for service in &group.services {
+        let std = symbols
+            .symbol_package_identity(service.slot)
+            .and_then(|package| inputs.package_name(package))
+            == Some(STD_PACKAGE);
+        if !std || symbols.display_path(service.slot, "::") != STD_FILESYSTEM_SLOT {
+            return Err(vec![
+                Diagnostic::error(format!(
+                    "the test runner supplies no `{}` service; it backs only `{STD_PACKAGE}::{STD_FILESYSTEM_SLOT}`",
+                    symbols.display_path(service.slot, "::"),
+                ))
+                .with_source_span(service.source_span),
+            ]);
+        }
+        filesystem = TestFilesystem::Private;
+    }
+    Ok(filesystem)
+}
+
 // The roster for one application occurrence and target, in deterministic
 // group-registration then test-path order.
 pub(crate) fn select_test_roots(
     source: &CheckedProductSource,
     target: target::TargetProfile,
+    inputs: &package_compilation::PackageCompilationInputs,
 ) -> Result<TestRootSelection, Vec<Diagnostic>> {
     let config = &source.computed_build_config.config;
     let typed = &source.program.typed;
@@ -117,6 +155,9 @@ pub(crate) fn select_test_roots(
             tests.push((test_path, machine.symbol));
         }
         tests.sort_by(|left, right| left.0.cmp(&right.0));
+        // Every invocation of the group runs over the same selected backing,
+        // each with its own fresh state.
+        let filesystem = group_filesystem(source, inputs, group)?;
         // A group with no tests ran nothing; it is not evidence that any
         // test passed, so it is reported rather than silently omitted.
         if tests.is_empty() {
@@ -140,6 +181,7 @@ pub(crate) fn select_test_roots(
                     group: group_path.clone(),
                     test: test_path,
                     target,
+                    filesystem,
                 },
                 source: test_source,
             });

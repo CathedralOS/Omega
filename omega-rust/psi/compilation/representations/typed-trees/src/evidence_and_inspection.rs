@@ -5044,6 +5044,7 @@ pub mod inspection {
                 Intrinsic::BuildServiceExclusion => ("build_service_exclusion", None),
                 Intrinsic::BuildServiceAudit => ("build_service_audit", None),
                 Intrinsic::BuildTestGroupRegistration => ("build_test_group_registration", None),
+                Intrinsic::BuildTestGroupService => ("build_test_group_service", None),
                 Intrinsic::BuildOptimizationSelection => ("build_optimization_selection", None),
                 Intrinsic::BuildOptimizationReportRequest => {
                     ("build_optimization_report_request", None)

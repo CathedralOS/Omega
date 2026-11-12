@@ -7,7 +7,7 @@
 // authenticated captures provide path, input and stat bytes.
 
 use calling_conventions::{CallSignature, ValueShape};
-use native_provider_runtime::{KernelOperand, KernelResult};
+use native_provider_runtime::{KernelOperand, KernelResult, LinuxFilesystemOperation};
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{IntegerValue, ScalarType};
 use target::TargetProfile;
@@ -43,9 +43,11 @@ fn terminated_path(
     )
 }
 
-fn matching_host(binding: &NormalizedForeignCallBinding) -> bool {
+// A host namespace executes kernel calls only on the matching Linux host; the
+// runner's private namespace answers them on any host.
+fn matching_host(context: &FilesystemContext, binding: &NormalizedForeignCallBinding) -> bool {
     binding.system_call().is_some_and(|call| {
-        Some(call.target) == TargetProfile::host_if_supported()
+        (context.private().is_some() || Some(call.target) == TargetProfile::host_if_supported())
             && matches!(
                 call.target,
                 TargetProfile::LinuxX64 | TargetProfile::LinuxArm64
@@ -80,7 +82,7 @@ impl LinuxFilesystemWrite {
         declaration: &BoundaryMachineDeclaration,
         binding: &NormalizedForeignCallBinding,
     ) -> Option<Self> {
-        matching_host(binding).then(|| Self {
+        matching_host(context, binding).then(|| Self {
             context: context.clone(),
             authority: authority(context, program, declaration),
         })
@@ -92,6 +94,9 @@ impl LinuxFilesystemWrite {
         bytes: &[u8],
     ) -> Result<i128, TerminalEffectRejection> {
         self.authority.map_err(rejection)?;
+        if let Some(private) = self.context.private() {
+            return Ok(i128::from(private.borrow_mut().write(descriptor, bytes)));
+        }
         self.context
             .linux
             .borrow()
@@ -103,8 +108,10 @@ impl LinuxFilesystemWrite {
     /// Whether `descriptor` still names a modeled standard stream; once the
     /// program closes one, its number belongs to the host descriptor table.
     pub(in super::super) fn models_standard(&self, descriptor: i128) -> bool {
-        i32::try_from(descriptor)
-            .is_ok_and(|descriptor| self.context.linux.borrow().models_standard(descriptor))
+        i32::try_from(descriptor).is_ok_and(|descriptor| match self.context.private() {
+            Some(private) => private.borrow().models_standard(descriptor),
+            None => self.context.linux.borrow().models_standard(descriptor),
+        })
     }
 
     pub(in super::super) fn read(
@@ -113,6 +120,9 @@ impl LinuxFilesystemWrite {
         bytes: &mut [u8],
     ) -> Result<i128, TerminalEffectRejection> {
         self.authority.map_err(rejection)?;
+        if let Some(private) = self.context.private() {
+            return Ok(i128::from(private.borrow_mut().read(descriptor, bytes)));
+        }
         self.context
             .linux
             .borrow()
@@ -155,6 +165,7 @@ enum Effect {
 /// One admitted kernel operation: its numbers on both Linux targets, its
 /// declared parameters in kernel order, its result width and descriptor effect.
 struct KernelCall {
+    operation: LinuxFilesystemOperation,
     numbers: (i64, i64),
     operands: &'static [Operand],
     result: Formal,
@@ -162,6 +173,7 @@ struct KernelCall {
 }
 
 const fn call(
+    operation: LinuxFilesystemOperation,
     x86_64: i64,
     arm64: i64,
     operands: &'static [Operand],
@@ -169,6 +181,7 @@ const fn call(
     effect: Effect,
 ) -> KernelCall {
     KernelCall {
+        operation,
         numbers: (x86_64, arm64),
         operands,
         result,
@@ -186,46 +199,83 @@ const COUNT: Formal = Formal::Signed(64);
 // whose number is absent here is not a filesystem operation this host supplies.
 const KERNEL_CALLS: &[KernelCall] = {
     use Effect::{Acquire, Close, Status};
+    use LinuxFilesystemOperation as Op;
     use Operand::{
         Descriptor as Fd, Directory as Dir, InputView, Metadata, NullAddress, OutputView, Path,
     };
     &[
-        call(257, 56, &[Dir, Path, I32, I32], STATUS, Acquire), // openat
-        call(3, 57, &[Fd], STATUS, Close),                      // close
-        call(32, 23, &[Fd], STATUS, Acquire),                   // dup
-        call(8, 62, &[Fd, I64, I32], COUNT, Status),            // lseek
-        call(258, 34, &[Dir, Path, I32], STATUS, Status),       // mkdirat
-        call(263, 35, &[Dir, Path, I32], STATUS, Status),       // unlinkat
-        call(262, 79, &[Dir, Path, Metadata, I32], STATUS, Status), // newfstatat
-        call(5, 80, &[Fd, Metadata], STATUS, Status),           // fstat
-        call(217, 61, &[Fd, OutputView], COUNT, Status),        // getdents64
-        call(17, 67, &[Fd, OutputView, I64], COUNT, Status),    // pread64
-        call(18, 68, &[Fd, InputView, I64], COUNT, Status),     // pwrite64
-        call(267, 78, &[Dir, Path, OutputView], COUNT, Status), // readlinkat
-        call(268, 53, &[Dir, Path, U32], STATUS, Status),       // fchmodat
-        call(91, 52, &[Fd, U32], STATUS, Status),               // fchmod
-        call(264, 38, &[Dir, Path, Dir, Path], STATUS, Status), // renameat
-        call(265, 37, &[Dir, Path, Dir, Path, I32], STATUS, Status), // linkat
-        call(266, 36, &[Path, Dir, Path], STATUS, Status),      // symlinkat
-        call(77, 46, &[Fd, I64], STATUS, Status),               // ftruncate
+        call(Op::Openat, 257, 56, &[Dir, Path, I32, I32], STATUS, Acquire),
+        call(Op::Close, 3, 57, &[Fd], STATUS, Close),
+        call(Op::Dup, 32, 23, &[Fd], STATUS, Acquire),
+        call(Op::Lseek, 8, 62, &[Fd, I64, I32], COUNT, Status),
+        call(Op::Mkdirat, 258, 34, &[Dir, Path, I32], STATUS, Status),
+        call(Op::Unlinkat, 263, 35, &[Dir, Path, I32], STATUS, Status),
+        call(
+            Op::Newfstatat,
+            262,
+            79,
+            &[Dir, Path, Metadata, I32],
+            STATUS,
+            Status,
+        ),
+        call(Op::Fstat, 5, 80, &[Fd, Metadata], STATUS, Status),
+        call(Op::Getdents64, 217, 61, &[Fd, OutputView], COUNT, Status),
+        call(Op::Pread64, 17, 67, &[Fd, OutputView, I64], COUNT, Status),
+        call(Op::Pwrite64, 18, 68, &[Fd, InputView, I64], COUNT, Status),
+        call(
+            Op::Readlinkat,
+            267,
+            78,
+            &[Dir, Path, OutputView],
+            COUNT,
+            Status,
+        ),
+        call(Op::Fchmodat, 268, 53, &[Dir, Path, U32], STATUS, Status),
+        call(Op::Fchmod, 91, 52, &[Fd, U32], STATUS, Status),
+        call(
+            Op::Renameat,
+            264,
+            38,
+            &[Dir, Path, Dir, Path],
+            STATUS,
+            Status,
+        ),
+        call(
+            Op::Linkat,
+            265,
+            37,
+            &[Dir, Path, Dir, Path, I32],
+            STATUS,
+            Status,
+        ),
+        call(Op::Symlinkat, 266, 36, &[Path, Dir, Path], STATUS, Status),
+        call(Op::Ftruncate, 77, 46, &[Fd, I64], STATUS, Status),
         // `utimensat(fd, NULL, times, flags)` sets the descriptor's own times.
         call(
+            Op::Utimensat,
             280,
             88,
             &[Fd, NullAddress, Operand::Input(32), I32],
             STATUS,
             Status,
         ), // utimensat
-        call(74, 82, &[Fd], STATUS, Status),      // fsync
-        call(75, 83, &[Fd], STATUS, Status),      // fdatasync
-        call(73, 32, &[Fd, I32], STATUS, Status), // flock
-        call(260, 54, &[Dir, Path, I32, I32, I32], STATUS, Status), // fchownat
-        call(93, 55, &[Fd, I32, I32], STATUS, Status), // fchown
+        call(Op::Fsync, 74, 82, &[Fd], STATUS, Status),
+        call(Op::Fdatasync, 75, 83, &[Fd], STATUS, Status),
+        call(Op::Flock, 73, 32, &[Fd, I32], STATUS, Status),
+        call(
+            Op::Fchownat,
+            260,
+            54,
+            &[Dir, Path, I32, I32, I32],
+            STATUS,
+            Status,
+        ),
+        call(Op::Fchown, 93, 55, &[Fd, I32, I32], STATUS, Status),
     ]
 };
 
 impl Operand {
-    fn formal(self) -> Formal {
+    fn formal(self, arm64: bool) -> Formal {
         let window = |minimum, access| Formal::UnsignedWindow {
             bits: 8,
             minimum,
@@ -237,7 +287,10 @@ impl Operand {
             Self::NullAddress => Formal::Unsigned(64),
             Self::Path => window(1, StructuralAccess::SharedBorrow),
             Self::Input(minimum) => window(minimum, StructuralAccess::SharedBorrow),
-            Self::Metadata => window(metadata_extent() as u64, StructuralAccess::MutableBorrow),
+            Self::Metadata => window(
+                metadata_extent(arm64) as u64,
+                StructuralAccess::MutableBorrow,
+            ),
             Self::InputView => Formal::ByteView(StructuralAccess::SharedBorrow),
             Self::OutputView => Formal::ByteView(StructuralAccess::MutableBorrow),
         }
@@ -271,6 +324,7 @@ pub(in super::super) struct LinuxFilesystemImport {
     signature: TerminalImportSignature,
     boundary: semantic_vocabulary::BoundaryMachineId,
     number: i64,
+    arm64: bool,
     call: &'static KernelCall,
     /// Each captured structural argument's index and exact produced layout.
     captured: Vec<(usize, NativeBorrowedStorageLayout)>,
@@ -287,11 +341,14 @@ impl LinuxFilesystemImport {
         binding: &NormalizedForeignCallBinding,
         layouts: &[NativeBorrowedStorageLayout],
     ) -> Result<Option<Self>, TerminalRuntimeError> {
-        if !matching_host(binding) {
+        if !matching_host(context, binding) {
             return Ok(None);
         }
         let system_call = binding.system_call().expect("matching kernel host");
         let arm64 = matches!(system_call.target, TargetProfile::LinuxArm64);
+        if let Some(private) = context.private() {
+            private.borrow_mut().select_target(arm64);
+        }
         let Some(call) = KERNEL_CALLS.iter().find(|call| {
             system_call.number
                 == if arm64 {
@@ -308,7 +365,7 @@ impl LinuxFilesystemImport {
         let expected: Vec<Formal> = call
             .operands
             .iter()
-            .map(|operand| operand.formal())
+            .map(|operand| operand.formal(arm64))
             .collect();
         // A status-only call may discard its result; a count or offset may not.
         let shape_matches = matches_parameters(program, declaration, &expected, layouts)
@@ -344,7 +401,7 @@ impl LinuxFilesystemImport {
             if !operand.captured() {
                 continue;
             }
-            let Formal::UnsignedWindow { minimum, .. } = operand.formal() else {
+            let Formal::UnsignedWindow { minimum, .. } = operand.formal(arm64) else {
                 unreachable!("captured operands are fixed byte windows");
             };
             let formal = &signature.structural_parameters[index];
@@ -365,6 +422,7 @@ impl LinuxFilesystemImport {
             signature,
             boundary: declaration.id,
             number: system_call.number,
+            arm64,
             call,
             captured_arguments: captured.iter().map(|(index, _)| *index).collect(),
             captured,
@@ -502,7 +560,7 @@ impl TerminalEffectHandler for LinuxFilesystemImport {
                                     buffer,
                                     StructuralAccess::MutableBorrow,
                                     Some(layout),
-                                    metadata_extent(),
+                                    metadata_extent(self.arm64),
                                     StorageTransfer::ReplacePrefix,
                                 )?,
                                 vec![0; 144],
@@ -571,7 +629,18 @@ impl TerminalEffectHandler for LinuxFilesystemImport {
             Effect::Acquire => KernelResult::Descriptor,
             Effect::Status | Effect::Close => KernelResult::Status,
         };
-        let status = if self.call.effect == Effect::Close {
+        let status = if let Some(private) = self.context.private() {
+            // The runner's namespace answers in the kernel's own convention.
+            let mut private = private.borrow_mut();
+            Ok(if self.call.effect == Effect::Close {
+                let [KernelOperand::Descriptor(descriptor)] = kernel.as_slice() else {
+                    return Err(invalid());
+                };
+                private.close(*descriptor)
+            } else {
+                private.call(self.call.operation, &mut kernel)
+            })
+        } else if self.call.effect == Effect::Close {
             let [KernelOperand::Descriptor(descriptor)] = kernel.as_slice() else {
                 return Err(invalid());
             };
@@ -587,8 +656,9 @@ impl TerminalEffectHandler for LinuxFilesystemImport {
         if status == 0 {
             for piece in staged {
                 if let Staged::Metadata(slot, mut output, window) = piece {
-                    output.bytes[..metadata_extent()].copy_from_slice(&window[..metadata_extent()]);
-                    output.stage(&mut buffers[slot..=slot], metadata_extent())?;
+                    let extent = metadata_extent(self.arm64);
+                    output.bytes[..extent].copy_from_slice(&window[..extent]);
+                    output.stage(&mut buffers[slot..=slot], extent)?;
                 }
             }
         }
@@ -596,9 +666,8 @@ impl TerminalEffectHandler for LinuxFilesystemImport {
     }
 }
 
-fn metadata_extent() -> usize {
-    match TargetProfile::host_if_supported() {
-        Some(TargetProfile::LinuxArm64) => 128,
-        _ => 144,
-    }
+// One `struct stat` on the program's Linux target. A host namespace runs only
+// on the matching host, so its target is the host's.
+fn metadata_extent(arm64: bool) -> usize {
+    if arm64 { 128 } else { 144 }
 }

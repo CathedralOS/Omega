@@ -990,7 +990,10 @@ pub mod compiler_operations {
                 ) => ProductOperandKind::BoundarySubject,
                 (BuildOperation::ProviderSelection, 1) => ProductOperandKind::Provider,
                 (BuildOperation::AssumedBindingContract, 0 | 1) => ProductOperandKind::Requirement,
-                (BuildOperation::TestGroupRegistration, 0) => ProductOperandKind::TestRequirement,
+                (BuildOperation::TestGroupRegistration | BuildOperation::TestGroupService, 0) => {
+                    ProductOperandKind::TestRequirement
+                }
+                (BuildOperation::TestGroupService, 1) => ProductOperandKind::BoundarySubject,
                 (BuildOperation::WireCompatibilityRequest, 0..=3)
                 | (BuildOperation::RepresentationSelection, 0) => ProductOperandKind::Data,
                 (BuildOperation::RepresentationSelection, 1) => ProductOperandKind::Representation,
@@ -2393,6 +2396,7 @@ pub mod compiler_operations {
                 | Intrinsic::BuildServiceExclusion
                 | Intrinsic::BuildServiceAudit
                 | Intrinsic::BuildTestGroupRegistration
+                | Intrinsic::BuildTestGroupService
                 | Intrinsic::BuildAssumedBindingContract,
             ) => StaticArgumentRole::DeclarationDescription,
             _ => StaticArgumentRole::ValueDependency,
@@ -2528,6 +2532,7 @@ pub mod compiler_operations {
             | BuildOperation::BoundaryAcceptance
             | BuildOperation::WireCompatibilityRequest
             | BuildOperation::TestGroupRegistration
+            | BuildOperation::TestGroupService
             | BuildOperation::AssumedBindingContract),
         ) = BuildOperation::from_call_target(call.target.as_str())
             && build_declarations::has_explicit_build_argument(program, call)
@@ -2538,7 +2543,8 @@ pub mod compiler_operations {
             && match operation {
                 BuildOperation::WireCompatibilityRequest => call.machine_arguments.len() >= 5,
                 BuildOperation::RepresentationSelection
-                | BuildOperation::AssumedBindingContract => call.machine_arguments.len() == 2,
+                | BuildOperation::AssumedBindingContract
+                | BuildOperation::TestGroupService => call.machine_arguments.len() == 2,
                 _ => call.machine_arguments.len() == 1,
             }
         {
