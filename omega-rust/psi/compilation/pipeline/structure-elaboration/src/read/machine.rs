@@ -1,9 +1,10 @@
 /*
 The machine family of the reader: which declarations are admitted (the subset
-gate), their signatures and formals, the call-graph recursion refusal, and
+gate), their signatures and formals, and
 the driver that reads one body statement by statement.
 */
 
+use language_semantics::{TerminationGuarantee, TerminationInterface};
 use semantic_vocabulary::{MachineId, ValueId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
@@ -16,7 +17,8 @@ use typed_trees::statement::StatementNode;
 use super::contracts::{ClauseScope, ResultTerm};
 use super::{Program, Slot, crash_cause, span};
 use crate::body::{
-    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target, ValueType,
+    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target, Termination,
+    ValueType,
 };
 use crate::canonical::{self, Repeated};
 use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
@@ -44,10 +46,10 @@ impl<'t> Program<'t> {
             }
         }
         let id = self.next_identity()?;
-        let reading = if self.rigid && self.symbols.is_empty() {
-            Reading::GenericEntry
-        } else {
-            Reading::Closed
+        let reading = match (&self.alternative, self.symbols.is_empty()) {
+            (Some(arguments), true) => Reading::Alternative(arguments.clone()),
+            _ if self.rigid && self.symbols.is_empty() => Reading::GenericEntry,
+            _ => Reading::Closed,
         };
         self.read_machine(id, symbol, reading)?;
         Ok(id)
@@ -147,11 +149,6 @@ impl<'t> Program<'t> {
         Ok(id)
     }
 
-    /// Records that the witness `caller` calls `callee`.
-    pub fn forwards(&mut self, caller: MachineId, callee: MachineId) {
-        self.calls.push((caller, callee));
-    }
-
     /// The `MachineId` that stands for a trait requirement in a generic
     /// check form: its signature and contract, read as any machine's, and
     /// no body. A requirement with value parameters is one machine per
@@ -181,44 +178,6 @@ impl<'t> Program<'t> {
         self.scopes.push(Vec::new());
         self.requirements.push(id);
         Ok(id)
-    }
-
-    /// Refuses recursion: a cycle in the call graph read so far, including a
-    /// machine that calls itself. Kahn's algorithm over the call edges; a
-    /// machine left with incoming edges lies on or behind a cycle.
-    pub fn refuse_recursion(&self) -> Checked<()> {
-        let count = self.symbols.len();
-        let index = |machine: MachineId| machine.get() as usize - 1;
-        let mut incoming = vec![0_usize; count];
-        for (_, callee) in &self.calls {
-            incoming[index(*callee)] += 1;
-        }
-        let mut ready: Vec<usize> = (0..count)
-            .filter(|machine| incoming[*machine] == 0)
-            .collect();
-        while let Some(machine) = ready.pop() {
-            for (caller, callee) in &self.calls {
-                if index(*caller) == machine {
-                    incoming[index(*callee)] -= 1;
-                    if incoming[index(*callee)] == 0 {
-                        ready.push(index(*callee));
-                    }
-                }
-            }
-        }
-        // Kahn's algorithm settles every machine exactly when there is no
-        // cycle, so a remaining incoming edge is the whole test.
-        match incoming.iter().position(|edges| *edges != 0) {
-            None => Ok(()),
-            Some(position) => {
-                let machine = MachineId::new(position as u64 + 1).expect("positions start at 1");
-                Err(refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Call("recursion"),
-                ))
-            }
-        }
     }
 
     pub(super) fn declaration(
@@ -332,8 +291,8 @@ impl<'t> Program<'t> {
                 _ => false,
             }),
             // Applied at one type argument per parameter, all type
-            // parameters.
-            Reading::Applied(arguments) => {
+            // parameters; so is one alternative of a finite family.
+            Reading::Applied(arguments) | Reading::Alternative(arguments) => {
                 parameters.len() == arguments.len()
                     && parameters.iter().all(|parameter| {
                         parameter.kind == typed_trees::data::TypeParameterKind::Type
@@ -404,7 +363,7 @@ impl<'t> Program<'t> {
         // formals; `machine_shape` refuses them on every other machine.
         let binders = match reading {
             Reading::GenericEntry => self.value_binders(id, machine)?,
-            Reading::Closed | Reading::Applied(_) => Vec::new(),
+            Reading::Closed | Reading::Applied(_) | Reading::Alternative(_) => Vec::new(),
         };
         self.machine_shape(id, machine, reading)?;
         // What each type parameter stands for while this machine is read.
@@ -423,7 +382,7 @@ impl<'t> Program<'t> {
                     (parameter.symbol, ValueType::Rigid(rigid))
                 })
                 .collect(),
-            Reading::Applied(arguments) => self
+            Reading::Applied(arguments) | Reading::Alternative(arguments) => self
                 .typed
                 .machine_type_parameters(machine)
                 .iter()
@@ -445,7 +404,7 @@ impl<'t> Program<'t> {
                 Unserved::Contract("contracts on a state"),
             ));
         }
-        let (signature, mut names) = self.contract(
+        let (mut signature, mut names) = self.contract(
             id,
             state.symbol,
             state.parameters,
@@ -458,6 +417,7 @@ impl<'t> Program<'t> {
             &binders,
             &[],
         )?;
+        signature.termination = self.termination(id, machine)?;
         // Diagnostics name the declaration the author wrote, not a clone
         // stage 04 generated from it.
         let authored = crate::template_of(self.typed, symbol)
@@ -597,15 +557,20 @@ impl<'t> Program<'t> {
         let typed = self.typed;
         let formals = span(&typed.state_parameters, formals, id, "parameter span")?;
         let mut parameters = Vec::with_capacity(formals.len());
+        let mut erased = Vec::new();
         let mut slots = Vec::with_capacity(formals.len());
-        for formal in formals {
-            let value_type = self.formal(id, formal)?;
+        for (position, formal) in formals.iter().enumerate() {
+            let (value_type, is_erased) = self.formal(id, formal)?;
             parameters.push(value_type);
+            if is_erased {
+                erased.push(position);
+            }
             slots.push(Slot {
                 symbol: formal.symbol,
                 value_type,
                 assignable: false,
                 homed: false,
+                erased: is_erased,
             });
         }
         for binder in binders {
@@ -616,16 +581,21 @@ impl<'t> Program<'t> {
                 value_type,
                 assignable: false,
                 homed: false,
+                erased: false,
             });
         }
         let result = self.result_type(id, return_type)?;
+        let values = crate::body::formal_values(
+            slots.iter().map(|slot| (slot.value_type, slot.erased)),
+            result,
+        );
         // The result pseudo-value is the value right after the scalar
         // formals (`Signature::result`), owned by the machine's one state:
         // stage 02 records the entry state as the owner of a machine
         // contract's reserved `result`.
-        let scalar_formals = parameters
+        let scalar_formals = slots
             .iter()
-            .filter(|parameter| parameter.declared().is_some())
+            .filter(|slot| slot.value_type.declared().is_some() && !slot.erased)
             .count();
         let result_value = ValueId::new(scalar_formals as u64 + 1).ok_or_else(|| {
             refuse(
@@ -636,6 +606,7 @@ impl<'t> Program<'t> {
         })?;
         let entry = ClauseScope {
             slots: &slots,
+            values: &values,
             bound,
             owner,
             result: ResultTerm::Absent("result in an entry clause"),
@@ -799,13 +770,46 @@ impl<'t> Program<'t> {
         Ok((
             Signature {
                 parameters,
+                erased,
                 result,
                 requires,
                 ensures,
                 crashes,
+                // A requirement's termination is its selected member's to
+                // keep; a machine's is read from its plan by its caller.
+                termination: Termination::Silent,
             },
             names,
         ))
+    }
+
+    /// What the header says about ending, from the plan stage 02 fills once
+    /// (`MachineTerminationPlan`). Only the presence of a promise and of a
+    /// witness is read here: the plan's `RankingWitness` holds its subjects
+    /// as rendered text, which this reader never resolves.
+    fn termination(&self, id: MachineId, machine: &Machine) -> Checked<Termination> {
+        let plan = &machine.termination_plan;
+        let promised = match &plan.interface {
+            TerminationInterface::InternalDerived
+            | TerminationInterface::Published(TerminationGuarantee::NoGuarantee) => false,
+            TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) => {
+                // termination.md, "Opaque progress profiles": a premise
+                // attaches a provider's progress profile to a subject.
+                if !premises.is_empty() {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("termination under a progress premise"),
+                    ));
+                }
+                true
+            }
+        };
+        Ok(match (&plan.implementation_witness, promised) {
+            (Some(_), _) => Termination::Witnessed,
+            (None, true) => Termination::Promised,
+            (None, false) => Termination::Silent,
+        })
     }
 
     /// Whether the type parameter `rigid` of `machine` is declared `[copy]`.
@@ -846,7 +850,10 @@ impl<'t> Program<'t> {
         }
     }
 
-    fn formal(&mut self, id: MachineId, formal: &StateParameter) -> Checked<ValueType> {
+    /// A formal's type and whether it is `[erased]`. An erased formal is
+    /// scalar: an erased record travels in Terminal Psi's proof-term lane
+    /// (`erased_proof_formals`), which a later slice serves.
+    fn formal(&mut self, id: MachineId, formal: &StateParameter) -> Checked<(ValueType, bool)> {
         if !formal.symbol.is_valid() {
             return Err(refuse(
                 id,
@@ -868,14 +875,19 @@ impl<'t> Program<'t> {
                 Unserved::Parameter("mutable parameter"),
             ));
         }
-        if formal.relevance != language_core::BindingRelevance::Relevant {
+        let value_type = self.value_type(id, formal.type_reference)?;
+        let erased = match formal.relevance {
+            language_core::BindingRelevance::Relevant => false,
+            language_core::BindingRelevance::Erased => true,
+        };
+        if erased && value_type.scalar().is_none() {
             return Err(refuse(
                 id,
                 Construct::Machine,
-                Unserved::Parameter("erased parameter"),
+                Unserved::Parameter("erased parameter of a data type"),
             ));
         }
-        self.value_type(id, formal.type_reference)
+        Ok((value_type, erased))
     }
 
     pub fn body(&mut self, id: MachineId) -> Checked<Body> {
@@ -921,11 +933,13 @@ impl<'t> Program<'t> {
             .map(|formal| formal.symbol)
             .chain(binders.iter().map(|binder| binder.symbol))
             .zip(&signature.parameters)
-            .map(|(symbol, value_type)| Slot {
+            .enumerate()
+            .map(|(position, (symbol, value_type))| Slot {
                 symbol,
                 value_type: *value_type,
                 assignable: false,
                 homed: false,
+                erased: signature.is_erased(position),
             })
             .collect();
         let statements = typed.statement_table.statements(state.statement_nodes);
@@ -1144,7 +1158,10 @@ fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceS
                 target_spans(target, out);
             }
         }
-        Statement::Declare { .. } | Statement::Store { .. } | Statement::Evaluate(_) => {}
+        Statement::Declare { .. }
+        | Statement::Witness { .. }
+        | Statement::Store { .. }
+        | Statement::Evaluate(_) => {}
     }
 }
 
@@ -1160,6 +1177,7 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
             .chain(default.iter().map(|(target, source)| (target, *source)))
             .collect(),
         Statement::Declare { .. }
+        | Statement::Witness { .. }
         | Statement::Bind { .. }
         | Statement::Store { .. }
         | Statement::Evaluate(_) => Vec::new(),
@@ -1220,7 +1238,9 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
             spans(left, binder, out);
             spans(right, binder, out);
         }
-        ExpressionKind::Not(operand) | ExpressionKind::BitwiseNot(operand) => {
+        ExpressionKind::Not(operand)
+        | ExpressionKind::BitwiseNot(operand)
+        | ExpressionKind::Cast(operand) => {
             spans(operand, binder, out);
         }
         ExpressionKind::Call { arguments, .. } => {
@@ -1264,6 +1284,10 @@ enum Reading {
     /// A generic machine at the type arguments of one call in a generic
     /// check form's entry, in declaration order.
     Applied(Vec<ValueType>),
+    /// The entry of one alternative's check of a finite type family: the
+    /// generic machine with its body, each type parameter fixed to that
+    /// alternative's type (`elaborate_alternatives`).
+    Alternative(Vec<ValueType>),
 }
 
 /// Counts, per slot, how often `statement` names it.
@@ -1278,6 +1302,9 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
             expression_slot_uses(value, uses);
         }
         Statement::Evaluate(value) => expression_slot_uses(value, uses),
+        // Counted although nothing evaluates it: a type parameter's value is
+        // never an erased term, so counting it can only refuse more.
+        Statement::Witness { term, .. } => expression_slot_uses(term, uses),
         Statement::Arm {
             guard, target: arm, ..
         } => {
@@ -1333,7 +1360,9 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
             expression_slot_uses(left, uses);
             expression_slot_uses(right, uses);
         }
-        ExpressionKind::Not(operand) | ExpressionKind::BitwiseNot(operand) => {
+        ExpressionKind::Not(operand)
+        | ExpressionKind::BitwiseNot(operand)
+        | ExpressionKind::Cast(operand) => {
             expression_slot_uses(operand, uses);
         }
         ExpressionKind::Call { arguments, .. } => {

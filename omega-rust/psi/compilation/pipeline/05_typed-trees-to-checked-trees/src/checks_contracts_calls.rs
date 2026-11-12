@@ -235,8 +235,8 @@ mod captured_boolean {
         capture-owned judgment, including failure: no later fallback may replace it.
     */
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn judgment(
-        program: &dyn ::validation::CheckingInput,
+    pub(super) fn judgment<'program>(
+        program: &'program dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         guarantees: &mut crate::checks::contracts::prover::call_guarantees::StateGuarantees<'_, '_>,
         call: &FlowCallFact,
@@ -244,7 +244,7 @@ mod captured_boolean {
         requirement: &Fact,
         incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
         frames: Option<&validation::CallFrameResolver<'_>>,
-        whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
+        whole_contract_cache: &mut super::WholeContractCache<'program>,
     ) -> Option<bool> {
         let state = guarantees.caller();
         let FactPayload::ContractBooleanExpression { expression, .. } = requirement.payload else {
@@ -378,8 +378,8 @@ mod captured_boolean {
         their existing owner using only the selected subject's contexts.
     */
     #[allow(clippy::too_many_arguments)]
-    fn captured_contract_proven(
-        program: &dyn ::validation::CheckingInput,
+    fn captured_contract_proven<'program>(
+        program: &'program dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         guarantees: &mut crate::checks::contracts::prover::call_guarantees::StateGuarantees<'_, '_>,
         call: &FlowCallFact,
@@ -390,13 +390,14 @@ mod captured_boolean {
         expression: typed_trees::expression::ExpressionHandle,
         incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
         frames: Option<&validation::CallFrameResolver<'_>>,
-        whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
+        whole_contract_cache: &mut super::WholeContractCache<'program>,
     ) -> bool {
         let state = guarantees.caller();
         if let typed_trees::domain::ProofFact::Expression(required) =
             program.proof_facts.get(contract.fact)
         {
             let whole_proven = if let Some(&(_, cached)) = whole_contract_cache
+                .answers
                 .iter()
                 .find(|&&(handle, _)| handle == contract_handle)
             {
@@ -404,29 +405,36 @@ mod captured_boolean {
             } else {
                 let result = super::super::prover::call_guarantees::proves(
                     program, facts, guarantees, call, contexts, *required, frames,
-                ) || super::super::current_values::proves_call(
-                    program,
-                    state,
-                    call,
-                    *required,
-                    frames,
-                    guarantees.completed_calls(),
-                ) || super::super::entailment::structural_call_requirement(
-                    program,
-                    facts,
-                    state,
-                    call,
-                    *required,
-                    Some(contract_handle),
-                    frames,
-                );
-                whole_contract_cache.push((contract_handle, result));
+                ) || whole_contract_cache
+                    .current_values(program, state, call, frames, guarantees.completed_calls())
+                    .is_some_and(|values| {
+                        super::super::current_values::proves_prepared_call(
+                            values, state, call, *required,
+                        )
+                    })
+                    || super::super::entailment::structural_call_requirement(
+                        program,
+                        facts,
+                        state,
+                        call,
+                        *required,
+                        Some(contract_handle),
+                        frames,
+                    );
+                whole_contract_cache.answers.push((contract_handle, result));
                 result
             };
             if whole_proven {
                 return true;
             }
         }
+        let current_values = whole_contract_cache.current_values(
+            program,
+            state,
+            call,
+            frames,
+            guarantees.completed_calls(),
+        );
         captured_expression_proven(
             program,
             facts,
@@ -439,6 +447,7 @@ mod captured_boolean {
             incoming_guards,
             frames,
             guarantees.completed_calls(),
+            current_values,
         )
     }
 
@@ -459,6 +468,7 @@ mod captured_boolean {
         incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
         frames: Option<&validation::CallFrameResolver<'_>>,
         completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
+        current_values: Option<&crate::checks::current_scalar_values::CurrentScalarValues<'_>>,
     ) -> bool {
         // One clause may need its saved value while another can safely read an
         // unchanged scalar. Check source identity separately for each clause;
@@ -475,6 +485,7 @@ mod captured_boolean {
             incoming_guards,
             frames,
             &mut *completed,
+            current_values,
         ) || (expression_substitution_preserves_captures(
             program,
             facts,
@@ -509,6 +520,7 @@ mod captured_boolean {
         incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
         frames: Option<&validation::CallFrameResolver<'_>>,
         completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
+        current_values: Option<&crate::checks::current_scalar_values::CurrentScalarValues<'_>>,
     ) -> bool {
         if call_values::proves_captured_arithmetic_requirement(
             program, facts, state, call, expression,
@@ -547,7 +559,11 @@ mod captured_boolean {
         if let Some(binary) = program.expression_table.binary_node(expression) {
             use typed_trees::expression::BinaryOperator;
             let mut child = |expression| {
-                captured_expression_proven(
+                current_values.is_some_and(|values| {
+                    super::super::current_values::proves_prepared_call(
+                        values, state, call, expression,
+                    )
+                }) || captured_expression_proven(
                     program,
                     facts,
                     state,
@@ -559,6 +575,7 @@ mod captured_boolean {
                     incoming_guards,
                     frames,
                     &mut *completed,
+                    current_values,
                 )
             };
             match binary.operator {
@@ -3180,9 +3197,31 @@ use crate::published::labels::{
     contexts. Share repeated questions only within that same captured premise
     roster; never reuse one arm's positive result to qualify another arm.
 */
-struct WholeContractCache {
+struct WholeContractCache<'program> {
     contexts: Vec<facts::FactContextHandle>,
     answers: Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
+    current_values: std::cell::OnceCell<
+        Option<crate::checks::current_scalar_values::CurrentScalarValues<'program>>,
+    >,
+}
+
+impl<'program> WholeContractCache<'program> {
+    // A mixed contract can need a different proof owner for each clause. Prepare
+    // the completed caller values here; recursive proof consumers only borrow them.
+    fn current_values(
+        &self,
+        program: &'program dyn ::validation::CheckingInput,
+        state: &FlowStateFact,
+        call: &FlowCallFact,
+        frames: Option<&validation::CallFrameResolver<'_>>,
+        completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
+    ) -> Option<&crate::checks::current_scalar_values::CurrentScalarValues<'program>> {
+        self.current_values
+            .get_or_init(|| {
+                super::current_values::prepare_call(program, state, call, frames, completed)
+            })
+            .as_ref()
+    }
 }
 
 pub(super) fn check_call_requires(
@@ -3253,6 +3292,7 @@ pub(super) fn check_call_requires(
                         whole_contract_caches.push(WholeContractCache {
                             contexts: requirement_contexts.to_vec(),
                             answers: Vec::new(),
+                            current_values: std::cell::OnceCell::new(),
                         });
                         whole_contract_caches.len() - 1
                     });
@@ -3265,7 +3305,7 @@ pub(super) fn check_call_requires(
                     fact,
                     incoming_guards,
                     call_frames,
-                    &mut whole_contract_caches[cache_index].answers,
+                    &mut whole_contract_caches[cache_index],
                 );
                 let satisfied = {
                     selected_evidence_proves_requirement(facts, state_flow, call_flow, fact)

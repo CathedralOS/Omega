@@ -44,7 +44,7 @@ is an integer of the context's type reached with no fractional intermediate,
 any other such tree (fractional anywhere, out of range, or under an operator
 with no anonymous meaning) being refused; builtin `Exact` integer
 arithmetic, bitwise operations, shifts and comparisons; `!`, `~`, `&&` and
-`||`; direct calls of other such machines with `requires` clauses over their
+`||`; `as` between two integer carriers ([Casts](#casts)); direct calls of other such machines with `requires` clauses over their
 formals and `ensures` clauses over their formals and `result`; `crashes Trap`
 and `crashes Abort` clauses with or without route guards over the formals;
 `crashes none`; an integer `!=` in a clause, read as `a < b or b < a`, the
@@ -56,9 +56,8 @@ normal completion is served only in terminal position (an arm target or a
 call statement), where it becomes the block's no-normal invocation.
 Everything else is refused with `RefusalReason::Unsupported` and a detail
 naming the construct (`expression match`, `type reference`, `call no-normal
-call inside an expression`, ...): a reference, slice, loop, recursion
-through a cycle, generic, callable value, suspension, assembly, cast, float,
-domain or service reach is never skipped, approximated or passed through. A
+call inside an expression`, ...): a reference, slice, generic, callable value, suspension, assembly, float,
+domain, cast that names a domain, or service reach is never skipped, approximated or passed through. A
 refusal anywhere in the compilation refuses the whole compilation.
 
 ### What one compilation elaborates
@@ -211,9 +210,23 @@ branch of another type: it is left unread, because it is typed under an
 equation that is false here. An arm decided as true is taken
 unconditionally, and the arms after it are left unread. A lone Boolean
 literal decides nothing this way: only a type equation makes a condition
-static. An equation with a type parameter, a data type or an application on
-either side is not decided, so the generic form of such a machine is still
-refused (`expression type expression`).
+static. An equation with a rigid type parameter, a data type or an
+application on either side is not decided, so the opaque generic form of
+such a machine is refused (`expression type expression`).
+
+**The family itself** is read once per alternative it lists, by
+`elaborate_alternatives`: `family_alternatives` finds the one `requires`
+clause that is a disjunction of `T == X` with `X` a builtin scalar type,
+and each check reads the declaration as its entry with `T` fixed to one `X`
+(`Reading::Alternative`). A type equation naming `T` is then decided as if
+stage 04 had substituted it. Inside a machine contract clause a type
+equation guards what follows it (generics.md: "Conjuncts are read left to
+right; a disjunct whose type equation is false for the instantiation holds
+vacuously"): a conjunct decided true is dropped, and a disjunct a type
+equation decides false (`guarded_false`) contributes nothing and is not
+read, so a conjunct typed only under another alternative is never typed.
+What remains must be a clause the reader serves; a clause decided false
+outright is refused.
 
 `elaborate_witness` builds the statement that an implementation refines a
 requirement: the requirement's contract, at the given value arguments, on a
@@ -226,6 +239,98 @@ or by the parameter's own refusal (findings 29 to 32).
 
 A contract clause that is the literal `true` adds no clause: it asks and
 promises nothing, as an absent `requires` or `ensures` does.
+
+### Casts
+
+`operand as T` is read when both the operand's type and `T` are builtin
+integers and neither carries a domain
+([domains](../../../../../wiki/spec/language/domains.md#carrier-casts): "The
+operand of a carrier cast must carry no domain."). Lowering emits the one
+exact conversion the two carriers determine: `IntegerWiden` when every
+operand value is representable in `T` (a wider carrier of the same sign, or
+unsigned to a wider signed one), and otherwise `IntegerExactCast` with an
+`OperationSafety` obligation ("exact widening, or narrowing with
+representability proved"). A cast to the operand's own carrier converts
+nothing and is its operand.
+
+The reader decides from what the typed trees record, never from the cast's
+spelling: a recast (`CastForm::Recast`), a cast with a domain symbol, a cast
+into a `Wrapping`, `Saturating` or `Trapping` type, a target that is a
+constrained type, and an operand with no carrier of its own (an anonymous
+literal or rational expression, which the
+[numeric landing rules](../../../../../wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics)
+land) are each refused as `Unsupported`.
+
+### Erased scalar bindings
+
+A scalar formal or local may be `[erased]`
+([proof contracts](../../../../../wiki/spec/proofs/contracts.md#explicit-erased-bindings):
+"The binding remains in checking and semantic identity but contributes no
+runtime field, address, read, or cleanup. It may supply proof computation or
+static authorization; it cannot determine runtime data or control."). This is
+the first slice of the
+[proofs, evidence and quotients lane](../../../../../wiki/drafts/designs/proofs_evidence_lane.md).
+
+- **An erased formal** has a value identity, so `requires` and `ensures`
+  clauses name it like any formal, and no runtime lane: Terminal Psi declares
+  it in `MachineContract::erased_scalar_formals`, not in `parameters` or
+  `parameter_order`
+  ([encoding](../../../../../wiki/spec/terminal-psi/encoding.md): "Erased
+  formals occupy no tag."). Its identity comes after the result
+  pseudo-value; `Signature::formal_values` is the one numbering the reader
+  and lowering share.
+- **The argument for an erased formal** is a term, not an operand
+  (contracts.md: "Construction supplies the erased term"). It goes into the
+  call's `erased_arguments` as a `ScalarTerm` and no operation computes it.
+- **An erased local**, `let w [erased]: T = term;`, names its term
+  (`Statement::Witness`) and emits nothing.
+
+A term is a literal or a scalar binding, relevant or erased: the forms with
+no formation condition. Anything that computes has one (contracts.md, "Total
+arithmetic": "Exact operations discharge representability before formation"),
+and no operation of the lowered form would own it, so it is refused.
+
+| Construct | Refusal detail |
+| --- | --- |
+| an erased formal or local of a data type (Terminal Psi's proof-term lane, `erased_proof_formals`) | `parameter erased parameter of a data type`, `statement erased local of a data type`, `expression erased term of a data type` |
+| a term that computes, or reads a local declared without an initializer | `expression erased term other than a literal or a binding`, `expression erased term that reads storage` |
+| an erased local with no initializer | `statement erased local without an initializer` |
+| a runtime expression that reads an erased binding | `expression runtime use of an erased binding` (finding 34) |
+| a crash route guard that names an erased formal | `contract route guard names a value that is not a formal` |
+
+### Loops
+
+A loop in Omega is a machine whose transition arm calls it again, directly
+or through other machines. The subset serves such a call cycle between
+scalar machines when every call between its members stands in terminal
+position (an arm's target, or the body's final value) and no member promises
+termination: `machine spin(n: u32) -> u32 { transition n > 0 { true ->
+spin(n - 1) false -> 0 } }`, and the same through two or more machines.
+[termination](../../../../../wiki/spec/language/termination.md#calls-and-productive-loops):
+"A productive terminal-transfer cycle without a termination promise may run
+forever and owes no rank". [Call cycles as loops](#call-cycles-as-loops)
+gives the lowered form.
+
+The rest of the loops lane
+(`wiki/drafts/designs/loops_recursion_termination_lane.md`) is refused by
+name until the slice that serves it:
+
+| Construct | Refusal detail |
+| --- | --- |
+| a call of a member whose result the caller goes on to use, `1 + f(n)` | `call recursion outside a terminal position` |
+| a `terminates by` witness, on any machine | `contract ranking witness` |
+| a bare `terminates` on a machine that lies on a cycle or calls into one | `contract termination promise over a call cycle` |
+| `terminates` under a progress premise | `contract termination under a progress premise` |
+| `ensures` on a member | `contract ensures on a call cycle` |
+| a `crashes Cause` clause with a route guard on a member | `contract guarded crash route on a call cycle` |
+| a record or sum formal, result, local or expression in a member, or a local declared without an initializer | `machine storage on a call cycle` |
+| an `[erased]` formal or local in a member | `machine erased binding on a call cycle` |
+| a formal, result or local of a type parameter in a member | `machine value of a type parameter on a call cycle` |
+
+A bare `terminates` on a machine that reaches no cycle is served: every
+machine it can reach is acyclic and inside the subset, which is the
+specification's "A private acyclic body needs no annotation and derives a
+local `Terminates` summary".
 
 ### Records
 
@@ -374,9 +479,11 @@ that still resolves to a constant is refused as `expression const`.
   value right after the scalar formals, with `ValueOrigin::MachineResult`, so
   the module's `TerminalMachineResult::Scalar`, its `ensures` propositions
   and the value table name one identity.
-- **Formals** travel in Terminal Psi's two lanes. The `k`-th scalar formal is
-  value `k + 1`, skipping record formals, and that is how a clause names it; a
-  record formal is a root place and has no value identity.
+- **Formals** travel in Terminal Psi's two lanes. The `k`-th relevant scalar
+  formal is value `k + 1`, skipping record and erased formals, and that is
+  how a clause names it; a record formal is a root place and has no value
+  identity. An erased scalar formal is a value after the result pseudo-value
+  and travels in neither lane.
 - **Callees** are `MachineId`s reached from a `SymbolKind::Machine` symbol.
 - No table here is keyed by text; text appears only in `Refusal::detail`.
 
@@ -469,6 +576,57 @@ slot holds from then on. Every transition arm completes the machine, so the
 only joins are the short-circuit joins and the join of a `match`. A machine with no record has no structural
 place, and its place, root and write tables are empty because the form
 implies none.
+
+## Call cycles as loops
+
+[components.rs](src/components.rs) finds the call components of the bodies
+read: the strongly connected sets of the call graph. Nesting plays no part
+([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md):
+"Source nesting does not bound the component or justify any edge."). Each
+machine still gets its own Terminal machine, and a machine on a cycle holds
+its whole component in its own graph
+(control flow: "Constant-stack terminal cycles may become block backedges"):
+
+- **The entry** holds the machine's formals as machine parameters and jumps
+  to the machine's own head with them.
+- **One head block per member**, whose block parameters are that member's
+  scalar formals. The member's body is lowered once beneath it with its
+  slots bound to those parameters, so nothing in a loop names a machine
+  formal.
+- **A terminal call of a member** evaluates its arguments left to right and
+  jumps to that member's head with them. It is no call operation and gets no
+  invocation row: the lowered form has no call there.
+
+A component of `k` machines is therefore lowered `k` times, once per
+machine. Nothing is shared between those graphs.
+
+**`requires` at a head.** A member's `requires` clauses, each formal
+replaced by the head's parameter, are the head's one row in the module's
+`scalar_block_invariants`, a canonical conjunction when there are several
+(control flow: "A scalar block invariant is a semantic row identifying a
+machine, destination block, scalar predicate, and one obligation for every
+actual incoming edge."). Every edge into the head mints one
+`ArrivalInvariant` obligation at that edge and one arrival in the row: the
+entry's jump, and each jump back. That is
+[state contracts](../../../../../wiki/spec/language/state_contracts.md#bindings-and-arrivals)
+on the lowered form: "Machine `requires` applies at every invocation,
+including terminal and recursive calls." A member with no `requires` has no
+row and its head owes nothing. The predicate is the authored one; nothing
+here infers a loop invariant.
+
+The entry is never a head (control flow: "The machine entry cannot carry a
+row: invocation supplies the machine's declared preconditions rather than an
+explicit control-flow edge"), so a machine's own `requires` reach its loop
+only by being proved on the entry's jump.
+
+**Outcomes.** Whether a machine completes normally and which causes it may
+crash with is the least fixed point over the call graph
+([outcome.rs](src/outcome.rs)): every machine starts as never completing,
+and the bodies are walked until nothing changes. A machine whose every path
+calls it again never completes, and a call of it is an `InvokeNoNormal`
+terminator (control flow: "An infinite path has no normal return").
+
+No `ranked_scc` is written: these cycles promise nothing.
 
 ## Places, roots and the write log
 
@@ -657,11 +815,11 @@ interpreter loads and runs both.
 
 | Kind | Where | Created at |
 | --- | --- | --- |
-| `OperationSafety` | each `Exact` add, subtract, multiply, divide, remainder, shift (every primitive whose `integer_policy_bridge` has formation conditions) | the point before the operation |
+| `OperationSafety` | each `Exact` add, subtract, multiply, divide, remainder, shift (every primitive whose `integer_policy_bridge` has formation conditions), and each cast that is not a widening | the point before the operation |
 | `CallRequirement` | one per callee `requires` clause per call, clause = position in the callee's canonical `requires` | the point before the call |
 | `PublishedGuarantee` | one per `ensures` clause, the identity `ContractClause` carries | the entry block |
 | `NormalGuarantee` | one per `ensures` clause per normal exit edge, naming its `PublishedGuarantee` | that edge |
-| `ArrivalInvariant` | one per edge into a block with parameters (only short-circuit joins have them); the predicate is the checker's | that edge |
+| `ArrivalInvariant` | one per edge into a block with parameters: a short-circuit join, whose predicate the checker infers, or a loop head, whose predicate is its member's `requires` | that edge |
 | `CrashCoverage` | one per crash site and cause. `CrashSite::Block`: a `Crash` terminator (its one cause), or an `InvokeNoNormal` terminator (each cause among its continuations). `CrashSite::Operation`: a `Call` or `CallUnit` whose callee may return and publishes crash routes (each cause among its continuations) | the point before the terminator or the call |
 
 ## Source correspondence
@@ -917,3 +1075,33 @@ worked around by adding to `terminal-check-tables`.
     (`visible_to`). Any other call is refused as `call private machine of
     another package`, so the current checker decides the compilation
     (`tests/omega/fail/build/executed_dependency_private_call`).
+34. **A runtime read of an erased binding falls back; it is not yet rejected
+    here.** The current checker rejects `let total: i32 = bound;` for an
+    erased `bound` ("erased parameter `bound` has no runtime value"). That is
+    a verdict about the program, and this route has no refusal reason for it,
+    so the reader refuses the closure as `Unsupported` and the current
+    checker decides. The slice that owns the rejection adds the reason.
+35. **The current pipeline cannot lower an erased local supplied as an erased
+    term.** `let witness [erased]: i32 = limit; keep(n, witness)` passes the
+    current checker and then fails in Psi 06 ("scalar read has no authored
+    binding"). This route lowers it: the local names the term. The witness is
+    `tests/omega/pending/relevance/erased_local_forwarded_to_erased_formal`.
+36. **A recursive call records its selection as the entry state.** A call of
+    another machine carries an authored selection that resolves to the
+    symbol the call names. A call of the machine being read names the
+    machine and its selection resolves to that machine's one state. The
+    reader accepts a selection when both symbols enter the same machine
+    (`entered_machine`: a machine, or the one state of one), comparing
+    symbols only.
+37. **A ranking witness is refused wherever it stands.** The typed trees
+    hold its subjects twice, as rendered text
+    (`RankingWitness::subjects`) and as typed expressions
+    (`RankingExpressionCustody`). This slice reads neither and refuses the
+    witness, on an acyclic machine too, because whether a witness with
+    nothing to rank is an error is the ranking slice's to decide. That slice
+    reads the custody and never the text.
+38. **A final value counts as terminal position.** Stage 01 leaves a body's
+    final expression as an expression, and the reader makes it the
+    unguarded arm that completes the machine, so `machine f(n: u32) -> u32
+    { f(n) }` is a jump back like `transition { _ -> f(n) }`. Whether the
+    current checker treats the two alike was not measured.

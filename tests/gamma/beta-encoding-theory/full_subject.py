@@ -4,11 +4,11 @@ Produces the complete untrusted derivation for the owner proposition
 
     encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)
 
-where S is the selected evaluator's raw Beta source as a midpoint-split
+where S is the historical evaluator's raw Beta source as a midpoint-split
 Source tree and T is its persisted Alpha tape as a ByteList, verifies the
 certificate against the pinned measurements below, and reports which proof
 rules, theory functions, and constructors the emitted certificate actually
-uses.
+uses. This is historical research, not current bootstrap admission.
 
 This driver is the checked-in generic Stepper plus an explicit gate: it
 reads no evaluator output and decides no admission.  The theory section is
@@ -22,9 +22,10 @@ produced through the selected chain and checked under the exact profile.
 What this mode adds is a reproducible, pinned full-subject run plus the
 usage census the retained-rule audit needs.
 
-Requires OMEGA_PATH_GAMMA_EVALUATOR_SOURCE and OMEGA_PATH_GAMMA_EVALUATOR_TAPE
-(source tools/bootstrap/paths.sh).  No evaluator materialization is needed;
-the mode runs on any host with python3:
+The subject is fixed at Git revision
+d19361fe4deae73e1b488a940a872fec1ed885cb. Git with that history and python3
+are required; no evaluator materialization, network fetch, or current-source
+fallback is performed:
 
     tests/gamma/beta-encoding-theory/run.sh --full-subject
 
@@ -39,8 +40,8 @@ untrusted derivation input the selected chain still has to check.
 """
 
 import hashlib
-import os
 import struct
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -56,7 +57,13 @@ from lexical import certificate, envelope, proposition, record  # noqa: E402
 from stepper import Stepper, Theory  # noqa: E402
 from wire import MAGIC  # noqa: E402
 
-# Subject identities pinned by tools/bootstrap/gamma/evaluator_env.sh.
+# Preserve the exact research subject; old certificate measurements do not
+# become claims about a later evaluator merely because its semantics agree.
+SUBJECT_REVISION = "d19361fe4deae73e1b488a940a872fec1ed885cb"
+SUBJECT_FILES = {
+    "OMEGA_PATH_GAMMA_EVALUATOR_SOURCE": "bootstrap/2_gamma/gamma_evaluator.beta",
+    "OMEGA_PATH_GAMMA_EVALUATOR_TAPE": "bootstrap/2_gamma/gamma_evaluator_bytecode.tape",
+}
 SOURCE_IDENTITY = (47_756,
                    "253b42b447fbe1bae28058691d23f794573759fcd3b1ba000d250ef58ac97613")
 TAPE_IDENTITY = (8_575,
@@ -148,7 +155,17 @@ def check_wire(request, owner_rows, left_ref, right_ref,
 
 
 def bound_subject(env, expected):
-    raw = Path(os.environ[env]).read_bytes()
+    try:
+        raw = subprocess.run(
+            ["git", "-C", str(GATE_DIR.parents[2]), "show",
+             f"{SUBJECT_REVISION}:{SUBJECT_FILES[env]}"],
+            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise SystemExit(
+            f"full subject: historical Git artifact {SUBJECT_REVISION}:"
+            f"{SUBJECT_FILES[env]} unavailable; Git and that history are required; "
+            "no current-source fallback or network fetch") from error
     actual = (len(raw), hashlib.sha256(raw).hexdigest())
     if actual != expected:
         raise SystemExit(

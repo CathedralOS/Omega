@@ -304,6 +304,7 @@ pub(crate) fn prepare_checked_build(
     timings: &mut artifacts::compile_timings::CompileTimings,
     priors: &[&RetainedCheck],
     retain: bool,
+    checked_slices: Option<&dyn psi_compiler::CheckedSliceStore>,
 ) -> Result<
     (
         PreparedBuildMachineProgram,
@@ -335,6 +336,24 @@ pub(crate) fn prepare_checked_build(
             "Build admission settled its slice without provider plans",
         )]
     })?;
+    // A dependency's Build holds no source of its consumer, so its whole
+    // check may be reused; any other Build program only when it holds no
+    // source of the root package.
+    let target = execution_profile
+        .or_else(target::TargetProfile::host_if_supported)
+        .map(|profile| profile.target_name());
+    let checked_slices =
+        checked_slices
+            .zip(target)
+            .map(|(store, target)| psi_compiler::CheckedSliceReuse {
+                store,
+                target,
+                owner: if dependency_activation {
+                    psi_compiler::CheckedSliceOwner::Dependency
+                } else {
+                    psi_compiler::CheckedSliceOwner::Consumer(packages.map(|inputs| inputs.root()))
+                },
+            });
     let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
         let started = std::time::Instant::now();
         let result = psi_compiler::CheckRequest {
@@ -349,6 +368,7 @@ pub(crate) fn prepare_checked_build(
             library_slice: psi_compiler::LibrarySliceRequest {
                 root_package: packages.map(|inputs| inputs.root()),
             },
+            checked_slices,
         }
         .check();
         artifacts::compile_timings::counters::record_preliminary_check(started.elapsed());

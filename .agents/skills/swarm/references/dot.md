@@ -1,8 +1,8 @@
 # Dot Swarm (Dot Native Collaboration Adapter)
 
 This reference defines the `dot` native-collaboration transport for running concurrent agents on a shared cloud computer.
-- **Worker workflow:** Every worker follows [advance](../../advance/SKILL.md) (`/advance`) and [AGENTS.md](../../../../AGENTS.md#law-of-completion) for capability selection, validation, and board updates. Point workers to `.agents/skills/advance/SKILL.md` rather than duplicating `/advance` instructions.
-- **Coordinator review & landing:** Workers push a **draft** PR (`gh pr create --draft`) and stop (`candidate_ready`). The coordinator audits every diff using [coordinator-review](../../coordinator-review/SKILL.md) before running `cargo xtask land land <pr> --expected-head <sha>`.
+
+Session ownership, execution and publication follow the [swarm skill](../SKILL.md), [advance](../../advance/SKILL.md), and [landing](../../../../tools/landing.md).
 
 ## 1. Dot Native Collaboration Tools & Executor Budget
 
@@ -24,8 +24,8 @@ Apply [cloud launch preflight](cloud-launch.md), [recovery](recovery.md), and [c
   ```
   Local named branches are banned. Record slot assignments before dispatch in `build/swarm/<wave>/inflight.json`.
 
-## 2. Dispatch, Reactive Drain & Review
+## 2. Dispatch & Reactive Drain
 
-1. **Dispatch:** Fetch `origin/main`, check `cargo xtask claims status`, and give each worker its worktree path, base SHA, assigned `TASKS.md` capability and witness, and instructions to follow [advance](../../advance/SKILL.md) (`/advance`) and stop at a draft PR (`candidate_ready`).
+1. **Dispatch:** Fetch `origin/main`, check `cargo xtask claims status`, and give each worker its worktree path, base SHA, assigned capability and witness, and instructions to follow `/advance` through verified landing.
 2. **Reactive wakeup only:** Never schedule timers, cron jobs, or periodic check-ins. When no coordinator work remains runnable, end the turn (or use `collaboration.wait_agent`) and let worker completion reports wake the coordinator.
-3. **Review and continue:** On `candidate_ready`, run the 5-point audit in [coordinator-review](../../coordinator-review/SKILL.md). Once landed, use `collaboration.followup_task` on the same worker and warm worktree for the next requirement of the parent capability, and append settled outcomes to `build/swarm/<wave>/outcomes.json`.
+3. **Continue:** After the worker verifies its landing and reports the PR URL, submitted head, published commit and observed limits, use `collaboration.followup_task` on the same worker and warm worktree for the next requirement of the parent capability, and append settled outcomes to `build/swarm/<wave>/outcomes.json`.

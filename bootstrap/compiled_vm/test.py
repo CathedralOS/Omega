@@ -44,15 +44,15 @@ def reference(evaluator, source, payload=b""):
     return execute(evaluator, struct.pack("<I", len(source)) + source + payload)
 
 
-def compile_program(work, source, name="subject"):
+def compile_program(work, source, name="subject", compiler=Compiler):
     tape = work / (name + ".tape")
-    tape.write_bytes(Compiler(source).compile())
+    tape.write_bytes(compiler(source).compile())
     executable = work / name
     stamp(tape, executable)
     return executable
 
 
-def controls(work, evaluator):
+def controls(work, evaluator, compiler=Compiler):
     cases = [
         ("constant", "(def main () Int 42)", b"", (0, b"*")),
         ("wrap", "(def main () Int (+ 18446744073709551615 43))", b"", (0, b"*")),
@@ -60,6 +60,8 @@ def controls(work, evaluator):
         ("modulo", "(def main () Int (+ (% -85 2) 43))", b"", (0, b"*")),
         ("character", "(def main () Int ' ')", b"", (0, b" ")),
         ("grouped", "(def main () Int (let ((first Int 40) (second Int (+ first 2))) second))", b"", (0, b"*")),
+        ("binder-let", "(def main () Int (let ((let Int 42)) let))", b"", (0, b"*")),
+        ("minimum-word", "(def main () Int (+ 41 (lt -9223372036854775808 0)))", b"", (0, b"*")),
         ("cr-comment", "(def main () Int (f)); comment\r(def f () Int 42)", b"", (0, b"*")),
         ("nested-pair", "(def main () Int (first (second (pair 0 (pair 42 9)))))", b"", (0, b"*")),
         ("order", "(def f ((a Int) (b Int)) Int (+ a b)) (def main () Int (f (write 20) (write 22)))", b"", (0, bytes([20,22,42]))),
@@ -87,7 +89,7 @@ def controls(work, evaluator):
     ]
     for label, text, payload, expected in cases:
         source = text.encode("ascii")
-        actual = execute(compile_program(work, source), payload)
+        actual = execute(compile_program(work, source, compiler=compiler), payload)
         original = reference(evaluator, source, payload)
         assert actual == original == expected, (label, actual, original, expected)
     invalid = [
@@ -106,12 +108,15 @@ def controls(work, evaluator):
     ]
     for source in invalid:
         try:
-            Compiler(source).compile()
+            compiler(source).compile()
         except Invalid:
             pass
         else:
             raise AssertionError(("invalid source compiled", source))
         assert reference(evaluator, source) == (1, b""), source
+    if compiler is not Compiler:
+        print(f"controls: {len(cases)} exact native differential observations; {len(invalid)} rejected sources", flush=True)
+        return
     (work / "invalid.gamma").write_bytes(invalid[0])
     (work / "existing.tape").write_bytes(b"previous artifact")
     refused = subprocess.run([sys.executable, str(ROOT / "bootstrap/compiled_vm/gamma.py"),
@@ -136,7 +141,7 @@ def controls(work, evaluator):
         previous = getattr(gamma, field)
         try:
             setattr(gamma, field, limit)
-            actual = execute(compile_program(work, source), payload)
+            actual = execute(compile_program(work, source, compiler=compiler), payload)
         finally:
             setattr(gamma, field, previous)
         assert actual == expected, (field, actual, expected)
@@ -152,13 +157,13 @@ def pack(manifest, output, prefix=None):
     return output.read_bytes()
 
 
-def customer(work, evaluator):
+def customer(work, evaluator, producer=Compiler):
     source = pack("bootstrap/3_delta/implementation/implementation.gamma.sources",
                   work / "delta.gamma", "bootstrap/3_delta/delta_compiler.gamma")
     support = pack("bootstrap/3_delta/support/support.gamma.sources", work / "support.bin")
     started = time.monotonic()
-    compiler = compile_program(work, source, "delta")
-    print(f"Delta customer: {len(source)} source bytes -> {(work / 'delta.tape').stat().st_size} tape bytes; host compilation {time.monotonic()-started:.3f}s", flush=True)
+    compiler = compile_program(work, source, "delta", compiler=producer)
+    print(f"Delta customer: {len(source)} source bytes -> {(work / 'delta.tape').stat().st_size} tape bytes; compilation {time.monotonic()-started:.3f}s", flush=True)
     delta = b"(def main ((source Bytes)) Bytes (bytes_concat source source))\n"
     request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(delta)) + delta + support
     (work / "request.bin").write_bytes(request)
@@ -169,7 +174,7 @@ def customer(work, evaluator):
     assert actual == original and actual[0] == 0, (actual[0], original[0], len(actual[1]), len(original[1]))
     receipt = actual[1]
     (work / "receipt.gamma").write_bytes(receipt)
-    result = compile_program(work, receipt, "receipt")
+    result = compile_program(work, receipt, "receipt", compiler=producer)
     for payload in (b"", b"ABC", bytes(range(256))):
         assert execute(result, payload) == reference(evaluator, receipt, payload) == (0, payload * 2)
     for request in (b"", b"DCREQ\x01\x00\x00" + struct.pack("<II", 0, 0)):
@@ -177,7 +182,7 @@ def customer(work, evaluator):
     print(f"Delta customer: exact receipt {len(receipt)} bytes sha256={hashlib.sha256(receipt).hexdigest()}; compiled execution {elapsed:.3f}s (functional run, not a comparative benchmark)", flush=True)
 
 
-def epsilon_customer(work):
+def epsilon_customer(work, producer=Compiler):
     closure = pack("bootstrap/4_epsilon/epsilon_compiler.delta.sources", work / "epsilon.delta")
     subject = closure + (ROOT / "tests/epsilon/evaluator-entry/evaluator_entry.delta").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
@@ -190,7 +195,7 @@ def epsilon_customer(work):
     shell('. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"; '
           '. "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/evaluator_env.sh"; '
           'require_epsilon_evaluator_entry_receipt_identity "$1"', work / "epsilon.gamma")
-    executable = compile_program(work, receipt, "epsilon")
+    executable = compile_program(work, receipt, "epsilon", compiler=producer)
     console = b"""boundary trait Console {
   machine exit_process(return_code: i32) -> never;
   machine write_byte(value: i32);
@@ -249,6 +254,37 @@ def omega_customer(work, timeout, controls=False):
     print(f"{label} customer: {len(tape)} Alpha bytes -> exit {expected}; elapsed {time.monotonic()-started:.3f}s", flush=True)
 
 
+def omega_values_customer(work, timeout):
+    """Execute the source-owned parameter/local/call checks and their tapes."""
+    closure = pack("bootstrap/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
+    entry = (ROOT / "tests/bootstrap/omega-executable/controls_values.epsilon").read_bytes()
+    source = closure + entry
+    request = epsilon_request((work / "epsilon.delta").read_bytes(), source, b"")
+    (work / "values-source.epsilon").write_bytes(source)
+    (work / "values-request.bin").write_bytes(request)
+    print(f"Omega values customer: {len(source)} source bytes; allowance {timeout}s", flush=True)
+    started = time.monotonic()
+    status, observation = execute(work / "epsilon", request, timeout)
+    (work / "values-observation.bin").write_bytes(observation)
+    assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
+    offset = 5
+    for index, expected in enumerate((42, 42, 53, 44, 52, 42, 56, 37, 47, 43)):
+        assert offset + 5 <= len(observation), ("truncated artifact frame", index)
+        code = observation[offset]
+        length = struct.unpack_from("<I", observation, offset + 1)[0]
+        offset += 5
+        assert code == expected and 0 < length <= 16777212
+        assert offset + length <= len(observation), ("truncated artifact", index)
+        tape = work / f"values-{index}.tape"
+        executable = work / f"values-{index}"
+        tape.write_bytes(observation[offset:offset + length])
+        offset += length
+        stamp(tape, executable)
+        assert execute(executable) == (expected, b""), index
+    assert offset == len(observation), "unexpected publication after the final artifact"
+    print(f"Omega values customer: ten emitted executables and 35 source-owned refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--customer-only", action="store_true")
@@ -256,6 +292,7 @@ def main():
     parser.add_argument("--epsilon", action="store_true", help="construct and execute the complete Epsilon evaluator")
     parser.add_argument("--omega", action="store_true", help="also run the complete bootstrap compiler's existing executable fixture")
     parser.add_argument("--omega-controls", action="store_true", help="run its existing changed-source, rejection, and reset controls")
+    parser.add_argument("--omega-values", action="store_true", help="run the parameter, local, nested-call and refusal customer")
     parser.add_argument("--omega-timeout", type=int, default=1800)
     args = parser.parse_args()
     work = ROOT / "build/compiled-vm"
@@ -268,12 +305,14 @@ def main():
         controls(work, evaluator)
     if not args.controls_only:
         customer(work, evaluator)
-        if args.epsilon or args.omega or args.omega_controls:
+        if args.epsilon or args.omega or args.omega_controls or args.omega_values:
             epsilon_customer(work)
         if args.omega:
             omega_customer(work, args.omega_timeout)
         if args.omega_controls:
             omega_customer(work, args.omega_timeout, controls=True)
+        if args.omega_values:
+            omega_values_customer(work, args.omega_timeout)
 
 
 if __name__ == "__main__":

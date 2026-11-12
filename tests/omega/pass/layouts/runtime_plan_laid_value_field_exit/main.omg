@@ -1,5 +1,6 @@
+use omega::language::core::layout;
 // PLAN-LAID VALUE TYPES (wiki/spec/layouts/plans.md):
-// `gdt: Spread16<Gdtish>` applies a layout POLICY to a schema in TYPE
+// `gdt: LayoutStorage<Gdtish, Spread16>` applies a layout POLICY to a schema in TYPE
 // position. The policy here is deliberately NOT the native packing rule --
 // every field is placed on its own 16-byte slot (offsets 0/16/32/48, size 64,
 // align 16), so the plan-laid value's placement disagrees with native packing
@@ -11,46 +12,15 @@
 // back intact.
 use omega_language_std::console;
 
-data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField requires size <= 4096, 1 <= align, align <= 16 {
-    key: u64;
-    size: u64;
-    align: u64;
-    number: i64;
-    kind: FieldKind;
-}
-data Schema requires field_count <= 32 {
-    fields: [SchemaField; 32];
-    field_count: u64;
-}
-data FieldPlan {
-    case At(offset: u64);
-    case Bits(container: u64, container_width: u64, destination_lsb: u64, source_lsb: u64, width: u64);
-    case Varint(tag: u64);
-    case LengthPrefixed(tag: u64);
-}
-data FieldEntry { key: u64; placement: FieldPlan; }
-data Plan {
-    entries: [FieldEntry; 64];
-    entry_count: u64;
-    size_fixed: u64;
-    size_is_dynamic: bool;
-    align: u64;
-}
-
-// The spread policy: field i lives at byte i*16. Scratch arithmetic is
-// policy-internal (compiler plan validation owns soundness), and the computed
-// offset goes through a field temp because a computed VALUE in a
-// runtime-indexed write is a known gap.
-data Spread16 {
+data Spread16State {
     index: u64 in Wrapping;
     slot: u64 in Wrapping;
 }
-machine Spread16::plan(spread16: &mut Spread16, schema: Schema) -> Plan {
-    Spread16::evaluate(spread16, schema, 256)
+machine Spread16State::make_plan(spread16: &mut Spread16State, schema: Schema) -> LayoutPlan {
+    Spread16State::evaluate(spread16, schema, 256)
 }
 
-machine Spread16::evaluate(spread16: &mut Spread16, schema: Schema, fuel: u64) -> Plan
+machine Spread16State::evaluate(spread16: &mut Spread16State, schema: Schema, fuel: u64) -> LayoutPlan
 requires 1 <= fuel
 requires fuel <= 256
 terminates by fuel
@@ -59,26 +29,29 @@ terminates by fuel
     spread16.index = 0;
     transition { _ -> fill_loop(spread16, schema, fuel, entries) }
 
-    machine fill_loop(spread16: &mut Spread16, schema: Schema, fuel: u64, entries: [FieldEntry; 64]) -> Plan
+    machine fill_loop(spread16: &mut Spread16State, schema: Schema, fuel: u64, entries: [FieldEntry; 64]) -> LayoutPlan
     requires 1 <= fuel
-    requires fuel <= 256 {
+    requires fuel <= 256
+    terminates by fuel {
         transition fuel > 1 && spread16.index < 32 && spread16.index < schema.field_count {
             true -> place_field(spread16, schema, fuel - 1, entries)
             _ -> done(schema, entries)
         }
     }
-    machine place_field(spread16: &mut Spread16, schema: Schema, fuel: u64, entries: [FieldEntry; 64]) -> Plan
+    machine place_field(spread16: &mut Spread16State, schema: Schema, fuel: u64, entries: [FieldEntry; 64]) -> LayoutPlan
     requires 1 <= fuel
-    requires fuel <= 256 {
+    requires fuel <= 256
+    terminates by fuel {
         spread16.slot = spread16.index * 16;
         transition fuel > 1 && spread16.index < 32 {
             true -> write_field(spread16, schema, fuel - 1, entries)
             _ -> done(schema, entries)
         }
     }
-    machine write_field(spread16: &mut Spread16, schema: Schema, fuel: u64, entries: [FieldEntry; 64]) -> Plan
+    machine write_field(spread16: &mut Spread16State, schema: Schema, fuel: u64, entries: [FieldEntry; 64]) -> LayoutPlan
     requires 1 <= fuel
-    requires fuel <= 256 {
+    requires fuel <= 256
+    terminates by fuel {
         let mut updated: [FieldEntry; 64] = entries;
         let offset: u64 = spread16.slot as u64;
         updated[spread16.index] = FieldEntry {
@@ -91,14 +64,24 @@ terminates by fuel
             _ -> done(schema, updated)
         }
     }
-    machine done(schema: Schema, entries: [FieldEntry; 64]) -> Plan {
-        Plan {
+    machine done(schema: Schema, entries: [FieldEntry; 64]) -> LayoutPlan {
+        LayoutPlan {
             entries: entries,
             entry_count: schema.field_count,
             size_fixed: schema.field_count * 16,
             size_is_dynamic: false,
             align: 16,
         }
+    }
+}
+
+// The selected policy uses ordinary scratch state while computing the same
+// sixteen-byte field slots. Stored values use the validated layout directly.
+Spread16 satisfies FixedLayout<Gdtish> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
+    reaches none terminates {
+        let mut scratch: Spread16State = Spread16State { index: 0u64, slot: 0u64 };
+        Spread16State::make_plan(&mut scratch, schema)
     }
 }
 
@@ -112,8 +95,8 @@ data Gdtish [copy] {
 }
 
 data Main {
-    gdt: Spread16<Gdtish>;
-    twin: Spread16<Gdtish>;
+    gdt: LayoutStorage<Gdtish, Spread16>;
+    twin: LayoutStorage<Gdtish, Spread16>;
     v: i32;
 }
 

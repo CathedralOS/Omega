@@ -209,6 +209,9 @@ machine LinuxArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         output.state.permitted_transitive_use.flags = true;
         output.state.permitted_transitive_use.instruction_pointer = true;
         output.state.permitted_transitive_use.stack_pointer = true;
+        // A returning import's floating-control envelope restores MXCSR/FPCR,
+        // which the hosted ABI makes callee-preserved.
+        output.state.permitted_transitive_use.control_state = true;
         output.state.stack = EntryStack::ProviderSelected;
         output.state.preemption = Preemption::NotApplicable;
         BoundaryPlanResult::Accepted { plan: output }

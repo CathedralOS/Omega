@@ -118,8 +118,13 @@ performance guarantees.
 
 ## Full-subject certificate measurement
 
+The following figures remain bound to the exact Gamma source and tape at
+`d19361fe4deae73e1b488a940a872fec1ed885cb`. The reproduction tool reads and
+hash-checks those historical Git artifacts. No measurement below was repinned
+to the current evaluator, and none gates ordinary bootstrap construction.
+
 The same stepper independently reconstructed the owner-fixed proposition
-`encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)` for the complete selected
+`encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)` for the complete historical
 subject — the 47,756-byte evaluator Beta source as a midpoint-split Source
 tree (22,339 interned owner terms; the tree shares identical subtrees) and
 the 8,575-byte persisted tape — and produced the complete untrusted

@@ -69,7 +69,7 @@ These compiler-known core queries add no keyword and follow ordinary lexical
 resolution, dependency and visibility rules. They do not evaluate an instance,
 take a borrow, invoke a machine or acquire authority. A symbolic declaration
 operand is not an otherwise first-class executable value. The operand is a
-declaration path the author can select: a parameter, a field or any other
+declaration path the author can select: a parameter value, a field value or any other
 value holding a selection rejects, so a handed selection cannot be described
 as a declaration its holder could not otherwise name. Describing a declared
 conformer describes that conformer and exposes no direct entry.
@@ -109,6 +109,31 @@ Constructing, copying or serializing descriptions supplies no authorization.
 Consumers validate their exact identities, scope and correspondence. Private
 issuer/reader/writer descriptors have only the existing domain route-metadata
 exception; reflection does not publish their declarations as callable APIs.
+
+### Formal-parameter selectors
+
+Under `native-table-field-binding` (2026-11-11),
+`reflect::parameter(Requirement::formal)` selects an exact declared formal of a
+boundary machine requirement and returns `ParameterInfo`. This is descriptive
+core vocabulary, not a keyword or general access to a machine's locals. The
+qualified selector identifies the formal declaration, not a parameter value
+holding another declaration selection.
+
+`ParameterInfo` retains the owning requirement and its application, exact formal
+identity, complete declared type and lifetime relationships, and signature
+revision. It is neither an argument value, a borrow, a native argument position,
+nor authority to call the requirement. Missing, ambiguous, inaccessible or
+wrong-kind operands reject; names or equal types cannot substitute for identity.
+`FieldInfo`, `CallableInfo` and `ParameterInfo` are distinct descriptive types,
+not interchangeable handles.
+
+In a [Build-owned table binding](../build/foreign_bindings.md#function-table-bindings),
+formal and field selectors follow the designated product-reference rules. Build
+may retain them for product resolution without executing product code. The
+binding consumer checks that the formal belongs to its exact requirement and
+borrows the exact table application containing the selected field. Ordinary
+visibility and admission rules still apply; reflection grants neither access to
+the table nor trust in the function stored there.
 
 ## Schema and layout
 

@@ -150,17 +150,19 @@ fn connective(mut parts: Vec<Proposition>, conjunction: bool) -> Proposition {
 
 /// Infers a predicate for every acyclic block with parameters and records it
 /// as that block's `BlockInvariant` knowledge row at its entry. `check` must
-/// run before any other obligation reads it.
+/// run before any other obligation reads it. A block in `declared` already
+/// has the producer's predicate and gets none inferred.
 pub(crate) fn infer(
     lowered: &TerminalMachine,
     id: MachineId,
     tables: &mut MachineTables,
     graph: &Graph,
     context: &PropositionContext,
+    declared: &[BlockId],
 ) -> Checked<()> {
     let mut predicates = Vec::new();
     for join in &lowered.blocks {
-        if join.parameters.is_empty() {
+        if join.parameters.is_empty() || declared.contains(&join.id) {
             continue;
         }
         let entry = ProgramPoint::BlockEntry(join.id);
@@ -410,10 +412,15 @@ pub(crate) struct Machine<'a> {
     pub(crate) graph: &'a Graph,
     pub(crate) context: &'a PropositionContext,
     pub(crate) relations: bool,
+    /// Blocks whose predicate the producer declared (a loop head's). Such a
+    /// predicate is the program's claim, so an arrival that fails it is an
+    /// unproved obligation and the predicate is never weakened.
+    pub(crate) declared: &'a [BlockId],
 }
 
-/// Decides every `ArrivalInvariant` obligation into `decided`. A join any of
-/// whose arrivals is not proved has its predicate replaced by `Truth`, and
+/// Decides every `ArrivalInvariant` obligation into `decided`. An inferred
+/// join any of whose arrivals is not proved has its predicate replaced by
+/// `Truth` (a declared one keeps its predicate and its failed arrival), and
 /// every arrival is decided again, since one join's predicate may be a fact
 /// on another's arrival. Each round weakens at least one predicate, so this
 /// ends. Returns the weakened joins.
@@ -473,6 +480,7 @@ pub(crate) fn check(
                 let (target, _) = arrival(machine.lowered, edge)
                     .ok_or_else(|| refuse("the arrival edge is not a successor in the module"))?;
                 if let Some(row) = predicate_row(tables, target)
+                    && !machine.declared.contains(&target)
                     && !failed.contains(&(target, row))
                 {
                     failed.push((target, row));

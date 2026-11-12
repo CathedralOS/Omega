@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "terminal_call_marked_state");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-}

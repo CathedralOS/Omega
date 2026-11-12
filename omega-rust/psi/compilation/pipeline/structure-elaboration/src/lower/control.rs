@@ -6,8 +6,8 @@ holds it.
 */
 
 use semantic_vocabulary::{
-    BlockId, CrashCause, EdgeId, ObligationId, PlaceId, Proposition, ScalarTerm, ScalarType,
-    ValueId,
+    BlockId, CrashCause, EdgeId, MachineId, ObligationId, PlaceId, Proposition, ScalarTerm,
+    ScalarType, ValueId,
 };
 use terminal_check_tables::edges::{Destination, Disposition, EdgeRow};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
@@ -17,7 +17,7 @@ use terminal_psi::{CrashPredicateTerm, Terminator};
 
 use super::places::Bound;
 use super::{Draft, Lowering, Value, declaration, successor};
-use crate::body::{Expression, Statement, Target, ValueType};
+use crate::body::{Expression, ExpressionKind, Statement, Target, ValueType};
 use crate::canonical;
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
@@ -117,6 +117,54 @@ impl Lowering<'_> {
         })
     }
 
+    /// An arrival at a member's loop head: the jump with the member's scalar
+    /// formals as its arguments, and, when the head has an invariant, the
+    /// one `ArrivalInvariant` obligation this edge owes it.
+    /// control_flow.md: "Every arrival proves the predicate under
+    /// simultaneous destination-parameter to actual-argument substitution,
+    /// before destination hypotheses become available."
+    pub(super) fn arrive(
+        &mut self,
+        member: MachineId,
+        arguments: Vec<ValueId>,
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        let Some(head) = self.heads.iter().find(|head| head.member == member) else {
+            return Err(self.internal("an arrival at a machine outside the call component"));
+        };
+        let target = head.block;
+        if head.parameters.len() != arguments.len() {
+            return Err(self.internal("an arrival does not match the head's parameters"));
+        }
+        let edge = self.edge(Destination::Block(target), source)?;
+        self.terminate(Terminator::Jump {
+            edge,
+            target,
+            arguments,
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            cleanup_actions: Vec::new(),
+        })?;
+        // The edge's `ArrivalInvariant` is minted with every other arrival's
+        // (`Lowering::arrivals`), which also lists it on the head's
+        // invariant row.
+        Ok(())
+    }
+
+    /// The member and arguments of a call in terminal position whose callee
+    /// lies in this machine's call component: such a call is a jump back.
+    fn loops<'e>(&self, expression: &'e Expression) -> Option<(MachineId, &'e [Expression])> {
+        match &expression.kind {
+            ExpressionKind::Call { callee, arguments }
+                if self.heads.iter().any(|head| head.member == *callee) =>
+            {
+                Some((*callee, arguments))
+            }
+            _ => None,
+        }
+    }
+
     /// One `NormalGuarantee` per `ensures` clause on this normal exit.
     fn guarantee(&mut self, exit: EdgeId, source: SourceOrigin) -> Checked<()> {
         for (position, published) in self.published.clone().into_iter().enumerate() {
@@ -183,6 +231,11 @@ impl Lowering<'_> {
                     }
                 };
                 *self.slot_mut(*slot)? = Some(bound);
+                Ok(())
+            }
+            Statement::Witness { slot, term } => {
+                let witness = self.witness(term)?;
+                *self.slot_mut(*slot)? = Some(Bound::Erased(witness));
                 Ok(())
             }
             Statement::Declare { slot, source, .. } => self.declare_local(*slot, *source),
@@ -259,6 +312,15 @@ impl Lowering<'_> {
             Target::Unit => self.return_unit(source),
             Target::Crash(cause) => self.crash(*cause, source),
             Target::Value(expression) => match self.no_normal(expression)? {
+                // A member's arguments are scalars, evaluated left to right
+                // like any call's, and the edge carries them.
+                _ if let Some((member, arguments)) = self.loops(expression) => {
+                    let mut values = Vec::with_capacity(arguments.len());
+                    for argument in arguments {
+                        values.push(self.scalar(argument)?);
+                    }
+                    self.arrive(member, values, expression.source)
+                }
                 Some((callee, arguments)) => {
                     self.invoke_no_normal(callee, arguments, expression.source)
                 }

@@ -20,11 +20,12 @@ by visible satisfiers:
 
 ```omega
 let memory_tests = builder.tests.group<Tests::memory>();
-memory_tests.service<Filesystem, MemoryFilesystem>();
+builder.tests.service<Tests::memory, FilesystemService>();
 ```
 
-`group` is a compiler-owned Build operation. Its requirement operand, and the
-service/provider operands of `service`, use the existing
+`group` and `service` are compiler-owned Build operations on the `tests` facet.
+`group`'s requirement operand, and `service`'s group requirement and service
+slot operands, use the existing
 [non-executing product-reference rules](scoped_execution.md#selecting-product-declarations-without-executing-them).
 They resolve under the author's product scope to exact declaration applications,
 not host imports, strings, spelling matches, or evaluator table indices. A
@@ -117,13 +118,26 @@ Configuration may use ordinary admitted build computation and explicit inputs;
 it does not make dependency requests target-dependent or grant ambient environment
 access. This contract introduces no debug/release mode or special CLI profile.
 
-`service<Requirement, Provider>()` requests a checked provider selection within
-the group's scope. Ordinary provider compatibility, uniqueness, establishment,
-and admission apply. It grants no capability. Benign captured output and a
-private in-memory filesystem require no approval ceremony, but are explicitly
-selected rather than inferred from names. Disabled groups create no execution
+`builder.tests.service<Group, Slot>()` asks the test runner to back one exact
+service slot for every invocation of a group the same Build has already
+registered. It grants no capability. Naming an unregistered group, naming a
+slot twice for one group, or naming a slot the runner does not back rejects
+before any test runs; the runner backs only std's `FilesystemService`, so a
+group that names a raw host slot such as `PosixFilesystemHost` cannot widen
+its backing to the real filesystem. Benign captured output and a private
+in-memory filesystem require no approval ceremony, but are explicitly selected
+rather than inferred from names. Disabled groups create no execution
 grant and are reported as disabled, not passed; their declarations remain
 subject to ordinary source checking.
+
+The private in-memory filesystem is supplied by the test runner of each engine,
+as an operating system supplies the real one; no library provider holds test
+state. It implements every operation of the `FilesystemService` contract,
+including directories, metadata, permissions and enumeration, over private
+state the runner creates empty for each test invocation, so code under test
+behaves as it does on a real filesystem. A group selects it by naming the
+`FilesystemService` slot, and the ordinary filesystem calls reach the runner's
+state the way they reach the host's.
 
 Test execution is governed by the same authority hierarchy as other build-time
 work. The root selects backing services and delegates bounded capabilities;

@@ -61,31 +61,48 @@ use terminal_check_tables::{
 };
 use terminal_psi::{
     Block, BoundaryParameterKind, ContractClause, MachineContract, Operation,
-    RegisterTargetApplicability, StructuralAccess, StructuralMultiplicity,
+    RegisterTargetApplicability, ScalarBlockInvariant, StructuralAccess, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
     SuccessorEdge, TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
 };
 
-use self::places::{Bound, Records};
+use self::places::{Bound, Records, Witness};
 use crate::body::{Body, Signature, ValueType};
+use crate::canonical;
 use crate::outcome::Outcome;
-use crate::{MachineSources, SourceOrigin, Unpositioned};
+use crate::{MachineSources, SourceOrigin, Unpositioned, Unserved, refuse};
 
 #[derive(Debug)]
 pub(crate) struct Lowered {
     pub machine: TerminalMachine,
     pub tables: MachineTables,
     pub sources: MachineSources,
+    /// The block invariant of each loop head whose member has a `requires`,
+    /// in head order: rows of the module's `scalar_block_invariants`.
+    pub invariants: Vec<ScalarBlockInvariant>,
 }
 
+/// One member of the call component being lowered as a loop: its head block
+/// and the block parameters that stand for its scalar formals.
+struct Head {
+    member: MachineId,
+    block: BlockId,
+    parameters: Vec<ValueId>,
+}
+
+/// Lowers machine `id`. `component` holds the members of its call component
+/// when it lies on a call cycle (itself among them) and is empty otherwise;
+/// `bodies` is read for those members only.
 pub(crate) fn machine(
     id: MachineId,
-    body: &Body,
+    bodies: &IdTable<MachineId, Body>,
+    component: &[MachineId],
     signatures: &IdTable<MachineId, Signature>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
     requirement: bool,
 ) -> Checked<Lowered> {
+    let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
     let signature = terminal_check_tables::row(signatures, id, id, Construct::Machine)?;
     let mut lowering = Lowering {
         id,
@@ -105,10 +122,16 @@ pub(crate) fn machine(
         selected: Vec::new(),
         slot_types: &body.slots,
         published: Vec::new(),
+        heads: Vec::new(),
+        invariants: Vec::new(),
     };
     let entry = lowering.block(SourceOrigin::Unpositioned(Unpositioned::MachineEntry));
     let mut formals = Formals::default();
+    let formal_values = signature.formal_values();
     for (position, value_type) in signature.parameters.iter().enumerate() {
+        if signature.is_erased(position) {
+            continue;
+        }
         match *value_type {
             // A formal of a rigid type is a value like a scalar formal: it
             // has an identity, a call passes it, and nothing is known of it.
@@ -124,9 +147,9 @@ pub(crate) fn machine(
                     selects: None,
                     rigid,
                 });
-                // Clause propositions name the `k`-th scalar formal as value
-                // `k + 1` (`Signature::parameters`).
-                if value.get() != formals.scalars.len() as u64 + 1 {
+                // Clause propositions name each value formal by the
+                // identity `body::formal_values` gives it.
+                if formal_values.get(position) != Some(&Some(value)) {
                     return Err(lowering.internal("scalar formals are not the first values"));
                 }
                 formals.scalars.push(declaration(value, scalar_type));
@@ -189,6 +212,31 @@ pub(crate) fn machine(
             })
         }
     };
+    // The erased scalar formals come after the result pseudo-value. Each is
+    // an invocation formal with a value identity and no runtime lane:
+    // Terminal Psi declares it in the contract, not among the parameters
+    // (`wiki/spec/terminal-psi/encoding.md`: "Erased formals occupy no tag").
+    for position in &signature.erased {
+        let Some(ValueType::Scalar(scalar_type)) = signature.parameters.get(*position).copied()
+        else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Parameter("erased parameter of a data type"),
+            ));
+        };
+        let value = lowering.value(
+            scalar_type,
+            ValueOrigin::MachineParameter {
+                position: lowering.position(*position)?,
+            },
+        );
+        if formal_values.get(*position) != Some(&Some(value)) {
+            return Err(lowering.internal("erased formals do not follow the result"));
+        }
+        formals.erased.push(declaration(value, scalar_type));
+        *lowering.slot_mut(*position)? = Some(Bound::Erased(Witness::Value(value, scalar_type)));
+    }
     lowering.enter(entry);
     // One published identity per `ensures` clause, the one `ContractClause`
     // carries; every normal exit's guarantee names it.
@@ -208,16 +256,10 @@ pub(crate) fn machine(
         lowering.sources.blocks = IdTable::default();
         return lowering.finish(entry, formals, result);
     }
-    for statement in &body.statements {
-        lowering.statement(statement)?;
-    }
-    if lowering.open() {
-        match signature.result {
-            None => {
-                lowering.return_unit(SourceOrigin::Unpositioned(Unpositioned::ImplicitReturn))?
-            }
-            Some(_) => return Err(lowering.internal("a value machine fell off its last statement")),
-        }
+    if component.is_empty() {
+        lowering.body(body)?;
+    } else {
+        lowering.component(id, bodies, component, &formals)?;
     }
     lowering.finish(entry, formals, result)
 }
@@ -229,6 +271,9 @@ struct Formals {
     scalars: Vec<ValueDeclaration>,
     records: Vec<StructuralParameterDeclaration>,
     order: Vec<BoundaryParameterKind>,
+    /// The `[erased]` scalar formals, in position order: declared in the
+    /// contract, absent from both runtime lanes and from `order`.
+    erased: Vec<ValueDeclaration>,
 }
 
 struct Lowering<'a> {
@@ -267,6 +312,10 @@ struct Lowering<'a> {
     /// The `PublishedGuarantee` of each `ensures` clause, by position: the
     /// identity Terminal Psi's `ContractClause` holds.
     published: Vec<ObligationId>,
+    /// The loop heads of this machine's call component, in member order;
+    /// empty for a machine on no call cycle.
+    heads: Vec<Head>,
+    invariants: Vec<ScalarBlockInvariant>,
 }
 
 #[derive(Default)]
@@ -303,7 +352,114 @@ fn successor(edge: EdgeId, target: BlockId, arguments: Vec<ValueId>) -> Successo
     }
 }
 
-impl Lowering<'_> {
+impl<'a> Lowering<'a> {
+    /// Lowers one body's statements into the open block, and the implicit
+    /// Unit completion when they fall off the end.
+    fn body(&mut self, body: &Body) -> Checked<()> {
+        for statement in &body.statements {
+            self.statement(statement)?;
+        }
+        if self.open() {
+            match self.signature.result {
+                None => {
+                    self.return_unit(SourceOrigin::Unpositioned(Unpositioned::ImplicitReturn))?
+                }
+                Some(_) => {
+                    return Err(self.internal("a value machine fell off its last statement"));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Lowers the call component of machine `id` as a loop inside its graph.
+    ///
+    /// `wiki/spec/terminal-psi/control_flow.md`: "Constant-stack terminal
+    /// cycles may become block backedges". Each member gets one head block
+    /// whose parameters are its scalar formals, and its body is lowered once
+    /// beneath it; the entry jumps to `id`'s own head with the machine's
+    /// formals, and a terminal call of a member is a jump to that member's
+    /// head (`control`, `arrive`). The entry itself is not a head:
+    /// "The machine entry cannot carry a row: invocation supplies the
+    /// machine's declared preconditions rather than an explicit control-flow
+    /// edge."
+    ///
+    /// A member's `requires`, over its head's parameters, is that head's
+    /// block invariant (control_flow.md: "A scalar block invariant is a
+    /// semantic row identifying a machine, destination block, scalar
+    /// predicate, and one obligation for every actual incoming edge."),
+    /// because `wiki/spec/language/state_contracts.md` requires it of every
+    /// arrival: "Machine `requires` applies at every invocation, including
+    /// terminal and recursive calls."
+    fn component(
+        &mut self,
+        id: MachineId,
+        bodies: &'a IdTable<MachineId, Body>,
+        component: &[MachineId],
+        formals: &Formals,
+    ) -> Checked<()> {
+        for member in component {
+            let signature =
+                terminal_check_tables::row(self.signatures, *member, id, Construct::Machine)?;
+            let block = self.block(SourceOrigin::Unpositioned(Unpositioned::LoopHead));
+            self.sources.heads.push((block, *member));
+            let mut parameters = Vec::with_capacity(signature.parameters.len());
+            for value_type in &signature.parameters {
+                let ValueType::Scalar(scalar_type) = *value_type else {
+                    return Err(self.internal("a record formal on a call cycle"));
+                };
+                let position = self.position(parameters.len())?;
+                let value =
+                    self.value(scalar_type, ValueOrigin::BlockParameter { block, position });
+                self.parameter(block, value, scalar_type)?;
+                parameters.push(value);
+            }
+            if !signature.requires.is_empty() {
+                let mut clauses = Vec::with_capacity(signature.requires.len());
+                for clause in &signature.requires {
+                    clauses.push(canonical::substitute(clause, &parameters, id)?);
+                }
+                self.invariants.push(ScalarBlockInvariant {
+                    machine: id,
+                    header: block,
+                    predicate: canonical::conjunction(clauses, id)?,
+                    arrivals: Vec::new(),
+                });
+            }
+            self.heads.push(Head {
+                member: *member,
+                block,
+                parameters,
+            });
+        }
+        let entered: Vec<ValueId> = formals.scalars.iter().map(|formal| formal.id).collect();
+        self.arrive(
+            id,
+            entered,
+            SourceOrigin::Unpositioned(Unpositioned::MachineEntry),
+        )?;
+        for position in 0..self.heads.len() {
+            let (member, block) = (self.heads[position].member, self.heads[position].block);
+            let body = terminal_check_tables::row(bodies, member, id, Construct::Machine)?;
+            // Each member's body names its own slots, and the branch
+            // decisions before a head do not lie on every path to it.
+            self.slot_types = &body.slots;
+            self.slots = vec![None; body.slots.len()];
+            for (slot, value) in self.heads[position]
+                .parameters
+                .clone()
+                .into_iter()
+                .enumerate()
+            {
+                *self.slot_mut(slot)? = Some(Bound::Scalar(value));
+            }
+            self.path.clear();
+            self.enter(block);
+            self.body(body)?;
+        }
+        Ok(())
+    }
+
     fn internal(&self, detail: &str) -> Refusal {
         Refusal {
             reason: RefusalReason::Unsupported,
@@ -381,21 +537,32 @@ impl Lowering<'_> {
     fn arrivals(&mut self) -> Checked<()> {
         let mut arrivals = Vec::new();
         for (_, draft) in self.blocks.iter() {
-            let successors: Vec<(EdgeId, bool)> = match &draft.terminator {
+            let successors: Vec<(EdgeId, BlockId, bool)> = match &draft.terminator {
                 Some(Terminator::Jump {
-                    edge, arguments, ..
-                }) => vec![(*edge, !arguments.is_empty())],
+                    edge,
+                    target,
+                    arguments,
+                    ..
+                }) => vec![(*edge, *target, !arguments.is_empty())],
                 Some(Terminator::Conditional {
                     when_true,
                     when_false,
                     ..
                 }) => vec![
-                    (when_true.edge, !when_true.arguments.is_empty()),
-                    (when_false.edge, !when_false.arguments.is_empty()),
+                    (
+                        when_true.edge,
+                        when_true.target,
+                        !when_true.arguments.is_empty(),
+                    ),
+                    (
+                        when_false.edge,
+                        when_false.target,
+                        !when_false.arguments.is_empty(),
+                    ),
                 ],
                 _ => Vec::new(),
             };
-            for (edge, passes) in successors {
+            for (edge, target, passes) in successors {
                 if !passes {
                     continue;
                 }
@@ -404,15 +571,24 @@ impl Lowering<'_> {
                     .edges
                     .get(edge)
                     .ok_or_else(|| self.internal("an edge has no source row"))?;
-                arrivals.push((edge, source));
+                arrivals.push((edge, target, source));
             }
         }
-        for (edge, source) in arrivals {
-            self.obligation(
+        for (edge, target, source) in arrivals {
+            let obligation = self.obligation(
                 ObligationKind::ArrivalInvariant { edge },
                 ProgramPoint::Edge(edge),
                 source,
             );
+            // A loop head's declared invariant lists every arrival it owes;
+            // a join's predicate is the checker's and has no row here.
+            for invariant in &mut self.invariants {
+                if invariant.header == target {
+                    invariant
+                        .arrivals
+                        .push(terminal_psi::ScalarBlockInvariantArrival { edge, obligation });
+                }
+            }
         }
         Ok(())
     }
@@ -457,6 +633,7 @@ impl Lowering<'_> {
                 .clone();
         let contract = MachineContract {
             crash_routes,
+            erased_scalar_formals: formals.erased,
             requires: self.signature.requires.clone(),
             ensures,
             ..MachineContract::empty(
@@ -499,6 +676,7 @@ impl Lowering<'_> {
             machine,
             tables: self.tables,
             sources: self.sources,
+            invariants: self.invariants,
         })
     }
 }

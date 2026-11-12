@@ -1,43 +1,30 @@
-# Epsilon-written Omega compiler D
+# Epsilon-written bootstrap compiler
 
-This directory owns the first full Omega compiler implementation, D. D is
-written in Epsilon and executed by the sibling
-[`../4_epsilon/`](../4_epsilon) evaluator. It compiles the final Omega-written
-Psi/Omega closure under [`../../source/`](../../source) for the ordinary
-`alpha_bootstrap` target.
+This directory contains the bootstrap compiler that must eventually construct
+the Omega compiler in [`../../source/`](../../source). It currently compiles a
+checked scalar subset into executable Alpha tapes. It does **not** yet compile
+the Omega compiler source closure or close the Omega self-rebuild edge.
 
-The product compiler has two exact source implementations. This directory owns
-D; [`../../source/psi/`](../../source/psi) and
-[`../../source/omega/`](../../source/omega) own C.
+The source can run through the sibling [`../4_epsilon/`](../4_epsilon)
+evaluator or the source-built compiled peer in
+[`../compiled_vm/`](../compiled_vm). These are peer construction paths.
+The intended remaining edge is:
 
 ```text
-Epsilon evaluator + Epsilon source D + Omega source C + alpha_bootstrap → omega₀
-omega₀ + the same Omega source C + alpha_bootstrap                    → omega
+Epsilon execution + bootstrap compiler + Omega compiler source → first Omega compiler
+first Omega compiler + same Omega compiler source              → rebuilt Omega compiler
 ```
 
-`omega₀` may be conservatively generated and slow. It is already a full Omega
-compiler because `D` implements the product language. The second build closes
-the self-hosting edge and may improve the compiler executable; it does not add
-language functionality.
+The bootstrap compiler may support a subset sufficient for its successor, but
+every supported facility must preserve Omega semantics. Unsupported forms fail
+explicitly. The maintained Rust compiler is a development comparator, never a
+semantic stage hidden inside the bootstrap route. Formal bootstrap correctness
+certificates are outside current acceptance; ordinary language checks and
+contracts still apply.
 
-Both compiler outputs are platform-independent Alpha tapes produced by the
-ordinary Omega `alpha_bootstrap` target. Interpretation of D does not make
-Alpha serialization an Epsilon concern.
-
-## Ownership
-
-- this root — the manifested Epsilon source closure D;
-- [`../../source/`](../../source) — final Omega-written Psi/Omega closure C;
-- [`../../omega-rust/`](../../omega-rust) — maintained Rust implementation and
-  differential comparator, never bootstrap authority;
-- [`../4_epsilon/`](../4_epsilon) — final lower-rung evaluator that executes D.
-
-That source choice does not define a dialect or restrict programs the resulting
-compiler accepts. Standalone viewers, interpreters, REPLs, and proof
-explorers remain outside `C` unless the compiler executable imports them.
-
-Implementation work is tracked in [`../../TASKS.md`](../../TASKS.md); bootstrap
-closure is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
+The stable artifact names and task IDs `D` and `C` in older records identify the
+bootstrap compiler and Omega compiler respectively. Implementation and remaining
+closure work are tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 
 ## Retention inventory
 
@@ -56,58 +43,79 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 16,497 lines / 572,143 bytes with SHA-256
-`99535101fac4473527467d354a4f93db50f1fb8802fd69c1886eee283555b867`.
+manifest materializes 17,140 lines / 598,333 bytes with SHA-256
+`0c402370392af73910cf6caa05b0198dd7ccf0820397e26b85367a1dfcec9f72`.
 The manifest itself is 1,338 bytes, SHA-256
-`ad2f3a64aa2e9d65abd914e87333038376ce39b2e51681bf4277a679bae4c847`;
+`52e9abb1d16f0e2d4bd4a308e2abed1010f18dbeeaac2f032104ddffdf6bdc90`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
-materialization and `tests/bootstrap/omega-identity.sh` covers the refusals.
-A digest is an identity check on the bytes being compiled, not a proof that
-D implements Omega. The header-delimiter revision changes only the existing
-termination/reach continuation and keeps unsupported forms incomplete. Its
-twenty-invocation parser customer passed through the lower chain on macOS arm64:
-receipt reconstruction took 148.663 seconds and the customer took 6,529.480 seconds,
-returning exact `000000000041` (`Exit(0)` and `A`) with host status zero and empty
-stderr. This observes the bound D and customer identified above and in the
-[parser gate](../../tests/bootstrap/omega-parser/README.md); historical
-observations retain their original source subjects.
+materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
+A digest binds source custody; it does not prove compiler correctness.
+Earlier parser measurements remain historical observations of their original
+source subjects, not measurements of the current closure.
 The authoring files preserve one Epsilon translation unit and its packed
 diagnostic coordinates.
 
 The [source-to-executable gate](../../tests/bootstrap/omega-executable/README.md)
-connects parsed nullary scalar machines to range checking and the shared Alpha
-encoder. Its entry is the real request route: a canonical OCREQ V1 frame
-carries the source package, and the entry runs D's own request shape passes
-plus a bounded subject re-walk before selecting the bound `main` entry
-machine — the route and target supply the entry contract rather than an
-adapter-supplied spelling. The retired raw-source adapter stays reachable
-under the gate's `--diagnostic` lane for refusal coverage. The compiler checks
-all admitted
-machine bodies, resolves an explicitly supplied entry, and refuses unsupported
-forms rather than treating them as opaque executable code. Its first result type
-is `u8` over literal operands joined by the arithmetic, bitwise, and shift
-binary operators and the `~` bitwise-complement prefix, folded under the
-default Exact policy — every node must stay representable in the carrier, so
-overflow, underflow, a zero divisor, or a shift count at or above the width
-refuses the source. The fold tracks a carrier class per node: `true`/`false`
-literals, the `==`/`!=`/`<`/`<=`/`>`/`>=` comparisons, `&&`/`||`, and the `!`
-complement produce and consume Boolean folds (equality compares same-class
-operands, ordering takes `u8` operands, the logical operators take Boolean),
-a class mismatch is a carrier-class rejection, and a Boolean at the `u8`
-terminal stays a coverage refusal. Arithmetic-negation `-` (not total on an
-unsigned carrier under Exact), paths, and other non-admitted forms remain
-implementation work.
-Within that scalar slice the same checking pass now covers bounded control
-flow: a state body is a sequence of nullary calls to free machines followed
-by one terminal — a folded `u8` expression, a grouped nullary call whose
-result returns in `r0`, or a transition block targeting authored states of
-the same machine. Subjectless blocks admit exactly one wildcard arm;
-subjectful blocks fold the subject and select the first matching literal or
-wildcard arm, with every arm's target resolved and arity-checked. Calls emit
-the Alpha call opcode with a return edge and transitions emit a direct jump,
-matching the state contract's call-frame versus control-transfer split.
-Richer bodies — receivers, arguments, locals, assignments, parameterized
-states, non-literal guards — stay explicit coverage refusals.
+connects parsed scalar machines to checking and the shared Alpha encoder.
+Its public request route validates OCREQ shape and re-walks the bound subject;
+the complete OCREQ semantic admission phases remain unfinished as detailed below.
+The direct `compile(source, entry)` boundary is an internal compilation customer,
+not a replacement public request protocol.
+
+The current emitted subset has a nullary `u8` entry, free machines with plain
+`u8` parameters/results, immutable initialized `u8` locals, resolved ordinary
+calls, and constant-selected transfers to states inside the same owner. Calls
+can appear as values or discarded statements. A complete argument may itself
+be a nested call; compound expressions around runtime calls remain unsupported.
+A declaration census runs before bodies can resolve calls. Unsupported overload
+families refuse explicitly; identical admitted signatures reject as duplicates
+regardless of parameter spelling. Every body is checked, including unreachable
+bodies and transfer arms. Clauses,
+receivers, mutable bindings, other runtime carriers, dynamic arithmetic and
+guards, parameterized states, and ordinary calls to nested declarations remain
+explicit coverage refusals. An inherited parser debt remains: it still accepts
+retired `state` as an alias for nested `machine`. Existing legacy controls retain
+that spelling; the new values customer uses canonical nested declarations.
+Removing that alias and migrating its positive witnesses belongs to the next
+runtime-control slice, alongside an explicit retired-spelling rejection.
+Callable-name hiding also refuses until lexical resolution can support it
+completely. Supported names never fall through to a same-named global when a nested declaration would take precedence.
+
+Anonymous constant arithmetic retains its mathematical meaning. The bounded
+folder supports integral `+`, `-`, `*`, and `/` when every intermediate lies in
+`0..255`, plus comparisons and Boolean operations. This is an implementation
+coverage bound, not an Omega carrier inferred from the destination. Fractional,
+negative, and wider intermediates return `Incomplete`; division never silently
+truncates. Anonymous remainder and width-dependent bitwise/shift operations
+also return `Incomplete`. Typed operations need their own checked lowering.
+A direct out-of-range `u8` literal and division by zero reject. Full rational
+folding, explicit landing, and typed runtime operations remain work.
+
+Private static storage separates parameter cells, local cells and pending
+argument cells in `[0x02000000, 0x02060000)`, beyond the maximum 16 MiB tape and
+below Alpha's return stack. Each call evaluates arguments left to right into
+its own pending cells before copying them into callee parameters. This preserves
+earlier arguments and caller locals across nested calls. A whole-owner call
+DAG, collecting calls from every state, rejects reentrant ordinary-call cycles;
+all admitted state transfers stay within the owner, so mixed transfer/call
+cycles cannot bypass the check. At most 4,096 source ordinary calls can be live.
+No admitted source operation exposes these private cell addresses.
+
+The source-owned `controls_values.epsilon` customer exercises parameter/local
+semantics, nested argument calls, caller preservation, forward calls, state
+transfers, and refusal/reset behavior. Run it through the source-built peer:
+
+```sh
+python3 bootstrap/compiled_vm/source_test.py --omega-values
+```
+
+This reconstructs the source Gamma compiler and its successor evaluators before
+running the manifested bootstrap compiler and executing its emitted artifacts.
+It does not use Python to supply language semantics. Python frames and checks
+bytes; the native Alpha seed and documented source/tape admission remain trust
+inputs. The development comparator can also run these controls with
+`python3 bootstrap/compiled_vm/test.py --omega-values` and retains its separately
+disclosed Python semantic dependency.
 
 The scalar failure paths also record the canonical OCOUT outcome tuple
 (outcome tag, coordinate space, code, coordinate, canonical ordinals, limit,

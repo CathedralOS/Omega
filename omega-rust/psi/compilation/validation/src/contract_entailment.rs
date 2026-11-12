@@ -7566,7 +7566,7 @@ pub(crate) mod call_requirements {
     use super::citations::{
         CitationFacts, CitationTarget, instantiate_citation, machine_requires_facts,
     };
-    use super::refuted_requires::instantiated_selected_fact_judgment;
+    use super::refuted_requires::{OperandJudgments, remembered_instantiated_fact_judgment};
     use super::self_induction::intake_available_self_induction_hypotheses;
     use super::structural_case_arms::{
         recognize_structural_case_arms, recognize_structural_state_prefix, structural_arm_judge,
@@ -8957,7 +8957,8 @@ pub(crate) mod call_requirements {
                     );
                     continue;
                 }
-                let judgment = instantiated_selected_fact_judgment(
+                let mut judgments = OperandJudgments::default();
+                let judgment = remembered_instantiated_fact_judgment(
                     program,
                     &entry.judge,
                     self.callee_owner,
@@ -8968,7 +8969,12 @@ pub(crate) mod call_requirements {
                     &type_substitution,
                     Some((machine, state)),
                     false,
+                    &mut judgments,
                 );
+                if let Some((observation, _)) = trace {
+                    call_consumer_trace::operand_judgments(observation, program, judgments.iter());
+                }
+                drop(judgments);
                 entry.judge.trace_call_consumer_outcome(
                     trace,
                     "judgment",
@@ -10198,13 +10204,17 @@ pub(crate) mod collection_bounds {
         use typed_trees::expression::{BinaryOperator, ExpressionHandle, TableIndexedExpression};
         use typed_trees::types::TypeReferenceHandle;
 
+        /// A fixed array's bound is its type's extent, so its elements are
+        /// never read: a constant used as `SOURCE[0]` arrives as its copied
+        /// literal `[3]`, which has no structural value, and still has extent
+        /// 1. Only an open collection's length needs `collection`.
         pub(crate) fn proves_observed_bounds(
             program: &dyn crate::CheckingInput,
             judge: &StructuralJudge<'_>,
             indexed: &TableIndexedExpression,
             collection_type: TypeReferenceHandle,
             array_extent: Option<&crate::ResolvedArrayExtent>,
-            collection: StructuralTerm,
+            collection: impl FnOnce() -> Option<StructuralTerm>,
             mut operand: impl FnMut(
                 ExpressionHandle,
             )
@@ -10235,7 +10245,7 @@ pub(crate) mod collection_bounds {
                     program,
                     collection_type,
                     language_semantics::declaration_selection::CollectionMeasure::Length,
-                    || Some(collection),
+                    collection,
                 ) else {
                     return false;
                 };
@@ -10731,7 +10741,7 @@ pub(crate) mod collection_bounds {
                     indexed,
                     reference,
                     array_extent.as_ref(),
-                    collection.clone(),
+                    || Some(collection.clone()),
                     |source| {
                         let value = entry.arguments.get(position)?.as_ref()?.clone();
                         position += 1;
@@ -34653,6 +34663,16 @@ pub(crate) mod refuted_requires {
     #[derive(Default)]
     pub(crate) struct OperandJudgments(symbols::SymbolKeyMap<ExpressionHandle, StructuralJudgment>);
 
+    impl OperandJudgments {
+        pub(super) fn iter(
+            &self,
+        ) -> impl Iterator<Item = (ExpressionHandle, StructuralJudgment)> + '_ {
+            self.0
+                .iter()
+                .map(|(expression, judgment)| (*expression, *judgment))
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn remembered_instantiated_fact_judgment(
         program: &dyn crate::CheckingInput,
@@ -40816,7 +40836,6 @@ pub(crate) mod specification_calls {
                 } else {
                     None
                 };
-                let collection = caller.term(program, indexed.collection, prior_facts.captures)?;
                 let judge = prior_facts.structural_judge(program, caller, arguments)?;
                 Some(super::super::collection_bounds::proves_observed_bounds(
                     program,
@@ -40824,7 +40843,7 @@ pub(crate) mod specification_calls {
                     indexed,
                     reference,
                     array_extent.as_ref(),
-                    collection,
+                    || caller.term(program, indexed.collection, prior_facts.captures),
                     |source| {
                         Some((
                             caller.term(program, source, prior_facts.captures)?,
@@ -75803,7 +75822,9 @@ pub(crate) mod structural_judgment {
         // Call-consumer output owns its limits so tests can exercise the exact
         // emitted contract without constructing a judge or replaying proof.
         pub(crate) mod call_consumer_trace {
+            use super::super::StructuralJudgment;
             use std::sync::atomic::{AtomicUsize, Ordering};
+            use typed_trees::expression::ExpressionHandle;
 
             const OBSERVATION_LIMIT: usize = 16;
             pub(super) const ROW_LIMIT: usize = 32;
@@ -75872,6 +75893,34 @@ pub(crate) mod structural_judgment {
 
             pub(crate) fn context(observation: usize, text: String) -> String {
                 record(observation, "context", None, text)
+            }
+
+            pub(crate) fn operand_judgments(
+                observation: usize,
+                program: &dyn crate::CheckingInput,
+                judgments: impl Iterator<Item = (ExpressionHandle, StructuralJudgment)>,
+            ) {
+                let mut total = 0;
+                for (expression, judgment) in judgments {
+                    if let Some(index) = admit_row(&mut total) {
+                        eprintln!(
+                            "{}",
+                            record(
+                                observation,
+                                "operand-judgment",
+                                Some(index),
+                                format!(
+                                    "expression={expression:?} span={:?} judgment={judgment:?}",
+                                    program.expression_table.try_source_span(expression),
+                                ),
+                            )
+                        );
+                    }
+                }
+                eprintln!(
+                    "STRUCT call-consumer observation={observation} kind=operand-end total={total} row_limit={ROW_LIMIT} truncated={}",
+                    total > ROW_LIMIT,
+                );
             }
 
             pub(crate) fn limit() -> String {

@@ -1,0 +1,19 @@
+// Projecting a returned carrier keeps its original backing borrowed across suspension.
+public boundary trait Scheduler { machine park() reaches suspends; }
+public Immediate satisfies Scheduler { machine park() {} }
+
+data Envelope<T> { marker: i32; first: T; second: T; }
+machine produce<'storage>(first: &'storage i32, second: &'storage i32)
+-> Envelope<&'storage i32> {
+    Envelope { marker: 7, first: first, second: second }
+}
+machine observe(reference: &i32) -> i32 { reference }
+
+machine main() reaches Scheduler {
+    let first: i32 = 42;
+    let mut second: i32 = 19;
+    let projected: &i32 = produce(&first, &second).second;
+    suspend Scheduler::park();
+    second = 99;
+    let observed: i32 = observe(projected);
+}

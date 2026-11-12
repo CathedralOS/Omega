@@ -249,3 +249,47 @@ fn a_generated_machine_of_a_finite_family_is_read_under_its_own_type() {
         ["accepted", "accepted"]
     );
 }
+
+/// A finite type family checked once per alternative: `pick<T>` admits `u8`
+/// and `u16`, and its `ensures` states what it returns at each, a conjunct
+/// after `T == u8` typed with `T` fixed to `u8` (generics.md, "Static type
+/// equality"). The body is checked with `T` fixed to each listed type, and
+/// each generated machine takes the certificate of the alternative whose
+/// body it is, decided again by the kernel.
+#[test]
+fn a_finite_family_is_checked_once_per_alternative_and_carried() {
+    let (outcome, rows) = carried("tests/omega/run/generics/finite_family_contract");
+    assert_eq!(outcome, "current=accepted\troute=carried-accepted");
+    // One guarantee per alternative.
+    assert_eq!(count(&rows, "generic", "proved"), 2);
+    assert_eq!(count(&rows, "generic", "refused"), 0);
+    // `pick<u8>` and `pick<u16>`, each its own alternative's guarantee.
+    assert_eq!(count(&rows, "carried", "accepted"), 2);
+    assert_eq!(count(&rows, "carried", "refused"), 0);
+}
+
+/// Its twin differs only in what `pick` returns at `u16`: the `u8`
+/// alternative is proved and carried, the `u16` alternative is refused, and
+/// `pick<u16>` has nothing to carry.
+#[test]
+fn a_finite_family_alternative_that_breaks_its_contract_is_refused() {
+    let (outcome, rows) =
+        carried("tests/omega/fail/generics/finite_family_contract_wrong_alternative");
+    assert_eq!(outcome, "current=rejected\troute=carried-refused");
+    assert_eq!(count(&rows, "generic", "proved"), 1);
+    assert_eq!(count(&rows, "generic", "refused"), 1);
+    assert_eq!(count(&rows, "carried", "accepted"), 1);
+    assert_eq!(count(&rows, "carried", "refused"), 1);
+}
+
+/// The design's witness for a finite family: `threshold<T>` owns no
+/// contract clause beyond its family, so each alternative's check proves
+/// nothing and what is shown is that both alternatives lower and that each
+/// generated machine corresponds to one of them.
+#[test]
+fn the_threshold_family_lowers_per_alternative_and_corresponds() {
+    let (outcome, rows) =
+        carried("tests/omega/pass/contracts/generic_effective_result_comparison_exit");
+    assert_eq!(outcome, "current=accepted\troute=carried-accepted");
+    assert!(rows.iter().all(|row| row[4] != "refused"), "{rows:?}");
+}

@@ -158,6 +158,26 @@ pub struct SelectedTargetProviderPublication {
 }
 
 impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
+    /// Whether the evaluated Build declares a row for this target: an entry
+    /// root bound for it, or a provider row keyed to it. Untargeted rows and
+    /// target-package defaults name no target of their own, so they declare
+    /// none. A target without a layout catalogue has no geometry for its
+    /// selected closure to demand, so it declares no checkable row either
+    /// (wiki/spec/build/provider_selection.md, "Every declared target row
+    /// demands the layouts of its selected closure").
+    pub fn declares_target_row(&self) -> bool {
+        if self.profile.layout_target_facts().is_none() {
+            return false;
+        }
+        self.application_roots
+            .as_ref()
+            .is_some_and(|roots| !roots.is_empty())
+            || self.overrides.iter().any(|row| {
+                row.target
+                    .is_some_and(|target| target.canonical_name() == self.profile.target_name())
+            })
+    }
+
     pub fn map_owner<Mapped>(
         self,
         mut map: impl FnMut(&effects::provider_plan::ProviderPlan, Owner) -> Mapped,
@@ -256,7 +276,22 @@ impl PreparedTargetProviderPublication {
             .into_iter()
             .map(|(target, prepared)| {
                 let mut application_roots = self.deployed.then(Vec::new);
-                let application_required = realization_scopes.contains(&target);
+                // Scalar completion evaluates exactly the scopes marked
+                // required. A declared row is checked even when this operation
+                // emits another target, so a provider, helper or callback that
+                // only one unemitted target selects cannot carry an invalid
+                // layout condition past `check`. Declaring a row retains a
+                // choice, not a request to realize its backend: only the
+                // emitted scopes are lowered further. A retained `Selected`
+                // choice exists only for the emitted target, which
+                // `realization_scopes` already names.
+                let application_required = realization_scopes.contains(&target)
+                    || prepared.as_ref().is_ok_and(|choice| match choice {
+                        TargetProviderChoice::Prepared(prepared) => {
+                            prepared.declares_target_row()
+                        }
+                        TargetProviderChoice::Selected { .. } => false,
+                    });
                 let selection = prepared
                     .and_then(|choice| {
                         let prepared = match choice {

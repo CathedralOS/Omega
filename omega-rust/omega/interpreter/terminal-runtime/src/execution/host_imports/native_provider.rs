@@ -27,7 +27,9 @@ pub(super) use record_shape::{
 use values::StorageCodec;
 
 use super::super::TerminalRuntimeError;
-use super::scalar_codec::{decode, encode, scalar_extent};
+use super::scalar_codec::{
+    boundary_scalar_extent, decode, encode, is_host_address_carrier, scalar_extent,
+};
 use calling_conventions::{
     BoundaryCallingApplication, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
     BoundaryValueClass, ValueClass,
@@ -157,6 +159,18 @@ pub(super) struct NativeImport<'host> {
 }
 
 impl<'host> NativeImport<'host> {
+    fn scalar_result(
+        &self,
+        returned: &[u8],
+        scalar: ScalarType,
+    ) -> Result<terminal_interpreter::TerminalScalarValue, TerminalEffectRejection> {
+        if is_host_address_carrier(scalar) {
+            self.native.host_address_result(returned, scalar)
+        } else {
+            decode(returned, scalar, scalar)
+        }
+    }
+
     pub(super) fn admit(
         program: &TerminalProgram,
         declaration: &BoundaryMachineDeclaration,
@@ -376,7 +390,7 @@ fn validate_scalar_shape(
     } else {
         BoundaryValueClass::Integer
     };
-    if shape.class != class || usize::from(shape.byte_size) != scalar_extent(scalar)? {
+    if shape.class != class || usize::from(shape.byte_size) != boundary_scalar_extent(scalar)? {
         return Err(rejection(
             "native scalar shape lost its exact carrier class or width",
         ));
@@ -451,7 +465,7 @@ fn admit_parameters(
                 if matches!(
                     physical.class,
                     ValueClass::BorrowedReference | ValueClass::BorrowedScalarReference
-                ) || physical.byte_size as usize != scalar_extent(scalar)?
+                ) || physical.byte_size as usize != boundary_scalar_extent(scalar)?
                 {
                     return Err(rejection(
                         "native scalar placement changes its value transport",
@@ -659,8 +673,12 @@ impl TerminalEffectHandler for NativeImport<'_> {
                 Parameter::Scalar { index, scalar } => {
                     let value = native_scalars[*index];
                     if value.scalar_type() != *scalar { return Err(rejection("native scalar actual changed its declared carrier")); }
-                    let encoded = encode(value, *scalar)?;
-                    Input::Value(encoded[..scalar_extent(*scalar)?].to_vec())
+                    if is_host_address_carrier(*scalar) {
+                        Input::Value(self.native.host_address_argument(value)?)
+                    } else {
+                        let encoded = encode(value, *scalar)?;
+                        Input::Value(encoded[..scalar_extent(*scalar)?].to_vec())
+                    }
                 }
                 Parameter::Structural { index, access, codec } => {
                     let mut matching = buffers.iter().filter(|buffer| match buffer { TerminalBoundaryStorageBuffer::Scalar(buffer) => buffer.argument_index() == *index, TerminalBoundaryStorageBuffer::Structural(buffer) => buffer.argument_index() == *index, TerminalBoundaryStorageBuffer::ByteView(_) => false });
@@ -732,7 +750,7 @@ impl TerminalEffectHandler for NativeImport<'_> {
         };
         self.references.complete(&self.native, buffers)?;
         let scalar_result = match self.result {
-            ResultCodec::Scalar(scalar) => Some(decode(&returned, scalar, scalar)?),
+            ResultCodec::Scalar(scalar) => Some(self.scalar_result(&returned, scalar)?),
             _ => None,
         };
         for parameter in &self.parameters {
@@ -827,7 +845,7 @@ impl TerminalEffectHandler for NativeImport<'_> {
             ResultCodec::Unit if returned.is_empty() => Ok(TerminalEffectResult::Unit),
             ResultCodec::Unit => Err(rejection("native Unit completion returned a payload")),
             ResultCodec::Scalar(scalar) => {
-                let value = decode(&returned, *scalar, *scalar)?;
+                let value = self.scalar_result(&returned, *scalar)?;
                 let value = match &self.filesystem {
                     Some(filesystem) => filesystem.result(call.arguments, value)?,
                     None => value,

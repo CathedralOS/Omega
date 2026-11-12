@@ -1,0 +1,14 @@
+// `value <= 256` admits 256, which is not a `u8`: the exact narrowing has no
+// representability proof. Its twin
+// `pass/arithmetic/exact_cast_carries_bound_exit` differs only in the bound.
+machine scale(value: u32) -> u32
+requires value <= 256
+{
+    let small: u8 = value as u8;
+    let padded: u8 = small + 55;
+    padded as u32
+}
+
+machine main() {
+    let scaled: u32 = scale(200);
+}

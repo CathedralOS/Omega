@@ -113,6 +113,11 @@ Temporary storage must outlive every derived borrow and receive cleanup on
 every cleanup-bearing exit. Shared lending may be implicit at a shared-reference
 parameter under ordinary argument-admission rules. For named machine calls,
 mutable and write-only lending require explicit `&mut` and `&write` expressions.
+Such a loan requires existing writable authority at the selected place;
+[owned-local mutability](ownership.md#owned-local-mutability) requires a
+`mut` binding when that place is the local's owned storage. Passing it to a
+callee does not bypass this requirement. Using an existing reference's
+authorized referent is distinct from modifying the reference carrier.
 The token-specific collection adaptation for [indexing](#indexing-and-ranges)
 does not change named-call argument admission.
 Checked identity and published consumers retain the access kind and

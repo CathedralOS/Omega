@@ -6,20 +6,18 @@ new credentials, package authority decisions, or infrastructure provisioning.
 
 ## Select the requested model and environment
 
-The owner default in [AGENTS.md](../../../../AGENTS.md#delegation) is
-`gpt-6.1-sol` with `medium` reasoning. A later explicit user choice wins.
-Inspect the currently exposed cloud-session launch schema and pass its supported
-model and reasoning fields explicitly. Confirm the actual selection from the
+Honor the user's requested model and reasoning controls; otherwise inherit the
+active session's selection. Inspect the currently exposed cloud-session launch
+schema and use its supported controls. Confirm the actual selection from the
 returned runtime metadata when available; record an unreported selection as
 unverified. A request in the task prompt, skill UI metadata, or a repository file
 does not itself set a platform-wide default or change an already-running session.
 If model selection is unavailable, report that limitation instead of claiming
 the requested model was applied or silently choosing another one.
 
-For an authorized native worker, the current `collaboration.spawn_agent`
-override is `model: "gpt-6.1-sol"`, `reasoning_effort: "medium"`. A full-history
-fork inherits its parent's model and rejects overrides: use `fork_turns: "none"`
-with a self-contained assignment, or a supported positive turn count. Recheck
+For an authorized native worker, a full-history fork inherits its parent's model
+and rejects overrides. An explicitly requested override requires
+`fork_turns: "none"` with a self-contained assignment. Recheck
 the actual schema before dispatch. Native workers share their parent's computer;
 they do not launch separate cloud machines.
 
@@ -38,10 +36,10 @@ different cloud executor.
 
 1. **Checkout.** Confirm the actual working directory, Git root, origin and push
    destination resolve to `CathedralOS/Omega`; do not print credential-bearing
-   URLs. Record HEAD, branch, status and existing worktrees. Complete the
-   [mandatory main preflight](../../../../AGENTS.md#sessions-and-subagents): fetch
-   successfully, fast-forward clean main or use an isolated checkout at the
-   fetched commit, and reread updated instructions before implementation.
+   URLs. Record HEAD, branch, status and existing worktrees. Fetch successfully,
+   reread current instructions, and acquire an isolated pool slot under
+   [advance](../../advance/SKILL.md#step-1-preflight-worktree--claim). Record its
+   fixed base and applicable retained build; do not edit the primary checkout.
    A failed fetch stops a new launch; preserve unrelated and resumed work.
    The expected Linux path may be `/workspace/Omega`; discover it rather than
    assuming that `/workspace` is itself the repository.
@@ -85,22 +83,20 @@ different cloud executor.
    only files this probe generated after retaining its evidence. This validates
    the environment; it is not a new compiler advance.
 6. **Coordination.** Read [claims](../../../../tools/claims.md) before claiming.
-   A measured 42-second fetch exceeded the default 15-second coordination
-   budget in one cloud run. Where observed latency warrants it, use the
-   supported bounded `--timeout-seconds 120` before the subcommand. A timeout
-   is unavailable coordination, not an empty registry; preserve the ticket and
-   reconcile an uncertain write before retrying. Same-outcome ownership conflicts block
-   edits. Registry outages otherwise follow AGENTS.md's isolated-worktree rule.
+   Use the documented Rust subcommands; they have no timeout flag. A timeout
+   does not establish that the registry is empty. Preserve the ticket and
+   reconcile an uncertain write before retrying. Claims are informational:
+   reconcile actual overlapping work and dependencies without treating a claim
+   as an edit lock. Keep work isolated during a registry outage.
 7. **Recovery and landing.** Before a long operation or integration, preserve
    the exact source checkpoint, command exits, pending operation identities and
    unrun gates through the available supported artifact workflow. Confirm the
    upload; a local archive alone is not a backup. Reconcile a disconnect with
    an actual read/command and process state before resuming. Keep builds and
-   focused validation local, release build slots, then submit once through
-   [landing](../../../../tools/landing.md)'s GitHub merge queue. The pull request
-   stays a draft until that page says it can be enqueued. Verify the
-   merged PR's source head and published commit on fetched main before removing
-   only this task's clean worktree and branch.
+   focused validation on the authorized executor, release build resources, and
+   follow [landing](../../../../tools/landing.md) through publication and remote
+   main verification. Remove only this task's verified completed resources under
+   the [recovery cleanup rules](recovery.md#completion-inventory-and-cleanup).
 
 ## Report the launch state
 

@@ -72,9 +72,9 @@ pub use product_execution::{
     CompilationOutput, CompilationProduct, CompilationProductError, TargetProductOutcome,
 };
 pub use psi_compiler::{
-    LibrarySliceTotals, ProducedTerminalProgram, declaration_page_fork_totals,
-    dependency_body_read_totals, dependency_entailment_totals, library_slice_totals,
-    retained_layout_match_hits, whole_program_reuse_hits,
+    LibrarySliceTotals, ProducedTerminalProgram, checked_slice_totals,
+    declaration_page_fork_totals, dependency_body_read_totals, dependency_entailment_totals,
+    library_slice_totals, retained_layout_match_hits, whole_program_reuse_hits,
 };
 pub use target::ExplicitTargetSet;
 pub use target_batch::PreparedCompilation;

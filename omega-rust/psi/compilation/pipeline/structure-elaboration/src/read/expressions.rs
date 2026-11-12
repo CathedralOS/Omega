@@ -74,6 +74,52 @@ impl<'t> Program<'t> {
         Ok(self.typed.expression_table.expression(expression))
     }
 
+    /// Reads the term at an erased position: an `[erased]` local's
+    /// initializer or the argument for an `[erased]` formal. It is a literal
+    /// or a scalar binding, relevant or erased. Anything that computes has a
+    /// formation condition (contracts.md, "Total arithmetic": "Exact
+    /// operations discharge representability before formation") that no
+    /// operation of the lowered form would own, and is refused.
+    pub(super) fn erased_term(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        handle: ExpressionHandle,
+        expected: Option<ScalarType>,
+    ) -> Checked<Expression> {
+        let node = self.node(id, handle)?;
+        let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        let (kind, result) = match node {
+            ExpressionNode::Integer(literal) => {
+                let (value, integer) = self.literal(id, literal, expected)?;
+                (ExpressionKind::Integer(value), ScalarType::Integer(integer))
+            }
+            ExpressionNode::Boolean(value) => {
+                (ExpressionKind::Boolean(*value), ScalarType::Boolean)
+            }
+            ExpressionNode::Name(path) => {
+                let slot = self.slot_of(id, slots, path)?;
+                let bound = &slots[slot];
+                match bound.value_type {
+                    ValueType::Scalar(scalar_type) if !bound.homed => {
+                        (ExpressionKind::Slot(slot), scalar_type)
+                    }
+                    ValueType::Scalar(_) => return unserved("erased term that reads storage"),
+                    ValueType::Record(_) | ValueType::Rigid(_) => {
+                        return unserved("erased term of a data type");
+                    }
+                }
+            }
+            _ => return unserved("erased term other than a literal or a binding"),
+        };
+        Ok(Expression {
+            kind,
+            result: Some(ValueType::Scalar(result)),
+            source,
+        })
+    }
+
     /// Reads one expression. `expected` is the type its context expects; only
     /// an anonymous integer literal uses it, and every other node's type is
     /// checked against its context by the caller.
@@ -98,6 +144,12 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
+                // The current checker rejects this program ("erased
+                // parameter ... has no runtime value"); this route does not
+                // own that rejection yet, so the closure falls back to it.
+                if slots[slot].erased {
+                    return unserved("runtime use of an erased binding");
+                }
                 return Ok(Expression {
                     kind: ExpressionKind::Slot(slot),
                     result: Some(slots[slot].value_type),
@@ -133,6 +185,14 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
             }
             ExpressionNode::Binary(binary) => {
+                // A suffixed operator (`+%`, `+|`, `+!`) is another
+                // operation with another result; only the bare, Exact
+                // operator is in the subset
+                // (`wiki/spec/language/numeric_values.md`, "Policy
+                // operators").
+                if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact {
+                    return unserved("policy operator");
+                }
                 // What an operand expects from outside: an arithmetic or shift
                 // result has its (value) operand's type, `&&`/`||` operands
                 // are Boolean, comparison operands expect nothing. An
@@ -212,7 +272,7 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::ArrayLiteral(_) => return unserved("array literal"),
             ExpressionNode::Atomic(_) => return unserved("atomic"),
-            ExpressionNode::Cast(_) => return unserved("cast"),
+            ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, source),
             ExpressionNode::Float(_) => return unserved("float literal"),
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(_) => return unserved("index"),
@@ -358,6 +418,7 @@ pub(super) fn names_storage(expression: &Expression) -> bool {
         | ExpressionKind::Strict { .. }
         | ExpressionKind::Not(_)
         | ExpressionKind::BitwiseNot(_)
+        | ExpressionKind::Cast(_)
         | ExpressionKind::ShortCircuit { .. }
         | ExpressionKind::Call { .. } => false,
     }
@@ -518,6 +579,8 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             ) => a == b && both(a_left, b_left) && both(a_right, b_right),
             (ExpressionKind::Not(a), ExpressionKind::Not(b))
             | (ExpressionKind::BitwiseNot(a), ExpressionKind::BitwiseNot(b)) => both(a, b),
+            // The same operand converted to the same carrier.
+            (ExpressionKind::Cast(a), ExpressionKind::Cast(b)) => both(a, b),
             (
                 ExpressionKind::ShortCircuit {
                     conjunction: a,
@@ -635,6 +698,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::Strict { .. }
                 | ExpressionKind::Not(_)
                 | ExpressionKind::BitwiseNot(_)
+                | ExpressionKind::Cast(_)
                 | ExpressionKind::ShortCircuit { .. }
                 | ExpressionKind::Call { .. },
                 _,

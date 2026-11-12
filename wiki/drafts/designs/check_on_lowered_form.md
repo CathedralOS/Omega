@@ -264,8 +264,13 @@ before variants are added. Route one is:
 
 ### The gate
 
-The route may not grow to another construct family until one bounded
-experiment passes. The experiment has four conditions, and it passes only when
+The owner lifted the pause on 2026-11-12: the construct lanes resume now, and
+the four conditions below are pursued alongside them rather than before them.
+Only the owner and Zac use the compiler today, so a lane that lands ahead of a
+condition costs nothing a user would see.
+
+The route was not to grow to another construct family until one bounded
+experiment passed. The experiment has four conditions, and it passes only when
 all four hold on `main`. Each one answers a question the route has not yet
 answered about itself: whether it checks the right declarations, whether a
 mistake in its own list of proof duties would be noticed, whether it can
@@ -281,13 +286,14 @@ compare, because the route retired no old code. Agreement failed for
 classified causes that the rule did not tell apart from a failure of the
 design. Only the two-value clause could be decided, and it passed. A rule
 that cannot fail cannot hold work back, and work went ahead
-([below](#started-before-the-gate-and-paused)).
+([below](#started-before-the-gate-paused-and-resumed)).
 
 1. **The checking scope is the one the specification gives.**
    [Validation subjects](../../spec/build/validation_subjects.md) says a check
-   "fully validates the packages selected as its subjects and freshly checks
-   the complete semantic dependency closure those declarations require.
-   Everything else is outside the check's claim." The route's scope is neither
+   "fully validates the packages selected as its subjects and checks the
+   complete semantic dependency closure those declarations require, freshly or
+   by exact-key reuse of a dependency slice. Everything else is outside the
+   check's claim." The route's scope is neither
    of the two in use today:
    - *The route was too narrow.* `structure_elaboration::elaborate` lowered
      only what the program entry calls. The specification's closure "starts
@@ -306,8 +312,13 @@ that cannot fail cannot hold work back, and work went ahead
      Build program, which the Build activation checks with the current
      checker, nor the bound target's entry-contract source
      (`std/targets/<target>/entry.omg`), which the current checker keeps as
-     a subject. Which check judges them when the route governs is undecided,
-     and until it is the route's verdict does not cover a whole compilation.
+     a subject. The owner ruled on 2026-11-12 (`lowered-route-governance-scope`):
+     while both checkers ship, the current checker judges the Build program
+     and the entry-contract source in the same compilation, the route judges
+     everything else. A compilation takes the route's verdict only when the
+     current checker accepts the Build program and entry-contract source and
+     the route accepts everything else; a rejection by either rejects the
+     compilation. The split ends when the route can lower Build programs.
      `Build::validate` rows are not handled either; nothing implements them.
      The `fail/` sweep of 2026-11-12 shows what that costs: four programs
      the current checker rejects for their entry are accepted whole by the
@@ -433,12 +444,25 @@ that cannot fail cannot hold work back, and work went ahead
    lowers and corresponds, and proves nothing: its two generic machines own
    no contract clause, its `main` uses a scalar `match` the route does not
    lower, and what tells it from its fail twin is what a caller learns from
-   a callee's body, which is owner question Q4. Limits, in the
+   a callee's body, which the decision `callee-result-body-summary`
+   ([state contracts](../../spec/language/state_contracts.md)) settles. Limits, in the
    [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#type-parameters):
    only where `T` is a scalar type; no operation has a result of type `T`;
    a `T` value is used at most once unless `T` is `[copy]`, because the
-   route has no judgment of moves. A type parameter the body branches on
-   (a finite family) is still not served.
+   route has no judgment of moves.
+
+   **Fourth result, 2026-11-12: a finite type family.** Under the owner's
+   ruling that checking a finite family once per listed alternative
+   satisfies "every admitted alternative" (generics.md, "Static type
+   equality"), `pick<T>` with `requires T == u8 || T == u16` is checked
+   with `T` fixed to `u8` and to `u16`, each alternative's certificates are
+   carried into the machine stage 04 generated for it, and the kernel
+   decides them there. The pair is `run/generics/finite_family_contract`
+   (`omega run --both`: native exit 0, Psi exit 0) and its twin
+   `fail/generics/finite_family_contract_wrong_alternative`, refused at the
+   `u16` alternative. Limits, in the
+   [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#finite-families):
+   one type parameter listed by one clause of builtin scalar types.
 
 4. **For one fully supported scope, old code is retired and the result is
    measured.** A scope is fully supported when every program in it is governed
@@ -560,10 +584,11 @@ Two consequences for the gate:
   until the route supports the library as a subject. Retiring the code one
   scope needed, which condition 4 asks for, does not wait for that.
 
-No result is reused across checks: "a consumer checks every dependency
-declaration it needs afresh".
+A consumer checks every dependency declaration it needs, freshly or by
+exact-key reuse of a checked dependency slice (owner ruling 2026-11-12,
+[validation subjects](../../spec/build/validation_subjects.md#what-this-rule-does-not-do)).
 
-#### Started before the gate, and paused
+#### Started before the gate, paused, and resumed
 
 The plan below said the lanes after route one would start once its gate
 passed. Two started before any gate was evaluated. This is the state on
@@ -573,8 +598,8 @@ passed. Two started before any gate was evaluated. This is the state on
 | --- | --- | --- |
 | Places (records, fields, cases, patterns, data `requires`) | started, on `main` | `#2328` split `structure-elaboration` into per-family modules. `#2332` records and field reads, `#2337` field stores, whole assignment and locals without an initializer, `#2343` sums, case dispatch and patterns, `#2356` payload-binding justification, `#2362` data `requires` at construction and every store. |
 | Numbers (integers, floats, casts and domains) | started, not on `main` | `#2365` (open draft): result bounds for divide, remainder, shift and bitwise operations, described as that lane's first slice. It reports 4 of the 12 prover gaps in route one measures now agreeing (quoted). |
-| Loops, recursion and termination | paused | A staging plan on branch `work/docs-loops-recursion-termination-lane` (`d352f7e36`). No pull request is open for it and no code exists. |
-| Proofs, evidence and quotients | paused | `#2366` (open draft, marked do not land): erased scalar bindings, the first of eleven planned slices, with the lane's plan file. |
+| Loops, recursion and termination | resumed 2026-11-12 (paused until then) | A staging plan on branch `work/docs-loops-recursion-termination-lane` (`d352f7e36`). No pull request is open for it and no code exists. |
+| Proofs, evidence and quotients | resumed 2026-11-12 (paused until then) | `#2366` (open draft, marked do not land): erased scalar bindings, the first of eleven planned slices, with the lane's plan file. |
 | Every other lane | not started | |
 
 Also open from route one itself: `#2317` (join predicates and crash
@@ -589,20 +614,20 @@ one measures counted them, and are 21,576 at `c7371d3dc`, tests included
 `terminal-check-tables` 1,102). None of the six places commits on `main`
 touches a file in Psi 05, validation or Psi 06 (`git show --stat`).
 
-What the pause means: until the gate passes, no construct family is added to
-the route, and the loops and proofs lanes stay where they stopped. The
-places work that landed stays. Work that a gate condition needs goes ahead,
-and so does closing a case where the route accepts an invalid program.
-Whether the open drafts `#2365` and `#2317` serve a gate condition is for
-their review to decide, not this record.
+The owner lifted the pause on 2026-11-12. Until then no construct family was
+added to the route and the loops and proofs lanes stayed where they stopped.
+Now every lane resumes, and the gate conditions are pursued alongside the
+lanes rather than before them. The places work that landed stays, and closing
+a case where the route accepts an invalid program still goes first.
 
-### After the gate
+### Lane order
 
-After [the gate](#the-gate) passes, the remaining construct families run in
-two dependency-ordered groups rather than ten simultaneous sessions. The
+Since the owner lifted the pause on 2026-11-12, the remaining construct
+families run alongside [the gate](#the-gate)'s conditions, in two
+dependency-ordered groups rather than ten simultaneous sessions. The
 split of `structure-elaboration` into per-family modules and part of the
 places foundation have already landed
-([above](#started-before-the-gate-and-paused)):
+([above](#started-before-the-gate-paused-and-resumed)):
 
 1. **Places foundation first:** records, fields, cases, constants and
    expressions, so `ExactPlaceId` projections, structural roots and the forward
@@ -864,14 +889,15 @@ overwrites; a rank premise across a pause.
   forward, and every consumer checks it again. The consumer works out its own
   goal from its own program and has `proof/admission` decide the carried
   certificate against that goal, without searching again. A certificate that
-  no longer fits is refused, and a pass from an earlier compile is never used
-  in place of checking. This is how the two clauses are read together:
+  no longer fits is refused, and outside exact-key reuse of a dependency
+  slice a pass from an earlier compile is never used in place of checking. This is how the two clauses are read together:
   [`generics.md`](../../spec/language/generics.md#closed-applications-and-canonical-identity)
   ("Carry checked derivations through specialization and published artifacts
   without re-searching") is about search, and
   [`validation_subjects.md`](../../spec/build/validation_subjects.md#what-this-rule-does-not-do)
-  ("No result is reused: a consumer checks every dependency declaration it
-  needs afresh") is about checking. `lowered_discharge::reverify` is the
+  (a consumer checks every dependency declaration it needs; since the owner
+  ruling of 2026-11-12 that check may be exact-key reuse of a dependency
+  slice's checked result) is about checking. `lowered_discharge::reverify` is the
   tested mechanism, and `reverify_specialization` carries a generic body's
   certificates into a specialization that selects an implementation;
   substituting a concrete type for a type parameter in a certificate is not

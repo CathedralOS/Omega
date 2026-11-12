@@ -179,11 +179,7 @@ pub(crate) mod authored_selections {
                             .map_err(|reason| Diagnostic::error(reason).with_source_span(span))?;
                         match operation {
                             "prepare" | "select" => 1,
-                            "prepare_tests"
-                                if binding.operation == BuildOperation::TestGroupRegistration =>
-                            {
-                                1
-                            }
+                            "prepare_tests" if binding.operation.uses_tests_facet() => 1,
                             "bind_native" if binding.operation == BuildOperation::NativeBinding => {
                                 3
                             }

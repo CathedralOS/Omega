@@ -752,6 +752,13 @@ is replaced. For a native binding the clause, or its omission, is the claim
 that [foreign admission](../build/foreign_bindings.md#operational-coherence)
 accepts for that exact binding; unknown native behavior is not an empty claim.
 
+Source checking also requires the `invokes` edges of every declared checked
+provider to be acyclic, whether or not a Build selects it. A cycle among
+providers that only a future Build could combine is rejected where it is
+written, not deferred until some Build selects it. Which applications of a
+generic provider take part is decided separately
+(`applied-provider-cycle-selection`).
+
 No `invokes` clause, present or absent, establishes that an unfinished
 invariant is safe to expose. Access, observation and custody checks apply to
 every downstream call, entry or not.

@@ -145,17 +145,17 @@ impl RetainedStorageLane {
 }
 
 #[cfg(target_os = "windows")]
-pub(crate) fn current_user_cache_base() -> Result<PathBuf, SourceResolveError> {
+pub fn current_user_cache_base() -> Result<PathBuf, SourceResolveError> {
     absolute_environment_path("LOCALAPPDATA")
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) fn current_user_cache_base() -> Result<PathBuf, SourceResolveError> {
+pub fn current_user_cache_base() -> Result<PathBuf, SourceResolveError> {
     absolute_environment_path("HOME").map(|home| home.join("Library").join("Caches"))
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
-pub(crate) fn current_user_cache_base() -> Result<PathBuf, SourceResolveError> {
+pub fn current_user_cache_base() -> Result<PathBuf, SourceResolveError> {
     match std::env::var_os("XDG_CACHE_HOME") {
         Some(value) => absolute_path_from_environment("XDG_CACHE_HOME", value),
         None => absolute_environment_path("HOME").map(|home| home.join(".cache")),
@@ -163,7 +163,7 @@ pub(crate) fn current_user_cache_base() -> Result<PathBuf, SourceResolveError> {
 }
 
 #[cfg(all(not(unix), not(target_os = "windows")))]
-pub(crate) fn current_user_cache_base() -> Result<PathBuf, SourceResolveError> {
+pub fn current_user_cache_base() -> Result<PathBuf, SourceResolveError> {
     Err(SourceResolveError::PrivateStorageUnavailable {
         message: "this platform has no compiler-owned per-user cache location".to_owned(),
     })

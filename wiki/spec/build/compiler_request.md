@@ -601,7 +601,9 @@ The request-extent provisions bound the declared subject and invocation
 section lengths; both sit inside the fixed request header and are checked at
 phase 1 after complete framing, before either section is interpreted. The
 parser capacities are private D budgets over its fixed tables, not Omega source
-limits. The tape capacities bound the emitted artifact's payload and
+limits. Source depth and length are bounded only by memory and time;
+exhausting either publishes `Incomplete` naming the exhausted resource, never a
+host stack overflow. The tape capacities bound the emitted artifact's payload and
 relocation records; their coordinates are payload-relative byte offsets.
 Codes 15–25 are coverage provisions, not capacities: each names a
 valid-Omega construct family unavailable under the compiler's provision.

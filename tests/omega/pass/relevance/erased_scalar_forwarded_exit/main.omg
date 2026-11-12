@@ -1,0 +1,24 @@
+// An `[erased]` scalar parameter is named only by contracts and by the erased
+// position of another call (contracts.md#explicit-erased-bindings): `forward`
+// passes its own erased `limit` on as `keep`'s erased `bound`, and each call
+// proves the callee's `requires` from the term it supplies. Neither binding
+// has a runtime position, so the program computes with `n` alone and exits 0.
+// The fail twin `erased_scalar_forwarded_breaks_requires` differs only in the
+// erased term `main` supplies.
+machine keep(n: i32, bound [erased]: i32) -> i32
+requires
+    n < bound
+{
+    n
+}
+
+machine forward(n: i32, limit [erased]: i32) -> i32
+requires
+    n < limit
+{
+    keep(n, limit)
+}
+
+machine main() {
+    let kept: i32 = forward(70, 100);
+}

@@ -107,6 +107,12 @@ declaration order and flattening. Both ordinary and terminal calls invoke the
 selected machine with ordinary explicit parameters. Context records and their
 borrows are supplied like other arguments; no receiver or enclosing activation
 is retained or rebound implicitly.
+A name is declared at most once among one machine's parameters and the locals
+of its own body, excluding the bodies of machines nested in it: a second `let`
+of the same name is rejected, whether or not the first is still in use. The
+check compares resolved identifiers, not rendered text. Pattern bindings in
+different arms of one match may reuse a name; within one arm they follow the
+same rule.
 An ordinary terminal value, explicit return, or permitted implicit Unit
 completion ends the invocation and owes its declared result/return contract.
 
@@ -144,6 +150,12 @@ the callee's written contract plus checked body-derived result and state facts.
 A written `ensures` is a minimum guarantee, not an instruction to forget stronger
 local facts. For a machine whose two normal-return branches both yield `false`,
 the local summary establishes `result == false` without an authored postcondition.
+
+Contracts may not form a cycle. If a machine's `requires` or `ensures` calls a
+machine whose own contract, directly or through other contracts, calls back to
+the first, the program is rejected, even when every body involved is a plain
+non-recursive definition. State the fact directly instead, such as
+`ensures result == value`.
 
 Across a verification-unit boundary, ordinary calls use the published contract.
 Additional semantic result/state guarantees needed by independent clients are
@@ -277,6 +289,13 @@ Tail-call lowering may remove unnecessary control state only while preserving
 all live backing, loans, custody and completion obligations. Recursive runtime
 calls still obey the no-accumulated-frames rule.
 
+A terminal call does not extend a loan. A caller-local loan carried into a
+terminal machine call closes at the last use of that loan and of every loan
+derived from it, even when that use is inside the callee's terminal chain, as
+[borrows and aliases](ownership.md#borrows-and-aliases) states for every loan.
+After that point the lent storage is outside that loan; a later read and
+a later write of it are each checked only against the loans still live there.
+
 Nested machine calls have no marker exemption. Their checked call envelope
 determines the required `suspend` and `block` acknowledgements, including in
 terminal position, even when lowering later implements the call with a jump.
@@ -319,8 +338,9 @@ Named decision: `restored-scalar-value-facts`, ratified 2026-11-02.
 Saving an integer from a valid ordinary storage place captures its current value.
 A later overwrite invalidates facts about that storage, not facts about the saved
 copy. Writing the saved value back establishes a new equality between the current
-contents of that exact destination and the saved value. A subsequent guard on the
-copy may therefore justify a requirement on the restored contents. This is new
+contents of that exact destination and the saved value. A subsequent guard on
+any integer copy of that saved version may therefore justify a requirement on
+the restored contents. This is new
 evidence from the restoring write, not resurrection of invalidated storage facts.
 
 Checking must establish the captured place, index identity, saved value and

@@ -33,12 +33,10 @@ avoid implementation. Continue independent work while a question is pending.
   consumers, and establish a completed observation on actual Omega compiler input.
   Carry missing coverage and shared execution-cost repairs through the successor
   route. Existing identity checks alone are not compiler execution acceptance.
-- **COMPILED-CONSTRUCTION.** (new-scope) Establish an independent compiled route
-  for an actual successor compiler and carry it toward the Omega compiler. Measure
+- **COMPILED-CONSTRUCTION.** (new-scope) Carry the compiled route through the
+  Omega compiler's own source construction and reproducible rebuilds. Measure
   total implementation/audit burden and cold/development costs against the same
-  required behavior. A host development compiler is a disclosed accelerator;
-  replace its semantic dependency with predecessor-owned source before claiming
-  that route closes from the documented small seed.
+  required behavior as the other peers.
 - **OMEGA-COMPILER-CONSTRUCTION.** (new-scope) Complete the Omega-written compiler
   through required source checking, portable lowering and target emission, driven
   by its own source closure and end-to-end program behavior. The Rust compiler is
@@ -169,9 +167,12 @@ schedule it as a prerequisite for a runnable bootstrap chain.
   with the ordinary-Gamma [checker](bootstrap/proofs/checker/CHECKING.md) and
   [Beta definitions](bootstrap/proofs/beta_encoding/README.md). Follow the
   [full acceptance](bootstrap/proofs/beta_encoding/ACCEPTANCE.md), not a smaller
-  equation batch: the subject is the entire selected Gamma evaluator's raw Beta
-  source and persisted Alpha tape, with independently reconstructed proposition
+  equation batch: the subject is the entire historical Gamma evaluator's raw
+  Beta source and persisted Alpha tape at
+  `d19361fe4deae73e1b488a940a872fec1ed885cb`, with independently reconstructed proposition
   `encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)`.
+  This remaining research does not certify the current evaluator or gate
+  ordinary bootstrap construction.
 
   Current frontier: the complete untrusted derivation and source-owned theory
   exist, but full checking and mutation acceptance remain owed. The

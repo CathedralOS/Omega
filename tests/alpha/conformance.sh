@@ -22,11 +22,10 @@ unset OMEGA_PATH_PARENT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/seed_env.sh"
 require_seed_execution_host "alpha conformance"
 cd "$TEST_DIR"
-# MSYS shells hide the authored exit byte behind 127 for every sign-bit-set
-# DWORD other than the audited trap's; the cases below pin byte-level values,
-# so on those hosts observation needs the native subprocess route.
-if [ "$ALPHA_SEED_EXIT_COLLAPSED" = 1 ] && ! command -v python3 >/dev/null 2>&1; then
-  echo "alpha conformance: byte-level exit observation on this host needs python3" >&2
+# Python decodes the explicit byte fixtures and stamps the selected seed. MSYS
+# also uses its subprocess route to observe sign-bit-set exit bytes exactly.
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "alpha conformance: fixture decoding and seed stamping need python3" >&2
   exit 2
 fi
 TMP=$(mktemp -d)
@@ -38,7 +37,10 @@ PASS=0; FAIL=0
 #   EXPECT_OUT="" -> don't check stdout ; STDIN="" -> empty stdin (EOF)
 tc() {
   name="$1"; exp_exit="$2"; exp_out="$3"; stdin="$4"; shift 4
-  echo "$*" | tr -d ' \n' | xxd -r -p > "$TMP/tape"
+  if ! python3 -c 'import sys; sys.stdout.buffer.write(bytes.fromhex(" ".join(sys.argv[1:])))' \
+      "$@" > "$TMP/tape"; then
+    FAIL=$((FAIL+1)); echo "  FAIL $name : invalid hexadecimal fixture"; return
+  fi
   if ! stamp_seed "$TMP/tape" "$SEED" "$TMP/exe" >/dev/null 2>&1; then
     FAIL=$((FAIL+1)); echo "  FAIL $name : seed stamping failed"; return
   fi

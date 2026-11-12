@@ -7772,9 +7772,9 @@ mod loans {
         loan_trackers: &[StateLoanTracker],
         call_frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Result<Vec<StatementBorrowLoan>, &'static str> {
-        if let Some(loans) = invocation_results::retain(program, local_data, loan_trackers)? {
-            return Ok(loans);
-        }
+        // A prepared descriptor read does not replace its producing operation's
+        // origins. Form the value through that operation; returned-carrier formation
+        // already retains completed call permissions at the call's exact boundary.
         let sources = BorrowFormationSources {
             statement_entry: loan_trackers,
             call_frames,

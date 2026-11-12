@@ -16,6 +16,7 @@ semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 package-manager = { path = "../../packages/package-manager" }
 artifacts = { path = "../../foundation/artifacts" }
 platform-custody = { path = "../../foundation/platform-custody" }
+bounded-process = { path = "../../foundation/bounded-process" }
 target = { path = "../../compilation/backend/target" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }

@@ -3864,7 +3864,11 @@ impl TerminalExecution<'_> {
                     .map(|loan| (loan, &[][..]));
                 array_loan = captured.collection_loan.clone();
                 let suffix = &remaining[boundary + 1..];
+                // The suffix is spelled in the referent's coordinates. A collection loan
+                // reads it directly only when the referent presents the collection as
+                // itself; a recast view first translates it through its aggregate view.
                 if let Some(loan) = &captured.collection_loan
+                    && captured.aggregate_view.is_none()
                     && !suffix.is_empty()
                     && terminal_semantics::primitive_projection_type(
                         types.values(),

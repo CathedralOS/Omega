@@ -231,10 +231,18 @@ impl BuildOutputIdentity<'_> {
                 requirement,
                 selecting_machine,
                 source_span,
+                services,
             } = group;
             self.symbol(*requirement)?;
             self.symbol(*selecting_machine)?;
             self.occurrence(*source_span)?;
+            self.digest.len(services.len());
+            for service in services {
+                let build_time_evaluation::test_groups::TestGroupService { slot, source_span } =
+                    service;
+                self.symbol(*slot)?;
+                self.occurrence(*source_span)?;
+            }
         }
         self.digest.len(grants.len());
         for grant in grants {
@@ -576,6 +584,7 @@ impl BuildOutputIdentity<'_> {
             BuildOperation::LogWriteLine => 11,
             BuildOperation::NativeBinding => 12,
             BuildOperation::TestGroupRegistration => 13,
+            BuildOperation::TestGroupService => 14,
         });
         self.digest.len(operands.len());
         for operand in operands {

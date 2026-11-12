@@ -1031,6 +1031,43 @@ pub mod literals {
             false
         }
 
+        /*
+            A constant's array value is read under that constant's declared type,
+            so a literal that may stand for a constant must find its declaration
+            before its leaves are trusted. The authored selections retained on the
+            literal say which case applies: `expression_const_declaration` names a
+            constant through a selection that covers the literal's own span and
+            resolves to a constant declaration. A literal materialized from
+            anything else keeps other selections, and is an ordinary literal of
+            the type its context expects. The evaluated result of the call in
+            `const C: [u64; SIZE] = make();` is one: it retains the callee, and
+            `SIZE` at the extent's span, but no name of its own. An occurrence
+            whose selection is missing, or one at the literal's span that is not
+            yet resolved, cannot be ruled out, so it still counts as a possible
+            constant name and keeps the stricter reading.
+        */
+        fn may_name_declared_constant(
+            program: &dyn crate::CheckingInput,
+            expression: ExpressionHandle,
+        ) -> bool {
+            let source_span = expression_table(program).source_span(expression);
+            expression_table(program)
+                .authored_selection_occurrences(expression)
+                .any(|occurrence| {
+                    program
+                        .authored_declaration_selections()
+                        .get(occurrence)
+                        .is_none_or(|selection| {
+                            selection.source_span() == source_span
+                                && selection.target().as_resolved().is_none_or(|selected| {
+                                    program
+                                        .const_declaration_by_symbol(selected.selected_symbol())
+                                        .is_some()
+                                })
+                        })
+                })
+        }
+
         pub fn closed_constant_array_elements(
             program: &dyn crate::CheckingInput,
             machine: symbols::SymbolHandle,
@@ -1052,12 +1089,8 @@ pub mod literals {
                 root = indexed.collection;
             }
             let mut reference = declared_constant_array_type(program, root).or_else(|| {
-                (indices.is_empty()
-                    && expression_table(program)
-                        .authored_selection_occurrences(root)
-                        .next()
-                        .is_none())
-                .then_some(expected)
+                (indices.is_empty() && !may_name_declared_constant(program, root))
+                    .then_some(expected)
             })?;
             if !is_closed_primitive_array_type(program, reference) {
                 return None;
@@ -1169,12 +1202,7 @@ pub mod literals {
                             expression_table(program).expression(expression),
                             ExpressionNode::Indexed(_)
                         );
-                        if indexed_row
-                            || expression_table(program)
-                                .authored_selection_occurrences(expression)
-                                .next()
-                                .is_some()
-                        {
+                        if indexed_row || may_name_declared_constant(program, expression) {
                             let Some(closed) = closed_constant_array_elements(
                                 program, machine, expression, reference,
                             ) else {

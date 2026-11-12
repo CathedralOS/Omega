@@ -1872,8 +1872,9 @@ pub(crate) mod parse_postfix {
     }
 
     /*
-        `owner.tests.group<Requirement>()` registers a test group through the
-        Build's `tests` facet (wiki/spec/build/testing.md). The facet is a value
+        `owner.tests.group<Requirement>()` registers a test group, and
+        `owner.tests.service<Group, Slot>()` selects its runner-supplied service,
+        through the Build's `tests` facet (wiki/spec/build/testing.md). The facet is a value
         operand, so its receiver takes the same member projection an ordinary
         `owner.tests` value does rather than the static path a dotted call
         prefix otherwise becomes. Every other call keeps its parsed receiver.
@@ -1882,7 +1883,7 @@ pub(crate) mod parse_postfix {
         syntax_trees: &mut SyntaxTrees,
         mut call: TableCallExpression,
     ) -> TableCallExpression {
-        if call.target.as_str(syntax_trees) != "group"
+        if !matches!(call.target.as_str(syntax_trees), "group" | "service")
             || call.machine_arguments.is_empty()
             || !call.receiver.is_valid()
         {

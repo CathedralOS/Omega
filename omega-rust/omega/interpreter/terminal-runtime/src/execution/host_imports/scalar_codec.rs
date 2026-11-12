@@ -9,6 +9,20 @@ fn invalid_operands() -> TerminalEffectRejection {
     TerminalEffectRejection::new("native scalar differs from its admitted logical/storage codec")
 }
 
+// The interpreter carries a host-returned `addr` only as an opaque value at a
+// native import's bare scalar argument or result; the codecs below never
+// admit it, so it cannot reach interpreter storage or a record layout.
+pub(super) fn is_host_address_carrier(scalar: ScalarType) -> bool {
+    matches!(scalar, ScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64)
+}
+
+pub(super) fn boundary_scalar_extent(scalar: ScalarType) -> Result<usize, TerminalEffectRejection> {
+    if is_host_address_carrier(scalar) {
+        return Ok(8);
+    }
+    scalar_extent(scalar)
+}
+
 pub(super) fn scalar_extent(scalar: ScalarType) -> Result<usize, TerminalEffectRejection> {
     match scalar {
         ScalarType::Boolean => Ok(1),
