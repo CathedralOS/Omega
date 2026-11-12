@@ -620,12 +620,6 @@ pub(crate) mod checked_slice {
         }
     }
 
-    pub(super) fn tmp_compare(loaded: &checked_trees::CheckedTrees, fresh: &checked_trees::CheckedTrees, key: &SliceKey) {
-        let a = compiler_storage::encode_beside(loaded, &key.sources, LIMITS);
-        let b = compiler_storage::encode_beside(fresh, &key.sources, LIMITS);
-        eprintln!("TMPVERIFY machines={} same_bytes={} equal_values={}", fresh.typed.machines().len(), matches!((&a, &b), (Ok(a), Ok(b)) if a == b), loaded == fresh);
-    }
-
     fn payload_identity(key: &[u8; 32], payload: &[u8]) -> [u8; 32] {
         let mut digest = optimization::digest_encoder::DomainDigestEncoder::new(PAYLOAD_DOMAIN);
         digest.raw(key);
@@ -1031,11 +1025,8 @@ impl CheckRequest<'_> {
             .checked_slices
             .as_ref()
             .and_then(|reuse| checked_slice::key(&self.program, &self.admission, reuse));
-        let tmp_verify = std::env::var_os("TMPVERIFY").is_some();
-        let mut tmp_loaded = None;
         if let (Some(reuse), Some(key)) = (self.checked_slices.as_ref(), stored_slice.as_ref())
             && let Some(checked) = checked_slice::load(reuse, key)
-            && (!tmp_verify || { tmp_loaded = Some(checked.clone()); false })
         {
             record_checked_slice_load();
             build_time_evaluation::admit_access_lifecycle_plans(
@@ -1195,9 +1186,6 @@ impl CheckRequest<'_> {
             (outcome, layout_evaluation)
         };
         let (outcome, layout_evaluation) = outcome;
-        if let (Some(loaded), Some(key)) = (tmp_loaded.as_ref(), stored_slice.as_ref()) {
-            checked_slice::tmp_compare(loaded, &outcome.checked, key);
-        }
         if let (Some(reuse), Some(key)) = (self.checked_slices.as_ref(), stored_slice.as_ref()) {
             checked_slice::save(reuse, key, &outcome.checked);
             record_checked_slice_save();
