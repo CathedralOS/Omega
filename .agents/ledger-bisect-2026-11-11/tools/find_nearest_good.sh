@@ -2,7 +2,10 @@
 set -euo pipefail
 WITNESS="${1:?}"
 PIN="${2:-51e8c45c793007f211d0d9baee7de16767172444}"
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${REPO_ROOT:-/agent/repos/omega}"
+if [[ ! -d "$ROOT/.git" ]]; then
+  ROOT="$(git rev-parse --show-toplevel)"
+fi
 DIR="$(dirname "$0")"
 if [[ -d /tmp/ledger-bisect-tools ]]; then
   DIR=/tmp/ledger-bisect-tools
