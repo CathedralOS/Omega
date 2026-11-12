@@ -8,6 +8,7 @@ from pathlib import Path
 
 REPO = Path("/agent/repos/omega")
 PIN = "51e8c45c793007f211d0d9baee7de16767172444"
+ANCHOR = "741270df60f7"
 TOOLS = Path("/tmp/ledger_bisect_tools_2026_11_11")
 if not TOOLS.is_dir():
     TOOLS = Path(__file__).resolve().parent
@@ -85,24 +86,35 @@ def main() -> int:
         restore_branch()
         return 1
 
+    try:
+        anc = subprocess.run(
+            ["git", "-C", str(REPO), "rev-parse", ANCHOR],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        lo = revs.index(anc) + 1 if anc in revs else 1
+    except Exception:
+        lo = 1
     floor = oldest_fixture_commit(witness)
-    start = 1
-    if floor and floor in revs:
-        start = revs.index(floor)
+    hi = revs.index(floor) if floor and floor in revs else len(revs) - 1
+    hi = min(hi, lo + 1200)
 
-    # Newest good: smallest index i with ec==0 (walk from PIN toward older commits).
-    for i in range(1, start + 800):
-        if i >= len(revs):
-            break
-        checkout(revs[i])
+    best = None
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        checkout(revs[mid])
         ec = run_test(witness)
         if ec == 0:
-            print(revs[i])
-            restore_branch()
-            return 0
+            best = revs[mid]
+            hi = mid - 1
+        else:
+            lo = mid + 1
     restore_branch()
-    print("no good commit on first-parent chain", file=sys.stderr)
-    return 1
+    if not best:
+        print("no good commit on first-parent chain", file=sys.stderr)
+        return 1
+    print(best)
+    return 0
 
 
 if __name__ == "__main__":
