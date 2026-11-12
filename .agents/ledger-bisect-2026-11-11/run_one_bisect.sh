@@ -7,7 +7,8 @@ PIN="${3:-51e8c45c793007f211d0d9baee7de16767172444}"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 export PATH="/home/ubuntu/.local/share/mbx/bin:$PATH"
-SCRIPT="$ROOT/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh"
+export OMEGA_BISECT_TOOLS="${OMEGA_BISECT_TOOLS:-/tmp/ledger-bisect-part-30-tools}"
+SCRIPT="$OMEGA_BISECT_TOOLS/bisect_witness.sh"
 LOG="${4:-$ROOT/.agents/ledger-bisect-2026-11-11/bisect_${WITNESS//\//_}.log}"
 
 GOOD=$(git rev-parse "$GOOD")

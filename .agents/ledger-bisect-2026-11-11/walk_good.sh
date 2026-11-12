@@ -7,7 +7,8 @@ ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 export PATH="/home/ubuntu/.local/share/mbx/bin:$PATH"
 export BISECT_WITNESS="$WITNESS"
-SCRIPT="$ROOT/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh"
+export OMEGA_BISECT_TOOLS="${OMEGA_BISECT_TOOLS:-/tmp/ledger-bisect-part-30-tools}"
+SCRIPT="$OMEGA_BISECT_TOOLS/bisect_witness.sh"
 
 test_commit() {
   local c="$1"
