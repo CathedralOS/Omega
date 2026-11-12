@@ -1,0 +1,47 @@
+// glibc mallinfo2 returns an 80-byte record through the SysV hidden result pointer.
+
+public data AllocationStatistics {
+    arena: u64;
+    ordinary_blocks: u64;
+    small_blocks: u64;
+    mapped_blocks: u64;
+    mapped_bytes: u64;
+    unused_bytes: u64;
+    freed_bytes: u64;
+    allocated_bytes: u64;
+    available_bytes: u64;
+    releasable_bytes: u64;
+}
+public boundary trait AllocationProbe {
+    machine statistics() -> AllocationStatistics reaches;
+    machine exit_with(code: i32) reaches;
+    machine allocate(bytes: u64) -> addr reaches;
+    machine release(pointer: addr) reaches;
+}
+
+machine relay(statistics: AllocationStatistics, token: u64) -> AllocationStatistics {
+    transition token == 70 {
+        true -> complete(statistics)
+        _ -> replace()
+    }
+    machine complete(statistics: AllocationStatistics) -> AllocationStatistics { statistics }
+    machine replace() -> AllocationStatistics { AllocationProbe::statistics() }
+}
+
+machine collect(token: u64) -> AllocationStatistics {
+    let statistics: AllocationStatistics = AllocationProbe::statistics();
+    relay(statistics, token)
+}
+
+data Main {}
+machine Main::main(main: &mut Main) {
+    let pointer: addr = AllocationProbe::allocate(128);
+    AllocationProbe::release(pointer);
+    AllocationProbe::exit_with(70);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let : Main;
+    Main::main(&mut entry_storage);
+}

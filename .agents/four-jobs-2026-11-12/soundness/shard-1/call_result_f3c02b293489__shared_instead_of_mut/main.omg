@@ -1,0 +1,63 @@
+// A finite-family result retains its exclusive input counter through storage and forwarding, and consuming that result increments the counter once.
+// Expected exit: 0
+// Place: call_result.
+data Token<'counter> [linear] dropped by drop_token { drops: &'counter mut [u64; 1]; }
+machine drop_token<'counter>(token: & Token<'counter>) {
+    token.drops[0] = ((token.drops[0] as u64 in Wrapping) + 1) as u64;
+}
+data Ticket<'counter> { token: Token<'counter>; marker: u32; }
+data Delivery<'counter> { case Narrow(ticket: Ticket<'counter>); case Wide(ticket: Ticket<'counter>); }
+trait Family<Input, Output> {
+    machine row<Width: u32>(ticket: Input) -> Output requires Width == 16 || Width == 32;
+}
+First<'counter> satisfies Family<Ticket<'counter>, Delivery<'counter>> {
+    machine row<Width: u32>(ticket: Ticket<'counter>) -> Delivery<'counter> requires Width == 16 || Width == 32 {
+        transition Width == 16 {
+            true -> Delivery::Narrow { ticket: Ticket { token: ticket.token, marker: Width } }
+            false -> Delivery::Wide { ticket: Ticket { token: ticket.token, marker: Width } }
+        }
+    }
+}
+Second<'counter> satisfies Family<Ticket<'counter>, Delivery<'counter>> {
+    machine row<Width: u32>(ticket: Ticket<'counter>) -> Delivery<'counter> requires Width == 16 || Width == 32 {
+        transition Width == 16 {
+            true -> Delivery::Narrow { ticket: Ticket { token: ticket.token, marker: Width } }
+            false -> Delivery::Wide { ticket: Ticket { token: ticket.token, marker: Width } }
+        }
+    }
+}
+data Stored<'counter> { ticket: Delivery<'counter>; }
+machine dispatch<'counter>(selected: dyn Family<Ticket<'counter>, Delivery<'counter>>, ticket: Ticket<'counter>, width: u32) -> Delivery<'counter>
+requires width == 16 || width == 32
+{ Family::row<width>(selected, ticket) }
+machine forward<'counter>(ticket: Delivery<'counter>) -> Delivery<'counter> { ticket }
+machine observe<'counter>(selected: dyn Family<Ticket<'counter>, Delivery<'counter>>, drops: &'counter mut [u64; 1], width: u32) -> bool
+requires width == 16 || width == 32
+{
+    let stored: Stored<'counter> = Stored { ticket: dispatch(selected, Ticket { token: Token { drops: drops }, marker: 0 }, width) };
+    transition { _ -> finish(forward(stored.ticket), width) }
+    machine finish(delivery: Delivery<'counter>, width: u32) -> bool {
+        transition delivery {
+            Delivery::Narrow { ticket } -> consume(ticket, width, 16)
+            Delivery::Wide { ticket } -> consume(ticket, width, 32)
+        }
+        machine consume(ticket: Ticket<'counter>, width: u32, tag: u32) -> bool {
+            let correct: bool = ticket.marker == width && tag == width;
+            correct
+        }
+    }
+}
+machine check<'counter>(drops: &'counter mut [u64; 1]) crashes Trap {
+    let first: bool = observe(First as dyn Family<Ticket<'counter>, Delivery<'counter>>, drops, 16);
+    let first_settled: bool = drops[0] == 1;
+    let second: bool = observe(Second as dyn Family<Ticket<'counter>, Delivery<'counter>>, drops, 32);
+    transition first && first_settled && second && drops[0] == 2 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine initial() -> [u64; 1] { [0] }
+machine main() crashes Trap {
+    let mut counter: [u64; 1] = initial();
+    check(&mut counter);
+}

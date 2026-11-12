@@ -1,0 +1,31 @@
+// Darwin binds libSystem `_poll` and `_clock_gettime_nsec_np`. Linux binds libc
+// `poll` and `clock_gettime`; its `ElapsedClock::now` stays a checked adapter.
+use omega::language::core::external_binding;
+
+machine build(builder: &mut Build) {
+    Build::application(builder, "later_state_requirement_scalar_result_exit");
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
+    Build::bind<TimedWaitPoll::poll>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_poll",
+        },
+    });
+    Build::bind<TimedWaitPoll::poll>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "poll", version: "GLIBC_2.2.5",
+        },
+    });
+    Build::bind<ElapsedClock::now>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np",
+        },
+    });
+    Build::bind<ElapsedClockRead::read>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "clock_gettime", version: "GLIBC_2.17",
+        },
+    });
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+}

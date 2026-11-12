@@ -1,0 +1,31 @@
+// Expected exit: 0. Returned placement retains the nested original backing, not its outer owner.
+use omega::language::core::layout;
+public data Words { entries: [u64; 2]; }
+public data WordPlacement {}
+public data NoReturnedStorage {}
+public data Envelope { prefix: u64; words: Words; }
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
+    let mut fields: [FieldEntry; 64];
+    fields[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    let layout: LayoutPlan = LayoutPlan { entries: fields, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 8 };
+    let services: [u64; 32];
+    AccessPlan::with_reach(
+        AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
+            FieldAccess::External { read: ExternalRead::Read, write: false, exposure: Exposure::Exported }),
+        BoundaryReach { services: services, service_count: 0 }
+    )
+}
+machine borrow_words(storage: &Words) -> AccessOutcome<&Access<WordPlacement, Words>, NoReturnedStorage, AccessInitializationFailure> {
+    AccessOutcome::Ready { view: Access::view<WordPlacement, Words>(storage) }
+}
+machine main() crashes Trap {
+    let envelope: Envelope = Envelope { prefix: 99, words: Words { entries: [17, 41] } };
+        AccessOutcome::Ready { view } -> finish(read(&view.entries[1]))
+        AccessOutcome::Rejected { returned, reason } -> wrong()
+    }
+    machine finish(value: u64) {
+        transition value == 41 { true -> done() _ -> wrong() }
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

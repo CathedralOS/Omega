@@ -1,0 +1,37 @@
+// Exhaustively matching a three-variant case value where every arm establishes joined >= 20u64 && joined <= 60u64 preserves the joined interval bound across all nine places, discharging exact subtraction 60u64 - joined and joined - 20u64.
+// Expected exit: 0
+
+data Mode [copy] 
+    requires ((self in Mode::Low) && (self.val >= 20 && self.val <= 60)) || ((self in Mode::Mid) && (self.val >= 20 && self.val <= 60)) || ((self in Mode::High) && (self.val >= 20 && self.val <= 60))
+{
+    case Low(val: u64);
+    case Mid(val: u64);
+    case High(val: u64);
+}
+
+machine evaluate(mode: Mode) -> u64 {
+        Mode::Low { val } -> val
+        Mode::Mid { val } -> val
+        Mode::High { val } -> val
+    }
+}
+
+// The mode arrives as a formal parameter, so only Mode's data `requires`
+// bounds `joined`; a constant actual would let the checker read the helper's
+// exact result instead.
+machine run(m: Mode) crashes Trap {
+    let joined: u64 = evaluate(m);
+    let local_joined: u64 = joined;
+    let diff1: u64 = 60u64 - local_joined;
+    let diff2: u64 = local_joined - 20u64;
+    transition diff1 == 20 && diff2 == 20 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    run(Mode::Mid { val: 40 });
+}

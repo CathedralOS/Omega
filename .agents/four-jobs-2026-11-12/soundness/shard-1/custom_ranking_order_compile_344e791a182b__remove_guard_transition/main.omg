@@ -1,0 +1,17 @@
+data Card {
+    power: u64;
+}
+
+measure Card::PowerOrder(power: u64) -> u64 { power }
+
+machine main() {
+    let value: u64 = weaken(3);
+}
+
+machine weaken(power: u64) -> u64
+terminates by power -> Card::PowerOrder
+{
+        true -> weaken(power - 1)
+        false -> power
+    }
+}

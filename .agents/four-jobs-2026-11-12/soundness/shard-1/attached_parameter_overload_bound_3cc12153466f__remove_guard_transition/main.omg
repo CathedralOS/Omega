@@ -1,0 +1,16 @@
+// Expected exit: 0
+// The record overload must enforce its own generic bound; the scalar
+// overload has no such bound and accepts N = 5.
+data Selector {}
+data Payload { value: u64; }
+machine Selector::choose<const N: u64>(value: u64) -> u64 { 11u64 }
+machine Selector::choose<const N: u64>(value: Payload) -> u64 requires N == 37u64 { value.value }
+machine start() crashes Trap {
+    let scalar: u64 = Selector::choose<5u64>(73u64);
+    let record: u64 = Selector::choose<37u64>(Payload { value: 37u64 });
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

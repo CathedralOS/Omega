@@ -1,0 +1,26 @@
+// A linear claim returns across a call boundary: `renew` consumes a
+// moved `Lease` and yields a fresh `Lease` — the caller adopts the
+// result as its new live claim, and the old handle is gone.
+use omega::language::core::drop;
+
+data Lease [linear] dropped by drop_lease { tag: u64; }
+
+machine drop_lease(lease: &mutmut Lease) {}
+
+boundary trait LeaseRedeem {
+    machine redeem(token: Lease) reaches;
+}
+
+data Main { done: u64; }
+
+machine Main::renew(token: Lease) -> Lease {
+    let next: Lease = Lease { tag: 9 };
+    drop(token);
+    next
+}
+
+machine Main::main(main: &mut Main) {
+    let first: Lease = Lease { tag: 4 };
+    let second: Lease = Main::renew(move first);
+    LeaseRedeem::redeem(move second);
+}

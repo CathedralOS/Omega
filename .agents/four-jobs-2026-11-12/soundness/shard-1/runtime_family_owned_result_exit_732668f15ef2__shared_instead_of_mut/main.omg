@@ -1,0 +1,19 @@
+// A portable family returns a fresh linear owner through ordinary result
+// custody. Observation must not grant a second owner or lose the cleanup.
+use omega::language::core::drop;
+data Receipt [linear] dropped by drop_receipt { code: u64; }
+machine drop_receipt(receipt: & Receipt) {}
+
+linux_x86_64 machine produce(code: u64) -> Receipt { Receipt { code: code } }
+windows_x86_64 machine produce(code: u64) -> Receipt { Receipt { code: code } }
+linux_arm64 machine produce(code: u64) -> Receipt { Receipt { code: code } }
+macos_arm64 machine produce(code: u64) -> Receipt { Receipt { code: code } }
+
+machine main() crashes Trap {
+    let receipt: Receipt = produce(42);
+    let correct: bool = receipt.code == 42;
+    drop(receipt);
+    transition correct { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

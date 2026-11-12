@@ -1,0 +1,33 @@
+// Builtin ranges and checked named helpers preserve their original backing
+// across generic calls, descriptor copies, empty windows and source rebinding.
+use omega::language::core::slice;
+
+machine middle<Element>(items: &[Element], start: u64, end: u64) -> &[Element]
+requires start <= end && end <= items.len
+ensures result.len == end - start {
+    items[start..end]
+}
+data Main {}
+machine exercise(main: & Main) crashes Trap {
+    let bytes: [u8; 4] = [10, 70, 42, 1];
+    let values: [i32; 3] = [0, 123, 0];
+    let mut whole: &[u8] = &bytes;
+    let saved: &[u8] = middle(whole, 1, 3);
+    let nested: &[u8] = slice_range<u8>(saved, 1, 2);
+    let empty: &[u8] = slice_range<u8>(whole, 4, 4);
+    let words: &[i32] = middle(&values, 1, 3);
+    whole = &bytes[0..1];
+    transition saved.len == 2 && saved[0] == 70 && nested.len == 1
+        && nested[0] == 42 && empty.len == 0 && words.len == 2 && words[0] == 123 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// The entry owns its local state and passes it explicitly to the helper.
+machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    exercise(&mut entry_storage);
+}

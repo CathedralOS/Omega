@@ -1,0 +1,20 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "generated_declaration_continuation");
+    let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "kit" });
+    dependency::with_alias(&mut kit_dependency, "kit");
+    let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
+    let source: BuildPath = BuildSource::resolve(&builder.source, "kit/generated.txt");
+    let reader: i32 = BuildSource::open(&builder.source, source, 0);
+    let mut bytes: [u8; 522];
+    _ = BuildSource::read(&builder.source, reader, &mut bytes, 522);
+    _ = BuildSource::close(&builder.source, reader);
+    let output: BuildPath = BuildOutput::resolve(&builder.output, "generated.omg");
+    let writer: i32 = BuildOutput::create(&mut builder.output, output, 0);
+    _ = BuildOutput::write(&mut builder.output, writer, &bytes);
+    _ = BuildOutput::close(&mut builder.output, writer);
+    BuildOutput::include_source(&mut builder.output, output);
+    Build::bind(builder, macos_arm64::ProgramEntry, main::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main::main);
+}

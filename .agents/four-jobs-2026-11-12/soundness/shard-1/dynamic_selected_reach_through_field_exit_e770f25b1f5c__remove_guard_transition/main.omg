@@ -1,0 +1,58 @@
+// Fact: A dyn call reaches only its selected conformance's services, so a machine publishing an empty reach row may dispatch through a non-reaching selection and subtract 100u64 from its result.
+// Expected exit: 0
+
+public boundary trait Journal {
+    machine note(value: u64) -> u64
+    ensures result == value
+    reaches Journal;
+}
+
+InlineJournal satisfies Journal {
+    machine note(value: u64) -> u64 ensures result == value { value }
+}
+
+trait Source {
+    machine get(value: u64) -> u64
+    requires value == 100u64
+    ensures result >= 100u64
+    reaches Journal;
+}
+
+JournaledSource satisfies Source {
+    machine get(value: u64) -> u64
+    requires value == 100u64
+    ensures result >= 100u64
+    reaches Journal
+    {
+        let noted: u64 = Journal::note(value);
+        noted + 1u64
+    }
+}
+
+QuietSource satisfies Source {
+    machine get(value: u64) -> u64
+    requires value == 100u64
+    ensures result >= 100u64
+    { value }
+}
+
+data Holder [copy] { selected: dyn Source; }
+
+public machine observe(value: u64) -> u64
+requires value == 100u64
+ensures result >= 100u64
+reaches
+{
+    let holder: Holder = Holder { selected: QuietSource as dyn Source };
+    Source::get(holder.selected, value)
+}
+
+machine main() crashes Trap {
+    let observed: u64 = observe(100u64);
+    let difference: u64 = observed - 100u64;
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

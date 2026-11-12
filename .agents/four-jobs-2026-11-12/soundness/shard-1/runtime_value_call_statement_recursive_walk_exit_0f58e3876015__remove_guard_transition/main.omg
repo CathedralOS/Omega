@@ -1,0 +1,59 @@
+// Call-with-return over an EFFECTFUL RECURSIVE (`terminates`) walk -- the
+// STATEMENT face. Historically FENCED (the inline-branching route could not
+// loop, so the per-iteration `bump(main, ..)` silently never executed: native
+// counted 0 separators vs the interpreter's 2). Dispatch call-with-return
+// replaced the fence; this canary pins the capability: count the '/'
+// separators of "a/b/c" through the recursive walk. Exit 70.
+use omega_language_std::console;
+data Main { n: i32 in Wrapping; r: i32; }
+machine walk(main: &mut Main, path: &[u8], i: u64, acc: i32) -> i32
+terminates by (i, path.len) -> Nat::BoundedDistance
+{
+    bump(main, path, i);
+        true -> walk(main, path, i + 1, acc)
+        false -> done(main, acc)
+    }
+    machine done(main: &mut Main, acc: i32) -> i32 {
+        let result: i32 = main.n as i32;
+        result
+    }
+}
+machine bump(main: &mut Main, path: &[u8], i: u64) {
+    transition i < path.len {
+        true -> look(main, path, i)
+        false -> skip(main)
+    }
+    machine look(main: &mut Main, path: &[u8], i: u64) {
+        transition path[i] == 47 {
+            true -> hit(main)
+            false -> skip(main)
+        }
+    }
+    machine hit(main: &mut Main) {
+        main.n = main.n + 1;
+        transition { _ -> skip(main) }
+    }
+    machine skip(main: &mut Main) { }
+}
+machine count(main: &mut Main, path: &[u8]) -> i32 {
+    main.r = walk(main, path, 0, 0);
+    transition path.len > 0 {
+        true -> got(main)
+        false -> zero(main)
+    }
+    machine got(main: &mut Main) -> i32 { main.r }
+    machine zero(main: &mut Main) -> i32 { 0 }
+}
+machine main(main: &mut Main) reaches Console {
+    main.n = 0;
+    let c: i32 = count(main, "a/b/c");
+    transition c == 2 { true -> good(main) _ -> bad(main, 71) }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    main(&mut entry_storage);
+}

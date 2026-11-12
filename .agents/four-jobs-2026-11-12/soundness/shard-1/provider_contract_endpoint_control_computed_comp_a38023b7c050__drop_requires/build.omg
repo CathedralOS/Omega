@@ -1,0 +1,17 @@
+machine chosen_mode() -> CompositionMode { CompositionMode::Fused }
+machine build(builder: &mut Build) {
+    Build::application(builder, "provider_contract_endpoint_probe");
+    Build::select_provider<Endpoint, Actual>(builder, linux_arm64, chosen_mode());
+    Build::select_provider<Endpoint, Actual>(builder, linux_x86_64, chosen_mode());
+    Build::select_provider<Endpoint, Actual>(builder, macos_arm64, chosen_mode());
+    Build::select_provider<Endpoint, Actual>(builder, macos_x86_64, chosen_mode());
+    Build::select_provider<Endpoint, Actual>(builder, windows_x86_64, chosen_mode());
+    Build::select_provider<Endpoint, Actual>(builder, uefi_x86_64, chosen_mode());
+    Build::select_provider<Endpoint, Actual>(builder, cross_platform_cli, chosen_mode());
+    Build::select_provider<Endpoint, Actual>(builder, local_unchecked, chosen_mode());
+    Build::select_provider<Endpoint, Actual>(builder, alpha_bootstrap, chosen_mode());
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}

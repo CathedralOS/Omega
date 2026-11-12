@@ -1,0 +1,29 @@
+// A zero divisor follows the declared runtime Trap route; constant admission must not ban this ordinary call.
+// Expected crash: Trap
+public boundary trait Endpoint {
+    machine upper() -> u64 reaches terminates;
+}
+public Actual satisfies Endpoint {
+    machine upper() -> u64 { 7 }
+}
+const DIVISOR: u64 = 0u64;
+
+machine divide(numerator: u64, denominator: u64) -> u64
+crashes Trap denominator == 0u64
+{
+        true -> bad()
+        false -> (numerator / denominator)
+    }
+    machine bad() -> u64 crashes Trap { crash Trap; }
+}
+
+machine limit() -> u64
+crashes Trap DIVISOR == 0u64
+{
+    divide(Endpoint::upper(), DIVISOR)
+}
+// This is an ordinary runtime call. Crash admission for constant evaluation
+// must not prohibit a declared runtime crash.
+public machine main() invokes Endpoint crashes Trap {
+    let value: u64 = divide(Endpoint::upper(), DIVISOR);
+}

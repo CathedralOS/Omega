@@ -1,0 +1,25 @@
+// Expected exit: 0.
+// The package boundary retains read capability for one method, an empty reach
+// for the other, and the separately declared synchronous interface for both.
+use reviewed_service::operations;
+use omega_language_std::console;
+Reader satisfies Operations {
+    machine read(value: i32) -> i32 reaches ReadCapability { read_value_provider(value) }
+    machine identity(value: i32) -> i32 { identity_provider(value) }
+}
+machine read_value_provider(value: i32) -> i32 { value }
+machine identity_provider(value: i32) -> i32 { value }
+data Main { }
+machine Main::main(main: &mut Main) reaches Console + ReadCapability {
+    let read: i32 = read_value(17);
+    let pure: i32 = pure_value(39);
+    transition read == 17 && pure == 39 { true -> good() false -> bad() }
+    machine good() { Console::exit_process(0); }
+    machine bad() { Console::exit_process(1); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console + ReadCapability {
+    let : Main;
+    Main::main(&mut entry_storage);
+}

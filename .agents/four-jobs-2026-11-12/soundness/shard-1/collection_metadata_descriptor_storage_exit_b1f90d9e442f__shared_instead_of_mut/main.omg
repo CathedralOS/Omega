@@ -1,0 +1,27 @@
+// Expected exit: 0
+// Length reads the slice descriptor, not a nominal field or its byte storage.
+// Crossed references preserve the authority over the descriptor's holder.
+data Holder<'a> [copy] { before: u64; view: &'a [u8]; after: u64; }
+
+machine count(value: & &[u8]) -> u64 { value.len }
+
+machine main() crashes Trap {
+    let values: [u8; 3] = [11, 37, 91];
+    let all: &[u8] = &values[..];
+    let prefix: &[u8] = &values[0..2];
+    let full_count: u64 = count(&all);
+    let prefix_count: u64 = count(&prefix);
+    let mut holder: Holder = Holder { before: 101, view: all, after: 203 };
+    let alias: & Holder = &mut holder;
+    let exclusive: &mut Holder = &mut alias;
+    let observed: u64 = exclusive.before;
+    let length: u64 = alias.view.len;
+    transition observed == 101 && length == 3 && full_count == 3 && prefix_count == 2
+        && alias.before == 101 && alias.after == 203
+        && values[0] == 11 && values[1] == 37 && values[2] == 91 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

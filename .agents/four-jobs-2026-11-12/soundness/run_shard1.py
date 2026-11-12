@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import shutil
 import subprocess
+import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
@@ -17,10 +21,22 @@ OUT = Path(__file__).resolve().parent
 MUT_ROOT = OUT / f"shard-{SHARD}"
 TSV = OUT / f"shard-{SHARD}.tsv"
 CHECKPOINT = OUT / f"shard-{SHARD}.checkpoint"
+STATS = OUT / f"shard-{SHARD}-generation-stats.json"
 OMEGA = REPO / "target/debug/omega"
 ROUTE = REPO / "target/debug/examples/route_one_comparison"
 TIMEOUT = 120
 ENV = {**os.environ, "OMEGA_LIBRARY_ROOT": str(REPO / "source/library")}
+FIXTURE_WORKERS = 2
+_IO_LOCK = threading.Lock()
+
+KIND_ORDER = (
+    "drop_requires",
+    "remove_guard_transition",
+    "remove_mut",
+    "shared_instead_of_mut",
+    "mut_ref_instead_of_shared",
+    "widen_requires",
+)
 
 
 def fixture_list() -> list[str]:
@@ -52,34 +68,44 @@ def copy_fixture(fixture_rel: str, dest: Path) -> None:
     shutil.copytree(src_dir, dest)
 
 
-def mutators(source: str) -> list[tuple[str, str]]:
-    out: list[tuple[str, str]] = []
+def requires_is_machine_header(source: str, pos: int) -> bool:
+    before = source[:pos]
+    starts = [m.start() for m in re.finditer(r"^machine\s+", before, re.MULTILINE)]
+    if not starts:
+        return False
+    return "{" not in source[starts[-1] : pos]
 
-    def add(kind: str, text: str) -> None:
-        if text != source:
-            out.append((kind, text))
 
-    m = re.search(r"^(\s*)requires\b[^\n]*\n", source, re.MULTILINE)
-    if m:
-        add("drop_requires", source[: m.start()] + source[m.end() :])
+def mutators(source: str) -> list[tuple[str, str, str]]:
+    """Return (kind, mutant_source, site_note) for every applicable mutation."""
+    out: list[tuple[str, str, str]] = []
+    seen_kind: set[str] = set()
 
-    def widen(mo: re.Match[str]) -> None:
-        n = int(mo.group(2))
-        if n > 0:
-            rep = f"{mo.group(1)}{n - 1}{mo.group(3)}"
-            add("widen_requires", source[: mo.start()] + rep + source[mo.end() :])
+    def add(kind: str, text: str, site: str = "") -> None:
+        if kind in seen_kind or text == source:
+            return
+        seen_kind.add(kind)
+        out.append((kind, text, site))
 
-    for mo in re.finditer(r"(<=\s*)(\d+)([iuf]?\d*)", source):
-        widen(mo)
-        break
+    header_req = None
+    for m in re.finditer(r"^(\s*)requires\b[^\n]*\n", source, re.MULTILINE):
+        if requires_is_machine_header(source, m.start()):
+            header_req = m
+            break
+    if header_req:
+        add(
+            "drop_requires",
+            source[: header_req.start()] + source[header_req.end() :],
+            "machine-header",
+        )
+    else:
+        m = re.search(r"^(\s*)requires\b[^\n]*\n", source, re.MULTILINE)
+        if m:
+            add("drop_requires", source[: m.start()] + source[m.end() :], "body")
 
     m = re.search(r"^\s*transition\s+[^\n]+\{\s*\n", source, re.MULTILINE)
     if m:
         add("remove_guard_transition", source[: m.start()] + source[m.end() :])
-
-    m = re.search(r"(?<![&])\&(?![&])(?=\w)", source)
-    if m:
-        add("amp_to_ampmut", source[: m.start()] + "&mut" + source[m.end() :])
 
     m = re.search(r"\blet mut (\w+)", source)
     if m:
@@ -90,15 +116,24 @@ def mutators(source: str) -> list[tuple[str, str]]:
         ):
             add("remove_mut", source[: m.start()] + "let " + source[m.end() :])
 
-    priority = [
-        "drop_requires",
-        "remove_guard_transition",
-        "remove_mut",
-        "amp_to_ampmut",
-        "widen_requires",
-    ]
-    by_kind = {k: t for k, t in out}
-    return [(kind, by_kind[kind]) for kind in priority if kind in by_kind][:1]
+    m = re.search(r"&mut\b", source)
+    if m:
+        add("shared_instead_of_mut", source[: m.start()] + "&" + source[m.end() :])
+
+    m = re.search(r"(?<![&])&(?![&])(?=\w)", source)
+    if m:
+        add("mut_ref_instead_of_shared", source[: m.start()] + "&mut" + source[m.end() :])
+
+    for mo in re.finditer(r"(<=\s*)(\d+)([iuf]?\d*)", source):
+        n = int(mo.group(2))
+        if n > 0:
+            rep = f"{mo.group(1)}{n - 1}{mo.group(3)}"
+            add("widen_requires", source[: mo.start()] + rep + source[mo.end() :])
+            break
+
+    order = {k: i for i, k in enumerate(KIND_ORDER)}
+    out.sort(key=lambda t: order.get(t[0], 99))
+    return out
 
 
 def run_omega(main: Path) -> tuple[str, float, str]:
@@ -137,6 +172,15 @@ def extract_route_reason(raw: str, route: str) -> str:
     return " | ".join(parts[:4])[:600]
 
 
+def run_checks_parallel(main: Path) -> tuple[str, float, str, str, float, str, str]:
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_cur = pool.submit(run_omega, main)
+        f_rt = pool.submit(run_route, main)
+        cur, cs, c_out = f_cur.result()
+        rt, rs, r_out, r_reason = f_rt.result()
+    return cur, cs, c_out, rt, rs, r_out, r_reason
+
+
 def run_route(main: Path) -> tuple[str, float, str, str]:
     t0 = time.monotonic()
     try:
@@ -163,7 +207,13 @@ def run_route(main: Path) -> tuple[str, float, str, str]:
 def load_checkpoint() -> set[str]:
     if not CHECKPOINT.exists():
         return set()
-    return {ln.strip() for ln in CHECKPOINT.read_text().splitlines() if ln.strip()}
+    done: set[str] = set()
+    for ln in CHECKPOINT.read_text().splitlines():
+        ln = ln.strip()
+        if not ln:
+            continue
+        done.add(ln)
+    return done
 
 
 def append_checkpoint(key: str) -> None:
@@ -171,32 +221,30 @@ def append_checkpoint(key: str) -> None:
         f.write(key + "\n")
 
 
-def main() -> None:
-    MUT_ROOT.mkdir(parents=True, exist_ok=True)
-    fixtures = fixture_list()
-    done = load_checkpoint()
-    write_header = not TSV.exists() or TSV.stat().st_size == 0
-    mode = "a" if TSV.exists() and not write_header else "w"
+def tsv_header() -> str:
+    return (
+        "fixture\ttier\tmutation_kind\tmutant_site\tmutant_path\tcurrent_verdict\t"
+        "route_verdict\troute_reason\tagree\thand_verdict\tverdict_reason\t"
+        "spec_file\tspec_quote\tobligation_line\tcurrent_out\troute_out\t"
+        "current_s\troute_s\n"
+    )
 
-    with TSV.open(mode, encoding="utf-8") as tsv:
-        if write_header:
-            tsv.write(
-                "fixture\ttier\tmutation_kind\tmutant_path\tcurrent_verdict\t"
-                "route_verdict\troute_reason\tagree\thand_verdict\tverdict_reason\t"
-                "spec_file\tspec_quote\tobligation_line\tcurrent_out\troute_out\t"
-                "current_s\troute_s\n"
-            )
 
-        for fi, fixture in enumerate(fixtures):
-            if fixture in done:
-                continue
-            source = (REPO / fixture).read_text(encoding="utf-8")
-            muts = mutators(source)
-            staging = MUT_ROOT / f"_staging_{slug(fixture)}"
-            copy_fixture(fixture, staging)
-            main_omg = staging / "main.omg"
-            if not (staging / "build.omg").is_file() and re.search(r"(?m)^machine main\(", source):
-                build = f"""machine build(builder: &mut Build) {{
+def process_fixture(
+    fixture: str,
+    done: set[str],
+    tsv,
+    stats: dict[str, int | dict[str, int]],
+) -> int:
+  row_count = 0
+  source = (REPO / fixture).read_text(encoding="utf-8")
+  muts = mutators(source)
+  staging = MUT_ROOT / f"_staging_{slug(fixture)}"
+  if muts:
+    copy_fixture(fixture, staging)
+    main_omg = staging / "main.omg"
+    if not (staging / "build.omg").is_file() and re.search(r"(?m)^machine main\(", source):
+      build = f"""machine build(builder: &mut Build) {{
     Build::application(builder, "{Path(fixture).parent.name}");
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
@@ -204,61 +252,110 @@ def main() -> None:
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
 }}
 """
-                (staging / "build.omg").write_text(build)
+      (staging / "build.omg").write_text(build)
 
-            for kind, mutated in muts:
-                main_omg.write_text(mutated, encoding="utf-8")
-                cur, cs, c_out = run_omega(main_omg)
-                rt, rs, r_out, r_reason = run_route(main_omg)
-                agree = "agree" if cur == rt else "disagree"
-                if cur == "timeout" or rt == "timeout":
-                    hand = "timeout"
-                else:
-                    hand = "pending-triage"
-                dest_rel = ""
-                rel = f"{slug(fixture)}__{kind}"
-                dest = MUT_ROOT / rel
-                if dest.exists():
-                    shutil.rmtree(dest)
-                shutil.copytree(staging, dest)
-                dest_rel = str(dest.relative_to(REPO))
-                tsv.write(
-                    f"{fixture}\t{tier_of(fixture)}\t{kind}\t{dest_rel}\t{cur}\t{rt}\t"
-                    f"{r_reason.replace(chr(9),' ').replace(chr(10),' ')}\t{agree}\t{hand}\t\t\t\t\t"
-                    f"{c_out.replace(chr(9),' ').replace(chr(10),' ')}\t"
-                    f"{r_out.replace(chr(9),' ').replace(chr(10),' ')}\t{cs:.3f}\t{rs:.3f}\n"
-                )
-                tsv.flush()
+  for kind, mutated, site in muts:
+    ck = f"{fixture}\t{kind}"
+    if ck in done:
+      continue
+    main_omg.write_text(mutated, encoding="utf-8")
+    cur, cs, c_out, rt, rs, r_out, r_reason = run_checks_parallel(main_omg)
+    agree = "agree" if cur == rt else "disagree"
+    hand = "timeout" if cur == "timeout" or rt == "timeout" else "pending-triage"
+    rel = f"{slug(fixture)}__{kind}"
+    dest = MUT_ROOT / rel
+    if dest.exists():
+      shutil.rmtree(dest)
+    shutil.copytree(staging, dest)
+    dest_rel = str(dest.relative_to(REPO))
+    line = (
+      f"{fixture}\t{tier_of(fixture)}\t{kind}\t{site}\t{dest_rel}\t{cur}\t{rt}\t"
+      f"{r_reason.replace(chr(9),' ').replace(chr(10),' ')}\t{agree}\t{hand}\t\t\t\t\t"
+      f"{c_out.replace(chr(9),' ').replace(chr(10),' ')}\t"
+      f"{r_out.replace(chr(9),' ').replace(chr(10),' ')}\t{cs:.3f}\t{rs:.3f}\n"
+    )
+    with _IO_LOCK:
+      tsv.write(line)
+      tsv.flush()
+      append_checkpoint(ck)
+      done.add(ck)
+      stats["mutants_by_kind"][kind] = stats["mutants_by_kind"].get(kind, 0) + 1
+      if kind == "drop_requires" and site == "machine-header":
+        stats["drop_requires_machine_header"] += 1
+    row_count += 1
+
+  if not muts:
+    none_key = f"{fixture}\tnone"
+    if none_key not in done:
+      line = (
+        f"{fixture}\t{tier_of(fixture)}\tnone\t\t\trejected\trejected\t"
+        f"no mutation generated\tagree\tpending-triage\t\t\t\t\t\t0\t0\n"
+      )
+      with _IO_LOCK:
+        tsv.write(line)
+        tsv.flush()
+        append_checkpoint(none_key)
+        done.add(none_key)
+      row_count += 1
+  if muts and staging.exists():
+    shutil.rmtree(staging, ignore_errors=True)
+  return row_count
+
+
+def main() -> None:
+    fresh = "--fresh" in sys.argv
+    if fresh:
+        if CHECKPOINT.exists():
+            CHECKPOINT.rename(CHECKPOINT.with_suffix(".checkpoint.bak"))
+        if TSV.exists():
+            TSV.rename(TSV.with_suffix(".tsv.bak"))
+    MUT_ROOT.mkdir(parents=True, exist_ok=True)
+    fixtures = fixture_list()
+    done = load_checkpoint()
+    stats = {
+        "mutants_by_kind": {},
+        "drop_requires_machine_header": 0,
+        "fixtures": len(fixtures),
+        "mutant_rows_target": 0,
+    }
+    new_file = not TSV.exists() or TSV.stat().st_size == 0
+    with TSV.open("a" if not new_file else "w", encoding="utf-8") as tsv:
+        if new_file:
+            tsv.write(tsv_header())
+
+        pending_fixtures: list[str] = []
+        for fixture in fixtures:
+            muts = mutators((REPO / fixture).read_text(encoding="utf-8"))
             if not muts:
-                tsv.write(
-                    f"{fixture}\t{tier_of(fixture)}\tnone\t\trejected\trejected\t"
-                    f"no mutation generated\tagree\tdiscarded-no-mutation\tno applicable mutator\t"
-                    f"\t\t\t\t\t0\t0\n"
-                )
-                tsv.flush()
-            shutil.rmtree(staging, ignore_errors=True)
-            append_checkpoint(fixture)
-            if (fi + 1) % 25 == 0:
-                print(f"progress {fi+1}/{len(fixtures)}", flush=True)
-                subprocess.run(["git", "-C", str(REPO), "add", str(TSV), str(CHECKPOINT)], check=False)
-                subprocess.run(
-                    [
-                        "git",
-                        "-C",
-                        str(REPO),
-                        "commit",
-                        "-m",
-                        f"docs: soundness mutations shard {SHARD} progress {fi+1}/{len(fixtures)}",
-                    ],
-                    check=False,
-                    capture_output=True,
-                )
-                subprocess.run(
-                    ["git", "-C", str(REPO), "push", "origin", f"work/soundness-mutations-shard-{SHARD}"],
-                    check=False,
-                )
+                if f"{fixture}\tnone" not in done:
+                    pending_fixtures.append(fixture)
+                continue
+            if any(f"{fixture}\t{kind}" not in done for kind, _, _ in muts):
+                pending_fixtures.append(fixture)
 
-    print(f"finished shard {SHARD} fixtures={len(fixtures)}")
+        row_count = 0
+        stats["mutants_by_kind"] = stats.get("mutants_by_kind") or {}
+        if isinstance(stats["drop_requires_machine_header"], int):
+            pass
+        stats["drop_requires_machine_header"] = stats.get("drop_requires_machine_header", 0)
+
+        completed = 0
+        with ThreadPoolExecutor(max_workers=FIXTURE_WORKERS) as pool:
+            futures = [
+                pool.submit(process_fixture, fixture, done, tsv, stats) for fixture in pending_fixtures
+            ]
+            for fi, fut in enumerate(futures):
+                row_count += fut.result()
+                completed += 1
+                if completed % 20 == 0 or completed == len(pending_fixtures):
+                    print(
+                        f"progress fixtures {completed}/{len(pending_fixtures)} rows+={row_count}",
+                        flush=True,
+                    )
+
+        stats["mutant_rows_written"] = row_count
+        STATS.write_text(json.dumps(stats, indent=2) + "\n", encoding="utf-8")
+    print(f"finished shard {SHARD} pending_fixtures={len(pending_fixtures)} stats={stats}")
 
 
 if __name__ == "__main__":

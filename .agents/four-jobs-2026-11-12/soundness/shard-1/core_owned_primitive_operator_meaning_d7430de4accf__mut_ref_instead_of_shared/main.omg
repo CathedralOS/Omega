@@ -1,0 +1,30 @@
+// Expected exit: 0.
+// Only the core package publishes primitive operator meanings, so `u32 - u32`
+// and `f64 == f64` keep their core-owned meaning here. This package still
+// binds its own `-` token, homed in a type it declares (`Gauge`), and that
+// binding applies only to `Gauge` operands. A wrong meaning on either side
+// reaches the trapping arm.
+public data Gauge { value: u32; }
+
+public machine - Gauge::gap(left: &mutGauge, right: &Gauge) -> u32 {
+    70
+}
+
+machine authored_gap(left: &Gauge, right: &Gauge) -> u32 {
+    left - right
+}
+
+machine main() crashes Trap {
+    let high: u32 = 9;
+    let low: u32 = 4;
+    let difference: u32 = high - low;
+    let measured: f64 = 0.5;
+    let gauge: Gauge = Gauge { value: 9 };
+    let gap: u32 = authored_gap(&gauge, &gauge);
+    transition difference == 5 && measured == 0.5 && gap == 70 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

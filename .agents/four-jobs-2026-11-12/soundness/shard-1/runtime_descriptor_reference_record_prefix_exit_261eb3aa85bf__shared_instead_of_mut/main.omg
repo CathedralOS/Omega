@@ -1,0 +1,71 @@
+// The import accesses only header bytes. Stored reference custody and the
+// scalar after that pointer-sized hole remain with the original record.
+// Lend the header prefix explicitly: an opaque writer must not receive mutable
+// authority over the stored reference or the atomic fields beyond that prefix.
+
+public data Cell { value: u64; counter: AtomicU64; }
+public data Header { value: u64; }
+public data Packet { header: Header; reference: &Cell; counter: AtomicU64; tail: u64; }
+public boundary trait DescriptorIo {
+    machine read(descriptor: i32, packet: & Header, count: u64) -> i64 reaches blocks;
+    machine write(descriptor: i32, packet: &Packet, count: u64) -> i64 reaches;
+}
+data Main { cell: Cell; }
+
+machine receive(packet: &mut Header, count: u64) -> i64
+    reaches DescriptorIo blocks {
+    block DescriptorIo::read(0, packet, count)
+}
+
+machine publish(cell: &Cell) {
+    cell.counter.store(23, NoOrdering);
+}
+
+machine observe(cell: &Cell) -> u64 in Wrapping {
+    let resident_atomic_observed: u64 = cell.counter.load(NoOrdering);
+    let resident: u64 in Wrapping = resident_atomic_observed as u64 in Wrapping;
+    transition { _ -> (resident) }
+}
+
+machine publish_packet(packet: &Packet) {
+    packet.counter.store(11, NoOrdering);
+}
+
+machine observe_packet(packet: &Packet) -> u64 in Wrapping {
+    let resident_atomic_observed: u64 = packet.counter.load(NoOrdering);
+    let resident: u64 in Wrapping = resident_atomic_observed as u64 in Wrapping;
+    transition { _ -> (resident) }
+}
+
+machine Main::main(main: &mut Main) reaches DescriptorIo blocks crashes Trap {
+    main.cell.value = 31;
+    let packet: Packet = Packet { header: Header { value: 16706 }, reference: &main.cell, counter: 7, tail: 29 };
+    let before: i64 = DescriptorIo::write(1, &packet, 1);
+    let zero: i64 = block receive(&mut packet.header, 0);
+    let moved: i64 = block receive(&mut packet.header, 1);
+    let saved: u64 = packet.header.value;
+    let after: i64 = DescriptorIo::write(1, &packet, 1);
+    let line: i64 = block receive(&mut packet.header, 1);
+    let end: i64 = block receive(&mut packet.header, 1);
+    let newline: i64 = DescriptorIo::write(1, &packet, 1);
+    publish(packet.reference);
+    let resident: u64 in Wrapping = observe(&main.cell);
+    let untouched: u64 in Wrapping = observe_packet(&packet);
+    publish_packet(&packet);
+    let published: u64 in Wrapping = observe_packet(&packet);
+    transition before == 1 && zero == 0 && moved == 1 && after == 1
+        && line == 1 && end == 0 && newline == 1 && saved == 16707
+        && packet.header.value == 16650 && packet.reference.value == 31 && packet.tail == 29
+        && resident == 23 && untouched == 7 && published == 11 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches DescriptorIo blocks crashes Trap {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

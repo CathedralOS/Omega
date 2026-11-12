@@ -1,8 +1,9 @@
 {
-  "rejected-both": 575,
+  "rejected-both": 2101,
   "no-mutation": 88,
-  "valid-route-outside": 443,
-  "discarded-valid": 14,
-  "confirmed-hole": 9,
-  "disagreement-valid": 2
+  "valid-route-outside": 1132,
+  "confirmed-hole": 35,
+  "discarded-valid": 51,
+  "disagreement-valid": 14,
+  "known-gap-q7-mut": 63
 }

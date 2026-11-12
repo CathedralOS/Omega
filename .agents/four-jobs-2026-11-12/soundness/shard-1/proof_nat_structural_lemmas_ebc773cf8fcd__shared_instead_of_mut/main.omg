@@ -1,0 +1,92 @@
+// Basic identity laws for recursive Nat values. The clauses below cover
+// reflexivity, symmetry, transitivity and constructor injectivity. Later
+// examples explicitly cite the core arithmetic laws they consume.
+use omega::language::core::nat;
+use omega_language_std::console;
+data Main { }
+machine Main::main(main: & Main) reaches Console { Console::exit_process(70); }
+machine nat_refl(a: Nat)
+ensures
+    core::Identity<Nat>(a, a)
+{
+}
+machine zero_refl()
+ensures
+    core::Identity<Nat>(Nat::Zero, Nat::Zero)
+{
+}
+machine nat_symm(a: Nat, b: Nat)
+requires
+    core::Identity<Nat>(a, b)
+ensures
+    core::Identity<Nat>(b, a)
+{
+}
+machine nat_trans(a: Nat, b: Nat, c: Nat)
+requires
+    core::Identity<Nat>(a, b) && core::Identity<Nat>(b, c)
+ensures
+    core::Identity<Nat>(a, c)
+{
+}
+// Returning the original value establishes its exact result identity.
+machine nat_id(b: Nat) -> Nat
+ensures
+    core::Identity<Nat>(result, b)
+{
+    transition { _ -> (b) }
+}
+// Identical successor values have identical predecessor fields.
+machine succ_inj(a: Nat, b: Nat)
+requires
+    core::Identity<Nat>(Nat::Succ { prev: a }, Nat::Succ { prev: b })
+ensures
+    core::Identity<Nat>(a, b)
+{
+}
+// This closed addition unfolds to two successors of Zero.
+machine one_plus_one()
+ensures
+    core::Identity<Nat>(
+        add(Nat::Succ { prev: Nat::Zero }, Nat::Succ { prev: Nat::Zero }),
+        Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }
+    )
+{
+}
+// Cite the resultless core theorem, then return the original value.
+machine cite_right(a: Nat) -> Nat
+ensures
+    core::Identity<Nat>(result, a)
+{
+    add_zero_right(a);
+    transition { _ -> a }
+}
+// A statement call imports the checked right-identity law at b. Importing
+// the module alone does not activate that theorem as an ambient fact.
+machine cite_zero(b: Nat)
+ensures
+    core::Identity<Nat>(add(b, Nat::Zero), b)
+{
+    add_zero_right(b);
+}
+// Cite the core commutativity theorem at these exact operands.
+machine cite_comm(x: Nat, y: Nat)
+ensures
+    core::Identity<Nat>(add(x, y), add(y, x))
+{
+    add_comm(x, y);
+}
+// These citations exercise the core associativity and multiplication
+// commutativity laws with the caller's actual operands.
+machine cite_assoc(x: Nat, y: Nat, z: Nat)
+ensures
+    core::Identity<Nat>(add(add(x, y), z), add(x, add(y, z)))
+{
+    add_assoc(x, y, z);
+}
+machine cite_mul_comm(x: Nat, y: Nat)
+ensures
+    core::Identity<Nat>(mul(x, y), mul(y, x))
+{
+    mul_comm(x, y);
+}

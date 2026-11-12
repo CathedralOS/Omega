@@ -1,0 +1,30 @@
+// The exact selected executable application supplies a nonzero native entry and finite attributed code regions at runtime.
+// Expected exit: 0
+use omega::language::core::code_layout;
+machine selected<T, const Salt: u64>(value: T) -> T { value }
+data RegionSnapshot [copy] { entry: addr; first: CodeRegion; }
+machine capture() -> RegionSnapshot terminates {
+    let layout: CodeLayout = code_layout<selected<u64, 7>>();
+    transition layout.regions.len > 0 {
+        true -> snapshot(layout)
+        _ -> empty()
+    }
+    machine snapshot(layout: CodeLayout) -> RegionSnapshot
+    {
+        let first: CodeRegion = layout.regions[0];
+        RegionSnapshot { entry: layout.entry, first: first }
+    }
+    machine empty() -> RegionSnapshot {
+        let missing: RegionSnapshot;
+        missing
+    }
+}
+machine witness() -> bool terminates {
+    let saved: RegionSnapshot = capture();
+    saved.entry != 0 && saved.first.base == saved.entry && saved.first.length > 0
+}
+machine main() crashes Trap {
+    transition witness() { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

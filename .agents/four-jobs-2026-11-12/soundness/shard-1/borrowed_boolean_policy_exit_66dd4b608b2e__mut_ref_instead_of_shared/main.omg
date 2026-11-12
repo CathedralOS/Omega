@@ -1,0 +1,39 @@
+// Expected exit: 0
+// Subtract 37 after the helper confirms that the referenced field equals 37.
+
+public data Cell {
+    value: u64;
+}
+
+public machine accepts(accepted: bool, value: &mutCell) -> bool reaches terminates {
+    !accepted || value.value == 37
+}
+machine check(value: &Cell) -> bool
+ensures accepts(result, value) {
+    value.value == 37
+}
+
+machine checked(value: &Cell) -> u64 {
+    let accepted: bool = check(value);
+    transition accepted {
+        true -> use_value(value)
+        _ -> declined()
+    }
+    machine use_value(value: &Cell) -> u64
+    requires value.value == 37 {
+        value.value - 37
+    }
+    machine declined() -> u64 { 91 }
+}
+machine main() crashes Trap {
+    let matching: Cell = Cell { value: 37 };
+    let other: Cell = Cell { value: 91 };
+    let yes: u64 = checked(&matching);
+    let no: u64 = checked(&other);
+    transition yes == 0 && no == 91 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

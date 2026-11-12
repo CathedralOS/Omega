@@ -1,0 +1,19 @@
+data Byte requires value >= 0 && value <= 1 { value: u8; }
+
+machine read(byte: &Byte) -> bool {
+    let flag: &bool = &byte.value as &bool;
+    flag
+}
+
+machine main() crashes Trap {
+    let zero: Byte = Byte { value: 0 };
+    let one: Byte = Byte { value: 1 };
+    let skipped: bool = false && read(&one);
+    let unset: bool = true && read(&zero);
+    let set: bool = true && read(&one);
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

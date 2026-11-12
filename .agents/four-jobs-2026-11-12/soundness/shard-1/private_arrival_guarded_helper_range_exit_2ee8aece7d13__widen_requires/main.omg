@@ -1,0 +1,33 @@
+// A helper returns its input only when the input lies in [20, 60] and 40
+// otherwise, so its result lies in [20, 60]. That inferred result range
+// reaches the nested `step` through its one arrival, which proves
+// `60u64 - val` and `val - 20u64`. `main` runs both helper branches.
+machine helper(v: u64) -> u64 {
+    transition v >= 20 && v <= 59 {
+        true -> v
+        _ -> 40
+    }
+}
+
+machine run(a: u64, expected: u64) crashes Trap {
+    let joined: u64 = helper(a);
+    transition true {
+        true -> step(joined, expected)
+        _ -> bad()
+    }
+    machine step(val: u64, expected: u64) {
+        let diff1: u64 = 60u64 - val;
+        let diff2: u64 = val - 20u64;
+        transition diff1 + diff2 == 40 && val == expected {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    run(100, 40);
+    run(30, 30);
+}

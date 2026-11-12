@@ -1,0 +1,62 @@
+// A finite-family call reads the original nested scalar beneath its owned input's content claim.
+// Expected exit: 0
+use omega::language::core::content;
+use omega::language::core::drop;
+
+data Units {}
+domain u64::StoredValue requires self >= 100 && self <= 1000;
+data Token [linear] dropped by drop_token { value: u64 in StoredValue; }
+machine drop_token(token: &mutmut Token) {}
+domain Token::Owned;
+machine Owned::content(token: &Token) -> CountedQuantity<Units>
+satisfies Content<Token, CountedQuantity<Units>>::project {
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+
+data Packet { before: u64; owned: Token in Token::Owned; after: u64; }
+trait FieldReader {
+    machine read<Width: u32>(prefix: u64, input: Packet) -> u64
+    requires Width == 16 || Width == 32
+    ensures result >= 100;
+}
+ReadField satisfies FieldReader {
+    machine read<Width: u32>(prefix: u64, input: Packet) -> u64
+    requires Width == 16 || Width == 32
+    ensures result >= 100
+    {
+        let observed: u64 = input.owned.value;
+        drop(input.owned);
+        observed
+    }
+}
+machine dispatch(selected: dyn FieldReader, prefix: u64, input: Packet, width: u32) -> u64
+requires width == 16 || width == 32
+ensures result >= 100
+{
+    FieldReader::read<width>(selected, prefix, input)
+}
+machine exercise(value: u64 in StoredValue, width: u32, expected: u64) crashes Trap
+requires width == 16 || width == 32
+{
+    let packet: Packet = Packet {
+        before: 17,
+        owned: Token { value: value },
+        after: 23,
+    };
+    transition { _ -> consume(packet, width, expected) }
+    machine consume(packet: Packet, width: u32, expected: u64) crashes Trap
+    requires width == 16 || width == 32
+    {
+        let result: u64 = dispatch(ReadField as dyn FieldReader, 29, packet, width);
+        let difference: u64 = result - 100;
+        transition difference == expected { true -> done() _ -> bad() }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine main() crashes Trap {
+    exercise(103, 16, 3);
+    exercise(107, 16, 7);
+    exercise(103, 32, 3);
+    exercise(107, 32, 7);
+}

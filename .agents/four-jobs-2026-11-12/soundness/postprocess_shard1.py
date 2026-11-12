@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
@@ -56,6 +56,14 @@ MODULAR_ENTRY_INFERENCE = (
 )
 
 ROUTE_NON_VERDICT = frozenset({"outside", "no-entry", "unreached"})
+
+LEGACY_KIND = {"amp_to_ampmut": "mut_ref_instead_of_shared"}
+
+
+def canon_kind(kind: str) -> str:
+    if "__" in kind:
+        kind = kind.rsplit("__", 1)[-1]
+    return LEGACY_KIND.get(kind, kind)
 
 
 def route_outside(route: str) -> bool:
@@ -137,6 +145,18 @@ def first_requires_predicate(source: str) -> str:
     return m.group(2).strip() if m else ""
 
 
+def dropped_requires_predicate(original: str, mutant: str) -> str:
+    o_lines = original.splitlines(keepends=True)
+    m_lines = mutant.splitlines(keepends=True)
+    for o_ln, m_ln in zip(o_lines, m_lines):
+        if o_ln.startswith("requires") and not m_ln.startswith("requires"):
+            return o_ln.strip().removeprefix("requires").strip()
+    for o_ln in o_lines:
+        if o_ln.lstrip().startswith("requires") and o_ln not in mutant:
+            return o_ln.strip().removeprefix("requires").strip()
+    return first_requires_predicate(original)
+
+
 def machine_scope_around_first_requires(source: str) -> str:
     m = re.search(r"^(\s*)requires\b[^\n]*\n", source, re.MULTILINE)
     if not m:
@@ -159,24 +179,28 @@ def machine_body_after_first_requires(source: str) -> str:
     return chunk[: end.start()] if end else chunk
 
 
-def requires_repeated_inside_machine(source: str) -> tuple[bool, str, str]:
-    """Transition/guard inside the machine restates dropped requires (fix5 + user correction)."""
-    req = first_requires_predicate(source)
-    if not req:
+def requires_repeated_inside_machine(
+    source: str, req: str = ""
+) -> tuple[bool, str, str]:
+    """In-machine transition/guard restates dropped requires (callers outside do not)."""
+    predicate = req or first_requires_predicate(source)
+    if not predicate:
         return False, "", ""
     scope = machine_scope_around_first_requires(source)
     if not scope:
         return False, "", ""
+    req_body = predicate.removeprefix("requires").strip() if predicate.startswith("requires") else predicate
     for line in scope.splitlines():
         s = line.strip()
         if not (s.startswith("transition ") or s.startswith("if ")):
             continue
         guard = s
-        if req == guard or req in guard:
-            return True, req, guard
-        for frag in re.findall(r"[\w().:]+\s*[=<>!]+\s*[\w().:]+", req):
-            if frag.replace(" ", "") in guard.replace(" ", ""):
-                return True, req, guard
+        guard_expr = guard.split(" ", 1)[1] if " " in guard else guard
+        if req_body and (req_body in guard_expr or req_body.replace(" ", "") in guard_expr.replace(" ", "")):
+            return True, req_body, guard
+        for frag in re.findall(r"[\w().:<>,]+\s*[=<>!]+\s*[\w().:<>,]+", req_body):
+            if frag.replace(" ", "") in guard_expr.replace(" ", ""):
+                return True, req_body, guard
     return False, "", ""
 
 
@@ -187,7 +211,8 @@ def read_mutant_validity(
     note = ""
 
     if kind == "drop_requires":
-        dup, rq, gq = requires_repeated_inside_machine(original)
+        dropped = dropped_requires_predicate(original, mutant)
+        dup, rq, gq = requires_repeated_inside_machine(original, dropped)
         if dup:
             return (
                 False,
@@ -197,7 +222,6 @@ def read_mutant_validity(
                 f"valid: requires `{rq}` restated inside machine at `{gq}`",
             )
         block = machine_body_after_first_requires(mutant)
-        dropped = first_requires_predicate(original)
         for line in block.splitlines():
             s = line.strip()
             if s.startswith("ensures "):
@@ -240,17 +264,29 @@ def read_mutant_validity(
                 )
         return False, "", "", "", "valid: first let mut has no write/&mut on same binding"
 
-    if kind == "amp_to_ampmut":
-        for line in mutant.splitlines():
-            if "&mut" in line and "&" in line.replace("&mut", ""):
+    if kind in ("mut_ref_instead_of_shared", "amp_to_ampmut"):
+        for o_ln, m_ln in zip(original.splitlines(), mutant.splitlines()):
+            if "&mut" in m_ln and "&mut" not in o_ln and ("&" in o_ln or "&write" not in m_ln):
                 return (
                     True,
-                    line.strip(),
+                    m_ln.strip(),
                     "wiki/spec/language/expressions.md",
                     "Such a loan requires existing writable authority at the selected place;",
-                    "&mut without writable authority on carrier",
+                    "mut_ref_instead_of_shared without writable authority",
                 )
-        return False, "", "", "", "valid: amp_to_ampmut not substantiated in mutant"
+        return False, "", "", "", "valid: mut_ref_instead_of_shared not substantiated in mutant"
+
+    if kind == "shared_instead_of_mut":
+        for o_ln, m_ln in zip(original.splitlines(), mutant.splitlines()):
+            if "&mut" in o_ln and "&mut" not in m_ln:
+                return (
+                    True,
+                    o_ln.strip(),
+                    "wiki/spec/language/ownership.md",
+                    "A non-`mut` binding does not prevent a permitted move; the recipient may bind its own value mutably.",
+                    "shared_instead_of_mut removes writable loan where mutation is required",
+                )
+        return False, "", "", "", "valid: shared_instead_of_mut not substantiated in mutant"
 
     if kind == "remove_guard_transition":
         m = re.search(r"^\s*transition\s+([^\n]+)\{\s*\n", original, re.MULTILINE)
@@ -437,13 +473,14 @@ def probe_drop_requires_subtype(
 
 
 def only_q7_mut_violation(spec_quote: str, kind: str) -> bool:
-    if kind in ("remove_mut", "amp_to_ampmut"):
+    if kind in ("remove_mut", "mut_ref_instead_of_shared", "amp_to_ampmut", "shared_instead_of_mut"):
         return "mut" in spec_quote.lower() or "writable authority" in spec_quote.lower()
     return False
 
 
 def triage_row(row: dict[str, str], q7: set[str]) -> dict[str, str]:
-    kind = row.get("mutation_kind", "")
+    kind = canon_kind(row.get("mutation_kind", ""))
+    row["mutation_kind"] = kind
     cur = row.get("current_verdict", "")
     rt = row.get("route_verdict", "")
     fixture = row.get("fixture", "")
@@ -631,24 +668,62 @@ def main() -> None:
     confirmed = [r for r in out_rows if r["hand_verdict"] == "confirmed-hole"]
     discarded = [r for r in out_rows if r["hand_verdict"] == "discarded-valid"]
     q7_mut = [r for r in out_rows if r["hand_verdict"] == "known-gap-q7-mut"]
+    restated = [r for r in out_rows if "restated inside machine" in r.get("validity_note", "")]
+
+    fx_groups: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for r in out_rows:
+        fx_groups[r["fixture"]].append(r)
+    no_mut_fx = sum(1 for fx, rs in fx_groups.items() if all(r["mutation_kind"] == "none" for r in rs))
+    failed_fx = sum(
+        1
+        for fx, rs in fx_groups.items()
+        if rs and all(r["mutation_kind"] != "none" for r in rs)
+        and all(r["hand_verdict"] == "failed-run" for r in rs)
+    )
+    mutated_fx = FIXTURE_TOTAL - no_mut_fx - failed_fx
+    assert no_mut_fx + failed_fx + mutated_fx == FIXTURE_TOTAL
+
+    kind_gen = Counter(canon_kind(r["mutation_kind"]) for r in out_rows if r["mutation_kind"] != "none")
+    stats_path = OUT / f"shard-{SHARD}-generation-stats.json"
+    gen_stats = {}
+    if stats_path.is_file():
+        gen_stats = json.loads(stats_path.read_text(encoding="utf-8"))
 
     bucket_lines = [
         f"# Soundness mutations — shard {SHARD}/8",
         "",
         f"PIN: `{PIN}`. Triage follows **soundness_fix3** + **soundness_fix4**.",
         "",
-        "## Coverage reconciliation (fix4)",
+        "## Fixture ledger (sum = 1131 fixtures)",
         "",
-        f"- Fixtures in shard: **{FIXTURE_TOTAL}**",
+        f"- `no-mutation` fixtures: **{no_mut_fx}**",
+        f"- `failed-run` fixtures: **{failed_fx}**",
+        f"- `mutated` fixtures (≥1 kind): **{mutated_fx}**",
+        f"- **Total fixtures:** **{FIXTURE_TOTAL}**",
+        "",
+        "## Mutant ledger",
+        "",
         f"- Mutant rows in TSV: **{total}**",
-        f"- `no-mutation` fixtures: **{buckets.get('no-mutation', 0)}**",
-        f"- Fixtures with a mutation run: **{total - buckets.get('no-mutation', 0)}**",
-        f"- Mutants per fixture: **1** prioritized kind (or `none` row)",
+        f"- Rows with `mutation_kind=none`: **{buckets.get('no-mutation', 0)}**",
+        f"- Classified mutant rows (bucket sum): **{total}**",
+        "",
+        "### Mutants generated per kind (row counts)",
         "",
     ]
-    multi = [fx for fx, cnt in Counter(r["fixture"] for r in out_rows).items() if cnt > 1]
-    bucket_lines.append(f"- Fixtures with >1 row: **{len(multi)}**" + (f" — {multi[:20]}" if multi else ""))
+    for k, v in sorted(kind_gen.items()):
+        bucket_lines.append(f"- `{k}`: **{v}**")
+    if gen_stats.get("drop_requires_machine_header") is not None:
+        bucket_lines += [
+            "",
+            f"- `drop_requires` with **machine-header** site: **{gen_stats['drop_requires_machine_header']}**",
+        ]
+    per_fx_counts = [len([r for r in rs if r["mutation_kind"] != "none"]) for rs in fx_groups.values()]
     bucket_lines += [
+        "",
+        "### Mutants per fixture (non-`none`)",
+        "",
+        f"- Mean: **{sum(per_fx_counts) / max(len(per_fx_counts), 1):.2f}**",
+        f"- Fixtures with >1 mutant row: **{sum(1 for c in per_fx_counts if c > 1)}**",
         "",
         "## Bucket totals (sum = mutant rows)",
         "",
@@ -697,6 +772,24 @@ def main() -> None:
     write_hand_block("Hand verification — discarded-valid (5)", discarded[:5] or discarded, bucket_lines)
     write_hand_block("Hand verification — discarded-valid drop_requires (5)", disc_drop, bucket_lines)
     write_hand_block("Hand verification — known-gap-q7-mut (5)", q7_mut, bucket_lines)
+    bucket_lines += [
+        f"## In-machine restate (`valid-route-outside` / valid mutants): **{len(restated)}** rows",
+        "",
+        "Rule: dropped `requires` is restated on an in-machine `transition`/`if` guard that dominates "
+        "body access; callers outside the machine cannot restate.",
+        "",
+    ]
+    for row in restated[:5]:
+        note = row.get("validity_note", "")
+        m = re.search(r"requires `([^`]+)` restated inside machine at `([^`]+)`", note)
+        rq, gq = (m.group(1), m.group(2)) if m else ("?", note)
+        bucket_lines += [
+            f"### `{row['fixture']}` — `{row['mutation_kind']}`",
+            f"- Dropped requires: `{rq}`",
+            f"- In-machine guard: `{gq}`",
+            f"- Bucket: `{row['hand_verdict']}`",
+            "",
+        ]
 
     bucket_lines += ["## Confirmed-hole entries", ""]
     for row in confirmed:

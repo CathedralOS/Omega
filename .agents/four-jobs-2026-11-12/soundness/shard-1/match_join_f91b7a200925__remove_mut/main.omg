@@ -1,0 +1,54 @@
+// Expected exit: 0.
+// A non-observing single attempt returns the proposed u32 on failure and the displaced u32 on commit.
+use omega::language::core::layout;
+data Cells { selected: AtomicU32; untouched: AtomicU32; }
+machine marked(outcome: AtomicTryExchangeOnceOutcome<u32>, path: &write u64, route: u64) -> AtomicTryExchangeOnceOutcome<u32> {
+    path = route;
+    outcome
+}
+machine probe(cells: &Cells, branch: bool, path: &write u64) -> bool {
+    cells.selected.store(10, NoOrdering);
+    cells.untouched.store(17, NoOrdering);
+    let raw: AtomicTryExchangeOnceOutcome<u32> = cells.selected.try_exchange_once(10, 99, ReceivePublish, Receive);
+    let joined: AtomicTryExchangeOnceOutcome<u32> = match branch {
+        true -> marked(raw, path, 17),
+        false -> marked(raw, path, 23),
+    };
+    transition joined {
+        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (displaced == 10 && cells.selected.load(NoOrdering) == 99 && cells.untouched.load(NoOrdering) == 17)
+        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (false)
+        AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17)
+    }
+}
+machine mismatch(cells: &Cells, branch: bool, path: &write u64) -> bool {
+    cells.selected.store(10, NoOrdering);
+    cells.untouched.store(17, NoOrdering);
+    let raw: AtomicTryExchangeOnceOutcome<u32> = cells.selected.try_exchange_once(9, 99, ReceivePublish, Receive);
+    let joined: AtomicTryExchangeOnceOutcome<u32> = match branch {
+        true -> marked(raw, path, 17),
+        false -> marked(raw, path, 23),
+    };
+    transition joined {
+        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17)
+        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (false)
+        AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (false)
+    }
+}
+machine main() crashes Trap {
+    let cells: Cells;
+    let : u64 = 0;
+    let first: bool = probe(&cells, true, &write path);
+    let first_path: u64 = path;
+    path = 0;
+    let second: bool = probe(&cells, false, &write path);
+    let second_path: u64 = path;
+    path = 0;
+    let third: bool = mismatch(&cells, true, &write path);
+    let third_path: u64 = path;
+    path = 0;
+    let fourth: bool = mismatch(&cells, false, &write path);
+    let fourth_path: u64 = path;
+    transition first && first_path == 17 && second && second_path == 23 && third && third_path == 17 && fourth && fourth_path == 23 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

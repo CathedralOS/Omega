@@ -1,0 +1,74 @@
+use omega::language::core::layout;
+// A runtime selection preserves each reference's endpoint and physical codec.
+// The same helper writes a canonical i64 and a one-byte encoded i64 loan.
+
+
+SignedByte satisfies FixedLayout<PortableByte> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        representation: FieldPlan::IntegerAt {
+            offset: 0,
+            stored_width: 8,
+            interpretation: IntegerInterpretation::Signed,
+        },
+    };
+    LayoutPlan {
+        entries: entries,
+        entry_count: 1,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+}
+
+data PortableByte [copy] { value: i64; }
+data RawView { value: LayoutStorage<PortableByte, SignedByte>; }
+
+data Main {
+    canonical: i64;
+    choose_canonical: bool;
+    bytes: [u8; 2];
+}
+
+machine set(dst: &mutmut i64, value: i64) { dst = value; }
+machine forward(dst: &mut i64, value: i64) { set(dst, value); }
+
+machine select_and_write(
+    canonical: &mut i64,
+    encoded: &mut i64,
+    choose_canonical: bool,
+    value: i64
+) {
+    let selected: &mut i64 = match choose_canonical {
+        true -> canonical,
+        false -> encoded,
+    };
+    forward(selected, value);
+}
+
+machine Main::main(main: &mut Main) crashes Trap {
+    main.canonical = 0;
+    main.bytes[0] = 0;
+    main.bytes[1] = 85;
+    let view: &mut RawView = &mut main.bytes[0] as &mut RawView;
+    let leaf: &mut i64 = &mut view.value.value;
+    main.choose_canonical = true;
+    select_and_write(&mut main.canonical, leaf, main.choose_canonical, -128);
+    main.choose_canonical = false;
+    select_and_write(&mut main.canonical, leaf, main.choose_canonical, 127);
+    transition main.canonical == -128 && main.bytes[0] == 127 && main.bytes[1] == 85 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

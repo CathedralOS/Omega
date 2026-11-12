@@ -1,0 +1,117 @@
+// Expected exit: 70 (Windows only). Independent opens contend; duplicates
+// share lock identity. Closing each internal pin must not release the lock.
+// Shared locks coexist, exact unlocks release, and neither cursor moves.
+use omega_language_std::windows_filesystem_host;
+use omega_language_std::console;
+use omega::language::core::filesystem_authority;
+
+data Main { first: u64; second: u64; duplicate: u64; }
+
+machine Main::main(main: & Main)
+reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+    let stale: i32 = block WindowsFilesystemHost::delete_file("omega_raw_lock.tmp");
+    main.first = block WindowsFilesystemHost::create_file("omega_raw_lock.tmp", 3221225472, 7, 2, 128);
+    transition main.first != 0 { true -> block write(main) false -> block finish(main, 71) }
+    machine write(main: &mut Main) {
+        let written: i64 = block WindowsFilesystemHost::write_file(main.first, "abcd");
+        transition written == 4 { true -> block open_second(main) false -> block finish(main, 72) }
+    }
+    machine open_second(main: &mut Main) {
+        main.second = block WindowsFilesystemHost::create_file("omega_raw_lock.tmp", 3221225472, 7, 3, 128);
+        transition main.second != 0 { true -> block exclusive(main) false -> block finish(main, 73) }
+    }
+    machine exclusive(main: &mut Main) {
+        let acquired: i32 = block WindowsFilesystemHost::lock_file(main.first, true, false);
+        transition acquired == 0 { true -> block exclusive_conflict(main) false -> block finish(main, 74) }
+    }
+    machine exclusive_conflict(main: &mut Main) {
+        let conflict: i32 = block WindowsFilesystemHost::lock_file(main.second, true, true);
+        transition conflict == -33 { true -> block shared_conflict(main) false -> block finish(main, 75) }
+    }
+    machine shared_conflict(main: &mut Main) {
+        let conflict: i32 = block WindowsFilesystemHost::lock_file(main.second, false, true);
+        transition conflict == -33 { true -> block duplicate(main) false -> block finish(main, 76) }
+    }
+    machine duplicate(main: &mut Main) {
+        main.duplicate = WindowsFilesystemHost::duplicate_handle(main.first);
+        transition main.duplicate != 0 { true -> block unlock_duplicate(main) false -> block finish(main, 77) }
+    }
+    machine unlock_duplicate(main: &mut Main) {
+        let released: i32 = block WindowsFilesystemHost::unlock_file(main.duplicate);
+        transition released == 0 { true -> block close_duplicate(main) false -> block finish(main, 78) }
+    }
+    machine close_duplicate(main: &mut Main) {
+        let closed: i32 = block WindowsFilesystemHost::close_handle(main.duplicate);
+        main.duplicate = 0;
+        transition closed == 0 { true -> block second_exclusive(main) false -> block finish(main, 79) }
+    }
+    machine second_exclusive(main: &mut Main) {
+        let acquired: i32 = block WindowsFilesystemHost::lock_file(main.second, true, true);
+        transition acquired == 0 { true -> block first_conflict(main) false -> block finish(main, 80) }
+    }
+    machine first_conflict(main: &mut Main) {
+        let conflict: i32 = block WindowsFilesystemHost::lock_file(main.first, false, true);
+        transition conflict == -33 { true -> block release_second(main) false -> block finish(main, 81) }
+    }
+    machine release_second(main: &mut Main) {
+        let released: i32 = block WindowsFilesystemHost::unlock_file(main.second);
+        transition released == 0 { true -> block shared(main) false -> block finish(main, 82) }
+    }
+    machine shared(main: &mut Main) {
+        let acquired: i32 = block WindowsFilesystemHost::lock_file(main.first, false, false);
+        transition acquired == 0 { true -> block second_shared(main) false -> block finish(main, 83) }
+    }
+    machine second_shared(main: &mut Main) {
+        let acquired: i32 = block WindowsFilesystemHost::lock_file(main.second, false, true);
+        transition acquired == 0 { true -> block no_upgrade(main) false -> block finish(main, 84) }
+    }
+    machine no_upgrade(main: &mut Main) {
+        let conflict: i32 = block WindowsFilesystemHost::lock_file(main.first, true, true);
+        transition conflict == -33 { true -> block release_shared(main) false -> block finish(main, 85) }
+    }
+    machine release_shared(main: &mut Main) {
+        let first: i32 = block WindowsFilesystemHost::unlock_file(main.first);
+        let second: i32 = block WindowsFilesystemHost::unlock_file(main.second);
+        transition first == 0 && second == 0 { true -> block cursors(main) false -> block finish(main, 86) }
+    }
+    machine cursors(main: &mut Main) {
+        let first: i64 = block WindowsFilesystemHost::set_file_pointer(main.first, 0, 1);
+        let second: i64 = block WindowsFilesystemHost::set_file_pointer(main.second, 0, 1);
+        transition first == 4 && second == 0 { true -> block unmatched(main) false -> block finish(main, 87) }
+    }
+    machine unmatched(main: &mut Main) {
+        let released: i32 = block WindowsFilesystemHost::unlock_file(main.first);
+        transition released < 0 { true -> block absent(main) false -> block finish(main, 88) }
+    }
+    machine absent(main: &mut Main) {
+        let acquired: i32 = block WindowsFilesystemHost::lock_file(0, true, true);
+        let released: i32 = block WindowsFilesystemHost::unlock_file(0);
+        transition acquired < 0 && released < 0 { true -> block finish(main, 70) false -> block finish(main, 89) }
+    }
+    machine finish(main: &mut Main, code: i32) {
+        let duplicate: i32 = block close_if_present(main.duplicate);
+        let first: i32 = block close_if_present(main.first);
+        let second: i32 = block close_if_present(main.second);
+        let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_lock.tmp");
+        transition code != 70 { true -> done(code) false -> cleanup(duplicate, first, second, removed) }
+    }
+    machine cleanup(duplicate: i32, first: i32, second: i32, removed: i32) {
+        transition duplicate == 0 && first == 0 && second == 0 && removed == 0 {
+            true -> done(70)
+            false -> done(90)
+        }
+    }
+    machine done(code: i32) { Console::exit_process(code); }
+}
+
+machine close_if_present(handle: u64) -> i32 {
+    transition handle != 0 { true -> block close(handle) false -> 0 }
+    machine close(handle: u64) -> i32 { block WindowsFilesystemHost::close_handle(handle) }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

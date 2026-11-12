@@ -1,0 +1,38 @@
+// An ordinary nested call produces a boundary operand before the enclosing
+// invocation. Its local initializer uses the same exact call ownership as
+// direct scalar operands, without hoisting the conversion into another local.
+// Windows only: Build binds kernel32 CloseHandle for `Io::c_close_handle`.
+// The zero-initialized handle is invalid, so CloseHandle returns 0 and the
+// program exits 70 (71 otherwise). Target checking alone does not establish
+// that native result.
+use omega_language_std::console;
+use omega::language::core::numeric_conversion;
+
+
+boundary trait Io {
+    machine c_close_handle(handle: i64) -> i32
+    reaches
+    Console;
+}
+
+data Main {
+    handle: u64;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let ok: i32 = Io::c_close_handle(
+        narrow_u64_to_i64_wrapping(main.handle)
+    );
+    transition ok == 0 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let : Main;
+    Main::main(&mut entry_storage);
+}

@@ -1,0 +1,20 @@
+// Fact: with Count supplied as 3, the omitted element T of Bytes::last is inferred as u8 from the actual &[u8; 3], and the selected implementation's [T; Count] carrier is the caller's copyable [u8; 3].
+// Expected exit: 0
+boundary trait Bytes {
+    machine last<const Count: u64, T [copy]>(bytes: &[T; Count]) -> T reaches requires Count > 0;
+}
+SelectedBytes satisfies Bytes {
+    machine last<const Count: u64, T [copy]>(bytes: &[T; Count]) -> T requires Count > 0 { bytes[Count - 1] }
+}
+machine joined(flag: bool) -> u8 reaches Bytes {
+    let left: [u8; 3] = [7, 11, 13];
+    let right: [u8; 3] = [19, 23, 29];
+    let bytes: [u8; 3] = match flag { true -> left, false -> right };
+    Bytes::last<3u64>(&mutbytes)
+}
+machine main() crashes Trap {
+    let left_result: u8 = joined(true);
+    let right_result: u8 = joined(false);
+    transition left_result == 13 && right_result == 29 { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

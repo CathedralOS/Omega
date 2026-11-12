@@ -1,0 +1,23 @@
+// Expected exit: 0
+// Cathedral selects an inherited interrupt requirement through its child trait.
+// This smaller witness requires the same declaration lookup without hardware.
+boundary trait Base {
+    machine value(input: u64) -> u64 reaches;
+}
+boundary trait Left: Base {}
+boundary trait Right: Base {}
+boundary trait Derived: Left + Right {}
+
+machine selected(input: u64) -> u64 satisfies Base::value { input ^ 9u64 }
+machine forward<machine Handler>(input: u64) -> u64
+requires machine Handler satisfies Derived::value;
+{
+    Handler(input)
+}
+machine start() crashes Trap {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

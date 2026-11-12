@@ -1,0 +1,58 @@
+// Expected exit: 0
+// `TryFrom::try_from` publishes neither a termination promise nor a reach
+// bound. A call that names an implementation's member directly is a call to
+// that one machine, so it may rely on what a free machine with the same
+// declaration would give: `Write` authors `reaches none terminates`, and
+// `Quiet` authors nothing but has a body that is checked to be total and pure.
+// A terminating caller and a law about the result are accepted for both.
+use omega::language::core::conversion;
+
+data Pair [copy] { first: u8; last: u8; }
+data Frame [copy] { tag: u8; first: u8; last: u8; }
+data Failure [copy] { case InvalidTag; }
+
+Write satisfies TryFrom<Pair, Frame, Failure> {
+    machine try_from(source: Pair) -> Result<Frame, Failure> reaches none terminates {
+        Result::Ok { value: Frame { tag: 165u8, first: source.first, last: source.last } }
+    }
+}
+
+Quiet satisfies TryFrom<Pair, Frame, Failure> {
+    machine try_from(source: Pair) -> Result<Frame, Failure> {
+        Result::Ok { value: Frame { tag: 165u8, first: source.first, last: source.last } }
+    }
+}
+
+machine covers(value: Pair) reaches none terminates
+ensures Write::try_from(value) in Result::Ok
+ensures Quiet::try_from(value) in Result::Ok { }
+
+machine wrap(source: Pair) -> Result<Frame, Failure>
+reaches none terminates
+{ Write::try_from(source) }
+
+machine wrap_quiet(source: Pair) -> Result<Frame, Failure>
+reaches none terminates
+{ Quiet::try_from(source) }
+
+machine main() crashes Trap {
+    let pair: Pair = Pair { first: 17u8, last: 29u8 };
+    covers(pair);
+        Result::Err { error as error } -> bad()
+        Result::Ok { value as frame } -> quiet(frame)
+    }
+    machine quiet(first: Frame) {
+        transition wrap_quiet(Pair { first: first.first, last: first.last }) {
+            Result::Err { error as error } -> bad()
+            Result::Ok { value as frame } -> inspect(frame)
+        }
+    }
+    machine inspect(frame: Frame) {
+        transition frame.tag == 165u8 && frame.first == 17u8 && frame.last == 29u8 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    machine done() { }
+    machine bad() { crash Trap; }
+}

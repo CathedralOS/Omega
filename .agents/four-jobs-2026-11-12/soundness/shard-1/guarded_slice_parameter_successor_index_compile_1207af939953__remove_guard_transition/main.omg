@@ -1,0 +1,21 @@
+data Entry {
+    value: i32;
+}
+
+machine main() -> i32 {
+    transition {
+        _ -> 0
+    }
+
+    machine choose(entries: &[Entry], index: u64) -> i32 {
+            true -> accept(entries[index].value)
+            false -> 0
+        }
+    }
+
+    machine accept(value: i32) -> i32 {
+        transition {
+            _ -> value
+        }
+    }
+}

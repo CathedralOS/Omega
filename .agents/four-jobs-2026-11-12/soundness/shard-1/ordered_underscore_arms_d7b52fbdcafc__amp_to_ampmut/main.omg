@@ -1,0 +1,28 @@
+// The first unconditional arm ends selection: earlier guards still
+// execute, later guards and destinations must not — including an
+// effectful operand behind the stopped roster.
+data Main { calls: u32 in Wrapping; }
+
+machine observed(main: &mutmut Main) -> i32 {
+    main.calls = (main.calls as u32 in Wrapping) + (1 as u32 in Wrapping);
+    99
+}
+
+machine Main::main(main: &mut Main) {
+    main.calls = 0;
+    transition { _ -> guarded(main) _ -> bad(main) }
+    machine guarded(main: &mut Main) {
+        transition {
+            main.calls == 1 -> bad(main)
+            main.calls == 2 -> bad(main)
+            _ -> verify(main)
+            _ -> skipped(observed(main), main)
+        }
+    }
+    machine verify(main: &mut Main) {
+        transition main.calls == 0 { true -> good(main) _ -> bad(main) }
+    }
+    machine skipped(value: i32, main: &mut Main) {}
+    machine good(main: &mut Main) {}
+    machine bad(main: &mut Main) {}
+}

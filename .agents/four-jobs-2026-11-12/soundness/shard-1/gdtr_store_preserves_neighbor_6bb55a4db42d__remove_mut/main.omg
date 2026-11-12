@@ -1,0 +1,12 @@
+// Writing ten descriptor bytes through a forwarded borrow preserves the separate neighboring byte fact.
+use omega::language::core::assembly;
+public data Buffer { before: u8; bytes: [u8; 10]; after: u8; }
+machine main() reaches MachineControl {
+    let : Buffer = Buffer { before: 17, bytes: [17,17,17,17,17,17,17,17,17,17], after: 17 };
+    capture(&write buffer.bytes);
+    consume(buffer.after);
+}
+machine capture(destination: &write [u8; 10]) reaches MachineControl {
+    asm clobbers r10 { sgdt destination }
+}
+machine consume(value: u8) requires value == 17 {}

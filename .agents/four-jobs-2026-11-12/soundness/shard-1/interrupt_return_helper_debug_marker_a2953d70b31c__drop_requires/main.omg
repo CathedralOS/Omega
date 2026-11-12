@@ -1,0 +1,154 @@
+// The compiled Omega body emits T; the CPU harness checks eight safe returns.
+// The host application is compiled to demand its private entry, never executed.
+use std::calling;
+use omega::language::core::layout;
+use omega::language::core::process_exit;
+
+
+use omega::language::core::assembly;
+use omega::language::core::assembly_model;
+
+// This zero-argument test contract does not create or consume an interrupt acknowledgement.
+public boundary trait ProbeInterrupt: Calling<ProbeInterruptCalling> {
+    machine enter() reaches PortIo;
+}
+public ProbeInterruptCalling satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        transition signature.parameter_count == 0 && signature.native_parameter_count == 0 && !signature.has_result {
+            true -> accepted()
+            false -> rejected()
+        }
+        machine accepted() -> BoundaryPlanResult {
+            let mut plan: BoundaryEntryPlan;
+            plan.call.convention = CallingConvention::SystemVAMD64;
+            plan.call.parameter_count = 0;
+            plan.call.has_result = false;
+            plan.call.stack_alignment = 16;
+            plan.call.entry_control = EntryControl::InterruptReturn;
+            plan.state.initial_regime = MachineRegime::X86Long64;
+            plan.state.interrupted_state.general_registers = true;
+            plan.state.interrupted_state.vector_registers = true;
+            plan.state.interrupted_state.flags = true;
+            plan.state.interrupted_state.instruction_pointer = true;
+            plan.state.interrupted_state.stack_pointer = true;
+            plan.state.saved_state.general_registers = true;
+            plan.state.saved_state.flags = true;
+            plan.state.saved_state.instruction_pointer = true;
+            plan.state.saved_state.stack_pointer = true;
+            plan.state.restored_state.general_registers = true;
+            plan.state.restored_state.flags = true;
+            plan.state.restored_state.instruction_pointer = true;
+            plan.state.restored_state.stack_pointer = true;
+            plan.state.permitted_transitive_use.general_registers = true;
+            plan.state.permitted_transitive_use.flags = true;
+            plan.state.permitted_transitive_use.instruction_pointer = true;
+            plan.state.permitted_transitive_use.stack_pointer = true;
+            plan.state.permitted_transitive_use.segment_state = true;
+            plan.state.stack = EntryStack::Dedicated { class: 1 };
+            plan.state.preemption = Preemption::Masked;
+            BoundaryPlanResult::Accepted { plan: plan }
+        }
+        machine rejected() -> BoundaryPlanResult {
+            BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "zero-argument interrupt transport required" } }
+        }
+    }
+}
+machine emit_interrupt_marker() reaches PortIo {
+    asm clobbers r10, r11, r15, rax, rdx {
+        out 0xE9, 0x54
+    }
+}
+public ProbeHandler satisfies ProbeInterrupt {
+    machine enter() reaches PortIo {
+        emit_interrupt_marker();
+    }
+}
+
+public data TimerGate { selector: u16; ist: u8; attributes: u8; reserved: u32; }
+public TimerGateEntry satisfies PrivateCallbackSlot<TimerGate, TimerGateLayout, ProbeInterrupt::enter> {}
+public TimerGateLayout satisfies FixedLayout<TimerGate> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 2 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 4 } };
+        entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 5 } };
+        entries[3] = FieldEntry { key: schema.fields[3].key, representation: FieldPlan::At { offset: 12 } };
+        let plan: LayoutPlan = LayoutPlan { entries: entries, entry_count: 4, size_fixed: 16, size_is_dynamic: false, align: 8 };
+        let low: LayoutPlan = LayoutPlan::place_private<TimerGateEntry>(plan,
+            FieldPlan::Bits { container: 0, container_width: 16, destination_lsb: 0, source_lsb: 0, width: 16 });
+        let middle: LayoutPlan = LayoutPlan::place_private<TimerGateEntry>(low,
+            FieldPlan::Bits { container: 6, container_width: 16, destination_lsb: 0, source_lsb: 16, width: 16 });
+        LayoutPlan::place_private<TimerGateEntry>(middle,
+            FieldPlan::Bits { container: 8, container_width: 32, destination_lsb: 0, source_lsb: 32, width: 32 })
+    }
+}
+public GateObserverCalling satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        transition signature.parameter_count == 1 && signature.native_parameter_count == 1
+            && signature.has_result && signature.callback_binder_count == 1 && signature.callback_demand_count == 1 {
+            true -> accepted(signature)
+            _ -> rejected()
+        }
+        machine accepted(signature: BoundarySignature) -> BoundaryPlanResult {
+            let mut plan: BoundaryEntryPlan;
+            plan.call.convention = CallingConvention::SystemVAMD64;
+            plan.call.parameter_count = 1;
+            plan.call.parameters[0].shape = AbiValueShape { class: AbiValueClass::Integer, byte_size: 8, alignment: 8 };
+            plan.call.parameters[0].location_count = 1;
+            plan.call.parameters[0].locations[0] = ValueLocation::Register { register: MachineRegister::X86Rdi, value_byte_offset: 0, byte_size: 8 };
+            plan.call.has_result = true;
+            plan.call.result.shape = AbiValueShape { class: AbiValueClass::Integer, byte_size: 8, alignment: 8 };
+            plan.call.result.location_count = 1;
+            plan.call.result.locations[0] = ValueLocation::Register { register: MachineRegister::X86Rax, value_byte_offset: 0, byte_size: 8 };
+            plan.call.callback_materialization_count = 1;
+            plan.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
+            plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
+            plan.call.stack_alignment = 16;
+            plan.call.entry_control = EntryControl::CallReturn;
+            plan.state.initial_regime = MachineRegime::X86Long64;
+            plan.state.permitted_transitive_use.general_registers = true;
+            plan.state.permitted_transitive_use.flags = true;
+            plan.state.permitted_transitive_use.instruction_pointer = true;
+            plan.state.permitted_transitive_use.stack_pointer = true;
+            plan.state.stack = EntryStack::ProviderSelected;
+            plan.state.preemption = Preemption::NotApplicable;
+            BoundaryPlanResult::Accepted { plan: plan }
+        }
+        machine rejected() -> BoundaryPlanResult {
+            BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one gate and one private timer entry required" } }
+        }
+    }
+}
+
+public data GateEnvelope { before: u64; gate: LayoutStorage<TimerGate, TimerGateLayout>; after: u64; }
+
+public boundary trait NativeGateObserver: Calling<GateObserverCalling> {
+    machine observe<machine Handler>(storage: &mut GateEnvelope) -> u64
+    reaches;
+}
+public boundary trait GatePreparation {
+    machine prepare<machine Handler>(storage: &mut GateEnvelope) -> u64
+    requires machine Handler satisfies ProbeInterrupt::enter;
+    reaches NativeGateObserver;
+}
+CheckedGatePreparation satisfies GatePreparation {
+    machine prepare<machine Handler>(storage: &mut GateEnvelope) -> u64
+    requires machine Handler satisfies ProbeInterrupt::enter;
+    reaches NativeGateObserver {
+        NativeGateObserver::observe<Handler>(storage)
+    }
+}
+machine start() crashes Trap {
+    let mut gate: LayoutStorage<TimerGate, TimerGateLayout>;
+    gate.selector = 8u16; gate.ist = 1u8; gate.attributes = 142u8; gate.reserved = 0u32;
+    let mut retained: GateEnvelope = GateEnvelope { before: 101, gate: gate, after: 203 };
+    let observed: u64 = GatePreparation::prepare<ProbeHandler::enter>(&mut retained);
+    transition observed == 0u64 && retained.before == 101u64 && retained.after == 203u64
+        && retained.gate.selector == 8u16 && retained.gate.ist == 1u8
+        && retained.gate.attributes == 142u8 && retained.gate.reserved == 0u32 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() { ProcessExit::exit_process(0); }
+    machine bad() { crash Trap; }
+}

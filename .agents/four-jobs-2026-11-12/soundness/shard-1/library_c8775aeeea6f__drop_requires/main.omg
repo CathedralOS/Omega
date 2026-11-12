@@ -1,0 +1,4 @@
+public machine inspect<T, Context, machine Visitor>(value: &T, context: &mut Context)
+{
+    Visitor(value, context);
+}

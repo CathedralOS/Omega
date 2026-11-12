@@ -1,0 +1,28 @@
+// `<<!` checks its count when it runs: 40 is not below the 32-bit width, so
+// the shift traps. `<<%` reduces the same count and `<<!` with a count of 3
+// returns in run/arithmetic/policy_operators_match_policy_domains.
+use omega_language_std::console;
+data Main { }
+
+machine shifted(value: u32, count: u32) -> u32 crashes Trap {
+    value <<! count
+}
+
+machine subject() -> bool crashes Trap {
+    shifted(1, 40) == 0
+}
+
+// Reaching either exit means the operation returned instead of trapping.
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+        true -> returned(main)
+        _ -> returned_other(main)
+    }
+    machine returned(main: &mut Main) { Console::exit_process(70); }
+    machine returned_other(main: &mut Main) { Console::exit_process(71); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

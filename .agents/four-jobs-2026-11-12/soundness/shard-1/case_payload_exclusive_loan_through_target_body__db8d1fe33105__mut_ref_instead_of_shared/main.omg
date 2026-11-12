@@ -1,0 +1,87 @@
+// A match on one evaluation of a copyable flag returns the exclusive loan of the selected case payload, writes 41 through that loan, and leaves the unselected payload unchanged.
+// Place: target_body.
+// Expected exit: 0
+data Slot { case Absent; case Present(value: i64); }
+
+machine choose(counter: &mutmut u64) -> bool
+requires counter == 0
+{
+    counter = 1;
+    true
+}
+
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+boundary trait SelectedApply {
+    machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    requires chosen in Slot::Present
+    requires other in Slot::Present
+    requires visits == 0;
+}
+X86Apply satisfies SelectedApply {
+    machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    requires chosen in Slot::Present
+    requires other in Slot::Present
+    requires visits == 0
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let selected: &mut i64 = match choose(visits) {
+            true -> &mut chosen.value
+            false -> &mut other.value
+        };
+        selected = 41;
+        selected
+    }
+}
+ArmApply satisfies SelectedApply {
+    machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    requires chosen in Slot::Present
+    requires other in Slot::Present
+    requires visits == 0
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let selected: &mut i64 = match choose(visits) {
+            true -> &mut chosen.value
+            false -> &mut other.value
+        };
+        selected = 41;
+        selected
+    }
+}
+
+
+machine main() crashes Trap {
+    let mut chosen: Slot = Slot::Present { value: 17 };
+    let mut other: Slot = Slot::Present { value: 0 };
+    let mut visits: u64 = 0;
+    let observed: i64 = SelectedApply::apply(&mut chosen, &mut other, &mut visits);
+    transition observed == 41 && visits == 1 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

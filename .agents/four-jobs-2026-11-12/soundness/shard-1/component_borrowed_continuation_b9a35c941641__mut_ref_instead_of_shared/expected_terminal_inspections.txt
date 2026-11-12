@@ -1,0 +1,9 @@
+mutable_lender_entry runtime portable component-input Lending::touch 2
+reborrow_lender_entry runtime portable component-input Lending::touch 2
+shared_lender_entry runtime portable component-input SharedLending::touch 2
+owned_entry runtime portable component-input OwnedLending::touch 1
+guest_lender_entry runtime portable component-input Lending::touch storage-refusal
+nested_lender_entry runtime portable component-input ViaLending::touch 2 Lending::touch
+borrowed_entry runtime portable component-input Lending::touch storage-refusal
+write_lender_entry runtime portable component-input Writing::initialize write-refusal
+owned_materialized_entry runtime portable component-input Reading::read 2

@@ -1,0 +1,15 @@
+{
+  "fixtures": 1131,
+  "mutant_rows": 3484,
+  "mutants_by_kind": {
+    "drop_requires": 540,
+    "remove_guard_transition": 671,
+    "remove_mut": 535,
+    "shared_instead_of_mut": 601,
+    "mut_ref_instead_of_shared": 747,
+    "widen_requires": 302,
+    "none": 88
+  },
+  "drop_requires_machine_header": 392,
+  "drop_requires_body": 118
+}

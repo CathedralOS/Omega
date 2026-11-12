@@ -1,0 +1,3 @@
+array_max: scan [4, 15, 8, 42, 16, 23] with a runtime-indexed bounded loop to find the maximum
+result: the maximum, 42 for this dataset (the exit code)
+[press Enter to close]

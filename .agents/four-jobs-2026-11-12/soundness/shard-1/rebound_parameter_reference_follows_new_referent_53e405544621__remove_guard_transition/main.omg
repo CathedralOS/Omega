@@ -1,0 +1,24 @@
+// Expected exit: 0
+// A `mut` shared-reference parameter rebinds like a local: after
+// `selected = replacement`, facts about `replacement` apply through
+// `selected`. The entry requirement on `replacement` proves `selected - 5`.
+// The reject twin puts the same requirement on the original referent instead.
+// At run time the original referent is 0 and the replacement is 9: reading the
+// new referent yields 4, while a lowering that kept the old binding would
+// underflow and trap, or return a value other than 4.
+machine observe(mut selected: &u64, replacement: &u64) -> u64
+requires replacement >= 5 {
+    selected = replacement;
+    selected - 5
+}
+
+machine main() crashes Trap {
+    let original: u64 = 0;
+    let replacement: u64 = 9;
+    let r: u64 = observe(&original, &replacement);
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

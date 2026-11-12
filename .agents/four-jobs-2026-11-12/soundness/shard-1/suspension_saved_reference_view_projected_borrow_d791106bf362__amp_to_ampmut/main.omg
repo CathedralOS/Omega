@@ -1,0 +1,24 @@
+// Use a copied reference to read the same buffer after a call that may pause.
+// Fact: A loan transported into a record before a possible suspension keeps its original backing, so the record reads 73 after the call.
+// Expected exit: 0
+public boundary trait Scheduler { machine park() reaches suspends; }
+public Immediate satisfies Scheduler { machine park() {} }
+data Cell { value: i32; }
+data Backing { value: i32; }
+data Message { left: i32; body: &muti32; right: i32; }
+// The other two fields must keep their values while the saved access is moved.
+machine read(message: Message) -> i32 {
+    transition message.left == 5 && message.right == 9 { true -> message.body _ -> 0 }
+}
+machine main() reaches Scheduler crashes Trap {
+    let backing: Backing = Backing { value: 73 };
+    let storage: &Backing = &backing;
+    let copied: &Backing = storage;
+    let reference: &i32 = &copied.value;
+    let message: Message = Message { left: 5, body: reference, right: 9 };
+    suspend Scheduler::park();
+    let observed: i32 = read(message);
+    transition observed == 73 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

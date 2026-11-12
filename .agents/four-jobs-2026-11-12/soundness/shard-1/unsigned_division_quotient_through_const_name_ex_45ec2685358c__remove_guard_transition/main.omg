@@ -1,0 +1,19 @@
+// Fact: an unsigned u64 quotient from 400u64 divided by 4u64 equals 100u64 when subtracting 100u64.
+// Place: const_name. A named constant carries the quotient into the subtraction check.
+// Expected exit: 0
+
+const QUOTIENT: u64 = 400u64 / 4u64;
+
+machine probe() -> i32 {
+    let quotient: u64 = QUOTIENT;
+    let diff: u64 = quotient - 100u64;
+    diff as i32
+}
+
+machine main() crashes Trap {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

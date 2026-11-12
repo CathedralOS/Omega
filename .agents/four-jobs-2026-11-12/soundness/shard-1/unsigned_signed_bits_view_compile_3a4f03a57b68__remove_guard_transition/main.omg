@@ -1,0 +1,17 @@
+// The unsigned→signed direction wraps high values: `&big as &i64` reads
+// u64's maximum as -1 — the top bit becoming the sign bit is the same
+// two's-complement view, source and target swapped.
+data Main {
+    big: u64;
+    verdict: u64;
+}
+
+machine Main::main(main: &mut Main) {
+    main.big = 18446744073709551615;
+        true -> good(main)
+        _ -> bad(main)
+    }
+
+    machine good(main: &mut Main) { main.verdict = 70; }
+    machine bad(main: &mut Main) { main.verdict = 71; }
+}

@@ -1,0 +1,176 @@
+// Expected exit: 0
+// A granted vacant extent retains actual backing through transport, initialization, permitted writes, and extraction.
+// Both resident windows coexist before either is extracted.
+use omega::language::core::extent;
+use omega::language::core::content;
+use omega::language::core::layout;
+use omega::language::core::process_exit;
+use omega::language::core::nat;
+
+data TestMemory {}
+public data Word { value: u64; }
+public data WordPlacement {}
+
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 8 };
+    AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
+        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported })
+}
+
+MemorySupply satisfies ResourceProfileSupply<TestMemory> {
+    machine profile(storage: &Extent in Granted) -> ResourceProfile {
+        let services: [u64; 32];
+        let mut regions: [ResourceRegion; 32];
+        regions[0] = ResourceRegion {
+            range: RelativeRange { offset: 0, length: storage.length },
+            peer: PeerWritability::Exclusive,
+            stable: StableCapability::ReadWrite,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::None,
+            reach: BoundaryReach { services: services, service_count: 0 },
+        };
+        ResourceProfile { regions: regions, region_count: 1 }
+    }
+}
+
+boundary trait NativeAllocation {
+    machine allocate(count: u64, width: u64) -> addr reaches;
+}
+TestRoots satisfies ExtentRootProvider {
+    machine grant(root: Extent) -> Extent { root }
+}
+TestVacant satisfies VacantContentTransfer {
+    machine transfer(storage: Extent in Granted) -> Extent
+        ensures result in Granted,
+            core::Identity<IntervalSet<Nat>>(
+                Granted::content(old(&storage)),
+                Granted::content(&result)
+            )
+    { storage as Extent }
+}
+
+machine main() crashes Trap
+    let address: addr = NativeAllocation::allocate(1, 32);
+    transition address != 0 { true -> allocated(address) false -> bad() }
+    machine allocated(address: addr) {
+        let granted: Extent in Granted = ExtentRootProvider::grant(Extent { base: address, length: 32 });
+        let vacant: Extent in Granted & Vacant = VacantContentTransfer::transfer(granted);
+        transition vacant.length == 32 { true -> partition(vacant) false -> bad() }
+    }
+    machine partition(vacant: Extent in Granted & Vacant)
+    requires vacant.length == 32
+    {
+        let parts: VacantExtentParts = split_vacant_extent(vacant, 16);
+        exercise_two(parts.taken, parts.rest);
+    }
+    machine bad() { crash Trap; }
+}
+
+machine exercise_two(first: Extent in Granted & Vacant, second: Extent in Granted & Vacant) crashes Trap
+requires addr::Bound == 18446744073709551616 {
+    transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(first, Word { value: 17 }) {
+        AccessOutcome::Ready { view } -> initialize_second(view, second)
+        AccessOutcome::Rejected { returned, reason } -> bad()
+    }
+    machine initialize_second(first: Extent in Granted & Resident<WordPlacement, Word>, second: Extent in Granted & Vacant) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(second, Word { value: 43 }) {
+            AccessOutcome::Ready { view } -> observe(first, view)
+            AccessOutcome::Rejected { returned, reason } -> bad()
+        }
+    }
+    machine observe(first: Extent in Granted & Resident<WordPlacement, Word>, second: Extent in Granted & Resident<WordPlacement, Word>) {
+        let mut left: Extent in Granted & Resident<WordPlacement, Word> = first;
+        let mut right: Extent in Granted & Resident<WordPlacement, Word> = second;
+        let left_view: &mut Access<WordPlacement, Word> = Access::view_resident_mut<WordPlacement, Word>(&mut left);
+        let before: u64 = read(&left_view.value);
+        write(&mut left_view.value, 29u64);
+        let right_view: &mut Access<WordPlacement, Word> = Access::view_resident_mut<WordPlacement, Word>(&mut right);
+        let neighbor: u64 = read(&right_view.value);
+        write(&mut right_view.value, 59u64);
+        transition before == 17 && neighbor == 43 {
+            true -> extract_left(left, right)
+            false -> bad()
+        }
+    }
+    machine extract_left(first: Extent in Granted & Resident<WordPlacement, Word>, second: Extent in Granted & Resident<WordPlacement, Word>) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(first) {
+            AccessExtraction::Moved { storage, value } -> extract_right(storage, value, second)
+        }
+    }
+    machine extract_right(first: Extent in Granted & Vacant, first_value: Word, second: Extent in Granted & Resident<WordPlacement, Word>) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(second) {
+            AccessExtraction::Moved { storage, value } -> finish(first, storage, first_value, value)
+        }
+    }
+    machine finish(first: Extent in Granted & Vacant, second: Extent in Granted & Vacant, first_value: Word, second_value: Word) {
+        transition first_value.value == 29 && second_value.value == 59 && first.length == 16 && second.length == 16 {
+            true -> done(first, second)
+            false -> bad()
+        }
+    }
+    machine done(first: Extent in Granted & Vacant, second: Extent in Granted & Vacant) {
+        transition first.length == 16 && second.length == 16 {
+            true -> adjacent(first, second)
+            false -> bad()
+        }
+    }
+    machine adjacent(first: Extent in Granted & Vacant, second: Extent in Granted & Vacant)
+    requires first.length == 16, second.length == 16 {
+        transition second.base >= first.base {
+            true -> distance(first, second)
+            false -> bad()
+        }
+    }
+    machine distance(first: Extent in Granted & Vacant, second: Extent in Granted & Vacant)
+    requires first.length == 16, second.length == 16, second.base >= first.base, addr::Bound == 18446744073709551616 {
+        transition second.base - first.base == 16 {
+            true -> reset(first, second)
+            false -> bad()
+        }
+    }
+    machine reset(first: Extent in Granted & Vacant, second: Extent in Granted & Vacant)
+    requires first.length == 16, second.length == 16, embed(second.base) == embed(first.base) + embed(first.length) {
+        let whole: Extent in Granted & Vacant = rejoin(first, second);
+        transition whole.length == 32 {
+            true -> reuse(whole)
+            false -> bad()
+        }
+    }
+    machine reuse(whole: Extent in Granted & Vacant) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(whole, Word { value: 97 }) {
+            AccessOutcome::Ready { view } -> read_again(view)
+            AccessOutcome::Rejected { returned, reason } -> bad()
+        }
+    }
+    machine read_again(whole: Extent in Granted & Resident<WordPlacement, Word>) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(whole) {
+            AccessExtraction::Moved { storage, value } -> verified(storage, value)
+        }
+    }
+    machine verified(whole: Extent in Granted & Vacant, value: Word) {
+        transition whole.length == 32 && value.value == 97 {
+            true -> exit(whole)
+            false -> bad()
+        }
+    }
+    machine exit(whole: Extent in Granted & Vacant) { ProcessExit::exit_process(0); }
+    machine bad() { crash Trap; }
+}
+machine rejoin(left: Extent in Granted & Vacant, right: Extent in Granted & Vacant) -> Extent in Granted & Vacant
+requires left.length == 16, right.length == 16, embed(right.base) == embed(left.base) + embed(left.length)
+ensures result.base == left.base, result.length == 32,
+    core::Identity<IntervalSet<Nat>>(
+        separate(Granted::content(old(&left)), Granted::content(old(&right))),
+        Granted::content(&result)
+    ),
+    core::Identity<IntervalSet<Nat>>(
+        separate(Vacant::content(old(&left)), Vacant::content(old(&right))),
+        Vacant::content(&result)
+    )
+{
+    let { base as left_base, length as left_length } = left;
+    let { base as right_base, length as right_length } = right;
+    Extent { base: left_base, length: left_length + right_length }
+}

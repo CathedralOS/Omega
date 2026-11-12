@@ -1,0 +1,80 @@
+// A left operand proved false skips the right-hand bump call: the conjunction is false and the counter stays 0.
+// Place: target_body. The left operand is the result of a Build-selected implementation.
+// Expected exit: 0
+
+machine bump(counter: &mut u64) -> bool
+requires counter <= 1000u64
+{
+    counter = counter + 1u64;
+    true
+}
+
+machine untouched(counter: u64) -> u64
+requires counter == 0u64
+ensures result == 0u64
+{
+    counter
+}
+
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedGate {
+    machine ready() -> bool reaches ensures result == false;
+}
+
+X86Gate satisfies SelectedGate {
+    machine ready() -> bool ensures result == false {
+        false
+    }
+}
+
+ArmGate satisfies SelectedGate {
+    machine ready() -> bool ensures result == false {
+        false
+    }
+}
+
+machine main() reaches SelectedGate crashes Trap {
+    let mut counter: u64 = 0u64;
+    let ready: bool = SelectedGate::ready();
+    let first: bool = ready && bump(&mut counter);
+    let kept: u64 = untouched(counter);
+        true -> bad()
+        false -> check(kept, counter)
+    }
+    machine check(kept: u64, counter: u64) crashes Trap {
+        transition kept == 0u64 && counter == 0u64 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedGate crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedGate crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

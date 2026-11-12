@@ -1,0 +1,1 @@
+machine build(builder: &mut Build) { Build::package(builder, "dependency_type_qualified_call_local_lib"); }

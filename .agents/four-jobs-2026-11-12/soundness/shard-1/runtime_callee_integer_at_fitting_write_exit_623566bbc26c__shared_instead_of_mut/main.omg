@@ -1,0 +1,56 @@
+use omega::language::core::layout;
+// Ordinary logical-field loans retain the concrete physical write obligation.
+// The adjacent byte must survive both the direct and forwarding invocation.
+
+
+SignedByte satisfies FixedLayout<PortableByte> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        representation: FieldPlan::IntegerAt {
+            offset: 0,
+            stored_width: 8,
+            interpretation: IntegerInterpretation::Signed,
+        },
+    };
+    LayoutPlan {
+        entries: entries,
+        entry_count: 1,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+}
+
+data PortableByte [copy] { value: i64; }
+data RawView { value: LayoutStorage<PortableByte, SignedByte>; }
+data Main { bytes: [u8; 2]; }
+
+machine set(dst: & i64, value: i64) { dst = value; }
+machine forward(dst: &mut i64, value: i64) { set(dst, value); }
+
+machine set_sentinel(main: &mut Main) { main.bytes[1] = 85; }
+
+machine Main::main(main: &mut Main) crashes Trap {
+    // A completed reborrow preserves the origin of the next ordinary store.
+    set_sentinel(&mut main);
+    main.bytes[1] = 85;
+    let view: &mut RawView = &mut main.bytes[0] as &mut RawView;
+    let leaf: &mut i64 = &mut view.value.value;
+    set(leaf, -128);
+    forward(leaf, 127);
+    transition main.bytes[0] == 127 && main.bytes[1] == 85 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

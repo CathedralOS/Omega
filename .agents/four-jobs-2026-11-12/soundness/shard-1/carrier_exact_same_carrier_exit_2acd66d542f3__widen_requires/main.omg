@@ -1,0 +1,31 @@
+// Expected exit: 0. Same-carrier memberships, anonymous literal landing,
+// explicit conversion before an executable test, a closed indexed family,
+// a nominal carrier and a specialized generic contract all stay well formed.
+domain u16::Small requires self <= 9;
+domain<const Bound: u16> u16::AtMost<Bound> requires self <= Bound;
+data Meters [copy] { amount: u16; }
+domain Meters::Short requires self.amount <= 10;
+
+machine headroom(value: u16) -> u16 requires value in Small, 7 in Small, 7u16 in Small {
+    10 - value
+}
+machine bounded(value: u16) -> u16 requires value in AtMost<10> { 10 - value }
+machine short(value: Meters) -> u16 requires value in Short { 10 - value.amount }
+machine take<T>(value: T) -> T requires value in Small { value }
+machine widened(narrow: u8) -> u16 {
+    transition (narrow as u16) in Small {
+        true -> 1
+        _ -> 2
+    }
+}
+
+machine main() crashes Trap {
+    let generic: u16 = take<u16>(4u16);
+    transition headroom(7) == 3 && bounded(2) == 8 && short(Meters { amount: 6 }) == 4
+        && generic == 4 && widened(9u8) == 1 && widened(200u8) == 2 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
