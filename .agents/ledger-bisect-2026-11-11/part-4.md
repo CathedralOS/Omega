@@ -34,7 +34,7 @@ Members: `fail/float/state_constructor_ieee_reflexivity`
 | 1 | fail wrong reason | cannot prove requires contract for call observe from main: cells[0] in Cell::Issued in state `entry` | `fail/borrows/owned_capture_weaker_formal_qualification` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
 Members: `fail/borrows/owned_capture_weaker_formal_qualification`
 
-| 1 | fail wrong reason | closed const argument constant expression call argument `4` does not form parameter `right` of `Float::divide` | `fail/generics/grouped_decimal_const_suffix_rejected` | `` | 2505 | bisect endpoint collapsed to PIN only (no strict good at ledger stamp); use sweep good 759 | propagated |  |
+| 1 | fail wrong reason | closed const argument constant expression call argument `4` does not form parameter `right` of `Float::divide` | `fail/generics/grouped_decimal_const_suffix_rejected` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
 Members: `fail/generics/grouped_decimal_const_suffix_rejected`
 
 | 1 | fail wrong reason | const parameter `Value` of `Indexed` has an ineligible index type: indices require finite structural values wi | `fail/constants/predicate_constant_generic_static_index_fence` | `` |  |  | pending |  |
