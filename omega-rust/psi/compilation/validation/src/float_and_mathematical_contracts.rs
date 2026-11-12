@@ -3411,6 +3411,26 @@ pub mod mathematical_applications {
         is_mathematical_declaration(program, call.target_symbol)
     }
 
+    /*
+        A checked mathematical application in an erased initializer never
+        executes: the mathematical producer checked its complete dependent
+        application, and it has no machine entry. Consumers that reason about
+        what a call does at run time (its entry obligations, the caller
+        reference slots it installs) ask here and skip such a call.
+    */
+    pub fn is_erased_checked_application(
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+        call: &TableCallExpression,
+    ) -> bool {
+        is_mathematical_call(program, call)
+            && program
+                .prepared_mathematics()
+                .is_some_and(|view| view.application(expression).is_some())
+            && crate::mathematical_applications::erased_initializer_nodes(program)
+                .contains(&expression)
+    }
+
     /// These declarations have mathematical formation rules, not machine contracts.
     pub fn is_mathematical_declaration(
         program: &dyn crate::CheckingInput,
