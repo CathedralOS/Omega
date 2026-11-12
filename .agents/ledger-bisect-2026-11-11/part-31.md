@@ -98,7 +98,7 @@ Frozen PIN ledger + per-witness specs: `python3 setup_pin_specs.py` → `/tmp/le
 | c2 | `442a95195e64d20d6d373b6bbddcd11c7f6da38a` | `pass/facts/match_computed_root_through_other_state_exit` |
 | c3 | `42ef40205f19c7797b352647f55b82519407191c` | `pass/generics/generic_result_parameter_receipt` |
 
-Triple `0,0,0` at each good SHA: see `part-31-good-confirm.log` (generated on branch after exponential jump trace in `part-31-good-walk.log`).
+Triple at each good SHA (`part-31-good-confirm.log`): c0–c3 good commits `0,0,0`; sanity `741270df60f7eab218e879eb6771d2bc75e64c00` witness `1,1,1` (still broken vs PIN). Exponential jump trace: `part-31-good-walk.log` (brackets bad region on first-parent chain); newest-good at first-parent idx `1542` (`c64728d90e83036051d52fb69961b786423230c6`) re-run `exit=0`.
 
 ### Mechanism (quoted diff hunk)
 

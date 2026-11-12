@@ -1,0 +1,21 @@
+=== c0-good commit=c64728d90e83036051d52fb69961b786423230c6 witness=pass/borrows/runtime_selected_reference_mutation_complement_exit ===
+  run1 exit=0
+  run2 exit=0
+  run3 exit=0
+=== c1-good commit=773b8422694b5a8e64b43284bcba1ceb6de2b1e9 witness=pass/facts/computed_record_window_through_other_machine_exit ===
+  run1 exit=0
+  run2 exit=0
+  run3 exit=0
+=== c2-good commit=442a95195e64d20d6d373b6bbddcd11c7f6da38a witness=pass/facts/match_computed_root_through_other_state_exit ===
+  run1 exit=0
+  run2 exit=0
+  run3 exit=0
+=== c3-good commit=42ef40205f19c7797b352647f55b82519407191c witness=pass/generics/generic_result_parameter_receipt ===
+  run1 exit=0
+  run2 exit=0
+  run3 exit=0
+=== sanity-741270 commit=741270df60f7eab218e879eb6771d2bc75e64c00 witness=pass/borrows/runtime_selected_reference_mutation_complement_exit ===
+  run1 exit=1
+  run2 exit=1
+  run3 exit=1
+=== newest-good spot-check c0 idx=1542 sha=c64728d90e83036051d52fb69961b786423230c6 exit=0 ===

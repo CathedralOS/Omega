@@ -29,5 +29,5 @@ c2	first-bad	d30fccc7aae65a2358024cf39788d1007e2661b4	2276	1,1,1	pass/facts/matc
 c3	good	42ef40205f19c7797b352647f55b82519407191c		walk+confirm	pass/generics/generic_result_parameter_receipt
 c3	parent	eab58bf427c48063e3fcf597e4550ca53ac7cb8c	348	0,0,0	pass/generics/generic_result_parameter_receipt
 c3	first-bad	5ab4e12334fba74babfc3ae8d9992572fba307e6	348	1,1,1	pass/generics/generic_result_parameter_receipt
-sanity	741270df60f7eab218e879eb6771d2bc75e64c00		walk+confirm	c0 witness
+sanity	741270df60f7eab218e879eb6771d2bc75e64c00		1,1,1	c0 witness
 pin	51e8c45c793007f211d0d9baee7de16767172444		measure	part-31-measure.txt
