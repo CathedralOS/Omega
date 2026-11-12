@@ -109,7 +109,8 @@
         "pass/facts/open_const_implementation_statement_saved_output_exit"
       ],
       "bisect": {
-        "status": "pending"
+        "status": "propagated",
+        "reason": "no good first-parent ancestor"
       }
     },
     {

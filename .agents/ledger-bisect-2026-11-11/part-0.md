@@ -9,7 +9,7 @@ Measured commit (PIN): `51e8c45c793007f211d0d9baee7de16767172444`
 | 2 | pass/run rejected | cannot prove ensures contract for exit from HeapProvider::allocate at statement 0: result in Allocation::Held; the retur | `pass/memory/runtime_linear_native_allocation_call_result_exit` | `` |  |  | pending |
 Members: `pass/memory/runtime_linear_native_allocation_call_result_exit` `pass/memory/runtime_linear_native_allocation_exit`
 
-| 2 | pass/run rejected | cannot prove ensures contract for exit from selected at statement 2: result >= Minimum | `pass/facts/open_const_implementation_statement_const_result_exit` | `` |  |  | pending |
+| 2 | pass/run rejected | cannot prove ensures contract for exit from selected at statement 2: result >= Minimum | `pass/facts/open_const_implementation_statement_const_result_exit` | `` |  |  | propagated |
 Members: `pass/facts/open_const_implementation_statement_const_result_exit` `pass/facts/open_const_implementation_statement_saved_output_exit`
 
 | 1 | pass/run rejected | cannot establish assignment invariants: source parent type is unavailable | `pass/borrows/runtime_reassigned_view_capture_exit` | `` |  |  | pending |
