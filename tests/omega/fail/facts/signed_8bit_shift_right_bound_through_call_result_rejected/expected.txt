@@ -1,1 +1,1 @@
-cannot prove ensures contract for exit from shift_right at statement 0: result >= 25 && result <= 25
+machine `shift_right` cannot prove ensures contract proof fact `result >= 25 && result <= 25`
