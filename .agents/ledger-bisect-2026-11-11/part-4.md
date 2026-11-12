@@ -22,7 +22,7 @@ Members: `fail/build/helper_contract_context`, `fail/contracts/replacement_call_
 | 2 | pass/run rejected | generated generic application does not match its exact retained instance origin | `pass/generics/runtime_computed_nested_const_call_exit` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
 Members: `pass/build/const_index_dependency_order_exit`, `pass/generics/runtime_computed_nested_const_call_exit`
 
-| 2 | fail wrong reason | integer node `u8(300)` does not fit exact carrier `u8` | `fail/generics/const_data_argument_out_of_range` | `` |  |  | pending |  |
+| 2 | fail wrong reason | integer node `u8(300)` does not fit exact carrier `u8` | `fail/generics/const_data_argument_out_of_range` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
 Members: `fail/generics/const_data_argument_out_of_range`, `fail/generics/dependent_const_carrier_range`
 
 | 1 | fail wrong reason | anonymous operand `25/8` is not an integer in closed const argument; type an operand before division if intege | `fail/generics/grouped_decimal_const_fraction_rejected` | `` |  |  | pending |  |
