@@ -18911,6 +18911,7 @@ pub(crate) mod ordered_values {
         PrimitiveType, State, ValueEnvironment, declared_place_type_raw, place_path,
     };
     use crate::CheckingInput;
+    use crate::machine_calls::calls::write_frames::place_paths::frame_length_path;
     use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze_meaning;
     use crate::proof_contracts::arithmetic_domains::integer_ranges::{
         literal_interval, primitive_range,
@@ -21150,7 +21151,12 @@ pub(crate) mod ordered_values {
                     .all(|value| value.survives_paths_by(overlaps)),
                 #[cfg(test)]
                 Self::CompletedCall { .. } => false,
-                Self::CollectionLength(collection) => collection.survives_paths_by(overlaps),
+                // The typed length observation reads the descriptor. Its
+                // elements may change while that observation remains the same.
+                Self::CollectionLength(collection) => collection.static_path().map_or_else(
+                    || collection.survives_paths_by(overlaps),
+                    |path| !overlaps(&frame_length_path(path)),
+                ),
                 Self::Indexed {
                     collection, index, ..
                 } => collection.survives_paths_by(overlaps) && index.survives_paths_by(overlaps),
