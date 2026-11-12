@@ -525,6 +525,11 @@ mod assigned_values {
                     .context_view(self.semantic.contexts.get(*context))
                     .facts()
                     .find_map(|fact| {
+                        if let Some(variant) =
+                            crate::flow::zero_case_at(self.program, self.semantic, &fact, subject)
+                        {
+                            return Some(variant);
+                        }
                         let FactPayload::CaseValue {
                             variant,
                             value: true,
@@ -6257,6 +6262,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
         }
         FactPayload::BooleanPredicate { .. }
         | FactPayload::CaseValue { .. }
+        | FactPayload::ZeroCaseElements { .. }
         | FactPayload::AssignedValue { .. }
         | FactPayload::AssignedIntegerBounds { .. }
         | FactPayload::FloatPredicate { .. }
