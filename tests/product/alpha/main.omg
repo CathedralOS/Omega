@@ -19,10 +19,10 @@ data Harness { entry: u64 in Trapping; }
 
 machine main() reaches Console invokes Console crashes Trap blocks {
     let mut harness: Harness;
-    harness.entry = 0;
+    harness.entry = 0 as u64 +Trapping;
     let mut lexer: Lexer;
-    psi::lexer_initialize(&mut lexer, 0);
-    transition { _ -> block header(&mut harness, &mut lexer, 0, 1) }
+    psi::lexer_initialize(&mut lexer, 0 as u32 +Trapping);
+    transition { _ -> block header(&mut harness, &mut lexer, 0 as u64 +Trapping, 1 as u64 +Trapping) }
 
     machine header(harness: &mut Harness, lexer: &mut Lexer, index: u64 in Trapping, scale: u64 in Trapping) {
         transition index < 4 {
@@ -38,7 +38,7 @@ machine main() reaches Console invokes Console crashes Trap blocks {
         }
     }
     machine entry(harness: &mut Harness, lexer: &mut Lexer, index: u64 in Trapping, scale: u64 in Trapping, value: i32) {
-        harness.entry = harness.entry + (value as u64 in Trapping) * scale;
+        harness.entry = harness.entry + (value as u64 +Trapping) * scale;
         transition { _ -> block header(harness, lexer, index + 1, scale * 256) }
     }
     machine read(harness: &mut Harness, lexer: &mut Lexer) {
@@ -65,7 +65,7 @@ machine main() reaches Console invokes Console crashes Trap blocks {
     machine prepare_parse(harness: &mut Harness, lexer: &Lexer) {
         let mut parser: Parser;
         psi::parser_initialize(&mut parser);
-        psi::parse(&mut parser, lexer.source.id, lexer.source.length as u64 in Trapping, &lexer.output);
+        psi::parse(&mut parser, lexer.source.id, lexer.source.length as +Trapping, &lexer.output);
         transition parser.output.accepted {
             true -> prepare_sources(harness, lexer, &parser)
             _ -> refuse(250)
@@ -79,7 +79,7 @@ machine main() reaches Console invokes Console crashes Trap blocks {
         let appended: bool = psi::module_path_append(&mut name, 103);
         let packaged: bool = psi::add_package(&mut sources, &name, false);
         psi::module_path_clear(&mut name);
-        let added: bool = psi::source_set_add(&mut sources, &lexer.source, 0, &name);
+        let added: bool = psi::source_set_add(&mut sources, &lexer.source, 0 as u64 +Trapping, &name);
         transition appended && packaged && added {
             true -> resolve(harness, parser, &sources)
             _ -> refuse(252)
@@ -127,13 +127,13 @@ machine main() reaches Console invokes Console crashes Trap blocks {
             _ -> refuse(252)
         }
     }
-    machine publish(emitter: &AlphaEmitter, index: u64 in Trapping) {
+    machine publish(emitter: &AlphaEmitter, index: u64) {
         transition index < emitter.length && index < 2097152 {
             true -> byte(emitter, index)
             _ -> refuse(0)
         }
     }
-    machine byte(emitter: &AlphaEmitter, index: u64 in Trapping) {
+    machine byte(emitter: &AlphaEmitter, index: u64) {
         Console::write_byte(emitter.bytes[index] as i32);
         transition { _ -> publish(emitter, index + 1) }
     }
