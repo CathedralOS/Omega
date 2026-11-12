@@ -45,7 +45,8 @@ pub(crate) fn prepare_components<'input>(
             .exports()
             .iter()
             .map(|export| {
-                proposal.prepare_native_callable_execution(
+                terminal_psi_to_abstract_operations::prepare_native_callable_execution(
+                    proposal,
                     artifact,
                     terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate),
                 )

@@ -12,6 +12,51 @@ use compiler::{CheckedCompileRequest, CompilationSession, PackageReviewFailure};
 use package_evidence::PackageReviewProjectionError;
 
 #[test]
+fn reusable_package_checks_declarations_without_deploying_unused_float_bodies() {
+    // These libraries have no program entry. Their UEFI target request belongs
+    // to this package check; the positive also covers ordinary source checking.
+    let target = "uefi_x86_64";
+    for (fixture, refusal) in [
+        ("pass/float/rootless_target_realization_scope", None),
+        (
+            "packages/selected-provider-unsupported-target",
+            Some("the target declares no floating-point realization table"),
+        ),
+        (
+            "fail/constants/unused_scalar_constant_range",
+            Some("scalar constant `VALUE` is invalid"),
+        ),
+        (
+            "fail/proofs/ordinary_denotational_call_requires_normal_return",
+            Some("has no observation-free, reach-free, crash-free value denotation"),
+        ),
+    ] {
+        let source = fixture_package_inputs::repo_root()
+            .join("tests/omega")
+            .join(fixture)
+            .join("main.omg");
+        let result = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+            &source,
+            Some(target),
+        )
+        .and_then(|mut prepared| {
+            fixture_package_inputs::check_fixture(&mut prepared, target, Default::default())
+        });
+        match (result, refusal) {
+            (Ok(_), None) => {}
+            (Err(diagnostics), Some(fragment)) => assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(fragment)),
+                "{fixture}: expected {fragment:?}, got {diagnostics:?}"
+            ),
+            (Ok(_), Some(fragment)) => panic!("{fixture}: accepted instead of {fragment:?}"),
+            (Err(diagnostics), None) => panic!("{fixture}: {diagnostics:?}"),
+        }
+    }
+}
+
+#[test]
 fn callback_review_rejoins_candidate_types_reports_and_target_members() {
     use package_evidence::{PackageReviewInput, project_checked_package_policy};
     let target = "macos_arm64";

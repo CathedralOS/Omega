@@ -1590,9 +1590,9 @@ fn capture(
         semantic_schema.write(&mut output)?;
         output.sequence(row_executions.len())?;
         for execution in *row_executions {
-            execution
-                .filter(|execution| !execution.is_numeric())
-                .write(&mut output)?;
+            // Transport cannot erase a supplied meaning before native
+            // preparation reconciles it with the canonical declaration.
+            execution.write(&mut output)?;
         }
         write_values(row_numeric_realizations, &mut output)?;
     }

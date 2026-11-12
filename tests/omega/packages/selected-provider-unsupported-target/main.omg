@@ -1,0 +1,30 @@
+use omega::language::core::float_operations;
+
+public data Coordinates {
+    x: f64;
+    y: f64;
+    width: f64;
+    height: f64;
+    source_width: f64;
+    source_height: f64;
+}
+
+// A reusable package checks these bodies without deploying them on each
+// consumer's target. The six conversions match an unused platform helper.
+public machine coordinates(x: i32, y: i32, width: i32, height: i32, source_width: u32, source_height: u32) -> Coordinates {
+    let rx: f64 = F64::from_i32(x);
+    let ry: f64 = F64::from_i32(y);
+    let rw: f64 = F64::from_i32(width);
+    let rh: f64 = F64::from_i32(height);
+    let sw: f64 = F64::from_u32(source_width);
+    let sh: f64 = F64::from_u32(source_height);
+    Coordinates { x: rx, y: ry, width: rw, height: rh, source_width: sw, source_height: sh }
+}
+
+public boundary trait Coordinate {
+    machine convert(value: i32) -> Coordinates reaches none;
+}
+
+public SelectedCoordinate satisfies Coordinate {
+    machine convert(value: i32) -> Coordinates { coordinates(value, 0, 16, 39, 640, 480) }
+}

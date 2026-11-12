@@ -62,6 +62,7 @@ pub fn provider_selection_roots<'selection>(
 
 pub(crate) struct TargetProviderPreparationRequest<'program> {
     pub context: ProviderPlanningContext<'program>,
+    pub checked: &'program checked_trees::CheckedTrees,
     pub exact_toolchain_sources: &'program [(source::SourceId, [u8; 32])],
     pub application_roots: Option<&'program [(String, SymbolHandle)]>, // None is reusable Source checking; Some is the complete Build deployment entry roster.
     pub overrides: &'program [ProviderSelection],
@@ -77,6 +78,11 @@ impl TargetProviderPreparationRequest<'_> {
         PreparedTargetChoices<crate::ProviderPlanProvenance, ProviderSelection>,
         Vec<Diagnostic>,
     > {
+        if !std::ptr::eq(&*self.checked.typed, self.context.typed) {
+            return Err(vec![Diagnostic::error(
+                "provider declarations belong to another checked source",
+            )]);
+        }
         let profile = inventory.target().ok_or_else(|| {
             vec![Diagnostic::error(
                 "provider publication requires a target inventory",
@@ -136,14 +142,12 @@ impl TargetProviderPreparationRequest<'_> {
                     self.context.typed,
                     &candidate.provenance,
                 );
-            // A target-realized float plan is demanded like an authored
-            // selection: a body kept for another target may still name the
-            // operation, and the target's table, not reachability, decides
-            // whether the slot is realized.
-            let explicitly_selected = canonical_float_map
-                || explicit_choices
-                    .iter()
-                    .any(|choice| choice.subject.selects_plan(&Ok(schema), &candidate.plan));
+            // A target's float table supplies reached operations; it does not
+            // deploy unused library bodies. Only an authored choice adds a
+            // provider root independently of the executable call closure.
+            let explicitly_selected = explicit_choices
+                .iter()
+                .any(|choice| choice.subject.selects_plan(&Ok(schema), &candidate.plan));
             let closed_declarations = crate::provider_declarations::close_provider_declarations(
                 self.context,
                 self.exact_toolchain_sources,
@@ -174,6 +178,9 @@ impl TargetProviderPreparationRequest<'_> {
                         provider_selection::PreparedProviderRealizations {
                             provider_declaration: closed.provider_declaration,
                             row_numeric_realizations: closed.row_numeric_realizations,
+                            declarations: crate::provider_planning::selected_declarations::capture_plan_declarations(
+                                self.checked, &candidate.plan, &candidate.provenance,
+                            ),
                             owner: candidate.provenance.clone(),
                         }
                     }),

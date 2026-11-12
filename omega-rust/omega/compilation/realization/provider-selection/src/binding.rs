@@ -169,7 +169,7 @@ pub fn validate_qualification_grants<'issuer>(
     Ok(())
 }
 
-fn enrich_selected_plans(
+pub(crate) fn enrich_selected_plans(
     facts: effects::SelectedProviderPlanFacts,
     declarations: &[Result<SelectedPlanDeclarations<'_>, Diagnostic>],
 ) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>> {

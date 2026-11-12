@@ -95,7 +95,9 @@ pub fn prepare<'input>(
             .iter()
             .flat_map(|component| &component.calls)
             .collect::<Vec<_>>();
-        let work = proposal.prepare_native_execution_with_components(artifact, &recipes, &calls)?;
+        let work = terminal_psi_to_abstract_operations::prepare_native_execution_with_components(
+            proposal, artifact, &recipes, &calls,
+        )?;
         let scalars = NativeScalarCompletion::new(
             artifact,
             proposal,

@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 provider-selection = { path = "../provider-selection" }
+psi-terminal-production = { path = "../../../../psi/compilation/psi-compiler/terminal-production" }
 evaluation-accounting = { path = "../../../../psi/foundation/evaluation-accounting" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 calling-conventions = { path = "../../backend/calling-conventions" }

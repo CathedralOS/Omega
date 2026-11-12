@@ -174,6 +174,7 @@ fn qualify_helper(machine: &str, writes: bool) {
             module.entry.expect("fixture default entry"),
             std::slice::from_ref(&establishment),
             &terminal_psi_to_abstract_operations::NativeExecutionSelection {
+                scope: None,
                 scalar_applications: None,
                 providers: &[],
                 plans: &effects::SelectedProviderPlanFacts::default(),

@@ -63,6 +63,7 @@ dependencies = [
  "target-operations",
  "terminal-psi",
  "terminal-semantics",
+ "verified-optimization-input",
 ]
 
 [[package]]
@@ -888,6 +889,7 @@ dependencies = [
  "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees-to-checked-trees",
+ "verified-optimization-input",
  "x86-encoding",
 ]
 
@@ -1284,6 +1286,7 @@ dependencies = [
  "target",
  "target-operations",
  "terminal-psi",
+ "verified-optimization-input",
 ]
 
 [[package]]
@@ -1484,6 +1487,7 @@ dependencies = [
  "target",
  "target-operations",
  "terminal-psi",
+ "verified-optimization-input",
 ]
 
 [[package]]
@@ -1892,6 +1896,7 @@ dependencies = [
  "package-compilation",
  "program-entry-plan",
  "provider-selection",
+ "psi-terminal-production",
  "psi-work",
  "runtime-abi",
  "semantic-vocabulary",
@@ -1920,6 +1925,7 @@ dependencies = [
  "effects",
  "language-semantics",
  "optimization-core",
+ "psi-terminal-production",
  "semantic-vocabulary",
  "target",
  "terminal-codec",
@@ -2941,13 +2947,27 @@ name = "verified-optimization-input"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "backend-plan",
+ "boundary-applications",
+ "calling-conventions",
+ "component-description",
+ "diagnostics",
  "effects",
+ "function-identity",
  "installation-evidence",
+ "language-semantics",
+ "numerics",
+ "optimization-core",
+ "program-entry-plan",
  "provider-admission",
+ "provider-selection",
  "semantic-vocabulary",
+ "target",
+ "task-plans",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]

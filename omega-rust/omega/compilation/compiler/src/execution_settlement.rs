@@ -343,6 +343,7 @@ fn select_checked_providers(
         selected_provider_provenance,
         selected_declarations,
         native_provider_sources,
+        callback_roots,
     } = prepare_target_provider_selection(
         source,
         selected_target_profile,
@@ -350,6 +351,7 @@ fn select_checked_providers(
         prepared_providers,
         deployment,
         timings,
+        binding_declarations,
     )?;
     let mut selected_program_entry = entry?
         .map(|entry| entry.settle_calling_plans(&providers.boundary_calling_plan_realizations))
@@ -385,6 +387,7 @@ fn select_checked_providers(
         exact_toolchain_sources: source.sources.exact_toolchain_sources(),
         selected_provider_plan_facts,
         selected_provider_provenance,
+        callback_roots,
         root_grants: &root_grants,
         authored_root_grants: &build_config.grants,
         provider_planning_target_profile: providers.planning_target_profile,
@@ -402,6 +405,7 @@ fn prepare_target_provider_selection(
     prepared_providers: Result<PreparedProductProviders, Vec<Diagnostic>>,
     deployment: Result<(), Vec<Diagnostic>>,
     timings: &mut CompileTimings,
+    binding_declarations: &selected_dispatch::PreparedBindingDeclarations,
 ) -> Result<provider_planning::CheckedProviderSelection, Vec<Diagnostic>> {
     let code = crate::terminal::retain_calling_program(source, timings)?;
     let calling = provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
@@ -411,12 +415,18 @@ fn prepare_target_provider_selection(
     )?;
     let boundary_calling_plan_realizations = calling.evaluate(&code)?;
     deployment?;
+    let callbacks =
+        binding_declarations.callback_declarations(&code, source.sources.exact_toolchain_sources());
     provider_planning::settle_checked_providers(
         selected_target_profile,
         package_inputs,
         prepared_providers,
         boundary_calling_plan_realizations,
         code,
+        callbacks
+            .as_ref()
+            .map(|declarations| declarations.as_ref())
+            .map_err(Vec::as_slice),
     )
 }
 

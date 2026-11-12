@@ -534,6 +534,19 @@ source checkers or interpreters. Stages cannot call the coordinator or adjacent
 stages to reconstruct missing input facts. Enforce production dependency edges;
 independent representations and explicit test-only consumers remain legitimate.
 
+Native code generation must keep the entry, selected functions and admitted
+callbacks associated with the same program and target. An immutable checked
+result carries that association through later stages.
+
+Omega 00 publishes `VerifiedPsiOptimizationInput` in the shared
+`verified-optimization-input` representation. Omega 01 consumes that input and
+passes its sealed `AdmittedLoweringFacts` to Omega 02. The representation keeps
+the entry, native function selection, provider choices, callbacks and interrupts
+in private fields. Later stages borrow and check that same association without
+calling an earlier stage or reconstructing missing facts. No stage dependency
+allowance is needed for this transport; `check-boundary` preserves the existing
+stage rules.
+
 Consumers request meaningful outcomes: checking, Build/helper Terminal production,
 product completion, native realization or inspection. Do not expose arbitrary
 stage numbers or checked-tree checkpoints as a build-system API. Psi owns any

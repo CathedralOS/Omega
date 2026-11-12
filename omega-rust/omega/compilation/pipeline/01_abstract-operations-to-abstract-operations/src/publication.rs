@@ -352,7 +352,7 @@ impl ValidatedOptimizedAbstractPlan {
         self,
     ) -> (
         optimization_unit::OptimizedAbstractProgram,
-        provider_admission::AdmittedLoweringFacts,
+        verified_optimization_input::AdmittedLoweringFacts,
     ) {
         let program = optimization_unit::OptimizedAbstractProgram {
             plan: self.plan,

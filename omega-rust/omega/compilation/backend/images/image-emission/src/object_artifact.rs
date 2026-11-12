@@ -192,6 +192,29 @@ mod carriers {
             self.entry
         }
 
+        /// Rejoins the functions selected for native execution with this object.
+        /// Objects without retained admission return no scope; their consumers
+        /// must validate the full module or refuse, rather than assume no work.
+        pub fn native_execution_scope(
+            &self,
+            artifact: &terminal_codec::CanonicalTerminalArtifact,
+            selected_provider_closure: [u8; 32],
+        ) -> Result<Option<&verified_optimization_input::NativeExecutionScope>, &'static str>
+        {
+            let source = self.composition_source.as_deref().unwrap_or(self);
+            let Some(replay) = &source.fragment_replay else {
+                return Ok(None);
+            };
+            replay.selected_terminal_entry(artifact, self.entry, self.target)?;
+            let facts = replay.0.lowering_facts();
+            facts.native_execution_scope_for(
+                artifact.view().identity(),
+                self.target,
+                self.entry,
+                selected_provider_closure,
+            )
+        }
+
         pub fn validate_terminal_entry(
             &self,
             artifact: &terminal_codec::CanonicalTerminalArtifact,

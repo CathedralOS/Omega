@@ -36,8 +36,6 @@ pub(crate) struct PreparedProviderMetadata {
     pub provenance: ProviderPlanProvenance,
     pub completion: Result<Vec<Vec<SymbolHandle>>, Vec<Diagnostic>>,
     pub role: Option<PreparedCompletionRole>,
-    pub declarations:
-        Result<language_semantics::provider_declarations::ProviderDeclarations, Diagnostic>,
     pub families:
         Result<Vec<crate::native_provider_sources::PreparedFamilyRealization>, Vec<Diagnostic>>,
 }
@@ -370,6 +368,7 @@ impl ProductProviderPreparation<'_> {
         bindings.retain_extended_identities(identities.build())?;
         let request = TargetProviderPreparationRequest {
             context: self.services.context(),
+            checked: self.checked,
             exact_toolchain_sources: self.exact_toolchain_sources,
             application_roots: self.application_roots,
             overrides: self.overrides,
@@ -465,12 +464,6 @@ impl ProductProviderPreparation<'_> {
                 );
                 let role = PreparedCompletionRole::capture(&self.checked.typed, plan, &provenance);
                 PreparedProviderMetadata {
-                    declarations:
-                        crate::provider_planning::selected_declarations::capture_plan_declarations(
-                            self.checked,
-                            plan,
-                            &provenance,
-                        ),
                     families: crate::native_provider_sources::capture_family_realizations(
                         self.services.context(),
                         plan,
