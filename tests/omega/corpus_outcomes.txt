@@ -2506,8 +2506,8 @@ fail/build/retained_behavior_selected_trap rejected 4433ms expected @d25b32be7ef
 	the selected composition retains crash cause Trap through machine `Trapping::check` (Terminal machine 7) declared here
 fail/build/retained_const_argument_out_of_carrier rejected 4401ms expected @4a802009dabd
 	integer node `u8(257)` does not fit exact carrier `u8`
-fail/build/retained_domain_and_service_rows_invalid_index rejected 1077ms expected @ccdb99ca2214
-	cannot prove scalar result domain for return from @const-qualification-INDEX-0 at statement 0: Below
+fail/build/retained_domain_and_service_rows_invalid_index rejected 1479ms expected @a2844b0d431c
+	domain constraint `Below` for the const leaf value is false; failed domain `Below`
 fail/build/retired_assumed_binding_receiver rejected 3ms expected @ccdb99ca2214
 	tests/omega/fail/build/retired_assumed_binding_receiver/main.omg:2:36: receiver-style assumed binding is retired; use Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)
 fail/build/retired_boundary_acceptance_receiver rejected 3ms expected @ccdb99ca2214
@@ -4921,8 +4921,8 @@ fail/domains/linear_qualification_unselected_target_issuer rejected 12797ms expe
 	`as ... in Claim::Tagged` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove default-domain field requirement for return from label, state entry, at statement 1: Claim requires Claim::Issued
 	linear value `named(name(nominal\\(package-owner\\(32:1f73fcefbdab3a60e8c1c6d29e883322ee2fa7a49a77721de6752ab944bde483\\)\\,path\\(Claim\\)\\)))` reaches scope exit without being consumed or transferred in machine `label::windows_x86_64` state `entry`
-fail/domains/logical_subject_false_constant rejected 187ms expected @ccdb99ca2214
-	cannot prove scalar result domain for return from @const-qualification-SCALAR-0 at statement 0: u64::Small
+fail/domains/logical_subject_false_constant rejected 1624ms expected @a2844b0d431c
+	domain constraint `Small` for the const leaf value is false; failed domain `u64::Small`
 fail/domains/logical_subject_not_machine_body rejected 12ms expected @ccdb99ca2214
 	tests/omega/fail/domains/logical_subject_not_machine_body/main.omg:2:26: implicit `self` is retired; name the explicit parameter or domain subject
 fail/domains/logical_subject_not_machine_ensures rejected 22ms expected @ccdb99ca2214
@@ -9246,8 +9246,8 @@ fail/facts/foreign_scalar_record_result_through_parameter_rejected rejected 2573
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/foreign_scalar_record_result_through_target_body_rejected rejected 2216ms expected @ccdb99ca2214
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/four_variant_enum_payload_bound_through_call_result_rejected rejected 45920ms expected @6e5131c510b9+wt
-	cannot prove ensures contract for exit from extract_payload at statement 7: result >= 40 && result <= 80
+fail/facts/four_variant_enum_payload_bound_through_call_result_rejected rejected 5129ms expected @a2844b0d431c
+	cannot prove ensures contract for exit from extract_payload at statement 3: result >= 40 && result <= 80
 fail/facts/four_variant_enum_payload_bound_through_const_name_rejected rejected 10937ms expected @6e5131c510b9+wt
 	cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/four_variant_enum_payload_bound_through_field_rejected rejected 18519ms expected @6e5131c510b9+wt
@@ -12548,8 +12548,8 @@ fail/facts/scalar_width_shifts_through_target_body_rejected rejected 3831ms expe
 	exact arithmetic in machine `ArmShiftRoundTrip::shift_round_trip` state `shift_round_trip` local `shifted` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/scoped_scalar_initializer_through_call_result_rejected rejected 2327ms expected @ccdb99ca2214
 	cannot prove initializer of `scoped` in make is in domain `BelowIndex`; an annotation cannot establish routed qualification
-fail/facts/scoped_scalar_initializer_through_const_name_rejected rejected 68ms expected @ccdb99ca2214
-	cannot prove scalar result domain for return from @const-qualification-SCALAR-0 at statement 0: BelowIndex
+fail/facts/scoped_scalar_initializer_through_const_name_rejected rejected 1428ms expected @a2844b0d431c
+	domain constraint `BelowIndex` for the const leaf value is false; failed domain `BelowIndex`
 fail/facts/scoped_scalar_initializer_through_field_rejected rejected 761ms expected @ccdb99ca2214
 	construction of `Holder` field `scoped`: value 4 is outside its declared range `0..=3`
 fail/facts/scoped_scalar_initializer_through_local_rejected rejected 2661ms expected @ccdb99ca2214
@@ -15608,12 +15608,12 @@ fail/generics/runtime_value_recipe_evidence_mutation_stale rejected 2521ms expec
 	cannot prove requires contract for call one from probe$specialized$480fd029dee991d4$0: slot == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/generics/runtime_value_recipe_forged_descriptor rejected 1070ms expected @911f6617ba9e
 	data `Counted` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/generics/runtime_value_recipe_join_bound_loss rejected 1247ms expected @ccdb99ca2214
-	exact arithmetic in machine `bad` state `entry` local `__value_index#2548#0` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/generics/runtime_value_recipe_join_bound_loss rejected 3707ms expected @a2844b0d431c
+	exact arithmetic in value argument `Limit` of `Index` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/generics/runtime_value_recipe_ordinary_call_const rejected 359ms expected @911f6617ba9e
 	machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
-fail/generics/runtime_value_recipe_prior_write_overflow rejected 418ms expected @8b519ca647cd+wt
-	exact arithmetic in machine `main` state `entry` local `__value_index#2544#0` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/generics/runtime_value_recipe_prior_write_overflow rejected 3456ms expected @a2844b0d431c
+	exact arithmetic in value argument `Limit` of `Index` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/generics/runtime_value_recipe_provider_wrong_projection rejected 4107ms expected @911f6617ba9e
 	machine `Direct::snapshot` state `snapshot` does not satisfy trait `Counting` machine `snapshot`: expected return `Counted<const source.bytes.len>`, got `Counted<const source.sibling.len>`
 fail/generics/runtime_value_recipe_qualified_drop rejected 1104ms expected @911f6617ba9e
