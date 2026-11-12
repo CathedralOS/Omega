@@ -3,7 +3,7 @@
 set -euo pipefail
 WITNESS="${BISECT_WITNESS:?}"
 ROOT="/agent/repos/omega"
-COMMIT=$(git -C "$ROOT" rev-parse HEAD)
+COMMIT="${BISECT_HEAD:-$(git -C "$ROOT" rev-parse HEAD)}"
 LB="/tmp/ledger-bisect-2026-11-11"
 if [[ ! -x "$LB/tools/bisect_test.py" ]]; then
   SRC="$ROOT/.agents/ledger-bisect-2026-11-11"
