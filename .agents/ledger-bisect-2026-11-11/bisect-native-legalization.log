@@ -1,0 +1,163 @@
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 1170 revisions left to test after this (roughly 10 steps)
+[b1d6dad3c52a15788391b5e025730dc15493abbd] psi: project data requires onto the selected case for guard narrowing (#1276)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 585 revisions left to test after this (roughly 9 steps)
+[2ac4d385427f92cf0c777f9af600753cf1dbb566] repo: consolidate TASKS.md to 202 lines and ratchet byte size (#1890)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 292 revisions left to test after this (roughly 8 steps)
+[dd84ccca332b7a608edf430de84b56056158aea4] psi: avoid recalculating variable values for each kind of call argument (#1587)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 145 revisions left to test after this (roughly 7 steps)
+[badb9b948fa42087f985420f407bcd2c99e6da5a] psi: carry proven selector coordinates into call operand custody (#1440)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 72 revisions left to test after this (roughly 6 steps)
+[d239a03165e5b9daa4836b6e01e34784019e7162] omega: group Omega 00's settlement and provider modules into folders (#1508)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 36 revisions left to test after this (roughly 5 steps)
+[1bd5c3f3e1a2dfd81b2e2a7e501a36922f0e872c] omega: separate source inspection from target execution (#1543)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 18 revisions left to test after this (roughly 4 steps)
+[f4594a2f8f8727dce0a2e608a040bc3a53343007] samples: select unannotated boundary calls through Build rows (#1563)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 8 revisions left to test after this (roughly 3 steps)
+[d5317835ed08e2484cfee6355d8961041be300e9] repo: explain program results before report counts (#1554)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 8 revisions left to test after this (roughly 3 steps)
+[5149a41bfd6da89a2b1f94c7e70e981b05ee005d] samples: select returned write destinations through Build rows (#1560)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 6 revisions left to test after this (roughly 3 steps)
+[2dad5aa17e5f444824e4a3d13a30d636947f36ba] psi: check generic statement calls and field bounds (#1541)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 3 revisions left to test after this (roughly 2 steps)
+[2da2c5b57f1966e0989001b12d805d6d477113e4] omega: test retained execution beside terminal-runtime, not the CLI (#1548)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[5c6c16d4d1867bcac99343285c5074169d7cbfbc] psi: preserve write-only reference stores through helpers (#1518)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[47eab82ef8b0453fd05ce5445de60c28500d3dd2] omega: check runtime permissions without rereading source (#1549)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_step.sh'
+5c6c16d4d1867bcac99343285c5074169d7cbfbc is the first bad commit
+commit 5c6c16d4d1867bcac99343285c5074169d7cbfbc
+Author: asmithbot <asmithbot@proton.me>
+Date:   Mon Nov 2 21:57:11 2026 +0000
+
+    psi: preserve write-only reference stores through helpers (#1518)
+    
+    * samples: select write-only reference forwarding through Build
+    
+    Replace target-prefixed lend bodies with a write-only boundary requirement and four ordinary named implementations. Keep the replacement of only slot.target and the new85/displaced11/stamp17 execution oracle. Update the README to describe that existing leaf-store behavior.
+    
+    This checkpoint selects the migrated target pin and observation twin for hosted checking and both-engine execution before any compiler repair. Unproved opaque write-only declarations remain rejection controls.
+    
+    * psi: keep field address capture from reading old references
+    
+    Write-only field replacement in ordinary helpers rejected because locating the destination activated a pointer-read permission for the old field. Address capture now keeps the receiver permission without creating a descriptor-load resource; ordinary value reads retain their existing activation path.
+    
+    The selected-body place performs the same reference-field store through an explicit input lifetime. A public lifetime relation does not promise that an opaque returned view names its input, so the earlier lend attempt stays retained as a refused source checkpoint rather than an alias guarantee inferred from private bodies. New85/previous11/stamp17 and all reject oracles are unchanged.
+    
+    * psi: retain pointer reads before deeper field access
+    
+    The capture helper also serves real receiver reads. Suppress pointer-read activation only for the exact final reference cell being replaced, using the existing destination marker; intermediate receiver and value captures keep their existing permission producer.
+    
+    Add one runtime witness that reads and writes through an incoming record pointer, plus a control that writes while its shared child is still live. These challenge the distinction between locating the final cell and loading a pointer needed to reach another field.
+    
+    * psi: compare field writes against their captured pointer loans
+    
+    Follow completed assignment receivers before applying their captured field or index projection. Preserve read authority and the pre-RHS destination across pointer crossings. Retain temporary unresolved-summary diagnostics for the remaining forwarding investigation.
+    
+    * debug: retain supported stored-reference trace fields
+    
+    * psi: retain stored references when a view enters a block
+    
+    Capture the receiving carrier fields from the completed source on every block binding. A formed pointer has no child slots under its temporary, but its original backing still supplies those fields. Keep unknown pointer reads refusing and remove the diagnostic trace.
+    
+    * tests: keep the replay reproduction as local investigation evidence
+    
+    Language behavior remains covered by the unchanged Omega fact programs and rejection controls. The isolated replay model diagnosed the lost arrival cohort and remains in ignored build evidence rather than the shipped test suite.
+    
+    * samples: make the write-only join reveal wrong branch selection
+    
+    Exercise both choices and let only the helper arm write an independent marker, while preserving the original reference store and85/17/11 checks. Keep reject twins identical at the caller and change only the prohibited descriptor read.
+    
+    * facts: record the completed write-only reference-store row
+    
+    Record actual Linux native and Terminal exits for all nine places, the branch-sensitive join, and the focused borrow controls. Keep source stamps bound to the observed programs and subtract only the demonstrated target-selection clause.
+    
+    * facts: record the integrated write-only store observations
+    
+    Freshly observe the same nine-place row, borrow controls and public projects after main changed flow and native admission. Preserve each unowned golden block and stamp the actual integrated producer source.
+    
+    ---------
+    
+    Co-authored-by: Zachary Canann <zacharycanann@gmail.com>
+
+ TASKS.md                                           |   2 -
+ .../src/checks/borrows/access_sources.rs           |  13 ++
+ .../borrows/access_sources/storage_addresses.rs    | 178 +++++++++++++++++++++
+ .../src/checks/borrows/statements.rs               |  45 ++----
+ .../src/flow/expression.rs                         |   7 +-
+ .../descriptor_results/replay/replay.rs            |  16 +-
+ .../cli/facts/write_only_reference_store/README.md | 177 ++++++++++++--------
+ .../call_result/invalid/main.omg                   |   2 +-
+ .../call_result/invalid/sample.json                |   7 +
+ .../const_name/invalid/main.omg                    |   2 +-
+ .../const_name/invalid/sample.json                 |   7 +
+ .../field/invalid/main.omg                         |   2 +-
+ .../field/invalid/sample.json                      |   7 +
+ .../local/invalid/main.omg                         |   2 +-
+ .../local/invalid/sample.json                      |   7 +
+ .../match_join/invalid/main.omg                    |  21 ++-
+ .../match_join/invalid/sample.json                 |   7 +
+ .../write_only_reference_store/match_join/main.omg |  22 ++-
+ .../other_machine/invalid/main.omg                 |   2 +-
+ .../other_machine/invalid/sample.json              |   7 +
+ .../other_state/invalid/main.omg                   |   2 +-
+ .../other_state/invalid/sample.json                |   7 +
+ .../parameter/invalid/main.omg                     |   2 +-
+ .../parameter/invalid/sample.json                  |   7 +
+ .../target_body/build.omg                          |   5 +
+ .../target_body/invalid/build.omg                  |   5 +
+ .../target_body/invalid/main.omg                   |  35 ++--
+ .../target_body/invalid/sample.json                |   7 +
+ .../target_body/main.omg                           |  36 +++--
+ tests/omega/corpus_both_linux_x86_64.txt           |  10 ++
+ tests/omega/corpus_outcomes.txt                    |  46 +++---
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  15 ++
+ .../main.omg                                       |   2 +-
+ .../main.omg                                       |   2 +-
+ .../main.omg                                       |   2 +-
+ .../main.omg                                       |   2 +-
+ .../main.omg                                       |  21 ++-
+ .../main.omg                                       |   2 +-
+ .../main.omg                                       |   2 +-
+ .../main.omg                                       |   2 +-
+ .../build.omg                                      |   5 +
+ .../main.omg                                       |  35 ++--
+ .../build.omg                                      |   7 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  22 +++
+ .../main.omg                                       |  22 ++-
+ .../build.omg                                      |   5 +
+ .../main.omg                                       |  36 +++--
+ 50 files changed, 691 insertions(+), 195 deletions(-)
+ create mode 100644 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/borrows/access_sources/storage_addresses.rs
+ create mode 100644 samples/cli/facts/write_only_reference_store/call_result/invalid/sample.json
+ create mode 100644 samples/cli/facts/write_only_reference_store/const_name/invalid/sample.json
+ create mode 100644 samples/cli/facts/write_only_reference_store/field/invalid/sample.json
+ create mode 100644 samples/cli/facts/write_only_reference_store/local/invalid/sample.json
+ create mode 100644 samples/cli/facts/write_only_reference_store/match_join/invalid/sample.json
+ create mode 100644 samples/cli/facts/write_only_reference_store/other_machine/invalid/sample.json
+ create mode 100644 samples/cli/facts/write_only_reference_store/other_state/invalid/sample.json
+ create mode 100644 samples/cli/facts/write_only_reference_store/parameter/invalid/sample.json
+ create mode 100644 samples/cli/facts/write_only_reference_store/target_body/invalid/sample.json
+ create mode 100644 tests/omega/fail/borrows/borrowed_reference_field_live_child_write/build.omg
+ create mode 100644 tests/omega/fail/borrows/borrowed_reference_field_live_child_write/expected.txt
+ create mode 100644 tests/omega/fail/borrows/borrowed_reference_field_live_child_write/main.omg
+ create mode 100644 tests/omega/pass/borrows/borrowed_reference_field_read_and_write_exit/build.omg
+ create mode 100644 tests/omega/pass/borrows/borrowed_reference_field_read_and_write_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/borrows/borrowed_reference_field_read_and_write_exit/main.omg
+bisect found first bad commit
