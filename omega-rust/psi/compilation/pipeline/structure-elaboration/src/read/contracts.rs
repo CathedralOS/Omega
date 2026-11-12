@@ -334,9 +334,11 @@ impl Program<'_> {
                 };
                 // The `k`-th scalar formal is value `k + 1`
                 // (`Signature::parameters`).
+                // A formal of a rigid type is a value too, though no
+                // clause can name it.
                 let earlier = scope.slots[..slot]
                     .iter()
-                    .filter(|formal| formal.value_type.scalar().is_some())
+                    .filter(|formal| formal.value_type.declared().is_some())
                     .count();
                 let value = ValueId::new(earlier as u64 + 1).ok_or_else(|| {
                     refuse(
@@ -408,6 +410,7 @@ impl Program<'_> {
             return unserved("term other than a field of the value or a literal");
         };
         match value_type {
+            ValueType::Rigid(_) => unserved("field of a rigid type in a clause"),
             ValueType::Scalar(ScalarType::Integer(scalar_type)) => Ok((
                 ScalarTerm::IntegerField {
                     root,
@@ -462,7 +465,7 @@ impl Program<'_> {
                     };
                     let earlier = scope.slots[..slot]
                         .iter()
-                        .filter(|formal| formal.value_type.scalar().is_none())
+                        .filter(|formal| matches!(formal.value_type, ValueType::Record(_)))
                         .count();
                     let root = PlaceId::new(earlier as u64 + 1).ok_or_else(|| {
                         refuse(
