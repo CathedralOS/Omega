@@ -291,11 +291,16 @@ Build::dependency(builder, core, locator);
 Build::validate(builder, core);
 ```
 
-The shipped Build vocabulary has no `Build::dependency` and names no
-dependency by identifier. A dependency is registered with
-`Build::depend(builder, Source::Path { location: "vendor" })` or
-`Build::depend_as(builder, "vendor", source)`, and is known afterwards by its
-alias bytes. The bundled `core`, `std` and `alloc` are never registered by a
+Premise update (#2530 and the corpus migration that retires `depend*`): the
+shipped vocabulary now registers a dependency as a configured description,
+`Build::dependency(builder, description) -> DependencyRegistration` (and
+`Build::build_dependency` for Build scope), where
+`dependency::from_source(source)` builds the description and
+`dependency::with_alias(&mut description, "vendor")` sets its alias. It still
+names no dependency by identifier; the registration carries no fields, and the
+coordinator knows the dependency by its alias bytes. The returned
+`DependencyRegistration` is one candidate argument for `Build::validate`; this
+note does not choose it. The bundled `core`, `std` and `alloc` are never registered by a
 product at all; the toolchain supplies them. Today
 `omega --check source/library/core/main.omg` is refused with
 `source root ... overlaps toolchain root`, so no command can check a bundled
@@ -304,7 +309,8 @@ library as a subject.
 The question:
 
 - **(a)** Is the argument of `Build::validate` the dependency's alias, as in
-  `Build::validate(builder, "vendor")`, or a new identifier form?
+  `Build::validate(builder, "vendor")`, the returned `DependencyRegistration`,
+  or a new identifier form?
 - **(b)** How is a bundled library named as a subject: by
   `Build::validate(builder, "core")` without registration, by checking the
   library's own directory as a root (lifting the overlap refusal for the
