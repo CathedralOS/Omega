@@ -26,7 +26,11 @@ LEDGER_ONLY = {"f3612364ffbb9489d7be1409397df6867fcbebc6"}
 j = json.load(open(p))
 st = j.get("status", "")
 brk = (j.get("breaking_commit") or "")[:12]
-if st in ("bisected", "never_good_since_fixture_add") and brk not in (PIN[:12],) and brk[:12] not in {x[:12] for x in LEDGER_ONLY}:
+if (
+    st in ("bisected", "never_good_since_fixture_add")
+    and brk != PIN
+    and brk not in LEDGER_ONLY
+):
     raise SystemExit(0)
 raise SystemExit(1)
 PY
@@ -43,13 +47,15 @@ PY
   set -e
   if [[ "$rc" -ne 0 ]]; then
     SAFE="${w//\//_}"
-    python3 - "$OUT_DIR/${SAFE}.json" "$w" "$rc" <<'PY'
+    if [[ ! -f "$OUT_DIR/${SAFE}.json" ]]; then
+      python3 - "$OUT_DIR/${SAFE}.json" "$w" "$rc" <<'PY'
 import json, sys
 out, witness, rc = sys.argv[1:4]
+st = "no_good_on_first_parent" if int(rc) == 2 else "bisect_aborted"
 json.dump(
     {
         "witness": witness,
-        "status": "no_good_on_first_parent",
+        "status": st,
         "bisect_rc": int(rc),
         "method": "pin-fixed-ledger",
     },
@@ -57,6 +63,7 @@ json.dump(
     indent=2,
 )
 PY
+    fi
     echo "WARN: bisect failed for $w (rc=$rc)" >&2
   fi
   python3 "$ROOT/.agents/ledger-bisect-2026-11-11/write_part_2.py"

@@ -12,6 +12,7 @@ mkdir -p "$OUT_DIR"
 SAFE="${WITNESS//\//_}"
 export BISECT_WITNESS="$WITNESS"
 cd "$ROOT"
+git bisect reset 2>/dev/null || true
 git checkout work/ledger-bisect-part-2 >/dev/null 2>&1 || true
 START_SHA="$(git rev-parse HEAD)"
 
@@ -100,23 +101,42 @@ fi
 
 set +e
 pin_rc=125
-for _ in 1 2 3; do
+for _ in 1 2 3 4 5 6; do
   run_test_at "$PIN"
   pin_rc=$?
   [[ "$pin_rc" -ne 125 ]] && break
+  sleep 45
 done
 good_rc=125
-for _ in 1 2 3; do
+for _ in 1 2 3 4 5 6; do
   run_test_at "$GOOD"
   good_rc=$?
   [[ "$good_rc" -ne 125 ]] && break
+  sleep 45
 done
 set -e
 git checkout work/ledger-bisect-part-2 >/dev/null 2>&1
-[[ "$good_rc" -eq 0 && "$pin_rc" -eq 1 ]] || {
+if [[ "$good_rc" -ne 0 || "$pin_rc" -ne 1 ]]; then
   echo "ERROR: endpoints good=$good_rc($GOOD) pin=$pin_rc($PIN)" >&2
-  exit 2
-}
+  python3 - "$OUT_DIR/${SAFE}.json" "$WITNESS" "$GOOD" "$PIN" "$good_rc" "$pin_rc" <<'PY'
+import json, sys
+_, out, witness, good, pin, g, p = sys.argv
+json.dump(
+    {
+        "witness": witness,
+        "good": good,
+        "bad_pin": pin,
+        "status": "endpoint_check_failed",
+        "good_rc": int(g),
+        "pin_rc": int(p),
+        "method": "pin-fixed-ledger",
+    },
+    open(out, "w"),
+    indent=2,
+)
+PY
+  exit 3
+fi
 
 STABLE=1
 set +e
