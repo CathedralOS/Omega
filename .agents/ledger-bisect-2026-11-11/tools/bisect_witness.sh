@@ -1,9 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 WITNESS="${BISECT_WITNESS:?}"
-ROOT="${BISECT_REPO_ROOT:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}"
-MAIN_REPO="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+MAIN_REPO="${BISECT_MAIN_REPO:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
+ROOT="${BISECT_REPO_ROOT:-$MAIN_REPO}"
 STEP_LOG="${BISECT_STEP_LOG:-$MAIN_REPO/.agents/ledger-bisect-2026-11-11/bisect_steps.tsv}"
+mkdir -p "$(dirname "$STEP_LOG")"
 REASON_FILE="${BISECT_REASON_FILE:-/tmp/bisect_step_reason.txt}"
 cd "$ROOT"
 HEAD_SHA="$(git rev-parse HEAD)"
