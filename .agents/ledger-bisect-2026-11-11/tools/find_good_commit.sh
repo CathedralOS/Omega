@@ -51,18 +51,59 @@ pin_rc=$?
 max_n=$(git rev-list --first-parent --count "$PIN")
 max_n=$((max_n - 1))
 
-last_bad=0
-for ((n = 1; n <= max_n; n++)); do
-  test_at "$n"
+# Bracket the newest good commit: exponential forward from the parent, then binary search.
+lo=0
+hi=""
+for ((step = 1; step <= max_n; step *= 2)); do
+  test_at "$step"
   rc=$?
   if [[ "$rc" -eq 0 ]]; then
-    nth_fp "$n"
-    exit 0
+    hi=$step
+    break
   fi
   if [[ "$rc" -eq 1 ]]; then
-    last_bad=$n
+    lo=$step
+  fi
+done
+if [[ -z "$hi" ]]; then
+  for ((n = lo + 1; n <= max_n; n++)); do
+    test_at "$n"
+    rc=$?
+    if [[ "$rc" -eq 0 ]]; then
+      hi=$n
+      break
+    fi
+    if [[ "$rc" -eq 1 ]]; then
+      lo=$n
+    fi
+  done
+fi
+[[ -n "$hi" ]] || { echo "no good commit found (last_bad n=$lo)" >&2; exit 1; }
+
+while ((lo + 1 < hi)); do
+  mid=$(( (lo + hi) / 2 ))
+  test_at "$mid"
+  rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    hi=$mid
+  elif [[ "$rc" -eq 1 ]]; then
+    lo=$mid
+  else
+  lo=$mid
   fi
 done
 
-echo "no good commit found (last_bad n=$last_bad)" >&2
-exit 1
+for ((try = hi; try >= 1; try--)); do
+  if ((try <= lo)); then
+    continue
+  fi
+  test_at "$try"
+  rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    nth_fp "$try"
+    exit 0
+  fi
+done
+
+nth_fp "$hi"
+exit 0
