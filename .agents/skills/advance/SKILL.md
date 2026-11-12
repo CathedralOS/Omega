@@ -141,7 +141,7 @@ that photograph: a different object, and a green check on it is not done.
      against [coordinator-review](../coordinator-review/SKILL.md), then run
      `cargo xtask land <pr> --expected-head $(git rev-parse HEAD)`.
    - **In a cloud session** where `cargo xtask land` cannot run: mark the PR
-     ready and enable squash auto-merge as soon as the focused run passes.
+     ready and squash-merge it as soon as the focused run passes.
 3. **Chain the next requirement on the warm worktree:** Once landed, continue the
    parent capability's next remaining requirement on the same warm worktree
    (`git fetch origin main && git checkout --detach origin/main && git clean -fd`).

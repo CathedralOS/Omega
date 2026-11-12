@@ -40,8 +40,8 @@ the skills.
   over the rows and samples the change targets, plus the crate's unit tests and
   Clippy. No broad family sweeps, no before/after comparisons against main, no
   re-recording rows you did not change.
-- **Land, then verify.** Open the PR ready with squash auto-merge as soon as
-  the focused run passes. Main-wide verification is the nightly sweep's job;
+- **Land, then verify.** Squash-merge the PR yourself as soon as the focused
+  run passes (never a merge commit). Main-wide verification is the nightly sweep's job;
   repair what it finds afterwards.
 - **One PR per capability.** Do not open one-row re-pin or ledger-only PRs;
   fold them into the PR that touches those rows. Every PR costs a merge-queue
