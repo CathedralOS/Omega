@@ -863,9 +863,15 @@ pub mod operator {
             let argument_handles = program.expression_table.expression_handles(call.arguments);
             let argument_count = argument_handles.len();
             let use_site = call
-                .receiver
-                .is_valid()
-                .then(|| program.expression_table.source_span(call.receiver))
+                .authored_call_selection
+                .and_then(|occurrence| program.authored_declaration_selections().get(occurrence))
+                .map(|selection| selection.source_span())
+                .filter(|span| span.span.start != span.span.end)
+                .or_else(|| {
+                    call.receiver
+                        .is_valid()
+                        .then(|| program.expression_table.source_span(call.receiver))
+                })
                 .filter(|span| span.span.start != span.span.end)
                 .or_else(|| {
                     argument_handles
@@ -874,46 +880,68 @@ pub mod operator {
                         .find(|span| span.span.start != span.span.end)
                 })
                 .unwrap_or_default();
-            program
-                .operators()
-                .iter()
-                .chain(program.machine_token_bindings())
-                .filter(|operator| {
-                    named_operator_is_visible_candidate(
-                        program,
-                        operator,
-                        use_site,
-                        static_receiver_segments,
-                        call.target.as_str(),
-                        argument_count,
-                        has_value_receiver,
-                    )
-                })
-                .collect()
+            named_operator_candidates(
+                program,
+                program
+                    .operators()
+                    .iter()
+                    .chain(program.machine_token_bindings()),
+                use_site,
+                static_receiver_segments,
+                call.target.as_str(),
+                argument_count,
+                has_value_receiver,
+            )
         }
 
-        fn named_operator_is_visible_candidate(
-            program: &TypedTrees,
-            operator: &OperatorDefinition,
+        fn named_operator_candidates<'program>(
+            program: &'program TypedTrees,
+            operators: impl Iterator<Item = &'program OperatorDefinition>,
             use_site: source::SourceSpan,
             static_receiver_segments: Option<&[&str]>,
             target_name: &str,
             argument_count: usize,
             has_value_receiver: bool,
-        ) -> bool {
-            named_operator_path_matches_call(
-                program,
-                operator,
-                static_receiver_segments,
-                target_name,
-            ) && named_operator_arity_fits_call(
-                program,
-                operator,
-                argument_count,
-                has_value_receiver,
-            ) && program
-                .symbols
-                .source_reference_can_see_symbol(use_site, operator.symbol)
+        ) -> Vec<&'program OperatorDefinition> {
+            // Module normalization removes the receiver but retains the authored
+            // qualified path. Resolve its family once in the occurrence's scope;
+            // declaration display paths cannot interpret requester-local aliases.
+            let qualified = (!has_value_receiver
+                && static_receiver_segments.is_none()
+                && target_name.contains("::"))
+            .then(|| {
+                program
+                    .symbols
+                    .top_level_candidates_from_source(
+                        target_name,
+                        &[symbols::SymbolKind::Machine, symbols::SymbolKind::Operator],
+                        use_site,
+                    )
+                    .into_iter()
+                    .collect::<std::collections::HashSet<_>>()
+            });
+            operators
+                .filter(|operator| {
+                    qualified.as_ref().map_or_else(
+                        || {
+                            named_operator_path_matches_call(
+                                program,
+                                operator,
+                                static_receiver_segments,
+                                target_name,
+                            )
+                        },
+                        |family| family.contains(&operator.symbol),
+                    ) && named_operator_arity_fits_call(
+                        program,
+                        operator,
+                        argument_count,
+                        has_value_receiver,
+                    ) && program
+                        .symbols
+                        .source_reference_can_see_symbol(use_site, operator.symbol)
+                })
+                .collect()
         }
 
         pub fn selected_named_expression_call_has_no_runtime_receiver(
@@ -931,12 +959,9 @@ pub mod operator {
                 return false;
             }
             if !call.receiver.is_valid() {
-                return named_operator_path_matches_call(
-                    program,
-                    operator,
-                    None,
-                    call.target.as_str(),
-                );
+                // Exact selection and positional arity already establish this;
+                // re-reading its spelling would lose normalized module aliases.
+                return true;
             }
             let Some(namespace) = expression_static_receiver_segments(program, call) else {
                 return false;
@@ -1021,26 +1046,31 @@ pub mod operator {
                 && static_segments.is_none();
             let argument_handles = program.statement_table.expression_handles(call.arguments);
             let argument_count = argument_handles.len();
-            let use_site = argument_handles
-                .iter()
-                .map(|argument| program.expression_table.source_span(*argument))
-                .find(|span| span.span.start != span.span.end)
-                .unwrap_or_default();
-            program
-                .operators()
-                .iter()
-                .filter(|operator| {
-                    named_operator_is_visible_candidate(
-                        program,
-                        operator,
-                        use_site,
-                        static_segments.as_deref(),
-                        call.target.as_str(),
-                        argument_count,
-                        has_value_receiver,
-                    )
+            let use_site = call
+                .authored_call_selection
+                .and_then(|occurrence| program.authored_declaration_selections().get(occurrence))
+                .map(|selection| selection.source_span())
+                .filter(|span| span.span.start != span.span.end)
+                .or_else(|| {
+                    (call.source_span.span.start != call.source_span.span.end)
+                        .then_some(call.source_span)
                 })
-                .collect()
+                .or_else(|| {
+                    argument_handles
+                        .iter()
+                        .map(|argument| program.expression_table.source_span(*argument))
+                        .find(|span| span.span.start != span.span.end)
+                })
+                .unwrap_or_default();
+            named_operator_candidates(
+                program,
+                program.operators().iter(),
+                use_site,
+                static_segments.as_deref(),
+                call.target.as_str(),
+                argument_count,
+                has_value_receiver,
+            )
         }
 
         fn named_operator_path_matches_call(
@@ -1049,14 +1079,6 @@ pub mod operator {
             static_receiver_segments: Option<&[&str]>,
             target_name: &str,
         ) -> bool {
-            // Static module normalization removes the receiver and retains the
-            // complete selected path. Overloads still await operand types, so
-            // match their declaration paths before the caller applies arity and
-            // visibility checks. A leaf comparison would discard the family;
-            // authored operator names alone also omit a real module's owner.
-            if static_receiver_segments.is_none() && target_name.contains("::") {
-                return program.symbols.display_path(operator.symbol, "::") == target_name;
-            }
             let path = program.operator_path_members(operator.name);
             let Some((last, prefix)) = path.split_last() else {
                 return false;
@@ -1110,12 +1132,7 @@ pub mod operator {
                 .name_path_members(call.receiver)
                 .is_empty()
             {
-                return named_operator_path_matches_call(
-                    program,
-                    operator,
-                    None,
-                    call.target.as_str(),
-                );
+                return true;
             }
             let Some(namespace) = statement_static_receiver_segments(program, call) else {
                 return false;
