@@ -13,7 +13,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **NESTED-MACHINE-UNIFICATION.** Replace `state` with nested machines ([machines.md](wiki/spec/language/machines.md#nested-machines-and-identity), [state_contracts.md](wiki/spec/language/state_contracts.md)).
   - Resolve recursive scopes, elaborate flat identities, and reject runtime capture or code after trailing declarations.
-  - Complete cyclic arrivals, normal returns, loans, restoration, linear custody, and SCC rank measures across call shapes.
+  - Complete [local inference](wiki/drafts/designs/local_inference_and_contracts.md), cyclic arrivals, normal returns, loans, restoration, linear custody, and SCC rank measures across call shapes.
   - Complete the declaration-model migration across linked repositories, samples, the corpus, and both compilers.
   Acceptance: 3-level nesting, helper calls, cycles, and 9-place rows pass `omega run --both`; `state` syntax is deleted.
 
