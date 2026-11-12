@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""Verify parent/bad edge and member flip table for one cluster."""
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+DIR = Path(__file__).resolve().parents[1]
+TOOL = DIR / "tools" / "verify_at_commit.sh"
+PIN = "51e8c45c793007f211d0d9baee7de16767172444"
+MEASURE = DIR / "work" / "pin_measure.txt"
+
+
+def sh(*args: str) -> str:
+    return subprocess.check_output(args, text=True, cwd=ROOT).strip()
+
+
+def verify(commit: str, witness: str, trials: int = 1) -> dict:
+    subprocess.run(
+        ["python3", str(DIR / "tools/pin_bisect_context.py"), witness, str(MEASURE)],
+        cwd=ROOT,
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    out = subprocess.check_output(
+        [str(TOOL), commit, witness, str(trials)],
+        text=True,
+        cwd=ROOT,
+    )
+    return json.loads(out)
+
+
+def hunk_quote(commit: str, cluster: int) -> str:
+    paths = ["omega-rust/psi/"]
+    if cluster == 1:
+        paths = ["omega-rust/psi/compilation/pipeline/lowered-discharge/"]
+    diff = subprocess.run(
+        ["git", "show", commit, "--format=", "-U3", "--", *paths],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+    text = (diff.stdout or "").strip()
+    return text[:12000] if text else "mechanism not established"
+
+
+def main() -> int:
+    cluster = int(sys.argv[1])
+    bjson = DIR / f"work/bisect_c{cluster}.json"
+    data = json.loads(bjson.read_text())
+    bad = data["breaking_commit"]
+    if not bad:
+        print("no breaking commit", file=sys.stderr)
+        return 2
+    parent = sh("git", "rev-parse", f"{bad}^1")
+    good = sh("git", "rev-parse", data["good"]) if data.get("good") else ""
+    witness = data["witness"]
+    clusters = json.loads((DIR / "work/pin_clusters.json").read_text())
+    members = clusters[cluster]["members"]
+    pr = ""
+    subj = sh("git", "log", "-1", "--format=%s", bad)
+    if "#" in subj:
+        import re
+
+        m = re.search(r"#(\d+)", subj)
+        if m:
+            pr = m.group(1)
+    parent_trials = verify(parent, witness, 3)
+    bad_trials = verify(bad, witness, 3)
+    member_rows = []
+    for m in members:
+        member_rows.append(
+            {
+                "fixture": m,
+                "parent": verify(parent, m, 1),
+                "bad": verify(bad, m, 1),
+            }
+        )
+    out = {
+        "cluster": cluster,
+        "witness": witness,
+        "parent": parent,
+        "first_bad": bad,
+        "good_anchor": good,
+        "pin": PIN,
+        "pr": pr or None,
+        "parent_trials": parent_trials,
+        "bad_trials": bad_trials,
+        "members": member_rows,
+        "mechanism_hunk_excerpt": hunk_quote(bad, cluster),
+    }
+    path = DIR / f"work/verify_c{cluster}.json"
+    path.write_text(json.dumps(out, indent=2) + "\n")
+    print(f"wrote {path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

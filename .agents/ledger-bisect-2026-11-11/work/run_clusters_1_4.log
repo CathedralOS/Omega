@@ -1,0 +1,88 @@
+Already on 'work/ledger-bisect-part-26'
+Your branch is up to date with 'origin/work/ledger-bisect-part-26'.
+=== cluster 1 witness pass/calls/runtime_constructed_borrowed_payload_arguments_exit ===
+    Finished `dev` profile [optimized] target(s) in 0.16s
+    Finished `test` profile [optimized] target(s) in 0.16s
+  Executable tests/corpus_runner.rs (target/debug/build/compiler/beaa8c7355c9ba28/out/corpus_runner-beaa8c7355c9ba28)
+corpus_runner: fixture-root-v1 2f6167656e742f7265706f732f6f6d656761
+corpus_runner: 1/1 done, 0 compile(s) in flight
+corpus_runner: library slices: 3 distinct, 3 computed
+    Finished `dev` profile [optimized] target(s) in 0.18s
+    Finished `test` profile [optimized] target(s) in 0.17s
+  Executable tests/corpus_runner.rs (target/debug/build/compiler/beaa8c7355c9ba28/out/corpus_runner-beaa8c7355c9ba28)
+fatal: not a git repository (or any of the parent directories): .git
+find_good n=0 51e8c45c793 rc=1
+find_good n=10508 630c7f4bc69 rc=125
+find_good n=17335 5b8c414c88c rc=125
+warning: unable to rmdir 'samples/apps/squalr': Directory not empty
+find_good n=26003 51c385f93b8 rc=125
+find_good n=30337 ebff4c4af63 rc=125
+find_good n=32504 5c6ac758ef6 rc=125
+find_good n=33588 fea99021ec3 rc=125
+find_good n=34130 951f2edbb70 rc=125
+find_good n=34401 548df357d8f rc=125
+find_good n=34536 056c4ac3f16 rc=125
+find_good n=34604 00e076c750c rc=125
+find_good n=34638 d685e19eb22 rc=125
+find_good n=34655 5d3b6cf0af8 rc=125
+find_good n=34663 79d09ec3d42 rc=125
+find_good n=34667 291bbd5c92a rc=125
+find_good n=34669 cb0bcd04adc rc=125
+find_good n=34670 1b53153ef67 rc=125
+find_good n=34671 22e7a5dad55 rc=125
+could not find good commit for pass/calls/runtime_constructed_borrowed_payload_arguments_exit; trying walk with cached PIN ledger only
+Already on 'work/ledger-bisect-part-26'
+Your branch is up to date with 'origin/work/ledger-bisect-part-26'.
+=== cluster 1 witness pass/calls/runtime_constructed_borrowed_payload_arguments_exit ===
+   Compiling version_check v0.9.5
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.47
+   Compiling typenum v1.20.1
+   Compiling cfg-if v1.0.4
+   Compiling cpufeatures v0.2.17
+   Compiling rustversion v1.0.23
+   Compiling serde_core v1.0.229
+   Compiling zmij v1.0.23
+   Compiling serde v1.0.229
+   Compiling generic-array v0.14.7
+   Compiling serde_json v1.0.151
+   Compiling itoa v1.0.18
+   Compiling memchr v2.8.3
+   Compiling encoded-scalar-plan v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/instruction-set-architectures/encoded-scalar-plan)
+   Compiling x86-encoding v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/instruction-set-architectures/x86-encoding)
+   Compiling crossbeam-utils v0.8.23
+   Compiling crossbeam-epoch v0.9.21
+   Compiling arc-swap v1.9.2
+   Compiling syn v3.0.4
+   Compiling crossbeam-deque v0.8.8
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling rayon-core v1.13.0
+   Compiling bitflags v2.13.1
+   Compiling either v1.19.0
+   Compiling rustix v1.1.4
+   Compiling digest v0.10.7
+   Compiling linux-raw-sys v0.12.1
+   Compiling io-lifetimes v2.0.4
+   Compiling io-lifetimes v3.0.1
+   Compiling sha2 v0.10.9
+   Compiling io-extras v0.19.0
+   Compiling optimization v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/optimization)
+   Compiling cap-primitives v4.0.3
+   Compiling once_cell v1.21.4
+   Compiling optimization-core v0.1.0 (/agent/repos/omega/omega-rust/omega/foundation/optimization-core)
+   Compiling compiler-storage-derive v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/compiler-storage/derive)
+   Compiling serde_derive v1.0.229
+   Compiling rayon v1.12.0
+   Compiling syntax-trees-derive v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/syntax-trees/derive)
+   Compiling maybe-owned v0.3.4
+error: output file /agent/repos/omega/target/debug/build/compiler-storage-derive/a4ea917eae039549/out/libcompiler_storage_derive-a4ea917eae039549.so is not writeable -- check its permissions
+
+error: could not compile `compiler-storage-derive` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: output file /agent/repos/omega/target/debug/build/syntax-trees-derive/8da9d6e642d2cec8/out/libsyntax_trees_derive-8da9d6e642d2cec8.so is not writeable -- check its permissions
+
+error: could not compile `syntax-trees-derive` (lib) due to 1 previous error
+mbx[cache]: 1 hits, 0 misses, 58 bypassed; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: every checkout believes it owns 5.3 GiB of outputs. the disk keeps one copy and says nothing.
