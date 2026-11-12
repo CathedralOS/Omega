@@ -27,6 +27,27 @@ for the six release gates (`repository`, `source semantics`, `build and packages
 `native matrix`, `diagnostics`, and `representative programs`) across all four
 hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`).
 
+## Spec first, land first
+
+These rules override any longer validation advice elsewhere in this file or in
+the skills.
+
+- **Read the spec, then implement it once.** Before editing, read the governing
+  page in `wiki/spec/` and implement what it says. No exploratory trial patches,
+  no redesign of a mechanism the spec already fixes. If the spec does not decide
+  the question, record it in `OWNER_QUESTIONS.md` and move to other work.
+- **Validate only what you touched.** One focused `mbx xtask corpus --filter`
+  over the rows and samples the change targets, plus the crate's unit tests and
+  Clippy. No broad family sweeps, no before/after comparisons against main, no
+  re-recording rows you did not change.
+- **Land, then verify.** Open the PR ready with squash auto-merge as soon as
+  the focused run passes. Main-wide verification is the nightly sweep's job;
+  repair what it finds afterwards.
+- **One PR per capability.** Do not open one-row re-pin or ledger-only PRs;
+  fold them into the PR that touches those rows. Every PR costs a merge-queue
+  slot and hosted-runner time.
+- **Report only landings and blockers** to a coordinator; no progress updates.
+
 ## Explain the change
 
 Use an inverted pyramid in PR descriptions, commit bodies, progress/final
@@ -96,13 +117,11 @@ roles below. Close a PR only for a recorded withdrawal or supersession, not age.
 
 ### Decision-making framing for compiler completion
 
-1. **Drive the six release gates and sweep whole root-cause clusters, never 1-off wins:**
-   When you fix a mechanism or migration gap, sweep and re-record **all**
-   pinned regressions in `tests/omega/corpus_outcomes.txt`
-   (`cargo xtask corpus --list-pinned-regressions`) and failing
-   programs in `samples/` (`cargo xtask sample-gate`) that share
-   that root cause in the same PR. Choose work by the rows it can move, and
-   start from the cluster: one failing program is its witness, not the task.
+1. **Drive the six release gates by root-cause cluster, never 1-off wins:**
+   Choose work by the rows it can move and fix the mechanism the spec names,
+   so every row sharing that cause turns green. Validate the rows you already
+   know share it (see [Spec first, land first](#spec-first-land-first)); do not
+   run broad sweeps to discover more before landing.
 2. **Fail-closed semantics over permissive fallbacks:** Never make a positive
    program pass by weakening a proof obligation, returning `true` when a
    lookup/rebase returns `None`, or silently erasing an unresolved construct.
