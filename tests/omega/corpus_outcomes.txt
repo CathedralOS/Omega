@@ -19675,6 +19675,8 @@ fail/traits/trait_satisfies_parameter_mismatch rejected 1142ms expected @ccdb99c
 	machine `Sprite::draw` state `draw` does not satisfy trait `Drawable` machine `draw`: conformance borrow contract: callable input has a different carried region frontier
 fail/traits/transparent_refinement_widening_axis rejected 128ms expected @ccdb99ca2214
 	refinement clause asserts `suspends` on `write`, but base trait `Logger` does not declare it — a refinement narrows, it cannot add an axis
+fail/traits/wrong_trait_implementation_is_named rejected 1227ms expected @11bf50020c11
+	`Other` implements `Loose<>`, which neither is nor inherits `Reading`, the trait that declares `Reading::floor`
 fail/types/addr_plus_addr_rejected rejected 7138ms expected @ccdb99ca2214
 	meaningless address arithmetic in machine `Main::main` state `main` local `r`: `addr` composes with counts (`addr + u64`, `addr - u64`) or differences with itself (`addr - addr` is the count between two addresses); `+` over these operands conflates the address and count axes.
 fail/types/address_comparison_anonymous_landing_rejected rejected 729ms expected @ccdb99ca2214
