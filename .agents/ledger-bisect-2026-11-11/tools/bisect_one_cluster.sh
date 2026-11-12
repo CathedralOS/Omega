@@ -31,14 +31,16 @@ git bisect reset 2>/dev/null || true
 git checkout -f "$PIN"
 git bisect start --first-parent "$PIN" "$GOOD"
 set +e
-git bisect run bash "$TOOLS/bisect_witness.sh" 2>&1 | tee "$OUT_DIR/bisect_${CLUSTER_ID}.log"
+git bisect run bash "$TOOLS/bisect_witness.sh" 2>&1 | tee "/tmp/bisect_${CLUSTER_ID}.log"
 RC=$?
 set -e
 FIRST_BAD=""
 if [[ $RC -eq 0 ]]; then
   FIRST_BAD=$(git rev-parse HEAD^{commit})
 fi
-git bisect log > "$OUT_DIR/bisect_${CLUSTER_ID}_log.txt" 2>/dev/null || true
+git bisect log > "/tmp/bisect_${CLUSTER_ID}_log.txt" 2>/dev/null || true
+cp "/tmp/bisect_${CLUSTER_ID}.log" "$OUT_DIR/bisect_${CLUSTER_ID}.log" 2>/dev/null || true
+cp "/tmp/bisect_${CLUSTER_ID}_log.txt" "$OUT_DIR/bisect_${CLUSTER_ID}_log.txt" 2>/dev/null || true
 git bisect reset
 git checkout -f work/ledger-bisect-part-10
 

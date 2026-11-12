@@ -1,0 +1,11 @@
+{
+  "cluster_id": "pin-c3",
+  "witness": "pass/borrows/returned_record_case_field_store_exit",
+  "good": "7ad0d10d2a2d5cdf1274d6696740cdd582ff036f",
+  "breaking_commit": "3a76781c7ff39c1b6d8573a8445118053f4ebee1",
+  "pr": "2068",
+  "mechanism": "psi: preserve bounded writes through mutable byte recasts (#2068)",
+  "status": "bisected",
+  "bisect_exit": 1,
+  "note": "git bisect run ended on skip-only frontier adjacent to #2066 docs commit; first compiler commit in range is #2068"
+}
