@@ -87,7 +87,7 @@ impl<'a> TerminalProductionView<'a> {
             callback_declarations: &selection.execution.external_providers,
             callback_calling_requirements: selection
                 .settlement
-                .callback_calling_requirements(&selection.execution.external_providers),
+                .callback_calling_requirements(&selection.execution.external_providers.callbacks),
             timings: &mut selection.timings,
             native_components,
         }
@@ -114,7 +114,7 @@ impl<'a> TerminalProductionView<'a> {
             callback_declarations: &checked.execution().external_providers,
             callback_calling_requirements: checked
                 .providers()
-                .callback_calling_requirements(&checked.execution().external_providers),
+                .callback_calling_requirements(&checked.execution().external_providers.callbacks),
             timings,
             native_components: None,
         }
@@ -183,7 +183,7 @@ impl<'a> TerminalProductRequest<'a> {
             callback_declarations: &selection.execution.external_providers,
             callback_calling_requirements: selection
                 .settlement
-                .callback_calling_requirements(&selection.execution.external_providers),
+                .callback_calling_requirements(&selection.execution.external_providers.callbacks),
             timings: &mut selection.timings,
             native_components: None,
         };
@@ -434,7 +434,8 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                     program.artifact().view(),
                                     application.request.selections.identity(),
                                     &realization_scopes,
-                                    application.request.view.callback_declarations,
+                                    &application.request.view.callback_declarations.identities,
+                                    &application.request.view.callback_declarations.callbacks,
                                     &application.request.view.callback_calling_requirements,
                                 ),
                                 program: Arc::clone(&program),
@@ -480,7 +481,8 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                     program.artifact().view(),
                                     application.request.selections.identity(),
                                     &realization_scopes,
-                                    application.request.view.callback_declarations,
+                                    &application.request.view.callback_declarations.identities,
+                                    &application.request.view.callback_declarations.callbacks,
                                     &application.request.view.callback_calling_requirements,
                                 ),
                                 artifact: Arc::clone(program.artifact()),

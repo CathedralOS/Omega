@@ -59,7 +59,7 @@ pub(super) fn prepare(
     let callback_declarations = std::sync::Arc::clone(&checked.execution().external_providers);
     let calling_requirements = checked
         .providers()
-        .callback_calling_requirements(&callback_declarations);
+        .callback_calling_requirements(&callback_declarations.callbacks);
     drop(checked);
     drop(prepared);
     Ok(PreparedProviderChoices {
@@ -172,7 +172,8 @@ pub(super) fn inspect(
             } else {
                 &[]
             },
-            &callback_declarations,
+            &callback_declarations.identities,
+            &callback_declarations.callbacks,
             &calling_requirements,
         );
         // The retained producer now supplies the complete publication catalog.
@@ -225,7 +226,8 @@ pub(super) fn inspect(
                 } else {
                     &[]
                 },
-                &callback_declarations,
+                &callback_declarations.identities,
+                &callback_declarations.callbacks,
                 &calling_requirements,
             );
             let outcomes = outcomes

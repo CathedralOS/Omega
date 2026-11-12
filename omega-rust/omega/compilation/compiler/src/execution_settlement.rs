@@ -425,7 +425,7 @@ fn prepare_target_provider_selection(
         code,
         callbacks
             .as_ref()
-            .map(|declarations| declarations.as_ref())
+            .map(|declarations| (&declarations.identities, &declarations.callbacks))
             .map_err(Vec::as_slice),
     )
 }

@@ -113,18 +113,16 @@ impl<Rows> ProviderSettlement<Rows> {
     }
     pub fn callback_calling_requirements(
         &self,
-        declarations: &psi_terminal_production::PreparedExternalProviderDeclarations,
+        declarations: &terminal_psi::PreparedCallbackDeclarations,
     ) -> Vec<terminal_psi::CallbackRequirementId> {
-        declarations.callbacks.calling_requirements(
-            self.boundary_calling_plan_realizations
-                .iter()
-                .map(|realization| {
-                    (
-                        realization.calling_owner_application(),
-                        realization.requirement_machine,
-                    )
-                }),
-        )
+        declarations.calling_requirements(self.boundary_calling_plan_realizations.iter().map(
+            |realization| {
+                (
+                    realization.calling_owner_application(),
+                    realization.requirement_machine,
+                )
+            },
+        ))
     }
 }
 
@@ -214,7 +212,10 @@ pub fn settle_checked_providers(
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
     callbacks: Result<
-        &psi_terminal_production::PreparedExternalProviderDeclarations,
+        (
+            &std::sync::Arc<terminal_psi::TerminalIdentityTable>,
+            &terminal_psi::PreparedCallbackDeclarations,
+        ),
         &[Diagnostic],
     >,
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
@@ -247,19 +248,18 @@ pub fn settle_checked_providers(
     prepared.independent_components = independent_components.clone();
     let artifact = calling_program.artifact.view();
     let canonical_roots = prepared.close_application_roots(artifact)?;
-    let callback_inputs = callbacks.map(|callbacks| {
+    let callback_inputs = callbacks.map(|(identities, callbacks)| {
         (
+            identities,
             callbacks,
-            callbacks.callbacks.calling_requirements(
-                boundary_calling_plan_realizations
-                    .iter()
-                    .map(|realization| {
-                        (
-                            realization.calling_owner_application(),
-                            realization.requirement_machine,
-                        )
-                    }),
-            ),
+            callbacks.calling_requirements(boundary_calling_plan_realizations.iter().map(
+                |realization| {
+                    (
+                        realization.calling_owner_application(),
+                        realization.requirement_machine,
+                    )
+                },
+            )),
         )
     });
     let provider_selection::SelectedTargetProviders {
@@ -275,7 +275,9 @@ pub fn settle_checked_providers(
             canonical_roots.as_deref(),
             callback_inputs
                 .as_ref()
-                .map(|(callbacks, calling)| (*callbacks, calling.as_slice()))
+                .map(|(identities, callbacks, calling)| {
+                    (*identities, *callbacks, calling.as_slice())
+                })
                 .map_err(|errors| *errors),
         ),
         &assumptions,

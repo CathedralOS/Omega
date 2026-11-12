@@ -1900,7 +1900,6 @@ dependencies = [
  "package-compilation",
  "program-entry-plan",
  "provider-selection",
- "psi-terminal-production",
  "psi-work",
  "runtime-abi",
  "semantic-vocabulary",
@@ -1929,7 +1928,6 @@ dependencies = [
  "effects",
  "language-semantics",
  "optimization-core",
- "psi-terminal-production",
  "semantic-vocabulary",
  "target",
  "terminal-codec",
@@ -2705,6 +2703,7 @@ dependencies = [
  "access-plans",
  "arena",
  "compiler-storage",
+ "diagnostics",
  "language-core",
  "language-semantics",
  "layout-plans",
@@ -2713,6 +2712,7 @@ dependencies = [
  "semantic-vocabulary",
  "source",
  "source-audit",
+ "symbols",
 ]
 
 [[package]]

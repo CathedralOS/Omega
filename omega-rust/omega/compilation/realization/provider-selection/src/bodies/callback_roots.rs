@@ -184,7 +184,8 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
     }
 
     pub(crate) fn application_uses<'program>(
-        prepared: &psi_terminal_production::PreparedExternalProviderDeclarations,
+        prepared: &terminal_psi::PreparedCallbackDeclarations,
+        identities: &terminal_psi::TerminalIdentityTable,
         module: &'program terminal_psi::TerminalModule,
     ) -> Result<
         (
@@ -335,9 +336,8 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
             requests.push((*owner, application, body, registrars, installed.is_some()));
         }
         let associated = prepared
-            .callbacks
             .corresponding_uses(
-                &prepared.identities,
+                identities,
                 &module.identities,
                 requests
                     .iter()

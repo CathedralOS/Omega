@@ -116,7 +116,8 @@ pub enum ProviderApplicationDemand<'roots> {
         Option<&'roots [terminal_psi::ProofDeclarationId]>,
         Result<
             (
-                &'roots psi_terminal_production::PreparedExternalProviderDeclarations,
+                &'roots std::sync::Arc<terminal_psi::TerminalIdentityTable>,
+                &'roots terminal_psi::PreparedCallbackDeclarations,
                 &'roots [terminal_psi::CallbackRequirementId],
             ),
             &'roots [Diagnostic],
@@ -269,7 +270,8 @@ impl PreparedTargetProviderPublication {
         artifact: terminal_codec::TerminalArtifactView<'_>,
         optimization_selection: optimization_core::OptimizationSelectionIdentity,
         realization_scopes: &[String],
-        callbacks: &psi_terminal_production::PreparedExternalProviderDeclarations,
+        callback_identities: &std::sync::Arc<terminal_psi::TerminalIdentityTable>,
+        callbacks: &terminal_psi::PreparedCallbackDeclarations,
         calling_requirements: &[terminal_psi::CallbackRequirementId],
     ) -> Vec<backend_plan::TerminalTargetProviderProposal> {
         self.targets
@@ -337,7 +339,7 @@ impl PreparedTargetProviderPublication {
                         }
                         prepared.select(
                             artifact,
-                            ProviderApplicationDemand::Product(application_roots.as_deref(), Ok((callbacks, calling_requirements))),
+                            ProviderApplicationDemand::Product(application_roots.as_deref(), Ok((callback_identities, callbacks, calling_requirements))),
                             &self.assumed_bindings,
                         ).and_then(|selected| {
                             selected.callback_roots.ok_or_else(|| vec![Diagnostic::error("product provider choice lost callback preparation")])??;
@@ -384,16 +386,17 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
         // The canonical registrar/use index is immutable over this choice. Build
         // it once; only selected rows and reached callers vary in the fixed point.
         let callback_associations = match demand {
-            ProviderApplicationDemand::Product(_, callbacks) => Some(
-                callbacks
-                    .map_err(<[Diagnostic]>::to_vec)
-                    .and_then(|(callbacks, _)| {
+            ProviderApplicationDemand::Product(_, callbacks) => {
+                Some(callbacks.map_err(<[Diagnostic]>::to_vec).and_then(
+                    |(identities, callbacks, _)| {
                         crate::CallbackProviderDeclarations::application_uses(
                             callbacks,
+                            identities,
                             artifact.module(),
                         )
-                    }),
-            ),
+                    },
+                ))
+            }
             ProviderApplicationDemand::Invocation(_) => None,
         };
         let applications = artifact
@@ -581,7 +584,7 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
             ProviderApplicationDemand::Product(_, metadata) => Some(
                 metadata
                     .map_err(<[Diagnostic]>::to_vec)
-                    .and_then(|(metadata, calling)| {
+                    .and_then(|(identities, metadata, calling)| {
                         // Binding uses this same projection after grants. Here
                         // its failure remains deferred callback data, so closed
                         // Import aliases do not disappear from provisional choice.
@@ -603,16 +606,16 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                         let enriched = crate::binding::enrich_selected_plans(plans.clone(), &declarations)?;
                         let providers = crate::CallbackProviderDeclarations::prepare(
                             &enriched,
-                            &metadata.callbacks.declarations,
+                            &metadata.declarations,
                             &selected.plans,
                             module,
                         )?;
                         let mut uses = crate::select_callback_declarations(
-                            &metadata.callbacks.declarations,
+                            &metadata.declarations,
                             calling,
                             &providers,
                         )?;
-                        let mut installed = metadata.callbacks.installed_roots(calling)?;
+                        let mut installed = metadata.installed_roots(calling)?;
                         for &usage in &installed {
                             if !uses.contains(&usage) {
                                 uses.push(usage);
@@ -620,7 +623,7 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                         }
                         // Keep the original complete roster, including dormant
                         // checked uses, for later native callback admission.
-                        let retained = metadata.selected_callback_roots(uses.iter().copied());
+                        let retained = metadata.selected_roots(std::sync::Arc::clone(identities), uses.iter().copied());
                         uses.sort_unstable_by_key(|usage| (usage.arena_index(), usage.generation()));
                         uses.dedup();
                         installed.sort_unstable_by_key(|usage| (usage.arena_index(), usage.generation()));
