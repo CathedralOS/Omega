@@ -56,6 +56,11 @@ pub(crate) struct Program<'t> {
     rigid: bool,
     /// The machines that are a requirement's contract with no body.
     pub requirements: Vec<MachineId>,
+    /// Entries and selected providers keep their declared input contract.
+    pub fixed_inputs: Vec<MachineId>,
+    /// Every declaration in these machines' verification subject is rooted;
+    /// reaching one dependency helper alone does not close its possible uses.
+    pub subject_machines: Vec<MachineId>,
     /// Every call through an implementation parameter read so far.
     pub selections: Vec<crate::Selected>,
     /// What each type parameter in scope stands for while one machine's
@@ -104,6 +109,8 @@ pub(crate) struct Program<'t> {
         arena::Handle<typed_trees::expression::CompletedValueCapture>,
         crate::body::Expression,
     )>,
+    /// The subject's generic machines, set aside by `subject_declarations`.
+    pub generic_templates: Vec<SymbolHandle>,
 }
 
 /// One slot of a body: formals first, then locals in binding order.
@@ -117,6 +124,10 @@ struct Slot {
     /// An `[erased]` formal or local. A contract clause and an erased
     /// position may name it; a runtime expression may not.
     erased: bool,
+    /// A formal passed by reference, and its access. Its `value_type` is
+    /// the referent's: the slot names the caller's storage, read and (for
+    /// `&mut`) written in place, never an SSA value or a root of its own.
+    borrowed: Option<language_core::ReferenceAccess>,
 }
 /// The closed crash cause of a `crashes` clause or `crash` statement.
 fn crash_cause(cause: typed_trees::signature::CrashCause) -> CrashCause {
@@ -147,6 +158,8 @@ impl<'t> Program<'t> {
             names: IdTable::default(),
             rigid,
             requirements: Vec::new(),
+            fixed_inputs: Vec::new(),
+            subject_machines: Vec::new(),
             selections: Vec::new(),
             scope: Vec::new(),
             scopes: IdTable::default(),
@@ -162,6 +175,7 @@ impl<'t> Program<'t> {
             fields_minted: 0,
             cases_minted: 0,
             captures: Vec::new(),
+            generic_templates: Vec::new(),
         }
     }
 }
@@ -634,6 +648,7 @@ mod tests {
             assignable: true,
             homed: false,
             erased: false,
+            borrowed: None,
         }];
         let mut program = Program::new(&typed, false);
         let mut assigned = |target| {
@@ -663,6 +678,7 @@ mod tests {
             assignable: false,
             homed: false,
             erased: false,
+            borrowed: None,
         }];
         assert_eq!(
             program
@@ -727,7 +743,9 @@ mod tests {
         // A contract clause can neither name a record formal whole nor
         // project it: clauses over places belong to a later slice.
         let values = crate::body::formal_values(
-            slots.iter().map(|slot| (slot.value_type, slot.erased)),
+            slots
+                .iter()
+                .map(|slot| (slot.value_type, slot.erased, slot.borrowed.is_some())),
             None,
         );
         let scope = ClauseScope {
@@ -832,6 +850,7 @@ mod tests {
             assignable: false,
             homed: false,
             erased: false,
+            borrowed: None,
         }];
         let mut program = Program::new(&typed, false);
         program.record_sources.push(places::RecordSource {

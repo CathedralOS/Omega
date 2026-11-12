@@ -132,6 +132,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: `pass/comptime/*_exit`, `pass/layouts/runtime_plan_laid_*_exit`, `pass/wire/*_exit`, and `pass/build/*_exit` pass `--both`.
 
 - **UNIVERSAL-INTERPRETER-CLOSURE.** Delete `omega-rust/psi/interpreter/checked-interpreter/` and finish `omega-rust/omega/interpreter/terminal-runtime/src/execution.rs`.
+  - Add a `ForeignBinding::Syscall` adapter; witness `kernel_import_result_chain_exit` on `work/tests-kernel-import-process-exit`.
   Acceptance: audits find no tree visitor, and `omega run --both`, `--engine native|terminal`, and `interpreter_migration.json` pass on all hosts.
 
 ## Immediate product closure
@@ -152,7 +153,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: `modules/`, `runtime_index_application`, `selected_value_application`, `inferred_array_equation_call`, and finite-family fixtures pass `--both`.
 
 - **DOMAIN-ACCESS-AUTHORITY.** (covers **DOMAIN-CARRIER-FORMATION**, **NOMINAL-FIELD-FLOW**, **DOMAIN-ISSUER-ROUTES**) Complete [carrier membership](wiki/spec/language/domains.md#carrier-exact-membership), `[u8; N] in D`, [domain `access Policy`](wiki/spec/resources/access.md), and [repair facts](wiki/drafts/designs/invariant_repair_facts.md).
-  Acceptance: [domain_carrier_identity](samples/cli/facts/domain_carrier_identity/README.md), Dungeon Crawler, [controlled cell](wiki/language_guide/chapter_8_domains.md#read-and-write-authority), and `bodyless_owner_establishment` pass `--both`.
+  Acceptance: [domain_carrier_identity](samples/cli/facts/domain_carrier_identity/README.md), Dungeon Crawler, [controlled cell](wiki/language_guide/chapter_8_domains.md#read-and-write-authority), `bodyless_owner_establishment` and `non_owning_reference_erasure` pass `--both`.
 
 - **TERMINATION-RANKING-CHECKS.** (covers **GENERAL-CYCLIC-EXECUTION**, **CRASH-CONTRACT**, **OUTCOME-SPECIFIC-CALL-EVIDENCE**, **UNREACHABLE-BRANCH-DIAGNOSTICS**) Complete [termination](wiki/spec/language/termination.md) (`ranking_range/calls.rs`, `value_origins.rs`), crash/outcome evidence (`operator_crashes.rs`), and [unreachable warnings](wiki/spec/language/state_contracts.md#unreachable-branches).
   Acceptance: `termination/,control_flow/`, `progress_selector/`, `array_max`/`dot_product`/`horner_eval`, crash rows, and unreachable warnings pass `--both`.
@@ -182,7 +183,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## P3 - Terminal Psi, proofs, and observation
 
-- **STRUCTURAL-BORROW-IDENTITY.** (covers **WRITE-ONLY-BORROW**, **PLACED-ACCESS-NATIVE-OPS**, **GENERIC-FIXED-ARRAY-VIEWS**, **BORROW-PROOF-CONVERGENCE**, **TERMINAL-SLICE-VIEW-VOCABULARY**) Complete structural loans and slice views, including nested element-view copies; enforce [owned-local mutability and independent fact invalidation](wiki/spec/language/ownership.md#owned-local-mutability).
+- **STRUCTURAL-BORROW-IDENTITY.** (covers **WRITE-ONLY-BORROW**, **PLACED-ACCESS-NATIVE-OPS**, **GENERIC-FIXED-ARRAY-VIEWS**, **BORROW-PROOF-CONVERGENCE**, **TERMINAL-SLICE-VIEW-VOCABULARY**) Complete structural loans and slice views, including nested element-view copies.
   Acceptance: `write_only`, `computed_nested_state_loan`, [reference_recast_backing_footprint](samples/cli/facts/reference_recast_backing_footprint/README.md), `disjoint_mut_subslice_windows_compile`, and `fletcher_checksum` pass `--both`.
 
 <a id="normalized-abi-lowering"></a>

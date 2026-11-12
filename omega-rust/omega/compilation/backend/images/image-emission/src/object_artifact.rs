@@ -2927,30 +2927,52 @@ mod normalized_foreign_calls {
         }
         if indirect {
             let [argument] = operands else { return None };
-            let origin = function
-                .virtual_registers
-                .get(argument.virtual_register.0 as usize)?
-                .origin;
-            let VirtualRegisterOrigin::AbiTransport {
-                instruction: prepared,
-                place,
-                byte_offset: 0,
-            } = origin
-            else {
-                return None;
-            };
-            let preparation = block
-                .instructions
-                .iter()
-                .take(call_position)
-                .find(|candidate| candidate.id == prepared)?;
-            let [output] = preparation.operands.as_slice() else {
-                return None;
-            };
+            // Register homes may split the hidden pointer before its fixed argument
+            // register: each split is a `CopyI64` whose output keeps this result
+            // place's transport identity. Follow those copies back to the one
+            // `FrameAddress` that names the result slot.
+            let mut register = argument.virtual_register;
+            let mut preparation = None;
+            // Each copy reads a strictly earlier instruction, so a valid chain
+            // visits at most the instructions that precede the call.
+            for _ in 0..=call_position {
+                let VirtualRegisterOrigin::AbiTransport {
+                    instruction: prepared,
+                    place,
+                    byte_offset: 0,
+                } = function.virtual_registers.get(register.0 as usize)?.origin
+                else {
+                    return None;
+                };
+                if place != result.place {
+                    return None;
+                }
+                let candidate = block
+                    .instructions
+                    .iter()
+                    .take(call_position)
+                    .find(|candidate| candidate.id == prepared)?;
+                match (candidate.kind, candidate.operands.as_slice()) {
+                    (Kind::CopyI64, [input, output])
+                        if output.virtual_register == register
+                            && function
+                                .memory_accesses
+                                .iter()
+                                .all(|access| access.instruction != prepared) =>
+                    {
+                        register = input.virtual_register;
+                    }
+                    (_, [output]) if output.virtual_register == register => {
+                        preparation = Some(candidate);
+                        break;
+                    }
+                    _ => return None,
+                }
+            }
+            let preparation = preparation?;
+            let prepared = preparation.id;
             let (prepared_offset, prepared_bytes) = fragment_instruction_span(fragment, prepared)?;
-            return (place == result.place
-                && output.virtual_register == argument.virtual_register
-                && preparation.kind == address.kind
+            return (preparation.kind == address.kind
                 && memory_matches(
                     prepared,
                     0,

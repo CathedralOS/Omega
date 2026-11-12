@@ -2387,13 +2387,27 @@ pub(crate) mod arithmetic_judgment {
                 ) {
                     return false;
                 }
+                let dividend = self.substituted(left);
+                let divisor = self.substituted(right);
+                let result = self.substituted(value);
+                let consequence = match operator {
+                    BinaryOperator::Modulo => divisor.sub(&result),
+                    _ => dividend.sub(&result),
+                };
+                // These rules establish a difference of at least zero or one.
+                // Once the stronger bound is present, rechecking its conditions
+                // cannot strengthen it. A zero bound must still be reconsidered.
+                let strongest_minimum = BigInt::from_i64(1);
+                if self.bounds.iter().any(|(existing, minimum)| {
+                    *existing == consequence && minimum >= &strongest_minimum
+                }) {
+                    return false;
+                }
                 let consequence = {
                     // These few queries share unchanged premises. Defer the full
                     // bound index until a simple query cannot resolve, then release
                     // the borrowed view before installing any consequence.
                     let mut queries = super::LowerBoundQueries::direct(self);
-                    let dividend = self.substituted(left);
-                    let divisor = self.substituted(right);
                     match operator {
                         BinaryOperator::Divide
                             if queries
@@ -2409,10 +2423,7 @@ pub(crate) mod arithmetic_judgment {
                                     &divisor,
                                     &BigInt::from_i64(2),
                                 );
-                            Some((
-                                dividend.sub(&self.substituted(value)),
-                                BigInt::from_i64(i64::from(strict)),
-                            ))
+                            Some((consequence, BigInt::from_i64(i64::from(strict))))
                         }
                         BinaryOperator::ShiftRight
                             if queries.prove_with_deferred_preparation(
@@ -2423,7 +2434,7 @@ pub(crate) mod arithmetic_judgment {
                                 &BigInt::from_i64(1),
                             ) =>
                         {
-                            Some((dividend.sub(&self.substituted(value)), BigInt::from_i64(1)))
+                            Some((consequence, BigInt::from_i64(1)))
                         }
                         BinaryOperator::Modulo
                             if queries
@@ -2433,7 +2444,7 @@ pub(crate) mod arithmetic_judgment {
                                     &BigInt::from_i64(1),
                                 ) =>
                         {
-                            Some((divisor.sub(&self.substituted(value)), BigInt::from_i64(1)))
+                            Some((consequence, BigInt::from_i64(1)))
                         }
                         _ => None,
                     }
@@ -2454,6 +2465,110 @@ pub(crate) mod arithmetic_judgment {
 
             fn constant(value: i64) -> Polynomial {
                 Polynomial::constant(BigInt::from_i64(value))
+            }
+
+            #[test]
+            fn established_operation_bounds_do_not_repeat_their_proof() {
+                use std::sync::atomic::Ordering;
+
+                let program = typed_trees::TypedTrees::default();
+                for operator in [
+                    BinaryOperator::Divide,
+                    BinaryOperator::Modulo,
+                    BinaryOperator::ShiftRight,
+                ] {
+                    let mut engine = Engine::for_explicit_bindings(&program);
+                    let dividend = engine
+                        .conditional_value(vec![
+                            super::super::ConditionalValueArm {
+                                conditions: vec![],
+                                value: constant(4),
+                            },
+                            super::super::ConditionalValueArm {
+                                conditions: vec![],
+                                value: constant(8),
+                            },
+                        ])
+                        .unwrap();
+                    let divisor = constant(2);
+                    let result = Polynomial::atom("result".to_owned());
+                    assert!(
+                        engine.install_integer_operation_bounds(
+                            operator, &dividend, &divisor, &result,
+                        )
+                    );
+                    let bounds = engine.bounds.clone();
+                    let remaining = engine.conditional_work_remaining.load(Ordering::Relaxed);
+                    for _ in 0..4 {
+                        assert!(!engine.install_integer_operation_bounds(
+                            operator, &dividend, &divisor, &result,
+                        ));
+                    }
+                    assert_eq!(engine.bounds, bounds);
+                    assert_eq!(
+                        engine.conditional_work_remaining.load(Ordering::Relaxed),
+                        remaining,
+                        "an established consequence needs no repeated conditional proof",
+                    );
+                    let other_result = Polynomial::atom("other_result".to_owned());
+                    assert!(engine.install_integer_operation_bounds(
+                        operator,
+                        &dividend,
+                        &divisor,
+                        &other_result,
+                    ));
+                }
+
+                let mut engine = Engine::for_explicit_bindings(&program);
+                let dividend = Polynomial::atom("dividend".to_owned());
+                let divisor = Polynomial::atom("divisor".to_owned());
+                let result = Polynomial::atom("result".to_owned());
+                assert!(!engine.install_integer_operation_bounds(
+                    BinaryOperator::Divide,
+                    &dividend,
+                    &divisor,
+                    &result,
+                ));
+                assert!(engine.install_hypotheses(vec![
+                    (
+                        BinaryOperator::GreaterOrEqual,
+                        dividend.clone(),
+                        constant(0)
+                    ),
+                    (BinaryOperator::GreaterOrEqual, divisor.clone(), constant(1)),
+                ]));
+                assert!(engine.install_integer_operation_bounds(
+                    BinaryOperator::Divide,
+                    &dividend,
+                    &divisor,
+                    &result,
+                ));
+                let difference = dividend.sub(&result);
+                assert!(
+                    engine
+                        .bounds
+                        .contains(&(difference.clone(), BigInt::zero()))
+                );
+                assert!(
+                    !engine
+                        .bounds
+                        .contains(&(difference.clone(), BigInt::from_i64(1)))
+                );
+                assert!(engine.install_hypotheses(vec![
+                    (
+                        BinaryOperator::GreaterOrEqual,
+                        dividend.clone(),
+                        constant(1)
+                    ),
+                    (BinaryOperator::GreaterOrEqual, divisor.clone(), constant(2)),
+                ]));
+                assert!(engine.install_integer_operation_bounds(
+                    BinaryOperator::Divide,
+                    &dividend,
+                    &divisor,
+                    &result,
+                ));
+                assert!(engine.bounds.contains(&(difference, BigInt::from_i64(1))));
             }
 
             #[test]
@@ -16535,7 +16650,7 @@ pub(crate) mod inductive_judgment {
                     eprintln!(
                         "ENTAILDBG inductive machine={} arm_guard={} fact={} visible={}",
                         machine.name,
-                        arm.guard_display,
+                        arm.guard_display.as_deref().unwrap_or("<always>"),
                         program.expression_table.display_name(*fact),
                         arm.fully_visible,
                     );
@@ -16556,28 +16671,28 @@ pub(crate) mod inductive_judgment {
             }
             if let Some(guard) = constant_false_arm {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic on the transition arm guarded by `{}`",
+                "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic{}",
                 machine.name,
                 program.expression_table.display_name(*fact),
-                guard
+                arm_clause(&guard)
             )));
             } else if let Some(guard) = refuted_arm {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` ensures contract proof fact `{}` is disproved on the transition arm guarded by `{}`: the arm's facts entail its negation",
+                "machine `{}` ensures contract proof fact `{}` is disproved{}: the arm's facts entail its negation",
                 machine.name,
                 program.expression_table.display_name(*fact),
-                guard
+                arm_clause(&guard)
             )));
             } else if let Some(ref guard) = unknown_arm
                 && goal_always_in_language
                 && machine_fully_visible
             {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` cannot prove ensures contract proof fact `{}` on the transition arm guarded by `{}`",
-                machine.name,
-                program.expression_table.display_name(*fact),
-                guard
-            )));
+                    "machine `{}` cannot prove ensures contract proof fact `{}`{}",
+                    machine.name,
+                    program.expression_table.display_name(*fact),
+                    arm_clause(guard)
+                )));
             } else if unknown_arm.is_none() {
                 proven.push(*fact);
             }
@@ -16630,7 +16745,20 @@ pub(crate) mod inductive_judgment {
         engine: Engine<'program>,
         vacuous: bool,
         fully_visible: bool,
-        guard_display: String,
+        // `None` for a body with one unguarded arm: there is no guard to name.
+        guard_display: Option<String>,
+    }
+
+    /*
+        The clause that says which transition arm a refused guarantee sits on.
+        A body that is a single unguarded arm has no guard, so the message
+        names the machine and the fact and stops there.
+    */
+    fn arm_clause(guard: &Option<String>) -> String {
+        guard
+            .as_ref()
+            .map(|guard| format!(" on the transition arm guarded by `{guard}`"))
+            .unwrap_or_default()
     }
 
     fn prepare_arm<'program>(
@@ -16642,18 +16770,20 @@ pub(crate) mod inductive_judgment {
         arm: &TransitionArm,
         preceding: &[TransitionArm],
     ) -> Option<JudgedArm<'program>> {
-        let guard_display = match arm.guard {
-            Some(guard) => program.expression_table.display_name(guard),
-            None if preceding.is_empty() => "<always>".to_owned(),
-            None => preceding
-                .iter()
-                .filter_map(|arm| arm.guard)
-                .map(|guard| failed_guard_display(program, guard))
-                .collect::<Vec<_>>()
-                .join(" && "),
-        };
-
         let mut engine = Engine::with_result_atom(program, machine, root);
+        let guard_display = match arm.guard {
+            Some(guard) => Some(guard_arm_display(&engine, guard, true)),
+            None if preceding.is_empty() => None,
+            None => Some(
+                preceding
+                    .iter()
+                    .filter_map(|arm| arm.guard)
+                    .map(|guard| guard_arm_display(&engine, guard, false))
+                    .collect::<Vec<_>>()
+                    .join(" && "),
+            )
+            .filter(|guards| !guards.is_empty()),
+        };
         if preceding.iter().any(|arm| arm.guard.is_none()) {
             return Some(JudgedArm {
                 engine,
@@ -16761,19 +16891,40 @@ pub(crate) mod inductive_judgment {
         ))
     }
 
-    fn failed_guard_display(program: &dyn crate::CheckingInput, guard: ExpressionHandle) -> String {
-        if let Some(binary) = program.expression_table.binary_node(guard)
-            && binary.operator == BinaryOperator::Equal
-            && let ExpressionNode::Boolean(polarity) =
-                program.expression_table.expression(binary.right)
-        {
-            return format!(
-                "{} == {}",
-                program.expression_table.display_name(binary.left),
-                !polarity
-            );
+    /// Names an arm by the condition the author wrote. An arm `true -> ...` of
+    /// `transition n > 0 { ... }` tests `subject == true`; the parser may also
+    /// capture the subject in a generated immutable local and test
+    /// `__transition_subject#N == true`. Either way the diagnostic shows `n > 0`
+    /// (or `!(n > 0)`), never the internal name. `holds` is false for a
+    /// preceding arm whose guard failed on the way to this one.
+    fn guard_arm_display(engine: &Engine<'_>, guard: ExpressionHandle, holds: bool) -> String {
+        let table = &engine.program.expression_table;
+        let (condition, holds) = match table.binary_node(guard) {
+            Some(binary) if binary.operator == BinaryOperator::Equal => {
+                match table.expression(binary.right) {
+                    ExpressionNode::Boolean(polarity) => (binary.left, holds == *polarity),
+                    _ => (guard, holds),
+                }
+            }
+            _ => (guard, holds),
+        };
+        let condition = match table.expression(condition) {
+            ExpressionNode::Name(name)
+                if table
+                    .display_name(condition)
+                    .starts_with("__transition_subject#") =>
+            {
+                engine
+                    .immutable_local_initializer(name.symbol)
+                    .unwrap_or(condition)
+            }
+            _ => condition,
+        };
+        if holds {
+            table.display_name(condition)
+        } else {
+            format!("!({})", table.display_name(condition))
         }
-        format!("!({})", program.expression_table.display_name(guard))
     }
 
     fn self_call_arguments(
@@ -28758,6 +28909,23 @@ pub(crate) mod ranking_range {
             ) {
                 return Some(Polynomial::constant(BigInt::from_u64(length as u64)));
             }
+            // An extent spelled by a const parameter is that parameter's value
+            // when the engine holds it as a rigid atom (a generic body proved
+            // once). Without that binding the extent stays unknown.
+            if let Some(typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. }) =
+                crate::value_custody::places::declared_place_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+                .and_then(|declared| {
+                    crate::value_custody::places::fixed_array_type_extent(program, declared)
+                })
+                && let Some(extent) = engine.strict_symbol_value(*symbol)
+            {
+                return Some(extent);
+            }
             let length = match expression_table(program).expression(expression) {
                 ExpressionNode::Name(_) => {
                     let symbol = crate::queries::expression_traversal::single_segment_name_symbol(
@@ -32629,6 +32797,60 @@ pub(crate) mod ranking_range {
         lengths::actual(program, machine, state, collection, &[], &mut engine)?
             .constant_value()?
             .to_u64()
+    }
+
+    /*
+        Whether the slice `collection` selects has exactly the length `expected`
+        names, where either side may be one of `machine`'s const integer
+        parameters. A generic body is proved under its own entry contract, so a
+        full view of `[Element; Count]` has length `Count` without a caller
+        supplying `Count`. Each const parameter is one rigid atom, shared by its
+        name and by every array extent that spells it; nothing else is assumed.
+    */
+    pub fn collection_length_equals_under_matches(
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        collection: ExpressionHandle,
+        matched: &[(ExpressionHandle, BigInt)],
+        expected: ExpressionHandle,
+    ) -> bool {
+        let bindings = program
+            .machine_type_parameters(machine)
+            .iter()
+            .filter_map(|parameter| {
+                let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+                else {
+                    return None;
+                };
+                let primitive = program
+                    .primitive_type_reference(type_reference)
+                    .filter(|primitive| primitive.is_fixed_integer())?;
+                Some(StrictArithmeticSymbolBinding::unsigned_integer_atom(
+                    parameter.symbol,
+                    format!(
+                        "\0const-parameter:{:?}:{:?}",
+                        machine.symbol, parameter.symbol
+                    ),
+                    primitive,
+                ))
+            })
+            .collect::<Vec<_>>();
+        let mut engine = Engine::strict(program, machine, &bindings);
+        if !engine.strict_symbol_bindings_are_valid() {
+            return false;
+        }
+        saved_arguments::install(program, machine, state, &[], &mut engine);
+        for (subject, value) in matched {
+            engine.bind_matched_integer_subject(*subject, value.clone());
+        }
+        let Some(length) = lengths::actual(program, machine, state, collection, &[], &mut engine)
+        else {
+            return false;
+        };
+        engine
+            .normalize(expected)
+            .is_some_and(|expected| expected == length)
     }
 
     pub fn captured_collection_length(
@@ -64412,7 +64634,13 @@ pub(crate) mod structural_judgment {
                     0,
                     self.captured_result_equations
                         .iter()
-                        .filter(|equation| !equation.is_data_identity())
+                        // Data Id rows are substituted by Id elimination. A completed
+                        // call's identity row names its executed occurrence; rewriting
+                        // that result into its application would detach the result's
+                        // own guarantees from the value a later case match observes.
+                        .filter(|equation| {
+                            !equation.is_data_identity() && !equation.is_completed_call_identity()
+                        })
                         .map(|equation| (&equation.left, &equation.right))
                         // A completed owned read already records the exact value it
                         // copied. Later operands must retain that identity even when
@@ -66415,14 +66643,27 @@ pub(crate) mod structural_judgment {
                             {
                                 continue;
                             }
+                            // The arm's descriptor is the value this walk binds to the
+                            // parameter, not its spelling: walked from the helper's lexical
+                            // root, `chosen` holds the root's capture of `&chosen`. A
+                            // shadowed or repeated binding selects nothing.
+                            let mut bound = environment
+                                .iter()
+                                .filter(|(binding, _)| binding == parameter.name.as_str());
+                            let entry = match (bound.next(), bound.next()) {
+                                (Some((_, value)), None) => value.clone(),
+                                (None, _) => StructuralTerm::Variable(parameter.name.to_string()),
+                                (Some(_), Some(_)) => continue,
+                            };
                             let expected =
                                 super::super::observed_projections::project_observed_value_in_scope(
                                     program,
                                     self,
                                     parameter.type_reference,
-                                    StructuralTerm::Variable(parameter.name.to_string()),
+                                    entry,
                                     &source.segments,
-                                );
+                                )
+                                .map(StructuralTerm::into_collection_descriptor);
                             if expected.as_ref() != Some(descriptor.as_ref()) {
                                 continue;
                             }
@@ -73921,6 +74162,17 @@ pub(crate) mod structural_judgment {
                 }
 
                 pub(crate) fn graph_place_invalidated(&self, place: &CanonicalPlace) -> bool {
+                    self.graph_place_observation_invalidated(
+                        place,
+                        crate::completed_storage::StoredObservation::Contents,
+                    )
+                }
+
+                pub(crate) fn graph_place_observation_invalidated(
+                    &self,
+                    place: &CanonicalPlace,
+                    observation: crate::completed_storage::StoredObservation,
+                ) -> bool {
                     let (Some(graph), Some(at)) = (self.storage_graph(), self.storage_version)
                     else {
                         return false;
@@ -73954,7 +74206,7 @@ pub(crate) mod structural_judgment {
                         graph,
                         at.snapshot,
                         place,
-                        crate::completed_storage::StoredObservation::Contents,
+                        observation,
                     ) {
                         None => true,
                         Some(crate::completed_storage::StoredOperand::Alternatives(
@@ -73977,18 +74229,6 @@ pub(crate) mod structural_judgment {
                         .filter_map(|statement| statement.as_local_data())
                         .find(|local| local.symbol == symbol)
                         .map(|local| local.initial_value)
-                }
-
-                pub(crate) fn graph_observation_invalidated(
-                    &self,
-                    expression: ExpressionHandle,
-                ) -> bool {
-                    let Some(place) =
-                        crate::canonical_place_from_expression(self.program, expression)
-                    else {
-                        return false;
-                    };
-                    self.graph_place_invalidated(&place)
                 }
 
                 pub(crate) fn graph_binding_invalidated(&self, symbol: SymbolHandle) -> bool {
@@ -76482,19 +76722,8 @@ pub(crate) mod structural_judgment {
                         self.retire_unversioned_storage(state)?;
                     }
                 }
-                let program = self.program;
                 let mut facts = std::mem::take(&mut self.premise_facts);
-                facts.retain(|fact| {
-                    let mut expressions = Vec::new();
-                    crate::queries::expression_traversal::collect_expression_tree(
-                        program,
-                        *fact,
-                        &mut expressions,
-                    );
-                    !expressions
-                        .iter()
-                        .any(|expression| self.storage_observation_invalidated(*expression))
-                });
+                facts.retain(|fact| self.entry_storage_observations_preserved(*fact));
                 self.premise_facts = facts;
                 Some(())
             }
@@ -78104,23 +78333,95 @@ pub(crate) mod structural_judgment {
                 if !self.requires_value_preservation() {
                     return true;
                 }
-                let mut expressions = Vec::new();
-                crate::queries::expression_traversal::collect_expression_tree(
-                    self.program,
-                    expression,
-                    &mut expressions,
-                );
-                !expressions
-                    .into_iter()
-                    .any(|expression| self.storage_observation_invalidated(expression))
+                use crate::completed_storage::StoredObservation;
+
+                let scope = self.runtime_declaration_scope();
+                let mut pending = vec![(expression, StoredObservation::Contents)];
+                let mut seen = std::collections::HashSet::with_hasher(symbols::BuildSymbolHasher);
+                while let Some((expression, observation)) = pending.pop() {
+                    let binding_only = matches!(observation, StoredObservation::Binding);
+                    if !expression.is_valid() || !seen.insert((expression, binding_only)) {
+                        continue;
+                    }
+                    let node = self.program.expression_table.expression(expression);
+                    if let Some(receiver) = self.storage_measure_receiver(scope, expression) {
+                        pending.push((receiver, StoredObservation::Binding));
+                        continue;
+                    }
+                    if self.storage_place_observation_invalidated(expression, observation) {
+                        return false;
+                    }
+                    let receiver = self.storage_field_receiver(scope, expression);
+                    crate::queries::expression_traversal::children(self.program, node, |child| {
+                        let observation = if receiver == Some(child) {
+                            StoredObservation::Binding
+                        } else {
+                            StoredObservation::Contents
+                        };
+                        pending.push((child, observation));
+                    });
+                }
+                true
             }
 
-            pub(crate) fn storage_observation_invalidated(
+            pub(crate) fn storage_measure_receiver(
+                &self,
+                scope: StorageScope<'_>,
+                expression: ExpressionHandle,
+            ) -> Option<ExpressionHandle> {
+                let ExpressionNode::Member(member) =
+                    self.program.expression_table.expression(expression)
+                else {
+                    return None;
+                };
+                let (machine, state) = scope?;
+                let reference = crate::expression_result_type_reference(
+                    self.program,
+                    machine,
+                    state,
+                    member.receiver,
+                )?;
+                crate::collection_operations::collection_measure_member(
+                    self.program,
+                    member,
+                    crate::collection_operations::MeasureReceiver::Declared(reference),
+                )?;
+                Some(member.receiver)
+            }
+
+            pub(crate) fn storage_field_receiver(
+                &self,
+                scope: StorageScope<'_>,
+                expression: ExpressionHandle,
+            ) -> Option<ExpressionHandle> {
+                let ExpressionNode::Member(member) =
+                    self.program.expression_table.expression(expression)
+                else {
+                    return None;
+                };
+                let (machine, state) = scope?;
+                let reference = crate::expression_result_type_reference(
+                    self.program,
+                    machine,
+                    state,
+                    member.receiver,
+                )?;
+                let reference =
+                    crate::field_domains::readable_type_reference(self.program, reference)?;
+                crate::applied_data_member_field(self.program, reference, member)?;
+                Some(member.receiver)
+            }
+
+            pub(crate) fn storage_place_observation_invalidated(
                 &self,
                 expression: ExpressionHandle,
+                observation: crate::completed_storage::StoredObservation,
             ) -> bool {
                 if self.graph_storage_mode() {
-                    return self.graph_observation_invalidated(expression);
+                    return crate::canonical_place_from_expression(self.program, expression)
+                        .is_some_and(|place| {
+                            self.graph_place_observation_invalidated(&place, observation)
+                        });
                 }
                 crate::value_custody::places::expression_root_symbol(
                     expression,
@@ -78128,6 +78429,16 @@ pub(crate) mod structural_judgment {
                     self.machine_symbol,
                 )
                 .is_some_and(|symbol| self.invalidated_storage.contains(&symbol))
+            }
+
+            pub(crate) fn storage_observation_invalidated(
+                &self,
+                expression: ExpressionHandle,
+            ) -> bool {
+                self.storage_place_observation_invalidated(
+                    expression,
+                    crate::completed_storage::StoredObservation::Contents,
+                )
             }
 
             pub(crate) fn storage_binding_invalidated(&self, symbol: SymbolHandle) -> bool {
@@ -83699,18 +84010,40 @@ pub(crate) mod structural_judgment {
             scope: Option<(&Machine, &State, TypeReferenceHandle)>,
             depth: usize,
         ) -> Option<StructuralTerm> {
+            self.callee_term_with_observation(
+                expression,
+                environment,
+                static_observations,
+                scope,
+                crate::completed_storage::StoredObservation::Contents,
+                depth,
+            )
+        }
+
+        fn callee_term_with_observation(
+            &self,
+            expression: ExpressionHandle,
+            environment: &[(String, StructuralTerm)],
+            static_observations: StaticObservations<'_>,
+            scope: Option<(&Machine, &State, TypeReferenceHandle)>,
+            observation: crate::completed_storage::StoredObservation,
+            depth: usize,
+        ) -> Option<StructuralTerm> {
             if depth >= 32 {
                 return None;
             }
             enum Pending {
-                Read(ExpressionHandle),
+                Read(
+                    ExpressionHandle,
+                    crate::completed_storage::StoredObservation,
+                ),
                 Join(ExpressionHandle),
             }
-            let mut pending = vec![Pending::Read(expression)];
+            let mut pending = vec![Pending::Read(expression, observation)];
             let mut values = Vec::new();
             while let Some(step) = pending.pop() {
                 match step {
-                    Pending::Read(expression) => {
+                    Pending::Read(expression, observation) => {
                         if let Some((_, value)) = self
                             .normal_results
                             .iter()
@@ -83730,14 +84063,21 @@ pub(crate) mod structural_judgment {
                             })
                         {
                             pending.push(Pending::Join(expression));
-                            pending.push(Pending::Read(binary.right));
-                            pending.push(Pending::Read(binary.left));
+                            pending.push(Pending::Read(
+                                binary.right,
+                                crate::completed_storage::StoredObservation::Contents,
+                            ));
+                            pending.push(Pending::Read(
+                                binary.left,
+                                crate::completed_storage::StoredObservation::Contents,
+                            ));
                         } else {
                             values.push(self.callee_term_leaf(
                                 expression,
                                 environment,
                                 static_observations,
                                 scope,
+                                observation,
                                 depth,
                             )?);
                         }
@@ -83765,6 +84105,7 @@ pub(crate) mod structural_judgment {
             environment: &[(String, StructuralTerm)],
             static_observations: StaticObservations<'_>,
             scope: Option<(&Machine, &State, TypeReferenceHandle)>,
+            observation: crate::completed_storage::StoredObservation,
             depth: usize,
         ) -> Option<StructuralTerm> {
             if depth >= 32 {
@@ -83899,12 +84240,21 @@ pub(crate) mod structural_judgment {
                     program,
                     member,
                     reference,
-                    || child_term!(member.receiver),
+                    || {
+                        self.callee_term_with_observation(
+                            member.receiver,
+                            environment,
+                            static_observations,
+                            scope,
+                            crate::completed_storage::StoredObservation::Binding,
+                            depth + 1,
+                        )
+                    },
                 )
             {
                 return Some(measure);
             }
-            if self.storage_observation_invalidated(expression) {
+            if self.storage_place_observation_invalidated(expression, observation) {
                 if super::struct_trace() {
                     eprintln!(
                         "STRUCT term-storage-refused caller={:?} expression={}",
@@ -84110,7 +84460,27 @@ pub(crate) mod structural_judgment {
                             path: member.member.as_str().to_owned(),
                         });
                     }
-                    let receiver_term = child_term!(member.receiver)?;
+                    // Selecting a field observes its receiver's address, not all
+                    // sibling contents. The field itself keeps its demanded read.
+                    let receiver_observation = if self
+                        .storage_field_receiver(
+                            scope.map(|(machine, state, _)| (machine, state)),
+                            expression,
+                        )
+                        .is_some()
+                    {
+                        crate::completed_storage::StoredObservation::Binding
+                    } else {
+                        crate::completed_storage::StoredObservation::Contents
+                    };
+                    let receiver_term = self.callee_term_with_observation(
+                        member.receiver,
+                        environment,
+                        static_observations,
+                        scope,
+                        receiver_observation,
+                        depth + 1,
+                    )?;
                     self.observed_field_term(receiver_term, member.member.as_str(), depth)
                 }
                 ExpressionNode::StructLiteral(literal) => {
@@ -85068,6 +85438,7 @@ pub(crate) mod structural_prefix {
             use symbols::SymbolKeyMap;
             use typed_trees::expression::ExpressionNode;
             use typed_trees::references::TypedReferences;
+            use typed_trees::signature::SignatureContractKind;
             use typed_trees::types::TypeReferenceHandle;
 
             fn authored_machine(
@@ -85113,6 +85484,22 @@ pub(crate) mod structural_prefix {
                     )
             }
 
+            fn has_authored_entry_requires(program: &dyn CheckingInput, machine: &Machine) -> bool {
+                // A written precondition states every input the body must handle.
+                // Even `requires true` cannot borrow a stronger condition from callers.
+                // The keyword span separates authored clauses from derived requirements.
+                let authored = |contracts: &[typed_trees::signature::SignatureContract]| {
+                    contracts.iter().any(|contract| {
+                        contract.kind == SignatureContractKind::Requires
+                            && contract.keyword_source_span.is_some()
+                    })
+                };
+                authored(program.machine_contracts(machine))
+                    || crate::activation_target_state_index(program, machine, machine.symbol)
+                        .and_then(|index| program.machine_states(machine).get(index))
+                        .is_some_and(|entry| authored(program.state_contracts(entry)))
+            }
+
             pub fn private_invocation_entry_is_closed(
                 program: &dyn CheckingInput,
                 machine: &Machine,
@@ -85126,6 +85513,9 @@ pub(crate) mod structural_prefix {
                 machine: &Machine,
                 consume: impl FnOnce(&[StaticMachineContractObligation]) -> T,
             ) -> Option<T> {
+                if has_authored_entry_requires(program, machine) {
+                    return None;
+                }
                 let index = private_invocation_index(program);
                 if !index.has_complete_private_uses(program, machine) {
                     return None;
@@ -85502,6 +85892,9 @@ pub(crate) mod structural_prefix {
                     .get(&callee.symbol)
                     .copied()
                     .ok_or("the callable is not a private member of the enclosing declaration")?;
+                if has_authored_entry_requires(program, callee) {
+                    return Err("the private helper has a complete written entry contract");
+                }
                 if callee.is_public
                     || callee.target_family_interface
                     || externally_invocable(program, callee)
@@ -85595,10 +85988,11 @@ pub(crate) mod structural_prefix {
                     .iter()
                     .enumerate()
                     .filter_map(|(member_index, member)| {
-                        let exposed = member.is_public
+                        let independent_entry = member.is_public
                             || member.target_family_interface
                             || externally_invocable(program, member)
-                            || !program.machine_trait_conformances(member).is_empty();
+                            || !program.machine_trait_conformances(member).is_empty()
+                            || has_authored_entry_requires(program, member);
                         let open_use = std::iter::once(member.symbol)
                             .chain(
                                 program
@@ -85620,7 +86014,7 @@ pub(crate) mod structural_prefix {
                                     )
                             });
                         (needed[member_index]
-                            && (exposed
+                            && (independent_entry
                                 || open_use
                                 || outside.contains(&member_index)
                                 || incoming_owners[member_indices[member_index]].is_empty()))
@@ -90945,14 +91339,39 @@ pub(crate) mod structural_terms {
                     )),
                 }
             }
-            ExpressionNode::Indexed(indexed) => indexed_term_in_scope(
-                program,
-                scope,
-                frame,
-                expression,
-                structural_term(program, scope, frame, indexed.collection, bindings)?,
-                structural_term(program, scope, frame, indexed.index, bindings)?,
-            ),
+            ExpressionNode::Indexed(indexed) => {
+                // Indexing an array literal at a constant index denotes the
+                // selected element itself, as with a constant substituted from
+                // `const SOURCE: [u64; 1] = [3]`. Formation has already proved
+                // the index in range; any other index stays unformed.
+                if let ExpressionNode::ArrayLiteral(elements) =
+                    expression_table(program).expression(indexed.collection)
+                {
+                    let StructuralTerm::Integer(position) =
+                        structural_term(program, scope, frame, indexed.index, bindings)?
+                    else {
+                        return None;
+                    };
+                    let element = position
+                        .to_u64()
+                        .and_then(|position| usize::try_from(position).ok())
+                        .and_then(|position| {
+                            expression_table(program)
+                                .expression_handles(*elements)
+                                .get(position)
+                                .copied()
+                        })?;
+                    return structural_term(program, scope, frame, element, bindings);
+                }
+                indexed_term_in_scope(
+                    program,
+                    scope,
+                    frame,
+                    expression,
+                    structural_term(program, scope, frame, indexed.collection, bindings)?,
+                    structural_term(program, scope, frame, indexed.index, bindings)?,
+                )
+            }
             ExpressionNode::ZeroValue(type_reference) => {
                 zero_value_structural_term(program, *type_reference)
             }

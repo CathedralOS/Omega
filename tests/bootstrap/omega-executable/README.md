@@ -62,20 +62,32 @@ different output directory. These are host controls, not language semantics.
 ## Current compiler slice
 
 [The bootstrap compiler's coverage and storage contract](../../../bootstrap/5_omega/README.md)
-is authoritative for this gate. It currently admits a nullary `u8` entry,
-plain `u8` parameters/results, immutable initialized locals, resolved free
-calls, nested calls as complete arguments, and constant-selected state
-transfers. It checks all bodies and rejects reentrant ordinary-call graphs
-before emission. The private static cells preserve caller values and pending
-arguments. Unsupported nested ordinary calls cannot fall through to globals.
+is authoritative for this gate. It admits a nullary `u8` entry and checked
+`u8`, `u32`, bounded-literal `u64`, `bool`, and `u32 in Trapping` values through parameters, locals,
+free calls and same-owner parameterized transfers. Runtime comparisons and
+short-circuit Boolean control preserve those types. All bodies and arms are
+checked before emission; reentrant ordinary-call graphs and unsupported
+facilities refuse without publishing a partial tape. Copy records, zero-established
+affine locals, projected field writes, Unit completion and scoped record-reference
+parameters now support the actual SourceUnit clear helper. Runtime numeric
+arithmetic, indexed access, richer domains and machine clauses remain outside
+this slice. The compiler README specifies the precise storage and loan boundaries.
 
-Anonymous constant arithmetic is a bounded exact subset: integral `+ - * /`
-with every intermediate in `0..255`, comparisons, and Boolean operations.
-Fractional, signed or wider intermediates, anonymous remainder, and
-width-dependent anonymous operations refuse as unsupported. A destination
-annotation never changes anonymous division into truncating integer division.
-Runtime arithmetic, richer carriers, clauses, mutable data and dynamic control
-remain outside current emission coverage.
+The source-built compiled peer also exposes `--omega-control`. It takes exact
+identifier-predicate declarations from the real lexer source and appends
+[lexer_controls.omg](lexer_controls.omg), which exercises ASCII interval edges
+and high `u32` inputs. [controls_control.epsilon](controls_control.epsilon)
+compiles that input plus generic parallel-transfer, comparison, short-circuit,
+and refusal/reset controls. The harness executes every emitted artifact through
+the Alpha seed. The compiler has no special case for this customer.
+
+The peer's `--omega-storage` customer similarly extracts exact SourceId,
+SourceUnit and `source_unit_clear` declarations from the actual source package,
+then appends [storage_controls.omg](storage_controls.omg).
+[controls_storage.epsilon](controls_storage.epsilon) checks that program plus
+seven generic storage programs, sixteen explicit refusals and a reset program;
+the harness executes all nine published artifacts. These are internal
+single-source compilation customers; they do not claim full package admission.
 
 The route selects `main` — the machine name `alpha_bootstrap::ProgramEntry`
 binds. Another source can be exercised without changing compiler code:
@@ -128,19 +140,19 @@ missing entry, out-of-range and oversized decimal values, an out-of-range
 expression operand, overflow, underflow, division and modulo by zero,
 out-of-width and overflowing shifts, an invalid unselected body, unsupported
 path, `-` unary, and other expressions and return types, a
-named-state-only machine, digit separators, malformed syntax, and successful
+body containing only nested declarations, digit separators, malformed syntax, and successful
 reuse after failures; then checked control flow: call statements and grouped
 terminal calls between machines with exact emitted-tape assertions,
-subjectless and literal-subject transitions into authored states, folded
+subjectless and literal-subject transitions into nested machines, folded
 Boolean subjects through the comparison, logical, and `!` operators, a
 folded Boolean refused at the `u8` terminal, carrier-class rejections at
-operators (`&&` on u8 operands, `<` against a Boolean, `!` on a u8, `==`
-across classes), a forward-declared callee, machine-scoped state
+operators (`&&` on anonymous numbers, `<` against a Boolean, `!` on a number, `==`
+across classes), a forward-declared callee, nested-machine name
 resolution, unresolved call
 and state targets, call and transition arity mismatches, an empty authored
 state, an unmatched subject, duplicate authored state names, an unreachable
-statement after a transition block, receiver and `self` call paths, a
-parameterized state, a multi-arm or non-wildcard subjectless block, an
+statement after a transition block, receiver and `self` call paths, a supported
+parameterized transfer, a multi-arm or non-wildcard subjectless block, an
 integer arm under a Boolean subject, refused fractional anonymous division,
 unsupported shift and bitwise expressions, an ungrouped terminal call, two sequential call
 statements, a wildcard arm ahead of a matching literal arm, and a Boolean arm
@@ -167,16 +179,16 @@ top of the bound member closure, never part of the manifested members.
 | --- | ---: | --- |
 | `main.epsilon` | 1,757 | `c0af3126f13c8c511d04f224e630f60f3316c0f9fa6e310e72f66779c7c3ce9e` |
 | `main_ocreq.epsilon` | 19,249 | `5d5d0b8ed0146b055ffdbb6d680bb902a0e350c80b13577bf148879c6c753943` |
-| `controls.epsilon` | 3,536 | `f30a9a3206fdbe7a13b1b6377af7b5d95bca5e27c495bf4faab262fcc0525089` |
+| `controls.epsilon` | 3,539 | `16a4915fedac6e95a50cb2b9405c988d995935146d0552606b698d3f52be8740` |
 | `controls_b.epsilon` | 2,804 | `28701862d665951b2e432c58c77b7b1bcbc9d2b8ae53417f95bc76fa19908c6e` |
 | `controls_c.epsilon` | 2,834 | `1ec2b16b0d97631bc88f23c0d39c417e6184875c1178913fba4629b815fc3465` |
 | `controls_d.epsilon` | 2,852 | `b54adbcd30b9f192217b89b96efd3b548443a6e9426bb7891c98845fa89e8adb` |
-| `controls_e.epsilon` | 2,797 | `83ce536dacd5efb9238d7f5869ed5d6269c6481a24b4cdd0b7d3985777c150bc` |
-| `controls_f.epsilon` | 4,425 | `fbc7ed2868f9e70833fdfc36c927238c8fd11184e5127e372d732c8ab6ebff0e` |
-| `controls_g.epsilon` | 3,127 | `3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9` |
-| `controls_h.epsilon` | 3,193 | `b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e` |
-| `controls_i.epsilon` | 3,722 | `9c7d77740284bbca570197290d2d73188681b3763e15a22bf3ce5592f4c12846` |
-| `controls_j.epsilon` | 4,461 | `406e2bc4353983ebc81d6daa215a9b42f72b85056bc5f3263e1917e7e01efb94` |
+| `controls_e.epsilon` | 2,795 | `881feab7746fe17185dfa163629b13c788274891f43c9ab7d72d1f07a3272d72` |
+| `controls_f.epsilon` | 4,465 | `a144d2beb326b1b4f6d0251c97089c5b54dae5d3fc737d6b573a7e2ef7888190` |
+| `controls_g.epsilon` | 3,175 | `c3fb524c98a52ad999832af0b7525e75f98900ec69b6f6ac965348a3a20da137` |
+| `controls_h.epsilon` | 3,249 | `30a4006338f1eb08a169fb6b2d844881adb3314b9c39c51fcaea6029838964bc` |
+| `controls_i.epsilon` | 3,754 | `23139dabc77402e41850ff841c1961fba6d0c3713cf30392634186d0159c678f` |
+| `controls_j.epsilon` | 4,571 | `c0226b7ac5ffab6e91fc8edfcc3f64fa3e4e179b20489b77722e8db6d81e96cd` |
 
 `tools/bootstrap/omega/compiler_env.sh` checks every entry identity before
 each packing and `tests/bootstrap/omega-identity.sh` covers the refusals. The

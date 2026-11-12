@@ -17,9 +17,10 @@ active compiler worker run inline without spawning additional threads.
 */
 
 pub(crate) mod build_continuation;
+mod lowered_route;
 mod product_queries;
 mod product_selections;
-mod source_build;
+pub(super) mod source_build;
 mod source_checking;
 pub(crate) mod typed_frontier;
 
@@ -341,6 +342,7 @@ pub(super) fn begin_package_build_worker(
     source: PreparedCheckedSource,
     reuse: SettledCheckReuse,
     owner: &build_settings::PureBuildCompilation,
+    retained_defaults: &source_build::RetainedProviderDefaults,
 ) -> Result<PreparedPackageInvocation, CompileFailure> {
     let selected_target =
         target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
@@ -353,7 +355,13 @@ pub(super) fn begin_package_build_worker(
         optimization_rollback: request.optimization_rollback.clone(),
         settled_check_reuse: reuse,
     };
-    let source = source_build::SourceBuild::prepare(&request.root_path, source, child, owner)?;
+    let source = source_build::SourceBuild::prepare(
+        &request.root_path,
+        source,
+        child,
+        owner,
+        retained_defaults,
+    )?;
     Ok(PreparedPackageInvocation {
         capture: request.source_capture,
         root: request.root_path,
@@ -378,7 +386,9 @@ impl SourceCompilation {
         &mut self,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
     ) -> Result<BuildAdvance, CompileFailure> {
-        self.source.advance(returned)
+        // Advancing past provider defaults checks the root Build program, which
+        // needs the compiler's large stack like every other session entry.
+        compile_thread::run_on_compile_thread(|| self.source.advance(returned))
     }
     pub fn product_queries(&self) -> ProductQueries {
         self.source.product_queries()
@@ -451,12 +461,19 @@ pub(super) fn prepare_source_compilation(
     source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
     pure_build_compilation: &build_settings::PureBuildCompilation,
+    retained_defaults: &source_build::RetainedProviderDefaults,
 ) -> Result<SourceCompilation, CompileFailure> {
     let target = child.selected_target_profile;
     let inputs = child.package_inputs.cloned();
     let rollback = child.optimization_rollback.clone();
     let reuse = child.settled_check_reuse.clone();
-    let source = source_build::SourceBuild::prepare(root, source, child, pure_build_compilation)?;
+    let source = source_build::SourceBuild::prepare(
+        root,
+        source,
+        child,
+        pure_build_compilation,
+        retained_defaults,
+    )?;
     Ok(SourceCompilation {
         root: root.to_path_buf(),
         target,

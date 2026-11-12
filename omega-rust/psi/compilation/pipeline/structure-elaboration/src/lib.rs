@@ -54,8 +54,8 @@ mod outcome;
 mod read;
 
 pub use body::{
-    Body, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
-    Statement, Strict, Target, Termination, ValueType, self_place,
+    Body, Borrowed, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType,
+    Signature, Statement, Strict, Target, Termination, ValueType, self_place,
 };
 pub use names::{Binder, ClauseText, MachineNames, Piece};
 pub use outcome::Outcome;
@@ -167,6 +167,12 @@ pub struct Elaboration {
     /// The typed-tree machine each `MachineId` elaborates. The first entry
     /// is 1.
     pub machines: IdTable<MachineId, SymbolHandle>,
+    /// Private checked helpers in the complete verification subject whose
+    /// input clause was omitted. Every inferred condition must
+    /// become a requirement at every invocation before the module is judged.
+    /// Written `requires true` is complete even though it leaves no clause.
+    /// Entries, selected providers and abstract requirements never appear here.
+    pub private_inputs: Vec<MachineId>,
     /// The `requires` clauses of each data type the module declares, by the
     /// type's identity and in authored order, as `RecordType::requires`
     /// states them: the checker's restatement of each type declaration's
@@ -204,6 +210,14 @@ pub struct Elaboration {
     /// check form or as a conformance witness. Empty for every other
     /// machine, and for bodies lowered without typed trees.
     pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
+    /// The subject's generic machines. Each is a declaration the compilation
+    /// must judge, and none is a machine of this module: a generic body is
+    /// checked once as written, with its parameters rigid, or once per
+    /// alternative of a finite family it lists (`elaborate_generic_forms`).
+    /// The machines stage 04 generated from them for the program's own
+    /// applications are closed machines of this module. Empty outside
+    /// `elaborate`.
+    pub generic_templates: Vec<SymbolHandle>,
 }
 
 /// One call through an implementation parameter in a machine stage 04
@@ -319,8 +333,10 @@ pub fn elaborate(typed: &TypedTrees, compilation: Compilation<'_>) -> Checked<El
         ));
     };
     let entry = program.machine(*entry)?;
+    program.fixed_inputs.push(entry);
     for other in others {
-        program.machine(*other)?;
+        let other = program.machine(*other)?;
+        program.fixed_inputs.push(other);
     }
     program.selected_declarations(entry, compilation.selected)?;
     program.subject_declarations(entry, compilation.subject)?;
@@ -375,6 +391,28 @@ pub fn elaborate_alternatives(
             finish_reading(program, entry, IdTable::default())
         })
         .collect()
+}
+
+/// The check forms of the generic machines `templates`, in order: for each,
+/// the machine checked once as written with its parameters rigid
+/// (`elaborate_generic`), or, when it lists a finite type family, once per
+/// alternative (`elaborate_alternatives`). Refused when either form refuses
+/// one of them; a refusal names the template's own form.
+pub fn elaborate_generic_forms(
+    typed: &TypedTrees,
+    templates: &[SymbolHandle],
+) -> Checked<Vec<Elaboration>> {
+    let mut forms = Vec::new();
+    for template in templates {
+        match elaborate_generic(typed, *template) {
+            Ok(form) => forms.push(form),
+            Err(rigid) => match elaborate_alternatives(typed, *template) {
+                Ok(alternatives) => forms.extend(alternatives),
+                Err(_) => return Err(rigid),
+            },
+        }
+    }
+    Ok(forms)
 }
 
 /// The declaration a machine was generated from, when stage 04 generated it
@@ -490,6 +528,7 @@ fn finish_reading(
         let body = program.body(next)?;
         bodies.push(body);
     }
+    let private_inputs = program.private_input_contracts(entry)?;
     let mut elaboration = lower_generic(
         entry,
         &bodies,
@@ -498,11 +537,13 @@ fn finish_reading(
         &program.requirements,
     )?;
     elaboration.machines = program.symbols;
+    elaboration.private_inputs = private_inputs;
     elaboration.names = program.names;
     elaboration.selections = program.selections;
     elaboration.applications = program.applications;
     elaboration.value_parameters = program.value_parameters;
     elaboration.value_arguments = program.value_arguments;
+    elaboration.generic_templates = program.generic_templates;
     Ok(elaboration)
 }
 
@@ -560,7 +601,7 @@ pub fn lower_generic(
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
     // record declares none and keeps the empty identity table.
-    let declared = lower::places::declare(entry, records, bodies)?;
+    let declared = lower::places::declare(entry, records, bodies, signatures)?;
     if !declared.structural_types.is_empty() {
         module.identities = declared.identities;
         module.structural_types = declared.structural_types;
@@ -603,12 +644,14 @@ pub fn lower_generic(
         sources,
         names: IdTable::default(),
         machines: IdTable::default(),
+        private_inputs: Vec::new(),
         domains,
         requirements: requirements.to_vec(),
         selections: Vec::new(),
         applications: Vec::new(),
         value_parameters: IdTable::default(),
         value_arguments: IdTable::default(),
+        generic_templates: Vec::new(),
     })
 }
 

@@ -47,6 +47,10 @@ pub struct MachineNames {
     /// The span of each call this machine makes and the authored text of
     /// its arguments in position order.
     pub calls: Vec<(SourceSpan, Vec<String>)>,
+    /// The span of each call that lends storage, the position among the
+    /// call's runtime actuals of each argument that is a loan, and the
+    /// binding at the root of the lent place as authored.
+    pub loans: Vec<(SourceSpan, usize, String)>,
     /// The span of each exit, an arm's transition or the final value
     /// expression, and the position of its statement in the state's body,
     /// counted from 0 as the current checker counts "at statement N".
@@ -130,6 +134,15 @@ impl MachineNames {
             }
             crate::SourceOrigin::Unpositioned(_) => None,
         }
+    }
+
+    /// The binding at the root of the place the call at `site` lends at
+    /// argument `position`.
+    pub fn lender(&self, site: SourceSpan, position: usize) -> Option<&str> {
+        self.loans
+            .iter()
+            .find(|(span, at, _)| *span == site && *at == position)
+            .map(|(_, _, name)| name.as_str())
     }
 
     /// The argument texts of the call at `site`.

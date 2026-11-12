@@ -458,8 +458,8 @@ compile checks exactly the same input
 ([validation subjects](../wiki/spec/build/validation_subjects.md#what-this-rule-does-not-do)).
 The records live in `CathedralOS/Omega/checked-slices/v1` under the per-user
 cache directory, at most 4 GiB, oldest removed first; a rebuilt compiler starts
-them over. A second run of the same fixtures therefore spends less time in Psi 05
-than the first. `OMEGA_CHECKED_SLICE_CACHE=off` checks everything afresh, and an
+them over. One record serves every fixture whose dependency Build program
+matches, so after the first such fixture the rest skip that check. `OMEGA_CHECKED_SLICE_CACHE=off` checks everything afresh, and an
 absolute path moves the records, which is how to measure a cold run.
 
 ### The corpus in CI
@@ -1287,7 +1287,11 @@ probe; the gate checks it and reports it apart from the native score.
 Its failure still makes the gate fail. Intended-invalid projects never enter
 package acceptance or native execution: they must exit 1 from checking and match
 all authored diagnostic fragments. Missing expectations, wrong reasons, crashes
-and timeouts fail; no negative coverage disappears into an unscored row. Existing
+and timeouts fail; no negative coverage disappears into an unscored row. A
+program with `expected_native_error.txt` must pass `--check` and then fail its
+native build with every non-empty line of that file in the output, reported as
+`native-rejected`; an empty file, a check failure, a native build that succeeds
+or a missing line fails it. Existing
 no-oracle/freestanding reporting and positive package-review behavior are unchanged.
 
 ```bash

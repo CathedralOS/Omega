@@ -268,7 +268,7 @@ def omega_values_customer(work, timeout):
     (work / "values-observation.bin").write_bytes(observation)
     assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
     offset = 5
-    for index, expected in enumerate((42, 42, 53, 44, 52, 42, 56, 37, 47, 43)):
+    for index, expected in enumerate((42, 42, 53, 44, 52, 42, 56, 37, 0, 2, 47, 43)):
         assert offset + 5 <= len(observation), ("truncated artifact frame", index)
         code = observation[offset]
         length = struct.unpack_from("<I", observation, offset + 1)[0]
@@ -282,7 +282,85 @@ def omega_values_customer(work, timeout):
         stamp(tape, executable)
         assert execute(executable) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
-    print(f"Omega values customer: ten emitted executables and 35 source-owned refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
+    print(f"Omega values customer: twelve emitted executables and 33 source-owned refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
+
+
+def omega_control_customer(work, timeout):
+    """Compile the repository lexer predicates and execute scalar controls."""
+    closure = pack("bootstrap/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
+    gate = ROOT / "tests/bootstrap/omega-executable"
+    lexer = (ROOT / "source/psi/lex/lexer.omg").read_bytes()
+    declarations = []
+    for name in (b"is_identifier_start", b"is_identifier_continue"):
+        start = lexer.index(b"machine " + name + b"(")
+        end = lexer.index(b"\nmachine ", start + 1)
+        declarations.append(lexer[start:end])
+    program = b"\n".join(declarations) + b"\n" + (gate / "lexer_controls.omg").read_bytes()
+    source = closure + (gate / "controls_control.epsilon").read_bytes()
+    request = epsilon_request((work / "epsilon.delta").read_bytes(), source, program)
+    (work / "control-source.epsilon").write_bytes(source)
+    (work / "control-program.omg").write_bytes(program)
+    (work / "control-request.bin").write_bytes(request)
+    print(f"Omega runtime control: {len(source)} Epsilon bytes; {len(program)} Omega bytes; allowance {timeout}s", flush=True)
+    started = time.monotonic()
+    status, observation = execute(work / "epsilon", request, timeout)
+    (work / "control-observation.bin").write_bytes(observation)
+    assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
+    offset = 5
+    for index, expected in enumerate((42, 42, 43, 44, 45, 46, 47)):
+        assert offset + 5 <= len(observation), ("truncated artifact frame", index)
+        code = observation[offset]
+        length = struct.unpack_from("<I", observation, offset + 1)[0]
+        offset += 5
+        assert code == expected and 0 < length <= 16777212
+        assert offset + length <= len(observation), ("truncated artifact", index)
+        tape = work / f"control-{index}.tape"
+        executable = work / f"control-{index}"
+        tape.write_bytes(observation[offset:offset + length])
+        offset += length
+        stamp(tape, executable)
+        assert execute(executable) == (expected, b""), index
+    assert offset == len(observation), "unexpected publication after the final artifact"
+    print(f"Omega runtime control: seven emitted executables, actual lexer boundaries, parallel transfers, short circuit, explicit domain casts and 26 refusals passed; {time.monotonic()-started:.3f}s", flush=True)
+
+
+def omega_storage_customer(work, timeout):
+    """Compile exact SourceUnit declarations and execute generic storage checks."""
+    closure = pack("bootstrap/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
+    gate = ROOT / "tests/bootstrap/omega-executable"
+    unit = (ROOT / "source/psi/source/source.omg").read_bytes()
+    declarations = []
+    for marker in (b"public data SourceId ", b"public data SourceUnit\n", b"machine source_unit_clear("):
+        start = unit.index(marker)
+        end = unit.index(b"\n}", start) + 2
+        declarations.append(unit[start:end])
+    program = b"\n\n".join(declarations) + b"\n" + (gate / "storage_controls.omg").read_bytes()
+    source = closure + (gate / "controls_storage.epsilon").read_bytes()
+    request = epsilon_request((work / "epsilon.delta").read_bytes(), source, program)
+    (work / "storage-source.epsilon").write_bytes(source)
+    (work / "storage-program.omg").write_bytes(program)
+    (work / "storage-request.bin").write_bytes(request)
+    print(f"Omega storage: {len(source)} Epsilon bytes; {len(program)} Omega bytes; allowance {timeout}s", flush=True)
+    started = time.monotonic()
+    status, observation = execute(work / "epsilon", request, timeout)
+    (work / "storage-observation.bin").write_bytes(observation)
+    assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
+    offset = 5
+    for index, expected in enumerate((42, 43, 44, 45, 46, 0, 2, 48, 59)):
+        assert offset + 5 <= len(observation), ("truncated artifact frame", index)
+        code = observation[offset]
+        length = struct.unpack_from("<I", observation, offset + 1)[0]
+        offset += 5
+        assert code == expected and 0 < length <= 16777212
+        assert offset + length <= len(observation), ("truncated artifact", index)
+        tape = work / f"storage-{index}.tape"
+        executable = work / f"storage-{index}"
+        tape.write_bytes(observation[offset:offset + length])
+        offset += length
+        stamp(tape, executable)
+        assert execute(executable) == (expected, b""), index
+    assert offset == len(observation), "unexpected publication after the final artifact"
+    print(f"Omega storage: nine executables, actual SourceUnit clear and 16 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
 def main():
@@ -293,8 +371,15 @@ def main():
     parser.add_argument("--omega", action="store_true", help="also run the complete bootstrap compiler's existing executable fixture")
     parser.add_argument("--omega-controls", action="store_true", help="run its existing changed-source, rejection, and reset controls")
     parser.add_argument("--omega-values", action="store_true", help="run the parameter, local, nested-call and refusal customer")
-    parser.add_argument("--omega-timeout", type=int, default=1800)
+    parser.add_argument("--omega-control", action="store_true", help="run actual lexer predicates and typed runtime control checks")
+    parser.add_argument("--omega-storage", action="store_true", help="run actual SourceUnit clear and record/reference controls")
+    parser.add_argument("--omega-timeout", type=int,
+                        help="Omega observation seconds (default: 7200 for runtime/storage controls, otherwise 1800)")
     args = parser.parse_args()
+    if args.omega_timeout is None:
+        args.omega_timeout = 7200 if args.omega_control or args.omega_storage else 1800
+    if args.omega_timeout <= 0:
+        parser.error("--omega-timeout must be positive")
     work = ROOT / "build/compiled-vm"
     work.mkdir(parents=True, exist_ok=True)
     evaluator = work / "reference"
@@ -305,7 +390,7 @@ def main():
         controls(work, evaluator)
     if not args.controls_only:
         customer(work, evaluator)
-        if args.epsilon or args.omega or args.omega_controls or args.omega_values:
+        if args.epsilon or args.omega or args.omega_controls or args.omega_values or args.omega_control or args.omega_storage:
             epsilon_customer(work)
         if args.omega:
             omega_customer(work, args.omega_timeout)
@@ -313,6 +398,10 @@ def main():
             omega_customer(work, args.omega_timeout, controls=True)
         if args.omega_values:
             omega_values_customer(work, args.omega_timeout)
+        if args.omega_control:
+            omega_control_customer(work, args.omega_timeout)
+        if args.omega_storage:
+            omega_storage_customer(work, args.omega_timeout)
 
 
 if __name__ == "__main__":

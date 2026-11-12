@@ -76,8 +76,8 @@ jobs:
         run: mbx test --locked -p compiler --test lowered_route_subjects --test lowered_route_generics
 
   # One sample natively and in the interpreter. It builds `omega` from main's
-  # restored warm build, so it costs a minute, not a cold 11-minute compile,
-  # and holds up no other job.
+  # restored warm build, beside the other jobs, so the compile holds up none
+  # of them.
   sample:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -208,7 +208,7 @@ jobs:
       - name: Install build tools
         run: |
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd jq
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
           echo "/root/.cargo/bin" >> "$GITHUB_PATH"
       - name: Check out the commit at the session path
@@ -272,7 +272,7 @@ jobs:
           cd /home/user/Omega/build/corpus-gate
           mkdir base-unpacked
           tar -C base-unpacked -xf base-download/runner.tar
-          built=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["source"]["revision"])' base-unpacked/runner/producer.json)
+          built=$(jq -r .source.revision base-unpacked/runner/producer.json)
           if [ "$built" != "$BASE" ]; then
             echo "The base run's runner was built from $built, not $BASE; compiling the base."
             exit 1

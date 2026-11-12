@@ -33,7 +33,8 @@ operations; [prove.rs](src/prove.rs) is the one prover.
 | `ArrivalInvariant` | the destination block's predicate (a loop head's declared invariant, its member's `requires`, or a join's inferred predicate), its parameters replaced by this edge's arguments (`Truth` when the join has none) | the same, on the arrival edge |
 | `CrashCoverage` | at a `Crash` terminator, its guard's clauses and the disjunction of this machine's published alternatives for the cause (`Falsehood` when it publishes none); at a call, the callee's route for the cause with the call's actuals implies that disjunction | the same, before the crashing terminator or call |
 
-Any other kind is refused as `Unsupported`.
+A `Loan` is not proved: it is judged by structure ([Loans](#loans)). Any
+other kind is refused as `Unsupported`.
 
 Beside the obligations it makes two structural judgments, which share one
 verdict per operation and terminator that touches storage
@@ -578,6 +579,56 @@ scalar lane: the callee's `k`-th scalar formal by the caller's `k`-th scalar
 actual. A record actual is a place and no clause term can name it, because
 elaboration refuses a clause that names or projects a record formal.
 
+## Loans
+
+A call that passes a place to a borrowed formal lends it for the call
+([structure-elaboration](../structure-elaboration/README.md#references)):
+the structural argument names the place with the loan's access, and one
+`Loan` row stands for it. [places/loans.rs](src/places/loans.rs) recomputes
+the rows from the lowered form, as every other row is
+([The rows are checked against the lowered form](#the-rows-are-checked-against-the-lowered-form)):
+one per borrowed structural argument of each call, created at the point
+before the call, whose captured place is the invocation row's actual at that
+position and the place the argument's storage path names, and whose lender
+is the incoming loan when the root is a borrowed formal (`Lender::Incoming`)
+and the owner otherwise. The access must be the callee formal's declared
+access. A row the lowered form does not owe, or owes otherwise, is
+`ForeignIdentity`.
+
+Each loan is formed for one call and ends when the call returns, so none is
+live on an edge and no edge disposes of one; a call that never returns may
+not lend. What an exclusive loan's callee did is a store of its own: the
+lent place holds contents its callee established, with no value identity
+here, from the call's normal continuation on (`Stored::Returned`), and
+nothing outside it changes. A sibling field keeps what it held, so a read of
+it still has its read equation; a read of the lent field has none. A shared
+loan stores nothing.
+
+Whether a loan may be formed is a resource judgment, not a proposition
+([loans](../../../../../wiki/spec/terminal-psi/loans.md): "Loan descent,
+access attenuation, temporal containment and restoration are resource
+judgments. Logical facts cannot create, amplify, transfer, extend, return,
+consume or duplicate authority."), so it has no certificate. A loan that may
+be formed is `Discharged::Lent`; one that may not is refused with
+`RefusalReason::Conflict`, a compile error of the program:
+
+- **Two loans of one call that may share storage**, when either is
+  exclusive: the later one conflicts. The places' overlap is the one
+  relation the place walk uses (`overlap`): two different fields of one
+  record are disjoint, anything else beneath one root may share storage.
+  ownership.md, "Borrows and aliases": "exclusive loans must not overlap
+  incompatibly"; loans.md: "A live exclusive loan does not prove projections
+  disjoint."
+- **An exclusive reborrow of storage held shared**: a loan beneath a
+  borrowed formal declared `&T` with mutable access (loans.md, "Reborrow
+  lineage and access": a `Read` parent rejects a mutable child).
+
+`judge` reports each as a `ConflictingUse` in `RouteVerdict::Rejected`
+beside the unproved obligations and unestablished uses, in the current
+checker's words: `state `two` receives `y` as mutable more than once
+(conflicting loans)`, `... as both mutable and read-only`, placed at the
+call.
+
 ## Loops
 
 Elaboration lowers a call cycle as a loop: one head block per machine of the
@@ -888,6 +939,8 @@ route's decision from. It discharges an elaborated closure and returns:
 - `Accepted`: every obligation of every machine was discharged by a
   certificate the kernel accepted and every use of storage is established,
   with the operation seals for Omega 00.
+- `Rejected`, for a loan: one `ConflictingUse` per loan that may not be
+  formed ([Loans](#loans)), with the call's site.
 - `Rejected`, for a use of storage: one `UnestablishedUse` per operation or
   edge that some path reaches with nothing stored into what it reads, or
   that observes the zeroed storage of a gated type, with its source site

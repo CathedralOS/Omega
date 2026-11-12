@@ -38,7 +38,7 @@ machine change(room: &mut Room) crashes Trap {
 }
 
 machine Main::main(main: &mut Main) crashes Trap {
-    let room: Room;
+    let mut room: Room;
     fill(&mut room);
     main.output = room.description.bytes;
     change(&mut room);

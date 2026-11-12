@@ -36,7 +36,7 @@ data Samples { cells: [Cell; 2]; }
 data TiledRecordNestedArrayView { value: LayoutStorage<Samples, TiledRecordNestedArray>; }
 
 machine make_samples() -> Samples {
-    let cells: [Cell; 2];
+    let mut cells: [Cell; 2];
     cells[0] = Cell {
         tag: 0x04030201,
         values: [0x0605, 0x0807],

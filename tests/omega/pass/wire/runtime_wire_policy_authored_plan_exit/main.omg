@@ -62,7 +62,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     PolicyCodec::encode(&msg, &mut main.buffer, &mut main.written);
 
-    let decoded: CounterSample = CounterSample {
+    let mut decoded: CounterSample = CounterSample {
         counter: 0,
         delta: 0,
         flag: false

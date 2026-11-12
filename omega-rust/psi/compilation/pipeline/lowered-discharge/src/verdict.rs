@@ -50,6 +50,11 @@ unproved obligation, but it is a structural judgment with no obligation row,
 so a rejection carries the two lists side by side. One such use makes the
 verdict `Rejected` even when every unproved obligation is merely incomplete:
 the program fails a checking rule whatever the prover could or could not do.
+
+A loan that may not be formed (`RefusalReason::Conflict`: two loans of one
+call that may share storage with one of them exclusive, or an exclusive
+reborrow of storage held shared) has the same standing, and is listed beside
+the other two as a `ConflictingUse`.
 */
 
 use diagnostics::Diagnostic;
@@ -71,10 +76,13 @@ pub enum RouteVerdict {
     /// The program is rejected. `unproved` has one entry per obligation the
     /// prover could not discharge, in machine and obligation order;
     /// `unestablished` one per use of storage that some path reaches with
-    /// nothing established in it. At least one of the two is not empty.
+    /// nothing established in it; `conflicts` one per loan that may not be
+    /// formed. At least one of the three is not empty.
     Rejected {
         unproved: Vec<UnprovedObligation>,
         unestablished: Vec<UnestablishedUse>,
+        /// One per loan that may not be formed where it is.
+        conflicts: Vec<ConflictingUse>,
     },
     /// No obligation is unproved for want of a derivation, but the prover has
     /// no rule for the form of at least one goal, so the route can judge the
@@ -92,6 +100,58 @@ pub struct AcceptedClosure {
     pub elaboration: Elaboration,
     pub discharge: Discharge,
     pub seals: Vec<ObligationEvidenceSeal>,
+}
+
+/// An accepted closure published as Terminal Psi: the canonical artifact of
+/// the module the route checked, and the evidence seals bound to that
+/// module's identity, which travel beside it in memory to Omega 00.
+#[derive(Debug)]
+pub struct RoutePublication {
+    pub artifact: terminal_codec::CanonicalTerminalArtifact,
+    pub seals: terminal_codec::EvidenceSeals,
+}
+
+/// Why an accepted closure could not be published.
+#[derive(Debug)]
+pub enum PublicationError {
+    /// The module names a requirement that stands in for a body: a generic
+    /// check form, which is never encoded (generics.md, "Generic bodies use
+    /// the abstract requirement envelope").
+    GenericCheckForm,
+    /// The module fails a structural check of Terminal semantics.
+    Semantic(String),
+    Artifact(terminal_codec::CanonicalTerminalArtifactError),
+    Seals(terminal_codec::CodecError),
+}
+
+impl AcceptedClosure {
+    /// Publishes the module the route checked, with no Psi optimization: the
+    /// artifact's execution record names the identity stage, so the module
+    /// the kernel judged is byte for byte the module that is encoded, and the
+    /// seals, bound to its identity, still name it. This is the same
+    /// publication Psi 08 performs (`finalize_terminal_program`), from the
+    /// route's module instead of Psi 06's.
+    pub fn publish(&self) -> Result<RoutePublication, PublicationError> {
+        if !self.elaboration.requirements.is_empty() {
+            return Err(PublicationError::GenericCheckForm);
+        }
+        let module = self.elaboration.module.clone();
+        terminal_semantics::activation_storage::validate_module(&module)
+            .map_err(|reason| PublicationError::Semantic(reason.to_owned()))?;
+        let identity =
+            terminal_codec::terminal_psi_identity(&module).map_err(PublicationError::Seals)?;
+        let record = terminal_codec::PsiOptimizationExecutionRecord::new(
+            optimization::PsiOptimizationSelections::default(),
+            identity,
+            identity,
+        )
+        .map_err(|error| PublicationError::Semantic(format!("{error:?}")))?;
+        let seals = terminal_codec::EvidenceSeals::for_module(&module, self.seals.clone())
+            .map_err(PublicationError::Seals)?;
+        let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None)
+            .map_err(PublicationError::Artifact)?;
+        Ok(RoutePublication { artifact, seals })
+    }
 }
 
 /// One obligation the prover could not discharge.
@@ -119,6 +179,15 @@ pub struct UnprovedObligation {
     pub consumed: Option<ConsumptionSite>,
 }
 
+/// `statement` ending with a period.
+fn closed_sentence(statement: &str) -> std::borrow::Cow<'_, str> {
+    if statement.ends_with('.') {
+        std::borrow::Cow::Borrowed(statement)
+    } else {
+        std::borrow::Cow::Owned(format!("{statement}."))
+    }
+}
+
 /// Where an open invariant window is consumed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ConsumptionSite {
@@ -135,9 +204,12 @@ impl UnprovedObligation {
     /// is false.
     pub fn message(&self) -> String {
         match self.consumed {
+            // The statement is a sentence in the current checker's words and
+            // closes with its period, as that checker's message does, so a
+            // pinned fragment that ends the sentence matches either.
             None => format!(
                 "{} ({}: {})",
-                self.statement,
+                closed_sentence(&self.statement),
                 self.cause.describe(),
                 self.detail
             ),
@@ -216,6 +288,83 @@ impl UnestablishedUse {
     }
 }
 
+/// One loan that may not be formed where it is: a call that lends storage
+/// another of its arguments lends with an incompatible access, or an
+/// exclusive reborrow of storage held shared. A compile error of the program
+/// of the same standing as an unproved obligation; it is a resource judgment
+/// with no certificate (`places::loans`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConflictingUse {
+    pub machine: MachineId,
+    /// The `Loan` row that may not be formed.
+    pub loan: ObligationId,
+    pub conflict: crate::LoanConflict,
+    /// Where the call that forms it arises in the source.
+    pub site: SourceOrigin,
+    /// What the conflict is, in the current checker's words where it has
+    /// them. Diagnostic text only.
+    pub statement: String,
+}
+
+impl ConflictingUse {
+    pub fn message(&self) -> String {
+        format!("{} (conflicting loans)", self.statement)
+    }
+
+    /// The `Reject` diagnostic.
+    pub fn reject_diagnostic(&self) -> Diagnostic {
+        let diagnostic = Diagnostic::error(self.message());
+        match self.site {
+            SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
+            SourceOrigin::Unpositioned(_) => diagnostic,
+        }
+    }
+}
+
+/// The statement of one conflict, in the current checker's words: "state
+/// `two` receives `y` as mutable more than once", where `two` is the
+/// callee as declared. The callee's name and the lent binding come from the
+/// reader's names; without them the statement names no binding.
+fn conflict_statement(
+    elaboration: &Elaboration,
+    machine: MachineId,
+    tables: &terminal_check_tables::MachineTables,
+    site: SourceOrigin,
+    conflict: &crate::ConflictingLoan,
+) -> String {
+    let callee = tables
+        .invocations
+        .get(conflict.invocation)
+        .and_then(|row| match row.callee {
+            terminal_check_tables::edges::Callee::Machine(callee) => Some(callee),
+            terminal_check_tables::edges::Callee::Selected { .. } => None,
+        })
+        .and_then(|callee| elaboration.names.get(callee))
+        .map(|names| names.machine.clone())
+        .filter(|state| !state.is_empty());
+    let lender = match site {
+        SourceOrigin::Authored(span) => elaboration
+            .names
+            .get(machine)
+            .and_then(|names| names.lender(span, conflict.position))
+            .map(str::to_owned),
+        SourceOrigin::Unpositioned(_) => None,
+    };
+    let how = match conflict.conflict {
+        crate::LoanConflict::TwiceExclusive => "as mutable more than once",
+        crate::LoanConflict::ExclusiveAndShared => "as both mutable and read-only",
+        crate::LoanConflict::ExclusiveOfShared => {
+            "as mutable through a shared reference, which grants no mutation"
+        }
+    };
+    match (callee, lender) {
+        (Some(state), Some(lender)) => format!("state `{state}` receives `{lender}` {how}"),
+        (Some(state), None) => format!("state `{state}` receives one place {how}"),
+        (None, Some(lender)) => format!("a call receives `{lender}` {how}"),
+        (None, None) => format!("a call receives one place {how}"),
+    }
+}
+
 /// The obligation kind as a diagnostic names it. Clause positions count from
 /// one, as the source does.
 fn describe_kind(kind: ObligationKind) -> String {
@@ -260,12 +409,25 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
         Ok(elaboration) => elaboration,
         Err(refused) => return fall_back_or_defect(refused),
     };
+    // A compilation's generic machines are judged as their own check forms
+    // (`judge_compilation`). A closure that still lists them was judged
+    // without them, so it decides nothing.
+    if !elaboration.generic_templates.is_empty() {
+        let first = MachineId::new(1).expect("1 is nonzero");
+        return Ok(RouteVerdict::FallBack(refusal(
+            RefusalReason::Unsupported,
+            first,
+            Construct::Machine,
+            "machine generic parameters",
+        )));
+    }
     let discharged = match discharge(&mut elaboration) {
         Ok(discharged) => discharged,
         Err(refused) => return fall_back_or_defect(refused),
     };
     let mut unproved = Vec::new();
     let mut unestablished = Vec::new();
+    let mut conflicts = Vec::new();
     for (machine, result) in discharged.machines.iter() {
         let tables = terminal_check_tables::row(
             &elaboration.tables.machines,
@@ -293,6 +455,15 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
             let Err(refused) = verdict else {
                 continue;
             };
+            // A loan's conflict is listed with what it conflicts with, below.
+            if refused.reason == RefusalReason::Conflict
+                && result
+                    .conflicts
+                    .iter()
+                    .any(|conflict| conflict.loan == obligation)
+            {
+                continue;
+            }
             let RefusalReason::Unproved(cause) = refused.reason else {
                 return fall_back_or_defect(refused.clone());
             };
@@ -362,6 +533,22 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
                 }),
             });
         }
+        for conflict in &result.conflicts {
+            let concerns = Construct::Obligation(conflict.loan);
+            let site = *terminal_check_tables::row(
+                &sources.obligations,
+                conflict.loan,
+                machine,
+                concerns,
+            )?;
+            conflicts.push(ConflictingUse {
+                machine,
+                loan: conflict.loan,
+                conflict: conflict.conflict,
+                site,
+                statement: conflict_statement(&elaboration, machine, tables, site, conflict),
+            });
+        }
         for used in &result.uses {
             let Err(refused) = &used.verdict else {
                 continue;
@@ -392,10 +579,11 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
             });
         }
     }
-    if !unestablished.is_empty() {
+    if !unestablished.is_empty() || !conflicts.is_empty() {
         return Ok(RouteVerdict::Rejected {
             unproved: without_restated_clauses(unproved),
             unestablished,
+            conflicts,
         });
     }
     if !unproved.is_empty() {
@@ -410,6 +598,7 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
                 RouteVerdict::Rejected {
                     unproved,
                     unestablished: Vec::new(),
+                    conflicts: Vec::new(),
                 }
             },
         );
@@ -423,6 +612,37 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
         discharge: discharged,
         seals,
     })))
+}
+
+/// The route's verdicts on everything `compilation` claims: the closure of
+/// its roots first, then the check form of each generic machine its subject
+/// declares, in declaration order, one per alternative for a finite family.
+/// generics.md, "Static type equality": "An unspecialized body checks every
+/// admitted alternative; one consumer cannot authorize an otherwise invalid
+/// generic body." So each generic body is judged as written whether or not
+/// the program applies it; the machines stage 04 generated for the
+/// program's own applications are closed machines of the closure. The
+/// compilation is decided only when every part is.
+pub fn judge_compilation(
+    typed: &typed_trees::TypedTrees,
+    compilation: structure_elaboration::Compilation<'_>,
+) -> Vec<Checked<RouteVerdict>> {
+    let elaborated = structure_elaboration::elaborate(typed, compilation);
+    let (closure, templates) = match elaborated {
+        Ok(mut elaboration) => {
+            let templates = std::mem::take(&mut elaboration.generic_templates);
+            (Ok(elaboration), templates)
+        }
+        Err(refused) => (Err(refused), Vec::new()),
+    };
+    let mut verdicts = vec![judge(closure)];
+    if !templates.is_empty() {
+        match structure_elaboration::elaborate_generic_forms(typed, &templates) {
+            Ok(forms) => verdicts.extend(forms.into_iter().map(|form| judge(Ok(form)))),
+            Err(refused) => verdicts.push(judge(Err(refused))),
+        }
+    }
+    verdicts
 }
 
 /// Where an operation, edge or block arises in the source, from
@@ -467,6 +687,7 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
                 detail: refused.detail,
                 declared: None,
             }],
+            conflicts: Vec::new(),
         }),
         RefusalReason::Unproved(_)
         | RefusalReason::NotConserved

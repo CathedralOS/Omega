@@ -4477,9 +4477,27 @@ mod loans {
                     _ => return Ok(None),
                 };
                 let contract = available!(call_view_return_contract(program, state_symbol, call));
+                // The contract substitutes only a result that is itself a type
+                // parameter. An evidence-bound call such as `Operations::forward`
+                // reached through a supertrait returns `Envelope<Value>`, whose
+                // nested `Value` stays the trait's parameter. A local that binds
+                // an opaque call's result directly has that result's complete
+                // checked type, so its loans are read from the local's type.
+                let opaque_target = !validation::call_target_has_checked_body_contract(
+                    program,
+                    validation::call_target_symbol(program, call),
+                );
+                let result_type = if opaque_target
+                    && access_limits.is_empty()
+                    && local_data.type_reference.is_valid()
+                {
+                    local_data.type_reference
+                } else {
+                    contract.return_type_reference(program)
+                };
                 let completed = TableLocalData {
                     initial_value: expression,
-                    type_reference: contract.return_type_reference(program),
+                    type_reference: result_type,
                     ..local_data.clone()
                 };
                 if let Some(loans) =
@@ -4553,7 +4571,7 @@ mod loans {
                             local_data,
                             expression,
                             target,
-                            contract.return_type_reference(program),
+                            result_type,
                         )
                         .ok_or("completed result reference permissions are unavailable")?,
                     );
@@ -4933,6 +4951,13 @@ mod loans {
                     return Ok(Vec::new());
                 }
                 Err(validation::StoredReferenceRelationRefusal::Unavailable(reason)) => {
+                    // A callee without a complete relation of its own is
+                    // refused by `check_stored_output_relations`, which names
+                    // that callee and then this call. Failing the caller's
+                    // loan walk here would hide the callee's diagnostic.
+                    if crate::borrow::deferred_to_stored_output_check(frames, machine, statement) {
+                        return Ok(Vec::new());
+                    }
                     return Err(reason);
                 }
             };
@@ -9615,4 +9640,17 @@ pub(crate) fn build_borrow_facts(
         returned_loans,
         states,
     ))
+}
+
+/// Whether a statement's stored-reference relation is missing only because a
+/// call in it has no complete invocation relation. The borrow walk leaves such
+/// a statement to `check_stored_output_relations`, which always refuses it.
+pub(crate) fn deferred_to_stored_output_check(
+    frames: &validation::CallFrameResolver<'_>,
+    machine: &typed_trees::machine::Machine,
+    statement: &checked_trees::statement::StatementNode,
+) -> bool {
+    frames
+        .stored_reference_call_failures(machine, statement)
+        .is_some_and(|failures| !failures.is_empty())
 }

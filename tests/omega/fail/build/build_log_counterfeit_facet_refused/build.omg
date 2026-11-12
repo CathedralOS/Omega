@@ -8,6 +8,6 @@
 // selects the facet family would compile this clean.
 machine build(builder: &mut Build) {
     Build::application(builder, "build_log_counterfeit_facet_refused");
-    let counterfeit: BuildLog = BuildLog {};
+    let mut counterfeit: BuildLog = BuildLog {};
     BuildLog::write_line(&mut counterfeit, "counterfeit line");
 }

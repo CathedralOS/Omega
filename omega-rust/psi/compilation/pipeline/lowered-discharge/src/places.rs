@@ -93,8 +93,10 @@ use terminal_psi::{
 use crate::graph::Graph;
 use crate::{StorageUse, refusal};
 
+mod loans;
 mod log;
 
+pub use loans::{ConflictingLoan, LoanConflict};
 use log::{Logged, Stored};
 
 fn index(raw: u64) -> usize {
@@ -918,7 +920,13 @@ impl<'a> Storage<'a> {
     /// the type the previous segment reached. A `Case` segment must name a
     /// declared case of the exact sum it is applied to.
     fn shape(&self, place: &Lineage, concerns: Construct) -> Checked<Shape<'a>> {
-        let mut at = Shape::Typed(self.root_type(place.root, concerns)?);
+        // A root of a primitive type (a scalar home, a borrowed scalar
+        // formal) is itself a scalar leaf.
+        let root = self.root_type(place.root, concerns)?;
+        let mut at = match &self.declaration(root, concerns)?.shape {
+            StructuralTypeShape::PrimitiveScalar(scalar_type) => Shape::Scalar(*scalar_type),
+            _ => Shape::Typed(root),
+        };
         for segment in &place.segments {
             at = match (at, segment) {
                 (Shape::Scalar(_), _) => {

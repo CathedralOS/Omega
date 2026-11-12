@@ -31,7 +31,7 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     // Era 0, tag 0, then zero encoded with two groups instead of one.
     let overlong_payload: [u8; 4] = [0, 0, 128, 0];
-    let overlong: ScalarValue = ScalarValue { value: 7 };
+    let mut overlong: ScalarValue = ScalarValue { value: 7 };
     ScalarCodec::decode(
         &mut overlong,
         &overlong_payload,
@@ -45,7 +45,7 @@ machine Main::main(main: &mut Main) reaches Console {
         0, 0,
         128, 128, 128, 128, 128, 128, 128, 128, 128, 2
     ];
-    let overflow: ScalarValue = ScalarValue { value: 9 };
+    let mut overflow: ScalarValue = ScalarValue { value: 9 };
     ScalarCodec::decode(
         &mut overflow,
         &overflow_payload,
@@ -58,7 +58,7 @@ machine Main::main(main: &mut Main) reaches Console {
         0, 0,
         255, 255, 255, 255, 255, 255, 255, 255, 255, 1
     ];
-    let good: ScalarValue = ScalarValue { value: 0 };
+    let mut good: ScalarValue = ScalarValue { value: 0 };
     ScalarCodec::decode(
         &mut good,
         &good_payload,

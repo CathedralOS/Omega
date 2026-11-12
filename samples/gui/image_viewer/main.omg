@@ -269,7 +269,7 @@ machine Main::main(main: &mut Main) reaches
     main.info[3] = 2097153;
     main.current = 0;
     // Create the owned window before loading so every failure path can release it.
-    let window: Window = Gui::window_create(main.cls, &main.title, 282001408, 160, 120, 528, 551);
+    let mut window: Window = Gui::window_create(main.cls, &main.title, 282001408, 160, 120, 528, 551);
     main.hwnd = window.window;
     transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
 

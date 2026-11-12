@@ -124,12 +124,52 @@ pub(crate) fn machine(
         published: Vec::new(),
         heads: Vec::new(),
         invariants: Vec::new(),
+        borrowed_roots: Vec::new(),
+        joining: 0,
     };
     let entry = lowering.block(SourceOrigin::Unpositioned(Unpositioned::MachineEntry));
     let mut formals = Formals::default();
     let formal_values = signature.formal_values();
     for (position, value_type) in signature.parameters.iter().enumerate() {
         if signature.is_erased(position) {
+            continue;
+        }
+        // A borrowed formal is a root place holding the caller's storage for
+        // the activation, declared with the reference's access; what it
+        // holds at entry is entry content. A scalar referent is a place of
+        // its primitive type, read and stored like a home.
+        if let Some(borrowed) = signature.borrowed(position) {
+            let (referent, scalar) = match *value_type {
+                ValueType::Record(record) => (record, false),
+                ValueType::Scalar(scalar_type) => (records.primitive(scalar_type, id)?, true),
+                ValueType::Rigid(_) => {
+                    return Err(lowering.internal("a borrowed formal of a rigid type"));
+                }
+            };
+            let lane = lowering.position(formals.records.len())?;
+            let (place, _) =
+                lowering.root(StructuralPlaceKind::Parameter { position: lane }, referent)?;
+            if place.get() != formals.records.len() as u64 + 1 {
+                return Err(lowering.internal("place formals are not the first places"));
+            }
+            formals.records.push(StructuralParameterDeclaration {
+                place,
+                position: lane,
+                structural_type: referent,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: places::borrowed_access(borrowed.access)
+                    .ok_or_else(|| lowering.internal("a write-only borrowed formal"))?,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+            });
+            formals.order.push(BoundaryParameterKind::Structural);
+            lowering.borrowed_roots.push(place);
+            *lowering.slot_mut(position)? = Some(if scalar {
+                Bound::Home(place)
+            } else {
+                Bound::Record(place)
+            });
             continue;
         }
         match *value_type {
@@ -165,7 +205,7 @@ pub(crate) fn machine(
                 // Clause terms name the `k`-th record formal as place
                 // `k + 1` (`Signature::requires`).
                 if place.get() != formals.records.len() as u64 + 1 {
-                    return Err(lowering.internal("record formals are not the first places"));
+                    return Err(lowering.internal("place formals are not the first places"));
                 }
                 formals.records.push(StructuralParameterDeclaration {
                     place,
@@ -316,6 +356,15 @@ struct Lowering<'a> {
     /// empty for a machine on no call cycle.
     heads: Vec<Head>,
     invariants: Vec<ScalarBlockInvariant>,
+    /// The roots of this machine's borrowed formals: storage the caller
+    /// lent, so a loan of a place beneath one reborrows the incoming loan
+    /// (`Lender::Incoming`) rather than lending owned storage.
+    borrowed_roots: Vec<PlaceId>,
+    /// How many operands that only some paths evaluate and that rejoin
+    /// (the right of `&&` and `||`, an arm of a value `match`) enclose what
+    /// is being lowered. A home made there would hold the local on those
+    /// paths only, so a loan that needs one is refused.
+    joining: usize,
 }
 
 #[derive(Default)]

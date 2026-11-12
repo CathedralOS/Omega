@@ -13,6 +13,7 @@ use typed_trees::machine::{Machine, MachineBodyStatus, MachinePurpose};
 use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
+use typed_trees::types::TypeReferenceNode;
 
 use super::contracts::{ClauseScope, ResultTerm};
 use super::{Program, Slot, crash_cause, span};
@@ -25,6 +26,94 @@ use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
 use source::SourceSpan;
 
 impl<'t> Program<'t> {
+    /// A helper with no written input requirement can use what every caller
+    /// guarantees. A written `requires true` must still support every input.
+    /// Its declaration marker survives when normalization removes the literal
+    /// fact; an empty clause list alone cannot distinguish the two contracts.
+    /// Every subject declaration is read; a callable used as a value or an
+    /// unserved selection refuses the whole route. Only direct calls remain
+    /// for those helpers. A reached dependency need not include every caller,
+    /// so its helpers and static requirement implementations keep their envelope.
+    pub(crate) fn private_input_contracts(&self, entry: MachineId) -> Checked<Vec<MachineId>> {
+        let mut private = Vec::new();
+        let mut fixed = self.symbols.map(|_, _| false);
+        for id in std::iter::once(&entry)
+            .chain(&self.fixed_inputs)
+            .chain(&self.requirements)
+            .chain(
+                self.selections
+                    .iter()
+                    .map(|selection| &selection.implementation),
+            )
+        {
+            *fixed.get_mut(*id).ok_or_else(|| {
+                refuse(
+                    *id,
+                    Construct::Machine,
+                    Unserved::Machine("input boundary without a machine"),
+                )
+            })? = true;
+        }
+        for &id in &self.subject_machines {
+            if fixed.get(id) == Some(&true) {
+                continue;
+            }
+            let symbol = terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+            let Some(machine) = self.typed.machine_by_symbol(*symbol) else {
+                continue;
+            };
+            let contracts = span(
+                &self.typed.signature_contracts,
+                machine.contracts,
+                id,
+                "contract span",
+            )?;
+            if !machine.is_public
+                && !contracts.iter().any(|clause| {
+                    clause.kind == SignatureContractKind::Requires
+                        && clause.keyword_source_span.is_some()
+                })
+            {
+                private.push(id);
+            }
+        }
+        // Build/preparation code and declaration sidecars can refer to a
+        // subject helper without becoming one of this module's callers.
+        // Any such use keeps the input boundary open. A reached subset is
+        // never mistaken for the helper's complete possible-use set.
+        if private.is_empty() {
+            return Ok(private);
+        }
+        let mut targets = Vec::with_capacity(private.len() * 2);
+        for id in &private {
+            let symbol = *terminal_check_tables::row(&self.symbols, *id, *id, Construct::Machine)?;
+            targets.push(symbol);
+            let (_, state) = self.declaration(*id, symbol)?;
+            targets.push(state.symbol);
+        }
+        let uses =
+            InputSymbolUses::new(self.symbols.values().copied(), targets).ok_or_else(|| {
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Machine("private input use with an invalid symbol"),
+                )
+            })?;
+        let mut outside = OutsideInputUses { uses };
+        typed_trees::references::visit_program(self.typed, &mut outside);
+        private.retain(|id| {
+            let symbol = *self.symbols.get(*id).expect("candidate was read above");
+            let state = self
+                .declaration(*id, symbol)
+                .expect("candidate declaration was checked")
+                .1;
+            [symbol, state.symbol]
+                .iter()
+                .all(|symbol| outside.uses.get(*symbol).is_some_and(|row| !row.outside))
+        });
+        Ok(private)
+    }
+
     fn next_identity(&self) -> Checked<MachineId> {
         MachineId::new(self.symbols.len() as u64 + 1).ok_or_else(|| {
             refuse(
@@ -558,12 +647,27 @@ impl<'t> Program<'t> {
         let formals = span(&typed.state_parameters, formals, id, "parameter span")?;
         let mut parameters = Vec::with_capacity(formals.len());
         let mut erased = Vec::new();
+        let mut borrowed = Vec::new();
         let mut slots = Vec::with_capacity(formals.len());
         for (position, formal) in formals.iter().enumerate() {
-            let (value_type, is_erased) = self.formal(id, formal)?;
+            let (value_type, is_erased, reference) = self.formal(id, formal)?;
             parameters.push(value_type);
             if is_erased {
                 erased.push(position);
+            }
+            let access = reference.as_ref().map(|reference| reference.access);
+            if let Some(reference) = reference {
+                if matches!(declared, Declarer::Requirement { .. }) {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Parameter("reference parameter of a requirement"),
+                    ));
+                }
+                borrowed.push(crate::body::Borrowed {
+                    position,
+                    ..reference
+                });
             }
             slots.push(Slot {
                 symbol: formal.symbol,
@@ -571,6 +675,7 @@ impl<'t> Program<'t> {
                 assignable: false,
                 homed: false,
                 erased: is_erased,
+                borrowed: access,
             });
         }
         for binder in binders {
@@ -582,11 +687,14 @@ impl<'t> Program<'t> {
                 assignable: false,
                 homed: false,
                 erased: false,
+                borrowed: None,
             });
         }
         let result = self.result_type(id, return_type)?;
         let values = crate::body::formal_values(
-            slots.iter().map(|slot| (slot.value_type, slot.erased)),
+            slots
+                .iter()
+                .map(|slot| (slot.value_type, slot.erased, slot.borrowed.is_some())),
             result,
         );
         // The result pseudo-value is the value right after the scalar
@@ -595,7 +703,9 @@ impl<'t> Program<'t> {
         // contract's reserved `result`.
         let scalar_formals = slots
             .iter()
-            .filter(|slot| slot.value_type.declared().is_some() && !slot.erased)
+            .filter(|slot| {
+                slot.value_type.declared().is_some() && !slot.erased && slot.borrowed.is_none()
+            })
             .count();
         let result_value = ValueId::new(scalar_formals as u64 + 1).ok_or_else(|| {
             refuse(
@@ -648,9 +758,10 @@ impl<'t> Program<'t> {
             }
             let facts = span(&typed.proof_facts, contract.facts, id, "fact span")?;
             match contract.kind {
-                // A clause that is the literal `true` states nothing: it
-                // asks nothing of a caller and promises nothing, so it adds
-                // no clause, as an absent `requires` or `ensures` adds none.
+                // A literal `true` asks nothing of a caller and promises
+                // nothing, so it adds no hypothesis. A written `requires`
+                // still fixes the complete input contract; the declaration
+                // marker is read separately by `private_input_contracts`.
                 // So does a clause closed type equations decide as true:
                 // `requires T == u32 || T == u64` in the machine generated
                 // for `u32`.
@@ -771,6 +882,7 @@ impl<'t> Program<'t> {
             Signature {
                 parameters,
                 erased,
+                borrowed,
                 result,
                 requires,
                 ensures,
@@ -850,10 +962,23 @@ impl<'t> Program<'t> {
         }
     }
 
-    /// A formal's type and whether it is `[erased]`. An erased formal is
-    /// scalar: an erased record travels in Terminal Psi's proof-term lane
-    /// (`erased_proof_formals`), which a later slice serves.
-    fn formal(&mut self, id: MachineId, formal: &StateParameter) -> Checked<(ValueType, bool)> {
+    /// A formal's type, whether it is `[erased]`, and the reference it is
+    /// passed by. An erased formal is scalar: an erased record travels in
+    /// Terminal Psi's proof-term lane (`erased_proof_formals`), which a later
+    /// slice serves.
+    ///
+    /// A formal of type `&T` or `&mut T` is read as its referent type `T`
+    /// with the reference beside it (`Borrowed`), for a builtin scalar or a
+    /// plain record `T`. Stage 01 marks `x: &mut T` mutable for the
+    /// reference's exclusivity; that is the reference's access, not a `mut`
+    /// binding. A `mut` formal that holds its own value, a `&write T`
+    /// formal, a reference with a named lifetime and a reference to
+    /// anything else stay refused.
+    fn formal(
+        &mut self,
+        id: MachineId,
+        formal: &StateParameter,
+    ) -> Checked<(ValueType, bool, Option<crate::body::Borrowed>)> {
         if !formal.symbol.is_valid() {
             return Err(refuse(
                 id,
@@ -868,26 +993,115 @@ impl<'t> Program<'t> {
                 Unserved::Parameter("const parameter"),
             ));
         }
-        if formal.is_mutable {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Parameter("mutable parameter"),
-            ));
-        }
-        let value_type = self.value_type(id, formal.type_reference)?;
+        let reference = match formal.type_reference.is_valid().then(|| {
+            self.typed
+                .type_reference_table
+                .type_reference(formal.type_reference)
+        }) {
+            Some(TypeReferenceNode::Reference {
+                referee,
+                access,
+                lifetime,
+            }) => Some((*referee, *access, lifetime.is_some())),
+            _ => None,
+        };
         let erased = match formal.relevance {
             language_core::BindingRelevance::Relevant => false,
             language_core::BindingRelevance::Erased => true,
         };
-        if erased && value_type.scalar().is_none() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Parameter("erased parameter of a data type"),
-            ));
+        let Some((referee, access, named_lifetime)) = reference else {
+            if formal.is_mutable {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Parameter("mutable parameter"),
+                ));
+            }
+            let value_type = self.value_type(id, formal.type_reference)?;
+            if erased && value_type.scalar().is_none() {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Parameter("erased parameter of a data type"),
+                ));
+            }
+            return Ok((value_type, erased, None));
+        };
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Parameter(what)));
+        if erased {
+            return unserved("erased reference parameter");
         }
-        Ok((value_type, erased))
+        if named_lifetime {
+            return unserved("reference parameter with a named lifetime");
+        }
+        // Stage 01 sets `is_mutable` for an exclusive reference; a shared
+        // one marked mutable would be a `mut` binding of the carrier.
+        match access {
+            language_core::ReferenceAccess::Shared if !formal.is_mutable => {}
+            language_core::ReferenceAccess::Mutable => {}
+            language_core::ReferenceAccess::Shared => {
+                return unserved("mutable binding of a shared reference");
+            }
+            language_core::ReferenceAccess::WriteOnly => {
+                return unserved("write-only reference parameter");
+            }
+        }
+        let value_type = self.value_type(id, referee)?;
+        // A data type with `requires` may be stored into by the callee, so
+        // its domain is owed again where the loan returns; no slice follows
+        // a domain across a call yet.
+        if let ValueType::Record(record) = value_type
+            && self.restricted(record)
+        {
+            return unserved("reference to data with requires");
+        }
+        let home = match value_type {
+            ValueType::Rigid(_) => return unserved("reference to a value of a type parameter"),
+            ValueType::Record(_) => None,
+            ValueType::Scalar(_) => Some(
+                Some(self.typed.normalized_type_identity_text(referee))
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Spelling("referent type without an identity"),
+                        )
+                    })?,
+            ),
+        };
+        Ok((
+            value_type,
+            false,
+            Some(crate::body::Borrowed {
+                position: 0,
+                access,
+                home,
+            }),
+        ))
+    }
+
+    /// Whether a data type or any data type inside it states `requires`.
+    fn restricted(&self, record: semantic_vocabulary::StructuralTypeId) -> bool {
+        let mut pending = vec![record];
+        while let Some(next) = pending.pop() {
+            let Some(data) = self.records.get(next) else {
+                return true;
+            };
+            if !data.requires.is_empty() {
+                return true;
+            }
+            for field in data
+                .fields
+                .iter()
+                .chain(data.cases.iter().flat_map(|case| &case.fields))
+            {
+                if let ValueType::Record(nested) = field.value_type {
+                    pending.push(nested);
+                }
+            }
+        }
+        false
     }
 
     pub fn body(&mut self, id: MachineId) -> Checked<Body> {
@@ -934,12 +1148,22 @@ impl<'t> Program<'t> {
             .chain(binders.iter().map(|binder| binder.symbol))
             .zip(&signature.parameters)
             .enumerate()
-            .map(|(position, (symbol, value_type))| Slot {
-                symbol,
-                value_type: *value_type,
-                assignable: false,
-                homed: false,
-                erased: signature.is_erased(position),
+            .map(|(position, (symbol, value_type))| {
+                // A borrowed formal names the caller's storage: a scalar
+                // referent is read and stored in place like a home, a record
+                // referent like a record formal's root; `&mut` lets the body
+                // store into it, `&` does not.
+                let borrowed = signature
+                    .borrowed(position)
+                    .map(|reference| reference.access);
+                Slot {
+                    symbol,
+                    value_type: *value_type,
+                    assignable: borrowed == Some(language_core::ReferenceAccess::Mutable),
+                    homed: borrowed.is_some() && value_type.scalar().is_some(),
+                    erased: signature.is_erased(position),
+                    borrowed,
+                }
             })
             .collect();
         let statements = typed.statement_table.statements(state.statement_nodes);
@@ -1137,6 +1361,137 @@ impl<'t> Program<'t> {
     }
 }
 
+/// References outside the machines whose complete bodies the route read.
+/// Text and source locations do not decide whether an entry can be invoked.
+struct OutsideInputUses {
+    uses: InputSymbolUses,
+}
+
+impl Extend<SymbolHandle> for OutsideInputUses {
+    fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+        for symbol in symbols {
+            if let Some(row) = self.uses.get_mut(symbol)
+                && row.target
+            {
+                row.outside = true;
+            }
+        }
+    }
+}
+
+impl typed_trees::references::TypedReferences for OutsideInputUses {
+    fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+        !self.uses.get(symbol).is_some_and(|row| row.lowered)
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+struct InputSymbolUse {
+    lowered: bool,
+    target: bool,
+    outside: bool,
+}
+
+/// Slots are dense within an arena page. Keep each generation separate so
+/// equal slot numbers in independently loaded symbol pages never alias.
+struct InputSymbolUses {
+    pages: Vec<(u32, Vec<InputSymbolUse>)>,
+}
+
+impl InputSymbolUses {
+    fn new(
+        lowered: impl IntoIterator<Item = SymbolHandle>,
+        targets: impl IntoIterator<Item = SymbolHandle>,
+    ) -> Option<Self> {
+        let mut symbols: Vec<_> = lowered
+            .into_iter()
+            .map(|symbol| {
+                (
+                    symbol,
+                    InputSymbolUse {
+                        lowered: true,
+                        ..InputSymbolUse::default()
+                    },
+                )
+            })
+            .chain(targets.into_iter().map(|symbol| {
+                (
+                    symbol,
+                    InputSymbolUse {
+                        target: true,
+                        ..InputSymbolUse::default()
+                    },
+                )
+            }))
+            .collect();
+        symbols.sort_unstable_by_key(|(symbol, _)| (symbol.generation(), symbol.arena_index()));
+        let mut pages: Vec<(u32, Vec<InputSymbolUse>)> = Vec::new();
+        for (symbol, roles) in symbols {
+            if !symbol.is_valid() {
+                return None;
+            }
+            if pages
+                .last()
+                .is_none_or(|(generation, _)| *generation != symbol.generation())
+            {
+                pages.push((symbol.generation(), Vec::new()));
+            }
+            let slots = &mut pages.last_mut()?.1;
+            let index = symbol.arena_index() as usize;
+            if slots.len() <= index {
+                slots.resize(index + 1, InputSymbolUse::default());
+            }
+            slots[index].lowered |= roles.lowered;
+            slots[index].target |= roles.target;
+        }
+        Some(Self { pages })
+    }
+
+    fn get(&self, symbol: SymbolHandle) -> Option<&InputSymbolUse> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        let page = self
+            .pages
+            .binary_search_by_key(&symbol.generation(), |(generation, _)| *generation)
+            .ok()?;
+        self.pages[page].1.get(symbol.arena_index() as usize)
+    }
+
+    fn get_mut(&mut self, symbol: SymbolHandle) -> Option<&mut InputSymbolUse> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        let page = self
+            .pages
+            .binary_search_by_key(&symbol.generation(), |(generation, _)| *generation)
+            .ok()?;
+        self.pages[page].1.get_mut(symbol.arena_index() as usize)
+    }
+}
+
+#[cfg(test)]
+mod input_symbol_uses {
+    use super::*;
+    use typed_trees::references::TypedReferences;
+
+    #[test]
+    fn a_foreign_page_with_the_same_slot_cannot_hide_an_outside_caller() {
+        let helper = SymbolHandle::from_parts(1, 7);
+        let foreign_caller = SymbolHandle::from_parts(1, 8);
+        let mut outside = OutsideInputUses {
+            uses: InputSymbolUses::new([helper], [helper]).unwrap(),
+        };
+        assert!(!outside.declaration(helper));
+        assert!(outside.declaration(foreign_caller));
+        outside.extend([foreign_caller]);
+        assert!(!outside.uses.get(helper).unwrap().outside);
+        // Visiting that foreign declaration reveals its call of the helper.
+        outside.extend([helper]);
+        assert!(outside.uses.get(helper).unwrap().outside);
+    }
+}
+
 /// Every span of a value expression whose result a binder receives, with
 /// that binder (`MachineNames::bindings`): a whole-value binding receives
 /// its expression into the slot's name, and an arm's value is the return
@@ -1220,6 +1575,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
             spans(base, binder, out);
         }
         ExpressionKind::IsCase { subject, .. } => spans(subject, binder, out),
+        ExpressionKind::Borrow { place, .. } => spans(place, binder, out),
         ExpressionKind::Match {
             subject,
             arms,
@@ -1342,6 +1698,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
             expression_slot_uses(base, uses);
         }
         ExpressionKind::IsCase { subject, .. } => expression_slot_uses(subject, uses),
+        ExpressionKind::Borrow { place, .. } => expression_slot_uses(place, uses),
         ExpressionKind::Match {
             subject,
             arms,

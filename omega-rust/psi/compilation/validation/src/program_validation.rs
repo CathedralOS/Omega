@@ -4287,7 +4287,6 @@ fn validate<'program>(
             validate_local_data_names(
                 program.statement_table.statements(state.statement_nodes),
                 &machine_symbols,
-                program.state_parameters(state),
                 machine.name.as_str(),
                 state.name.as_str(),
                 &mut diagnostics,

@@ -54,6 +54,7 @@ on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 mod arrivals;
 mod crashes;
 mod describe;
+mod entry_inputs;
 mod graph;
 mod joins;
 mod minted;
@@ -62,9 +63,11 @@ mod prove;
 mod reuse;
 mod verdict;
 
+pub use places::{ConflictingLoan, LoanConflict};
 pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
 pub use verdict::{
-    AcceptedClosure, ConsumptionSite, RouteVerdict, UnestablishedUse, UnprovedObligation, judge,
+    AcceptedClosure, ConflictingUse, ConsumptionSite, PublicationError, RoutePublication,
+    RouteVerdict, UnestablishedUse, UnprovedObligation, judge, judge_compilation,
 };
 
 #[cfg(test)]
@@ -148,13 +151,22 @@ pub enum Discharged {
     /// over the clause's names and the stored place (`Storage::untouched`),
     /// with no certificate.
     Preserved,
+    /// A `Loan` that may be formed where it is: no other loan of the same
+    /// call overlaps it incompatibly, and a reborrow asks no more access
+    /// than its parent holds (`places::loans`). loans.md: "Loan descent,
+    /// access attenuation, temporal containment and restoration are
+    /// resource judgments. Logical facts cannot create, amplify, transfer,
+    /// extend, return, consume or duplicate authority." It is a structural
+    /// judgment with no certificate, and the loan ends when its call
+    /// returns, so it owes nothing after it.
+    Lent,
 }
 
 impl Discharged {
     pub const fn certificate(&self) -> Option<&Evidence> {
         match self {
             Self::Certificate(evidence) => Some(evidence),
-            Self::EveryExit(_) | Self::Window(_) | Self::Preserved => None,
+            Self::EveryExit(_) | Self::Window(_) | Self::Preserved | Self::Lent => None,
         }
     }
 }
@@ -209,6 +221,9 @@ pub struct MachineDischarge {
     /// predicate was replaced by `Truth`, which every arrival establishes,
     /// so the join contributes nothing downstream (`joins`).
     pub weakened_joins: Vec<BlockId>,
+    /// Each loan that may not be formed, with what it conflicts with. Its
+    /// row's verdict is the `Conflict` refusal.
+    pub conflicts: Vec<places::ConflictingLoan>,
 }
 
 impl MachineDischarge {
@@ -312,6 +327,7 @@ pub enum Knowledge {
 
 /// `discharge`, with the knowledge set chosen.
 pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Checked<Discharge> {
+    entry_inputs::infer(elaboration, knowledge)?;
     let module = &elaboration.module;
     let mut machines = IdTable::default();
     let identities: Vec<MachineId> = elaboration.tables.machines.keys().collect();
@@ -340,6 +356,7 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
                 uses: Vec::new(),
                 windows: Vec::new(),
                 weakened_joins: Vec::new(),
+                conflicts: Vec::new(),
             });
             continue;
         }
@@ -423,6 +440,21 @@ fn machine(
     )?;
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
+    // Loans are judged by structure, not proved (`places::loans`).
+    let (lent, conflicts) = storage.loans(machines, tables)?;
+    for (obligation, verdict) in lent {
+        let slot = decided
+            .get_mut(usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX))
+            .ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    id,
+                    Construct::Obligation(obligation),
+                    "a loan row past the end of this machine",
+                )
+            })?;
+        *slot = Some(verdict.map(|()| Discharged::Lent));
+    }
     // Declared block invariants (a loop head's, the `requires` of the
     // machine lowered beneath it) and inferred join predicates are one kind
     // of row: each is known from its block's entry on and is proved on every
@@ -647,6 +679,7 @@ fn machine(
         uses,
         windows: closures,
         weakened_joins,
+        conflicts,
     })
 }
 
@@ -1273,6 +1306,7 @@ pub(crate) fn substitute(
 ) -> Result<Proposition, Unbound> {
     Ok(match proposition {
         Proposition::Truth => Proposition::Truth,
+        Proposition::Falsehood => Proposition::Falsehood,
         Proposition::Equal(left, right) => {
             Proposition::Equal(bound(left, bindings)?, bound(right, bindings)?)
         }
@@ -1310,6 +1344,16 @@ fn bound(term: &ScalarTerm, bindings: &mut dyn Bindings) -> Result<ScalarTerm, U
         } => bindings.field(*root, path, ScalarType::Integer(*scalar_type)),
         ScalarTerm::BooleanField { root, path } => bindings.field(*root, path, ScalarType::Boolean),
         ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => Ok(term.clone()),
+        ScalarTerm::StructuralRead { .. } => Err(Unbound::Unsupported(
+            "clause structural read is outside the scalar subset",
+        )),
+        _ if !term.operands().is_empty() => {
+            let mut bound_term = term.clone();
+            for operand in bound_term.operands_mut() {
+                *operand = bound(operand, bindings)?;
+            }
+            Ok(bound_term)
+        }
         _ => Err(Unbound::Unsupported(
             "clause term outside the scalar subset",
         )),
@@ -1455,14 +1499,6 @@ fn stated_goal(
             )?;
             let callee = terminal_machine(machines, callee(id, invocation, &row.callee)?, id)?;
             let erased = erased_actuals(lowered, &callee.contract, id, invocation, row.site)?;
-            let InvocationSite::Operation(site) = row.site else {
-                return Err(refusal(
-                    RefusalReason::Unsupported,
-                    id,
-                    Construct::Invocation(invocation),
-                    "invocation outside an operation",
-                ));
-            };
             let clause = usize::try_from(clause)
                 .ok()
                 .and_then(|clause| callee.contract.requires.get(clause))
@@ -1477,13 +1513,40 @@ fn stated_goal(
             // A scalar formal is the scalar actual in its lane; a field of a
             // record formal is what that field of the record actual holds
             // when the call is made.
-            substitute(
-                clause,
-                &mut ErasedTerms {
-                    terms: &erased,
-                    runtime: &mut storage.at_call(tables, &row.actuals, callee, site, concerns)?,
-                },
-            )
+            let over_actuals = |runtime: &mut dyn Bindings| {
+                substitute(
+                    clause,
+                    &mut ErasedTerms {
+                        terms: &erased,
+                        runtime,
+                    },
+                )
+            };
+            match row.site {
+                InvocationSite::Operation(site) => over_actuals(&mut storage.at_call(
+                    tables,
+                    &row.actuals,
+                    callee,
+                    site,
+                    concerns,
+                )?),
+                InvocationSite::InvokeNoNormal(_) => {
+                    let actuals = scalar_actuals(&row.actuals);
+                    over_actuals(&mut ScalarActuals {
+                        actuals: &actuals,
+                        result: None,
+                        tables,
+                    })
+                }
+                _ => {
+                    return Err(refusal(
+                        RefusalReason::Unsupported,
+                        id,
+                        Construct::Invocation(invocation),
+                        "invocation outside a direct call",
+                    ));
+                }
+            }
             .map_err(|unbound| unbound.refusal(id, concerns))
         }
         ObligationKind::DataDomain { operation, clause } => {

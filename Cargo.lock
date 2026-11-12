@@ -1179,6 +1179,8 @@ name = "lowered-discharge"
 version = "0.1.0"
 dependencies = [
  "diagnostics",
+ "language-core",
+ "optimization",
  "proof-admission",
  "semantic-vocabulary",
  "structure-elaboration",
@@ -1186,6 +1188,7 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+ "typed-trees",
 ]
 
 [[package]]

@@ -22,7 +22,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let found: Item = Item { key: 0, val: 0 };
+    let mut found: Item = Item { key: 0, val: 0 };
     find(2, &mut found);
 
     transition found.val == 5 {

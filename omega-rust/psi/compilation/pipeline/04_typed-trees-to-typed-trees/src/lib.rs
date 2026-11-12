@@ -230,7 +230,7 @@ pub(crate) mod expression_roots {
         roots: impl IntoIterator<Item = ExpressionHandle>,
         mut arm: impl FnMut(ExpressionHandle, &ExpressionNode),
     ) {
-        let mut visited = Vec::new();
+        let mut visited = validation::expression_traversal::EnteredExpressions::default();
         for root in roots {
             validation::expression_traversal::visit_post_order(
                 program,

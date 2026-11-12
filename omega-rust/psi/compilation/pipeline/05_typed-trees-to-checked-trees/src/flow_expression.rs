@@ -27,7 +27,7 @@ use crate::flow::reference_spans;
 use crate::published::places::place_at;
 
 use arena::{Handle, HandleSpan};
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::expression::{ExpressionHandle, ExpressionNode, TableBinaryExpression};
 use checked_trees::statement::StatementNode;
 use checked_trees::{
     BorrowCallFact, BorrowFacts, DomainFacts, FlowCallFact, FlowConstraintRef,
@@ -9377,6 +9377,34 @@ enum ReadPurpose {
     Address,
 }
 
+/*
+    An operand evaluation suspended at a binary operator while one of its
+    operands is evaluated; see `Execution::evaluated_operand_as`.
+*/
+struct BinaryOperandFrame {
+    operand: OperandPrologue,
+    binary: TableBinaryExpression,
+    case_observation: bool,
+    completed: CompletedValue,
+    // The evaluated left operand, once the right one is being evaluated.
+    left: Option<checked_trees::FlowOperandFact>,
+}
+
+// What `Execution::operand_prologue` established for the epilogue.
+#[derive(Clone, Copy)]
+struct OperandPrologue {
+    expression: ExpressionHandle,
+    destination: TypeReferenceHandle,
+    previous_purpose: ReadPurpose,
+    source_is_view: bool,
+    first_write: usize,
+}
+
+enum BinaryStep {
+    Done(Option<bool>),
+    Right(checked_trees::FlowOperandFact),
+}
+
 struct EvaluatedOperand {
     boolean: Option<bool>,
     boolean_completion: Handle<boolean_completions::BooleanCompletions>,
@@ -10008,6 +10036,17 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         )
     }
 
+    /*
+        Evaluates `expression` as an operand. An operand's evaluation nests
+        its own operands' evaluations; for a binary operator that nesting is
+        as deep as the source's operator chain, so binary operands are driven
+        from an explicit frame stack here instead of by recursion. Every other
+        expression is evaluated by `expression_result` as before, and each
+        binary frame runs exactly the steps, in exactly the order, that the
+        nested calls did: the operand prologue, the left operand, the
+        operator's steps between its operands, the right operand, its steps
+        after them, and the operand epilogue.
+    */
     fn evaluated_operand_as(
         &mut self,
         expression: ExpressionHandle,
@@ -10015,6 +10054,125 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) -> EvaluatedOperand {
+        let mut frames: Vec<BinaryOperandFrame> = Vec::new();
+        let mut next = Some((expression, destination));
+        loop {
+            let mut evaluated = None;
+            if let Some((expression, destination)) = next.take() {
+                match self.operand_prologue(expression, destination, constraints) {
+                    Err(done) => evaluated = Some(done),
+                    Ok(operand) => match self.flow_binary(expression) {
+                        Some(binary) => {
+                            let case_observation =
+                                self.binary_case_observation(expression, &binary);
+                            let mut frame = BinaryOperandFrame {
+                                operand,
+                                binary,
+                                case_observation,
+                                completed: CompletedValue::default(),
+                                left: None,
+                            };
+                            if case_observation {
+                                let left = self.evaluated_place(binary.left, contexts, constraints);
+                                match self.binary_between_operands(
+                                    &binary,
+                                    left,
+                                    &mut frame.completed.boolean_completion,
+                                    &mut frame.completed.evaluated_inputs,
+                                    &mut frame.completed.conditional_inputs_from,
+                                    contexts,
+                                    constraints,
+                                ) {
+                                    BinaryStep::Done(value) => {
+                                        evaluated = Some(self.finish_binary_operand(
+                                            frame,
+                                            value,
+                                            contexts,
+                                            constraints,
+                                        ));
+                                    }
+                                    BinaryStep::Right(left) => {
+                                        frame.left = Some(left);
+                                        next = Some((binary.right, TypeReferenceHandle::invalid()));
+                                        frames.push(frame);
+                                    }
+                                }
+                            } else {
+                                next = Some((binary.left, TypeReferenceHandle::invalid()));
+                                frames.push(frame);
+                            }
+                        }
+                        None => {
+                            let (boolean, completed) = self.expression_result(
+                                expression,
+                                destination,
+                                contexts,
+                                constraints,
+                            );
+                            evaluated = Some(self.operand_epilogue(
+                                operand,
+                                boolean,
+                                completed,
+                                contexts,
+                                constraints,
+                            ));
+                        }
+                    },
+                }
+            }
+            let Some(mut value) = evaluated else {
+                continue;
+            };
+            loop {
+                let Some(mut frame) = frames.pop() else {
+                    return value;
+                };
+                let step = match frame.left {
+                    None => self.binary_between_operands(
+                        &frame.binary,
+                        value,
+                        &mut frame.completed.boolean_completion,
+                        &mut frame.completed.evaluated_inputs,
+                        &mut frame.completed.conditional_inputs_from,
+                        contexts,
+                        constraints,
+                    ),
+                    Some(left) => {
+                        let result = self.binary_after_operands(
+                            frame.operand.expression,
+                            frame.case_observation,
+                            left,
+                            value.capture,
+                            &mut frame.completed.evaluated_inputs,
+                            constraints,
+                            contexts,
+                        );
+                        BinaryStep::Done(result)
+                    }
+                };
+                match step {
+                    BinaryStep::Done(result) => {
+                        value = self.finish_binary_operand(frame, result, contexts, constraints);
+                    }
+                    BinaryStep::Right(left) => {
+                        frame.left = Some(left);
+                        next = Some((frame.binary.right, TypeReferenceHandle::invalid()));
+                        frames.push(frame);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // The steps of operand evaluation before the expression itself is
+    // evaluated; an operand dispatched as a copy is complete here.
+    fn operand_prologue(
+        &mut self,
+        expression: ExpressionHandle,
+        destination: TypeReferenceHandle,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) -> Result<OperandPrologue, EvaluatedOperand> {
         let previous_purpose = self.read_purpose;
         let source_is_view = self.operand_is_view(expression);
         self.read_purpose =
@@ -10038,15 +10196,37 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 capture.referents = HandleSpan::empty();
             }
             self.read_purpose = previous_purpose;
-            return EvaluatedOperand {
+            return Err(EvaluatedOperand {
                 boolean: None,
                 boolean_completion: Handle::invalid(),
                 capture,
-            };
+            });
         }
-        let first_write = self.operand_writes.len();
-        let (boolean, completed) =
-            self.expression_result(expression, destination, contexts, constraints);
+        Ok(OperandPrologue {
+            expression,
+            destination,
+            previous_purpose,
+            source_is_view,
+            first_write: self.operand_writes.len(),
+        })
+    }
+
+    // The steps of operand evaluation after the expression is evaluated.
+    fn operand_epilogue(
+        &mut self,
+        operand: OperandPrologue,
+        boolean: Option<bool>,
+        completed: CompletedValue,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) -> EvaluatedOperand {
+        let OperandPrologue {
+            expression,
+            destination,
+            previous_purpose,
+            source_is_view,
+            first_write,
+        } = operand;
         if let Some(mut capture) = self.dispatch_copy_value(expression, *constraints) {
             self.retain_copy_use(expression, &capture);
             if self.is_view_type(capture.type_reference) {
@@ -10227,6 +10407,127 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             boolean_completion: completed.boolean_completion,
             capture,
         }
+    }
+
+    // `expression_result`'s steps after a binary frame's evaluation, then the
+    // operand epilogue.
+    fn finish_binary_operand(
+        &mut self,
+        frame: BinaryOperandFrame,
+        value: Option<bool>,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) -> EvaluatedOperand {
+        let expression = frame.operand.expression;
+        if !frame.completed.invocation.is_valid() || !self.operand_is_view(expression) {
+            self.append_result_facts(expression, contexts, constraints);
+        }
+        self.operand_epilogue(frame.operand, value, frame.completed, contexts, constraints)
+    }
+
+    fn binary_case_observation(
+        &self,
+        expression: ExpressionHandle,
+        binary: &TableBinaryExpression,
+    ) -> bool {
+        validation::applied_case_membership_variant(
+            self.program,
+            self.machine,
+            Some(self.state),
+            expression,
+            binary,
+        )
+        .is_some()
+    }
+
+    // A binary operator's steps once its left operand is evaluated: a logical
+    // operator completes here; any other names its left operand.
+    #[allow(clippy::too_many_arguments)]
+    fn binary_between_operands(
+        &mut self,
+        binary: &TableBinaryExpression,
+        evaluated_left: EvaluatedOperand,
+        boolean_completion: &mut Handle<boolean_completions::BooleanCompletions>,
+        evaluated_inputs: &mut HandleSpan<checked_trees::FlowOperandFact>,
+        conditional_inputs_from: &mut Option<usize>,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) -> BinaryStep {
+        if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+            let (value, completion, inputs, conditional_from) =
+                self.logical_expression(binary, evaluated_left, contexts, constraints);
+            *boolean_completion = completion;
+            *evaluated_inputs = inputs;
+            *conditional_inputs_from = conditional_from;
+            return BinaryStep::Done(value);
+        }
+        BinaryStep::Right(evaluated_left.capture)
+    }
+
+    // A non-logical binary operator's steps once both operands are evaluated.
+    #[allow(clippy::too_many_arguments)]
+    fn binary_after_operands(
+        &mut self,
+        expression: ExpressionHandle,
+        case_observation: bool,
+        left_operand: checked_trees::FlowOperandFact,
+        right_operand: checked_trees::FlowOperandFact,
+        evaluated_inputs: &mut HandleSpan<checked_trees::FlowOperandFact>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    ) -> Option<bool> {
+        if !case_observation {
+            *evaluated_inputs = self
+                .context
+                .control
+                .operands
+                .insert_many([left_operand, right_operand]);
+        }
+        self.record_operator_invocation(
+            expression,
+            checked_trees::CheckedOperatorOccurrence::Expression,
+            &[left_operand, right_operand],
+            *constraints,
+        );
+        if case_observation {
+            let receiver = self.context.control.operands.append(left_operand);
+            self.retain_value_observation(
+                expression,
+                receiver,
+                left_operand.referents,
+                *contexts,
+                *constraints,
+            );
+        }
+        crate::values::evaluate_closed_boolean_expression(
+            self.program,
+            self.context.operators,
+            expression,
+            &[],
+        )
+    }
+
+    // The binary operator `evaluate_expression` would evaluate through its
+    // binary arm, if `expression` is one.
+    fn flow_binary(&self, expression: ExpressionHandle) -> Option<TableBinaryExpression> {
+        if !self
+            .program
+            .expression_table
+            .expression_is_valid(expression)
+            || validation::collection_length_receiver(
+                self.program,
+                self.machine,
+                Some(self.state),
+                expression,
+            )
+            .is_some()
+        {
+            return None;
+        }
+        self.program
+            .expression_table
+            .binary_node(expression)
+            .copied()
     }
 
     /*
@@ -10996,59 +11297,35 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 return self.live_boolean(expression, *contexts);
             }
             ExpressionNode::Binary(binary) => {
-                let case_observation = validation::applied_case_membership_variant(
-                    self.program,
-                    self.machine,
-                    Some(self.state),
-                    expression,
-                    binary,
-                )
-                .is_some();
+                let case_observation = self.binary_case_observation(expression, binary);
                 let evaluated_left = if case_observation {
                     self.evaluated_place(binary.left, contexts, constraints)
                 } else {
                     self.evaluated_operand(binary.left, contexts, constraints)
                 };
-                if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
-                    let (value, completion, inputs, conditional_from) =
-                        self.logical_expression(binary, evaluated_left, contexts, constraints);
-                    *boolean_completion = completion;
-                    *evaluated_inputs = inputs;
-                    *conditional_inputs_from = conditional_from;
-                    return value;
-                }
-                let left_operand = evaluated_left.capture;
+                let left_operand = match self.binary_between_operands(
+                    binary,
+                    evaluated_left,
+                    boolean_completion,
+                    evaluated_inputs,
+                    conditional_inputs_from,
+                    contexts,
+                    constraints,
+                ) {
+                    BinaryStep::Done(value) => return value,
+                    BinaryStep::Right(left_operand) => left_operand,
+                };
                 let right_operand = self
                     .evaluated_operand(binary.right, contexts, constraints)
                     .capture;
-                if !case_observation {
-                    *evaluated_inputs = self
-                        .context
-                        .control
-                        .operands
-                        .insert_many([left_operand, right_operand]);
-                }
-                self.record_operator_invocation(
+                return self.binary_after_operands(
                     expression,
-                    checked_trees::CheckedOperatorOccurrence::Expression,
-                    &[left_operand, right_operand],
-                    *constraints,
-                );
-                if case_observation {
-                    let receiver = self.context.control.operands.append(left_operand);
-                    self.retain_value_observation(
-                        expression,
-                        receiver,
-                        left_operand.referents,
-                        *contexts,
-                        *constraints,
-                    );
-                }
-                return crate::values::evaluate_closed_boolean_expression(
-                    self.program,
-                    self.context.operators,
-                    expression,
-                    &[],
+                    case_observation,
+                    left_operand,
+                    right_operand,
+                    evaluated_inputs,
+                    constraints,
+                    contexts,
                 );
             }
             ExpressionNode::Call(call)

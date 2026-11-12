@@ -258,6 +258,44 @@ fn a_shift_by_a_literal_count_scales_the_bound() {
 }
 
 #[test]
+fn a_shift_by_a_count_a_requirement_fixes_scales_both_bounds() {
+    // `25 <= a <= 25 && b == 2` gives `a << b` exactly 100, from the entry
+    // requirement on the count, which no result equation fixes: so
+    // `local - 100` is exact and `local - 101` is not.
+    let count = Proposition::Equal(
+        formal(2, u32_type()),
+        bound(u32_type(), IntegerValue::Unsigned(2)),
+    );
+    let program = |subtrahend| {
+        after(
+            u32_type(),
+            vec![at_least(1, 25), at_most(1, 25), count.clone()],
+            Strict::ShiftLeft,
+            slot(1, u32_type()),
+            Strict::Subtract,
+            IntegerValue::Unsigned(subtrahend),
+        )
+    };
+    let (elaboration, result) = run(vec![program(100)]);
+    for (obligation, verdict) in verdicts(&elaboration, &result, 1, safety) {
+        assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    }
+    let (elaboration, result) = run(vec![program(101)]);
+    assert_unproved(verdicts(&elaboration, &result, 1, safety).last().unwrap().1);
+}
+
+#[test]
+fn a_shift_by_a_bounded_count_takes_the_counts_upper_bound() {
+    // a <= 25 and b <= 2 give a << b <= 100.
+    assert_upper(
+        vec![at_most(1, 25), at_most(2, 2)],
+        Strict::ShiftLeft,
+        slot(1, u32_type()),
+        100,
+    );
+}
+
+#[test]
 fn a_signed_quotient_by_a_negative_literal_reverses_its_bounds() {
     // a in [-10, 20] gives a / -2 in [-10, 5].
     let signed = |value: i128| bound(i32_type(), IntegerValue::Signed(value));

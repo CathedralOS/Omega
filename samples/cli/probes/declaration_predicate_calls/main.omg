@@ -50,7 +50,7 @@ requires value.value == 1
 ensures result == 1
 { value.value }
 machine counter_result() -> CounterResult in One {
-    let value: Counter = Counter { value: 0 };
+    let mut value: Counter = Counter { value: 0 };
     let changed: u64 = initialize_counter(&mut value);
     CounterResult { value: read_counter(&value) }
 }
@@ -58,7 +58,7 @@ machine make(value: u64) -> Bounded in Small & NamedSmall
 requires value <= 100
 { Bounded { amount: value } }
 machine changed_bytes_are_ascii() -> bool {
-    let text: Text = Text { bytes: "go!", tag: 1 };
+    let mut text: Text = Text { bytes: "go!", tag: 1 };
     transition { _ -> observe(&mut text, 0) }
     machine observe(text: &mut Text, phase: u8) -> bool {
         let ascii: bool = ascii_only(text.bytes);

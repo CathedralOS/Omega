@@ -178,7 +178,7 @@ historical passing observation is not correctness evidence for them. The current
 compiler refuses those forms, and its corrected customer passed in 139.663
 seconds through source-built Epsilon with the same exact reset artifact and
 exit 42. That observation used bootstrap compiler SHA-256
-`f765c26d704c41552739e32fc592232edcf814f5d57ee3990e92660aacb6152f`. The default Omega watchdog
+`f765c26d704c41552739e32fc592232edcf814f5d57ee3990e92660aacb6152f`. The default smaller-customer Omega watchdog
 is now 1,800 seconds; `--omega-timeout` retains an explicit experimental override.
 
 ## Source compiler implementation and evidence
@@ -280,3 +280,198 @@ publication, then reset and emitted an actual executable returning 43. That
 `20ffacd689a6712f78070ccde506f14a4abe5f9edaaa3f4f9189893b05a620ed`,
 passed in 76.013 seconds. The older observations above retain their own input
 identities; the entire matrix was not rerun after this diagnostic-only repair.
+
+
+## Compiler-source lexer customer
+
+`--omega-control` constructs and executes the real lexer identifier predicates,
+with their bodies and signatures unchanged, through the source-built Epsilon
+tape above. The wrapper uses explicit `as +Trapping` casts and tests both
+predicates across ASCII boundaries and the upper half of `u32`.
+
+The runtime-control observation defaults to 7,200 seconds; `--seconds` on the
+source-built route and `--omega-timeout` on the development route retain explicit
+overrides. Timeout is an observation failure, not an Omega result. Additional
+source-owned cases check staged parallel transfers, skipped looping Boolean
+operands, nested calls/comparisons, domain casts, refusals and compiler reuse.
+This extends the bootstrap compiler toward an actual successor source unit;
+it does not construct the complete Omega compiler.
+
+A canonical explicit-domain smoke completed in 478.167 seconds and emitted a
+2,153-byte Alpha program that exited 42 without output. Its Epsilon source was
+644,808 bytes, SHA-256
+`449d795abd68930a95fc0f08ee190caa3bfb2519465851e96b693370f8a09b7a`,
+including bootstrap compiler
+`7f0540c05d1c31033f3164dc1fb0c552d41ae2e57764451387c2618e47de46e3`.
+The exact 1,341-byte Omega customer had SHA-256
+`d26ea6de810d23de785af5b4cfc9a7490b865431ddedf181b878343879268117`;
+its tape had SHA-256
+`58a5d2ff0e45242e9382c7f940fdfede2089742152d8bb747a61b633e7ccf0b7`.
+This observation predates the final public crash-ceiling and visibility checks.
+
+An earlier grouped run failed at its short-circuit call-expression customer
+(Epsilon exit 12 after 1,114.986 seconds). Its two preceding tapes executed,
+but the earlier lexer wrapper also omitted required explicit domain casts;
+that acceptance is not conformance evidence. The repaired parser preserves
+expression context around nested calls instead of weakening the looping-RHS
+witness. Historical observations remain bound to their own source bytes.
+
+
+The later boundary/control invocation used a 653,357-byte Epsilon source,
+SHA-256 `6863d967b67ff9311dd6f121348cb9e725e287bcfd325ce54c0d4e46b923c621`,
+including compiler `6459924a185619f637f16166b10b1f29e274692c3c4f7580fd7bc1e2032d22bf`.
+All 25 source-owned refusal checks completed, including public crash-ceiling
+propagation in both declaration orders and empty/unfinalized output. Its first
+six emitted tapes were separately executed with exits `42, 42, 43, 44, 45, 46`
+and empty output. These cover the real lexer boundaries, parallel transfers,
+skipped infinite Boolean operands, upper-u32 comparisons, nested calls and
+explicit domain casts. The 4,352-byte real lexer customer has SHA-256
+`169002a5c460e9af180c4f3954fc28fd601132b131164483d459fe3cbda38c33`;
+its 6,095-byte tape has SHA-256
+`925bed6ed031e0d3ed5ddbb0c4f21fa2771cb7912e002c73755076784a924f59`.
+
+That invocation is still a **failed complete matrix**: its final public/plain
+positive exposed a missing call-primary path for a transition subject and
+returned Epsilon exit 90. The whole 9,063-byte observation has SHA-256
+`4253b9bb07f6debeb0f1db968f55ce7fe699667aafc222be23b21708139f4bbe`.
+Elapsed time was 2,644.870 seconds, including roughly 208 seconds paused to
+avoid exceeding the shared 32 GiB memory budget; it is not a benchmark.
+The exact positive was retained while the shared parser path was repaired.
+
+Separately, the 35-invocation parser customer reached its complete `A` marker
+before the legacy batch stopped at an unchanged leading-`!1` refusal witness.
+That 677,942-byte Epsilon source has SHA-256
+`7b0c364de404419b64eedc5f5b502635ede0a00af78ba62347756fa084e060cd`;
+the failed batch took 623.514 seconds and returned Epsilon exit 2 plus `A`.
+The repaired parser routes statement-leading unary prefixes through the shared
+expression machinery. Neither failed batch is promoted to evidence for later
+source bytes; the following focused observations establish the final repairs.
+
+
+The repaired parser and legacy acceptance batch passed in 2,011.789 seconds:
+37 parser invocations and 65 bootstrap compiler invocations completed with
+native and Epsilon exit 0 and empty stderr. It used the 644,910-byte compiler
+`5609861565dfbc77b8fb5586189f8dee2d490b267627b1bb9d35520ecbd682f7`
+and a 686,637-byte complete Epsilon source,
+`887c48bba803aeb7f08670a56c2eaf3b193b5b075d15864e57b497ac615fb5fd`.
+The original parser, runtime prefix/public checks and baseline/legacy fixture
+bodies were bound to Git `6710c426bccfff359e4f283d42d2e739c2547c6e`.
+Its 728-byte observation has SHA-256
+`b58537980b677917b92bbac2ca570ffc2c6aef1823086b955543c46d6880c44b`.
+All nine emitted programs executed without output: the terminal-prefix and
+skipped-loop program exited 43, the public/plain transition-call program exited
+47, and all seven baseline/legacy reset tapes exited 42. The public checks also
+covered transitive Trap ceilings, refusal coordinates, retired visibility syntax
+and reuse after refusal. This was focused validation of the repaired paths,
+not a rerun of the earlier complete boundary matrix.
+
+A final refusal-classification repair distinguishes an unsupported visible
+global terminal target from a genuinely missing target. The current 645,486-byte
+compiler has SHA-256
+`ec5caf34674af271f408e03bdbe77608b445c306956a0dc1064a41792141f377`.
+Its three-invocation focused customer passed in 166.294 seconds: the visible
+global target returned Incomplete, the missing target returned Reject, both
+retained exact target coordinates and empty/unfinalized tape, then the reused
+compiler emitted a 22-byte program that actually exited 49 without output.
+The 647,792-byte complete Epsilon source has SHA-256
+`cd0bad694b6a6c4622c2dc8578b1faa2ae930ec0b647ed640038bf1523b7a299`;
+the tape has SHA-256
+`5d6986842b024c50356357ef47eb431838ba94157e40091d2b998e7046db3373`.
+The retained runtime fixture now includes that refusal as its 26th case. Earlier
+full and focused observations retain their own compiler identities; they are
+not reported as reruns on these final bytes.
+
+## Records and scoped references toward SourceUnit
+
+`--omega-storage` compiles the actual SourceId, SourceUnit and
+`source_unit_clear` declarations, followed by a small caller, and executes the
+result. The bootstrap compiler now has checked record storage, copy-value
+transport, field writes, scoped shared/mutable reference parameters, independent
+Unit completion and a bounded default-domain solver. Its detailed supported
+semantics and refusals remain in [the compiler contract](../5_omega/README.md).
+This closes one actual successor helper; indexed SourceUnit append/read and the
+complete Omega compiler remain unfinished. The integrated compiler source grows
+from 645,486 to 706,044 bytes (60,558 bytes, about 9.4%), including the shared
+parser extensions. This is the audit cost of generic record/place support, not
+a claim that the complete construction is now smaller or optimal.
+
+The first successful source-owned clear observation took 234.069 seconds. It
+used compiler 699,956 bytes,
+`de2a5daf3598b488d91fdd5581a29a9354bdacad974fd1e0c0d467345b32f236`,
+and complete Epsilon source 702,129 bytes,
+`3f153e4867db19bfe543e3881129061a798ff51b64fe62826823f73b7c1173cd`.
+The exact 780-byte Omega program had SHA-256
+`dd163843c7ab778f828e1ae384a2bbb2e78fef125b036045b9c36ba70c6ed2d0`.
+Its 1,206-byte Alpha tape,
+`9226c731f5b9ede9eab633ffd240f3f07b9fe7dfea50fa406676f6478c8eb1a6`,
+executed with exit 42 and empty output. The caller first establishes a SourceUnit,
+sets length/retention fields, then checks the helper's three field updates.
+It does not yet execute a nonzero array-element preservation check.
+
+A separate focused storage invocation passed in 698.231 seconds: shared reads,
+copy independence under field mutation, zero/mutable scalar locals, thirteen
+refusal cases and compiler reuse. Its exact Epsilon source was 704,912 bytes,
+`5d505a3a9ba0b39e0887aad3810c4991141703082abb25be2737c29aec21e0cb`.
+All five tapes executed with exits 44, 45, 0, 2 and 59 and empty output.
+The 1,382-byte observation,
+`73fe5a3f8a033b3a2d5bb5293a54805a97cc83ca7fedffa2e7dd0ce7ed8fff2e`,
+also matched the existing independent Epsilon model byte for byte. That model
+was a development comparison, not part of the source-owned construction.
+Both observations used the already source-constructed Epsilon tape
+`5f12d53066179df5e92929ab7a41933a2ed3c0234400d9c7b3cda8718a469c12`.
+Later nested-literal parsing and additional refusal repairs have separate source
+identities; these observations are not promoted to validation of later bytes.
+
+Failures remain useful evidence: an initial Epsilon source check caught a local
+name shadowing a machine parameter; a later Omega refusal at byte 243 exposed
+an inherited scalar-only parameter flag check on `&mut SourceUnit`. Both were
+repaired without rewriting the actual helper. A prior unlocated refusal does
+not establish a cause. The Rust development comparator independently refused
+`SourceId { value: 77 as +Trapping }` because its domain pass did not use the
+field's expected carrier. This is a comparator limitation against the specified
+contextual landing rule, not evidence authorizing implicit qualification; the
+exact source remains retained while that separate compiler repair proceeds.
+
+On the later 706,044-byte compiler
+`9f6abccac3ceab338541d78a77e912388146a51e3d60f0ebd326013cec670baa`,
+the independent Epsilon model completed the retained storage fixture in 19.222
+seconds. Its complete source was 714,065 bytes,
+`77f05d47606f51828a04fc98e21999c13d540d15d7acfb0882b59684fe77d2e1`;
+the 5,162-byte observation had SHA-256
+`abea3e5f8b8e983f909974ccbaee614979c531027682a942eb54fb0cfc64726d`.
+All nine development-produced tapes executed with the expected exits
+42, 43, 44, 45, 46, 0, 2, 48 and 59. Sixteen refusals include a later overlapping
+read, nested invariant violation, carrier-invalid requirement bound, unsupported
+array equivalence and compiler reset. This is development evidence only;
+source-owned execution of this final expanded storage fixture is recorded separately.
+
+
+The final 59-invocation parser customer passed through the same source-built
+Epsilon executable in 2,396.104 seconds on Linux x86-64. The exact 744,089-byte
+source had SHA-256
+`b5c761c1711dbf9c210d5aab44fc4255c8e8bff85b787f79377ce4c1872df40c`,
+joining compiler `9f6abccac3ceab338541d78a77e912388146a51e3d60f0ebd326013cec670baa`
+with the 38,045-byte entry
+`50ec5053fd956e9291355246b64d741da8914130767538877e25599b33112385`.
+Native status was zero, stderr empty and the exact observation was
+`000000000041` (Epsilon Exit(0), then `A`). The retained checks include actual
+SourceUnit rows, borrow-before-cast ownership, nested and returned records,
+field calls preserving outer arguments, bounded-context refusal and reset.
+All compiler and fixture bytes were checked against Git
+`d1ebbb8e459e879f296a0abbb95ed963934aee77`; captured transport/runtime identities
+were unchanged after execution. No interrupted run or timeout supplied this result.
+
+Final source-owned storage acceptance also passed on that frozen compiler and
+Git revision: 1,750.770 seconds for the Epsilon invocation, native status zero,
+empty stderr, and the exact 5,162-byte observation shown above. Every retained
+refusal asserted an empty, unfinalized tape; all nine published artifacts then
+executed with their expected exits and empty output. The actual SourceUnit
+customer remained the same 780 bytes throughout. These wall times describe
+individual runs on a shared host, not a controlled performance comparison.
+
+The separately repaired Rust development comparator
+`37b4f2188d46c0e12096a3dcfc6af629d124706d6c6050dacfb9a99bc6e61518`
+subsequently accepted that unchanged SourceUnit source through checked lowering
+and CanonicalTerminalArtifact in 320.101 seconds. This supplies independent
+admission/lowering correspondence, not native/Psi runtime evidence or a semantic
+stage in the bootstrap chain.

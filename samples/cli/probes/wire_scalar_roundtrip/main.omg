@@ -43,7 +43,7 @@ machine Main::main(main: &mut Main) {
     let value: FrameValue = FrameValue { code: 42, level: -7 };
     Frame::encode(&value, &mut main.buffer, &mut main.written);
 
-    let decoded: FrameValue = FrameValue { code: 0, level: 0 };
+    let mut decoded: FrameValue = FrameValue { code: 0, level: 0 };
     Frame::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
 
     transition main.verdict == WireVerdict::Sound
