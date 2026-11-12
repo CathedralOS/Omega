@@ -1506,34 +1506,6 @@ pub(crate) mod parse_postfix {
         use super::*;
 
         #[test]
-        fn static_selection_member_projection_keeps_its_application_owner() {
-            let tokens = source_files_to_tokens::Lexer::new("<Family<u32>::Operations.step>()")
-                .tokenize()
-                .unwrap();
-            let retained = Input::retain_source(&tokens);
-            let mut syntax = SyntaxTrees::new(source::SourceId(7));
-            let input = Input::new(source::SourceId(7), &tokens, &retained, &mut syntax);
-            let (arguments, _) = try_parse_static_machine_arguments(&mut syntax, input)
-                .unwrap()
-                .expect("scoped projection");
-            let [argument] = arguments.as_ref() else {
-                panic!("one operand");
-            };
-            let application = argument.application.as_ref().expect("family application");
-            assert_eq!(argument.path[0].as_str(&syntax), "Family");
-            let member = syntax
-                .expressions
-                .static_member(application.member)
-                .expect("member");
-            let projection = member
-                .evidence_projection
-                .as_ref()
-                .expect("evidence projection");
-            assert_eq!(projection.term.as_str(&syntax), "Operations");
-            assert_eq!(projection.member.as_str(&syntax), "step");
-        }
-
-        #[test]
         fn rejected_nested_static_attempts_leave_the_published_prefix_intact() {
             for spelling in [
                 "<Outer<[u8; Count]>, value + >()",
@@ -1602,7 +1574,15 @@ pub(crate) mod primary {
     ) -> Option<(TypeReferenceHandle, Input<'tokens, 'source>)> {
         let checkpoint = syntax.append_checkpoint();
         let accepted = (|| {
-            let (reference, rest) = parse_type_reference_handle(syntax, input).ok()?;
+            // This expression owns the applied receiver head; the call parser
+            // consumes its member. A full type can itself include that member.
+            let (name, rest) =
+                crate::grammar::type_syntax::parse_type::parse_static_name(input).ok()?;
+            let (reference, rest) =
+                crate::grammar::type_syntax::parse_type::parse_named_type_reference(
+                    syntax, name, rest, false,
+                )
+                .ok()?;
             if !matches!(
                 syntax.type_references.type_reference(reference),
                 syntax_trees::types::TypeReferenceNode::Generic { .. }

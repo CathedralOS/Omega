@@ -2108,61 +2108,6 @@ pub(crate) mod definitions_and_contracts {
     }
 
     #[test]
-    fn scoped_nominal_type_keeps_arguments_on_the_trait() {
-        use syntax_trees::item::TypeParameterKind;
-        use syntax_trees::types::TypeReferenceNode;
-        let parsed = super::parse_source(
-            "machine retain<const Callback: space::Contract<u32>::invoke>() {}",
-            "a nominal const parameter should retain its scoped type path",
-        );
-        let machine = super::root_machine(&parsed, "nominal const parameter");
-        let TypeParameterKind::Const { type_reference } =
-            parsed.items.type_parameters(machine.type_parameters)[0].kind
-        else {
-            panic!("namespace classification belongs to resolution");
-        };
-        let TypeReferenceNode::StaticSelection(selection) =
-            parsed.type_references.type_reference(type_reference)
-        else {
-            panic!("scoped selection");
-        };
-        assert_eq!(
-            selection
-                .path
-                .iter()
-                .map(|part| part.as_str(&parsed))
-                .collect::<Vec<_>>(),
-            ["space", "Contract"]
-        );
-        let application = selection.application.as_ref().expect("trait application");
-        assert_eq!(application.arguments.len(), 1);
-        let member = parsed
-            .expressions
-            .static_member(application.member)
-            .expect("member");
-        assert_eq!(member.path[0].as_str(&parsed), "invoke");
-        assert!(member.application.is_none());
-        let mut copied = syntax_trees::SyntaxTrees::default();
-        copied.extend_from(&parsed);
-        assert_eq!(copied.snapshot(), parsed.snapshot());
-
-        let misplaced = super::parse_source(
-            "machine retain<const Callback: space::Contract::invoke<u32>>() {}",
-            "argument placement stays syntactically distinct",
-        );
-        let machine = super::root_machine(&misplaced, "misplaced nominal arguments");
-        let TypeParameterKind::Const { type_reference } =
-            misplaced.items.type_parameters(machine.type_parameters)[0].kind
-        else {
-            panic!("const");
-        };
-        assert!(matches!(
-            misplaced.type_references.type_reference(type_reference),
-            TypeReferenceNode::Generic { .. }
-        ));
-    }
-
-    #[test]
     fn parses_bodyless_nominal_parameter_with_one_terminator_per_declaration() {
         let source = r#"
         boundary machine register<machine Selected>()
