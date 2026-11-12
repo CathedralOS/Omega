@@ -10,6 +10,10 @@ variant is selected during exploration. The numbered directories currently own
 the interpreted variant. Their layout is not an architectural requirement. New
 variants may keep their own implementation beneath a descriptive directory.
 
+The [compiled VM peer](compiled_vm/README.md) constructs a Gamma compiler from
+source, then emits independent Alpha tapes for successor implementations. Its
+README records the construction route, trust boundary, and executable checks.
+
 The existing interpreted source owners are:
 
 ```text
