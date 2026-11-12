@@ -16,7 +16,7 @@ fields and no case, a sum has cases and no field.
 
 use semantic_vocabulary::{
     CrashCause, IntegerValue, MachineId, PlaceId, Proposition, ScalarType, StructuralCaseId,
-    StructuralFieldId, StructuralTypeId,
+    StructuralFieldId, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::values::RigidType;
 use terminal_psi::CrashRouteBucket;
@@ -140,6 +140,15 @@ pub struct Signature {
     /// name scalar formals by those identities. A record formal is a root
     /// place and has no value identity.
     pub parameters: Vec<ValueType>,
+    /// The positions in `parameters` of the `[erased]` formals, strictly
+    /// increasing. `wiki/spec/proofs/contracts.md`, "Explicit erased
+    /// bindings": "The binding remains in checking and semantic identity but
+    /// contributes no runtime field, address, read, or cleanup." An erased
+    /// formal is scalar here, travels in neither runtime lane, and is a
+    /// value only so that clauses can name it: `formal_values` gives it the
+    /// identity after the result pseudo-value. A call supplies a term for
+    /// it and evaluates nothing.
+    pub erased: Vec<usize>,
     /// `None` is a Unit machine. A scalar result's pseudo-value is the value
     /// right after the scalar formals, which is how `ensures` clauses name
     /// `result`. A record result is the machine's result place.
@@ -156,6 +165,55 @@ pub struct Signature {
     /// in authored order.
     pub ensures: Vec<Proposition>,
     pub crashes: CrashCeiling,
+}
+
+impl Signature {
+    pub fn is_erased(&self, position: usize) -> bool {
+        self.erased.binary_search(&position).is_ok()
+    }
+
+    /// The value identity of each formal, by position; `None` for a record
+    /// formal, which is a place. See `formal_values`.
+    pub fn formal_values(&self) -> Vec<Option<ValueId>> {
+        formal_values(
+            self.parameters
+                .iter()
+                .enumerate()
+                .map(|(position, value_type)| (*value_type, self.is_erased(position))),
+            self.result,
+        )
+    }
+}
+
+/// The one numbering of a machine's formal values, shared by the reader
+/// (which states clauses over them) and lowering (which mints them). The
+/// `k`-th relevant value formal (scalar or of a rigid type) is value
+/// `k + 1`; a value result's pseudo-value follows them; the erased scalar formals follow that, in
+/// position order. Terminal Psi keeps the same split: runtime formals in
+/// `TerminalMachine::parameters`, erased ones in
+/// `MachineContract::erased_scalar_formals`.
+pub fn formal_values(
+    formals: impl Iterator<Item = (ValueType, bool)> + Clone,
+    result: Option<ValueType>,
+) -> Vec<Option<ValueId>> {
+    let relevant = formals
+        .clone()
+        .filter(|(value_type, erased)| value_type.declared().is_some() && !erased)
+        .count() as u64;
+    let result = u64::from(result.and_then(ValueType::declared).is_some());
+    let (mut next_relevant, mut next_erased) = (0, relevant + result);
+    formals
+        .map(|(value_type, erased)| {
+            value_type.declared()?;
+            let next = if erased {
+                &mut next_erased
+            } else {
+                &mut next_relevant
+            };
+            *next += 1;
+            ValueId::new(*next)
+        })
+        .collect()
 }
 
 /// What the machine's header says about crashing.
@@ -199,6 +257,14 @@ pub enum Statement {
     /// the statements of a body lie on one spine and a slot has one binding
     /// at each of them.
     Bind { slot: usize, value: Expression },
+    /// `let x [erased]: T = term;`: the slot names `term` and nothing is
+    /// evaluated. contracts.md, "Explicit erased bindings": the binding "may
+    /// supply proof computation or static authorization; it cannot determine
+    /// runtime data or control." `term` is a literal or a slot, the forms
+    /// with no formation condition of their own (contracts.md, "Total
+    /// arithmetic": "Exact operations discharge representability before
+    /// formation"); the reader refuses any other initializer.
+    Witness { slot: usize, term: Expression },
     /// `let x: T;`: a local declared without an initializer.
     ///
     /// A data local is zero-established: its storage holds the zero

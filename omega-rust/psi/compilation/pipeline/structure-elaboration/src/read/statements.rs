@@ -167,7 +167,7 @@ impl Program<'_> {
             return unserved("operand capture or reflected query");
         }
         if local.relevance != language_core::BindingRelevance::Relevant {
-            return unserved("erased local");
+            return self.erased_local(id, slots, local);
         }
         if !local.initial_value.is_valid() {
             // `let x: T;`: the declared type is all there is. Storage is
@@ -199,6 +199,7 @@ impl Program<'_> {
                 value_type,
                 assignable: local.is_mutable,
                 homed: value_type.scalar().is_some(),
+                erased: false,
             };
             return Ok((
                 slot,
@@ -241,12 +242,66 @@ impl Program<'_> {
             value_type,
             assignable: local.is_mutable,
             homed: false,
+            erased: false,
         };
         Ok((
             slot,
             Statement::Bind {
                 slot: slots.len(),
                 value,
+            },
+        ))
+    }
+
+    /// `let x [erased]: T = term;`. The initializer is the term the binding
+    /// names (contracts.md, "Explicit erased bindings": "Construction
+    /// supplies the erased term"); nothing is evaluated.
+    fn erased_local(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        local: &TableLocalData,
+    ) -> Checked<(Slot, Statement)> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Statement(what)));
+        if !local.initial_value.is_valid() {
+            return unserved("erased local without an initializer");
+        }
+        let declared = if local.type_reference.is_valid() {
+            Some(self.value_type(id, local.type_reference)?)
+        } else {
+            None
+        };
+        if declared.is_some_and(|declared| declared.scalar().is_none()) {
+            return unserved("erased local of a data type");
+        }
+        let term = self.erased_term(
+            id,
+            slots,
+            local.initial_value,
+            declared.and_then(ValueType::scalar),
+        )?;
+        let Some(value_type) = term.result else {
+            return unserved("erased local of a data type");
+        };
+        if declared.is_some_and(|declared| declared != value_type) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("local initializer type"),
+            ));
+        }
+        let slot = Slot {
+            symbol: local.symbol,
+            value_type,
+            assignable: false,
+            homed: false,
+            erased: true,
+        };
+        Ok((
+            slot,
+            Statement::Witness {
+                slot: slots.len(),
+                term,
             },
         ))
     }

@@ -297,6 +297,32 @@ pub(super) enum Bound {
     Scalar(ValueId),
     Record(PlaceId),
     Home(PlaceId),
+    /// An `[erased]` formal or local: the term it names. Nothing evaluates
+    /// it and no runtime expression may read it.
+    Erased(Witness),
+}
+
+/// The term an erased binding names: a value of this machine or a literal,
+/// the forms `ScalarTerm` states with no formation condition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Witness {
+    Value(ValueId, ScalarType),
+    Integer(
+        semantic_vocabulary::IntegerType,
+        semantic_vocabulary::IntegerValue,
+    ),
+    Boolean(bool),
+}
+
+impl Witness {
+    pub(super) fn term(self) -> semantic_vocabulary::ScalarTerm {
+        use semantic_vocabulary::ScalarTerm;
+        match self {
+            Self::Value(id, scalar_type) => ScalarTerm::Value { id, scalar_type },
+            Self::Integer(scalar_type, value) => ScalarTerm::Integer { scalar_type, value },
+            Self::Boolean(value) => ScalarTerm::Boolean(value),
+        }
+    }
 }
 
 /// One step of a path beneath a root: a field of the record `owner`, or the
@@ -616,7 +642,7 @@ impl<'a> Lowering<'a> {
                         record,
                         fresh: false,
                     }),
-                    Some(Bound::Scalar(_) | Bound::Home(_)) => {
+                    Some(Bound::Scalar(_) | Bound::Home(_) | Bound::Erased(_)) => {
                         Err(self.internal("a scalar slot is used as a record"))
                     }
                     None => Err(self.internal("a slot is read before it is bound")),
@@ -1317,10 +1343,10 @@ impl<'a> Lowering<'a> {
                 );
             }
             (Some(Bound::Record(root)), Some(last)) => (root, last),
-            (Some(Bound::Scalar(_) | Bound::Home(_)), Some(_)) => {
+            (Some(Bound::Scalar(_) | Bound::Home(_) | Bound::Erased(_)), Some(_)) => {
                 return Err(self.internal("a field of a scalar slot is stored to"));
             }
-            (Some(Bound::Scalar(_) | Bound::Record(_)), None) => {
+            (Some(Bound::Scalar(_) | Bound::Record(_) | Bound::Erased(_)), None) => {
                 return Err(self.internal("a whole store into a slot that is not a home"));
             }
             (None, _) => return Err(self.internal("a slot is stored to before it is bound")),

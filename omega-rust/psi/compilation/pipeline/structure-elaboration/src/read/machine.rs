@@ -597,15 +597,20 @@ impl<'t> Program<'t> {
         let typed = self.typed;
         let formals = span(&typed.state_parameters, formals, id, "parameter span")?;
         let mut parameters = Vec::with_capacity(formals.len());
+        let mut erased = Vec::new();
         let mut slots = Vec::with_capacity(formals.len());
-        for formal in formals {
-            let value_type = self.formal(id, formal)?;
+        for (position, formal) in formals.iter().enumerate() {
+            let (value_type, is_erased) = self.formal(id, formal)?;
             parameters.push(value_type);
+            if is_erased {
+                erased.push(position);
+            }
             slots.push(Slot {
                 symbol: formal.symbol,
                 value_type,
                 assignable: false,
                 homed: false,
+                erased: is_erased,
             });
         }
         for binder in binders {
@@ -616,16 +621,21 @@ impl<'t> Program<'t> {
                 value_type,
                 assignable: false,
                 homed: false,
+                erased: false,
             });
         }
         let result = self.result_type(id, return_type)?;
+        let values = crate::body::formal_values(
+            slots.iter().map(|slot| (slot.value_type, slot.erased)),
+            result,
+        );
         // The result pseudo-value is the value right after the scalar
         // formals (`Signature::result`), owned by the machine's one state:
         // stage 02 records the entry state as the owner of a machine
         // contract's reserved `result`.
-        let scalar_formals = parameters
+        let scalar_formals = slots
             .iter()
-            .filter(|parameter| parameter.declared().is_some())
+            .filter(|slot| slot.value_type.declared().is_some() && !slot.erased)
             .count();
         let result_value = ValueId::new(scalar_formals as u64 + 1).ok_or_else(|| {
             refuse(
@@ -636,6 +646,7 @@ impl<'t> Program<'t> {
         })?;
         let entry = ClauseScope {
             slots: &slots,
+            values: &values,
             bound,
             owner,
             result: ResultTerm::Absent("result in an entry clause"),
@@ -799,6 +810,7 @@ impl<'t> Program<'t> {
         Ok((
             Signature {
                 parameters,
+                erased,
                 result,
                 requires,
                 ensures,
@@ -846,7 +858,10 @@ impl<'t> Program<'t> {
         }
     }
 
-    fn formal(&mut self, id: MachineId, formal: &StateParameter) -> Checked<ValueType> {
+    /// A formal's type and whether it is `[erased]`. An erased formal is
+    /// scalar: an erased record travels in Terminal Psi's proof-term lane
+    /// (`erased_proof_formals`), which a later slice serves.
+    fn formal(&mut self, id: MachineId, formal: &StateParameter) -> Checked<(ValueType, bool)> {
         if !formal.symbol.is_valid() {
             return Err(refuse(
                 id,
@@ -868,14 +883,19 @@ impl<'t> Program<'t> {
                 Unserved::Parameter("mutable parameter"),
             ));
         }
-        if formal.relevance != language_core::BindingRelevance::Relevant {
+        let value_type = self.value_type(id, formal.type_reference)?;
+        let erased = match formal.relevance {
+            language_core::BindingRelevance::Relevant => false,
+            language_core::BindingRelevance::Erased => true,
+        };
+        if erased && value_type.scalar().is_none() {
             return Err(refuse(
                 id,
                 Construct::Machine,
-                Unserved::Parameter("erased parameter"),
+                Unserved::Parameter("erased parameter of a data type"),
             ));
         }
-        self.value_type(id, formal.type_reference)
+        Ok((value_type, erased))
     }
 
     pub fn body(&mut self, id: MachineId) -> Checked<Body> {
@@ -921,11 +941,13 @@ impl<'t> Program<'t> {
             .map(|formal| formal.symbol)
             .chain(binders.iter().map(|binder| binder.symbol))
             .zip(&signature.parameters)
-            .map(|(symbol, value_type)| Slot {
+            .enumerate()
+            .map(|(position, (symbol, value_type))| Slot {
                 symbol,
                 value_type: *value_type,
                 assignable: false,
                 homed: false,
+                erased: signature.is_erased(position),
             })
             .collect();
         let statements = typed.statement_table.statements(state.statement_nodes);
@@ -1144,7 +1166,10 @@ fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceS
                 target_spans(target, out);
             }
         }
-        Statement::Declare { .. } | Statement::Store { .. } | Statement::Evaluate(_) => {}
+        Statement::Declare { .. }
+        | Statement::Witness { .. }
+        | Statement::Store { .. }
+        | Statement::Evaluate(_) => {}
     }
 }
 
@@ -1160,6 +1185,7 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
             .chain(default.iter().map(|(target, source)| (target, *source)))
             .collect(),
         Statement::Declare { .. }
+        | Statement::Witness { .. }
         | Statement::Bind { .. }
         | Statement::Store { .. }
         | Statement::Evaluate(_) => Vec::new(),
@@ -1280,6 +1306,9 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
             expression_slot_uses(value, uses);
         }
         Statement::Evaluate(value) => expression_slot_uses(value, uses),
+        // Counted although nothing evaluates it: a type parameter's value is
+        // never an erased term, so counting it can only refuse more.
+        Statement::Witness { term, .. } => expression_slot_uses(term, uses),
         Statement::Arm {
             guard, target: arm, ..
         } => {

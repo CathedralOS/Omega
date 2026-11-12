@@ -1,0 +1,24 @@
+// Witness: the current pipeline accepts this program in checking and then
+// fails to lower it ("terminal-artifact production failed: ... machine
+// `forward` ... scalar read has no authored binding"). An `[erased]` local
+// initialized from an erased parameter is supplied as the erased term of a
+// call; nothing reads it at run time (contracts.md#explicit-erased-bindings).
+// Structure-only elaboration lowers it: the local names the term.
+machine keep(n: i32, bound [erased]: i32) -> i32
+requires
+    n < bound
+{
+    n
+}
+
+machine forward(n: i32, limit [erased]: i32) -> i32
+requires
+    n < limit
+{
+    let witness [erased]: i32 = limit;
+    keep(n, witness)
+}
+
+machine main() {
+    let kept: i32 = forward(70, 100);
+}

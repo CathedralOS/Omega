@@ -70,6 +70,29 @@ an obligation only when its point dominates the obligation's point.
 Requires and guarantees go in as assumptions, result equations as semantic
 axioms, which is how the kernel's definition rules cite them.
 
+## Erased formals at a call
+
+A callee clause may name an `[erased]` scalar formal
+([proof contracts](../../../../../wiki/spec/proofs/contracts.md#explicit-erased-bindings):
+the binding "remains in checking and semantic identity"). At a call, each
+such formal is replaced by the term the call supplies for it, in the
+callee's `requires` (the `CallRequirement` goal) and in its `ensures` (the
+`CalleeGuarantee` knowledge), by the same `substitute` that replaces a
+runtime formal by its actual. The term is read from the call in the lowered
+form (`erased_arguments`), paired by position with the callee's
+`MachineContract::erased_scalar_formals`: an invocation row's actual is a
+value or a place, and an erased actual is neither. A term is a value of the
+caller or a literal; any other form, and a callee with an erased proof
+formal, is refused as `Unsupported`. Inside the callee the erased formal is
+an ordinary value identity, so its entry `requires` is knowledge there with
+no special case. The prover is unchanged.
+
+An erased formal has no runtime lane, so the lowered form does not say where
+among the formals it was written; `values_are_declared` takes each erased
+formal's position from its row, requires those positions to increase in
+contract order, and gives the runtime formals the remaining positions in
+their own order. A row that breaks either is `ForeignIdentity`.
+
 ## The rows are checked against the lowered form
 
 A certificate for every row proves nothing about a row that is missing, that

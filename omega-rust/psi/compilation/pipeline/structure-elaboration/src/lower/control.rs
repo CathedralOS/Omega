@@ -185,6 +185,11 @@ impl Lowering<'_> {
                 *self.slot_mut(*slot)? = Some(bound);
                 Ok(())
             }
+            Statement::Witness { slot, term } => {
+                let witness = self.witness(term)?;
+                *self.slot_mut(*slot)? = Some(Bound::Erased(witness));
+                Ok(())
+            }
             Statement::Declare { slot, source, .. } => self.declare_local(*slot, *source),
             Statement::Store {
                 slot,
