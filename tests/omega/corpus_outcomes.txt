@@ -18425,7 +18425,7 @@ fail/slices/bare_range_at_mutable_return rejected 758ms expected @ccdb99ca2214
 	machine `middle` state `entry` return value receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`
 fail/slices/bare_range_at_mutable_transition_return rejected 862ms expected @ccdb99ca2214
 	machine `middle` state `entry` return value receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`
-fail/slices/bare_range_returned_subslice_source_write rejected 4252ms expected @4653a4873214
+fail/slices/bare_range_returned_subslice_source_write rejected 4270ms expected @66914f73c885
 	statement 4 mutates `main.buffer[1]` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5)
 	statement 4 mutates `main.buffer[1]` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/slices/bare_subslice_call_cannot_lend_mutable rejected 800ms expected @ccdb99ca2214
@@ -19803,7 +19803,7 @@ fail/wire/reflection_callback_not_unique rejected 6760ms expected @4815ea579d91
 	generic machine `visit_runtime_fields` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Machine slot `Visitor` has no proposal
 fail/wire/reflection_foreign_query_without_delegation rejected 10297ms expected @4815ea579d91
 	typed field visitation requires its subject owner; delegate an owning operation instead of reflecting a foreign carrier
-fail/wire/returned_preserving_remainder_input_write rejected 14717ms expected @4653a4873214
+fail/wire/returned_preserving_remainder_input_write rejected 15050ms expected @66914f73c885
 	state `inspect` receives `main` while local borrow `decoded` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
 	state `refused` receives `main` while local borrow `decoded` is still active
 	statement 5 mutates `main.buffer[1]` while local borrow `decoded` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
@@ -27946,7 +27946,7 @@ pass/relevance/erased_state_param checked 3470ms @ccdb99ca2214
 pass/relevance/erased_subject_call checked 3583ms @ccdb99ca2214
 pass/relevance/runtime_static_proof_namespace_exit checked 3481ms check-target:macos_arm64 @ccdb99ca2214
 pass/resources/owned_extent_label_erasure_exit checked 25697ms check-target:macos_arm64 @089c0a150e63
-pass/slices/bare_range_returned_subslice_exit checked 5204ms check-target:macos_arm64 @4653a4873214
+pass/slices/bare_range_returned_subslice_exit checked 5613ms check-target:macos_arm64 @66914f73c885
 pass/slices/bounded_byte_parameter_range_exit checked 3766ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/byte_sequence_literal_tail_return_compile checked 3719ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/callee_non_byte_view_len_index_subslice checked 12549ms check-target:macos_arm64 @ccdb99ca2214
