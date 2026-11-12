@@ -1570,59 +1570,12 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
     assert_eq!(recovered, pending.terminal);
     assert_eq!(recovered_permissions, pending.accepted_package_permissions);
     assert!(installation_assumptions.is_empty());
-    let module = recovered.artifact().semantic_module();
-    assert!(
-        !module.callback_applications.is_empty(),
-        "the existing native callback must actually be emitted"
-    );
-    let selected = &recovered
+    let direct_boundary_leaves = recovered
         .native_realization_proposal()
         .unwrap()
         .providers()
-        .selection;
-    for callback in &module.callback_applications {
-        let operation = module
-            .operations()
-            .find(|operation| operation.id == callback.registrar)
-            .expect("actual emitted registrar operation");
-        let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
-            panic!("registrar must retain its exact boundary call");
-        };
-        let declaration = module
-            .boundary_machines
-            .iter()
-            .find(|declaration| declaration.id == boundary)
-            .unwrap();
-        let requirement = module.identities.text(declaration.identity).unwrap();
-        let (plan, row) = selected
-            .selected_requirement_row(requirement)
-            .expect("the emitted closed call must select its own native row");
-        assert_ne!(
-            plan.identities.text(row.requirement_identity),
-            plan.identities.text(row.declared_requirement_identity)
-        );
-        let abi = module
-            .calling_abi_identity(boundary)
-            .expect("actual emitted boundary ABI");
-        assert_eq!(row.calling_signature, Some(abi.id()));
-        let wrong = module
-            .calling_abi_signatures
-            .iter()
-            .find(|declaration| declaration.id != abi.id())
-            .expect("the callback's distinct ABI supplies an actual substitution control");
-        let mut changed = plan.clone();
-        let index = plan
-            .rows
-            .iter()
-            .position(|candidate| std::ptr::eq(candidate, row))
-            .unwrap();
-        changed.rows[index].calling_signature = Some(wrong.id);
-        assert_ne!(
-            changed.identity_digest(),
-            plan.identity_digest(),
-            "a different real ABI must not reuse the selected binding commitment"
-        );
-    }
+        .direct_boundary_leaves
+        .clone();
     // Native completion now has only recovered semantic inputs, not a source
     // compiler that could supply a missing declaration or calling decision.
     drop(std::mem::take(prepared.session.compiler()));
@@ -1651,6 +1604,127 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
         .into_report()
         .expect("complete actual native lowering after saved-input recovery");
     drop(prepared);
+    // A direct native binding is selected only when execution reaches it. Read
+    // the completed image's checked scope and selected plans, rather than the
+    // earlier authored-choice roster that intentionally excludes those leaves.
+    let artifact = report.retained_native_artifact().unwrap();
+    let module = artifact.psi_artifact().semantic_module();
+    let scope = artifact
+        .object()
+        .native_execution_scope(
+            artifact.psi_artifact(),
+            *artifact.selected_provider_closure_digest().as_bytes(),
+        )
+        .expect("rejoin the actual image's artifact, target, entry and provider choices")
+        .expect("the checked native image must retain its execution scope");
+    assert!(
+        !scope.callbacks().is_empty(),
+        "the existing descriptor callback must actually be selected for execution"
+    );
+    for occurrence in scope.callbacks() {
+        let callback = module
+            .callback_application(occurrence.application_index())
+            .expect("the executed callback must retain its exact application");
+        assert_eq!(callback.registrar, occurrence.terminal_operation());
+        let operation = module
+            .operations()
+            .find(|operation| operation.id == callback.registrar)
+            .expect("actual emitted registrar operation");
+        let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
+            panic!("registrar must retain its exact boundary call");
+        };
+        assert!(scope.contains_boundary(boundary));
+        let declaration = module
+            .boundary_machines
+            .iter()
+            .find(|declaration| declaration.id == boundary)
+            .unwrap();
+        let requirement = module.identities.text(declaration.identity).unwrap();
+        let leaves = direct_boundary_leaves
+            .iter()
+            .filter(|leaf| leaf.callable_identity == requirement)
+            .collect::<Vec<_>>();
+        let [leaf] = leaves.as_slice() else {
+            panic!(
+                "executed registrar {requirement} must retain exactly one checked direct leaf; got {}",
+                leaves.len()
+            );
+        };
+        leaf.validate_bound_calling_custody(module)
+            .expect("the receiving module must authenticate the retained direct contract");
+        assert_ne!(leaf.callable_identity, leaf.satisfied_requirement_identity);
+        let selected = artifact
+            .selected_provider_plans()
+            .iter()
+            .filter(|plan| {
+                plan.requirement_identities()
+                    .iter()
+                    .any(|id| id == requirement)
+            })
+            .collect::<Vec<_>>();
+        let [selected] = selected.as_slice() else {
+            panic!(
+                "executed registrar {requirement} must select exactly one completed plan; got {}",
+                selected.len()
+            );
+        };
+        assert_eq!(selected.report_identity(), leaf.plan.report_fingerprint());
+        assert_eq!(
+            selected.plan_digest().as_bytes(),
+            leaf.plan.identity_digest().as_bytes()
+        );
+        let abi = module.calling_abi_identity(boundary).unwrap();
+        let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &leaf.execution else {
+            panic!("the unchanged C registrar must retain its admitted foreign binding");
+        };
+        let matching = binding
+            .calling_applications
+            .iter()
+            .enumerate()
+            .filter(|(_, application)| application.abi == abi)
+            .collect::<Vec<_>>();
+        let [(calling_index, calling)] = matching.as_slice() else {
+            panic!(
+                "the executed registrar must retain exactly one matching declaration ABI; got {}",
+                matching.len()
+            );
+        };
+        assert_eq!(
+            calling.requirement_identity,
+            leaf.satisfied_requirement_identity
+        );
+        let original = leaf
+            .satisfied_schema
+            .calling_application(&abi)
+            .expect("the actual ABI must belong to the original checked boundary contract");
+        assert_eq!(calling.commitment, *original.commitment.as_bytes());
+        assert_eq!(calling.report_fingerprint, original.report_fingerprint);
+        let wrong = module
+            .calling_abi_signatures
+            .iter()
+            .find(|declaration| {
+                declaration.id != abi.id()
+                    && module.identities.text(declaration.requirement_identity)
+                        != Some(leaf.satisfied_requirement_identity.as_str())
+            })
+            .expect("another actual declaration ABI must provide a substitution falsifier")
+            .identity(&module.identities)
+            .unwrap();
+        let mut changed: backend_plan::DirectBoundaryLeaf = (**leaf).clone();
+        let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut changed.execution
+        else {
+            unreachable!()
+        };
+        binding.calling_applications[*calling_index].abi = wrong;
+        binding.calling_applications[*calling_index].commitment = binding.calling_applications
+            [*calling_index]
+            .recomputed_commitment()
+            .unwrap();
+        assert_eq!(
+            changed.validate_bound_calling_custody(module).unwrap_err(),
+            "direct foreign execution changed its public declaration ABI"
+        );
+    }
     native_entry_controls::inspect(&report, &scratch)
         .expect("preserve the original native entry readback falsifiers");
     let published = compilation_products::publication::publish_compilation(
