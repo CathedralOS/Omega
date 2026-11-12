@@ -23,8 +23,8 @@ Module layout:
 - `build_declaration`: validated project roles (`Package`, `Application`,
   `Workspace`), `ProjectName`, and `WorkspaceMemberPath`.
 - `build_request`: evaluated requests emitted by the `Build` host protocol.
-- `dependencies`: direct `Build::depend*` row grammar shared by acquisition and
-  source editing.
+- `dependencies`: the canonical `Build::dependency` / `Build::build_dependency`
+  registration rows that package tooling reads and rewrites.
 - `direct_build_call`: the single canonical `Build::<op>(builder, ...)` call
   shape check shared across role and dependency projectors.
 - `syntax_projection`: AST-level role and entry validation over `build.omg`.
@@ -54,8 +54,9 @@ pub use build_declaration::{
 pub use build_request::{BuildDependencySource, BuildRequest};
 pub use declaration_errors::BuildDeclarationError;
 pub use dependencies::{
-    DependencyOperation, DependencyPurpose, DependencyRow, DependencyRowError,
-    is_dependency_call_name, project_dependency_rows,
+    DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_HELPER_OWNER, DependencyOperation,
+    DependencyPurpose, DependencyRow, DependencyRowError, FROM_SOURCE_HELPER_NAME,
+    WITH_ALIAS_HELPER_NAME, is_dependency_call, project_dependency_rows,
 };
 pub use prelude::{build_prelude_source, default_build_source};
 pub use syntax_projection::{

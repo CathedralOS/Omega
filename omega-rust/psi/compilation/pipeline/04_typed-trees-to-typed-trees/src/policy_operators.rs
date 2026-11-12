@@ -15,6 +15,14 @@ and checking, lowering, interpretation and native realization see only the
 policy-qualified arithmetic they already implement. An anonymous operand is
 left bare so it lands to the carrier like the literal in `counter + 1`; a
 shift's count keeps its own type.
+
+The same rewrite serves the contracts of a machine and of its states, because
+the operand rule is the same in `requires` and `ensures` as in executable code
+(wiki/spec/language/domains.md#operands). A `%` or `|` form becomes a Wrapping
+or Saturating term, which the total arithmetic rule accepts and still charges
+for definedness such as a nonzero divisor. A `!` form is refused here by name,
+because an operation that can transfer control forms no specification term
+(wiki/spec/proofs/contracts.md#total-arithmetic).
 */
 
 use diagnostics::Diagnostic;
@@ -55,11 +63,14 @@ pub(crate) fn elaborate(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>>
     {
         return Ok(());
     }
-    // Typing stage 03 admits a suffixed operator only in executable
-    // statements, so walking those reaches every one this program can
-    // evaluate. The node carries its own policy, so a clone or a projection
-    // of this program keeps it, and a failed pass leaves it in place for
-    // checking to reject; nothing here can turn it into the bare operator.
+    // Typing stage 03 admits a suffixed operator in executable statements and
+    // in the contracts of machines and their states, so those are the places
+    // walked here. Every reader after this pass takes a binary node for the
+    // operator it names without looking at the suffix, so a suffixed node
+    // that one of these walks reaches and cannot type is an error, never a
+    // node left for later. A projection of the program that leaves a machine
+    // out keeps that machine's nodes in the table with nothing reading them;
+    // those are not reached here and stay as written.
     let values =
         validation::collect_executable_value_origins(program, &DeclarationSelection::all());
     let mut sites = Vec::new();
@@ -85,19 +96,85 @@ pub(crate) fn elaborate(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>>
                 .filter(|expression| {
                     suffixed(program.expression_table.expression(**expression)).is_some()
                 })
-                .map(|expression| (*expression, machine_symbol, state_symbol)),
+                .map(|expression| (*expression, machine_symbol, state_symbol, false)),
         );
     }
-    sites.sort_by_key(|(expression, _, _)| expression.arena_index());
-    sites.dedup_by_key(|(expression, _, _)| expression.arena_index());
+    // A contract is read against the parameters of the machine that declares
+    // it: the entry state for a machine contract, the state itself for its
+    // own. That is the owner checking uses for the same contract.
+    let mut diagnostics = Vec::new();
+    for machine in program.machines() {
+        let states = program.machine_states(machine);
+        let Some(entry) = states.first() else {
+            // A machine without a body has no state to type its parameters
+            // against.
+            expressions.clear();
+            for contract in program.machine_contracts(machine) {
+                validation::collect_contract_facts(program, contract.facts, &mut expressions);
+            }
+            diagnostics.extend(expressions.iter().filter_map(|expression| {
+                let (binary, policy) =
+                    suffixed(program.expression_table.expression(*expression))?;
+                Some(
+                    Diagnostic::error(format!(
+                        "the policy operator `{}{}` is not supported yet in the contract of a machine without a body",
+                        binary.operator.display_name(),
+                        policy.operator_suffix(),
+                    ))
+                    .with_source_span(program.expression_table.source_span(*expression)),
+                )
+            }));
+            continue;
+        };
+        let mut collect = |contracts: &[typed_trees::signature::SignatureContract],
+                           state: &typed_trees::state::State| {
+            expressions.clear();
+            for contract in contracts {
+                validation::collect_contract_facts(program, contract.facts, &mut expressions);
+            }
+            sites.extend(
+                expressions
+                    .iter()
+                    .filter(|expression| {
+                        suffixed(program.expression_table.expression(**expression)).is_some()
+                    })
+                    .map(|expression| (*expression, machine.symbol, state.symbol, true)),
+            );
+        };
+        collect(program.machine_contracts(machine), entry);
+        for state in states {
+            collect(program.state_contracts(state), state);
+        }
+    }
+    // A stable sort keeps the executable site when one node is reached twice.
+    sites.sort_by_key(|(expression, _, _, _)| expression.arena_index());
+    sites.dedup_by_key(|(expression, _, _, _)| expression.arena_index());
 
     let mut elaborations = Vec::with_capacity(sites.len());
-    let mut diagnostics = Vec::new();
-    for (expression, machine_symbol, state_symbol) in sites {
+    for (expression, machine_symbol, state_symbol, in_contract) in sites {
+        if in_contract
+            && let Some((binary, ArithmeticDomain::Trapping)) =
+                suffixed(program.expression_table.expression(expression))
+        {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "the trapping operator `{}!` cannot be used in a contract: specification terms are total and cannot transfer runtime control. Use the `%` or `|` form, or the bare operator with its Exact formation proof",
+                    binary.operator.display_name(),
+                ))
+                .with_source_span(program.expression_table.source_span(expression)),
+            );
+            continue;
+        }
         let Some((machine, state)) = program
             .machine_by_symbol(machine_symbol)
             .zip(program.state_by_symbol(state_symbol))
         else {
+            diagnostics.push(
+                Diagnostic::error(
+                    "a policy operator's machine is missing from the program being typed",
+                )
+                .with_source_span(program.expression_table.source_span(expression)),
+            );
             continue;
         };
         match plan(program, machine, state, expression) {

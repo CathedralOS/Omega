@@ -2635,11 +2635,19 @@ pub mod compiler_operations {
             if expression_call_only_observes_operands(program, call))
     }
 
+    /*
+        Compiler metadata queries read layout facts and take no value operand,
+        so they install and replace no caller reference slot. The native code
+        layout query (`code_layout<...>()`) is one of them, beside the type
+        layout queries; neither has a callee signature to derive a slot
+        relation from.
+    */
     pub(crate) fn expression_call_only_observes_operands(
         program: &dyn crate::CheckingInput,
         call: &typed_trees::expression::TableCallExpression,
     ) -> bool {
         call.layout_query.is_some()
+            || call.native_code_layout.is_some()
             || matches!(
                 classify_expression_call_intrinsic(program, call),
                 Some(

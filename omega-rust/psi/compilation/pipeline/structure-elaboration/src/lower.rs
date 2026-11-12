@@ -55,7 +55,7 @@ use semantic_vocabulary::{
     ScalarQualificationSetId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
-use terminal_check_tables::values::{ValueOrigin, ValueRow};
+use terminal_check_tables::values::{RigidType, ValueOrigin, ValueRow};
 use terminal_check_tables::{
     Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
@@ -110,13 +110,19 @@ pub(crate) fn machine(
     let mut formals = Formals::default();
     for (position, value_type) in signature.parameters.iter().enumerate() {
         match *value_type {
-            ValueType::Scalar(scalar_type) => {
+            // A formal of a rigid type is a value like a scalar formal: it
+            // has an identity, a call passes it, and nothing is known of it.
+            ValueType::Scalar(_) | ValueType::Rigid(_) => {
+                let (scalar_type, rigid) = value_type
+                    .declared()
+                    .ok_or_else(|| lowering.internal("a value formal has no declaration"))?;
                 let value = lowering.tables.values.push(ValueRow {
                     scalar_type,
                     origin: ValueOrigin::MachineParameter {
                         position: lowering.position(position)?,
                     },
                     selects: None,
+                    rigid,
                 });
                 // Clause propositions name the `k`-th scalar formal as value
                 // `k + 1` (`Signature::parameters`).
@@ -158,8 +164,14 @@ pub(crate) fn machine(
     // record result is the machine's result place, a root of its own.
     let result = match signature.result {
         None => TerminalMachineResult::Unit,
-        Some(ValueType::Scalar(scalar_type)) => {
-            let value = lowering.value(scalar_type, ValueOrigin::MachineResult);
+        Some(value_type @ (ValueType::Scalar(_) | ValueType::Rigid(_))) => {
+            let (scalar_type, rigid) = value_type
+                .declared()
+                .ok_or_else(|| lowering.internal("a value result has no declaration"))?;
+            let value = match rigid {
+                None => lowering.value(scalar_type, ValueOrigin::MachineResult),
+                Some(rigid) => lowering.rigid_value(rigid, ValueOrigin::MachineResult),
+            };
             if value.get() != formals.scalars.len() as u64 + 1 {
                 return Err(lowering.internal("the result does not follow the scalar formals"));
             }
@@ -329,6 +341,18 @@ impl Lowering<'_> {
             scalar_type,
             origin,
             selects: None,
+            rigid: None,
+        })
+    }
+
+    /// A value of a rigid type: declared with the stand-in the lowered form
+    /// needs, and marked rigid in its row.
+    fn rigid_value(&mut self, rigid: RigidType, origin: ValueOrigin) -> ValueId {
+        self.tables.values.push(ValueRow {
+            scalar_type: RigidType::DECLARED_AS,
+            origin,
+            selects: None,
+            rigid: Some(rigid),
         })
     }
 

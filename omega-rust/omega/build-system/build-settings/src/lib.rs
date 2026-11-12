@@ -88,6 +88,7 @@ pub use activation::{
     BuildDependencySelection, BuildSourceResult, ReturnedBuild, TerminalBuildActivation,
     TerminalBuildHost, TerminalBuildStep,
 };
+pub use admission::checking::settle_rejoined_build_slice;
 use admission::program::{AdmittedBuildProgram, admit_build_program};
 pub use admission::target_helpers::select_build_helpers;
 pub use artifacts::compile_timings::counters::preliminary_check_totals;

@@ -60,7 +60,7 @@ impl Lowering<'_> {
                         .push(Actual::Place(self.exact_root(root)?));
                     evaluated.records.push(root);
                 }
-                Some(ValueType::Scalar(_)) | None => {
+                Some(ValueType::Scalar(_) | ValueType::Rigid(_)) | None => {
                     let value = self.scalar(argument)?;
                     evaluated.actuals.push(Actual::Value(value));
                     evaluated.scalars.push(value);
@@ -250,6 +250,11 @@ impl Lowering<'_> {
         // Terminal Psi has one call operation per result lane, and the
         // scalar-result form with no record argument is the plain `Call`.
         let value = match result {
+            // The reader refuses a call whose result is rigid: its value
+            // would need a row that says so, which `emit` does not make.
+            Some(ValueType::Rigid(_)) => {
+                return Err(self.internal("a call returns a value of a rigid type"));
+            }
             Some(ValueType::Scalar(scalar_type)) => {
                 let kind = if structural_arguments.is_empty() {
                     OperationKind::Call {

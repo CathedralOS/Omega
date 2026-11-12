@@ -16,6 +16,12 @@ with value 23 gives the rejection controls an independent lifetime to name.
 The integer occupies eight bits at offset 0; the reference starts at offset 8.
 The selected policy remains `PayloadLayout<7>` throughout the positive programs.
 
+The match place also carries a Boolean marker beside the readback. Its two arms
+mark which branch returned the carrier, and the caller checks that marker for
+both inputs, 23 and 29. The pointer still reaches 43 and the stored scalar stays
+7 in both arms. Selecting the wrong arm must fail the exit-0 oracle without
+changing the layout, reference lifetime or stored values.
+
 The [root program](main.omg) and these nine places carry the same fact:
 
 | Place | Positive | Wrong returned lifetime |
@@ -38,8 +44,8 @@ changes only the loaded reference's destination policy to `PayloadLayout<8>`.
 Policies 7 and 8 both have size 8 and alignment 8, but the reference must retain
 its exact policy application.
 
-The November 6 runs below executed all ten corpus positives with native and
-Terminal Psi exit 0. Each also ran the projects for another machine and the
+The November 6 runs below executed all ten original corpus positives with native
+and Psi exit 0. Each also ran the projects for another machine and the
 selected implementation through ordinary CLI package admission and
 `omega run --both`, with both engines exiting 0. The programs, Builds and expected
 results were frozen before execution and were unchanged between these producer
@@ -51,12 +57,12 @@ revisions.
 | Linux ARM64 | `bc53b23707f6d8db0843cf7e4d65f8bae61fecc0` | [42289025627](https://github.com/CathedralOS/Omega/actions/runs/42289025627) |
 | Windows x64 | `bc53b23707f6d8db0843cf7e4d65f8bae61fecc0` | [42289030188](https://github.com/CathedralOS/Omega/actions/runs/42289030188) |
 
-All three full runs remain **failed**: all eleven invalid controls rejected, and all
-ten lifetime controls matched their required diagnostics, but the policy control
-missed its required message fragment. Its pin says `PayloadLayout<const 8>`;
-the compiler reports `PayloadLayout<8>` in the same type-mismatch diagnostic.
-That pin is unchanged, the failed control is excluded from new source records,
-and this runtime evidence does not close the full row or the parent task.
+All three full runs remain **failed**: all eleven invalid controls rejected, and
+all ten lifetime controls matched their required diagnostics, but the policy
+control's old pin expected `PayloadLayout<const 8>` while the compiler reported
+`PayloadLayout<8>`. That pin was corrected later; the corpus ledger records its
+intended rejection at producer `596e7e7c86f5`. This later correction does not
+change the historical failed runs or close the full row or parent task.
 The existing platform goldens retain actual runtime results with their measured
 producer revision; source-check records include only the twenty successful rows.
 
@@ -70,9 +76,26 @@ ran the relay and selected implementation after their compiler repairs. The
 original mixed runs that found those refusals remain failed. These are retained
 Mac observations, not executions of the November 6 producer.
 
-All four hosted ProgramEntry bindings and corpus mirrors are present. The match
-place supplies inputs for both branch conditions, but its identical arm results
-do not test branch discrimination. Broader reference compositions, arbitrary
+The strengthened match place passed focused Mac ARM64 qualification at source
+`14237126e6711b79496ca3614bb3bb409d807d96`: checking had no diagnostics, native
+and Psi both exited 0, and its wrong-lifetime twin retained the intended refusal.
+With that same authenticated optimized producer, inverted selection still exited
+0 under the original weak oracle. The strengthened oracle instead produced
+native SIGTRAP and a Psi trap under the same inversion. The qualification
+restored both source copies and retained their exact bytes and producer profiles
+under claim `18e72ffe338ce3b00000000018e7969b`.
+
+Fresh Windows x64, Linux x64 and Linux ARM64 execution of the strengthened match
+place remains open under the parent. The scoped Mac result does not replace the
+historical evidence for unchanged places or close the full row or parent task.
+
+All four hosted ProgramEntry bindings and corpus mirrors are present. The
+original match place supplied both branch inputs but returned identical arm
+results. Its old oracle therefore accepted inverted branch selection. The
+[focused runtime control](../../../../tools/xtask/qualification/fixed-layout-readback-wrong-branch.json)
+keeps that old oracle as the weak case and checks that the branch marker makes
+the same inverted selection trap. These private control outcomes stay outside
+the corpus ledger. Broader reference compositions, arbitrary
 descriptor bytes, mutable references, byte roundtrips and authority reconstructed
 from an address are outside this evidence.
 
