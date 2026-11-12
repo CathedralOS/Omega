@@ -3,6 +3,7 @@
 set -euo pipefail
 WITNESS="${1:?witness}"
 OUT_JSON="${2:?output json}"
+OUT_JSON_TMP="/tmp/$(basename "$OUT_JSON")"
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 PIN="51e8c45c793007f211d0d9baee7de16767172444"
 TOOL_SRC="$ROOT/.agents/ledger-bisect-2026-11-11/tools"
@@ -81,11 +82,7 @@ find_good_commit() {
     mid=$(( (lo + hi) / 2 ))
     local c="${revs[$mid]}"
     if is_ledger_only_commit "$c"; then
-      if (( mid + 1 <= hi )); then
-        lo=$((mid + 1))
-      else
-        hi=$((mid - 1))
-      fi
+      hi=$((mid - 1))
       continue
     fi
     git checkout -qf "$c"
@@ -106,8 +103,13 @@ find_good_commit() {
   return 0
 }
 
+GOOD_CACHE="/tmp/ledger-bisect-good-${WITNESS//\//_}.sha"
+if [[ -z "${BISECT_GOOD:-}" && -f "$GOOD_CACHE" ]]; then
+  BISECT_GOOD=$(cat "$GOOD_CACHE")
+fi
 if [[ -z "${BISECT_GOOD:-}" ]]; then
   GOOD=$(find_good_commit) || true
+  [[ -n "$GOOD" ]] && printf '%s' "$GOOD" >"$GOOD_CACHE"
 else
   GOOD="$BISECT_GOOD"
 fi
@@ -139,7 +141,7 @@ PR=""
 if [[ -n "$BREAK" ]]; then
   PR=$(git log -1 --format='%s' "$BREAK" 2>/dev/null | sed -n 's/.*#\([0-9][0-9]*\).*/\1/p' | head -1)
 fi
-python3 - "$OUT_JSON" "$WITNESS" "$BREAK" "$PR" "$RC" "$GOOD" "$ledger_only_break" <<'PY'
+python3 - "$OUT_JSON_TMP" "$WITNESS" "$BREAK" "$PR" "$RC" "$GOOD" "$ledger_only_break" <<'PY'
 import json, re, subprocess, sys
 
 out, witness, brk, pr, rc, good, ledger_only = sys.argv[1:8]
@@ -178,3 +180,6 @@ open(out, "w").write(json.dumps(payload, indent=2))
 open(out + ".tmp", "w").write(json.dumps(payload, indent=2))
 print(json.dumps(payload, indent=2))
 PY
+cp -f "$OUT_JSON_TMP" "$OUT_JSON" 2>/dev/null || true
+git checkout -qf work/ledger-bisect-part-7 2>/dev/null || true
+cp -f "$OUT_JSON_TMP" "$OUT_JSON" 2>/dev/null || true
