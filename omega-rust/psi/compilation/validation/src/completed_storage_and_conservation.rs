@@ -290,15 +290,9 @@ pub mod completed_storage {
                     let path = control
                         .operand_referent_segments
                         .span(destination.segments)?;
-                    let overlaps = match observation {
-                        StoredObservation::Binding => {
-                            crate::storage_path_relations::binding_overwrite(program, source, path)
-                        }
-                        StoredObservation::InlineContents | StoredObservation::Contents => {
-                            crate::storage_path_relations::contents_overlap(program, source, path)
-                        }
-                    };
-                    (destination.root == source.root && overlaps).then_some(Resolution::Unavailable)
+                    (destination.root == source.root
+                        && crate::storage_path_relations::contents_overlap(program, source, path))
+                    .then_some(Resolution::Unavailable)
                 }
                 FlowStorageOperation::Store {
                     destination, value, ..

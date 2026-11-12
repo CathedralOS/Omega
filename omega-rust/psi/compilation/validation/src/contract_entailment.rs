@@ -61277,21 +61277,6 @@ pub(crate) mod structural_judgment {
                             value.clone(),
                         );
                     }
-                    if !receiver_changed
-                        && structural_terms::descriptor_observation(program, &value).is_some()
-                        && judge.frame_resolver().is_some_and(|frames| {
-                            frames
-                                .completed_reference_read_sources(scope.0, scope.1, expression)
-                                .is_some_and(|sources| !sources.is_empty())
-                        })
-                    {
-                        judge.observe_completed_storage_read(
-                            scope.0,
-                            scope.1,
-                            expression,
-                            value.clone(),
-                        );
-                    }
                     if matches!(node, ExpressionNode::Name(_) | ExpressionNode::Member(_))
                         && let Some(reference) = crate::expression_result_type_reference(
                             program, scope.0, scope.1, expression,
@@ -66200,7 +66185,7 @@ pub(crate) mod structural_judgment {
                 }
                 if subject.has_aggregate_view(program) {
                     let observation =
-                        self.capture_reference_argument_fields(subject, actual, scope.0, scope.1);
+                        self.capture_view_argument_fields(subject, actual, scope.0, scope.1);
                     if let Err(reason) = &observation
                         && super::super::struct_trace()
                     {
@@ -66307,11 +66292,6 @@ pub(crate) mod structural_judgment {
                 if let Some(value) = self
                     .captured_reference_subject(subject, scope.1)
                     .and_then(|coordinate| self.current_storage_value(&coordinate))
-                    .filter(|value| {
-                        !super::super::structural_terms::term_is_unobserved_descriptor(
-                            program, value,
-                        )
-                    })
                 {
                     let value = match &scalar {
                         Some(scalar) if !scalar.preserves_scalar_value => {
@@ -66334,17 +66314,7 @@ pub(crate) mod structural_judgment {
                     });
                 let root = place.root.as_symbol()?;
                 if self.storage_binding_invalidated(root) {
-                    return (scalar.is_none()
-                        && crate::field_domains::readable_nominal_definition(
-                            program,
-                            subject.type_reference,
-                        )
-                        .is_some())
-                    .then(|| {
-                        self.capture_reference_argument_fields(subject, actual, scope.0, scope.1)
-                            .ok()
-                    })
-                    .flatten();
+                    return None;
                 }
                 let is_parameter = program.state_parameter_by_symbol(scope.1, root).is_some();
                 let is_local = program.state_local_declaration(scope.1, root).is_some();
@@ -67766,177 +67736,6 @@ pub(crate) mod structural_judgment {
             use super::*;
             use std::cell::Cell;
             use typed_trees::types::TypeReferenceHandle;
-
-            #[test]
-            fn saved_nested_fields_keep_their_checked_read() {
-                use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder};
-                use typed_trees::{
-                    TypedTrees,
-                    data::{DataDefinition, DataField, DataMember},
-                    expression::ExpressionHandle,
-                    name::Identifier,
-                    types::TypeReferenceNode,
-                };
-
-                // The saved record and its producer are equal values, but the
-                // completed read owns the field observations used by its caller.
-                let mut symbols = SymbolTableBuilder::default();
-                let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-                let builtins = symbols.insert_children(root, symbols::builtin_type_symbols());
-                let saved_type =
-                    symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Saved"));
-                let indices_type =
-                    symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Indices"));
-                let indices_field = symbols
-                    .insert_children(
-                        saved_type,
-                        [(SymbolKind::Field, SymbolNameRef::Static("indices"))],
-                    )
-                    .start();
-                let index_field = symbols
-                    .insert_children(
-                        indices_type,
-                        [(SymbolKind::Field, SymbolNameRef::Static("pt_index"))],
-                    )
-                    .start();
-                let mut program = TypedTrees {
-                    symbols: symbols.finish(),
-                    ..Default::default()
-                };
-                let saved_reference =
-                    program
-                        .type_reference_table
-                        .insert(TypeReferenceNode::Named {
-                            symbol: saved_type,
-                            name: Identifier::from("Saved"),
-                        });
-                let indices_reference =
-                    program
-                        .type_reference_table
-                        .insert(TypeReferenceNode::Named {
-                            symbol: indices_type,
-                            name: Identifier::from("Indices"),
-                        });
-                let scalar_reference =
-                    program
-                        .type_reference_table
-                        .insert(TypeReferenceNode::Named {
-                            symbol: builtins.handle_at(BuiltinTypeAtom::U64.ordinal() as u32),
-                            name: Identifier::from("u64"),
-                        });
-                let shared_reference =
-                    program
-                        .type_reference_table
-                        .insert(TypeReferenceNode::Reference {
-                            referee: saved_reference,
-                            access: language_semantics::ReferenceAccess::Shared,
-                            lifetime: None,
-                        });
-                let saved_members =
-                    program
-                        .data_members
-                        .insert_many([DataMember::Field(DataField {
-                            symbol: indices_field,
-                            name: Identifier::from("indices"),
-                            type_reference: indices_reference,
-                            ..Default::default()
-                        })]);
-                program.push_data_definition(DataDefinition {
-                    symbol: saved_type,
-                    name: Identifier::from("Saved"),
-                    members: saved_members,
-                    ..Default::default()
-                });
-                let indices_members =
-                    program
-                        .data_members
-                        .insert_many([DataMember::Field(DataField {
-                            symbol: index_field,
-                            name: Identifier::from("pt_index"),
-                            type_reference: scalar_reference,
-                            ..Default::default()
-                        })]);
-                program.push_data_definition(DataDefinition {
-                    symbol: indices_type,
-                    name: Identifier::from("Indices"),
-                    members: indices_members,
-                    ..Default::default()
-                });
-
-                let captured = |occurrence| StructuralTerm::CapturedValue {
-                    expression: ExpressionHandle::from_arena_index(occurrence),
-                    statement: Default::default(),
-                    callable: SymbolHandle::invalid(),
-                    occurrence: occurrence as usize,
-                    result_type: saved_reference,
-                    integer_range: None,
-                };
-                let producer = captured(1);
-                let saved = captured(2);
-                let mut judge = StructuralJudge::from_declaration_requires(
-                    &program,
-                    SymbolHandle::invalid(),
-                    &[],
-                    &[],
-                    false,
-                );
-                judge.runtime_body_values = true;
-                judge.assume_normal_equation(
-                    producer.clone(),
-                    StructuralTerm::Application {
-                        result_type: saved_reference,
-                        target: SymbolHandle::invalid(),
-                        selections: Vec::new(),
-                        machine: "producer".to_owned(),
-                        arguments: Vec::new(),
-                    },
-                );
-                judge.assume_normal_equation(saved.clone(), producer.clone());
-                Arc::make_mut(&mut judge.completed_nominal_values).push(
-                    crate::proof_contracts::contract_entailment::structural_judgment::CompletedNominalValue {
-                        anchor: ExpressionHandle::from_arena_index(2),
-                        reference: saved_reference,
-                        value: saved.clone(),
-                        observed_value: producer.clone(),
-                    },
-                );
-                let observed = crate::proof_contracts::contract_entailment::structural_terms::owned_projection_observation(&program, saved_reference, saved.clone());
-                let indices = judge
-                    .observed_field_term(observed.clone(), "indices", 0)
-                    .expect("the saved record has an indices field");
-                assert_eq!(crate::proof_contracts::contract_entailment::structural_terms::owned_observation_type(&program, &indices), Some(indices_reference));
-                let expected = StructuralTerm::Projection {
-                    subject: Box::new(saved),
-                    path: "indices.pt_index".to_owned(),
-                };
-                let index = judge
-                    .observed_field_term(indices.clone(), "pt_index", 0)
-                    .expect("the saved indices have a scalar field");
-                assert!(index.semantic_value().same_resolution_payload(&expected));
-                assert!(
-                    judge
-                        .observed_field_term(observed.clone(), "missing", 0)
-                        .is_none()
-                );
-
-                // Membership comparisons still resolve the earlier subject. A
-                // read must keep its type instead of borrowing that comparison.
-                let membership = judge.completed_nominal_subject(&indices);
-                assert!(
-                    membership.same_resolution_payload(&StructuralTerm::Projection {
-                        subject: Box::new(producer),
-                        path: "indices".to_owned()
-                    })
-                );
-                let descriptor = crate::proof_contracts::contract_entailment::structural_terms::descriptor_only_observation(shared_reference, observed.clone());
-                assert!(
-                    judge
-                        .observed_field_term(descriptor, "indices", 0)
-                        .is_none()
-                );
-                judge.require_closed_computation = true;
-                assert!(judge.observed_field_term(observed, "indices", 0).is_none());
-            }
 
             #[test]
             fn completed_queries_keep_full_authority_depth_and_premise_context() {
@@ -73890,9 +73689,9 @@ pub(crate) mod structural_judgment {
                     coordinate: &CapturedStorageCoordinate,
                     at: StorageVersion,
                 ) -> bool {
-                    if self.storage_graph().is_none() {
+                    let Some(graph) = self.storage_graph() else {
                         return true;
-                    }
+                    };
                     let inline = stored
                         .coordinate
                         .root
@@ -73928,32 +73727,12 @@ pub(crate) mod structural_judgment {
                         .primitive_type_reference(shell.referee)
                         .is_some()
                 });
-                    let descriptor = stored.current.as_ref().is_some_and(|value| {
-                        super::super::super::structural_terms::descriptor_observation(
-                            self.program,
-                            value,
-                        )
-                        .is_some()
-                    });
-                    let observation = if shared_scalar || descriptor {
+                    let observation = if shared_scalar {
                         crate::completed_storage::StoredObservation::Binding
                     } else if inline {
                         crate::completed_storage::StoredObservation::InlineContents
                     } else {
                         crate::completed_storage::StoredObservation::Contents
-                    };
-                    self.current_value_observation_valid(stored, coordinate, at, observation)
-                }
-
-                pub(crate) fn current_value_observation_valid(
-                    &self,
-                    stored: &CapturedStorageValue,
-                    coordinate: &CapturedStorageCoordinate,
-                    at: StorageVersion,
-                    observation: crate::completed_storage::StoredObservation,
-                ) -> bool {
-                    let Some(graph) = self.storage_graph() else {
-                        return false;
                     };
                     if stored.current_anchors.is_empty() || stored.anchor_state != at.state {
                         return false;
@@ -73969,14 +73748,16 @@ pub(crate) mod structural_judgment {
                             StorageAnchor::Incoming => {
                                 !at.snapshot.is_valid()
                                     || matches!(
-                                        crate::completed_storage::sources_at_snapshot(
+                                        crate::completed_storage::at_snapshot(
                                             self.program,
                                             graph,
                                             at.snapshot,
                                             &prefix,
                                             observation,
                                         ),
-                                        Some(crate::completed_storage::StoredOperand::Incoming(_))
+                                        None | Some(
+                                            crate::completed_storage::StoredOperand::Incoming(_)
+                                        )
                                     )
                             }
                             StorageAnchor::After(cut) => {
@@ -74035,7 +73816,7 @@ pub(crate) mod structural_judgment {
                             .iter()
                             .any(|anchor| matches!(anchor, StorageAnchor::Incoming));
                     }
-                    let reaching = crate::completed_storage::sources_at_snapshot(
+                    let reaching = crate::completed_storage::at_snapshot(
                         self.program,
                         graph,
                         at.snapshot,
@@ -74071,7 +73852,9 @@ pub(crate) mod structural_judgment {
                     }
 
                     match reaching {
-            None => false,
+            None => reached(&crate::completed_storage::StoredOperand::Incoming(
+                place.clone(),
+            )),
             Some(crate::completed_storage::StoredOperand::Alternatives(alternatives)) => {
                 alternatives.iter().all(reached)
             }
@@ -76232,33 +76015,27 @@ pub(crate) mod structural_judgment {
                         else {
                             continue;
                         };
-                        if self.program.closed_data_definition(observed).is_some()
-                            && self
+                        if self.program.closed_data_definition(observed).is_none()
+                            || !self
                                 .frame_resolver()
                                 .is_some_and(|frames| frames.value_is_reference_free(observed))
                         {
-                            let Some(machine) = self.program.machine(self.machine_symbol) else {
-                                continue;
-                            };
-                            let Some(read) =
-                                self.entry_read_backing(machine, state, parameter.symbol, &[])
-                            else {
-                                continue;
-                            };
-                            backing = Some(self.freeze_entry_read_backing(state, read));
-                            value = super::super::structural_terms::owned_projection_observation(
-                                self.program,
-                                observed,
-                                value,
-                            );
-                        } else if self.program.primitive_type_reference(observed).is_none() {
-                            value = super::super::structural_terms::descriptor_only_observation(
-                                reference, value,
-                            );
-                        } else {
-                            // Primitive referents keep their existing scalar-read snapshot.
                             continue;
                         }
+                        let Some(machine) = self.program.machine(self.machine_symbol) else {
+                            continue;
+                        };
+                        let Some(read) =
+                            self.entry_read_backing(machine, state, parameter.symbol, &[])
+                        else {
+                            continue;
+                        };
+                        backing = Some(self.freeze_entry_read_backing(state, read));
+                        value = super::super::structural_terms::owned_projection_observation(
+                            self.program,
+                            observed,
+                            value,
+                        );
                     }
                     self.retain_storage_value(
                         CapturedStorageCoordinate {
@@ -76746,20 +76523,7 @@ pub(crate) mod structural_judgment {
                     .filter(|stored| valid(stored))
                     .and_then(|stored| stored.current.clone())
                 {
-                    return Some(
-                        match super::super::structural_terms::descriptor_observation(
-                            self.program,
-                            &value,
-                        ) {
-                            Some((reference, descriptor)) => {
-                                super::super::structural_terms::descriptor_only_observation(
-                                    reference,
-                                    descriptor.clone(),
-                                )
-                            }
-                            None => value,
-                        },
-                    );
+                    return Some(value);
                 }
                 self.stored_values.iter().find_map(|stored| {
                     if stored.coordinate.root != place.root
@@ -76767,12 +76531,6 @@ pub(crate) mod structural_judgment {
                         || !valid(stored)
                     {
                         return None;
-                    }
-                    if stored.current.as_ref().is_some_and(|value| {
-                        super::super::structural_terms::descriptor_observation(self.program, value)
-                            .is_some()
-                    }) {
-                        return self.current_storage_descriptor_at(place, at);
                     }
                     let root_reference =
                         crate::declaration_type_reference(self.program, place.root.as_symbol()?)?;
@@ -76843,84 +76601,6 @@ pub(crate) mod structural_judgment {
                 })
             }
 
-            pub(crate) fn current_storage_descriptor_at(
-                &self,
-                place: &CapturedStorageCoordinate,
-                at: Option<StorageVersion>,
-            ) -> Option<super::StructuralTerm> {
-                let at = at?;
-                self.storage_graph()?;
-                let canonical = Self::coordinate_place(place)?;
-                let root_type =
-                    crate::declaration_type_reference(self.program, place.root.as_symbol()?)?;
-                let selected = place
-                    .segments
-                    .iter()
-                    .try_fold(root_type, |reference, segment| {
-                        segment.projected_type(self.program, reference)
-                    })?;
-                crate::reference_shell(self.program, selected)?;
-                self.stored_values.iter().find_map(|stored| {
-                    let suffix = place
-                        .segments
-                        .strip_prefix(stored.coordinate.segments.as_slice())?;
-                    if stored.coordinate.root != place.root
-                        || !self.current_value_observation_valid(
-                            stored,
-                            place,
-                            at,
-                            crate::completed_storage::StoredObservation::Binding,
-                        )
-                    {
-                        return None;
-                    }
-                    let reference = stored
-                        .coordinate
-                        .segments
-                        .iter()
-                        .try_fold(root_type, |reference, segment| {
-                            segment.projected_type(self.program, reference)
-                        })?;
-                    let current = stored.current.as_ref()?;
-                    let value = match super::super::structural_terms::descriptor_observation(
-                        self.program,
-                        current,
-                    ) {
-                        Some((observed, descriptor)) => {
-                            // A pointer alone did not observe any of its pointee fields.
-                            if !suffix.is_empty() {
-                                return None;
-                            }
-                            crate::declared_carriers_match(self.program, reference, observed)
-                                .then_some(())?;
-                            descriptor.clone()
-                        }
-                        None => current.clone(),
-                    };
-                    let start = canonical.segments.len().checked_sub(suffix.len())?;
-                    let path = canonical.segments.get(start..)?;
-                    let projected =
-                        super::super::observed_projections::project_observed_value_in_scope(
-                            self.program,
-                            self,
-                            reference,
-                            value,
-                            path,
-                        )?;
-                    if matches!(&projected, super::StructuralTerm::ObservedValue {
-                        observed_type, descriptor: None, ..
-                    } if crate::reference_shell(self.program, *observed_type).is_some())
-                    {
-                        return None;
-                    }
-                    let descriptor = projected.into_collection_descriptor();
-                    descriptor.observation_identity_key()?;
-                    Some(super::super::structural_terms::descriptor_only_observation(
-                        selected, descriptor,
-                    ))
-                })
-            }
-
             pub(crate) fn intake_current_storage_fields(
                 &mut self,
                 machine: &Machine,
@@ -76981,7 +76661,7 @@ pub(crate) mod structural_judgment {
                 self.intake_storage_field_observations(&coordinate, reference, value, version);
             }
 
-            pub(crate) fn capture_reference_argument_fields(
+            pub(crate) fn capture_view_argument_fields(
                 &mut self,
                 subject: &crate::machine_calls::calls::InvocationEntrySubject,
                 actual: &super::StructuralTerm,
@@ -77012,86 +76692,23 @@ pub(crate) mod structural_judgment {
                 ) {
                     return Err("the logical view carrier differs from the arriving referee");
                 }
-                if version.state != state.symbol {
-                    return Err("the reference belongs to another storage state");
-                }
                 let coordinate = self
-                    .captured_reference_subject(subject, state)
-                    .or_else(|| {
-                        self.captured_storage_coordinate(Some((machine, state)), subject.argument)
-                    })
-                    .ok_or("the evaluated reference has no exact storage path")?;
+                    .captured_storage_coordinate(Some((machine, state)), subject.argument)
+                    .ok_or("the evaluated descriptor has no captured logical storage path")?;
+                let current = self
+                    .current_storage_value_at(&coordinate, Some(version))
+                    .ok_or("the descriptor has no current value at call entry")?;
+                let current_identity = current
+                    .into_collection_descriptor()
+                    .observation_identity_key()
+                    .ok_or("the current descriptor has no captured identity")?;
                 let actual_identity = actual
                     .clone()
                     .into_collection_descriptor()
                     .observation_identity_key()
                     .ok_or("the evaluated argument has no captured identity")?;
-                let current = self
-                    .current_storage_value_at(&coordinate, Some(version))
-                    .ok_or("the descriptor has no current observation at call entry")?;
-                let current_identity = current
-                    .into_collection_descriptor()
-                    .observation_identity_key()
-                    .ok_or("the current descriptor has no captured identity")?;
                 if current_identity != actual_identity {
                     return Err("the current descriptor differs from the evaluated argument");
-                }
-                if !subject.has_aggregate_view(self.program) {
-                    let frames = self
-                        .frame_resolver()
-                        .ok_or("the reference has no completed source owner")?;
-                    let sources = frames
-                        .completed_reference_read_sources(machine, state, subject.argument)
-                        .ok_or("the reference has no complete readable source capture")?;
-                    if sources.is_empty() || sources != subject.sources {
-                        return Err("the evaluated reference differs from its invocation sources");
-                    }
-                    let graph = self
-                        .storage_graph()
-                        .ok_or("the current storage graph is unavailable")?;
-                    let read = self
-                        .read_storage_version(state, subject.argument)
-                        .ok_or("the reference has no unique evaluated storage cut")?;
-                    for source in &sources {
-                        if !source.root.is_valid()
-                            || source.invocation_output.is_some()
-                            || source.invocation_result.is_some()
-                            || source.is_image_storage
-                            || !source.recasts.is_empty()
-                            || source.representation.is_some()
-                            || source.collection_coarse
-                        {
-                            return Err("the reference has no exact physical source");
-                        }
-                        let place = crate::CanonicalPlace {
-                            root: facts::PlaceRoot::Symbol(source.root),
-                            segments: source.segments.clone(),
-                        };
-                        let preserved = if read.snapshot == version.snapshot {
-                            true
-                        } else if !read.snapshot.is_valid() {
-                            matches!(crate::completed_storage::sources_at_snapshot(
-                                self.program, graph, version.snapshot, &place,
-                                crate::completed_storage::StoredObservation::Binding,
-                            ), Some(crate::completed_storage::StoredOperand::Incoming(source))
-                                if source == place)
-                        } else {
-                            version.snapshot.is_valid()
-                                && crate::completed_storage::contents_preserved_from(
-                                    self.program,
-                                    graph,
-                                    version.snapshot,
-                                    &place,
-                                    &[read.snapshot],
-                                    crate::completed_storage::StoredObservation::Binding,
-                                )
-                        };
-                        if !preserved {
-                            return Err(
-                                "the evaluated reference binding changed before call entry",
-                            );
-                        }
-                    }
                 }
                 self.capture_sequence += 1;
                 let value = super::StructuralTerm::CapturedValue {
@@ -77158,12 +76775,7 @@ pub(crate) mod structural_judgment {
                     else {
                         continue;
                     };
-                    let current = if crate::reference_shell(self.program, projected_type).is_some()
-                    {
-                        self.current_storage_descriptor_at(&child, version)
-                    } else {
-                        self.current_storage_value_at(&child, version)
-                    };
+                    let current = self.current_storage_value_at(&child, version);
                     let translated = view.and_then(|(subject, state)| {
                         self.current_view_field(subject, state, suffix, version)
                     });
@@ -83627,21 +83239,7 @@ pub(crate) mod structural_judgment {
             field_name: &str,
             depth: usize,
         ) -> Option<StructuralTerm> {
-            // A saved value's fields belong to that read. Keep its checked type
-            // while selecting a field; following an equality to its producer
-            // first can lose that field observation. Closed computation still
-            // evaluates the complete source before selecting a field.
-            let observed =
-                super::structural_terms::owned_observation_type(self.program, &receiver_term)
-                    .or_else(|| {
-                        super::structural_terms::shared_inline_observation_type(
-                            self.program,
-                            &receiver_term,
-                        )
-                    });
-            let value = if !self.require_closed_computation && observed.is_some() {
-                receiver_term
-            } else if self.runtime_body_values {
+            let value = if self.runtime_body_values {
                 self.completed_value_identity(receiver_term)
             } else {
                 self.resolve_at(receiver_term, depth + 1)
@@ -83653,14 +83251,20 @@ pub(crate) mod structural_judgment {
                 || super::structural_terms::shared_inline_observation_type(self.program, &value)
                     .is_some()
             {
-                // Keep the field's checked type and saved source occurrence.
-                // Membership comparisons resolve their own subjects; doing that
-                // here would move this read back to its producer's field.
-                return super::observed_projections::project_declared_field(
+                let projected = super::observed_projections::project_declared_field(
                     self.program,
                     self,
                     value,
                     field_name,
+                )?;
+                return Some(
+                    if super::structural_terms::owned_observation_type(self.program, &projected)
+                        .is_some()
+                    {
+                        self.completed_nominal_subject(&projected)
+                    } else {
+                        projected
+                    },
                 );
             }
             let projected = super::observed_projections::project_field(value, field_name)?;
@@ -88581,26 +88185,6 @@ pub(crate) mod structural_terms {
             }
         }
 
-        pub(crate) fn descriptor_observation<'value>(
-            program: &dyn crate::CheckingInput,
-            value: &'value StructuralTerm,
-        ) -> Option<(TypeReferenceHandle, &'value StructuralTerm)> {
-            let StructuralTerm::ObservedValue {
-                observed_type,
-                descriptor: Some(descriptor),
-                ..
-            } = value
-            else {
-                return None;
-            };
-            crate::reference_shell(program, *observed_type)?;
-            if !super::term_is_unobserved_descriptor(program, value) {
-                return None;
-            }
-            descriptor.observation_identity_key()?;
-            Some((*observed_type, descriptor))
-        }
-
         pub(crate) fn descriptor_only_observation(
             declared: TypeReferenceHandle,
             descriptor: StructuralTerm,
@@ -88650,8 +88234,8 @@ pub(crate) mod structural_terms {
         }
     }
     pub(crate) use collection_measures::{
-        collection_measure_term, completed_collection_measure, descriptor_observation,
-        descriptor_only_observation, observed_collection_measure, reference_argument_observation,
+        collection_measure_term, completed_collection_measure, descriptor_only_observation,
+        observed_collection_measure, reference_argument_observation,
     };
     pub(crate) mod constructors {
         use crate::frozen_program::expression_table;
