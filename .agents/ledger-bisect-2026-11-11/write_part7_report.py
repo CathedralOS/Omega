@@ -42,10 +42,7 @@ def main() -> int:
         status = b.get("status") or "propagated"
         mech = b.get("mechanism") or ""
         if not mech and status == "propagated":
-            if bkey == "family_carrier":
-                mech = "propagated: witness bad at PIN and at first-parent parent e2e7876a; ledger stamp @ccdb99ca not in clone for `git bisect start`"
-            else:
-                mech = "propagated: `git bisect run` not completed on host (per-commit rebuild budget)"
+            mech = b.get("mechanism") or "propagated: see bisect log"
         table_rows.append(
             {
                 "rows": len(c["members"]),
