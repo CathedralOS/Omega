@@ -71,11 +71,14 @@ pub(crate) fn check_product_source(
     for scope in &layout_scopes {
         selected.extend(scope.entry_declarations.iter().flatten().copied());
     }
+    // Psi 05 re-forms each representation choice from its named conformance,
+    // which may live in a dependency the program never names, so the
+    // conformance is a subject alongside the opaque type it represents.
     selected.extend(
         build
             .opaque_representation_selections
             .iter()
-            .map(|selection| selection.opaque()),
+            .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
     );
     demanded.extend(selected.iter().copied());
     // A dependency's provider-default machines run for every product that
