@@ -19,6 +19,14 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      full:
+        description: >-
+          Also run every Rust test in the workspace and the whole corpus, not
+          only the rows this batch reaches. Meant for after a large wave of
+          merges.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -72,8 +80,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     outputs:
-      skip: ${{ steps.plan.outputs.skip }}
-      shards: ${{ steps.plan.outputs.shards }}
+      # A full run checks every row, so it never skips and has its own shards.
+      skip: ${{ inputs.full && 'false' || steps.plan.outputs.skip }}
+      shards: ${{ inputs.full && steps.full.outputs.shards || steps.plan.outputs.shards }}
       needs_base: ${{ steps.plan.outputs.needs_base }}
       base: ${{ steps.batch.outputs.base }}
     steps:
@@ -122,6 +131,11 @@ jobs:
           mkdir -p build/corpus-gate
           mbx xtask corpus-gate plan --base "$BASE" --shards 8 --shard-secs 2200 --out build/corpus-gate/plan.json
           cp "$RUNNER_TEMP/batch.md" build/corpus-gate/batch.md
+      - name: Split the whole corpus for a full run
+        id: full
+        if: inputs.full
+        # The nightly sweep's split: whole-corpus shards of about half an hour.
+        run: echo "shards=$(python3 -c 'print(list(range(48)))')" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: post-merge-plan
@@ -135,12 +149,15 @@ jobs:
     needs: plan
     if: needs.plan.outputs.skip == 'false'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    # Every workspace test adds most of an hour to a full run.
+    timeout-minutes: ${{ inputs.full && 180 || 60 }}
     outputs:
       # 'true' once the runner the shards need is uploaded.
       runner: ${{ steps.runner-ready.outputs.built }}
       # 'true' once the base commit's runner is uploaded as well.
       base: ${{ steps.base-ready.outputs.built }}
+      # A full run's workspace tests: success, failure or skipped.
+      tests: ${{ steps.tests.outcome }}
     # The container, user and path of a cloud session and of the warm-build
     # job, so main's published build is reused and the runner built here runs
     # in the shards (tools/warm_build.sh).
@@ -195,7 +212,8 @@ jobs:
       # needs the base builds it itself.
       - name: Build the base commit's corpus runner
         id: base
-        if: needs.plan.outputs.skip == 'false' && needs.plan.outputs.needs_base == 'true'
+        # A full run judges no row against the base, so it needs no base runner.
+        if: needs.plan.outputs.skip == 'false' && needs.plan.outputs.needs_base == 'true' && !inputs.full
         continue-on-error: true
         run: |
           cd /home/user/Omega
@@ -216,6 +234,16 @@ jobs:
         id: base-ready
         if: steps.base-upload.outcome == 'success'
         run: echo "built=true" >> "$GITHUB_OUTPUT"
+      # Only a full run tests the whole workspace. It reports and does not
+      # stop the run, so the corpus is still checked; `report` turns it red.
+      - name: Run every Rust test in the workspace
+        id: tests
+        if: ${{ !cancelled() && inputs.full }}
+        continue-on-error: true
+        run: |
+          cd /home/user/Omega
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx test --locked --workspace --no-fail-fast < /dev/null
 
   shard:
     needs: [plan, build]
@@ -274,6 +302,7 @@ jobs:
             echo "BASE_RUNNER=--base-runner build/corpus-gate/runner-base" >> "$GITHUB_ENV"
           fi
       - name: Check this shard's rows against the ledger
+        if: ${{ !inputs.full }}
         run: |
           cd /home/user/Omega
           # The ledger the last run published; absent before the first
@@ -286,6 +315,16 @@ jobs:
             mbx xtask corpus-gate check --plan build/corpus-gate/plan.json --shard "${{ matrix.shard }}" \
             --out build/corpus-gate/runs \
             --runner build/corpus-gate/runner ${BASE_RUNNER:-} < /dev/null
+      # A full run measures every row of its share of the corpus and keeps
+      # the records; `ledger` compares them with the ledger and reports.
+      - name: Measure this shard's share of the whole corpus
+        if: inputs.full
+        run: |
+          cd /home/user/Omega
+          mkdir -p build/corpus-gate/runs
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx xtask corpus-gate sweep-shard --shard "${{ matrix.shard }}/48" \
+            --out build/corpus-gate/runs/records.txt --runner build/corpus-gate/runner < /dev/null
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -302,7 +341,7 @@ jobs:
   # the repository is left alone.
   ledger:
     needs: [plan, build, shard]
-    if: ${{ !cancelled() && github.event_name == 'push' && needs.plan.outputs.skip == 'false' && needs.build.outputs.runner == 'true' }}
+    if: ${{ !cancelled() && (github.event_name == 'push' || inputs.full) && needs.plan.outputs.skip == 'false' && needs.build.outputs.runner == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -314,6 +353,7 @@ jobs:
       LEDGER: tests/omega/corpus_outcomes.txt
     outputs:
       recorded: ${{ steps.record.outputs.changed }}
+      soundness: ${{ steps.record.outputs.soundness }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -355,6 +395,14 @@ jobs:
           fi
           mbx xtask corpus-gate sweep-report --records "$RUNNER_TEMP/records" \
             --body "$RUNNER_TEMP/ledger-body.md" --observed "$RUNNER_TEMP/observed.txt" < /dev/null
+      # The tables of rows that differ, for the report: a full run's shards
+      # measure without judging, so this is where its regressions are named.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: steps.record.outputs.changed != '' && steps.record.outputs.changed != '0'
+        with:
+          name: post-merge-ledger-body
+          path: ${{ runner.temp }}/ledger-body.md
+          retention-days: 7
       - name: Publish the ledger
         env:
           CHANGED: ${{ steps.record.outputs.changed }}
@@ -386,6 +434,11 @@ jobs:
         with:
           pattern: post-merge-shard-*
           path: artifacts
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: post-merge-ledger-body
+          path: artifacts/post-merge-ledger-body
       - name: Report what this batch did to main
         env:
           CHECKS: ${{ needs.post-merge-check.result }}
@@ -396,6 +449,9 @@ jobs:
           SHARDS: ${{ needs.shard.result }}
           LEDGER: ${{ needs.ledger.result }}
           RECORDED: ${{ needs.ledger.outputs.recorded }}
+          SOUNDNESS: ${{ needs.ledger.outputs.soundness }}
+          FULL: ${{ inputs.full }}
+          TESTS: ${{ needs.build.outputs.tests }}
         run: |
           red=0
           say() { echo "$1" | tee -a "$GITHUB_STEP_SUMMARY"; }
@@ -408,8 +464,29 @@ jobs:
           else
             bad "the \`post-merge-check\` job failed or did not finish ($CHECKS); its log names the step."
           fi
+          if [ "$FULL" = true ]; then
+            if [ "$TESTS" = success ]; then ok "Every Rust test in the workspace passes."; else bad "the workspace tests failed or did not run ($TESTS); the build job's log names them."; fi
+          fi
           if [ "$PLAN" != success ]; then
             bad "the plan job did not succeed ($PLAN); no corpus row was judged."
+          elif [ "$FULL" = true ]; then
+            # Whole-corpus shards measure without judging; the ledger job
+            # compares every row with the ledger.
+            if [ "$SHARDS" != success ]; then
+              bad "a whole-corpus shard failed or did not finish ($SHARDS); its rows were not measured."
+            fi
+            if [ -n "$SOUNDNESS" ] && [ "$SOUNDNESS" != 0 ]; then
+              bad "$SOUNDNESS must-reject program(s) are now accepted."
+            fi
+            body=$(ls artifacts/post-merge-ledger-body/ledger-body.md artifacts/post-merge-ledger-body/*/ledger-body.md 2>/dev/null | head -1)
+            if [ -n "$body" ]; then
+              say "Whole corpus measured; rows that differ from the ledger:"
+              say ""
+              cat "$body" >> "$GITHUB_STEP_SUMMARY"
+              echo >> "$GITHUB_STEP_SUMMARY"
+            elif [ "$LEDGER" = success ]; then
+              ok "Whole corpus measured; every row matches the ledger."
+            fi
           elif [ "$SKIP" = true ]; then
             ok "Nothing the corpus reads changed; no rows to check."
           elif [ "$BUILD" != success ] || [ "$RUNNER" != true ]; then
