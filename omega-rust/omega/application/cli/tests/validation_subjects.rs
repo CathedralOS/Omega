@@ -26,6 +26,9 @@ const APP_BUILD: &str = "machine build(builder: &mut Build) {
     dependency::with_alias(&mut vendor_dependency, \"vendor\");
     let vendor_registration: DependencyRegistration = Build::dependency(builder, vendor_dependency);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
 }
 ";
 const APP_MAIN: &str = "use vendor::main;
