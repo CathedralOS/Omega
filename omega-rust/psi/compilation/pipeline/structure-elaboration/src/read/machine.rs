@@ -27,27 +27,39 @@ use source::SourceSpan;
 type SymbolSet = std::collections::HashSet<SymbolHandle, symbols::BuildSymbolHasher>;
 
 impl<'t> Program<'t> {
-    /// Omission requests local inference; an authored clause remains complete
-    /// after normalization removes a literal `true`. Keep that distinction
-    /// from the declaration rather than guessing from an empty clause list.
+    /// A helper with no written input requirement can use what every caller
+    /// guarantees. A written `requires true` must still support every input.
+    /// Its declaration marker survives when normalization removes the literal
+    /// fact; an empty clause list alone cannot distinguish the two contracts.
     /// Every subject declaration is read; a callable used as a value or an
     /// unserved selection refuses the whole route. Only direct calls remain
     /// for those helpers. A reached dependency need not include every caller,
     /// so its helpers and static requirement implementations keep their envelope.
     pub(crate) fn private_input_contracts(&self, entry: MachineId) -> Checked<Vec<MachineId>> {
         let mut private = Vec::new();
-        for (id, symbol) in self.symbols.iter() {
-            if !self.subject_machines.contains(&id)
-                || id == entry
-                || self.fixed_inputs.contains(&id)
-                || self.requirements.contains(&id)
-                || self
-                    .selections
+        let mut fixed = self.symbols.map(|_, _| false);
+        for id in std::iter::once(&entry)
+            .chain(&self.fixed_inputs)
+            .chain(&self.requirements)
+            .chain(
+                self.selections
                     .iter()
-                    .any(|selection| selection.implementation == id)
-            {
+                    .map(|selection| &selection.implementation),
+            )
+        {
+            *fixed.get_mut(*id).ok_or_else(|| {
+                refuse(
+                    *id,
+                    Construct::Machine,
+                    Unserved::Machine("input boundary without a machine"),
+                )
+            })? = true;
+        }
+        for &id in &self.subject_machines {
+            if fixed.get(id) == Some(&true) {
                 continue;
             }
+            let symbol = terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
             let Some(machine) = self.typed.machine_by_symbol(*symbol) else {
                 continue;
             };
@@ -81,7 +93,7 @@ impl<'t> Program<'t> {
             targets.insert(state.symbol);
         }
         let mut outside = OutsideInputUses {
-            lowered: &self.symbols,
+            lowered: self.symbols.values().copied().collect(),
             targets,
             referenced: SymbolSet::default(),
         };
@@ -1212,13 +1224,13 @@ impl<'t> Program<'t> {
 
 /// References outside the machines whose complete bodies the route read.
 /// Text and source locations do not decide whether an entry can be invoked.
-struct OutsideInputUses<'a> {
-    lowered: &'a semantic_vocabulary::IdTable<MachineId, SymbolHandle>,
+struct OutsideInputUses {
+    lowered: SymbolSet,
     targets: SymbolSet,
     referenced: SymbolSet,
 }
 
-impl Extend<SymbolHandle> for OutsideInputUses<'_> {
+impl Extend<SymbolHandle> for OutsideInputUses {
     fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
         self.referenced.extend(
             symbols
@@ -1228,9 +1240,9 @@ impl Extend<SymbolHandle> for OutsideInputUses<'_> {
     }
 }
 
-impl typed_trees::references::TypedReferences for OutsideInputUses<'_> {
+impl typed_trees::references::TypedReferences for OutsideInputUses {
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
-        !self.lowered.values().any(|lowered| *lowered == symbol)
+        !self.lowered.contains(&symbol)
     }
 }
 
