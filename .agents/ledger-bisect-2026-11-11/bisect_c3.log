@@ -1,0 +1,404 @@
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 160 revisions left to test after this (roughly 7 steps)
+[86817cb8708859c550ef26443a4b5578a8081497] repo: build the x86-64 compiler for x86-64-v3 CPUs to cut 4.6% of its work (#2009)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 80 revisions left to test after this (roughly 6 steps)
+[2098a4a861f6cdc63eac0e191a210791c9aa4f1e] psi: keep one crash summary on each constant entry (#1910)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 39 revisions left to test after this (roughly 5 steps)
+[44cdb3fa113839e691e9f7f2cd98761729a3de4a] psi: keep source call applications on retained requirements (#1871)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 39 revisions left to test after this (roughly 5 steps)
+[2ac4d385427f92cf0c777f9af600753cf1dbb566] repo: consolidate TASKS.md to 202 lines and ratchet byte size (#1890)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 39 revisions left to test after this (roughly 5 steps)
+[86a47e1e3976a28a5692616fcfaf2bfde87ff344] tests: check target providers for every finite family row (#1869)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 39 revisions left to test after this (roughly 5 steps)
+[6618a8c606d6436ca0fc58c5d821166869cb648a] psi: let layout queries reach scalar range checking (#1851)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 11 revisions left to test after this (roughly 4 steps)
+[b48fe3595a1c876e770b095fb4b689350c90587f] psi: let table validators inspect explicitly laid-out values (#1837)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 3 steps)
+[80fe7fad35e57cdbeaac248aba35dbaa768b3a87] packages: keep component approval with the consumer (#1829)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 3 steps)
+[83e3d72bad8bd79a17111831811aaf3b975af8ab] tests: carry selected owned-field reads through nine places (#1827)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[5dbe86d816b8a1f55c9c079b0b345f572802bfa4] psi: check calls that cannot change stored references (#1826)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[0a85200733ef1f32849c682936c53c22fdff3226] psi: check reach rule on termination promises and spell helper rankings (#1825)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+0a85200733ef1f32849c682936c53c22fdff3226 is the first bad commit
+commit 0a85200733ef1f32849c682936c53c22fdff3226
+Author: Jarod Castillo <43973221+Smotto@users.noreply.github.com>
+Date:   Wed Nov 4 16:24:51 2026 +0000
+
+    psi: check reach rule on termination promises and spell helper rankings (#1825)
+    
+    * psi: accept field rank subjects on recursive machines
+    
+    A recursive machine whose `terminates by` names a field of its record
+    parameter was refused even when the field visibly counted down:
+    
+        machine iterate(pending: Pair) -> u32
+        terminates by pending.left in 0..=5 {
+            transition pending.left > 0 {
+                true -> iterate(Pair { left: pending.left - 1, right: pending.right })
+                false -> pending.left
+            }
+        }
+    
+    The checker reported "cannot prove rank range `0..=5`" (or, without the
+    range, "cannot prove the `terminates by` ranking"). It now accepts this
+    helper, nested or top-level, with the range bound taken from the data
+    domain `Pair requires left <= 5`. A call that passes `left: pending.left`
+    unchanged is still refused, now with the precise "cannot prove strict rank
+    decrease on a recurrent arrival" diagnostic.
+    
+    Two steps failed. First, the arrival check could not read the new value
+    of `pending.left` from the argument `Pair { ... }`. Building an owned
+    record publishes a fresh value, so that later checks never re-derive the
+    record's validity from equal fields. The completed-value observer
+    projected fields from that fresh value, found no constructor, and returned
+    no source for `left`. It now first recovers the constructor this exact
+    occurrence evaluated (the judge's completed nominal receipt) and projects
+    the field from it. Validity still stays on the fresh value; only the field
+    description uses the receipt.
+    
+    Second, the call-cycle judgment rejected the accepted body with "a member
+    lacks a supported exact ranking witness". Source lowering elaborates the
+    default order of a plain `terminates by value` only for a bare formal, so
+    a projected subject keeps a pending view. The checker already infers
+    descending naturals from an unsigned carrier; the component judgment now
+    reads the same default for a projected subject with an unsigned integer
+    carrier.
+    
+    Validation: the new positive
+    tests/omega/pass/termination/nested_helper_field_rank_subject_exit checks
+    and runs with native and Terminal Psi exit 0 (`omega run --both`); its
+    twin tests/omega/fail/termination/nested_helper_field_rank_subject_not_decreasing
+    rejects with the strict-decrease diagnostic. The corpus gate over
+    termination/rank_arrival, termination/rank_range and the two new fixtures
+    (33 fixtures) moved only the two new rows; rank_range_state_call timed out
+    under load, and takes 2m36s with both the base and the candidate binary
+    alone. The 219 fixtures whose witness names a projected subject gave the
+    same check outcome with base and candidate binaries except the new
+    positive, and the 30 rank_arrival/rank_range fixtures gave identical
+    diagnostics.
+    
+    * psi: bind the field rank witness on all hosted targets and record the frontier
+    
+    The new nested-helper field-rank positive now binds its entry for all
+    four hosted targets. The termination board names the remaining ladder:
+    component ranking still lacks captured-copy, formal/result-equation,
+    opaque-child, range and stored-reference rank subjects, and the reach
+    rule that rejects promises reaching unranked recursion lands after them.
+    
+    * psi: recover nested owned constructions behind field rank arrivals
+    
+    A recursive helper ranked by a nested field (terminates by
+    pending.held.remaining) was refused with "cannot prove rank range", because
+    the arrival built Bundle { held: Countdown { .. } } and each owned
+    construction publishes its own fresh value. Rung 1 recovered only the outer
+    constructor, so the projection found no constructor under held.
+    
+    Recover the evaluated constructor at every owned child on the path, each by
+    its own capture identity. Work in progress: witnesses and validation follow.
+    
+    * psi: pin the nested field rank witness and its non-decreasing twin
+    
+    * psi: record the nested field rank rows and narrow the termination frontier
+    
+    * psi: prove record measure rank arrivals on single-member components
+    
+    A machine that ranked itself with a declared measure over a record, and
+    recursed through a freshly built record, was refused with "cannot prove
+    rank range". For example `walk(countdown: Countdown)` ranked by
+    `countdown -> Countdown::Remaining in 0..=5` and calling
+    `walk(Countdown { remaining: countdown.remaining - 1 })` was rejected,
+    although the measure plainly drops by one on every call. The same
+    refusal hit nested helpers ranked by `pending.held -> Countdown::Remaining`.
+    These programs now check, and a call that rebuilds the record without
+    lowering the measure is still rejected as not decreasing.
+    
+    A component with one authored member is judged by the relational edge
+    proof, which works over integer polynomials: the source rank is an
+    expression over the entry formals, and the arriving rank substitutes
+    each formal with the call's actual. When declared measures moved to a
+    declaration application with typed record inputs (#1113), that proof
+    was not ported. It still tried to normalize the record subject as an
+    integer, which has no meaning, so every recursive edge failed before
+    range or descent was even considered.
+    
+    The edge proof now applies the declaration to records directly
+    (`ranking_range/record_ranks.rs`). Each declared read of the measure
+    names an exact field coordinate of the subject. Those coordinates join
+    the edge's field set, so the guard `countdown.remaining > 0`, the data
+    invariant `remaining <= 5` and the arrival substitution all read the
+    same atoms the application consumes. The source rank applies the
+    measure to those reads and the formal's entry snapshot. The arriving
+    rank applies it again to the record this call builds: each read is the
+    completed scalar of that call's own argument, and the whole-value
+    snapshot is captured at that call's argument cut. The source snapshot
+    never stands in for the arrival, so an equal constructor elsewhere
+    supplies nothing. Range membership at both ends and strict decrease are
+    then proved from the two formed applications. Reads that pass through a
+    nested call inside the measure body are still refused on this path.
+    
+    Witnesses:
+    - pass/termination/measure_field_rank_range checks again (base:
+      "cannot prove rank range `0..=5`").
+    - New pass/termination/nested_helper_record_measure_rank_exit: a nested
+      helper ranked by `pending.held -> Countdown::Remaining`; `omega run
+      --both` gives native exit 0 and interpreter exit 0 (base: rejected
+      with the same rank-range refusal).
+    - New fail/termination/nested_helper_record_measure_rank_not_decreasing:
+      the same program passing `remaining: pending.held.remaining` rejects
+      with "cannot prove strict rank decrease on a recurrent arrival".
+    
+    Validation: corpus gate on 186 fixtures (every fixture whose ranked
+    measure takes a record formal, excluding pass rows already checked;
+    the rank_arrival/rank_range fixtures that use such a measure; the new
+    rows). 14 pass fixtures moved from rejected to checked; the remaining
+    moves (29 joint-rank fail fixtures missing their fragment, 3 fail
+    fixtures accepting, one package-hash diagnostic) reproduce identically
+    with the base compiler (b3af558aea) run alone. validation and
+    typed-trees-to-checked-trees tests pass (130), clippy -D warnings and
+    rustfmt are clean.
+    
+    * psi: narrow the termination frontier after record measure arrivals
+    
+    * psi: record the record measure rank rows
+    
+    * psi: prove record measure arrivals through completed result equations
+    
+    A nested helper ranked by a declared measure over a record was refused
+    with "cannot prove rank range" when its recursive call passed the record
+    through another call, even when that callee promised to keep the ranked
+    field. In the new fixture, `iterate(held: Countdown, ..)` is ranked by
+    `held -> Countdown::Remaining in 0..=5` and recurses with
+    `identity(Countdown { remaining: held.remaining - 1 })`, where `identity`
+    declares `ensures result.remaining == value.remaining`. The measure
+    plainly drops by one, and the program now checks and runs. Removing the
+    `ensures`, or passing `remaining: held.remaining`, is still rejected.
+    
+    The record-measure edge proof forms the arriving rank by reading each
+    declared field of the record the call passes. For a call result, that
+    read asks the completed value of `identity(..)` for its `remaining`
+    field. The call's completed value is its description (`identity`
+    applied to its captured argument), and the callee's public equation is
+    recorded about the call's captured result instead. Nothing connected the
+    two, so the field had no value and the arrival failed to form.
+    
+    The structural judge already records a completed-call identity linking
+    each captured result to its description. The field read now follows
+    that identity back to its single captured occurrence, applies only the
+    callee's public result equations to the projected field (the existing
+    `completed_integer_call_description` view, which excludes call
+    identities and never reads a body), and then reads the named actual
+    through that occurrence's construction receipt. Here that gives
+    `held.remaining - 1`. A field the contract does not mention, an
+    ambiguous description shared by distinct captures, or a body without a
+    contract supplies no read, and the edge still fails closed. Only the
+    ranking consumers of completed-value observations use this read.
+    
+    Witnesses:
+    - New pass/termination/nested_helper_record_measure_result_equation_exit:
+      `omega run --both` gives native exit 0 and interpreter exit 0 (before:
+      "cannot prove rank range `0..=5` for the rank produced by the selected
+      view").
+    - New fail/termination/nested_helper_record_measure_result_equation_missing
+      (no `ensures`) rejects with that same rank-range refusal: without the
+      public equation the returned field has no value, so the arriving rank
+      cannot be formed.
+    - New fail/termination/nested_helper_record_measure_result_equation_not_decreasing
+      rejects with "cannot prove strict rank decrease on a recurrent
+      arrival" (before: the rank-range refusal).
+    - fail/termination/rank_arrival_missing_public_result_field_equation and
+      rank_arrival_public_result_wrong_subject are unchanged: their helpers
+      are unranked and still check.
+    
+    Validation: corpus gate on 147 fixtures (every corpus fixture with a
+    ranked machine and a record-returning callee with a `result.field`
+    contract, the two rank_arrival controls and the new rows). Apart from
+    the new rows, all 51 structural moves reproduce identically with the
+    pre-change compiler run alone, and the one slowdown measures the same
+    with both. validation and typed-trees-to-checked-trees tests pass (130);
+    clippy -D warnings, rustfmt and check_rules are clean.
+    
+    * psi: pin a result equation that names the wrong subject on a ranked helper
+    
+    * psi: record the result equation rank rows
+    
+    * psi: check reach rule on termination promises and spell helper rankings
+    
+    * psi: admit recursive inductive values as reference free and bound projected measures
+    
+    * tests: record outcomes for termination reach rule migration
+    
+    ---------
+    
+    Co-authored-by: Claude <noreply@anthropic.com>
+
+ TASKS.md                                           |  16 +-
+ .../src/checks/termination.rs                      |  29 +++
+ .../machine_calls/call_cycles/rank_components.rs   |  38 ++++
+ .../calls/write_frames/type_capabilities.rs        |   5 +-
+ .../call_result/invalid/main.omg                   |   2 +
+ .../call_result/main.omg                           |   2 +
+ .../const_name/invalid/main.omg                    |   2 +
+ .../const_name/main.omg                            |   2 +
+ .../field/invalid/main.omg                         |   2 +
+ .../loop_branch_relaxation_ranking/field/main.omg  |   2 +
+ .../local/invalid/main.omg                         |   2 +
+ .../loop_branch_relaxation_ranking/local/main.omg  |   2 +
+ .../facts/loop_branch_relaxation_ranking/main.omg  |   2 +
+ .../match_join/invalid/main.omg                    |   2 +
+ .../match_join/main.omg                            |   2 +
+ .../other_machine/invalid/main.omg                 |   2 +
+ .../other_machine/main.omg                         |   2 +
+ .../other_state/invalid/main.omg                   |   2 +
+ .../other_state/main.omg                           |   2 +
+ .../parameter/invalid/main.omg                     |   2 +
+ .../parameter/main.omg                             |   2 +
+ .../target_body/invalid/main.omg                   |   2 +
+ .../target_body/main.omg                           |   2 +
+ .../call_result/invalid/main.omg                   |   1 +
+ .../call_result/main.omg                           |   1 +
+ .../const_name/invalid/main.omg                    |   1 +
+ .../const_name/main.omg                            |   1 +
+ .../field/invalid/main.omg                         |   1 +
+ .../state_transition_ranking_bound/field/main.omg  |   1 +
+ .../local/invalid/main.omg                         |   1 +
+ .../state_transition_ranking_bound/local/main.omg  |   1 +
+ .../facts/state_transition_ranking_bound/main.omg  |   1 +
+ .../match_join/invalid/main.omg                    |   1 +
+ .../match_join/main.omg                            |   1 +
+ .../other_machine/invalid/main.omg                 |   1 +
+ .../other_machine/main.omg                         |   1 +
+ .../other_state/invalid/main.omg                   |   1 +
+ .../other_state/main.omg                           |   1 +
+ .../parameter/invalid/main.omg                     |   1 +
+ .../parameter/main.omg                             |   1 +
+ .../target_body/invalid/main.omg                   |   1 +
+ .../target_body/main.omg                           |   1 +
+ samples/cli/systems/round_robin_jobs/main.omg      |   2 +
+ source/library/std/posix_filesystem_adapter.omg    |   5 +-
+ tests/omega/corpus_outcomes.txt                    | 251 ++++++++++++---------
+ .../expected.txt                                   |   2 +-
+ .../main.omg                                       |   2 +-
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../endpoint_folded_into_payload/expected.txt      |   2 +-
+ .../endpoint_folded_into_payload/main.omg          |   4 +-
+ .../main.omg                                       |   4 +-
+ .../main.omg                                       |   4 +-
+ .../main.omg                                       |   4 +-
+ .../main.omg                                       |   4 +-
+ .../main.omg                                       |   4 +-
+ .../expected.txt                                   |   2 +-
+ .../main.omg                                       |   4 +-
+ .../rank_arrival_unrelated_field_step/main.omg     |   4 +-
+ .../rank_range_declared_step_unbounded/main.omg    |   1 +
+ .../expected.txt                                   |   2 +-
+ .../rank_range_record_stepped_copy_stale/main.omg  |   2 +
+ .../main.omg                                       |   1 +
+ .../ranked_assignment_call_prefix_write/main.omg   |   1 +
+ .../ranked_index_call_prefix_write/main.omg        |   1 +
+ .../rankless_boundary_progress_unpromised/main.omg |   4 +-
+ .../termination/rankless_callback_suffix/main.omg  |   4 +-
+ .../expected.txt                                   |   3 +-
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   1 +
+ .../stored_reference_endpoint_reseat/main.omg      |   1 +
+ .../subordinate_state_cycle_weak_edge/expected.txt |   2 +-
+ .../main.omg                                       |   4 +-
+ .../value_call_element_view_arg_compile/main.omg   |   4 +-
+ .../main.omg                                       |   5 +-
+ .../main.omg                                       |   1 +
+ .../pass/data/record_snapshot_finish/main.omg      |   1 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../pass/machines/computed_arrival_state/main.omg  |   1 +
+ .../pass/machines/fresh_literal_arrival/main.omg   |   1 +
+ .../cathedral/interrupt_table.omg                  |   5 +-
+ .../cathedral/interrupt_validation.omg             |  32 ++-
+ .../proofs/quotient_symbolic_endpoint/main.omg     |   1 +
+ .../pass/proofs/stride_pair_telescope/main.omg     |   1 +
+ .../pass/slices/projected_slice_length/main.omg    |   4 +-
+ .../auxiliary_payload_computed_arrival/main.omg    |   1 +
+ .../termination/borrowed_carrier_rank/main.omg     |   4 +-
+ .../computed_measure_projected_subject/main.omg    |   3 +
+ .../termination/computed_rank_endpoint/main.omg    |   1 +
+ .../measure_field_computed_arrival/main.omg        |   1 +
+ .../measure_field_fresh_arrival/main.omg           |   1 +
+ .../measure_field_named_arrival/main.omg           |   1 +
+ .../termination/measure_param_endpoint/main.omg    |   1 +
+ .../termination/measure_projected_rank/main.omg    |   3 +
+ .../named_computed_rank_endpoints/main.omg         |   1 +
+ .../pass/termination/nested_leaf_rank/main.omg     |   4 +-
+ .../termination/projected_subject_measure/main.omg |   3 +
+ .../main.omg                                       |   4 +-
+ .../rank_arrival_fresh_nested_owner/main.omg       |   4 +-
+ .../rank_arrival_same_carrier_fields_exit/main.omg |   4 +-
+ .../main.omg                                       |   4 +-
+ .../rank_range_declared_step_copies/main.omg       |   1 +
+ .../main.omg                                       |   4 +-
+ .../rank_range_nested_slice_length/main.omg        |   4 +-
+ .../rank_range_projected_slice_length/main.omg     |   4 +-
+ .../rank_range_record_snapshot_compile/main.omg    |   1 +
+ .../termination/rank_range_state_cycle/main.omg    |   2 +
+ .../rankless_boundary_slice_suffix/main.omg        |   5 +-
+ .../main.omg                                       |   3 +
+ .../main.omg                                       |   4 +-
+ .../main.omg                                       |   4 +-
+ .../main.omg                                       |   4 +-
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   1 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   2 +
+ .../main.omg                                       |   1 +
+ .../runtime_zero_local_rank_prefix_exit/main.omg   |   1 +
+ .../slice_rank_unrelated_float_operator/main.omg   |   5 +-
+ .../pass/termination/state_cycle_record/main.omg   |   2 +
+ .../stored_reference_endpoint_arrivals/main.omg    |   1 +
+ .../symbolic_quotient_endpoints/main.omg           |   1 +
+ 156 files changed, 499 insertions(+), 177 deletions(-)
+bisect found first bad commit

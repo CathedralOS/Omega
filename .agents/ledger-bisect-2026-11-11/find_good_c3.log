@@ -1,0 +1,32 @@
+{
+  "witness": "pass/termination/runtime_named_state_remainder_endpoint_exit",
+  "expected_status": "checked",
+  "pin_broken_status": "rejected",
+  "pin_first_diagnostic": "terminating machine walk reaches recursive component `iterate`, which has no `terminates by` ranking -- spell one on that component",
+  "pin_diag_norm": "terminating machine walk reaches recursive component `_`, which has no `_` ranking -- spell one on that component"
+}
+FLOOR=41edc8a5b419f5f373f16374230cbd69dc4d91b9 span=13311
+PIN[51e8c45c7930] exit=125
+exp[1] e2e7876a03e4 exit=125
+exp[2] dfece9ee0666 exit=125
+exp[4] 182a33b423f5 exit=125
+exp[8] a24aae8c0d70 exit=125
+exp[16] 4561f923e688 exit=125
+exp[32] 3bbe5c131a15 exit=125
+exp[64] d14bba6d178e exit=125
+exp[128] 7b3a04c7c505 exit=125
+exp[256] ca85a279ff09 exit=1
+exp[512] c417f61c95ba exit=1
+exp[1024] a48219f5cf97 exit=0
+bin[768] 13856e94bb55 exit=0
+bin[640] 83e3d72bad8b exit=1
+bin[704] bfcc2b3bb795 exit=0
+bin[672] 64183c84cb09 exit=0
+bin[656] c15929193d39 exit=0
+bin[648] d31209ea0d20 exit=0
+bin[644] 0a85200733ef exit=1
+bin[646] 360a7d48582f exit=0
+bin[645] 6f4ad2d1e228 exit=0
+Your branch is ahead of 'origin/work/ledger-bisect-part-22' by 2 commits.
+  (use "git push" to publish your local commits)
+GOOD=6f4ad2d1e228899c7cd4a54b80a6f591764c0794
