@@ -44,14 +44,14 @@ MEMBER_RECORDS = [
      "501d12efffe9eff3097b4fac79ca9398d8a576aca13d4b3176a6f34515a68313"),
     ("alpha_tape.epsilon", 30832,
      "26e943b2386e1f27761951af92d163cdaa54f32bdd990aa4694b91f10cb095a3"),
-    ("scalar_compilation.epsilon", 209289,
-     "aff3759f311fecba6c0086ddd84b5d9f5b21085e66d38f429ee3cbb989688eb4"),
+    ("scalar_compilation.epsilon", 224197,
+     "f6613fba07f18982bb5aa7f88912cc7ee482892591ad49f7fc6d14cba4e736a0"),
     ("outcome.epsilon", 13989,
      "a36fabd20ccecd3c15ba8dc10044567a11c0f60e92661277c11728121be65a4e"),
 ]
 
-PACKED_RECORD = (749173,
-                 "4b94fda7d672b3b27173077cdf57075824c0ecc6c56275338936a9c65b39a896")
+PACKED_RECORD = (764081,
+                 "2d7602e4e1e63822be65b950ccb4170c9dfddcc6de8344f9ab0729209133a681")
 
 CUSTOMER_RECORDS = {
     "omega_lexical": (1486,
@@ -212,8 +212,8 @@ def customers():
         packed + composition_main,
         omega_source,
         bytes.fromhex((dcomp / "expected.hex").read_text(encoding="ascii")),
-        [("scalar_compilation: invalid byte at packed 525895",
-          byte_at(525895, 0x01)),
+        [("scalar_compilation: invalid byte at packed 526101",
+          byte_at(526101, 0x01)),
          ("representations: invalid byte at packed 800",
           byte_at(800, 0x01))]))
     cases.append(Customer(
@@ -222,7 +222,7 @@ def customers():
         packed + check_only_main,
         b"", b"\x00\x00\x00\x00\x00",
         [("parser: invalid byte at packed 107737", byte_at(107737, 0x01)),
-         ("outcome: invalid byte at packed 736581", byte_at(736581, 0x01))]))
+         ("outcome: invalid byte at packed 751489", byte_at(751489, 0x01))]))
     # Preserve the six original composition subjects as well as their members.
     packed_records = (
         (39888, "56127cc03754d69f267146357644a00e01479fbc478c96b2ad5e23c25d7b433a"),

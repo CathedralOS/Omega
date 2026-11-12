@@ -1,0 +1,138 @@
+// Actual UTF-8 decoder plus checked unsigned arithmetic and loan controls.
+// Input starts with a validation batch selector. Batch zero compiles the exact
+// SourceUnit/decoder declarations followed by utf8_controls.omg. Other batches
+// retain generic arithmetic, loan and refusal/reset controls.
+boundary trait Console {
+    machine exit_process(return_code: i32) -> never;
+    machine write_byte(value: i32);
+    machine read_byte() -> i32;
+    machine write_line(text: &[u8]);
+}
+data Main { console: Console; compiler: OmegaScalarCompiler; source: [u8; 65536]; length: i32; selection: i32; }
+machine Main::main(&mut self) {
+    self.selection=self.console.read_byte();
+    self.length=0;
+    transition true {true->read()}
+    state read() {
+        let value:i32=self.console.read_byte();
+        transition value == -1 {true->run() _->append(value)}
+    }
+    state append(value:i32) {
+        assert self.length < 65536;
+        self.source[self.length]=value;
+        self.length=self.length+1;
+        transition true {true->read()}
+    }
+    state run() {
+        transition self.selection {
+            0 -> batch_0()
+            1 -> batch_1()
+            2 -> batch_2()
+            3 -> batch_3()
+            _ -> self.console.exit_process(99)
+        }
+    }
+    state batch_0() {
+        self.positive(self.source.as_slice[0..self.length],42,10);
+    }
+    state batch_1() {
+        // u32-boundaries; expected normal completion.
+        self.positive("machine add(value:u32 in Trapping)->u32 in Trapping {value+1} machine sub(value:u32 in Trapping)->u32 in Trapping {value-1} machine mul(value:u32 in Trapping)->u32 in Trapping {value*65535} machine main()->u8 {let a:u32 in Trapping=add(4294967294 as +Trapping);let b:u32 in Trapping=sub(1 as +Trapping);let c:u32 in Trapping=mul(65535 as +Trapping);transition a==4294967295 && b==0 && c==4294836225 {true->yes() _->no()} machine yes()->u8{42} machine no()->u8{1}}",42,20);
+        // u32-add-overflow; Alpha must Trap, not return normally.
+        self.positive("machine operation(value:u32 in Trapping)->u32 in Trapping {value+1} machine main()->u8 {let result:u32 in Trapping=operation(4294967295 as +Trapping);42}",0,21);
+        // u32-sub-underflow; Alpha must Trap, not return normally.
+        self.positive("machine operation(value:u32 in Trapping)->u32 in Trapping {value-1} machine main()->u8 {let result:u32 in Trapping=operation(0 as +Trapping);42}",0,22);
+        // u32-mul-overflow; Alpha must Trap, not return normally.
+        self.positive("machine operation(value:u32 in Trapping)->u32 in Trapping {value*2} machine main()->u8 {let result:u32 in Trapping=operation(4294967295 as +Trapping);42}",0,23);
+        // capture-order; expected normal completion.
+        self.positive("data Cell [copy] {value:u32 in Trapping;} machine change(cell:&mut Cell)->u32 in Trapping {cell.value=9 as +Trapping;cell.value} machine main()->u8 {let mut cell:Cell=Cell{value:7 as +Trapping};let result:u32 in Trapping=cell.value+change(&mut cell);transition result==16 && cell.value==9 {true->yes() _->no()} machine yes()->u8{42} machine no()->u8{1}}",42,24);
+        // short-circuit; expected normal completion.
+        self.positive("machine overflow()->bool {let value:u32 in Trapping=4294967295 as +Trapping;let sum:u32 in Trapping=value+1;sum==0} machine main()->u8 {transition false && overflow() {true->no() _->yes()} machine yes()->u8{42} machine no()->u8{1}}",42,25);
+        // plain-peer; expected normal completion.
+        self.positive("machine operation(value:u32 in Trapping,plain:u32)->u32 in Trapping {plain+value} machine main()->u8 {let result:u32 in Trapping=operation(40 as +Trapping,2);transition result==42 {true->yes() _->no()} machine yes()->u8{42} machine no()->u8{1}}",42,26);
+    }
+    state batch_2() {
+        // u64-boundaries; expected normal completion.
+        self.positive("machine twice(value:u64 in Trapping)->u64 in Trapping {value+value} machine maximum()->u64 in Trapping {let x0:u64 in Trapping=4294967295 as +Trapping;let x1:u64 in Trapping=twice(x0);let x2:u64 in Trapping=twice(x1);let x3:u64 in Trapping=twice(x2);let x4:u64 in Trapping=twice(x3);let x5:u64 in Trapping=twice(x4);let x6:u64 in Trapping=twice(x5);let x7:u64 in Trapping=twice(x6);let x8:u64 in Trapping=twice(x7);let x9:u64 in Trapping=twice(x8);let x10:u64 in Trapping=twice(x9);let x11:u64 in Trapping=twice(x10);let x12:u64 in Trapping=twice(x11);let x13:u64 in Trapping=twice(x12);let x14:u64 in Trapping=twice(x13);let x15:u64 in Trapping=twice(x14);let x16:u64 in Trapping=twice(x15);let x17:u64 in Trapping=twice(x16);let x18:u64 in Trapping=twice(x17);let x19:u64 in Trapping=twice(x18);let x20:u64 in Trapping=twice(x19);let x21:u64 in Trapping=twice(x20);let x22:u64 in Trapping=twice(x21);let x23:u64 in Trapping=twice(x22);let x24:u64 in Trapping=twice(x23);let x25:u64 in Trapping=twice(x24);let x26:u64 in Trapping=twice(x25);let x27:u64 in Trapping=twice(x26);let x28:u64 in Trapping=twice(x27);let x29:u64 in Trapping=twice(x28);let x30:u64 in Trapping=twice(x29);let x31:u64 in Trapping=twice(x30);let x32:u64 in Trapping=twice(x31);x32+4294967295} machine main()->u8 {let high:u64 in Trapping=maximum();let zero:u64 in Trapping=high-high;let one:u64 in Trapping=high-(high-1);transition zero==0 && one==1 {true->yes() _->no()} machine yes()->u8{42} machine no()->u8{1}}",42,27);
+        // u64-add-overflow; Alpha must Trap, not return normally.
+        self.positive("machine twice(value:u64 in Trapping)->u64 in Trapping {value+value} machine maximum()->u64 in Trapping {let x0:u64 in Trapping=4294967295 as +Trapping;let x1:u64 in Trapping=twice(x0);let x2:u64 in Trapping=twice(x1);let x3:u64 in Trapping=twice(x2);let x4:u64 in Trapping=twice(x3);let x5:u64 in Trapping=twice(x4);let x6:u64 in Trapping=twice(x5);let x7:u64 in Trapping=twice(x6);let x8:u64 in Trapping=twice(x7);let x9:u64 in Trapping=twice(x8);let x10:u64 in Trapping=twice(x9);let x11:u64 in Trapping=twice(x10);let x12:u64 in Trapping=twice(x11);let x13:u64 in Trapping=twice(x12);let x14:u64 in Trapping=twice(x13);let x15:u64 in Trapping=twice(x14);let x16:u64 in Trapping=twice(x15);let x17:u64 in Trapping=twice(x16);let x18:u64 in Trapping=twice(x17);let x19:u64 in Trapping=twice(x18);let x20:u64 in Trapping=twice(x19);let x21:u64 in Trapping=twice(x20);let x22:u64 in Trapping=twice(x21);let x23:u64 in Trapping=twice(x22);let x24:u64 in Trapping=twice(x23);let x25:u64 in Trapping=twice(x24);let x26:u64 in Trapping=twice(x25);let x27:u64 in Trapping=twice(x26);let x28:u64 in Trapping=twice(x27);let x29:u64 in Trapping=twice(x28);let x30:u64 in Trapping=twice(x29);let x31:u64 in Trapping=twice(x30);let x32:u64 in Trapping=twice(x31);x32+4294967295} machine main()->u8 {let high:u64 in Trapping=maximum();let overflow:u64 in Trapping=high+1;42}",0,28);
+        // u64-sub-underflow; Alpha must Trap, not return normally.
+        self.positive("machine operation(value:u64 in Trapping)->u64 in Trapping {value-1} machine main()->u8 {let result:u64 in Trapping=operation(0 as +Trapping);42}",0,29);
+    }
+    state batch_3() {
+        // ordinary-forward; expected normal completion.
+        self.positive("data Cell [copy] {value:u8;} machine read(cell:&Cell)->u8 {cell.value} machine forward(cell:&Cell)->u8 {read(cell)} machine main()->u8 {let cell:Cell=Cell{value:42};forward(&cell)}",42,30);
+        // carrier mismatch.
+        self.refusal("machine bad(a:u32 in Trapping,b:u64)->u32 in Trapping {a+b} machine main()->u8{0}",1,50);
+        // implicit domain removal.
+        self.refusal("machine bad(a:u32 in Trapping)->u32 {a+1} machine main()->u8{0}",1,51);
+        // unsupported wide multiply.
+        self.refusal("machine bad(a:u64 in Trapping)->u64 in Trapping {a*2} machine main()->u8{0}",2,52);
+        // ordinary forwarding retains loan.
+        self.refusal("data Cell [copy] {value:u8;} machine take(cell:&mut Cell,value:u8)->u8 {value} machine forward(cell:&mut Cell)->u8 {take(cell,cell.value)} machine main()->u8{0}",1,53);
+        // ordinary forwarding holds later borrow.
+        self.refusal("data Cell [copy] {value:u8;} machine change(cell:&mut Cell)->u8{cell.value=1;1} machine take(cell:&mut Cell,value:u8)->u8 {value} machine forward(cell:&mut Cell)->u8 {take(cell,change(cell))} machine main()->u8{0}",1,54);
+        // local backing in tail transfer.
+        self.refusal("data Cell [copy] {value:u8;} machine main()->u8 {let seed:Cell;transition{_->again(&seed,42,false)} machine again(view:&Cell,n:u8,done:bool)->u8 {let temp:Cell=Cell{value:n};transition done {true->view.value _->again(&temp,44,true)}}",2,55);
+        // Unsupported indexed carriers remain coverage failures; known mismatches reject.
+        // word-right.
+        self.refusal("data Words{values:[u32;1];} machine f(value:u32 in Trapping)->u32 in Trapping{let w:Words;value+w.values[0]} machine main()->u8{0}",2,56);
+        // word-left.
+        self.refusal("data Words{values:[u32;1];} machine f(value:u32 in Trapping)->u32 in Trapping{let w:Words;w.values[0]+value} machine main()->u8{0}",2,57);
+        // word-comparison.
+        self.refusal("data Words{values:[u32;1];} machine f(value:u32 in Trapping)->bool{let w:Words;value==w.values[0]} machine main()->u8{0}",2,58);
+        // byte-mismatch.
+        self.refusal("data Bytes{values:[u8;1];} machine f(value:u32 in Trapping)->u32 in Trapping{let w:Bytes;value+w.values[0]} machine main()->u8{0}",1,59);
+        // A coverage fallback must preserve diagnosed unknown-name failures.
+        // missing-right.
+        self.refusal("machine f(value:u32 in Trapping)->u32 in Trapping{value+missing} machine main()->u8{0}",1,60);
+        // missing-left.
+        self.refusal("machine f(value:u32 in Trapping)->u32 in Trapping{missing+value} machine main()->u8{0}",1,61);
+        // missing-index.
+        self.refusal("machine f(value:u32 in Trapping)->u32 in Trapping{value+missing[0]} machine main()->u8{0}",1,62);
+        // missing-comparison.
+        self.refusal("machine f(value:u32 in Trapping)->bool{value==missing[0]} machine main()->u8{0}",1,63);
+        self.positive("machine main()->u8{59}",59,90);
+    }
+
+}
+machine Main::positive(&mut self, source: &[u8], expected: i32, failure: i32) {
+    self.compiler.compile(source, "main");
+    transition self.compiler.status {
+        OmegaScalarCompilationStatus::Complete -> publish()
+        _ -> self.console.exit_process(failure)
+    }
+    state publish() {
+        assert self.compiler.tape.finalized == 1;
+        self.console.write_byte(expected);
+        let length: i32 = self.compiler.tape.payload_length();
+        self.console.write_byte(length % 256);
+        self.console.write_byte((length / 256) % 256);
+        self.console.write_byte((length / 65536) % 256);
+        self.console.write_byte((length / 16777216) % 256);
+        transition true { true -> byte(0) }
+    }
+    state byte(index: i32) {
+        transition index < self.compiler.tape.payload_length() {
+            true -> write(index)
+            _ -> return
+        }
+    }
+    state write(index: i32) {
+        self.console.write_byte(self.compiler.tape.bytes[index]);
+        transition true { true -> byte(index + 1) }
+    }
+}
+machine Main::refusal(&mut self, source: &[u8], expected: i32, failure: i32) {
+    self.compiler.compile(source, "main");
+    transition self.compiler.status {
+        OmegaScalarCompilationStatus::Reject -> check(1)
+        OmegaScalarCompilationStatus::Incomplete -> check(2)
+        _ -> self.console.exit_process(failure)
+    }
+    state check(actual: i32) {
+        assert (expected == 0) || (expected == actual);
+        assert self.compiler.tape.finalized == 0;
+        assert self.compiler.tape.payload_length() == 0;
+    }
+}
