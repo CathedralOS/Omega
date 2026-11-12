@@ -12,8 +12,13 @@ export BISECT_WITNESS="$WITNESS"
 SCRIPT="$OMEGA_BISECT_TOOLS/bisect_witness.sh"
 cd "$OMEGA_REPO"
 
+restore_report() {
+  git checkout -qf work/ledger-bisect-part-30 -- .agents/ledger-bisect-2026-11-11 2>/dev/null || true
+}
+
 test_commit() {
   git checkout -qf "$1"
+  restore_report
   set +e
   "$SCRIPT"
   local r=$?

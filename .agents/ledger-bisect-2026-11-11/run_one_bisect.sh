@@ -16,9 +16,14 @@ PIN=$(git -C "$OMEGA_REPO" rev-parse "$PIN")
 SCRIPT="$OMEGA_BISECT_TOOLS/bisect_witness.sh"
 cd "$OMEGA_REPO"
 
+restore_report() {
+  git checkout -qf work/ledger-bisect-part-30 -- .agents/ledger-bisect-2026-11-11 2>/dev/null || true
+}
+
 verify() {
   local label="$1" c="$2"
   git checkout -qf "$c"
+  restore_report
   local ok=0 bad=0 skip=0
   for _ in 1 2; do
     set +e
