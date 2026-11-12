@@ -526,7 +526,7 @@ mod assigned_values {
                     .facts()
                     .find_map(|fact| {
                         if let Some(variant) =
-                            crate::flow::zero_case_at(self.program, self.semantic, &fact, subject)
+                            crate::flow::zero_case_at(self.program, self.semantic, fact, subject)
                         {
                             return Some(variant);
                         }

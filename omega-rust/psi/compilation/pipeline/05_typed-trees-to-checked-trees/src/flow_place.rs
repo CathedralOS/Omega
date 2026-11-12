@@ -1364,77 +1364,6 @@ mod case_access {
         })
     }
 
-    #[cfg(test)]
-    mod zero_case_below_tests {
-        use super::{ZeroCaseBelow, zero_case_below};
-        use facts::PlaceSegment;
-
-        fn field(index: u32) -> PlaceSegment {
-            PlaceSegment::Field {
-                symbol: symbols::SymbolHandle::from_parts(index, 1),
-            }
-        }
-
-        fn at(index: usize) -> PlaceSegment {
-            PlaceSegment::FixedIndex { index }
-        }
-
-        /* `owner.table[2..6]` tagged at `.slot.kind` inside each element. */
-        fn below(prefix: &[PlaceSegment]) -> Option<(bool, Vec<PlaceSegment>)> {
-            let program = typed_trees::TypedTrees::default();
-            zero_case_below(
-                &program,
-                &[field(1), field(2)],
-                2..6,
-                &[field(3), field(4)],
-                prefix,
-            )
-            .map(|below| match below {
-                ZeroCaseBelow::Elements { array } => (true, array),
-                ZeroCaseBelow::Element { place } => (false, place),
-            })
-        }
-
-        #[test]
-        fn a_prefix_holding_the_array_carries_the_whole_fact() {
-            assert_eq!(below(&[]), Some((true, vec![field(1), field(2)])));
-            assert_eq!(below(&[field(1)]), Some((true, vec![field(2)])));
-            assert_eq!(below(&[field(1), field(2)]), Some((true, vec![])));
-        }
-
-        #[test]
-        fn a_prefix_inside_one_covered_element_carries_that_tag() {
-            assert_eq!(
-                below(&[field(1), field(2), at(2)]),
-                Some((false, vec![field(3), field(4)]))
-            );
-            assert_eq!(
-                below(&[field(1), field(2), at(5), field(3)]),
-                Some((false, vec![field(4)]))
-            );
-            assert_eq!(
-                below(&[field(1), field(2), at(5), field(3), field(4)]),
-                Some((false, vec![]))
-            );
-        }
-
-        #[test]
-        fn other_storage_carries_nothing() {
-            assert_eq!(below(&[field(1), field(2), at(6)]), None);
-            assert_eq!(below(&[field(1), field(2), at(1)]), None);
-            assert_eq!(below(&[field(1), field(2), at(3), field(9)]), None);
-            assert_eq!(below(&[field(1), field(9)]), None);
-            assert_eq!(
-                below(&[field(1), field(2), PlaceSegment::FixedRange { start: 2, end: 6 }]),
-                None
-            );
-            assert_eq!(
-                below(&[field(1), field(2), at(3), field(3), field(4), field(5)]),
-                None
-            );
-        }
-    }
-
     /*
         The case a `ZeroCaseElements` fact selects at exactly `subject`, for the
         readers that look for one place's own tag observation.
@@ -1618,6 +1547,81 @@ mod case_access {
                         values.selector_has_immutable_denotation(*expression)
                     }))
             })
+    }
+
+    #[cfg(test)]
+    mod zero_case_below_tests {
+        use super::{ZeroCaseBelow, zero_case_below};
+        use facts::PlaceSegment;
+
+        fn field(index: u32) -> PlaceSegment {
+            PlaceSegment::Field {
+                symbol: symbols::SymbolHandle::from_parts(index, 1),
+            }
+        }
+
+        fn at(index: usize) -> PlaceSegment {
+            PlaceSegment::FixedIndex { index }
+        }
+
+        /* `owner.table[2..6]` tagged at `.slot.kind` inside each element. */
+        fn below(prefix: &[PlaceSegment]) -> Option<(bool, Vec<PlaceSegment>)> {
+            let program = typed_trees::TypedTrees::default();
+            zero_case_below(
+                &program,
+                &[field(1), field(2)],
+                2..6,
+                &[field(3), field(4)],
+                prefix,
+            )
+            .map(|below| match below {
+                ZeroCaseBelow::Elements { array } => (true, array),
+                ZeroCaseBelow::Element { place } => (false, place),
+            })
+        }
+
+        #[test]
+        fn a_prefix_holding_the_array_carries_the_whole_fact() {
+            assert_eq!(below(&[]), Some((true, vec![field(1), field(2)])));
+            assert_eq!(below(&[field(1)]), Some((true, vec![field(2)])));
+            assert_eq!(below(&[field(1), field(2)]), Some((true, vec![])));
+        }
+
+        #[test]
+        fn a_prefix_inside_one_covered_element_carries_that_tag() {
+            assert_eq!(
+                below(&[field(1), field(2), at(2)]),
+                Some((false, vec![field(3), field(4)]))
+            );
+            assert_eq!(
+                below(&[field(1), field(2), at(5), field(3)]),
+                Some((false, vec![field(4)]))
+            );
+            assert_eq!(
+                below(&[field(1), field(2), at(5), field(3), field(4)]),
+                Some((false, vec![]))
+            );
+        }
+
+        #[test]
+        fn other_storage_carries_nothing() {
+            assert_eq!(below(&[field(1), field(2), at(6)]), None);
+            assert_eq!(below(&[field(1), field(2), at(1)]), None);
+            assert_eq!(below(&[field(1), field(2), at(3), field(9)]), None);
+            assert_eq!(below(&[field(1), field(9)]), None);
+            assert_eq!(
+                below(&[
+                    field(1),
+                    field(2),
+                    PlaceSegment::FixedRange { start: 2, end: 6 }
+                ]),
+                None
+            );
+            assert_eq!(
+                below(&[field(1), field(2), at(3), field(3), field(4), field(5)]),
+                None
+            );
+        }
     }
 }
 mod coverage {
@@ -2167,8 +2171,8 @@ pub(crate) use canonicalization::{
 };
 pub(crate) use case_access::{
     CaseEvidence, ZeroCaseBelow, place_case_has_value, place_case_path_is_inactive,
-    place_cases_are_selected, zero_case_at, zero_case_below,
-    place_cases_are_selected_after, stable_subject as stable_case_subject,
+    place_cases_are_selected, place_cases_are_selected_after,
+    stable_subject as stable_case_subject, zero_case_at, zero_case_below,
 };
 pub(crate) use literal_projection::{
     LiteralExpressionProjection, LiteralValueSource, literal_argument_access_places,

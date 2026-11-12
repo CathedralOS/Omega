@@ -7270,7 +7270,13 @@ mod domain {
                         .chain([facts::PlaceSegment::FixedIndex {
                             index: written.start,
                         }])
-                        .chain(semantic.place_segments.span_or_empty(element).iter().copied())
+                        .chain(
+                            semantic
+                                .place_segments
+                                .span_or_empty(element)
+                                .iter()
+                                .copied(),
+                        )
                         .collect(),
                 };
                 case_overwrite(program, &representative, &mutation.segments).then_some(written)
@@ -7381,8 +7387,8 @@ mod domain {
 
         pub(in crate::flow) use self::matching::matching_mutation_for_fact_place;
         use self::matching::matching_mutation_for_occurrence_place;
-        use self::matching::zero_case_elements_written;
         pub(in crate::flow) use self::matching::matching_mutation_for_settled_occurrence;
+        use self::matching::zero_case_elements_written;
 
         /*
             Query the same storage/dependent-domain invalidation law without publishing
@@ -7819,6 +7825,30 @@ mod domain {
             }
         }
 
+        /*
+            A dependency on an ancestor place overlaps every sibling write. That
+            overlap retires the ancestor guard. The dependent fact stays unless its
+            own place overlaps: `main.pause` does not change `main.name`.
+        */
+        fn dependency_is_strict_prefix_of_dependent(
+            semantic: &FactPlan,
+            dependency: PlaceHandle,
+            dependent: FactHandle,
+        ) -> bool {
+            let Some(dependent) = semantic.facts.get(dependent).place.as_place() else {
+                return false;
+            };
+            let dependency = semantic.places.get(dependency);
+            let dependent = semantic.places.get(dependent);
+            if dependency.root != dependent.root {
+                return false;
+            }
+            let dependency_segments = semantic.place_segments.span_or_empty(dependency.segments);
+            let dependent_segments = semantic.place_segments.span_or_empty(dependent.segments);
+            dependent_segments.len() > dependency_segments.len()
+                && dependent_segments.starts_with(dependency_segments)
+        }
+
         #[cfg(test)]
         mod zero_case_element_tests {
             /*
@@ -7861,7 +7891,9 @@ mod domain {
                 let place = semantic.append_symbol_place(symbol(1));
                 semantic.push_place_segment(place, field(TABLE));
                 let mut element = arena::HandleSpan::empty();
-                semantic.place_segments.append_to_span(&mut element, field(KIND));
+                semantic
+                    .place_segments
+                    .append_to_span(&mut element, field(KIND));
                 semantic.append_fact_context(Fact {
                     place: FactPlace::Place(place),
                     point: ProgramPoint::Global,
@@ -7915,7 +7947,10 @@ mod domain {
                     expression: typed_trees::expression::ExpressionHandle::invalid(),
                 };
                 assert_eq!(written(&[field(TABLE), runtime_index]), Some(0..8));
-                assert_eq!(written(&[field(TABLE), PlaceSegment::OpaqueRange]), Some(0..8));
+                assert_eq!(
+                    written(&[field(TABLE), PlaceSegment::OpaqueRange]),
+                    Some(0..8)
+                );
                 // A resolved write below the tag fills a payload; the tag stands.
                 assert_eq!(
                     written(&[
@@ -8014,30 +8049,6 @@ mod domain {
                 );
                 assert!(whole.is_empty());
             }
-        }
-
-        /*
-            A dependency on an ancestor place overlaps every sibling write. That
-            overlap retires the ancestor guard. The dependent fact stays unless its
-            own place overlaps: `main.pause` does not change `main.name`.
-        */
-        fn dependency_is_strict_prefix_of_dependent(
-            semantic: &FactPlan,
-            dependency: PlaceHandle,
-            dependent: FactHandle,
-        ) -> bool {
-            let Some(dependent) = semantic.facts.get(dependent).place.as_place() else {
-                return false;
-            };
-            let dependency = semantic.places.get(dependency);
-            let dependent = semantic.places.get(dependent);
-            if dependency.root != dependent.root {
-                return false;
-            }
-            let dependency_segments = semantic.place_segments.span_or_empty(dependency.segments);
-            let dependent_segments = semantic.place_segments.span_or_empty(dependent.segments);
-            dependent_segments.len() > dependency_segments.len()
-                && dependent_segments.starts_with(dependency_segments)
         }
     }
 
@@ -12531,8 +12542,8 @@ pub(crate) use context::{
     active_context_handles, call_flows, contract_returned_value, expressions, indexed_statements,
     state_returned_value, state_statements,
 };
-pub(crate) use domain::build_domain_facts;
 pub(crate) use domain::RestatedContexts;
+pub(crate) use domain::build_domain_facts;
 pub(crate) use domain::context_survives_place_mutations;
 pub(crate) use domain::filter_contexts_after_place_mutations;
 pub(crate) use domain::relative_place_segments_from_expression;
@@ -12559,8 +12570,7 @@ pub(crate) use reference_spans::append_constraint_ref;
 use reference_spans::{
     append_flow_contexts, append_flow_contexts_for_points, append_place_segments,
     appended_span_since, project_constraint_refs_after_invalidation,
-    project_constraint_refs_to_active_contexts, retained_constraint_refs,
-    retained_flow_contexts,
+    project_constraint_refs_to_active_contexts, retained_constraint_refs, retained_flow_contexts,
 };
 
 /*
@@ -12618,17 +12628,16 @@ pub(crate) use ownership::{
 };
 pub(crate) use place::{
     CaseEvidence, LiteralExpressionProjection, LiteralValueSource, MembershipEvidence,
-    canonical_place_from_semantic_place, canonical_place_from_symbol,
+    ZeroCaseBelow, canonical_place_from_semantic_place, canonical_place_from_symbol,
     canonical_place_joined_segments_may_overlap, canonical_place_segments_equal,
     canonical_place_segments_may_overlap, canonical_places_agree, case_tag_segments_may_overlap,
     compose_captured_view_segments, fixed_selection_segment, literal_argument_access_places,
     literal_expression_projections, literal_value_path_is_inactive, literal_value_projections,
-    ZeroCaseBelow, zero_case_at, zero_case_below,
     narrow_pinned_index_segments, narrow_pinned_index_segments_with_values, place_case_has_value,
     place_case_path_is_inactive, place_cases_are_selected, place_cases_are_selected_after,
     place_segment_has_static_identity, place_segment_has_unresolved_identity, projected_leaf_place,
     reference_source_place, segments_cover_subject, source_independent_place, stable_case_subject,
-    static_place_segment_pair_equal,
+    static_place_segment_pair_equal, zero_case_at, zero_case_below,
 };
 pub(crate) use reach::attach_reach_summaries;
 use state::build_state_flow_fact;

@@ -5909,7 +5909,9 @@ mod value_observations {
                     } => {
                         let mut span = HandleSpan::empty();
                         for segment in element {
-                            self.semantic.place_segments.append_to_span(&mut span, segment);
+                            self.semantic
+                                .place_segments
+                                .append_to_span(&mut span, segment);
                         }
                         FactPayload::ZeroCaseElements {
                             first,
