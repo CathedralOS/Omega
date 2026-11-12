@@ -9,10 +9,13 @@ Package-local `Build::bind<Requirement>(builder, target, locator)` replaces the
 per-symbol native forwarding declaration, with locator lengths inferred;
 `BUILD-OWNED-NATIVE-BINDINGS` and `BUILD-OWNED-TARGET-SELECTION` in
 [the task board](../../TASKS.md#pipeline-route) own the implementation changes.
-Domain casts and admission also retain migration debt: whole-type domain casts
-and implicit domain qualification are not current Omega semantics. The scalar
-execution gate admits only unqualified `u8` machines and refuses other root
-kinds and erased bindings; it does not establish full frontend conformance.
+The compiler source closure still uses retired whole-type domain casts and
+implicit domain qualification accepted by the Rust development comparator.
+The source frontend now requires explicit domain accounting for its bounded
+policy slice; its compiler source has not yet been migrated to that same input
+language. The scalar execution gate admits only unqualified `u8` machines and
+refuses other root kinds and erased bindings; it does not establish full
+frontend conformance or self-compilation.
 
 The current live slice contains
 source/span and token representations, a UTF-8-framed lexer that stores only
@@ -69,7 +72,10 @@ and Boolean literals, names and
 its own row, and only a path's members fill the shared member table),
 `.field`, `[index]`, range slices `[a..b]`, `[a..=b]`, `[a..]`, `[..b]` and
 `[..]` as an index's operand, calls,
-static applications `path<arguments>(...)`, `as Type` casts,
+static applications `path<arguments>(...)`, unqualified `as Type` carrier casts,
+and explicit singleton policy casts `as +Policy`, `as =Policy`, `as -Policy`
+or `as Type +Policy` (retired whole-type qualification and simultaneous
+multi-entry accounting refuse),
 `Path { field: value }` constructions (always inside brackets, never before an
 unbracketed body), prefix `!`, `-`, `~`, `&`, `&mut`, `&write` and the call
 acknowledgements `suspend`, `block` and `suspend block`, the binary
