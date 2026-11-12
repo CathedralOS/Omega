@@ -71,6 +71,21 @@ def run_checker_outputs(main: Path) -> dict:
     }
 
 
+def requires_repeated_elsewhere(orig: str, removed: str) -> str | None:
+    """Quote a transition/other clause that restates the removed requires."""
+    pred = removed.removeprefix("requires").strip().rstrip(";")
+    if not pred:
+        return None
+    for line in orig.splitlines():
+        s = line.strip()
+        if s.startswith("requires") and s != removed.strip():
+            if pred in s or all(tok in s for tok in pred.split("&&") if tok.strip()):
+                return s
+        if "reaches" in s and pred[:20] in s:
+            return s
+    return None
+
+
 def removed_requires_clause(orig: str, mut: str) -> str | None:
     orig_lines = orig.splitlines()
     mut_lines = mut.splitlines()
@@ -139,7 +154,7 @@ def drop_requires_failing_line(orig: str, mut: str, removed: str) -> str | None:
     return None
 
 
-def remove_mut_binding_and_line(orig: str, mut: str) -> tuple[str, str] | None:
+def remove_mut_binding_and_line(orig: str, mut: str) -> tuple[str, str, bool] | None:
     mo = re.search(r"\blet mut\s+([A-Za-z_][A-Za-z0-9_]*)", orig)
     if not mo:
         return None
@@ -147,22 +162,20 @@ def remove_mut_binding_and_line(orig: str, mut: str) -> tuple[str, str] | None:
     if f"let mut {name}" in mut:
         return None
     lines_mut = mut.splitlines()
-    lines_orig = orig.splitlines()
     shadow = re.compile(rf"^\s*let\s+(?:mut\s+)?{re.escape(name)}\b")
     for i, line in enumerate(lines_mut, 1):
         if shadow.match(line):
-            continue
+            return None
         stripped = line.strip()
-        if re.search(rf"&\s*mut\s+{re.escape(name)}\b", line):
-            return name, stripped
+        if re.search(rf"&\s*(?:mut|write)\s+{re.escape(name)}\b", line):
+            return name, stripped, False
         if re.search(rf"^\s*{re.escape(name)}\.", line) or re.search(
             rf"^\s*{re.escape(name)}\[", line
         ):
             if any(op in line for op in ("=", "+=", "-=", "*=", "/=")):
-                return name, stripped
-        if re.search(rf"^\s*{re.escape(name)}\s*=", line) and ":=" not in line:
-            if "let " not in line:
-                return name, stripped
+                return name, stripped, False
+        if re.search(rf"^\s*{re.escape(name)}\s*=", line) and "let " not in line:
+            return name, stripped, False
     return None
 
 
@@ -170,21 +183,29 @@ def load_q7_hits(main_path: Path) -> list:
     key = str(main_path)
     if key in _q7_cache:
         return _q7_cache[key]
-    spec = importlib.util.spec_from_file_location("q7_scan", Q7_PATH)
+    import sys
+
+    spec = importlib.util.spec_from_file_location("q7_scan_ref", Q7_PATH)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
+    sys.modules["q7_scan_ref"] = mod
     spec.loader.exec_module(mod)
     hits = mod.scan_file(main_path)
     _q7_cache[key] = hits
     return hits
 
 
-def is_known_q7_gap(fixture_main: Path, binding: str, obligation_line: str) -> bool:
+def is_known_q7_gap(
+    fixture_main: Path, binding: str, obligation_line: str
+) -> tuple[bool, str]:
     hits = load_q7_hits(fixture_main)
     for h in hits:
-        if h.binding == binding:
-            return True
-    return False
+        if h.binding != binding:
+            continue
+        if binding not in obligation_line:
+            continue
+        return True, h.snippet
+    return False, ""
 
 
 SPEC_QUOTES = {

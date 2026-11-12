@@ -73,11 +73,30 @@ def run_cmd(cmd: list[str], cwd: Path | None = None) -> tuple[str, int, float]:
         return partial + "\n[TIMEOUT]\n", 124, time.monotonic() - t0
 
 
-def check_both(path: Path) -> tuple[str, str]:
-    """Current + route verdicts from one route_one_comparison invocation."""
+def route_rejection_detail(out: str, route: str) -> str:
+    parts: list[str] = []
+    for line in out.splitlines():
+        if line.startswith("program") and "root=compilation" in line:
+            tail = line.split(f"route={route}", 1)
+            if len(tail) > 1 and tail[1].strip():
+                parts.append(tail[1].strip().lstrip("\t"))
+        elif line.startswith("diagnostic\t") and "root=compilation" in line:
+            msg = line.split("\t", 4)[-1] if line.count("\t") >= 4 else line
+            parts.append(one_line_diag(msg))
+        elif line.startswith("fallback\t"):
+            parts.append(line.split("\t", 3)[-1] if "\t" in line else line)
+    return "; ".join(parts)[:500]
+
+
+def one_line_diag(text: str) -> str:
+    return text.replace("\t", " ").replace("\n", " ")[:240]
+
+
+def check_both(path: Path) -> tuple[str, str, str, str]:
+    """Current, route, route rejection detail, raw output (truncated)."""
     out, code, _ = run_cmd([str(ROUTE), str(path)])
     if code == 124:
-        return "timeout", "timeout"
+        return "timeout", "timeout", "timeout", out[:8000]
     current = route = "unknown"
     for line in out.splitlines():
         if not line.startswith("program"):
@@ -93,11 +112,12 @@ def check_both(path: Path) -> tuple[str, str]:
         current = "accepted"
     if route == "unknown" and code != 0:
         route = "error"
-    return current, route
+    detail = route_rejection_detail(out, route) if route not in ("accepted", "unknown") else ""
+    return current, route, detail, out[:12000]
 
 
 def current_verdict(path: Path) -> str:
-    cv, _ = check_both(path)
+    cv, _, _, _ = check_both(path)
     return cv
 
 
@@ -228,6 +248,7 @@ def append_tsv(row: dict) -> None:
         "current_verdict",
         "route_verdict",
         "run_disposition",
+        "route_rejection_detail",
         "rule_hint",
         "seconds",
     ]
@@ -253,7 +274,9 @@ def main() -> int:
             "fixtures_skipped_original_fails": 0,
             "mutants_generated": 0,
             "mutants_run": 0,
-            "candidates": 0,
+            "mutator_skipped_no_apply": 0,
+            "mutant_run_failed": 0,
+            "current_accepts": 0,
             "both_rejected": 0,
         },
     )
@@ -280,6 +303,9 @@ def main() -> int:
         for kind, rule_hint, fn in MUTATORS:
             mutated = fn(text)
             if mutated is None:
+                stats["mutator_skipped_no_apply"] = (
+                    stats.get("mutator_skipped_no_apply", 0) + 1
+                )
                 continue
             stats["mutants_generated"] = stats.get("mutants_generated", 0) + 1
             mid = mutant_id(fixture_rel, kind, 0)
@@ -289,7 +315,26 @@ def main() -> int:
             mpath = mdir / "main.omg"
 
             t0 = time.monotonic()
-            cv, rv = check_both(mpath)
+            try:
+                cv, rv, route_detail, _raw = check_both(mpath)
+            except Exception as exc:
+                stats["mutant_run_failed"] = stats.get("mutant_run_failed", 0) + 1
+                append_tsv(
+                    {
+                        "fixture": fixture_rel,
+                        "tier": tier(fixture_rel),
+                        "mutation_kind": kind,
+                        "mutant_path": "",
+                        "current_verdict": "error",
+                        "route_verdict": "error",
+                        "run_disposition": "run_failed",
+                        "route_rejection_detail": one_line_diag(str(exc)),
+                        "rule_hint": rule_hint,
+                        "seconds": f"{time.monotonic() - t0:.2f}",
+                    }
+                )
+                shutil.rmtree(mdir, ignore_errors=True)
+                continue
             secs = time.monotonic() - t0
             stats["mutants_run"] = stats.get("mutants_run", 0) + 1
 
@@ -328,6 +373,7 @@ def main() -> int:
                     "current_verdict": cv,
                     "route_verdict": rv,
                     "run_disposition": run_disposition,
+                    "route_rejection_detail": route_detail,
                     "rule_hint": rule_hint,
                     "seconds": f"{secs:.2f}",
                 }

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -15,6 +16,7 @@ from shard2_review import (
     pick_spec_quote,
     removed_requires_clause,
     remove_mut_binding_and_line,
+    requires_repeated_elsewhere,
     run_checker_outputs,
 )
 
@@ -29,12 +31,18 @@ PROGRESS = OUT / f"shard-{SHARD}.progress.json"
 FINAL_BUCKETS = (
     "rejected_both",
     "timeout_error",
+    "mutant_run_failed",
     "current_rejects",
     "discarded_valid",
     "discarded_no_obligation",
     "discarded_route_only",
     "known_gap_q7_mut",
     "confirmed_invalid",
+)
+
+PROOF_ROUTE_HINTS = re.compile(
+    r"proof|overflow|range|obligation|not provably|may overflow|index|divide|remainder",
+    re.I,
 )
 
 
@@ -48,6 +56,10 @@ def classify_row(row: dict) -> dict:
     run_disp = row.get("run_disposition") or row.get("disposition", "")
 
     base = {**row, "review_bucket": "", "obligation_line": "", "rule_path": "", "rule_quote": "", "notes": ""}
+
+    if run_disp == "run_failed":
+        base["review_bucket"] = "mutant_run_failed"
+        return base
 
     if run_disp == "timeout" or cv == "timeout" or rv == "timeout":
         base["review_bucket"] = "timeout_error"
@@ -101,11 +113,16 @@ def classify_row(row: dict) -> dict:
             base["review_bucket"] = "discarded_no_obligation"
             base["notes"] = "removed `mut` but no write, reassign, or &mut of that binding"
             return base
-        binding, line = ev
+        binding, line, _shadow = ev
         base["obligation_line"] = line
-        if is_known_q7_gap(orig_path, binding, line):
+        if binding not in line:
+            base["review_bucket"] = "discarded_valid"
+            base["notes"] = "obligation line does not cite the demoted binding"
+            return base
+        q7, q7_snip = is_known_q7_gap(orig_path, binding, line)
+        if q7:
             base["review_bucket"] = "known_gap_q7_mut"
-            base["notes"] = f"binding `{binding}` matches Q7 migration scan on fixture"
+            base["notes"] = f"Q7 scan hit on `{binding}`: {q7_snip}"
             quote = pick_spec_quote(kind, line)
             if quote:
                 base["rule_path"], _, rq = quote
@@ -140,11 +157,32 @@ def classify_row(row: dict) -> dict:
             base["review_bucket"] = "discarded_valid"
             return base
         base["rule_path"], _, base["rule_quote"] = quote
-        if rv in ("rejected", "outside", "fallback", "no-entry", "incomplete"):
-            base["review_bucket"] = "discarded_route_only"
-            base["notes"] = "route rejects but current accepts; no hole without spec-invalid body line"
+        detail = (row.get("route_rejection_detail") or "") + " " + rv
+        dup = requires_repeated_elsewhere(orig, removed)
+        if dup:
+            base["review_bucket"] = "discarded_valid"
+            base["notes"] = (
+                f"requires restated elsewhere in original: removed `{removed}` vs `{dup}`"
+            )
             return base
-        base["review_bucket"] = "confirmed_invalid"
+        if rv in ("no-entry", "unreached") or "Unsupported" in detail:
+            base["review_bucket"] = "discarded_valid"
+            base["notes"] = f"route={rv}; {row.get('route_rejection_detail', '')}"
+            return base
+        if rv in ("rejected", "incomplete", "defect", "outside", "fallback") and (
+            PROOF_ROUTE_HINTS.search(detail)
+            or PROOF_ROUTE_HINTS.search(base["obligation_line"])
+        ):
+            base["review_bucket"] = "confirmed_invalid"
+            base["notes"] = (
+                f"route proof failure: {row.get('route_rejection_detail', '')[:200]}"
+            )
+            return base
+        if rv == "accepted":
+            base["review_bucket"] = "confirmed_invalid"
+            return base
+        base["review_bucket"] = "discarded_route_only"
+        base["notes"] = row.get("route_rejection_detail", "")
         return base
 
     base["review_bucket"] = "discarded_valid"
@@ -160,6 +198,7 @@ def write_tsv(rows: list[dict]) -> None:
         "current_verdict",
         "route_verdict",
         "run_disposition",
+        "route_rejection_detail",
         "review_bucket",
         "obligation_line",
         "rule_path",
@@ -210,6 +249,53 @@ def hand_verify_section(confirmed: list[dict]) -> list[str]:
                 "```",
                 "",
                 f"- Failing obligation line: `{row.get('obligation_line', '')}`",
+                "",
+            ]
+        )
+    return lines
+
+
+def hand_verify_drop_requires_discarded(reviewed: list[dict]) -> list[str]:
+    pool = [
+        r
+        for r in reviewed
+        if r.get("mutation_kind") == "drop_machine_requires"
+        and r.get("current_verdict") == "accepted"
+        and r.get("review_bucket") != "confirmed_invalid"
+        and r.get("mutant_path")
+    ]
+    if not pool:
+        return ["## Hand verification: discarded `drop_requires` (5 samples)", "", "_None yet._", ""]
+    lines = ["## Hand verification: discarded `drop_requires` (5 samples)", ""]
+    for i, row in enumerate(pool[:5], 1):
+        orig = (REPO / row["fixture"]).read_text()
+        mut = (REPO / row["mutant_path"]).read_text()
+        removed = removed_requires_clause(orig, mut) or "(not parsed)"
+        dup = requires_repeated_elsewhere(orig, removed) if removed.startswith("requires") else None
+        lines.extend(
+            [
+                f"### Discarded drop_requires {i}: `{row['fixture']}`",
+                f"- Bucket: `{row['review_bucket']}` — {row.get('notes', '')}",
+                f"- Removed requires: `{removed}`",
+                f"- Route rejection: `{row.get('route_rejection_detail', '')}`",
+                f"- Duplicate elsewhere: `{dup or 'none'}`",
+                "",
+            ]
+        )
+    return lines
+
+
+def hand_verify_q7_remove_mut(reviewed: list[dict]) -> list[str]:
+    pool = [r for r in reviewed if r.get("review_bucket") == "known_gap_q7_mut"]
+    if not pool:
+        return ["## Hand verification: `known_gap_q7_mut` (5 samples)", "", "_None yet._", ""]
+    lines = ["## Hand verification: `known_gap_q7_mut` (5 samples)", ""]
+    for i, row in enumerate(pool[:5], 1):
+        lines.extend(
+            [
+                f"### Q7 sample {i}: `{row['fixture']}`",
+                f"- Binding obligation: `{row.get('obligation_line', '')}`",
+                f"- Notes: {row.get('notes', '')}",
                 "",
             ]
         )
@@ -276,16 +362,30 @@ def main() -> None:
             )
 
     lines.extend(hand_verify_section(confirmed))
+    lines.extend(hand_verify_drop_requires_discarded(reviewed))
+    lines.extend(hand_verify_q7_remove_mut(reviewed))
 
     if PROGRESS.is_file():
-        st = json.loads(PROGRESS.read_text()).get("stats", {})
+        prog = json.loads(PROGRESS.read_text())
+        st = prog.get("stats", {})
+        skipped = st.get("mutator_skipped_no_apply", 0)
+        gen = st.get("mutants_generated", 0)
+        run_failed = st.get("mutant_run_failed", 0)
         lines.extend(
             [
+                "",
+                "## Mutant totals (stable accounting)",
+                "",
+                f"- Rows in TSV (generated and run): **{total}**",
+                f"- `mutants_generated` counter: {gen} (must match TSV rows)",
+                f"- Mutator skipped (no applicable site, **not** in TSV): {skipped}",
+                f"- Mutant run failed (bucket `mutant_run_failed`): {run_failed}",
+                f"- Any change vs prior commits: full shard re-run after parser/review fixes",
                 "",
                 "## Run stats",
                 "",
                 f"- fixtures_total: {st.get('fixtures_total', '?')}",
-                f"- fixtures_done: {len(json.loads(PROGRESS.read_text()).get('fixtures_done', []))}",
+                f"- fixtures_done: {len(prog.get('fixtures_done', []))}",
                 f"- mutants_run: {st.get('mutants_run', total)}",
             ]
         )

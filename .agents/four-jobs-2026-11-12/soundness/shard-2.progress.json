@@ -1,11 +1,11 @@
 {
   "fixtures_done": [
-    "tests/omega/pass/arithmetic/anonymous_integer_arith/main.omg",
     "tests/omega/pass/arithmetic/chained_const_binder_scale_exit/main.omg",
-    "tests/omega/pass/arithmetic/explicit_integer_landing_exit/main.omg",
-    "tests/omega/pass/arithmetic/compound_assign/main.omg"
+    "tests/omega/pass/arithmetic/compound_assign/main.omg",
+    "tests/omega/pass/arithmetic/anonymous_integer_arith/main.omg"
   ],
   "stats": {
+    "mutator_skipped_no_apply": 15,
     "mutants_generated": 6,
     "mutants_run": 6,
     "current_accepts": 3,
