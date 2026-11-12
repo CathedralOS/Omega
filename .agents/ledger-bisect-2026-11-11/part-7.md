@@ -18,7 +18,15 @@ The binary-search culprits, including any ledger-only commit, are withdrawn.
 
 | cluster | good | first bad (PIN diagnostic) | stops matching | PR | triple at bad | triple at parent |
 | --- | --- | --- | --- | ---: | --- | --- |
-| countdown | pending | pending | pending |  |  |  |
+| countdown | `68b1302cf9ebc2a9297840db1deb3b6993b6ac3d` | `` | `` |  | `None` | `None` |
+
+Witness `pass/termination/measure_field_computed_limit` status `bisect-inconclusive`.
+
+Hunk ``:
+```diff
+mechanism not established
+```
+
 | family | pending | pending | pending |  |  |  |
 | kernel | pending | pending | pending |  |  |  |
 ## PIN clusters (measurement only; earlier breaking commits withdrawn)

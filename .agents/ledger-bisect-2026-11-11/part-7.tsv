@@ -30,3 +30,4 @@ pass/facts/source_indexed_type_parameter_through_target_body_exit	fixed on main	
 pass/facts/source_indexed_type_parameter_u64_payload_exit	fixed on main		fixed								
 pass/layouts/runtime_recast_reference_captures_index_exit	fixed on main		fixed								
 pass/recast/runtime_byte_region_state_transfer_exit	fixed on main		fixed								
+pass/termination/measure_field_computed_limit	bisect-inconclusive	terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view	bisect-countdown	68b1302cf9ebc2a9297840db1deb3b6993b6ac3d				null	null			
