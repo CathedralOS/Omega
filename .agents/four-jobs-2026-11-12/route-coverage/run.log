@@ -1,0 +1,12 @@
+shard 5/8: 2174 fixtures, 2174 todo
+[25/2174] tests/omega/fail/asm/atomic_release_disposition_wrong_cell/main.omg 1.3s
+[50/2174] tests/omega/fail/borrow/write_only_capture_missing_bounds/main.omg 1.3s
+[75/2174] tests/omega/fail/borrows/local_record_move_under_shared_loan/main.omg 1.4s
+[100/2174] tests/omega/fail/borrows/state_transfer_retained_loan_overlap/main.omg 1.4s
+[125/2174] tests/omega/fail/build/product_schema_missing_declaration/main.omg 0.8s
+[150/2174] tests/omega/fail/calls/numeric_operand_exclusive_arguments_overlap/main.omg 11.3s
+[175/2174] tests/omega/fail/constants/target_layout_derived_unused_wrong_carrier_reject/main.omg 2.7s
+[200/2174] tests/omega/fail/control_flow/arm_pattern_missing_field/main.omg 10.8s
+[225/2174] tests/omega/fail/core/scoped_integer_call_inherited_trait_operator_requires_formation/main.omg 10.4s
+[250/2174] tests/omega/fail/domains/domain_pattern_match_bound_generic_unrelated_equation_rejected/main.omg 1.3s
+[275/2174] tests/omega/fail/domains/target_issuer_nonrealized_predicate/main.omg 1.3s
