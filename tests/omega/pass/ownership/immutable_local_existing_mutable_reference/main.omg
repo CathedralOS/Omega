@@ -1,0 +1,16 @@
+// Binding mutability is not deep immutability (ownership.md, owned local
+// mutability): a local declared without `mut` that holds an existing `&mut u8`
+// may lend and write that reference's referent. Only `number` owns the byte.
+machine bump(value: &mut u8) { value = 5; }
+
+machine main() crashes Trap {
+    let mut number: u8 = 1;
+    let reference: &mut u8 = &mut number;
+    bump(reference);
+    transition number == 5 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
