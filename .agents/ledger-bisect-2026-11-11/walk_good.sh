@@ -14,23 +14,32 @@ SCRIPT="$OMEGA_BISECT_TOOLS/bisect_witness.sh"
 test_commit() {
   local c="$1"
   git checkout -qf "$c"
+  set +e
   "$SCRIPT"
+  local r=$?
+  set -e
+  return "$r"
 }
 
 # bad end must fail
-rc=$(test_commit "$BAD" || true)
+set +e
+test_commit "$BAD"
+rc=$?
+set -e
 if [[ "$rc" -eq 0 ]]; then
-  echo "ERROR: BAD $BAD passes witness" >&2
+  echo "ERROR: BAD $BAD passes witness (rc=0)" >&2
   exit 2
 fi
 
-# exponential walk back on first-parent
 CUR="$BAD"
 GOOD=""
-for i in $(seq 1 40); do
+for i in $(seq 1 60); do
   PARENT=$(git rev-parse "${CUR}^" 2>/dev/null || true)
   [[ -z "$PARENT" ]] && break
-  rc=$(test_commit "$PARENT" || true)
+  set +e
+  test_commit "$PARENT"
+  rc=$?
+  set -e
   echo "try $i $(git log -1 --oneline "$PARENT") -> exit $rc" >&2
   if [[ "$rc" -eq 0 ]]; then
     GOOD="$PARENT"
@@ -40,10 +49,10 @@ for i in $(seq 1 40); do
 done
 
 if [[ -z "$GOOD" ]]; then
-  echo "ERROR: no good found within 40 parents of $BAD" >&2
-  git checkout -q work/ledger-bisect-part-30
+  echo "ERROR: no good found within 60 parents of $BAD" >&2
+  git checkout -qf work/ledger-bisect-part-30
   exit 2
 fi
 
 echo "$GOOD"
-git checkout -q work/ledger-bisect-part-30
+git checkout -qf work/ledger-bisect-part-30
