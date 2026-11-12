@@ -106,20 +106,28 @@ fn derive_program_entry_binding(
     standard_library_root: &Path,
     standard_library: PackageKeyIdentity,
 ) -> Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>> {
-    let inputs = PackageCompilationInputs::new_package(
+    // Logical imports need the bytes captured when this independent entry
+    // check starts. Bind that snapshot to the package input, so discovery does
+    // not depend on reopening the source directory.
+    let captured =
+        package_compilation::capture_anonymous_compilation_source(standard_library_root)?;
+    let binding = PackageSourceBinding::new(
         standard_library,
-        vec![PackageSourceBinding::new(
-            standard_library,
-            "omega_language_std",
-            standard_library_root.to_path_buf(),
-        )],
-        Vec::new(),
+        "omega_language_std",
+        captured.canonical_live_root().to_path_buf(),
     )
-    .map_err(|errors| {
+    .with_captured_source(std::sync::Arc::clone(captured.tree()))
+    .map_err(|reason| {
         vec![Diagnostic::error(format!(
-            "entry fixture inputs: {errors:?}"
+            "entry fixture capture: {reason}"
         ))]
     })?;
+    let inputs = PackageCompilationInputs::new_package(standard_library, vec![binding], Vec::new())
+        .map_err(|errors| {
+            vec![Diagnostic::error(format!(
+                "entry fixture inputs: {errors:?}"
+            ))]
+        })?;
     derive_entry_from_inputs(target_name, inputs)
 }
 
