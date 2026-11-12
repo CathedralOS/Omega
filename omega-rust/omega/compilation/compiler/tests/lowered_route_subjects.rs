@@ -772,3 +772,34 @@ fn a_requirement_rules_out_the_crash_routes_it_contradicts() {
         "`denominator != 1u64` admits zero: {verdict:?}"
     );
 }
+
+/// A call into a dependency's private machine. The typed trees hold the call
+/// resolved, and the current checker rejects the program after them, where
+/// the product selects the callee ("selects private machine"). The route
+/// took every resolved call as permitted and accepted the program whole,
+/// with two obligations discharged. It now hands the compilation back at
+/// the call.
+#[test]
+fn a_call_into_another_packages_private_machine_is_never_accepted() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let wrong = wrong_verdicts(&[(
+        "tests/omega/fail/build/executed_dependency_private_call",
+        Expected::FallsBack,
+    )]);
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// A statement that computes a value and drops it is a defect: "A non-Unit
+/// call result cannot be silently discarded" (`wiki/spec/language/effects.md`).
+/// `invalid` evaluates `identity(false) || identity(false);` and goes on. The
+/// route read the statement for its effects and accepted the machine; it now
+/// hands the machine back.
+#[test]
+fn a_statement_that_drops_its_value_is_never_accepted() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let wrong = wrong_verdicts(&[(
+        "tests/omega/fail/calls/non_unit_compound_expression_requires_use",
+        Expected::FallsBack,
+    )]);
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

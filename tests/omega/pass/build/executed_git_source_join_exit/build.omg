@@ -8,14 +8,18 @@ machine build(builder: &mut Build) {
 }
 
 machine request_sources(builder: &mut Build) {
-    Build::depend_as(builder, "selected", Source::Git {
+    let mut selected_dependency: DependencyDescription = dependency::from_source(Source::Git {
         repository: "https://omega-source.invalid/executed-source.git",
         revision: "executed-build-fixture-v1",
         selection: PackageSelection::Root
     });
-    Build::depend_as(builder, "shared", Source::Git {
+    dependency::with_alias(&mut selected_dependency, "selected");
+    let selected_registration: DependencyRegistration = Build::dependency(builder, selected_dependency);
+    let mut shared_dependency: DependencyDescription = dependency::from_source(Source::Git {
         repository: "https://omega-source.invalid/executed-source.git",
         revision: "executed-build-fixture-v1",
         selection: PackageSelection::Root
     });
+    dependency::with_alias(&mut shared_dependency, "shared");
+    let shared_registration: DependencyRegistration = Build::dependency(builder, shared_dependency);
 }

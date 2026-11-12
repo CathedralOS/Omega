@@ -1,8 +1,5 @@
 # Borrowing a returned case payload
 
-Parent outcome: `WIRE-CODEC-LIBRARY`, required by the library decoder's borrowed
-blob result and strict decoding of borrowed fields.
-
 Fact: an active case selected on an owned result retains the source place needed to borrow its payload without changing the returned slice's input provenance.
 
 The callback reads the returned slice's length and bytes after selecting the

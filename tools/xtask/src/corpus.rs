@@ -33,6 +33,24 @@ pub struct CorpusRecord {
     pub recorded_at: Option<String>,
 }
 
+/// Where a downloaded copy of the published check ledger is kept, relative to
+/// the repository root. The post-merge check publishes it as the asset
+/// `corpus_outcomes.txt` of the release `corpus-ledger`; fetch it with
+/// `gh release download corpus-ledger --pattern corpus_outcomes.txt --dir build/corpus-ledger --clobber`.
+pub const PUBLISHED_LEDGER: &str = "build/corpus-ledger/corpus_outcomes.txt";
+
+/// The downloaded published ledger, when one is present and readable as a
+/// ledger. An empty or unreadable download is ignored, so a failed fetch falls
+/// back to the file in the repository instead of comparing with nothing.
+pub fn published_ledger(root: &Path) -> Option<PathBuf> {
+    let path = root.join(PUBLISHED_LEDGER);
+    let text = fs::read_to_string(&path).ok()?;
+    match parse_records(&text) {
+        Ok(records) if !records.is_empty() => Some(path),
+        _ => None,
+    }
+}
+
 /// Parse `tests/omega/corpus_outcomes.txt` and return all pinned regressions:
 /// - `pass/` or `run/` rows that neither check/build nor match a pinned native rejection, or that carry `regressed-from:*`
 /// - `fail/` rows whose status is not `rejected` or that carry `unexpected`
@@ -507,6 +525,19 @@ fn validate_runtime_oracles(
     interpret: bool,
 ) -> Result<(), String> {
     for row in records {
+        // The runner weighed an authored `expected_native_rejection.txt` and the
+        // observed publication was not that refusal. Recording the row would pin
+        // an unmet oracle, so it stops here like an unmet exit promise.
+        if row
+            .facts
+            .iter()
+            .any(|(key, value)| key == "native-rejection" && value == "mismatch")
+        {
+            return Err(format!(
+                "{}: native publication did not refuse as expected_native_rejection.txt requires",
+                row.fixture
+            ));
+        }
         if row.tier == "fail" || !matches!(row.status.as_str(), "built" | "checked") {
             continue;
         }
@@ -625,6 +656,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     }
 
     let target = native_target.as_deref().unwrap_or_else(|| host_target());
+    let explicit_golden = golden.is_some();
     let golden_path = golden.unwrap_or_else(|| {
         let tests_omega = root.join("tests/omega");
         if native && interpret {
@@ -637,6 +669,21 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             tests_omega.join("corpus_outcomes.txt")
         }
     });
+
+    // Pull requests no longer edit the check ledger; the post-merge check
+    // publishes the measured one. A downloaded copy is the newer statement of
+    // what main does, so reads compare with it. `--record` and `--golden`
+    // keep naming the file they were given.
+    let golden_path = match published_ledger(&root) {
+        Some(published) if !record && !explicit_golden && !native && !interpret => {
+            println!(
+                "corpus: comparing with the published ledger {}",
+                published.display()
+            );
+            published
+        }
+        _ => golden_path,
+    };
 
     if list_pinned {
         let filters: Vec<String> = filter
@@ -875,6 +922,16 @@ mod tests {
             "pass/borrows/header_only rejected 1ms expected native-rejection:match\n\tauthored publication refusal\n",
         ).unwrap();
         assert!(validate_runtime_oracles(&root, &refused, "linux_x86_64", true, true).is_ok());
+        for unmet in [
+            "pass/borrows/header_only rejected 1ms unexpected native-rejection:mismatch
+	another refusal
+",
+            "pass/borrows/header_only built 1ms unexpected native-rejection:mismatch
+",
+        ] {
+            let unmet = parse_records(unmet).unwrap();
+            assert!(validate_runtime_oracles(&root, &unmet, "linux_x86_64", false, false).is_err());
+        }
         fs::write(&main, "machine main() {}\n").unwrap();
         fs::write(directory.join("expected_interpreter_exit.txt"), "0\n").unwrap();
         assert!(
@@ -1070,5 +1127,23 @@ pass/c/third checked 30ms @111111111111
         assert!(spliced.contains("pass/b/second checked 15ms @222222222222\n"));
         assert!(!spliced.contains("old diagnostic"));
         assert!(spliced.contains("pass/c/third checked 30ms @111111111111\n"));
+    }
+
+    #[test]
+    fn a_published_ledger_is_used_only_when_it_holds_rows() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-published-ledger-test-{}",
+            std::process::id()
+        ));
+        let path = root.join(PUBLISHED_LEDGER);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        // No download: the repository's file is compared.
+        assert_eq!(published_ledger(&root), None);
+        // A failed download that left an empty file is not a ledger.
+        std::fs::write(&path, "").unwrap();
+        assert_eq!(published_ledger(&root), None);
+        std::fs::write(&path, "pass/a/b checked 10ms @0123456789ab\n").unwrap();
+        assert_eq!(published_ledger(&root), Some(path));
+        std::fs::remove_dir_all(&root).unwrap();
     }
 }

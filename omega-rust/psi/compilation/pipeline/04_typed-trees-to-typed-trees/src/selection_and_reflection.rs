@@ -1846,8 +1846,8 @@ pub(crate) mod reflection {
             let case_info = program
                 .closed_data_definition(case_type)
                 .filter(|data| {
-                    data.name.as_str() == "CaseInfo"
-                        && is_reflection_declaration(program, data.symbol)
+                    reflection_declaration(program, data.symbol)
+                        == Some(language_core::core_vocabulary::ReflectionDeclaration::CaseInfo)
                 })
                 .cloned()
                 .ok_or_else(|| error("active visitation requires its exact CaseInfo vocabulary"))?;
@@ -2430,7 +2430,10 @@ pub(crate) mod reflection {
             let result = program
                 .closed_data_definition(result)
                 .cloned()
-                .filter(|definition| is_reflection_declaration(program, definition.symbol))
+                .filter(|definition| {
+                    reflection_declaration(program, definition.symbol)
+                        == Some(language_core::core_vocabulary::ReflectionDeclaration::TypeSchema)
+                })
                 .ok_or_else(|| {
                     error("semantic schema requires its toolchain-owned result vocabulary")
                 })?;
@@ -2533,16 +2536,21 @@ pub(crate) mod reflection {
         vec![Diagnostic::error(message)]
     }
 
-    fn is_reflection_declaration(program: &TypedTrees, symbol: SymbolHandle) -> bool {
-        program
-            .symbols
-            .symbol_source_span(symbol)
-            .and_then(|span| program.symbols.source_file(span))
-            .is_some_and(|source| {
-                source.origin == source::SourceOrigin::Toolchain
-                    && source.path.strip_prefix(&source.package_root).ok()
-                        == Some(std::path::Path::new("reflect.omg"))
-            })
+    /*
+        The `reflect.omg` declaration `symbol` is, from the core vocabulary
+        catalog. Reflection elaboration only rewrites calls and types this
+        names; a lookalike user declaration stays ordinary.
+    */
+    fn reflection_declaration(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+    ) -> Option<language_core::core_vocabulary::ReflectionDeclaration> {
+        match program.core_vocabulary(symbol) {
+            Some(language_core::core_vocabulary::CoreVocabulary::Reflection(declaration)) => {
+                Some(declaration)
+            }
+            _ => None,
+        }
     }
 
     pub(crate) fn elaborate_calls(
@@ -2561,24 +2569,31 @@ pub(crate) mod reflection {
                 selection,
             );
             let declaration = candidate.template.template_symbol;
-            if !is_reflection_declaration(program, declaration) {
+            let Some(reflection) = reflection_declaration(program, declaration) else {
                 continue;
-            }
-            if program.symbols.name(declaration) == "schema" {
+            };
+            if reflection == language_core::core_vocabulary::ReflectionDeclaration::Schema {
                 owned_schema::elaborate(program, &candidate, selection)?;
                 changed_owners.push(selection.lexical_owner);
                 return Ok(true);
             }
-            let inspection = program.symbols.name(declaration) == "inspect_record_fields";
+            let inspection = reflection
+                == language_core::core_vocabulary::ReflectionDeclaration::InspectRecordFields;
             let active = matches!(
-                program.symbols.name(declaration),
-                "visit_active_fields" | "visit_active_fields_mut"
+                reflection,
+                language_core::core_vocabulary::ReflectionDeclaration::VisitActiveFields
+                    | language_core::core_vocabulary::ReflectionDeclaration::VisitActiveFieldsMut
             );
-            let field_access = match program.symbols.name(declaration) {
-                "visit_runtime_fields" | "visit_active_fields" | "inspect_record_fields" => {
+            let field_access = match reflection {
+                language_core::core_vocabulary::ReflectionDeclaration::VisitRuntimeFields
+                | language_core::core_vocabulary::ReflectionDeclaration::VisitActiveFields
+                | language_core::core_vocabulary::ReflectionDeclaration::InspectRecordFields => {
                     ReferenceAccess::Shared
                 }
-                "visit_runtime_fields_mut" | "visit_active_fields_mut" => ReferenceAccess::Mutable,
+                language_core::core_vocabulary::ReflectionDeclaration::VisitRuntimeFieldsMut
+                | language_core::core_vocabulary::ReflectionDeclaration::VisitActiveFieldsMut => {
+                    ReferenceAccess::Mutable
+                }
                 _ => continue,
             };
             let [Some(subject), Some(context)] = candidate.type_bindings.as_slice() else {
@@ -2690,8 +2705,8 @@ pub(crate) mod reflection {
             let field_info = program
                 .closed_data_definition(metadata_type)
                 .filter(|definition| {
-                    definition.name.as_str() == "FieldInfo"
-                        && is_reflection_declaration(program, definition.symbol)
+                    reflection_declaration(program, definition.symbol)
+                        == Some(language_core::core_vocabulary::ReflectionDeclaration::FieldInfo)
                 })
                 .cloned()
                 .ok_or_else(|| {

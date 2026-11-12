@@ -16,6 +16,7 @@ mod integer_order_weakening;
 mod nonconstructive_existence;
 mod predicate_conversion;
 mod predicate_denotation;
+mod remainder_within_dividend;
 mod source_checked_authority;
 mod theorem_certificate_admission;
 mod value_equality_transport;

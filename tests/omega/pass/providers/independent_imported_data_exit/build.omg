@@ -1,6 +1,8 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "independent_imported_data");
-    Build::depend_as(builder, "provider", Source::Path { location: "provider" });
+    let mut provider_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "provider" });
+    dependency::with_alias(&mut provider_dependency, "provider");
+    let provider_registration: DependencyRegistration = Build::dependency(builder, provider_dependency);
     Build::select_provider<provider::Probe, provider::ProbeProvider>(builder, linux_arm64, CompositionMode::Independent);
     Build::select_provider<provider::Probe, provider::ProbeProvider>(builder, linux_x86_64, CompositionMode::Independent);
     Build::select_provider<provider::Probe, provider::ProbeProvider>(builder, macos_arm64, CompositionMode::Independent);

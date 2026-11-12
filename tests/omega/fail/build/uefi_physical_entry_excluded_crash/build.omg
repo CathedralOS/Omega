@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "uefi_physical_entry_excluded_crash");
-    Build::depend(builder, Source::Path { location: "vendor" });
+    let vendor_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "vendor" }));
     Build::select_provider<vendor::UefiPhysicalEntry, FirmwareBootstrap>(builder, linux_arm64);
     Build::select_provider<vendor::UefiPhysicalEntry, FirmwareBootstrap>(builder, linux_x86_64);
     Build::select_provider<vendor::UefiPhysicalEntry, FirmwareBootstrap>(builder, macos_arm64);

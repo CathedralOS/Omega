@@ -2,15 +2,15 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "scale_melody");
-    Build::depend(builder, Source::Path {
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
         location: "../../../../source/library/std"
-    });
-    Build::depend(builder, Source::Path {
+    }));
+    let wav_output_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
         location: "../wav_output"
-    });
-    Build::depend(builder, Source::Path {
+    }));
+    let audio_playback_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
         location: "../audio_playback"
-    });
+    }));
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

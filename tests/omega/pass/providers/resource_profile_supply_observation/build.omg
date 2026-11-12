@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "resource_profile_supply_observation");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
     Build::accept_boundary<ExtentRootProvider>(builder);
     Build::select_provider<ExtentRootProvider, SyntheticRoot>(builder, linux_arm64);
     Build::select_provider<ExtentRootProvider, SyntheticRoot>(builder, linux_x86_64);

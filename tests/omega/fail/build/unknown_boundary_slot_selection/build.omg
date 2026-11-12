@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "unknown_boundary_slot_selection");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
     Build::select_provider<Gate, LatchProvider>(builder, linux_arm64);
     Build::select_provider<Gate, LatchProvider>(builder, linux_x86_64);
     Build::select_provider<Gate, LatchProvider>(builder, macos_arm64);
