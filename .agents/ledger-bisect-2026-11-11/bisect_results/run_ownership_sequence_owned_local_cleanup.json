@@ -1,0 +1,13 @@
+{
+  "witness": "run/ownership/sequence_owned_local_cleanup",
+  "good": "250bd1799699c18d601bca7a56f0b0d1148edd7e",
+  "bad_pin": "51e8c45c793007f211d0d9baee7de16767172444",
+  "fixture_add": "8db184cf6dfc7b11d0ea4a6d266bb63a91aafc64",
+  "breaking_commit": "c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30",
+  "pr": "1880",
+  "mechanism": "compiler: preserve array contracts across calls and state changes (#1880) \u2014 .../src/native_artifact/mixed_structural_scalar.rs |   1 +; .../src/physical/derivation/tests.rs               |   3 +; .../function_fragments/source/structural_case.rs   |   2 +; .../source/structural_fields/tests.rs              |   6 +",
+  "status": "bisected",
+  "stable": true,
+  "bisect_rc": 1,
+  "method": "pin-fixed-ledger"
+}

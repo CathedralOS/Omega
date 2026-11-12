@@ -8,7 +8,12 @@ PIN `51e8c45c793007f211d0d9baee7de16767172444`. PIN-fixed ledger + observation; 
 
 - **Diagnostic:** cannot prove published termination for machine `FamilyConsole::write_byte`: its checked body reaches an operation withou
 - **Witness:** `run/ownership/sequence_owned_local_cleanup`
-- **Status:** endpoint_check_failed
+- **Status:** bisected
+- **First bad:** `c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30`
+- **PR:** 1880
+- **Mechanism:** compiler: preserve array contracts across calls and state changes (#1880) — .../src/native_artifact/mixed_structural_scalar.rs |   1 +; .../src/physical/derivation/tests.rs               |   3 +; .../function_fragments/source/structural_case.rs   |   2 +; .../source/structural_fields/tests.rs              |   6 +
+- **Exit codes @ first-bad (3×):** —
+- **Exit codes @ first parent (3×):** —
 - **Members:** `pass/traits/inline_member_seals_target_family_provider`, `run/ownership/sequence_owned_local_cleanup`
 
 ## Cluster 1 (2 rows)
