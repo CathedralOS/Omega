@@ -3921,6 +3921,7 @@ pub(crate) mod requirement_instances {
         fn portable_identity(
             self,
             program: &TypedTrees,
+            kind: &data::TypeParameterKind,
             binding: &static_applications::StaticMachineBindingValue,
             lexical_owner: SymbolHandle,
         ) -> Option<type_identity::NormalizedTypeIdentity> {
@@ -3929,7 +3930,9 @@ pub(crate) mod requirement_instances {
             if matches!(
                 binding,
                 static_applications::StaticMachineBindingValue::Machine(_)
-            ) {
+            ) && matches!(kind, data::TypeParameterKind::Machine { contract }
+                if !matches!(contract, data::MachineParameterContract::RequirementIdentity))
+            {
                 type_identity::portable_applied_index_identity(
                     program,
                     type_identity::IndexIdentityArgument::TypeReference(self.type_reference()),
@@ -4289,8 +4292,11 @@ pub(crate) mod requirement_instances {
                 .iter()
                 .zip(&bindings)
                 .map(|(argument, binding)| {
+                    let parameter = self
+                        .data_type_parameter_by_symbol(binding.parameter)
+                        .ok_or("closed requirement lost its declared local parameter")?;
                     argument
-                        .portable_identity(self, &binding.value, lexical_owner)
+                        .portable_identity(self, &parameter.kind, &binding.value, lexical_owner)
                         .ok_or("closed requirement has no complete portable local operand")
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -4336,6 +4342,8 @@ pub(crate) mod requirement_instances {
                         .iter()
                         .zip(&bindings)
                         .all(|(left, right)| {
+                            let left_parameter = left.parameter;
+                            let left_value = &left.value;
                             left.parameter == right.parameter && match (&left.value, &right.value) {
                                 (
                                     static_applications::StaticMachineBindingValue::Type(left),
@@ -4373,32 +4381,20 @@ pub(crate) mod requirement_instances {
                                 // each get their own instance under one canonical
                                 // identity, which lowering rejects as a duplicate.
                                 (
-                                    static_applications::StaticMachineBindingValue::Machine(left),
+                                    static_applications::StaticMachineBindingValue::Machine(_),
                                     static_applications::StaticMachineBindingValue::Machine(right),
-                                ) => {
-                                    let existing_owner = self
-                                        .static_machine_application(existing.application)
-                                        .lexical_owner;
-                                    left.const_literal == right.const_literal
-                                        && left.evidence_projection == right.evidence_projection
-                                        && type_identity::portable_applied_index_identity(
-                                            self,
-                                            type_identity::IndexIdentityArgument::StaticArgument(
-                                                left,
-                                            ),
-                                            existing_owner,
-                                            &[],
-                                        )
-                                        .zip(type_identity::portable_applied_index_identity(
-                                            self,
-                                            type_identity::IndexIdentityArgument::StaticArgument(
-                                                right,
-                                            ),
+                                ) => self
+                                    .data_type_parameter_by_symbol(left_parameter)
+                                    .is_some_and(|parameter| {
+                                        self.static_binding_matches_argument(
+                                            &parameter.kind,
+                                            left_value,
+                                            right,
                                             lexical_owner,
-                                            &[],
-                                        ))
-                                        .is_some_and(|(left, right)| left == right)
-                                }
+                                            self.static_machine_application(existing.application)
+                                                .lexical_owner,
+                                        )
+                                    }),
                                 (
                                     static_applications::StaticMachineBindingValue::Conformance(
                                         left,
@@ -4591,6 +4587,12 @@ pub(crate) mod requirement_instances {
                 }
                 program.push_machine(machine);
             }
+            let callable_kind = data::TypeParameterKind::Machine {
+                contract: data::MachineParameterContract::Structural(signature::StateSignature {
+                    return_type: unit,
+                    ..Default::default()
+                }),
+            };
             let machine_binding = static_applications::StaticMachineBindingValue::Machine(
                 expression::StaticMachineArgument::default(),
             );
@@ -4613,6 +4615,7 @@ pub(crate) mod requirement_instances {
             let identities = references.map(|reference| {
                 RequirementLocalArgument::Static(reference).portable_identity(
                     &program,
+                    &callable_kind,
                     &machine_binding,
                     selected,
                 )
@@ -4654,6 +4657,7 @@ pub(crate) mod requirement_instances {
             let identity = |reference| {
                 RequirementLocalArgument::Static(reference).portable_identity(
                     &program,
+                    &callable_kind,
                     &machine_binding,
                     selected,
                 )
@@ -4663,8 +4667,12 @@ pub(crate) mod requirement_instances {
             assert_ne!(identity(first), identities[0]);
             let ordinary = static_applications::StaticMachineBindingValue::Type(references[0]);
             assert_eq!(
-                RequirementLocalArgument::Static(references[0])
-                    .portable_identity(&program, &ordinary, selected),
+                RequirementLocalArgument::Static(references[0]).portable_identity(
+                    &program,
+                    &data::TypeParameterKind::Type,
+                    &ordinary,
+                    selected
+                ),
                 type_identity::portable_applied_type_identity(
                     &program,
                     references[0],
@@ -4763,6 +4771,83 @@ pub(crate) mod requirement_instances {
             );
             assert_ne!(machine_instance, close(states[1]));
             assert_ne!(machine_instance, close(other));
+            let closed = program
+                .closed_requirement_application(machine_instance)
+                .unwrap();
+            let binding = &program.static_machine_application_bindings(closed.application)[0];
+            let (_, signature) = program.trait_machine_signature(template).unwrap();
+            let parameter = &program.state_signature_type_parameters(signature)[0];
+            for (symbol, expected) in [
+                (selected, true),
+                (states[0], true),
+                (states[1], false),
+                (other, false),
+                (missing, false),
+            ] {
+                let actual = expression::StaticMachineArgument {
+                    symbol,
+                    path: Box::from([Identifier::from(program.symbols.name(symbol))]),
+                    ..Default::default()
+                };
+                assert_eq!(
+                    program.static_binding_matches_argument(
+                        &parameter.kind,
+                        &binding.value,
+                        &actual,
+                        selected,
+                        selected
+                    ),
+                    expected,
+                    "the source call must rejoin exactly its checked machine selection"
+                );
+            }
+            let metadata_kind = data::TypeParameterKind::Machine {
+                contract: data::MachineParameterContract::RequirementIdentity,
+            };
+            let metadata_argument = expression::StaticMachineArgument {
+                symbol: template,
+                path: Box::from([Identifier::generated("invoke")]),
+                ..Default::default()
+            };
+            let metadata_binding =
+                static_applications::StaticMachineBindingValue::Machine(metadata_argument.clone());
+            assert!(
+                program.static_binding_matches_argument(
+                    &metadata_kind,
+                    &metadata_binding,
+                    &metadata_argument,
+                    selected,
+                    selected
+                ),
+                "declaration identity does not require an executable body"
+            );
+            assert!(
+                !program.static_binding_matches_argument(
+                    &callable_kind,
+                    &metadata_binding,
+                    &metadata_argument,
+                    selected,
+                    selected
+                ),
+                "a declaration-only requirement is not a concrete callable value"
+            );
+            let metadata_reference = program
+                .static_operand_type_reference_in_scope(&metadata_argument, selected)
+                .unwrap();
+            assert_eq!(
+                RequirementLocalArgument::Static(metadata_reference)
+                    .portable_identity(&program, &metadata_kind, &metadata_binding, selected)
+                    .expect(
+                        "metadata-only requirements retain their complete declaration identity"
+                    ),
+                type_identity::portable_applied_type_identity(
+                    &program,
+                    metadata_reference,
+                    selected,
+                    &[]
+                )
+                .unwrap()
+            );
         }
     }
 }
