@@ -90981,14 +90981,33 @@ pub(crate) mod structural_terms {
                     )),
                 }
             }
-            ExpressionNode::Indexed(indexed) => indexed_term_in_scope(
-                program,
-                scope,
-                frame,
-                expression,
-                structural_term(program, scope, frame, indexed.collection, bindings)?,
-                structural_term(program, scope, frame, indexed.index, bindings)?,
-            ),
+            ExpressionNode::Indexed(indexed) => {
+                // `[3u64, 5u64][0]` reads one element of a literal array at a
+                // constant position: its term is that element's own term. The
+                // prover has no array-literal term of its own, so the collection
+                // would otherwise leave the whole contract unknown.
+                if let ExpressionNode::ArrayLiteral(elements) =
+                    expression_table(program).expression(indexed.collection)
+                    && !expression_table(program).indexed_on_range(indexed)
+                    && let Some(position) =
+                        super::proof_integer::anonymous_integer_value(program, indexed.index)
+                            .and_then(|value| value.to_u64())
+                            .and_then(|value| usize::try_from(value).ok())
+                {
+                    let element = *expression_table(program)
+                        .expression_handles(*elements)
+                        .get(position)?;
+                    return structural_term(program, scope, frame, element, bindings);
+                }
+                indexed_term_in_scope(
+                    program,
+                    scope,
+                    frame,
+                    expression,
+                    structural_term(program, scope, frame, indexed.collection, bindings)?,
+                    structural_term(program, scope, frame, indexed.index, bindings)?,
+                )
+            }
             ExpressionNode::ZeroValue(type_reference) => {
                 zero_value_structural_term(program, *type_reference)
             }

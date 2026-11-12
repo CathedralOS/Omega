@@ -4561,6 +4561,15 @@ mod loans {
                     // signature result `Value` may stay a trait parameter after
                     // substitution. When the local binds the call result directly,
                     // its checked declared type is that result's type.
+                    if std::env::var("OMEGA_DBG_EVID").is_ok() {
+                        eprintln!(
+                            "EVIDDBG ret={} local={} subs={} static={}",
+                            program.display_type_reference(contract.return_type_reference(program)),
+                            program.display_type_reference(local_data.type_reference),
+                            contract.substitutions.len(),
+                            call.static_machine_parameter.is_valid(),
+                        );
+                    }
                     let formed = form(contract.return_type_reference(program)).or_else(|| {
                         (access_limits.is_empty() && local_data.type_reference.is_valid())
                             .then(|| form(local_data.type_reference))
