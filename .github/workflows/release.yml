@@ -1,21 +1,15 @@
-name: Release bundles
+name: Restore alpha.3 release bundles
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: New prerelease tag (never reused or overwritten)
-        required: true
-        default: v0.1.0-alpha.1
-        type: string
   push:
-    tags: ['v*-alpha.*', 'v*-beta.*', 'v*-rc.*']
+    branches: ['release-recovery/alpha3']
+    paths: ['.github/workflows/release.yml']
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+  group: release-v0.1.0-alpha.3
   cancel-in-progress: false
 
 defaults:
@@ -23,7 +17,7 @@ defaults:
     shell: bash
 
 env:
-  RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+  RELEASE_TAG: v0.1.0-alpha.3
   CARGO_BUILD_JOBS: '2'
   RUST_MIN_STACK: '67108864'
 
@@ -39,6 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: 4736ebd55d61dbbb463a43131e77eeb7d043ce0c
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
