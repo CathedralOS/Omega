@@ -1,7 +1,7 @@
 # build_dep_diamond
 
 Two sibling dependencies each declare an edge onto the same nested
-package. `dep_a` and `dep_b` both `depend_as` `dep_c`; each sees
+package. `dep_a` and `dep_b` both aliased `Build::dependency` `dep_c`; each sees
 `shared()` through its own edge, and the root application sees both
 `left()` and `right()` — the transitive closure unifies `dep_c` once
 rather than duplicating or conflicting it.

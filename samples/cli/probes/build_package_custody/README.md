@@ -1,8 +1,8 @@
 # build_package_custody
 
 Build-activation custody probe: one dependency package serves the root
-through both a Build scope edge (`build_depend_as "kit"`) and a Product
-scope edge (`depend_as "product_kit"`) in a single request. The dependency's
+through both a Build scope edge (`Build::build_dependency` aliased `"kit"`) and a Product
+scope edge (`Build::dependency` aliased `"product_kit"`) in a single request. The dependency's
 own build consults a nested `generator` package through a third build edge,
 reads `template.txt` through the captured source inventory, and stages a
 generated product source through the required-output obligation flow —

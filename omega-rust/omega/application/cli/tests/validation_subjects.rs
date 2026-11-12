@@ -22,7 +22,9 @@ const UNPROVED: &str = "may overflow `u64`";
 
 const APP_BUILD: &str = "machine build(builder: &mut Build) {
     Build::application(builder, \"acceptance_app\");
-    Build::depend_as(builder, \"vendor\", Source::Path { location: \"vendor\" });
+    let mut vendor_dependency: DependencyDescription = dependency::from_source(Source::Path { location: \"vendor\" });
+    dependency::with_alias(&mut vendor_dependency, \"vendor\");
+    let vendor_registration: DependencyRegistration = Build::dependency(builder, vendor_dependency);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }
 ";
