@@ -7309,6 +7309,11 @@ partition_leaf: Default::default(),
                     super::super::super::reference_results::release_statement(
                         program, facts, machine, state, loan,
                     )
+                    .or_else(|| {
+                        validation::reference_result_custody::reassigned_release_statement(
+                            program, facts, machine, state, loan,
+                        )
+                    })
                 })?;
                 let boundary = order.latest(
                     boundary as usize,

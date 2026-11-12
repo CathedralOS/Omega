@@ -347,7 +347,9 @@ fn nested_readiness_jobs() {
 use omega::language::core::program_image;
 machine build(builder: &mut Build) suspends {
     Build::package(builder, "readiness_leaf");
-    Build::build_depend_as(builder, "root", Source::Path { location: "../.." });
+    let mut root_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../.." });
+    dependency::with_alias(&mut root_dependency, "root");
+    let root_registration: DependencyRegistration = Build::build_dependency(builder, root_dependency);
     suspend Build::await_provider<ProgramImage, root::TestImage>(builder);
 }
 "#,
@@ -2066,7 +2068,7 @@ fn settled_build_product_contexts() {
     std::fs::copy(fixture.join("main.omg"), project.join("main.omg")).unwrap();
     let authored = std::fs::read_to_string(fixture.join("build.omg")).unwrap();
     let dependency = format!(
-        "Build::depend_as(builder, \"std\", Source::Path {{ location: {:?} }});",
+        "let mut std_dependency: DependencyDescription = dependency::from_source(Source::Path {{ location: {:?} }});\n    dependency::with_alias(&mut std_dependency, \"std\");\n    let std_registration: DependencyRegistration = Build::dependency(builder, std_dependency);",
         repository.join("source/library/std").to_str().unwrap(),
     );
     std::fs::write(project.join("build.omg"), authored.replace(

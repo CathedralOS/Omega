@@ -439,7 +439,7 @@ without the kernel.
   program that lowers only at `#2317` was not found here; `#2317`'s own probe
   covers part of that.
 - **Native execution.** The harness runs no native code.
-- **`Build::depend` fixtures, `facts/`, `pending/` and `fail/`** were left out
+- **`Build::dependency` fixtures, `facts/`, `pending/` and `fail/`** were left out
   of the unscreened sweep.
 - **Coverage at the current head.** The coverage build is from the `#2305`
   measurement head. Psi 05, validation and Psi 06 differ from `main`
@@ -464,7 +464,7 @@ workspace dev profile on `omega-linux`, so times differ from those.
 - **`main`:** `82d2ea5d5`.
 
 **Unscreened sweep.** Every `tests/omega/{run,pass}/**/main.omg` outside
-`facts/` whose `build.omg` does not call `Build::depend`: 3,486 fixtures,
+`facts/` whose `build.omg` does not call `Build::dependency`: 3,486 fixtures,
 155 `run/` and 3,331 `pass/`. One process per fixture, `timeout 300 nice -n 19`,
 three at a time:
 
