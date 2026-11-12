@@ -1,0 +1,14 @@
+fixture	class	first_diagnostic	cluster_id
+pass/borrows/runtime_projected_fixed_byte_array_local_exit	still broken	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view	c0
+pass/termination/nested_helper_record_measure_result_equation_exit	still broken	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view	c0
+pass/termination/rank_arrival_unobserved_array_extent_compile	still broken	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view	c0
+pass/termination/runtime_public_result_field_rank_arrivals_exit	still broken	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view	c0
+pass/calls/runtime_constructed_borrowed_payload_arguments_exit	still broken	state `read` receives `count` without an exact retained backing for its loan: the access has no unique completed operand	c1
+pass/data/runtime_mixed_case_nested_common_fields_exit	still broken	state `read` receives `count` without an exact retained backing for its loan: the access has no unique completed operand	c1
+run/borrows/transition_guard_descriptor_fallthrough	still broken	state `read` receives `count` without an exact retained backing for its loan: the access has no unique completed operand	c1
+pass/borrows/copied_intermediate_descriptor_snapshot_exit	still broken	`main` has no executable body: this compiler does not lower a state of it yet (reference retirement: stored occurrences); in state `main::entry`	c2
+pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit	still broken	cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`	c3
+pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit	still broken	machine `clear_selected` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate	c4
+fail/termination/nested_helper_record_measure_result_equation_not_decreasing	fixed on main		fixed
+fail/termination/nested_helper_record_measure_result_equation_wrong_subject	fixed on main		fixed
+fail/termination/rank_arrival_public_result_wrong_subject	fixed on main		fixed

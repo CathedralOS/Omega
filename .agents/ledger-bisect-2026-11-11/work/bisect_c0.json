@@ -1,0 +1,41 @@
+{
+  "witness": "pass/termination/nested_helper_record_measure_result_equation_exit",
+  "good": "6326c6ae7aa971cc2f8eeb749f0e13385e3f85b5",
+  "bad": "51e8c45c793",
+  "anchor": "741270df60f7",
+  "breaking_commit": "225426a7aeeabfa4c945df67d3113dd27f46fb38",
+  "pr": "2045",
+  "mechanism": "psi: support explicit identity in conversion laws (#2045) \u2014 rank/identity proof changes break termination rank witness",
+  "status": "bisected",
+  "bisect_exit": 0,
+  "endpoints": {
+    "good": {
+      "results": [
+        0,
+        0,
+        0
+      ],
+      "expect": 0,
+      "flaky": false
+    },
+    "pin": {
+      "results": [
+        1,
+        1,
+        1
+      ],
+      "expect": 1,
+      "flaky": false
+    },
+    "anchor": {
+      "results": [
+        1,
+        1,
+        1
+      ],
+      "expect": 1,
+      "flaky": false
+    }
+  },
+  "pin_context_path": ".agents/ledger-bisect-2026-11-11/work/bisect_c0.pin_context.json"
+}

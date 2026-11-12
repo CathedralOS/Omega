@@ -1,0 +1,9 @@
+{
+  "witness": "pass/termination/nested_helper_record_measure_result_equation_exit",
+  "pin_commit": "51e8c45c793",
+  "pin_status": "rejected",
+  "pin_first_diag": "terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view",
+  "pin_diag_norm": "terminating machine iterate: cannot prove rank range `_` for the rank produced by the selected view",
+  "ledger_expected_status": "checked",
+  "tier": "pass"
+}

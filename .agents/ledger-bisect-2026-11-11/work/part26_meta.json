@@ -1,0 +1,22 @@
+{
+  "fixed": [
+    "fail/termination/nested_helper_record_measure_result_equation_not_decreasing",
+    "fail/termination/nested_helper_record_measure_result_equation_wrong_subject",
+    "fail/termination/rank_arrival_public_result_wrong_subject"
+  ],
+  "members": [
+    "fail/termination/nested_helper_record_measure_result_equation_not_decreasing",
+    "fail/termination/nested_helper_record_measure_result_equation_wrong_subject",
+    "fail/termination/rank_arrival_public_result_wrong_subject",
+    "pass/borrows/runtime_projected_fixed_byte_array_local_exit",
+    "pass/termination/nested_helper_record_measure_result_equation_exit",
+    "pass/termination/rank_arrival_unobserved_array_extent_compile",
+    "pass/termination/runtime_public_result_field_rank_arrivals_exit",
+    "pass/calls/runtime_constructed_borrowed_payload_arguments_exit",
+    "pass/data/runtime_mixed_case_nested_common_fields_exit",
+    "run/borrows/transition_guard_descriptor_fallthrough",
+    "pass/borrows/copied_intermediate_descriptor_snapshot_exit",
+    "pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit",
+    "pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit"
+  ]
+}

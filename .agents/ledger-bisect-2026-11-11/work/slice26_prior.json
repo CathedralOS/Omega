@@ -1,0 +1,39 @@
+[
+  [
+    26,
+    {
+      "diag_norm": "cannot prove ensures contract for exit from selected at statement N: result >= Minimum",
+      "diag_sample": "cannot prove ensures contract for exit from selected at statement 2: result >= Minimum",
+      "count": 2,
+      "members": [
+        "pass/facts/open_const_implementation_statement_const_result_exit",
+        "pass/facts/open_const_implementation_statement_saved_output_exit"
+      ],
+      "witness": "pass/facts/open_const_implementation_statement_const_result_exit"
+    }
+  ],
+  [
+    66,
+    {
+      "diag_norm": "cannot prove requires contract for call agree from read_kept: saved == holder.items[N] && saved == N (needs fact `_` here; establish it before the call via a pr",
+      "diag_sample": "cannot prove requires contract for call agree from read_kept: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior c",
+      "count": 1,
+      "members": [
+        "pass/facts/saved_observation_snapshot_indexed_handback_other_machine_exit"
+      ],
+      "witness": "pass/facts/saved_observation_snapshot_indexed_handback_other_machine_exit"
+    }
+  ],
+  [
+    106,
+    {
+      "diag_norm": "temporary backing lifetime coverage is unavailable for an operand of `_` in state `_` at statement N",
+      "diag_sample": "temporary backing lifetime coverage is unavailable for an operand of `entry` in state `entry` at statement 2",
+      "count": 1,
+      "members": [
+        "pass/borrows/inline_carried_reference_exit"
+      ],
+      "witness": "pass/borrows/inline_carried_reference_exit"
+    }
+  ]
+]

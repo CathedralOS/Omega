@@ -1,0 +1,36 @@
+pass/borrows/copied_intermediate_descriptor_snapshot_exit incomplete 2627ms check-target:macos_arm64
+	`main` has no executable body: this compiler does not lower a state of it yet (reference retirement: stored occurrences); in state `main::entry`
+pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit rejected 2080ms check-target:macos_arm64
+	machine `clear_selected` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+pass/borrows/runtime_projected_fixed_byte_array_local_exit rejected 2200ms check-target:macos_arm64
+	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
+	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/calls/runtime_constructed_borrowed_payload_arguments_exit rejected 2368ms check-target:macos_arm64
+	state `read` receives `count` without an exact retained backing for its loan: the access has no unique completed operand
+	state `read` receives `count` without an exact retained backing for its loan: the access has no unique completed operand
+pass/data/runtime_mixed_case_nested_common_fields_exit rejected 2311ms check-target:macos_arm64
+	state `observe` receives `count` without an exact retained backing for its loan: the access has no unique completed operand
+	state `observe` receives `count` without an exact retained backing for its loan: the access has no unique completed operand
+	state `observe` receives `count` without an exact retained backing for its loan: the access has no unique completed operand
+pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit rejected 2289ms check-target:macos_arm64
+	cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/termination/nested_helper_record_measure_result_equation_exit rejected 2273ms check-target:macos_arm64
+	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
+	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/termination/rank_arrival_unobserved_array_extent_compile rejected 2169ms check-target:macos_arm64
+	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
+	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/termination/runtime_public_result_field_rank_arrivals_exit rejected 2211ms check-target:macos_arm64
+	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
+	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/nested_helper_record_measure_result_equation_not_decreasing rejected 1252ms unexpected
+	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
+	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/nested_helper_record_measure_result_equation_wrong_subject rejected 1193ms unexpected
+	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
+	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/rank_arrival_public_result_wrong_subject rejected 1273ms unexpected
+	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
+	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+run/borrows/transition_guard_descriptor_fallthrough rejected 10377ms check-target:macos_arm64
+	state `checked` receives `buffer.values[0]::Some.payload.target` without an exact retained backing for its loan: the access has no unique completed operand

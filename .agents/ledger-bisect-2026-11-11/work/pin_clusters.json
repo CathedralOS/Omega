@@ -1,0 +1,52 @@
+[
+  {
+    "diag_norm": "terminating machine iterate: cannot prove rank range `_` for the rank produced by the selected view",
+    "diag_sample": "terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view",
+    "count": 4,
+    "members": [
+      "pass/borrows/runtime_projected_fixed_byte_array_local_exit",
+      "pass/termination/nested_helper_record_measure_result_equation_exit",
+      "pass/termination/rank_arrival_unobserved_array_extent_compile",
+      "pass/termination/runtime_public_result_field_rank_arrivals_exit"
+    ],
+    "witness": "pass/termination/nested_helper_record_measure_result_equation_exit"
+  },
+  {
+    "diag_norm": "state `_` receives `_` without an exact retained backing for its loan: the access has no unique completed operand",
+    "diag_sample": "state `read` receives `count` without an exact retained backing for its loan: the access has no unique completed operand",
+    "count": 3,
+    "members": [
+      "pass/calls/runtime_constructed_borrowed_payload_arguments_exit",
+      "pass/data/runtime_mixed_case_nested_common_fields_exit",
+      "run/borrows/transition_guard_descriptor_fallthrough"
+    ],
+    "witness": "pass/calls/runtime_constructed_borrowed_payload_arguments_exit"
+  },
+  {
+    "diag_norm": "`_` has no executable body: this compiler does not lower a state of it yet (reference retirement: stored occurrences); in state `_`",
+    "diag_sample": "`main` has no executable body: this compiler does not lower a state of it yet (reference retirement: stored occurrences); in state `main::entry`",
+    "count": 1,
+    "members": [
+      "pass/borrows/copied_intermediate_descriptor_snapshot_exit"
+    ],
+    "witness": "pass/borrows/copied_intermediate_descriptor_snapshot_exit"
+  },
+  {
+    "diag_norm": "cannot prove requires contract for call agree from main: saved == holder.items[N] && saved == N (needs fact `_` here; establish it before the call via a prior c",
+    "diag_sample": "cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+    "count": 1,
+    "members": [
+      "pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit"
+    ],
+    "witness": "pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit"
+  },
+  {
+    "diag_norm": "machine `_` cannot lend restricted field `_` to `_`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate",
+    "diag_sample": "machine `clear_selected` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate",
+    "count": 1,
+    "members": [
+      "pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit"
+    ],
+    "witness": "pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit"
+  }
+]

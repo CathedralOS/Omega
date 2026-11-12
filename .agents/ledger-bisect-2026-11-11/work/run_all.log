@@ -1,0 +1,73 @@
+Already on 'work/ledger-bisect-part-26'
+=== cluster 0 witness pass/termination/nested_helper_record_measure_result_equation_exit ===
+    Finished `dev` profile [optimized] target(s) in 0.15s
+    Finished `test` profile [optimized] target(s) in 0.15s
+  Executable tests/corpus_runner.rs (target/debug/build/compiler/beaa8c7355c9ba28/out/corpus_runner-beaa8c7355c9ba28)
+find_good n=0 51e8c45c793 rc=1
+find_good n=674 f6be366af11 rc=0
+find_good n=337 3277513fbdf rc=0
+find_good n=295 ea617d7eb96 rc=1
+find_good n=316 0fa88ecf82a rc=0
+find_good n=305 40ae51f95cc rc=1
+find_good n=310 6326c6ae7aa rc=0
+find_good n=307 225426a7aee rc=1
+find_good n=310 6326c6ae7aa rc=0
+good=6326c6ae7aa971cc2f8eeb749f0e13385e3f85b5
+We are not bisecting.
+Bisecting: 154 revisions left to test after this (roughly 7 steps)
+[dd7ab46b41392cbcb7f57711e1752f9a4efbe9c8] compiler: refuse a program whose obligation the lowered route cannot prove (#2321)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness_full.sh'
+Bisecting: 77 revisions left to test after this (roughly 6 steps)
+[7d1875c86eb4395e0112f428ae052b6db0862978] psi: check runtime-indexed constructions and operator calls like authored calls (#2256)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness_full.sh'
+Bisecting: 38 revisions left to test after this (roughly 5 steps)
+[86cd4cf3631e47ed8aa67a5afeebd3eb22a2870f] omega: stop native workers passing their handshake to child processes (#2205)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness_full.sh'
+Bisecting: 18 revisions left to test after this (roughly 4 steps)
+[23ada24f408aae8000afaa61fe2de656e44a8e6f] psi: retain cases without payloads in mathematical definitions (#2183)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness_full.sh'
+Bisecting: 9 revisions left to test after this (roughly 3 steps)
+[18b2e57640ba54d6faa8d7fd7c7d92c605b04775] docs: say why there are no private fields (#2176)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness_full.sh'
+Bisecting: 9 revisions left to test after this (roughly 3 steps)
+[ef881f76a7a0af46e65464a0f52427afb50244c8] tools: retain ownership when a worktree moves (#2178)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness_full.sh'
+Bisecting: 5 revisions left to test after this (roughly 3 steps)
+[40ae51f95cce41abafbfc21dbea8f5e2ca2cb20c] psi: narrow compiler searches for returned resource origins (#2171)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness_full.sh'
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[225426a7aeeabfa4c945df67d3113dd27f46fb38] psi: support explicit identity in conversion laws (#2045)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness_full.sh'
+Bisecting: 0 revisions left to test after this (roughly 1 step)
+[ad3cf2407872ee6ed049f8d4c13ac744c00cf0b5] docs: say how hosts bound bulk data work under the logical schedule (#2168)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness_full.sh'
+Bisecting: 0 revisions left to test after this (roughly 1 step)
+[e580a2ef1990569f94b655938f495dfcd57454f7] docs: say where representation hiding lives (#2167)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness_full.sh'
+error: bisect run cannot continue any more
+There are only 'skip'ped commits left to test.
+The first bad commit could be any of:
+ad3cf2407872ee6ed049f8d4c13ac744c00cf0b5
+e580a2ef1990569f94b655938f495dfcd57454f7
+225426a7aeeabfa4c945df67d3113dd27f46fb38
+We cannot bisect more!
+propagated pass/termination/nested_helper_record_measure_result_equation_exit ? pr 
+Traceback (most recent call last):
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/write_part26.py", line 105, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/write_part26.py", line 24, in main
+    measure = load_json(DIR / "work/pin_measure.txt")  # noqa — not json
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/write_part26.py", line 14, in load_json
+    return json.loads(p.read_text()) if p.is_file() else {}
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)

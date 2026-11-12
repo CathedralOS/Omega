@@ -1,0 +1,13 @@
+We are not bisecting.
+Bisecting: 336 revisions left to test after this (roughly 8 steps)
+[3277513fbdf42048f1ebadda212c921668484756] omega: consolidate and document selected-instructions representations (#2139)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness_full.sh'
+Bisecting: 168 revisions left to test after this (roughly 7 steps)
+[4092fe6913295b977deb98e31c531eca37d6281d] docs: ask how an unsupported proof goal form publishes Incomplete (#2327)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness_full.sh'
+Bisecting: 168 revisions left to test after this (roughly 7 steps)
+[fd0c3b7586224e646973406ee2c947bba1ba904f] docs: propose one fact-transport layer for the Psi checker (#2215)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness_full.sh'
+Bisecting: 39 revisions left to test after this (roughly 5 steps)
+[06af8fee3fe1183a2d61f3b3488b359e6e6fcdb7] samples: record Linux coverage for representation agreement (#2179)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness_full.sh'
