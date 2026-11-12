@@ -10,6 +10,22 @@ from pathlib import Path
 PIN_CORPUS = Path("/tmp/ledger_bisect_corpus_outcomes.txt")
 EXPECTATIONS = Path("/tmp/ledger_bisect_expectations.json")
 REPO = Path(os.environ.get("OMEGA_REPO", "/agent/repos/omega"))
+def has_corpus_runner_at(rev: str) -> bool:
+    try:
+        manifest = subprocess.check_output(
+            [
+                "git",
+                "-C",
+                str(REPO),
+                "show",
+                f"{rev}:omega-rust/omega/compilation/compiler/Cargo.toml",
+            ],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError:
+        return False
+    return 'name = "corpus_runner"' in manifest
 
 
 def norm_diag(d: str) -> str:
