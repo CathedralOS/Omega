@@ -44,6 +44,22 @@ machine render_room(formatter: &RoomFormatter, room: &Room, out: &write [u8]) { 
 `&T` lets the callee read. Any number of shared borrows can exist together,
 and nothing can modify the value while one is in use.
 
+## Mutable locals
+
+Declare an owned local with `let mut` when its established storage will be
+modified, whether directly, through a field or element, or by a helper
+receiving `&mut` or `&write`. Taking a writable borrow delegates permission;
+it cannot manufacture permission absent from the owned place.
+
+This does not make everything reachable from a non-`mut` binding immutable.
+A local holding an existing mutable reference can write through that reference
+without being mutable itself: the reference's storage and its referent are
+different places. Copying or moving an owned value follows its ordinary
+multiplicity rules, independently of binding mutability.
+
+The [precise rule](../spec/language/ownership.md#owned-local-mutability)
+also preserves domain access restrictions and the separate rules for atomics.
+
 ## Mutable borrows
 
 ```omega
