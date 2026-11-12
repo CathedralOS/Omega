@@ -202,6 +202,81 @@ machine escaped()->&[u8;1] {
 }
 machine chosen()->u8 { 42 }
 """, 247)
+    # Array policy casts transport values and their captured loans. These
+    # positives reach the backend's explicit aggregate/signature boundary;
+    # the matched ownership violations must fail in checking first.
+    refused('aggregate-cast-keeps-parameter-backed-loan', b"""
+machine forward(value:&u8)->[&u8;1] in Trapping {
+ let refs:[&u8;1]=[value];
+ let viewed:[&u8;1] in Trapping=refs as +Trapping as =Trapping;
+ viewed
+}
+""", 246)
+    refused('aggregate-cast-cannot-return-local-backed-loan', b"""
+machine leak()->[&u8;1] in Trapping {
+ let value:u8=42;
+ let refs:[&u8;1]=[&value];
+ refs as +Trapping
+}
+""", 247)
+    refused('aggregate-cast-copied-holder-cannot-escape', b"""
+machine leak()->[&u8;1] in Trapping {
+ let value:u8=42;
+ let refs:[&u8;1]=[&value];
+ let viewed:[&u8;1] in Trapping=refs as +Trapping as =Trapping;
+ viewed
+}
+""", 247)
+    # Keep the returned reference parameter-backed so removal of just the
+    # conflicting write produces a valid checker path, without a local escape.
+    held_cast = b"""
+machine kept(result:&u8)->[&u8;1] {
+ let mut value:u8=42;
+ let refs:[&u8;1]=[&value];
+ let viewed:[&u8;1] in Trapping=refs as +Trapping;
+ value=7;
+ let plain:[&u8;1]=viewed as -Trapping;
+ [result]
+}
+"""
+    refused('aggregate-cast-holder-keeps-backing-live', held_cast, 247)
+    refused('aggregate-cast-holder-without-conflicting-write',
+            held_cast.replace(b' value=7;\n', b''), 246)
+    affine_cast = b"""
+data Token { value:u8; }
+machine moved()->[Token;1] in Trapping {
+ let values:[Token;1]=[Token{value:42}];
+ let qualified:[Token;1] in Trapping=values as +Trapping;
+ let reused:[Token;1]=values;
+ qualified
+}
+"""
+    refused('aggregate-cast-consumes-affine-operand', affine_cast, 247)
+    refused('aggregate-cast-single-affine-transfer',
+            affine_cast.replace(b' let reused:[Token;1]=values;\n', b''), 246)
+    refused('aggregate-cast-cannot-discard-linear-operand', b"""
+data Token [linear] {value:u8;}
+machine chosen()->u8 {
+ let values:[Token;1]=[Token{value:42}];
+ values as +Trapping;
+ 42
+}
+""", 247)
+    refused('aggregate-cast-affine-temporary-remains-explicit-coverage', b"""
+data Token {value:u8;}
+machine chosen()->u8 {
+ let values:[Token;1]=[Token{value:42}];
+ let count:u64=(values as +Trapping).len;
+ 42
+}
+""", 247)
+    refused('numeric-cast-read-does-not-move-reference', b"""
+machine observe(value:&mut u8)->u8 {
+ let copy:u8=value as u8;
+ value=7;
+ copy
+}
+""", 246)
     # Domain-only nodes have no type-reference row. They must not rebind
     # the unrelated first row (the data's generic T) under this machine.
     refused('domain-cast-keeps-unrelated-type-scope',
