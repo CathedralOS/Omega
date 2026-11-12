@@ -36,28 +36,74 @@ python3 "$TMP_TOOLS/prepare_pin_snapshot.py" "$WITNESS"
 export BISECT_PIN_LEDGER=/tmp/ledger-bisect-pin/corpus_outcomes.txt
 export BISECT_PIN_STATE=/tmp/ledger-bisect-pin/witness_state.json
 
+run_witness_test() {
+  set +e
+  nice -n 19 "$SCRIPT"
+  local rc=$?
+  set -e
+  return "$rc"
+}
+
 find_good_commit() {
-  local cur="$PIN"
-  local parent rc
-  while true; do
-    parent=$(git rev-parse "$cur^" 2>/dev/null) || break
-    if is_ledger_only_commit "$parent"; then
+  local low=759c80404428e6d9922a8b67cce32daf7e41a02e
+  git checkout -q "$PIN"
+  if run_witness_test; then
+    echo "PIN tests good but expected bad" >&2
+    echo ""
+    return 1
+  fi
+  git checkout -q "$low"
+  if ! run_witness_test; then
+    local cur="$low"
+    local parent rc
+    while parent=$(git rev-parse "$cur^" 2>/dev/null); do
+      if is_ledger_only_commit "$parent"; then
+        cur="$parent"
+        continue
+      fi
+      git checkout -q "$parent"
+      run_witness_test
+      rc=$?
+      if [[ "$rc" -eq 0 ]]; then
+        echo "$parent"
+        return 0
+      fi
       cur="$parent"
+    done
+    echo ""
+    return 1
+  fi
+  local -a revs=()
+  mapfile -t revs < <(git rev-list --first-parent "$PIN^" --not "$low")
+  local mid lo=0 hi=$((${#revs[@]} - 1)) found=""
+  # rev-list is newest-first; seek newest ancestor that still tests good (0).
+  while (( lo <= hi )); do
+    mid=$(( (lo + hi) / 2 ))
+    local c="${revs[$mid]}"
+    if is_ledger_only_commit "$c"; then
+      if (( mid + 1 <= hi )); then
+        lo=$((mid + 1))
+      else
+        hi=$((mid - 1))
+      fi
       continue
     fi
-    git checkout -q "$parent"
-    set +e
-    nice -n 19 "$SCRIPT"
+    git checkout -q "$c"
+    run_witness_test
     rc=$?
-    set -e
     if [[ "$rc" -eq 0 ]]; then
-      echo "$parent"
-      return 0
+      found="$c"
+      lo=$((mid + 1))
+    else
+      hi=$((mid - 1))
     fi
-    cur="$parent"
   done
-  echo ""
-  return 1
+  if [[ -n "$found" ]]; then
+    echo "$found"
+    return 0
+  fi
+  echo "$low"
+  return 0
 }
 
 if [[ -z "${BISECT_GOOD:-}" ]]; then
