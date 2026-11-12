@@ -507,6 +507,19 @@ fn validate_runtime_oracles(
     interpret: bool,
 ) -> Result<(), String> {
     for row in records {
+        // The runner weighed an authored `expected_native_rejection.txt` and the
+        // observed publication was not that refusal. Recording the row would pin
+        // an unmet oracle, so it stops here like an unmet exit promise.
+        if row
+            .facts
+            .iter()
+            .any(|(key, value)| key == "native-rejection" && value == "mismatch")
+        {
+            return Err(format!(
+                "{}: native publication did not refuse as expected_native_rejection.txt requires",
+                row.fixture
+            ));
+        }
         if row.tier == "fail" || !matches!(row.status.as_str(), "built" | "checked") {
             continue;
         }
@@ -875,6 +888,16 @@ mod tests {
             "pass/borrows/header_only rejected 1ms expected native-rejection:match\n\tauthored publication refusal\n",
         ).unwrap();
         assert!(validate_runtime_oracles(&root, &refused, "linux_x86_64", true, true).is_ok());
+        for unmet in [
+            "pass/borrows/header_only rejected 1ms unexpected native-rejection:mismatch
+	another refusal
+",
+            "pass/borrows/header_only built 1ms unexpected native-rejection:mismatch
+",
+        ] {
+            let unmet = parse_records(unmet).unwrap();
+            assert!(validate_runtime_oracles(&root, &unmet, "linux_x86_64", false, false).is_err());
+        }
         fs::write(&main, "machine main() {}\n").unwrap();
         fs::write(directory.join("expected_interpreter_exit.txt"), "0\n").unwrap();
         assert!(
