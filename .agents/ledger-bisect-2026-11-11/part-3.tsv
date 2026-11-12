@@ -1,0 +1,7 @@
+cluster	prior_idx	rows	kind	witness	diag_norm	good_sha	bad_sha	pr	mechanism	bisected	fixed_on_pin
+prior_requires_restore	3	33	fail	fail/arithmetic/widened_result_predicate_invalid_write	cannot complete return; requires facts unproved			n/a	n/a	no	yes
+prior_data_where	43	4	fail	fail/facts/data_where_standing_mutable_recast_through_call_result_rejected	data_where overflow / standing mutable recast			n/a	n/a	no	yes
+PIN_A	83	2	pass	pass/facts/match_computed_root_through_other_machine_exit	cannot prove requires for compute; counter == 0	6f0eea318690404f6d4e3d962434415493382377	d30fccc7aae65a2358024cf39788d1007e2661b4	2276	private machines proved from own requires only; caller facts dropped	yes	no
+PIN_B	123	1	pass	pass/facts/indexed_crash_guard_through_target_body_exit	CheckedOperator == unresolved	48b23bf0bb3103a4991e0bee43e2f446dea54d28	2ab64136c02d7879635a92e3e078d7374bec7590	1811	default float ops via Build left operator unresolved	yes	no
+PIN_C	163	1	pass	pass/facts/nested_result_extent_through_field_exit	subslice end vs unknown slice length	05812db44c356c4bb96427b4e8dd286a895f8128	7dc788d0669bc3efa164d72015254dab1abe24dc	730	prefix case identities dropped slice bound for subslice proof	yes	no
+PIN_D	203	1	pass	pass/borrows/nested_reference_write_disjoint_facts_exit	no retained loan on nested borrow dest	dfece9ee0666386d0fceb27ede2549b3302d82c8	51e8c45c793007f211d0d9baee7de16767172444	2505	value-parameter generic check/carry broke nested reference loan path	yes	no

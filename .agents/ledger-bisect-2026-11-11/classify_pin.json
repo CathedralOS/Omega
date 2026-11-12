@@ -1,0 +1,83 @@
+{
+  "counts": {
+    "fixed": 31,
+    "broken": 5,
+    "host_only": 0,
+    "missing": 0,
+    "total": 36
+  },
+  "fixed": [
+    "fail/arithmetic/widened_result_predicate_invalid_write",
+    "fail/borrows/indexed_exclusive_primitive_loan_preserves_field_invariant",
+    "fail/borrows/reference_record_field_predicate_invalid_store",
+    "fail/borrows/reference_record_index_predicate_invalid_store",
+    "fail/calling/call_plan_count_invalid_handback",
+    "fail/calls/selector_field_predicate_upper_bound",
+    "fail/dependent/applied_default_domain_mutable_requirement_stale",
+    "fail/dependent/applied_default_domain_wrapping_is_not_integer_subtraction",
+    "fail/dependent/borrowed_coupled_unrestored_count",
+    "fail/dependent/dynamic_record_replacement_preserves_unknown_debt",
+    "fail/dependent/stored_predicate_same_spelled_missing_field",
+    "fail/domains/qualified_explicit_buffer_write_only_invariant",
+    "fail/domains/qualified_fixed_byte_array_explicit_buffer_unbounded_count",
+    "fail/domains/returned_record_scalar_predicate_invalidation",
+    "fail/facts/correlated_invariant_store_through_call_result_rejected",
+    "fail/facts/correlated_invariant_store_through_const_name_rejected",
+    "fail/facts/correlated_invariant_store_through_local_rejected",
+    "fail/facts/correlated_invariant_store_through_match_join_rejected",
+    "fail/facts/correlated_invariant_store_through_other_machine_rejected",
+    "fail/facts/correlated_invariant_store_through_other_state_rejected",
+    "fail/facts/correlated_invariant_store_through_parameter_rejected",
+    "fail/facts/correlated_invariant_store_through_target_body_rejected",
+    "fail/inline_asm/asm_msr_destination_predicate",
+    "fail/inline_asm/asm_system_register_destination_predicate",
+    "fail/range/element_view_field_domain_occurrence",
+    "fail/ranges/correlated_store_all_predecessors",
+    "fail/ranges/correlated_store_rhs_retires_bound",
+    "fail/facts/data_where_standing_mutable_recast_through_call_result_rejected",
+    "fail/facts/data_where_standing_mutable_recast_through_field_rejected",
+    "fail/facts/provider_contract_endpoint_control_false_result_guarantee",
+    "fail/facts/provider_contract_endpoint_control_mutated_scalar_return"
+  ],
+  "broken": [
+    "pass/facts/match_computed_root_through_other_machine_exit",
+    "pass/facts/match_computed_root_through_target_body_exit",
+    "pass/facts/indexed_crash_guard_through_target_body_exit",
+    "pass/facts/nested_result_extent_through_field_exit",
+    "pass/borrows/nested_reference_write_disjoint_facts_exit"
+  ],
+  "host_only": [],
+  "missing": [],
+  "broken_detail": {
+    "pass/facts/match_computed_root_through_other_machine_exit": {
+      "diag": "cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+      "diag_norm": "cannot prove requires contract for call compute from apply: visits == N (needs fact `_` here; establish it before the call via a prior contract guarantee, domai",
+      "main_status": "rejected",
+      "ledger_status": "checked"
+    },
+    "pass/facts/match_computed_root_through_target_body_exit": {
+      "diag": "cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+      "diag_norm": "cannot prove requires contract for call compute from apply: visits == N (needs fact `_` here; establish it before the call via a prior contract guarantee, domai",
+      "main_status": "rejected",
+      "ledger_status": "checked"
+    },
+    "pass/facts/indexed_crash_guard_through_target_body_exit": {
+      "diag": "authored Operator declaration selection occurrence 571 (`==` in tests/omega/pass/facts/indexed_crash_guard_through_target_body_exit/main.omg) remained unresolved after successful checking (CheckedOperator)",
+      "diag_norm": "authored Operator declaration selection occurrence N (`_` in tests/omega/pass/facts/indexed_crash_guard_through_target_body_exit/main.omg) remained unresolved a",
+      "main_status": "rejected",
+      "ledger_status": "checked"
+    },
+    "pass/facts/nested_result_extent_through_field_exit": {
+      "diag": "cannot prove subslice range end bound `0..bound.end` is within unknown slice length of `buffer` in trial::entry",
+      "diag_norm": "cannot prove subslice range end bound `_` is within unknown slice length of `_` in trial::entry",
+      "main_status": "rejected",
+      "ledger_status": "checked"
+    },
+    "pass/borrows/nested_reference_write_disjoint_facts_exit": {
+      "diag": "statement 0 cannot resolve the complete borrowed destination of `value.middle.items[0].value.changed`: the incoming descriptor has no retained loan occurrence",
+      "diag_norm": "statement N cannot resolve the complete borrowed destination of `_`: the incoming descriptor has no retained loan occurrence",
+      "main_status": "rejected",
+      "ledger_status": "checked"
+    }
+  }
+}

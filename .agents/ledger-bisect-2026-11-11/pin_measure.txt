@@ -1,0 +1,83 @@
+pass/borrows/nested_reference_write_disjoint_facts_exit rejected 2417ms check-target:macos_arm64
+	statement 0 cannot resolve the complete borrowed destination of `value.middle.items[0].value.changed`: the incoming descriptor has no retained loan occurrence
+pass/facts/indexed_crash_guard_through_target_body_exit rejected 2485ms check-target:macos_arm64
+	authored Operator declaration selection occurrence 571 (`==` in tests/omega/pass/facts/indexed_crash_guard_through_target_body_exit/main.omg) remained unresolved after successful checking (CheckedOperator)
+pass/facts/match_computed_root_through_other_machine_exit rejected 2260ms check-target:macos_arm64
+	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/match_computed_root_through_target_body_exit rejected 4429ms check-target:macos_arm64 terminal-inspections:failed
+	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	inspection main admission: [Diagnostic { severity: Error, message: "cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(32), span: Span { start: 434, end: 441 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("match_computed_root_through_target_body"), path: "tests/omega/pass/facts/match_computed_root_through_target_body_exit/main.omg", line: 14, column: 43 }) }]
+pass/facts/nested_result_extent_through_field_exit rejected 14598ms check-target:macos_arm64
+	cannot prove subslice range end bound `0..bound.end` is within unknown slice length of `buffer` in trial::entry
+fail/arithmetic/widened_result_predicate_invalid_write rejected 1257ms expected
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `widened` (data `ByteResult`) unproved; restore them first
+fail/borrows/indexed_exclusive_primitive_loan_preserves_field_invariant rejected 1241ms expected
+	cannot complete return from machine `change` state `entry`: this write left the `requires` facts of `main.rows[*].cells[*]` (data `Byte`) unproved; restore them first
+fail/borrows/reference_record_field_predicate_invalid_store rejected 1215ms expected
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `cell` (data `Cell`) unproved; restore them first
+fail/borrows/reference_record_index_predicate_invalid_store rejected 1200ms expected
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `selection` (data `Selection`) unproved; restore them first
+fail/calling/call_plan_count_invalid_handback rejected 10454ms expected
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `plan` (data `CallPlan`) unproved; restore them first
+fail/calls/selector_field_predicate_upper_bound rejected 1262ms expected
+	cannot complete return from machine `replace_row` state `entry`: this write left the `requires` facts of `cursor` (data `Cursor`) unproved; restore them first
+	cannot complete return from machine `replace_position` state `entry`: this write left the `requires` facts of `cursor` (data `Cursor`) unproved; restore them first
+fail/dependent/applied_default_domain_mutable_requirement_stale rejected 2171ms expected
+	cannot complete return from machine `Counter::set` state `set`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+	cannot complete return from machine `Counter::set$specialized$e90186bf06f41592$0$4630` state `set`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/dependent/applied_default_domain_wrapping_is_not_integer_subtraction rejected 2137ms expected
+	cannot complete return from machine `Counter::set` state `set`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+	cannot complete return from machine `Counter::set$specialized$e494a37996d9545e$0$4630` state `set`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/dependent/borrowed_coupled_unrestored_count rejected 2055ms expected
+	cannot complete return from machine `replace` state `entry`: this write left the `requires` facts of `record` (data `Coupled`) unproved; restore them first
+fail/dependent/dynamic_record_replacement_preserves_unknown_debt rejected 1187ms expected
+	cannot complete return from machine `existing_debt` state `entry`: this write left the `requires` facts of `debt.cells[0]` (data `Cell`) unproved; restore them first
+	cannot complete return from machine `stale_snapshot` state `entry`: this write left the `requires` facts of `stale.cells[0]` (data `Cell`) unproved; restore them first
+	cannot complete return from machine `finish` state `entry`: this write left the `requires` facts of `transport.cells[0]` (data `Cell`) unproved; restore them first
+	machine `missing_elements` state `entry` statement 3: reading `raw[0].value` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `u64[in Positive]`
+	machine `missing_elements` state `entry` statement 3: reading `raw[0].value` crosses an open default-domain invariant window before data `Gated` is established: the zeroed representation is not yet a `Gated` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/dependent/stored_predicate_same_spelled_missing_field rejected 1241ms expected
+	cannot complete return from machine `replace` state `entry`: this write left the `requires` facts of `record` (data `Pair`) unproved; restore them first
+fail/domains/qualified_explicit_buffer_write_only_invariant rejected 1192ms expected
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `buffer` (data `Buffer`) unproved; restore them first
+fail/domains/qualified_fixed_byte_array_explicit_buffer_unbounded_count rejected 1302ms expected
+	cannot complete return from machine `set_count` state `entry`: this write left the `requires` facts of `buffer` (data `TextBuffer`) unproved; restore them first
+fail/domains/returned_record_scalar_predicate_invalidation rejected 1181ms expected
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `buffer` (data `Buffer`) unproved; restore them first
+fail/facts/correlated_invariant_store_through_call_result_rejected rejected 1190ms expected
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/correlated_invariant_store_through_const_name_rejected rejected 1225ms expected
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/correlated_invariant_store_through_local_rejected rejected 1170ms expected
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/correlated_invariant_store_through_match_join_rejected rejected 1213ms expected
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/correlated_invariant_store_through_other_machine_rejected rejected 1195ms expected
+	cannot complete return from machine `store` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/correlated_invariant_store_through_other_state_rejected rejected 1187ms expected
+	cannot complete return from machine `store` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/correlated_invariant_store_through_parameter_rejected rejected 1232ms expected
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/correlated_invariant_store_through_target_body_rejected rejected 1227ms expected
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/data_where_standing_mutable_recast_through_call_result_rejected rejected 1493ms expected
+	argument `view` for state `forward`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
+fail/facts/data_where_standing_mutable_recast_through_field_rejected rejected 1552ms expected
+	construction of `Holder` field `view`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
+fail/facts/provider_contract_endpoint_control_false_result_guarantee rejected 3095ms unexpected
+	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/provider_contract_endpoint_control_mutated_scalar_return rejected 3197ms unexpected
+	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/inline_asm/asm_msr_destination_predicate rejected 2096ms expected
+	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
+fail/inline_asm/asm_system_register_destination_predicate rejected 2148ms expected
+	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
+fail/range/element_view_field_domain_occurrence rejected 1243ms expected
+	cannot complete return from machine `store` state `entry`: this write left the `requires` facts of `cells[0]` (data `Cell`) unproved; restore them first
+fail/ranges/correlated_store_all_predecessors rejected 1275ms expected
+	cannot complete return from machine `store` state `entry`: this write left the `requires` facts of `output` (data `Limited`) unproved; restore them first
+fail/ranges/correlated_store_rhs_retires_bound rejected 1279ms expected
+	cannot complete return from machine `write` state `entry`: this write left the `requires` facts of `output` (data `Limited`) unproved; restore them first
