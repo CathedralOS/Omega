@@ -8196,6 +8196,7 @@ machine OmegaParser::parse_view(
 
     state type_punctuation() {
         transition self.scan.punctuation {
+            OmegaPunctuationKind::Equal -> cast_retention_boundary()
             OmegaPunctuationKind::Plus -> cast_domain_marker(OmegaCastKind::AddDomain)
             OmegaPunctuationKind::Minus -> cast_domain_marker(OmegaCastKind::RemoveDomain)
             OmegaPunctuationKind::LeftBracket -> begin_type_array()
@@ -8206,6 +8207,13 @@ machine OmegaParser::parse_view(
                 self.scan.token_start,
                 self.scan.token_end
             )
+        }
+    }
+
+    state cast_retention_boundary() {
+        transition self.type_consumer {
+            OmegaTypeConsumer::Cast -> incomplete_root()
+            _ -> type_end_failure(self.scan.token_start, self.scan.token_end)
         }
     }
 
