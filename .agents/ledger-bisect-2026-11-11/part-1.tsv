@@ -1,0 +1,84 @@
+fixture	class	first_diagnostic	cluster_id
+fixed_on_main	fail/facts/foreign_nested_record_backing_call_result		
+fixed_on_main	fail/facts/foreign_nested_record_backing_const_name		
+fixed_on_main	fail/facts/foreign_nested_record_backing_field		
+fixed_on_main	fail/facts/foreign_nested_record_backing_local		
+fixed_on_main	fail/facts/foreign_nested_record_backing_match_join		
+fixed_on_main	fail/facts/foreign_nested_record_backing_other_machine		
+fixed_on_main	fail/facts/foreign_nested_record_backing_other_state		
+fixed_on_main	fail/facts/foreign_nested_record_backing_parameter		
+fixed_on_main	fail/facts/foreign_nested_record_backing_repeated_child_type_live		
+fixed_on_main	fail/facts/foreign_nested_record_backing_target_body		
+fixed_on_main	fail/facts/foreign_retained_mutable_borrow_call_result		
+fixed_on_main	fail/facts/foreign_retained_mutable_borrow_const_name		
+fixed_on_main	fail/facts/foreign_retained_mutable_borrow_field		
+fixed_on_main	fail/facts/foreign_retained_mutable_borrow_local		
+fixed_on_main	fail/facts/foreign_retained_mutable_borrow_match_join		
+fixed_on_main	fail/facts/foreign_retained_mutable_borrow_mixed_issuers_live		
+fixed_on_main	fail/facts/foreign_retained_mutable_borrow_other_machine		
+fixed_on_main	fail/facts/foreign_retained_mutable_borrow_other_registration_live		
+fixed_on_main	fail/facts/foreign_retained_mutable_borrow_other_state		
+fixed_on_main	fail/facts/foreign_retained_mutable_borrow_overlapping_registration		
+fixed_on_main	fail/facts/foreign_retained_mutable_borrow_parameter		
+fixed_on_main	fail/facts/foreign_retained_mutable_borrow_stale_completion_fact		
+fixed_on_main	fail/facts/foreign_retained_mutable_borrow_target_body		
+fixed_on_main	fail/facts/foreign_retained_shared_borrow_borrowed_slot_swap		
+fixed_on_main	fail/facts/foreign_retained_shared_borrow_call_result		
+fixed_on_main	fail/facts/foreign_retained_shared_borrow_const_name		
+fixed_on_main	fail/facts/foreign_retained_shared_borrow_field		
+fixed_on_main	fail/facts/foreign_retained_shared_borrow_local		
+fixed_on_main	fail/facts/foreign_retained_shared_borrow_match_join		
+fixed_on_main	fail/facts/foreign_retained_shared_borrow_other_machine		
+fixed_on_main	fail/facts/foreign_retained_shared_borrow_other_state		
+fixed_on_main	fail/facts/foreign_retained_shared_borrow_parameter		
+fixed_on_main	fail/facts/foreign_retained_shared_borrow_persistent_restore		
+fixed_on_main	fail/facts/foreign_retained_shared_borrow_persistent_retention		
+fixed_on_main	fail/facts/foreign_retained_shared_borrow_retained_escape		
+fixed_on_main	fail/facts/foreign_retained_shared_borrow_target_body		
+fixed_on_main	fail/proofs/field_view_index_missing_bound		
+fixed_on_main	fail/proofs/field_view_index_wrong_sibling		
+still_broken	pass/borrows/runtime_forwarded_reference_array_bounded_read_exit	cannot prove requires contract for call require_cell_value from Main::main: observed >= 0 && observed <= 100 (needs fact `value >= 0 && value <= 100` here; establish it before the call via a prior con	2
+fixed_on_main	pass/constants/direct_named_implementation_initializer_exit		
+fixed_on_main	pass/facts/foreign_nested_record_backing_call_result		
+fixed_on_main	pass/facts/foreign_nested_record_backing_const_name		
+fixed_on_main	pass/facts/foreign_nested_record_backing_field		
+fixed_on_main	pass/facts/foreign_nested_record_backing_local		
+fixed_on_main	pass/facts/foreign_nested_record_backing_match_join		
+fixed_on_main	pass/facts/foreign_nested_record_backing_other_machine		
+fixed_on_main	pass/facts/foreign_nested_record_backing_other_state		
+fixed_on_main	pass/facts/foreign_nested_record_backing_parameter		
+fixed_on_main	pass/facts/foreign_nested_record_backing_repeated_child_type		
+fixed_on_main	pass/facts/foreign_nested_record_backing_target_body		
+fixed_on_main	pass/facts/foreign_retained_mutable_borrow_call_result		
+fixed_on_main	pass/facts/foreign_retained_mutable_borrow_const_name		
+fixed_on_main	pass/facts/foreign_retained_mutable_borrow_field		
+fixed_on_main	pass/facts/foreign_retained_mutable_borrow_local		
+fixed_on_main	pass/facts/foreign_retained_mutable_borrow_match_join		
+fixed_on_main	pass/facts/foreign_retained_mutable_borrow_mixed_issuers		
+fixed_on_main	pass/facts/foreign_retained_mutable_borrow_other_machine		
+fixed_on_main	pass/facts/foreign_retained_mutable_borrow_other_state		
+fixed_on_main	pass/facts/foreign_retained_mutable_borrow_parameter		
+fixed_on_main	pass/facts/foreign_retained_mutable_borrow_reverse_completion		
+fixed_on_main	pass/facts/foreign_retained_mutable_borrow_target_body		
+still_broken	pass/facts/foreign_retained_shared_borrow_borrowed_slot_swap	machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation	1
+fixed_on_main	pass/facts/foreign_retained_shared_borrow_call_result		
+fixed_on_main	pass/facts/foreign_retained_shared_borrow_const_name		
+fixed_on_main	pass/facts/foreign_retained_shared_borrow_enclosing_allocation		
+fixed_on_main	pass/facts/foreign_retained_shared_borrow_field		
+fixed_on_main	pass/facts/foreign_retained_shared_borrow_local		
+fixed_on_main	pass/facts/foreign_retained_shared_borrow_match_join		
+fixed_on_main	pass/facts/foreign_retained_shared_borrow_other_machine		
+fixed_on_main	pass/facts/foreign_retained_shared_borrow_other_state		
+fixed_on_main	pass/facts/foreign_retained_shared_borrow_parameter		
+still_broken	pass/facts/foreign_retained_shared_borrow_persistent_restore	machine `store_pending` stores a borrowed value without a complete normal-exit backing relation	1
+still_broken	pass/facts/foreign_retained_shared_borrow_persistent_retention	statement 8 mutates `first_buffer.value` while local borrow `first` is still active (borrowed at statement 4; its last use is at statement 11)	3
+fixed_on_main	pass/facts/foreign_retained_shared_borrow_raw_same_carrier_borrow		
+fixed_on_main	pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called		
+fixed_on_main	pass/facts/foreign_retained_shared_borrow_resident_whole_move		
+fixed_on_main	pass/facts/foreign_retained_shared_borrow_shared_aliases		
+fixed_on_main	pass/facts/foreign_retained_shared_borrow_target_body		
+fixed_on_main	pass/facts/target_family_callback_guarantee/parameter		
+still_broken	pass/slices/runtime_indexed_store_captures_selector_before_rhs_exit	cannot prove requires contract for call middle from Main::main: 1 <= 3 && 3 <= main.bytes.len (needs fact `start <= end && end <= bytes.len` here; establish it before the call via a prior contract gua	0
+still_broken	pass/slices/runtime_indexed_store_operand_effect_order_exit	cannot prove requires contract for call middle from Main::main: 1 <= 3 && 3 <= main.bytes.len (needs fact `start <= end && end <= bytes.len` here; establish it before the call via a prior contract gua	0
+still_broken	pass/slices/runtime_namespace_range_contract_exit	cannot prove requires contract for call middle from Main::main: 1 <= 3 && 3 <= main.bytes.len (needs fact `start <= end && end <= bytes.len` here; establish it before the call via a prior contract gua	0
+still_broken	pass/slices/runtime_returned_range_extent_contract_exit	cannot prove requires contract for call middle from Main::main: 1 <= 3 && 3 <= main.bytes.len (needs fact `start <= end && end <= bytes.len` here; establish it before the call via a prior contract gua	0

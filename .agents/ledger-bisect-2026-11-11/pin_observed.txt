@@ -1,0 +1,176 @@
+pass/borrows/runtime_forwarded_reference_array_bounded_read_exit rejected 10619ms check-target:macos_arm64
+	cannot prove requires contract for call require_cell_value from Main::main: observed >= 0 && observed <= 100 (needs fact `value >= 0 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+pass/constants/direct_named_implementation_initializer_exit checked 3538ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_call_result checked 3640ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_const_name checked 3728ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_field checked 3987ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_local checked 3764ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_match_join checked 3702ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_other_machine checked 3807ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_other_state checked 3716ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_parameter checked 3751ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_repeated_child_type checked 3522ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_target_body checked 3706ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_call_result checked 3789ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_const_name checked 3527ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_field checked 3583ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_local checked 3570ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_match_join checked 3963ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_mixed_issuers checked 4532ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_other_machine checked 3749ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_other_state checked 3845ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_parameter checked 3816ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_reverse_completion checked 3792ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_target_body checked 3844ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_borrowed_slot_swap rejected 2865ms check-target:macos_arm64
+	machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation
+	statement 12 mutates `second_buffer.value` while local borrow `second` is still active (borrowed at statement 5; its last use is at statement 15)
+	statement 12 mutates `second_buffer.value` while local borrow `state` is still active (borrowed at statement 6; its last use is at statement 15)
+pass/facts/foreign_retained_shared_borrow_call_result checked 3893ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_const_name checked 3634ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_enclosing_allocation checked 3653ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_field checked 3680ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_local checked 3527ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_match_join checked 3647ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_other_machine checked 3694ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_other_state checked 3672ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_parameter checked 3633ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_persistent_restore rejected 2853ms check-target:macos_arm64
+	machine `store_pending` stores a borrowed value without a complete normal-exit backing relation
+	cannot prove default-domain field requirement for return from store_pending at statement 7: main.stored requires Pending::Retained
+pass/facts/foreign_retained_shared_borrow_persistent_retention rejected 2820ms check-target:macos_arm64
+	statement 8 mutates `first_buffer.value` while local borrow `first` is still active (borrowed at statement 4; its last use is at statement 11)
+	statement 8 mutates `first_buffer.value` while local borrow `state` is still active (borrowed at statement 6; its last use is at statement 11)
+pass/facts/foreign_retained_shared_borrow_raw_same_carrier_borrow checked 3829ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called checked 3739ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_resident_whole_move checked 3740ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_shared_aliases checked 3799ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_target_body checked 3753ms check-target:macos_arm64
+pass/facts/target_family_callback_guarantee/parameter checked 3122ms check-target:macos_arm64
+pass/slices/runtime_indexed_store_captures_selector_before_rhs_exit rejected 2348ms check-target:macos_arm64
+	cannot prove requires contract for call middle from Main::main: 1 <= 3 && 3 <= main.bytes.len (needs fact `start <= end && end <= bytes.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+pass/slices/runtime_indexed_store_operand_effect_order_exit rejected 2361ms check-target:macos_arm64
+	cannot prove requires contract for call middle from Main::main: 1 <= 3 && 3 <= main.bytes.len (needs fact `start <= end && end <= bytes.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+pass/slices/runtime_namespace_range_contract_exit rejected 2351ms check-target:macos_arm64
+	cannot prove requires contract for call middle from Main::main: 1 <= 3 && 3 <= main.bytes.len (needs fact `start <= end && end <= bytes.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+pass/slices/runtime_returned_range_extent_contract_exit rejected 2347ms check-target:macos_arm64
+	cannot prove requires contract for call middle from Main::main: 1 <= 3 && 3 <= main.bytes.len (needs fact `start <= end && end <= bytes.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+fail/facts/foreign_nested_record_backing_call_result rejected 2901ms expected
+	statement 5 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_nested_record_backing_const_name rejected 2964ms expected
+	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_nested_record_backing_field rejected 2801ms expected
+	statement 6 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
+	statement 6 reads `buffer.cell.value` while local borrow `envelope` is still active (borrowed at statement 4; its last use is at statement 8)
+	statement 6 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/facts/foreign_nested_record_backing_local rejected 2834ms expected
+	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_nested_record_backing_match_join rejected 2784ms expected
+	statement 7 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 9)
+	statement 7 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 9)
+	statement 7 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 9)
+fail/facts/foreign_nested_record_backing_other_machine rejected 2813ms expected
+	statement 5 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_nested_record_backing_other_state rejected 2830ms expected
+	statement 5 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_nested_record_backing_parameter rejected 2974ms expected
+	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_nested_record_backing_repeated_child_type_live rejected 2904ms expected
+	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_nested_record_backing_target_body rejected 3059ms expected
+	statement 5 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_mutable_borrow_call_result rejected 3011ms expected
+	statement 5 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_mutable_borrow_const_name rejected 2756ms expected
+	statement 4 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_mutable_borrow_field rejected 2710ms expected
+	statement 6 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
+	statement 6 reads `buffer.value` while local borrow `envelope` is still active (borrowed at statement 4; its last use is at statement 8)
+	statement 6 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/facts/foreign_retained_mutable_borrow_local rejected 2732ms expected
+	statement 4 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_mutable_borrow_match_join rejected 2833ms expected
+	statement 6 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
+	statement 6 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
+	statement 6 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/facts/foreign_retained_mutable_borrow_mixed_issuers_live rejected 3524ms expected
+	statement 13 reads `mutable_buffer.value` while local borrow `mutable_pending` is still active (borrowed at statement 9; its last use is at statement 17)
+	statement 13 reads `mutable_buffer.value` while local borrow `mutable_forwarded` is still active (borrowed at statement 10; its last use is at statement 17)
+	statement 13 reads `mutable_buffer.value` while local borrow `mutable_envelope` is still active (borrowed at statement 11; its last use is at statement 17)
+	statement 13 reads `mutable_buffer.value` while local borrow `mutable_routed` is still active (borrowed at statement 12; its last use is at statement 17)
+fail/facts/foreign_retained_mutable_borrow_other_machine rejected 2799ms expected
+	statement 5 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_mutable_borrow_other_registration_live rejected 2837ms expected
+	statement 13 reads `first.value` while local borrow `first_pending` is still active (borrowed at statement 5; its last use is at statement 14)
+	statement 13 reads `first.value` while local borrow `routed_first` is still active (borrowed at statement 7; its last use is at statement 14)
+fail/facts/foreign_retained_mutable_borrow_other_state rejected 2697ms expected
+	statement 5 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_mutable_borrow_overlapping_registration rejected 2802ms expected
+	state `register` receives `buffer` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
+	state `register` receives `buffer` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
+	statement 6 creates local borrow `main` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
+	statement 6 creates local borrow `main` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
+	statement 6 creates local borrow `forbidden` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
+	statement 6 creates local borrow `forbidden` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
+	statement 6 borrows `buffer` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8) in machine `Main::main`, state `main`, statement 6
+	statement 6 borrows `buffer` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8) in machine `Main::main`, state `main`, statement 6
+	statement 6 mutates `buffer` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
+	statement 6 mutates `buffer` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
+fail/facts/foreign_retained_mutable_borrow_parameter rejected 2799ms expected
+	statement 4 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_mutable_borrow_stale_completion_fact rejected 2857ms expected
+	cannot prove requires contract for call require41 from Main::main: value == 41 (needs fact `value == 41` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+fail/facts/foreign_retained_mutable_borrow_target_body rejected 2864ms expected
+	statement 5 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_shared_borrow_borrowed_slot_swap rejected 2889ms unexpected
+	machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation
+	statement 12 mutates `second_buffer.value` while local borrow `second` is still active (borrowed at statement 5; its last use is at statement 16)
+	statement 12 mutates `second_buffer.value` while local borrow `state` is still active (borrowed at statement 6; its last use is at statement 16)
+fail/facts/foreign_retained_shared_borrow_call_result rejected 3047ms expected
+	statement 4 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 6)
+	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_shared_borrow_const_name rejected 2905ms expected
+	statement 3 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/foreign_retained_shared_borrow_field rejected 2832ms expected
+	statement 5 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 7)
+	statement 5 mutates `buffer.value` while local borrow `envelope` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_shared_borrow_local rejected 2960ms expected
+	statement 3 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/foreign_retained_shared_borrow_match_join rejected 2948ms expected
+	statement 6 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 8)
+	statement 6 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
+	statement 6 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
+fail/facts/foreign_retained_shared_borrow_other_machine rejected 2932ms expected
+	statement 4 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 6)
+	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_shared_borrow_other_state rejected 2882ms expected
+	statement 4 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 6)
+	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_shared_borrow_parameter rejected 2807ms expected
+	statement 3 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/foreign_retained_shared_borrow_persistent_restore rejected 2836ms expected
+	machine `store_pending` stores a borrowed value without a complete normal-exit backing relation
+	statement 9 mutates `first_buffer.value` while local borrow `first` is still active (borrowed at statement 4; its last use is at statement 12)
+	statement 9 mutates `first_buffer.value` while local borrow `state` is still active (borrowed at statement 6; its last use is at statement 12)
+	cannot prove default-domain field requirement for return from store_pending at statement 7: main.stored requires Pending::Retained
+fail/facts/foreign_retained_shared_borrow_persistent_retention rejected 2816ms unexpected
+	statement 8 mutates `first_buffer.value` while local borrow `first` is still active (borrowed at statement 4; its last use is at statement 12)
+	statement 8 mutates `first_buffer.value` while local borrow `state` is still active (borrowed at statement 6; its last use is at statement 12)
+fail/facts/foreign_retained_shared_borrow_retained_escape rejected 3276ms expected
+	machine `escape` returns a view borrowing the local `buffer`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/foreign_retained_shared_borrow_target_body rejected 3156ms expected
+	statement 4 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 6)
+	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/proofs/field_view_index_missing_bound rejected 1314ms unexpected
+	cannot prove index `column` is within unknown slice length of `spectrum.samples` in radiance::entry
+fail/proofs/field_view_index_wrong_sibling rejected 1329ms unexpected
+	cannot prove index `column` is within unknown slice length of `batch.selected.samples` in radiance::entry
