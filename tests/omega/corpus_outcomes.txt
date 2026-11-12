@@ -14608,6 +14608,9 @@ fail/float/digit_separator_unknown_suffix_rejected rejected 8ms expected @ccdb99
 	tests/omega/fail/float/digit_separator_unknown_suffix_rejected/main.omg:1:35: unknown float literal suffix
 fail/float/directed_fma_unsupported_target rejected 14730ms expected @03a7e97e20a3
 	canonical float operation `operator::F64::fused_multiply_add_toward_zero(named(name(f64)),named(name(f64)),named(name(f64)))->named(name(f64))` has no realization on target `linux_x86_64`: x86-64 has no directed-rounding fused multiply-add realization
+fail/float/directed_fma_unsupported_target_constant rejected 54790ms expected @79d6179edb97
+	canonical float operation `operator::F64::fused_multiply_add_toward_zero(named(name(f64)),named(name(f64)),named(name(f64)))->named(name(f64))` has no realization on target `linux_x86_64`: x86-64 has no directed-rounding fused multiply-add realization
+	canonical float operation `operator::F64::fused_multiply_add_toward_zero(named(name(f64)),named(name(f64)),named(name(f64)))->named(name(f64))` has no realization on target `linux_x86_64`: x86-64 has no directed-rounding fused multiply-add realization
 fail/float/exact_format_conversion_requires_denotation rejected 2797ms expected @ccdb99ca2214
 	machine `lossy` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `lossy_literal` state `entry` cannot prove Exact float-to-`f32` cast operand `0.1` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
@@ -17841,8 +17844,8 @@ fail/providers/carry_external_issuance_unadmitted rejected 744ms expected @ccdb9
 	external machine `issue` cannot directly admit carry permission `Carry::AcrossSuspend`; publish it on an owner-authorized boundary trait requirement and satisfy that requirement through the provider
 fail/providers/checked_boundary_extent_index_out_of_bounds rejected 15221ms expected @ccdb99ca2214
 	constant checking: scalar predicate is false: index `8` of `main.bytes`
-fail/providers/checked_boundary_operator_const_application_unselected rejected 119326ms expected @12385533695f
-	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(494)]
+fail/providers/checked_boundary_operator_const_application_unselected rejected 38049ms expected @79d6179edb97
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: []; operations target `linux_x86_64` cannot execute during constant evaluation: [`named-callable(path(nominal\\(package-owner\\(32:68e00b3b4bca4b5a8f23883b89058e4197dd7d4ff8ced73ff2d028b4654b68cf\\)\\,path\\(Math::remainder\\)\\)),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(u64\\)\\)\\,declared-domain\\(name\\(package:68e00b3b4bca4b5a8f23883b89058e4197dd7d4ff8ced73ff2d028b4654b68cf:product::u64::Operand\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(u64\\)\\)\\,declared-domain\\(name\\(package:68e00b3b4bca4b5a8f23883b89058e4197dd7d4ff8ced73ff2d028b4654b68cf:product::u64::Operand\\)\\)\\)\\)),result-dispatch())`]
 fail/providers/checked_boundary_operator_missing_contract rejected 5857ms expected @26c39d0e6335
 	checked operator provider `CheckedMathProvider::identity_impl` proves no ensures matching operator requirement `operator::CheckedMath::identity(named(name(i32)))->named(name(i32))` contract `result == value`
 	checked operator provider `CheckedMathProvider::low_byte_impl` proves no ensures matching operator requirement `operator::CheckedMath::low_byte(named(name(u16)))->named(name(u8))` contract `result == narrow_u16_to_u8_wrapping(value)`
@@ -21291,10 +21294,8 @@ pass/comptime/runtime_const_array_saturating_result_exit checked 3925ms check-ta
 pass/comptime/runtime_const_array_wrapping_result_exit checked 3183ms check-target:macos_arm64 @ccdb99ca2214
 pass/comptime/runtime_const_measured_recursion_exit checked 41552ms check-target:macos_arm64 @6fd07112da3c
 pass/comptime/runtime_generic_constructor_field_demand_extent_exit checked 8491ms check-target:macos_arm64 @911f6617ba9e
-pass/comptime/selected_float_array_length_exit rejected 324036ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @72a0af2d293d
-	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(482)]
-pass/comptime/selected_float_array_length_layout_query_exit rejected 383631ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d73dac294b53
-	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(482)]
+pass/comptime/selected_float_array_length_exit checked 133071ms check-target:macos_arm64 @79d6179edb97
+pass/comptime/selected_float_array_length_layout_query_exit checked 112384ms check-target:macos_arm64 @79d6179edb97
 pass/concurrency/boundary_suspension_inline_completion_exit checked 18404ms check-target:macos_arm64 @e1cfe02f1a9b
 pass/concurrency/host_boundary_readiness_exit checked 11020ms check-target:macos_arm64 @11bdd2fe41ff+wt
 pass/concurrency/incoming_aggregate_loan_after_suspend checked 3127ms check-target:macos_arm64 @ccdb99ca2214
@@ -26264,10 +26265,8 @@ pass/float/admitted_float_lower_boundary_crash checked 56442ms check-target:maco
 pass/float/admitted_numeric_imports_preserve_semantics checked 400571ms check-target:macos_arm64 @61d32e24eb90
 pass/float/authored_heterogeneous_float_operator checked 5047ms @ccdb99ca2214
 pass/float/boundary_call_guard_result checked 16693ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/build_runtime_semantics_twins_windows_x64 rejected 405671ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @d73dac294b53
-	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(482), BoundaryMachineId(483), BoundaryMachineId(484), BoundaryMachineId(485), BoundaryMachineId(486), BoundaryMachineId(487), BoundaryMachineId(488), BoundaryMachineId(489), BoundaryMachineId(644), BoundaryMachineId(645), BoundaryMachineId(646), BoundaryMachineId(647), BoundaryMachineId(648), BoundaryMachineId(649), BoundaryMachineId(650), BoundaryMachineId(651), BoundaryMachineId(652), BoundaryMachineId(653), BoundaryMachineId(654), BoundaryMachineId(655), BoundaryMachineId(656), BoundaryMachineId(657), BoundaryMachineId(658), BoundaryMachineId(659), BoundaryMachineId(660), BoundaryMachineId(661), BoundaryMachineId(662), BoundaryMachineId(663), BoundaryMachineId(664), BoundaryMachineId(665)]
-pass/float/build_runtime_semantics_twins_x86_baseline rejected 414375ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @d73dac294b53
-	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(482), BoundaryMachineId(483), BoundaryMachineId(484), BoundaryMachineId(485), BoundaryMachineId(486), BoundaryMachineId(487), BoundaryMachineId(488), BoundaryMachineId(489), BoundaryMachineId(644), BoundaryMachineId(645), BoundaryMachineId(646), BoundaryMachineId(647), BoundaryMachineId(648), BoundaryMachineId(649), BoundaryMachineId(650), BoundaryMachineId(651), BoundaryMachineId(652), BoundaryMachineId(653), BoundaryMachineId(654), BoundaryMachineId(655), BoundaryMachineId(656), BoundaryMachineId(657), BoundaryMachineId(658), BoundaryMachineId(659), BoundaryMachineId(660), BoundaryMachineId(661), BoundaryMachineId(662), BoundaryMachineId(663), BoundaryMachineId(664), BoundaryMachineId(665)]
+pass/float/build_runtime_semantics_twins_windows_x64 checked 175607ms check-target:windows_x86_64 @79d6179edb97
+pass/float/build_runtime_semantics_twins_x86_baseline checked 164707ms check-target:linux_x86_64 @79d6179edb97
 pass/float/builtin_extrema_field_store_exit checked 436689ms check-target:macos_arm64 @ff514b7f093c
 pass/float/closed_integer_conversion_predicate_proof_exit checked 6992ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/closed_integer_conversion_trapping_source_no_normal_result checked 6217ms check-target:macos_arm64 @ccdb99ca2214
@@ -26317,8 +26316,7 @@ pass/float/live_division_operand_across_call_exit checked 3374ms check-target:ma
 pass/float/live_float_parameter_across_call_exit checked 2997ms check-target:macos_arm64 @efb4acd2300e
 pass/float/local_after_float_call_store_exit checked 15441ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/module_imported_policy_conversion_family_exit checked 515428ms check-target:macos_arm64 @ff514b7f093c
-pass/float/named_constant_materialization_exit rejected 400135ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d73dac294b53
-	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(646)]
+pass/float/named_constant_materialization_exit checked 133225ms check-target:macos_arm64 @79d6179edb97
 pass/float/named_float_integer_lower_boundary_conversion_traps checked 516877ms check-target:macos_arm64 @ff514b7f093c
 pass/float/named_float_integer_nan_conversion_traps checked 526006ms check-target:macos_arm64 @ff514b7f093c
 pass/float/named_fractional_integer_boundary_exit checked 306478ms check-target:macos_arm64 @ff514b7f093c
@@ -26327,8 +26325,7 @@ pass/float/named_ieee_operations_exit checked 15813ms check-target:macos_arm64 @
 pass/float/named_ieee_truncations_exit checked 302239ms check-target:macos_arm64 @ff514b7f093c
 pass/float/named_infinity_classification_exit checked 18828ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/named_integer_conversion_source_proofs_exit checked 60079ms check-target:macos_arm64 @911f6617ba9e
-pass/float/named_nan_semantic_only_exit rejected 193273ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d73dac294b53
-	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(646)]
+pass/float/named_nan_semantic_only_exit checked 75229ms check-target:macos_arm64 @79d6179edb97
 pass/float/named_operation_retains_collection_element_policy_exit checked 7117ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/named_provider_directed_divide_exit checked 14651ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/named_provider_fused_multiply_add_exit checked 15523ms check-target:macos_arm64 @ccdb99ca2214
