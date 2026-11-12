@@ -1,0 +1,11 @@
+fail/borrows/dynamic_store_local_backing_escape	fixed		
+fail/borrows/indexed_carrier_state_local_escape	fixed		
+fail/facts/foreign_retained_shared_borrow_borrowed_slot_swap	fixed		
+fail/facts/foreign_retained_shared_borrow_persistent_restore	fixed		
+fail/termination/lexicographic_component_zero_step_rejected	fixed		
+pass/facts/foreign_retained_shared_borrow_borrowed_slot_swap	broken	machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation	1
+pass/facts/foreign_retained_shared_borrow_persistent_restore	broken	machine `store_pending` stores a borrowed value without a complete normal-exit backing relation	1
+pass/facts/recoverable_replacement_window_through_call_result_exit	broken	`main` calls `prepare`, which calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2	0
+pass/facts/recoverable_replacement_window_through_other_machine_exit	broken	`main` calls `forward`, which calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2	0
+pass/facts/target_family_contract_operand/const_name	fixed		
+pass/recast/runtime_captured_guard_conjunction_exit	fixed		
