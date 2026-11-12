@@ -1,0 +1,27 @@
+pass/build/uefi_image_residence_observation rejected 11358ms check-target:uefi_x86_64
+	machine `firmware_entry` state `entry` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/domains/domain_pattern_match_bound_full_width_field_exit rejected 2822ms terminal-targets:unchecked
+	construction of `Selected` field `value` is not proven in domain `u64::AtLeast73` in consume state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+pass/facts/domain_pattern_match_bound_through_field_exit rejected 2729ms terminal-targets:unchecked
+	construction of `Selected` field `value` is not proven in domain `u64::AtLeast73` in consume state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+pass/facts/target_family_callback_guarantee/target_body checked 6210ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match
+pass/wire/library_compact_binary_packed_reflection_exit checked 18744ms check-target:macos_arm64
+pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit checked 23062ms check-target:macos_arm64
+pass/wire/runtime_wire_encode_interior_scalar_slice_exit checked 25171ms check-target:macos_arm64
+pass/wire/runtime_wire_exact_array_without_count_exit checked 24516ms check-target:macos_arm64
+fail/borrows/applied_provider_output_requires_backing rejected 1785ms unexpected
+	machine `statement` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/borrows/copied_active_case_snapshot_retains_backing rejected 2021ms unexpected
+	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/borrows/nested_machine_carried_live_child_rejected rejected 11758ms unexpected
+	statement 6 reads `held.value` while local borrow `view` is still active (borrowed at statement 5; its last use is at statement 6)
+	statement 6 reads `held.value` while local borrow `view` is still active (borrowed at statement 5; its last use is at statement 6)
+fail/borrows/nested_machine_unit_output_local_escape_rejected rejected 7836ms unexpected
+	machine `main` state `entry` statement 3: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/generics/extraction_foreign_case rejected 1551ms unexpected
+	case-membership operation lost its exact subject, carrier or case identity
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `unpack` state `entry` reads a nested member `value`, but data `Extraction` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `unpack::entry`: selected Some(("Foreign::Moved", Handle { arena_index: 1229, generation: 1 })), subject Handle { arena_index: 13380, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 5513, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 5483, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 4269, generation: 1 }, symbol: Handle { arena_index: 4269, generation: 1 }, reserved_result_of: Handle { arena_index: 0, generation: 0 } }), type Some(Generic { base_symbol: Handle { arena_index: 1223, generation: 1 }, base_name: "Extraction", lifetime_arguments: [], arguments: HandleSpan { start: Handle { arena_index: 218, generation: 1 }, count: 1 } }); parameters [("result", Handle { arena_index: 4269, generation: 1 }, Handle { arena_index: 3002, generation: 1 })]; locals [("__transition_subject#1", Handle { arena_index: 4628, generation: 1 }, Handle { arena_index: 4966, generation: 1 }, Handle { arena_index: 13396, generation: 1 })]
+	machine `unpack$specialized$969b19dd495faa28$0$4629` state `entry` reads a nested member `value`, but data `Extraction<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `unpack$specialized$969b19dd495faa28$0$4629::entry`: selected Some(("Foreign::Moved", Handle { arena_index: 1229, generation: 1 })), subject Handle { arena_index: 13404, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 5529, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 5499, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 4631, generation: 1 }, symbol: Handle { arena_index: 4631, generation: 1 }, reserved_result_of: Handle { arena_index: 0, generation: 0 } }), type Some(Generic { base_symbol: Handle { arena_index: 1223, generation: 1 }, base_name: "Extraction", lifetime_arguments: [], arguments: HandleSpan { start: Handle { arena_index: 287, generation: 1 }, count: 1 } }); parameters [("result", Handle { arena_index: 4631, generation: 1 }, Handle { arena_index: 4977, generation: 1 })]; locals [("__transition_subject#1", Handle { arena_index: 4632, generation: 1 }, Handle { arena_index: 4975, generation: 1 }, Handle { arena_index: 13398, generation: 1 })]

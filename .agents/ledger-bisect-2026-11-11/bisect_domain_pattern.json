@@ -1,0 +1,12 @@
+{
+  "witness": "pass/facts/domain_pattern_match_bound_through_field_exit",
+  "good": "12a1feb4aa100ab41afd8cc59f53969c2ffc4009",
+  "bad": "51e8c45c793007f211d0d9baee7de16767172444",
+  "breaking_commit": "66ee9999011ed557510ddd18f20ceca6cb4aa5ae",
+  "pr": "1582",
+  "mechanism": "psi: query validation's expression intervals at use, not as flow facts (#1582)",
+  "mechanism_detail": "typed-trees-to-checked-trees range/index validation: expression-interval facts queried at use instead of carried as flow facts (frozen_program query path)",
+  "bisect_exit": 0,
+  "status": "bisected",
+  "notes": "Full-range bisect aborted on ledger-only skips; narrowed between manual good 12a1feb and bad 647e274 on first-parent."
+}

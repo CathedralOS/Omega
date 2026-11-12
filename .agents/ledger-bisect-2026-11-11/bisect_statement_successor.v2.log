@@ -1,0 +1,71 @@
+/tmp/ledger-bisect-corpus_outcomes.txt
+/tmp/ledger-bisect-witness.json
+Bisecting: 454 revisions left to test after this (roughly 9 steps)
+[fba8abcf1b74e956ec4e6193f4ef4f8788ed64c1] docs: replace dyn with machine values and some packages (#2029)
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 454 revisions left to test after this (roughly 9 steps)
+[8e471e57999bc518716e223b5f30d10c537be6cd] psi: build proof-call components once and stop queueing on shared memos (#1987)
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 219 revisions left to test after this (roughly 8 steps)
+[2c1e8c95f3acce5d9a8962096184c222bdb8b962] psi: stop a borrowed erasing cast from a parameter or annotation (#1775)
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 109 revisions left to test after this (roughly 7 steps)
+[34a04f25da128d54dbaf442b84165f3b311d0193] psi: prove transition requirements through decomposed premise clauses (#1897)
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 54 revisions left to test after this (roughly 6 steps)
+[55c887bbf29d97fc9a99677c6d8d3a354c0df252] psi: preserve Optional defaults across build and application checks (#1954)
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 27 revisions left to test after this (roughly 5 steps)
+[01d4460d3fb5bbb91311b6bba602cad6dfcbd11d] tools: add one agent setup script and make warm restore survive new hosts (#1921)
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 13 revisions left to test after this (roughly 4 steps)
+[82d2247b96e872df79f26ec9b7af2fdec0153ce7] psi: reject ungranted indexed family assumptions (#1908)
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 6 revisions left to test after this (roughly 3 steps)
+[9f6842101390b8100d96141eea60d3d70c03ca6a] repo: a witness is done only when the same object is still pinned (#1915)
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 6 revisions left to test after this (roughly 3 steps)
+[559333ab85a876091fdfe2d8bc22f7301badbc37] psi: share assignment reads for completed call arguments (#1904)
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 3 steps)
+[9bcadbc75f2e4bf9e886c1ff7332f334f828336a] omega: pin effect-plan wire vocabulary at version 47 (#1914)
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 2 revisions left to test after this (roughly 2 steps)
+[a7e811c4ea1102b3addfe3a01732d9e1149d91bb] docs: name the fact pin set apart from the witness tree (#1912)
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 2 revisions left to test after this (roughly 2 steps)
+[f951e2b9ee0f7c795a7ea0f60955daa020430310] tools: refuse rewritten expected pins and duplicate fact programs (#1913)
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[2098a4a861f6cdc63eac0e191a210791c9aa4f1e] psi: keep one crash summary on each constant entry (#1910)
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[d26fa952d579d52642970560c719d24fa2a89f8a] psi: fuse terminal calls into the caller activation (#1909)
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+d26fa952d579d52642970560c719d24fa2a89f8a is the first bad commit
+commit d26fa952d579d52642970560c719d24fa2a89f8a
+Author: Jarod Castillo <43973221+Smotto@users.noreply.github.com>
+Date:   Thu Nov 5 17:44:06 2026 +0000
+
+    psi: fuse terminal calls into the caller activation (#1909)
+    
+    The composed state graph kept only the recursive component, so an
+    acyclic terminal call stayed an ordinary call and left temporary
+    cleanup on a separate activation. Fusing every body-present terminal
+    target puts that cleanup in the caller. A declared mutable home is
+    the current occupant: in-place stores update it, and the jump moves
+    that home instead of establishing the place name again.
+    
+    Nine nested_machine_invocation pins under tests/omega/pass/facts
+    agree on omega run --both (native exit 0 and interpreter exit 0).
+    The local reject twin still rejects a terminal expression that
+    returns bool where T is required. The corpus golden already disagrees
+    with origin/main on the specialized-name suffix for this filter, so
+    those rows were not re-recorded.
+
+ TASKS.md                                           |   1 -
+ .../execution/terminal_unit/state_graph/fused.rs   | 132 ++++-----------------
+ .../terminal_unit/state_graph/successors.rs        |   9 +-
+ 3 files changed, 27 insertions(+), 115 deletions(-)
+bisect found first bad commit
+d26fa952d579d52642970560c719d24fa2a89f8a bisected 1909 psi: fuse terminal calls into the caller activation (#1909)

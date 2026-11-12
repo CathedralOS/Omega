@@ -1,0 +1,11 @@
+{
+  "witness": "pass/facts/selected_native_code_layout_through_other_state_exit",
+  "good": "5c6c16d4d1867bcac99343285c5074169d7cbfbc",
+  "bad": "51e8c45c793007f211d0d9baee7de16767172444",
+  "breaking_commit": "d26fa952d579d52642970560c719d24fa2a89f8a",
+  "pr": "1909",
+  "mechanism": "psi: fuse terminal calls into the caller activation (#1909)",
+  "mechanism_detail": " TASKS.md                                           |   1 -  .../execution/terminal_unit/state_graph/fused.rs   | 132 ++++-----------------  .../terminal_unit/state_graph/successors.rs        |   9 +-  3 files changed, 27 insertions(+), 115 deletions(-) ",
+  "bisect_exit": 0,
+  "status": "bisected"
+}

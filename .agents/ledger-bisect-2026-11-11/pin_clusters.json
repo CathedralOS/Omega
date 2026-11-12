@@ -1,0 +1,54 @@
+{
+  "counts": {
+    "fixed": 12,
+    "broken": 11,
+    "host_only": 0,
+    "missing": 0,
+    "total": 23
+  },
+  "fixed": [
+    "fail/borrows/applied_provider_output_requires_backing",
+    "fail/borrows/copied_active_case_snapshot_retains_backing",
+    "fail/borrows/nested_machine_carried_live_child_rejected",
+    "fail/borrows/nested_machine_unit_output_local_escape_rejected",
+    "fail/generics/extraction_foreign_case",
+    "pass/build/uefi_image_residence_observation",
+    "pass/domains/domain_pattern_match_bound_full_width_field_exit",
+    "pass/facts/target_family_callback_guarantee/target_body",
+    "pass/wire/library_compact_binary_packed_reflection_exit",
+    "pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit",
+    "pass/wire/runtime_wire_encode_interior_scalar_slice_exit",
+    "pass/wire/runtime_wire_exact_array_without_count_exit"
+  ],
+  "clusters": [
+    {
+      "diag_norm": "machine `_` state `_` statement N: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "diag_sample": "machine `main` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "count": 10,
+      "members": [
+        "pass/calls/native_code_layout_discarded_exit",
+        "pass/facts/selected_native_code_layout_through_const_name_exit",
+        "pass/facts/selected_native_code_layout_through_field_exit",
+        "pass/facts/selected_native_code_layout_through_local_exit",
+        "pass/facts/selected_native_code_layout_through_match_join_exit",
+        "pass/facts/selected_native_code_layout_through_other_state_exit",
+        "pass/facts/selected_native_code_layout_through_target_body_exit",
+        "pass/facts/source_indexed_family_alpha_positive",
+        "pass/facts/source_indexed_family_recursive_index_positive",
+        "pass/proofs/erased_mathematical_initializers"
+      ],
+      "witness": "pass/facts/selected_native_code_layout_through_other_state_exit",
+      "kind": "pass/run regression"
+    },
+    {
+      "diag_norm": "construction of `_` field `_` is not proven in domain `_` in consume state `_` at statement N; a construction value must establish the domain's predicates and a",
+      "diag_sample": "construction of `Selected` field `value` is not proven in domain `u64::AtLeast73` in consume state `entry` at statement 1; a construction value must establish the domain's predicates and any required ",
+      "count": 1,
+      "members": [
+        "pass/facts/domain_pattern_match_bound_through_field_exit"
+      ],
+      "witness": "pass/facts/domain_pattern_match_bound_through_field_exit",
+      "kind": "pass/run regression"
+    }
+  ]
+}

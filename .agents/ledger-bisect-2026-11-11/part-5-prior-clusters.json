@@ -1,0 +1,37 @@
+[
+  {
+    "diag_norm": "source constructor predicate derivation failed: Kernel(UnboundLevelParameter { index: N, arity: N })",
+    "diag_sample": "source constructor predicate derivation failed: Kernel(UnboundLevelParameter { index: 0, arity: 0 })",
+    "count": 9,
+    "members": [
+      "pass/facts/source_indexed_type_parameter_through_call_result_exit",
+      "pass/facts/source_indexed_type_parameter_through_const_name_exit",
+      "pass/facts/source_indexed_type_parameter_through_field_exit",
+      "pass/facts/source_indexed_type_parameter_through_local_exit",
+      "pass/facts/source_indexed_type_parameter_through_match_join_exit",
+      "pass/facts/source_indexed_type_parameter_through_other_machine_exit",
+      "pass/facts/source_indexed_type_parameter_through_other_state_exit",
+      "pass/facts/source_indexed_type_parameter_through_parameter_exit",
+      "pass/facts/source_indexed_type_parameter_through_target_body_exit"
+    ],
+    "witness": "pass/facts/source_indexed_type_parameter_through_other_machine_exit"
+  },
+  {
+    "diag_norm": "`_` has no executable body: this compiler does not lower a state of it yet (reference retirement: stored occurrences); in state `_`",
+    "diag_sample": "`main` has no executable body: this compiler does not lower a state of it yet (reference retirement: stored occurrences); in state `main::entry`",
+    "count": 1,
+    "members": [
+      "pass/borrows/copied_intermediate_descriptor_snapshot_exit"
+    ],
+    "witness": "pass/borrows/copied_intermediate_descriptor_snapshot_exit"
+  },
+  {
+    "diag_norm": "index compatibility condition `_` is not established: actual `_` and expected `_` are distinct normalized instances; closed evaluation, licensed normalization, ",
+    "diag_sample": "index compatibility condition `index-equality:Indexed:forward_indexed::entry:call-1-0:Indexed<LeftIndex + RightIndex>==Indexed<X + Y>` is not established: actual `Indexed<LeftIndex + RightIndex>` and ",
+    "count": 1,
+    "members": [
+      "pass/generics/open_computed_quantity_result"
+    ],
+    "witness": "pass/generics/open_computed_quantity_result"
+  }
+]

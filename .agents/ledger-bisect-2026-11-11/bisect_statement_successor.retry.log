@@ -1,0 +1,4 @@
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 454 revisions left to test after this (roughly 9 steps)
+[8e471e57999bc518716e223b5f30d10c537be6cd] psi: build proof-call components once and stop queueing on shared memos (#1987)
+running 'env' 'BISECT_WITNESS=pass/facts/selected_native_code_layout_through_other_state_exit' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'

@@ -1,0 +1,66 @@
+{
+  "pin": "51e8c45c793007f211d0d9baee7de16767172444",
+  "counts": {
+    "fixed": 23,
+    "broken": 11,
+    "host_only": 0,
+    "missing": 0,
+    "total": 34
+  },
+  "fixed": [
+    "fail/borrows/applied_provider_output_requires_backing",
+    "fail/borrows/copied_active_case_snapshot_retains_backing",
+    "fail/borrows/nested_machine_carried_live_child_rejected",
+    "fail/borrows/nested_machine_unit_output_local_escape_rejected",
+    "fail/build/receiver_view_writeback_local_escape",
+    "fail/facts/borrowed_store_call_through_call_result_rejected",
+    "fail/facts/borrowed_store_call_through_const_name_rejected",
+    "fail/facts/borrowed_store_call_through_match_join_rejected",
+    "fail/facts/borrowed_store_call_through_other_machine_rejected",
+    "fail/facts/borrowed_store_call_through_other_state_rejected",
+    "fail/facts/borrowed_store_call_through_parameter_rejected",
+    "fail/facts/borrowed_store_call_through_target_body_rejected",
+    "fail/facts/source_indexed_family_insufficient_consumer_bound",
+    "fail/generics/extraction_foreign_case",
+    "fail/host/descriptor_read_guarded_prefix_without_admitted_abi",
+    "fail/wire/reflection_local_field_loan_escape",
+    "pass/build/uefi_image_residence_observation",
+    "pass/domains/domain_pattern_match_bound_full_width_field_exit",
+    "pass/facts/target_family_callback_guarantee/target_body",
+    "pass/wire/library_compact_binary_packed_reflection_exit",
+    "pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit",
+    "pass/wire/runtime_wire_encode_interior_scalar_slice_exit",
+    "pass/wire/runtime_wire_exact_array_without_count_exit"
+  ],
+  "clusters": [
+    {
+      "id": 0,
+      "diag_norm": "machine `_` state `_` statement N: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "diag_sample": "machine `main` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "count": 10,
+      "members": [
+        "pass/calls/native_code_layout_discarded_exit",
+        "pass/facts/selected_native_code_layout_through_const_name_exit",
+        "pass/facts/selected_native_code_layout_through_field_exit",
+        "pass/facts/selected_native_code_layout_through_local_exit",
+        "pass/facts/selected_native_code_layout_through_match_join_exit",
+        "pass/facts/selected_native_code_layout_through_other_state_exit",
+        "pass/facts/selected_native_code_layout_through_target_body_exit",
+        "pass/facts/source_indexed_family_alpha_positive",
+        "pass/facts/source_indexed_family_recursive_index_positive",
+        "pass/proofs/erased_mathematical_initializers"
+      ],
+      "witness": "pass/facts/selected_native_code_layout_through_other_state_exit"
+    },
+    {
+      "id": 1,
+      "diag_norm": "construction of `_` field `_` is not proven in domain `_` in consume state `_` at statement N; a construction value must establish the domain's predicates and a",
+      "diag_sample": "construction of `Selected` field `value` is not proven in domain `u64::AtLeast73` in consume state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance",
+      "count": 1,
+      "members": [
+        "pass/facts/domain_pattern_match_bound_through_field_exit"
+      ],
+      "witness": "pass/facts/domain_pattern_match_bound_through_field_exit"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+pass/calls/native_code_layout_discarded_exit rejected 1605ms check-target:linux_x86_64
+	machine `main` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/selected_native_code_layout_through_const_name_exit rejected 1609ms check-target:macos_arm64
+	machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/selected_native_code_layout_through_field_exit rejected 1603ms check-target:macos_arm64
+	machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/selected_native_code_layout_through_local_exit rejected 1560ms check-target:macos_arm64
+	machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/selected_native_code_layout_through_match_join_exit rejected 1490ms check-target:macos_arm64
+	machine `marked_layout` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/selected_native_code_layout_through_other_state_exit rejected 1537ms check-target:macos_arm64
+	machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/selected_native_code_layout_through_target_body_exit rejected 1583ms check-target:macos_arm64
+	machine `query_layout` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/source_indexed_family_alpha_positive rejected 2232ms check-target:macos_arm64
+	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/source_indexed_family_recursive_index_positive rejected 2236ms check-target:macos_arm64
+	machine `main` state `entry` statement 4: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/proofs/erased_mathematical_initializers rejected 1127ms
+	machine `main` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable

@@ -1,0 +1,81 @@
+[
+  {
+    "cluster_id": 5,
+    "prior_rows": 25,
+    "kind": "pass/run rejected",
+    "prior_diag": "machine `firmware_entry` state `entry` statement 2: stored call has no complete statement-succes",
+    "witness": "pass/build/uefi_image_residence_observation",
+    "prior_breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members": [
+      "fail/borrows/applied_provider_output_requires_backing",
+      "fail/borrows/copied_active_case_snapshot_retains_backing",
+      "fail/borrows/nested_machine_unit_output_local_escape_rejected",
+      "pass/build/uefi_image_residence_observation"
+    ],
+    "members_truncated": 22
+  },
+  {
+    "cluster_id": 45,
+    "prior_rows": 4,
+    "kind": "pass/run rejected",
+    "prior_diag": "machine structural equation remains unsolved in a noncall static argument",
+    "witness": "pass/wire/library_compact_binary_packed_reflection_exit",
+    "prior_breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members": [
+      "pass/wire/library_compact_binary_packed_reflection_exit",
+      "pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit",
+      "pass/wire/runtime_wire_encode_interior_scalar_slice_exit",
+      "pass/wire/runtime_wire_exact_array_without_count_exit"
+    ],
+    "members_truncated": 0
+  },
+  {
+    "cluster_id": 85,
+    "prior_rows": 2,
+    "kind": "pass/run rejected",
+    "prior_diag": "construction of `Selected` field `value` is not proven in domain `u64::AtLeast73` in consume sta",
+    "witness": "pass/domains/domain_pattern_match_bound_full_width_field_exit",
+    "prior_breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members": [
+      "pass/domains/domain_pattern_match_bound_full_width_field_exit",
+      "pass/facts/domain_pattern_match_bound_through_field_exit"
+    ],
+    "members_truncated": 0
+  },
+  {
+    "cluster_id": 125,
+    "prior_rows": 1,
+    "kind": "pass/run rejected",
+    "prior_diag": "authored Operator declaration selection occurrence 590 (`<=` in tests/omega/pass/facts/target_fa",
+    "witness": "pass/facts/target_family_callback_guarantee/target_body",
+    "prior_breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members": [
+      "pass/facts/target_family_callback_guarantee/target_body"
+    ],
+    "members_truncated": 0
+  },
+  {
+    "cluster_id": 165,
+    "prior_rows": 1,
+    "kind": "fail wrong reason",
+    "prior_diag": "case-membership operation lost its exact subject, carrier or case identity",
+    "witness": "fail/generics/extraction_foreign_case",
+    "prior_breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members": [
+      "fail/generics/extraction_foreign_case"
+    ],
+    "members_truncated": 0
+  },
+  {
+    "cluster_id": 205,
+    "prior_rows": 1,
+    "kind": "fail wrong reason",
+    "prior_diag": "statement 6 reads `held.value` while local borrow `view` is still active (borrowed at statement",
+    "witness": "fail/borrows/nested_machine_carried_live_child_rejected",
+    "prior_breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members": [
+      "fail/borrows/nested_machine_carried_live_child_rejected"
+    ],
+    "members_truncated": 0
+  }
+]

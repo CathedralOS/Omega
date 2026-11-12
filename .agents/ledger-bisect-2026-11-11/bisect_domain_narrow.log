@@ -1,0 +1,72 @@
+running 'env' 'BISECT_WITNESS=pass/facts/domain_pattern_match_bound_through_field_exit' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[66ee9999011ed557510ddd18f20ceca6cb4aa5ae] psi: query validation's expression intervals at use, not as flow facts (#1582)
+running 'env' 'BISECT_WITNESS=pass/facts/domain_pattern_match_bound_through_field_exit' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+66ee9999011ed557510ddd18f20ceca6cb4aa5ae is the first bad commit
+commit 66ee9999011ed557510ddd18f20ceca6cb4aa5ae
+Author: Jarod Castillo <43973221+Smotto@users.noreply.github.com>
+Date:   Tue Nov 3 00:43:49 2026 +0000
+
+    psi: query validation's expression intervals at use, not as flow facts (#1582)
+    
+    Stage 05 flow copied validation's arithmetic intervals onto every
+    completed integer value as `AssignedIntegerBounds` facts and carried them
+    with the value. Checks then read the copies back. Flow no longer copies
+    them. The two checks that needed them now ask the interval engine about
+    the exact expression at the point of use, and every stage-05 interval read
+    goes through one query.
+    
+    Before, `checking.rs` passed validation's interval slice through flow's
+    builder and context, the range checks, call contracts and
+    captured-boolean proofs (12 signatures). Each reader searched it with
+    `validation::expression_interval(slice, expression)`. Now the slice is
+    attached once to the checking context, like the storage graph, and
+    `CheckingInput::expression_interval(expression)` answers. The parameters
+    are gone.
+    
+    Which readers moved off the flow copy:
+    - An exit `ensures result >= c` reads the returned operand's own
+      enclosure (`ExpressionInterval::carrier_range`), intersected with any
+      bounds still published on that place
+      (exits/scalars/result_bounds.rs).
+    - A runtime index selector narrows to a fixed element when its own
+      enclosure is one value (flow/place/canonicalization.rs). This keeps the
+      write to `items[index]` from expiring facts about `items[0]` when
+      `index` is known to be 1.
+    
+    This is the first input that flow stops copying from validation (deep
+    A4). Exact casts, integer-assignment decisions and float projections
+    remain.
+    
+    Validation:
+    - Witnesses identified by a knockout that withheld only the intervals
+      from flow: 4 of the 32 A4 witnesses failed (three `result >= c` exit
+      places and `indexed_domain_known_disjoint_call_exit`). 0 of the
+      150-fixture A4 sample failed. All 4 pass with this change.
+    - The same 4, the other 28 A4 witnesses and 118 index, window, length,
+      rank and termination fixtures (150 in all, 33 that must reject) were
+      checked with the previous commit and with this one: identical outcomes.
+
+ .../src/checking.rs                                |  6 +-
+ .../src/checks/contracts.rs                        |  2 -
+ .../src/checks/contracts/argument_intervals.rs     | 14 ++---
+ .../src/checks/contracts/calls.rs                  |  3 -
+ .../src/checks/contracts/calls/captured_boolean.rs | 64 ++++++----------------
+ .../contracts/exits/scalars/result_bounds.rs       | 27 ++++++++-
+ .../src/checks/mod.rs                              |  3 -
+ .../src/checks/ranges.rs                           |  2 -
+ .../src/checks/ranges/facts.rs                     |  3 -
+ .../src/checks/ranges/indexes.rs                   | 36 ++++++------
+ .../src/checks/ranges/indexes/validation.rs        | 18 +++---
+ .../ranges/indexes/validation/known_ranges.rs      |  9 ++-
+ .../src/flow/builder.rs                            |  2 -
+ .../src/flow/context.rs                            |  5 --
+ .../src/flow/expression/result_facts.rs            | 32 +----------
+ .../src/flow/place/canonicalization.rs             | 41 +++++++++-----
+ .../src/published/facts.rs                         |  2 -
+ .../compilation/validation/src/frozen_program.rs   | 33 +++++++++++
+ .../validation/src/frozen_program/queries.rs       |  7 +++
+ .../arithmetic_domains/expression_intervals.rs     | 18 ++++++
+ .../validation/src/queries/layout_checking.rs      |  7 +++
+ 21 files changed, 177 insertions(+), 157 deletions(-)
+bisect found first bad commit

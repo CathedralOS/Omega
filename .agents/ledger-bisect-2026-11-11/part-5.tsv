@@ -1,0 +1,12 @@
+fixture	class	first_diagnostic	cluster_id
+pass/calls/native_code_layout_discarded_exit	broken_at_pin	machine `_` state `_` statement N: stored call has no complete statement-successor effects: an invocation relation is unavailable	0
+pass/facts/selected_native_code_layout_through_const_name_exit	broken_at_pin	machine `_` state `_` statement N: stored call has no complete statement-successor effects: an invocation relation is unavailable	0
+pass/facts/selected_native_code_layout_through_field_exit	broken_at_pin	machine `_` state `_` statement N: stored call has no complete statement-successor effects: an invocation relation is unavailable	0
+pass/facts/selected_native_code_layout_through_local_exit	broken_at_pin	machine `_` state `_` statement N: stored call has no complete statement-successor effects: an invocation relation is unavailable	0
+pass/facts/selected_native_code_layout_through_match_join_exit	broken_at_pin	machine `_` state `_` statement N: stored call has no complete statement-successor effects: an invocation relation is unavailable	0
+pass/facts/selected_native_code_layout_through_other_state_exit	broken_at_pin	machine `_` state `_` statement N: stored call has no complete statement-successor effects: an invocation relation is unavailable	0
+pass/facts/selected_native_code_layout_through_target_body_exit	broken_at_pin	machine `_` state `_` statement N: stored call has no complete statement-successor effects: an invocation relation is unavailable	0
+pass/facts/source_indexed_family_alpha_positive	broken_at_pin	machine `_` state `_` statement N: stored call has no complete statement-successor effects: an invocation relation is unavailable	0
+pass/facts/source_indexed_family_recursive_index_positive	broken_at_pin	machine `_` state `_` statement N: stored call has no complete statement-successor effects: an invocation relation is unavailable	0
+pass/proofs/erased_mathematical_initializers	broken_at_pin	machine `_` state `_` statement N: stored call has no complete statement-successor effects: an invocation relation is unavailable	0
+pass/facts/domain_pattern_match_bound_through_field_exit	broken_at_pin	construction of `_` field `_` is not proven in domain `_` in consume state `_` at statement N; a construction value must establish the domain's predicates and a	1
