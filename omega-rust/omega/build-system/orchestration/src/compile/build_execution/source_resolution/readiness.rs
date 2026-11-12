@@ -370,7 +370,6 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                         )));
                     } else if step.returned {
                         let LiveBuild {
-                            acquired,
                             invocation,
                             activation,
                             dependencies,

@@ -4,11 +4,13 @@
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 use build_declarations::{BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName};
 use compiler::{CheckedCompileRequest, CompilationOutput, CompilationProduct, CompilationSession};
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+use package_compilation::PackageDependencyAcquisition;
 use package_compilation::{
-    BuildDeclarationKind, PackageCompilationInputs, PackageDependencyAcquisition,
-    PackageDependencyBinding, PackageSourceBinding,
+    BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
@@ -132,6 +134,7 @@ fn inputs(
 /// request. Source preparation joins the two, and refuses a graph whose edges
 /// were not requested. The acquired package is the anonymous library with the
 /// owner its standalone check derived, not the sample's declared library.
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn registered_inputs(
     consumer: &Path,
     declared: &str,

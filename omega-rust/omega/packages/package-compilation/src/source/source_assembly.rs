@@ -20,7 +20,6 @@ Provenance:
 
 mod build_source;
 pub use build_source::BuildSourceSelection;
-pub(crate) use build_source::is_build_prelude_source;
 
 use crate::PackageCompilationInputs;
 use crate::source::source_imports::{

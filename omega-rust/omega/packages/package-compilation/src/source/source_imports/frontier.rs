@@ -769,8 +769,8 @@ mod tests {
             );
             let mut catalogue = source::SourceCatalogue::default();
             storage.sources = catalogue.begin_selection();
-            let text = if substituted {
-                format!("{original}\n// different parsed source bytes\n")
+            let text: std::sync::Arc<str> = if substituted {
+                format!("{original}\n// different parsed source bytes\n").into()
             } else {
                 original.clone()
             };
@@ -778,7 +778,7 @@ mod tests {
                 .admit_source(
                     source::SourceContents {
                         path: core.join("float.omg"),
-                        source: text.into(),
+                        source: text,
                         scope: DependencyScope::Build,
                     },
                     Some(SourceOrigin::Toolchain),
