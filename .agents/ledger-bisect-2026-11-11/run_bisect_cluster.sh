@@ -15,12 +15,12 @@ if ! GOOD=$(python3 "$ROOT/.agents/ledger-bisect-2026-11-11/find_good_commit.py"
   exit 0
 fi
 
-git checkout -q "$PIN"
+git checkout -f -q "$PIN"
 set +e
 nice -n 19 "$SCRIPT"; pin_ec=$?
-git checkout -q "$GOOD"
+git checkout -f -q "$GOOD"
 nice -n 19 "$SCRIPT"; good_ec=$?
-git checkout -q "$PIN"
+git checkout -f -q "$PIN"
 set -e
 
 if [[ "$good_ec" -ne 0 ]]; then
@@ -41,7 +41,7 @@ set -e
 BREAK=$(git rev-parse HEAD^{commit} 2>/dev/null || echo "")
 PR=$(git log -1 --format='%s' "$BREAK" 2>/dev/null | sed -n 's/.*#\([0-9][0-9]*\).*/\1/p' | head -1)
 git bisect reset
-git checkout -q "$PIN"
+git checkout -f -q "$PIN"
 MECH=$(python3 - "$BREAK" <<'PY'
 import subprocess, sys
 brk = sys.argv[1]

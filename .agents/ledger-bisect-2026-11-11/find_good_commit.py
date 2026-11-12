@@ -13,7 +13,7 @@ PIN = "51e8c45c793007f211d0d9baee7de16767172444"
 
 
 def run_witness(witness: str, rev: str) -> int:
-    subprocess.run(["git", "checkout", "-q", rev], cwd=ROOT, check=True)
+    subprocess.run(["git", "checkout", "-f", "-q", rev], cwd=ROOT, check=True)
     subprocess.run(["chmod", "-R", "u+w", str(ROOT / "target")], check=False)
     env = os.environ.copy()
     env.update(

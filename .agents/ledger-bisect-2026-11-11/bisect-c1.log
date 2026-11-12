@@ -1,5 +1,1 @@
-error: Your local changes to the following files would be overwritten by checkout:
-	.agents/ledger-bisect-2026-11-11/bisect-all.log
-	.agents/ledger-bisect-2026-11-11/run_all_bisects.out
-Please commit your changes or stash them before you switch branches.
-Aborting
+cluster=c1 witness=pass/borrows/dynamic_window_return_custody_exit status=propagated reason=no_good_commit
