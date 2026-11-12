@@ -89,8 +89,10 @@ machine OmegaSourceSet::valid(&mut self, source: &[u8]) -> i32 {
         }
     }
     state distinct_package(index: i32, prior: i32) {
-        transition (self.equal_name(source, self.packages[index].name, self.packages[prior].name) == 0) &&
-            ((self.packages[index].role == 0) || (self.packages[index].role != self.packages[prior].role)) {
+        // Package ordinals retain identity; unrelated packages may share a name.
+        // Only the invocation's trusted role must select a unique package.
+        transition (self.packages[index].role == 0) ||
+            (self.packages[index].role != self.packages[prior].role) {
             true -> prior_package(index, prior + 1)
             _ -> return 0
         }
