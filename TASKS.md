@@ -85,9 +85,11 @@ Write each item so any agent can start from it alone: current state, files and e
   Acceptance: two-target builds run Psi `00–07` and Build once and Omega `00–09` once per target with clean boundary guards.
 
 - **VALIDATION-SUBJECTS.** Implement [validation subjects](wiki/drafts/designs/validation_subjects.md): check the selected packages in full and dependencies only through their required semantic closure.
-  - **OWNER-BLOCKED** on `validation-subjects` (`Build::validate` naming) in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md): give the toolchain release gate an explicit full-package check of each bundled library once the owner decides how a bundled library becomes a subject; a sample corpus does not count.
+  - Add reusable activation-scoped registrations, Build/Product subjects and direct library checks with preserved owners.
   - Carry the subject set through orchestration, discover dependencies while checking (types, data, proofs, cleanup, conformances, bindings), keep deferred bodies in name resolution; add `Build::validate`, the all-members workspace default, and full validation of the admitted revision.
-  Acceptance: the eight cases in the draft pass; a one-line `omega --check` no longer body-checks unreached library machines and its measured Psi 05 time drops accordingly.
+  Acceptance: draft cases pass; app checking excludes unrelated library bodies and lowers measured Psi 05 work.
+
+- **ORDINARY-LIBRARY-PACKAGES.** Remove mandatory/pinned `std` and hidden entry coupling ([acceptance](wiki/drafts/designs/validation_subjects.md#ordinary-library-migration)); preserve primitive custody and release integrity. Independent of validation delivery.
 
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (covers **OPERATOR-BOUNDARY-CALLS**, **TARGET-SEMANTIC-APPLICATIONS**) Settle providers over Terminal Psi in `execution_settlement.rs`.
   - Move `execution_settlement.rs`, `provider_binding.rs`, `operators.rs`, opaque/const/review paths, float/FMA/GUI calls, and target capsules to Terminal Psi.

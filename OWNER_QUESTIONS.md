@@ -64,52 +64,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
-
-Decision name: `validation-subjects` (`Build::validate` naming).
-
-**Customer.** The toolchain release gate, which
-[validation subjects](wiki/spec/build/validation_subjects.md#admission-and-release)
-says "checks each bundled library as a subject", and any product that wants
-its dependency checked in full with `Build::validate`.
-
-The specification's example registers dependencies as identifiers:
-
-```omega
-Build::dependency(builder, core, locator);
-Build::validate(builder, core);
-```
-
-Premise update (#2530 and the corpus migration that retires `depend*`): the
-shipped vocabulary now registers a dependency as a configured description,
-`Build::dependency(builder, description) -> DependencyRegistration` (and
-`Build::build_dependency` for Build scope), where
-`dependency::from_source(source)` builds the description and
-`dependency::with_alias(&mut description, "vendor")` sets its alias. It still
-names no dependency by identifier; the registration carries no fields, and the
-coordinator knows the dependency by its alias bytes. The returned
-`DependencyRegistration` is one candidate argument for `Build::validate`; this
-note does not choose it. The bundled `core`, `std` and `alloc` are never registered by a
-product at all; the toolchain supplies them. Today
-`omega --check source/library/core/main.omg` is refused with
-`source root ... overlaps toolchain root`, so no command can check a bundled
-library as a subject.
-
-The question:
-
-- **(a)** Is the argument of `Build::validate` the dependency's alias, as in
-  `Build::validate(builder, "vendor")`, the returned `DependencyRegistration`,
-  or a new identifier form?
-- **(b)** How is a bundled library named as a subject: by
-  `Build::validate(builder, "core")` without registration, by checking the
-  library's own directory as a root (lifting the overlap refusal for the
-  toolchain's own packages), or by another form?
-
-Until answered `Build::validate` is not implemented and the release gate has
-no full-package check of `core` and `std`. Ordinary checks already treat only
-the root package as a subject.
-
-### Q2 - Who supplies TaskRuntime and interrupt masking once authored compiler intrinsics are refused?
+### Q1 - Who supplies TaskRuntime and interrupt masking once authored compiler intrinsics are refused?
 
 Decision name: `sealed-runtime-providers`.
 
@@ -164,7 +119,7 @@ Until answered, `via ForeignBinding::CompilerIntrinsic` stays accepted at
 these sites, and BUILD-OWNED-NATIVE-BINDINGS keeps its `CompilerIntrinsic`
 retirement.
 
-### Q3 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
+### Q2 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
 
 Decision name: `operating-system-library-name`. Raised by Jarod for Zac.
 
