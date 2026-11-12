@@ -2,7 +2,8 @@
 
 This peer removes the Gamma interpretation layer after constructing a Gamma
 compiler from source. [`compiler.gamma`](compiler.gamma) and
-[`frontend.gamma`](frontend.gamma) compile Gamma to independent Alpha tapes.
+[`frontend.gamma`](frontend.gamma), with the
+[`Alpha backend`](alpha_backend.gamma), compile Gamma to independent Alpha tapes.
 Their first customer is the existing Gamma-written Delta compiler, which
 constructs the Delta-written Epsilon evaluator. Its Gamma receipt is compiled
 to another independent tape and runs the Epsilon-written bootstrap compiler.
@@ -475,3 +476,21 @@ subsequently accepted that unchanged SourceUnit source through checked lowering
 and CanonicalTerminalArtifact in 320.101 seconds. This supplies independent
 admission/lowering correspondence, not native/Psi runtime evidence or a semantic
 stage in the bootstrap chain.
+
+
+The compiler source is composed in order from `compiler.gamma`,
+`frontend.gamma`, and `alpha_backend.gamma`. Shared frontend and lowering remain
+one semantic owner; `../independent/native.gamma` is an alternative realization,
+not an additional stage in this peer. Source composition changes function IDs
+and therefore compiler bytes; earlier source/tape identities above remain
+historical evidence for their exact recorded inputs. The Alpha backend retains
+the audited seed-hole limit; native output has its own buffered-image limit.
+
+After that split, a fresh cold construction used the 33,605-byte composed
+source (`8cc6f6ce3d29ff38a7f94c48857ac6036f0fe09110a442087ebbbb98d48cee86`)
+to produce a 458,402-byte tape
+(`25b8c1875dd866f885654c5344a16153f3a434eff9555196657f5f0249ef1af1`).
+Both Alpha-executed rebuilds matched exactly, and the 32 semantic/15 refusal
+controls passed. Reference construction took 89.270 seconds on a shared host;
+it is a functional observation. The independent peer's native executable of
+this same compiler source separately emitted the identical Alpha tape.
