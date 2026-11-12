@@ -6,7 +6,7 @@ Measured commit (PIN): `51e8c45c793007f211d0d9baee7de16767172444`
 
 - Prior-report slice indices (index % 40 == 6): 6, 46, 86, 126, 166, 206
 - Rows re-measured: 28 (fixed on main: 13, still broken: 15)
-- PIN clusters (by first diagnostic): 4 (bisected: 0)
+- PIN clusters (by first diagnostic): 4 (bisected: 1)
 
 ## PIN clusters
 
@@ -15,7 +15,7 @@ Measured commit (PIN): `51e8c45c793007f211d0d9baee7de16767172444`
 | 11 | pass/run regression | no provider is selected for boundary requirement `Window::middle`, which the program entry reaches o | `pass/providers/specialized_mixed_structural_result_operator_hosted_native` | `` |  |  | pending |
 Members: `pass/borrows/runtime_boundary_range_view_exit`, `pass/borrows/runtime_computed_shared_view_reborrow_exit`, `pass/providers/boundary_declaration_structural_result_return_exit`, `pass/providers/lifetime_boundary_requirement_dispatch_exit`, `pass/providers/specialized_boundary_operator_physical_custody`, `pass/providers/specialized_mixed_structural_fixed_operator_hosted_native`, `pass/providers/specialized_mixed_structural_result_operator_hosted_native`, `pass/providers/specialized_structural_fixed_operator_hosted_native`, `pass/providers/specialized_structural_fixed_operator_terminal_custody`, `pass/providers/table_leaf_dispatch_parameter_exit`, `pass/providers/target_contract_adjacency_exit`
 
-| 2 | pass/run regression | terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-UNUSED | `pass/layouts/declaration_only_initializer_formation` | `` |  |  | pending |
+| 2 | pass/run regression | terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-UNUSED | `pass/layouts/declaration_only_initializer_formation` | `674184316eba` | 1631 | psi: reject unsafe constant calls before execution (#1631) — source/psi/constant_evaluation/admission.rs, omega-rust/psi | bisected (deterministic; resolved first bad after bisect_skip_ambiguity) |
 Members: `pass/layouts/declaration_only_initializer_formation`, `pass/terminal_psi/inspection_scalar_library`
 
 | 1 | pass/run regression | authored Operator declaration selection occurrence 9690 (`*` in tests/omega/pass/expressions/match_o | `pass/expressions/match_operand_anonymous_operation_exit` | `` |  |  | pending |

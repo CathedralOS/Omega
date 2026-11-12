@@ -1,0 +1,13 @@
+{
+  "witness": "pass/layouts/declaration_only_initializer_formation",
+  "breaking_commit": "674184316eba783ba3d8324aa1cdf6053b3be0cb",
+  "pr": "1631",
+  "mechanism": "psi: reject unsafe constant calls before execution (#1631) — source/psi/constant_evaluation/admission.rs, omega-rust/psi/compilation/build-time-evaluation/",
+  "status": "bisected",
+  "bisect_exit": 2,
+  "good_commit": "c64728d90e83036051d52fb69961b786423230c6",
+  "good_end_rc": 0,
+  "bad_pin_rc": 1,
+  "stability": "deterministic; resolved first bad after bisect_skip_ambiguity",
+  "method": "pin_frozen_ledger_v2"
+}
