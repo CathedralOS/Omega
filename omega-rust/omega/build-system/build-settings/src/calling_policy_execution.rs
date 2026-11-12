@@ -4,8 +4,10 @@ signature (`evaluate_terminal_calling_policy`).
 
 `provider_planning` prepares the canonical `CallingPolicySignature`, the selected
 callable entry, and the invocation work/memory account, then invokes
-`evaluate_terminal_calling_policy` through the evaluator function pointer stored
-on its `CallingProgram`.
+`evaluate_terminal_calling_policy` through the evaluator stored on its
+`CallingProgram`. `CALLING_POLICY_EVALUATOR` is that evaluator: this executor
+plus Psi's scalar-condition evaluator, which provider planning also needs when
+it sizes a calling signature's storage and cannot run itself.
 
 Why this lives in `build-settings` without touching source trees:
 1. Calling policies are compiled once into an immutable Terminal Psi artifact (or
@@ -29,8 +31,9 @@ Why this lives in `build-settings` without touching source trees:
 use build_time_evaluation::terminal_values::{input_contents, result_value};
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use provider_planning::calling_policy_plans::{
-    CallingScalarScope, TerminalCallingPolicyInvocation, complete_calling_scalar_inputs,
-    decode_boundary_plan_result, encode_calling_policy_signature, validate_calling_policy_result,
+    CallingPolicyEvaluator, CallingScalarScope, TerminalCallingPolicyInvocation,
+    complete_calling_scalar_inputs, decode_boundary_plan_result, encode_calling_policy_signature,
+    validate_calling_policy_result,
 };
 use psi_work::{WorkMeter, WorkUsage};
 use terminal_interpreter::{
@@ -38,6 +41,11 @@ use terminal_interpreter::{
     TerminalRuntimeSupplyRequest, TerminalStructuralInputs, TerminalStructuralValue,
 };
 use terminal_psi::TargetMachineCallable;
+
+pub const CALLING_POLICY_EVALUATOR: CallingPolicyEvaluator = CallingPolicyEvaluator {
+    policy: evaluate_terminal_calling_policy,
+    scalar_conditions: build_time_evaluation::evaluate_scalar_applications_with_address_model,
+};
 
 pub fn evaluate_terminal_calling_policy(
     invocation: TerminalCallingPolicyInvocation<'_>,
@@ -125,6 +133,7 @@ pub fn evaluate_terminal_calling_policy(
             applications: &demanded,
         },
         providers,
+        CALLING_POLICY_EVALUATOR.scalar_conditions,
         &mut meter,
     )?;
     let installation = program

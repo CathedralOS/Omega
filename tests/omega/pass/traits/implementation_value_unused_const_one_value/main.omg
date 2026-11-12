@@ -1,0 +1,22 @@
+// Static control: a constructor argument the constructed value does not use
+// creates no identity. `Tag` has no fields and no parameters, so `Choice<ZERO>`
+// and `Choice<EIGHT>` construct one `Tag` value and `Holder` over either is one
+// type. `Other` is a second name for that same value. The mismatch controls
+// keep a field that depends on the argument:
+// `fail/traits/implementation_value_missing_const_equality`.
+const ZERO: u64 = 0u64;
+const EIGHT: u64 = 8u64;
+trait Tag {}
+Choice<const Value: u64> satisfies Tag {}
+Other satisfies Tag {}
+data Holder<Implementation satisfies Tag> [copy] { value: u64; }
+machine probe(value: Holder<Choice<ZERO>>) -> Holder<Choice<EIGHT>> { value }
+machine rename(value: Holder<Choice<EIGHT>>) -> Holder<Other> { value }
+machine main() crashes Trap {
+    let held: Holder<Choice<ZERO>> = Holder { value: 8 };
+    let moved: Holder<Choice<EIGHT>> = probe(held);
+    let kept: Holder<Other> = rename(moved);
+    transition kept.value == 8 { true -> done() false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

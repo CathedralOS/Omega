@@ -1,7 +1,7 @@
 # Nested generated dependency under dual-purpose custody
 
-One dependency package serves the root in both scopes: `build_depend_as`
-requests it for Build work while `depend_as` imports the same package for the
+One dependency package serves the root in both scopes: an aliased `Build::build_dependency`
+requests it for Build work while an aliased `Build::dependency` imports the same package for the
 product. The dependency's own Build requests a further `generator` package.
 Its package-local helper supplies the generation input; Build writes
 `generated.omg` and publishes it with `include_source`. The product entry

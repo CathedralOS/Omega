@@ -20,7 +20,6 @@ use build_time_evaluation::{
 use checked_trees::CheckedProviderPlanCommitment;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
-use provider_planning::target_machines::selected_constant_target_bodies;
 use selected_dispatch::derive_selected_primitive_float_binary_execution;
 use typed_trees::TypedTrees;
 
@@ -31,7 +30,7 @@ pub(crate) struct SelectedConstantEvaluation {
     target_bodies: Vec<build_time_evaluation::SelectedBuildTimeTargetBody>,
     target_profile: target::TargetProfile, // Target profile under which deferred `size_of`/`align_of` layout queries fold.
     selection: typed_trees::references::DeclarationSelection, // Projected Build declaration roots that own folds.
-    opaque_representation_selections: Vec<representation_planning::OpaqueRepresentationSelection>, // Empty during Build admission.
+    opaque_carriers: Vec<provider_planning::data_layout_queries::OpaqueCarrierSelection>, // Empty during Build admission.
 }
 
 impl SelectedConstantEvaluation {
@@ -49,10 +48,10 @@ impl SelectedConstantEvaluation {
             },
             target_bodies: &self.target_bodies,
             selection: &self.selection,
-            layouts: &provider_planning::data_layout_queries::TargetLayoutQueries {
+            layouts: &super::target_layout_queries::TargetLayoutQueries {
                 target: self.target_profile,
                 applications: None,
-                opaque_representations: &self.opaque_representation_selections,
+                opaque_representations: &self.opaque_carriers,
             },
         }
         .evaluate()
@@ -74,7 +73,15 @@ impl SelectedConstantEvaluation {
             target_bodies: selected_constant_target_bodies(context, target_profile)?,
             target_profile,
             selection: typed_trees::references::DeclarationSelection::from_program(typed),
-            opaque_representation_selections: opaque_representation_selections.to_vec(),
+            opaque_carriers: opaque_representation_selections
+                .iter()
+                .map(
+                    |selection| provider_planning::data_layout_queries::OpaqueCarrierSelection {
+                        opaque: selection.opaque(),
+                        carrier_type: selection.carrier_type(),
+                    },
+                )
+                .collect(),
         };
         for (expression, origin, requirement, policy) in uses {
             let Some((_, plan)) =
@@ -117,4 +124,47 @@ impl SelectedConstantEvaluation {
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         Ok(selected)
     }
+}
+
+// The target-family member bodies a deferred constant may call: for each
+// family in scope, the member authored for `target`, when it supplies a
+// checked body this Product realizes. A Build program selects none.
+fn selected_constant_target_bodies(
+    context: provider_planning::ProviderPlanningContext<'_>,
+    target: target::TargetProfile,
+) -> Result<Vec<build_time_evaluation::SelectedBuildTimeTargetBody>, Vec<Diagnostic>> {
+    if context.scope != source::DependencyScope::Product {
+        return Ok(Vec::new());
+    }
+    let mut selected = Vec::new();
+    for family in &context.typed.target_machine_families {
+        if !context.contains(family.canonical) {
+            continue;
+        }
+        let Some(member) = context
+            .typed
+            .target_family_member(family.canonical, target.target_name())
+        else {
+            continue;
+        };
+        if !member.supplies_checked_body()
+            || !provider_planning::target_machines::realizes_machine(
+                context,
+                member,
+                Some(target.target_name()),
+            )
+        {
+            continue;
+        }
+        selected.push(
+            build_time_evaluation::SelectedBuildTimeTargetBody::prepare(
+                context.typed,
+                family.canonical,
+                member.symbol,
+                target.target_name(),
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?,
+        );
+    }
+    Ok(selected)
 }

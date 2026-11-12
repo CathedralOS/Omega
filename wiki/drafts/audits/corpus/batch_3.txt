@@ -1,0 +1,433 @@
+pass/arithmetic/runtime_boolean_alias_shift_count_exit rejected 1609ms check-target:macos_arm64
+	shift count in machine `calculate` state `entry` return value is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+pass/arithmetic/runtime_boolean_guarded_bit_value_exit rejected 1468ms check-target:macos_arm64
+	shift count in machine `calculate` state `entry` return value is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+pass/arithmetic/runtime_boolean_state_shift_count_exit rejected 1524ms check-target:macos_arm64
+	shift count in machine `calculate` state `entry` return value is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+pass/arithmetic/runtime_exact_guarded_shift_count_exit rejected 9986ms check-target:macos_arm64
+	shift count in machine `shift` state `entry` assignment is not provably below the operand width for `u32`: exact shifts prove `count < 32` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u32 in Wrapping` reduces the count modulo 32, equivalently `count & 31` for this carrier; `in Trapping` traps at runtime).
+pass/atomics/runtime_stored_reference_atomic_events_exit checked 3153ms check-target:macos_arm64
+pass/blockexec/blocking_executor_custody_claims_compile rejected 2790ms check-target:macos_arm64
+	call to `execute` has operational envelope `suspend block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+	call to `execute` has operational envelope `suspend block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+pass/borrow/runtime_boundary_receiver_disjoint_loan_exit rejected 6806ms check-target:macos_arm64
+	argument `bytes` for state `publish` expects `&[u8]`, got `named value`; expected carrier `ref(slice(named(name(u8))))`, declared place carrier `named(name(u8))`
+pass/borrow/runtime_write_only_boundary_satisfier_exit rejected 2946ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Sink::write`, which the program entry reaches on target `macos_arm64`
+pass/borrows/incoming_reference_slot_replacement_exit rejected 2922ms check-target:macos_arm64
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(9), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/borrows/nested_reference_call_checked_index_exit rejected 2482ms check-target:macos_arm64
+	state `read_reference` receives `value.inner.value` while local borrow `entry` is still active
+	state `observe` receives `value.inner.value` while local borrow `entry` is still active
+	state `read_reference` receives `value.inner.value` while local borrow `entry` is still active
+	state `read_reference` receives `value.inner.value` while local borrow `entry` is still active
+	state `observe` receives `value.inner.value` while local borrow `entry` is still active
+	state `observe` receives `value.inner.value` while local borrow `entry` is still active
+	state `observe` receives `value.inner.value` while local borrow `entry` is still active
+	state `observe` receives `value.inner.value` while local borrow `entry` is still active
+	state `hold` receives `value.inner.value` while local borrow `entry` is still active
+	state `hold` receives `value.inner.value` while local borrow `entry` is still active
+	state `hold` receives `value.inner.value` while local borrow `entry` is still active
+pass/borrows/nested_reference_write_disjoint_facts_exit rejected 2302ms check-target:macos_arm64
+	statement 0 cannot resolve the complete borrowed destination of `value.middle.items[0].value.changed`: the incoming descriptor has no retained loan occurrence
+pass/borrows/runtime_computed_shared_view_reborrow_exit rejected 3029ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Window::middle`, which the program entry reaches on target `macos_arm64`
+pass/borrows/runtime_computed_window_operand_order_exit rejected 2267ms check-target:macos_arm64
+	statement 5 borrows `__hoist_2[0..7]` without an exact retained backing for its loan in machine `main`, state `entry`, statement 5
+pass/borrows/runtime_copyable_carrier_retirement_exit rejected 2604ms check-target:macos_arm64
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "swap::rotate", reason: "owned edge transfers an unavailable owner", gap: None })
+pass/borrows/runtime_dependent_callback_window_byte_exit rejected 2572ms check-target:macos_arm64
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/borrows/runtime_dependent_window_byte_payload_exit rejected 2758ms check-target:macos_arm64
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/borrows/runtime_dependent_window_image_sibling_exit rejected 2503ms check-target:macos_arm64
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/borrows/runtime_partial_reference_partition_exit rejected 2502ms check-target:macos_arm64
+	terminal-artifact production failed: Lowering(OverlappingProjectedCustody { reason: "projected custody overlaps an earlier transfer or release", place: PlaceId(80), earlier: [FixedIndex(1)], requested: [FixedIndex(1)], observation: None })
+pass/borrows/runtime_recursive_mutable_array_store_exit incomplete 8023ms check-target:macos_arm64
+	`entry_start` calls `Main::main`, which calls `fill`; `fill` has no executable body: this compiler does not lower its declaration of it yet (state graph: natural ranks)
+pass/borrows/runtime_returned_nonzero_nested_window_exit incomplete 2558ms check-target:macos_arm64
+	`main` calls `forward`; `forward` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `forward::entry`, statement 0
+pass/borrows/runtime_returned_stored_view_reborrow_exit rejected 2160ms check-target:macos_arm64
+	returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source; source Handle { arena_index: 3, generation: 44 } in observe::entry statement 0: no exact invocation access supplies this descriptor; carrier Some("ref-mut(named(name(nominal\\\\(package-owner\\\\(32:ab588a28e29eb0103623ccec56a3e12d708ee6fa7f1df24f4f4e5c64c432edf5\\\\)\\\\,path\\\\(Wrapper\\\\)\\\\))))"), expected None, path [Some(Field { symbol: Handle { arena_index: 672, generation: 1 } })] (1 segments)
+pass/build/component_declaration_scalar_conditions_exit rejected 3603ms check-target:macos_arm64
+	constant checking: machine `@array-extent-1-9` is not build-time admissible: the checked Trap crash route can occur; constant evaluation requires proof that no crash route can occur before execution
+pass/calls/runtime_cyclic_state_reference_result_exit checked 10364ms check-target:macos_arm64
+pass/calls/runtime_linear_guarded_owner_disposition_exit checked 10558ms check-target:macos_arm64
+pass/calls/runtime_linear_state_owner_disposition_exit checked 10235ms check-target:macos_arm64
+pass/calls/runtime_projected_type_operand_scopes_exit rejected 1594ms check-target:macos_arm64
+	machine `replacement_epoch` state `entry` expression type application uses undeclared lifetime argument `'storage' in `Note`; declare it in the owner's generic parameter list
+pass/contracts/runtime_mutable_owned_call_poststate_exit rejected 2224ms check-target:macos_arm64
+	cannot prove asm `requires` fact at block entry in main state `entry` (statement 5): returned == 7 && preserved == 3 && completed == 8
+pass/data/runtime_mixed_case_nested_common_fields_exit rejected 2284ms check-target:macos_arm64
+	state `observe` receives `count` without an exact retained backing for its loan: the access has no unique completed operand
+	state `observe` receives `count` without an exact retained backing for its loan: the access has no unique completed operand
+	state `observe` receives `count` without an exact retained backing for its loan: the access has no unique completed operand
+pass/dependent/runtime_symbolic_slice_cell_theorem_exit checked 3149ms check-target:macos_arm64
+pass/domains/runtime_selected_nested_field_domain_exit rejected 2225ms check-target:macos_arm64
+	returned view lost its completed invocation capture
+pass/drops/runtime_generic_cleanup_owner_telescope_exit checked 3249ms check-target:macos_arm64
+pass/drops/runtime_selected_linear_residual_death_exit incomplete 3024ms check-target:macos_arm64
+	`main` calls `scenario`; `scenario` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: value operands: selected sources)); in state `scenario::entry`, statement 1
+pass/drops/runtime_selected_partial_owner_cleanup_exit rejected 2803ms check-target:macos_arm64
+	terminal-artifact production failed: Lowering(InvalidCleanupPartition { reason: "cleanup partition actions are interleaved or reordered" })
+pass/expressions/match_operand_anonymous_operation_exit rejected 7608ms check-target:macos_arm64
+	authored Operator declaration selection occurrence 9692 (`*` in tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg) remained unresolved after successful checking (CheckedOperator)
+pass/expressions/runtime_match_copy_descriptor_call_exit rejected 2439ms check-target:macos_arm64
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "exercise", reason: "computed owned structural operand changes its source custody", gap: None })
+pass/facts/as_slice_views_generic_offset_selector_exit rejected 2352ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_shadowed_extent_exit rejected 2449ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_through_parameter_exit rejected 2402ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/case_where_equality_through_call_result_exit rejected 2400ms check-target:macos_arm64
+	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+pass/facts/component_scalar_lending_through_field_exit rejected 4673ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(22) has no admitted mechanism
+pass/facts/component_scalar_lending_through_local_exit rejected 4742ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(22) has no admitted mechanism
+pass/facts/core_float_representation_through_field_exit checked 3487ms check-target:macos_arm64
+pass/facts/core_float_representation_through_local_exit checked 3401ms check-target:macos_arm64
+pass/facts/domain_pattern_match_bound_through_field_exit rejected 2321ms terminal-targets:unchecked
+	construction of `Selected` field `value` is not proven in domain `u64::AtLeast73` in consume state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+pass/facts/exclusive_match_arm_through_call_result_exit rejected 2366ms check-target:macos_arm64
+	cannot prove requires contract for call choose from select: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/exclusive_match_arm_through_other_state_exit rejected 2299ms check-target:macos_arm64
+	cannot prove requires contract for call choose from write: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/exclusive_match_arm_through_parameter_exit rejected 2299ms check-target:macos_arm64
+	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/exclusive_match_arm_through_target_body_exit rejected 2361ms check-target:macos_arm64
+	cannot prove requires contract for call choose from X86Apply::apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `apply`
+	cannot prove requires contract for call choose from ArmApply::apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `apply`
+pass/facts/finite_family_exclusive_result/call_result checked 3157ms check-target:macos_arm64
+pass/facts/finite_family_exclusive_result/other_machine checked 3227ms check-target:macos_arm64
+pass/facts/finite_family_exclusive_result/other_state checked 3097ms check-target:macos_arm64
+pass/facts/finite_family_exclusive_result/target_body checked 3277ms check-target:macos_arm64
+pass/facts/foreign_nested_record_backing_other_machine checked 3527ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_call_result checked 3492ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_const_name checked 3504ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_match_join checked 3632ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_mixed_issuers checked 4249ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_other_machine checked 3512ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_other_state checked 3658ms check-target:macos_arm64
+pass/facts/foreign_retained_mutable_borrow_target_body checked 3564ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_call_result checked 3544ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_other_machine checked 3516ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_other_state checked 3476ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_shared_aliases checked 3689ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_target_body checked 3572ms check-target:macos_arm64
+pass/facts/indexed_crash_guard_through_target_body_exit rejected 2419ms check-target:macos_arm64
+	authored Operator declaration selection occurrence 573 (`==` in tests/omega/pass/facts/indexed_crash_guard_through_target_body_exit/main.omg) remained unresolved after successful checking (CheckedOperator)
+pass/facts/match_computed_root_through_other_state_exit rejected 2533ms check-target:macos_arm64
+	cannot prove requires contract for call compute from write: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/match_computed_root_through_target_body_exit rejected 4677ms check-target:macos_arm64 terminal-inspections:failed
+	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	inspection main admission: [Diagnostic { severity: Error, message: "cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(32), span: Span { start: 434, end: 441 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("match_computed_root_through_target_body"), path: "tests/omega/pass/facts/match_computed_root_through_target_body_exit/main.omg", line: 14, column: 43 }) }]
+pass/facts/match_join_place_read_through_parameter_exit rejected 2276ms check-target:macos_arm64
+	cannot prove requires contract for call read_field from apply: match choose() { true => chosen, false => spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.kept == 17`
+pass/facts/match_loan_last_use_through_call_result_exit rejected 2167ms check-target:macos_arm64
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+pass/facts/match_loan_last_use_through_const_name_exit rejected 2216ms check-target:macos_arm64
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+pass/facts/match_loan_last_use_through_match_join_exit rejected 2217ms check-target:macos_arm64
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+pass/facts/match_loan_last_use_through_other_state_exit rejected 2193ms check-target:macos_arm64
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+pass/facts/match_loan_last_use_through_parameter_exit rejected 2353ms check-target:macos_arm64
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+pass/facts/match_loan_last_use_through_target_body_exit rejected 2276ms check-target:macos_arm64
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+pass/facts/open_const_implementation_through_field_exit checked 4097ms check-target:macos_arm64
+pass/facts/open_const_implementation_through_local_exit checked 3547ms check-target:macos_arm64
+pass/facts/recast_parent_restoration_through_field_exit rejected 3154ms check-target:macos_arm64
+	native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(74))
+pass/facts/recast_parent_restoration_through_local_exit rejected 3599ms check-target:macos_arm64
+	native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(73))
+pass/facts/representation_agreement_through_field_exit checked 10785ms check-target:macos_arm64
+pass/facts/representation_agreement_through_local_exit checked 10271ms check-target:macos_arm64
+pass/facts/selected_value_application_through_field_exit rejected 1017ms check-target:macos_arm64
+	applied callable has an unrepresented static type operand
+pass/facts/source_indexed_family_capture_roster_positive rejected 2339ms check-target:macos_arm64
+	machine `main` state `entry` statement 4: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/static_callback_reach_requirement_telescope rejected 3092ms check-target:macos_arm64 terminal-inspections:failed
+	`quiet` does not satisfy `StepContract::step`: helper `Requirement` requires `Anchor::anchor`, but the implementation promises `Anchor::anchor`
+	inspection main admission: [Diagnostic { severity: Error, message: "`quiet` does not satisfy `StepContract::step`: helper `Requirement` requires `Anchor::anchor`, but the implementation promises `Anchor::anchor`", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/facts/target_family_callback_guarantee/call_result checked 3350ms check-target:macos_arm64
+pass/facts/target_family_callback_guarantee/const_name checked 3821ms check-target:macos_arm64
+pass/facts/target_family_callback_guarantee/match_join checked 3371ms check-target:macos_arm64
+pass/facts/target_family_callback_guarantee/other_state checked 3285ms check-target:macos_arm64
+pass/facts/target_family_callback_guarantee/parameter checked 3365ms check-target:macos_arm64
+pass/facts/target_family_callback_guarantee/target_body checked 4886ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match
+pass/facts/target_family_contract_operand/call_result checked 3708ms check-target:macos_arm64
+pass/facts/target_family_contract_operand/other_machine checked 3351ms check-target:macos_arm64
+pass/float/private_arrival_exact_integer_coercion_exit checked 2972ms check-target:macos_arm64
+pass/float/runtime_exact_integer_to_float_coercion_exit checked 3208ms check-target:macos_arm64
+pass/float/runtime_format_conversion_result_bounds_exit checked 2997ms check-target:macos_arm64
+pass/float/runtime_resultless_law_equality_custody_exit rejected 7472ms check-target:macos_arm64
+	machine `same32` proves no guarantee for the selected comparison law `Reflexive::same`
+	machine `same64` proves no guarantee for the selected comparison law `Reflexive::same`
+pass/generics/open_const_selected_unused_impure_member checked 3612ms check-target:macos_arm64
+pass/generics/runtime_inferred_index_generic_caller_exit rejected 2460ms check-target:macos_arm64
+	cannot prove runtime index descriptor equals its captured index
+	cannot prove runtime index descriptor equals its captured index
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/generics/runtime_inferred_index_statement_call_exit rejected 2482ms check-target:macos_arm64
+	cannot prove runtime index descriptor equals its captured index
+	cannot prove runtime index descriptor equals its captured index
+	cannot prove requires contract for call consume_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/host/scalar_reference_mixed_backing_foreign_export rejected 3686ms check-target:linux_x86_64
+	no provider is selected for boundary requirement `Compare::compare`, which the program entry reaches on target `linux_x86_64`
+pass/host/scalar_reference_narrow_backing_foreign_export rejected 3767ms check-target:linux_x86_64
+	no provider is selected for boundary requirement `Compare::compare`, which the program entry reaches on target `linux_x86_64`
+pass/modules/selected_constant_array_alias_qualification rejected 1456ms
+	cannot form specification index in machine `check_source` requires contract: independent collection bounds are not established by preceding formed facts
+pass/operators/runtime_constructed_operand_result_exit checked 3635ms check-target:macos_arm64
+pass/operators/runtime_named_unit_statement_effects_exit rejected 3210ms check-target:macos_arm64
+	boundary operator `operator::Actions::set(ref-mut(named(name(u32))))->unit` in package Some(PackageKeyIdentity([121, 36, 22, 201, 52, 120, 123, 53, 39, 37, 213, 130, 229, 17, 3, 252, 245, 222, 91, 217, 74, 105, 131, 14, 54, 97, 234, 131, 250, 213, 144, 79])) resolves to 0 selected ProviderPlans; expected exactly one
+	boundary operator `operator::Actions::set(ref-mut(named(name(u32))))->unit` in package Some(PackageKeyIdentity([121, 36, 22, 201, 52, 120, 123, 53, 39, 37, 213, 130, 229, 17, 3, 252, 245, 222, 91, 217, 74, 105, 131, 14, 54, 97, 234, 131, 250, 213, 144, 79])) resolves to 0 selected ProviderPlans; expected exactly one
+	boundary operator `operator::Actions::set(ref-mut(named(name(u32))))->unit` in package Some(PackageKeyIdentity([121, 36, 22, 201, 52, 120, 123, 53, 39, 37, 213, 130, 229, 17, 3, 252, 245, 222, 91, 217, 74, 105, 131, 14, 54, 97, 234, 131, 250, 213, 144, 79])) resolves to 0 selected ProviderPlans; expected exactly one
+	boundary operator `operator::Actions::set(ref-mut(named(name(u32))))->unit` in package Some(PackageKeyIdentity([121, 36, 22, 201, 52, 120, 123, 53, 39, 37, 213, 130, 229, 17, 3, 252, 245, 222, 91, 217, 74, 105, 131, 14, 54, 97, 234, 131, 250, 213, 144, 79])) resolves to 0 selected ProviderPlans; expected exactly one
+pass/proofs/borrowed_descriptor_bound_local_result_exit rejected 2435ms check-target:macos_arm64
+	cannot prove ensures contract for exit from retain at statement 0: result <= used
+	cannot prove ensures contract for exit from filter_partition at statement 2: partition.used <= partition.entries.len
+pass/proofs/runtime_ranked_intermediary_accumulator_exit rejected 7772ms check-target:macos_arm64
+	cannot prove ensures contract for exit from descend at statement 1: result <= previous
+	cannot prove ensures contract for exit from descend at statement 2: result <= previous
+	terminating machine descend reaches recursive component `loop`, which has no `terminates by` ranking -- spell one on that component
+pass/proofs/selected_specification_requires_composition checked 1412ms
+pass/providers/checked_fixed_operator_physical_custody rejected 8352ms check-target:macos_arm64
+	boundary requirement `CheckedMath::select_left` in package Some(PackageKeyIdentity([25, 207, 235, 164, 24, 166, 181, 36, 52, 48, 95, 81, 2, 81, 147, 17, 62, 205, 230, 204, 26, 111, 103, 126, 39, 42, 158, 80, 146, 179, 63, 57])) resolves to 0 selected ProviderPlans; expected exactly one
+pass/recast/runtime_inline_shared_slice_record_read_exit rejected 8745ms check-target:macos_arm64
+	state `write_pairs` receives `main` as both mutable and read-only
+pass/recast/runtime_inline_slice_view_mutable_write_exit rejected 8060ms check-target:macos_arm64
+	state `write_pairs` receives `main` as mutable more than once
+pass/recast/runtime_mutable_equivalent_range_recast_exit rejected 7966ms check-target:macos_arm64
+	machine `Main::main` state `main` statement 7: reading `main` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Main`
+	machine `Main::main` state `main` statement 7: the next whole-value read of `main` occurs inside an OPEN invariant window: a prior write left data `SignedBounded`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 8 in machine `Main::main` state `main`: this write left the `requires` facts of `main.value` (data `SignedBounded`) unproved; restore them first
+pass/slices/runtime_forwarded_range_extent_snapshot_exit rejected 2536ms check-target:macos_arm64
+	cannot prove ensures contract for exit from middle at statement 6: result.len == end - start
+pass/slices/runtime_nested_view_candidate_backings_exit rejected 2393ms check-target:macos_arm64
+	returned view has no complete formation frontier
+pass/slices/runtime_nested_view_descriptor_reseat_exit rejected 2253ms check-target:macos_arm64
+	checked direct-reborrow suspension requires exactly one parent entry constraint
+pass/slices/runtime_returned_range_extent_contract_exit rejected 2365ms check-target:macos_arm64
+	cannot prove requires contract for call middle from Main::main: 1 <= 3 && 3 <= main.bytes.len (needs fact `start <= end && end <= bytes.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+pass/slices/runtime_stored_element_view_replacement_exit rejected 2483ms check-target:macos_arm64
+	returned projection exceeds its source presentation
+pass/slices/runtime_stored_view_dynamic_selection_exit rejected 2317ms check-target:macos_arm64
+	returned view has no complete formation frontier
+pass/slices/saved_byte_predicate_operand_disjoint_exit checked 3227ms check-target:macos_arm64
+pass/structural/runtime_scalar_record_reclamation_exit rejected 2571ms check-target:macos_arm64
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "churn::next", reason: "owned edge transfers an unavailable owner", gap: None })
+pass/traits/applied_requirement_lexical_isolation_exit rejected 2560ms check-target:macos_arm64
+	machine call cycle: `Caller::read` can re-enter itself through a selector call or boundary requirement call; termination across implementation selection is not yet ranked
+pass/traits/inline_member_seals_target_family_provider rejected 1260ms
+	cannot prove published termination for machine `FamilyConsole::write_byte`: its checked body reaches an operation without a usable termination guarantee; state `FamilyConsole::write_byte::write_byte` statement 0 call 0 targets `NativeProvider::write_byte::write_byte` through `NativeProvider`, summary Some(NoGuarantee); source target `NativeProvider::write_byte::write_byte`, selected contract `<none>`: selected public declaration has no requirement signature
+pass/traits/prepared_callable_nested_borrow_paths_exit incomplete 2751ms check-target:macos_arm64
+	`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion stored reference dependencies); in state `main::entry`
+pass/traits/runtime_qualified_byte_crash_equality_exit rejected 8257ms check-target:macos_arm64
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "structural crash route is outside checked Boolean member lowering", gap: None })
+pass/wire/library_compact_binary_packed_reflection_exit rejected 6612ms check-target:macos_arm64
+	machine structural equation remains unsolved in a noncall static argument
+pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit rejected 6307ms check-target:macos_arm64
+	machine structural equation remains unsolved in a noncall static argument
+pass/wire/runtime_wire_encode_interior_scalar_slice_exit rejected 6395ms check-target:macos_arm64
+	machine structural equation remains unsolved in a noncall static argument
+fail/arithmetic/collection_result_changed_predecessor rejected 1292ms unexpected
+	cannot prove ensures contract for exit from rejected at statement 1: result <= values.len
+	cannot prove ensures contract for exit from rejected at statement 2: result <= values.len
+fail/arithmetic/widened_result_predicate_invalid_write rejected 1277ms unexpected
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `widened` (data `ByteResult`) unproved; restore them first
+fail/arithmetic/wrapping_guard_does_not_bound_original rejected 1286ms unexpected
+	cannot complete a call at statement 2 in machine `bounded` state `entry`: this write left the `requires` facts of `values` (data `Values`) unproved; restore them first
+fail/arithmetic/wrapping_target_plain_operands_rejected rejected 9808ms unexpected
+	store in machine `Main::pick` state `pick` local `v` implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
+fail/borrows/applied_provider_output_requires_backing rejected 1198ms unexpected
+	machine `statement` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/borrows/nested_machine_carried_live_child_rejected rejected 11013ms unexpected
+	statement 6 reads `held.value` while local borrow `view` is still active (borrowed at statement 5; its last use is at statement 6)
+	statement 6 reads `held.value` while local borrow `view` is still active (borrowed at statement 5; its last use is at statement 6)
+fail/borrows/owned_capture_weaker_formal_qualification rejected 1431ms unexpected
+	cannot prove requires contract for call observe from main: cells[0] in Cell::Issued in state `entry`
+	cannot prove requires contract for call observe from main: cells[0] in Cell::Issued in state `entry`
+fail/borrows/owned_carrier_result_retains_whole_operand rejected 1293ms unexpected
+	returned projection exceeds its source presentation
+fail/borrows/predicate_named_call_keeps_installed_loan rejected 1163ms unexpected
+	call `exercise` has an invalid argument correspondence: call has no retained parameter telescope
+fail/calls/static_boundary_statement_misplaced_evidence rejected 994ms unexpected
+	`RawSource::fill` expects 0 static invocation argument(s), got 2; explicit selection requires a named implementation as the final static argument
+fail/calls/static_boundary_statement_unrelated_evidence rejected 978ms unexpected
+	`<structural type>` implements `Other<>`, which neither is nor inherits `RawSource`, the trait that declares `RawSource::fill`
+fail/contracts/generic_component_nondecreasing_window rejected 1187ms unexpected
+	machine call cycle: `walk`, `head` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/contracts/ruled_out_arm_value_does_not_reach_join rejected 2253ms unexpected
+	exact arithmetic in machine `pick` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/contracts/scalar_copy_guard_after_source_restore checked 10813ms
+fail/core/numeric_widened_range_shift_overflow_rejected rejected 8274ms unexpected
+	exact arithmetic in machine `scale` state `entry` return value may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`). Here the operand `widen_u8_to_u16(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u16 in Wrapping`). terminal expression may overflow `u16`.
+fail/dependent/applied_default_domain_unrelated_bound rejected 2204ms unexpected
+	cannot complete return from machine `Counter::set` state `set`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/dependent/zero_gated_record_field_store_unproven rejected 7856ms unexpected
+	cannot complete return from machine `wound` state `entry`: this write left the `requires` facts of `player` (data `Player`) unproved; restore them first
+fail/domains/routed_primitive_receiver_requires_issuer rejected 8015ms expected
+	cannot prove the value assigned to `row` in replace is in domain `u64::IssuedIndex`; a place declared `in u64::IssuedIndex` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+	cannot prove default-domain field requirement for return from replace at statement 1: row requires u64::IssuedIndex
+fail/drops/overlapping_projected_reference_transition rejected 7414ms unexpected
+	cannot use `input.selected` in machine `exercise` state `entry` (statement 0) after `input.selected` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `input.selected` first
+fail/expressions/owned_match_duplicated_projected_claim rejected 2099ms unexpected
+	selected claim disagrees with its evaluated source custody
+fail/facts/borrowed_store_call_through_field_rejected rejected 1770ms unexpected
+	machine `update` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/facts/borrowed_store_call_through_local_rejected rejected 1789ms unexpected
+	machine `update` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/facts/foreign_nested_record_backing_other_machine rejected 2989ms expected
+	statement 5 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_mutable_borrow_call_result rejected 3139ms expected
+	statement 5 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_mutable_borrow_const_name rejected 2987ms expected
+	statement 4 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_mutable_borrow_match_join rejected 3038ms expected
+	statement 6 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
+	statement 6 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
+	statement 6 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/facts/foreign_retained_mutable_borrow_other_state rejected 2896ms expected
+	statement 5 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_mutable_borrow_target_body rejected 3056ms expected
+	statement 5 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_shared_borrow_call_result rejected 3131ms expected
+	statement 4 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 6)
+	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_shared_borrow_other_machine rejected 3089ms expected
+	statement 4 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 6)
+	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_shared_borrow_other_state rejected 3003ms expected
+	statement 4 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 6)
+	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_shared_borrow_target_body rejected 3019ms expected
+	statement 4 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 6)
+	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/match_loan_last_use_through_field_rejected rejected 1348ms unexpected
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+fail/facts/match_loan_last_use_through_local_rejected rejected 1434ms unexpected
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+fail/facts/source_indexed_family_cited_requires_unmet rejected 2747ms unexpected
+	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/facts/source_indexed_family_wrong_recursion_rank rejected 2759ms unexpected
+	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/float/exact_integer_coercion_requires_denotation rejected 1298ms unexpected
+	machine `fractional` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `negative_fraction` state `entry` cannot prove Exact float-to-`u32` cast operand `-0.5` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `unknown` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `unknown` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+	machine `integer_ends_are_not_enough` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `overflow` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `overflow` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+	machine `nan` state `entry` cannot prove Exact float-to-`i32` cast operand `divide(0.0, 0.0)` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `nan` state `entry` cannot prove unqualified `I32::from_f64` operand `divide(0.0, 0.0)` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+	machine `guarded` state `entry` cannot prove Exact float-to-`i32` cast operand `subject.value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+fail/float/public_class_result_contract_retains_actual rejected 2125ms unexpected
+	specification call `F32::classify` has no observation-free, reach-free, crash-free value denotation
+fail/float/qualified_conversion_requires_operand_proof rejected 1188ms unexpected
+	machine `fractional` state `entry` cannot prove Exact float-to-`i32` cast operand `3.75` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `lossy` state `entry` cannot prove Exact float-to-`f32` cast operand `3.0000000000000004` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	`as ... in Four` cannot mint: a `Four` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
+fail/generics/core_slice_for_each_callback_termination rejected 1411ms unexpected
+	terminating machine does_not_finish reaches recursive component `again`, which has no `terminates by` ranking -- spell one on that component
+	terminating machine for_each$specialized$51e5a57146ee7073$0$4646 reaches recursive component `again`, which has no `terminates by` ranking -- spell one on that component
+fail/generics/grouped_decimal_const_fraction_rejected rejected 781ms unexpected
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "anonymous operand `25/8` is not an integer in closed const argument; type an operand before division if integer division was intended", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(30), span: Span { start: 90, end: 91 } }), resolved_location: None })
+fail/generics/native_locator_inconsistent_byte_extents rejected 1261ms unexpected
+	constructor obligations have no exact prepared application for `Pair`; unresolved generic members cannot waive field or case checking
+	a value call to generic machine `consume` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
+fail/generics/native_locator_undefined_user_coordinate rejected 1298ms unexpected
+	constructor obligations have no exact prepared application for `Envelope`; unresolved generic members cannot waive field or case checking
+	a value call to generic machine `consume` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
+fail/generics/record_const_refinement_different_binder rejected 2526ms expected
+	machine `Selected::read` realizes `Reading::read` but does not guarantee its `ensures result >= Setting.minimum`; callers of the requirement assume it
+fail/generics/record_const_refinement_different_field rejected 2312ms expected
+	machine `Selected::read` realizes `Reading::read` but does not guarantee its `ensures result >= Setting.minimum`; callers of the requirement assume it
+fail/generics/runtime_value_recipe_prior_write_overflow rejected 2403ms unexpected
+	exact arithmetic in value argument `Limit` of `Index` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/layouts/direct_unselected_ordinary_layout_contract checked 4742ms
+fail/layouts/placed_reference_results/stale_after_write rejected 5576ms expected
+	cannot prove requires contract for call require_seventeen from inspect: value.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/layouts/unselected_target_helper_layout_underflow checked 4156ms
+fail/machines/private_where_store_through_cycle_control rejected 2583ms unexpected
+	machine `next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
+	machine `next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 2 in machine `next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/proofs/changed_arrival_cannot_rebind_original_bound rejected 1433ms unexpected
+	cannot prove ensures contract for exit from wrong at statement 0: result <= count
+fail/proofs/inductive_climbing_sum_unbounded_accumulator rejected 1186ms unexpected
+	terminal call `climb` does not select a declared machine entry or callable requirement
+fail/proofs/ranked_accumulator_guarantee_wrong_step_twin rejected 8087ms unexpected
+	machine `descend` cannot prove ensures contract proof fact `result <= previous` on the transition arm guarded by `__transition_subject#38 == true`
+fail/proofs/returned_reference_unproven_result_guarantee rejected 1603ms unexpected
+	machine `borrow_scalar` cannot prove ensures contract proof fact `result == 19` on the transition arm guarded by `<always>`
+fail/proofs/selected_specification_requires_false_result rejected 1368ms expected
+	machine `identity` ensures contract proof fact `core::Identity<Nat>(selected_identity<Modulus>(value), Nat)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/proofs/wrapping_zero_product_does_not_cancel_factor rejected 7781ms unexpected
+	machine `claimed_zero` cannot prove ensures contract proof fact `result == 0` on the transition arm guarded by `<always>`
+fail/providers/applied_requirement_call_const_overflow rejected 899ms unexpected
+	integer node `u8(256)` does not fit exact carrier `u8`
+fail/providers/boundary_issuance_refuted_completed_value rejected 1274ms unexpected
+	boundary qualification is refuted at exit of Direct::issue in state `issue` for requirement `issue`: Token::Issued
+	boundary qualification is refuted at exit of Local::issue in state `issue` for requirement `issue`: Token::Issued
+	boundary qualification is refuted at exit of Field::issue in state `issue` for requirement `issue`: Token::Issued
+	boundary qualification is refuted at exit of Later::issue in state `issue` for requirement `issue`: Token::Issued
+fail/providers/boundary_issuance_refuted_mutable_value rejected 1336ms unexpected
+	boundary qualification is refuted at exit of Provider::issue in state `issue` for requirement `issue`: Token::Issued
+fail/providers/named_provider_wrong_requirement_owner rejected 854ms expected
+	closed conformance `WrongProvider satisfies CounterOperations` has no inherited requirement slot `OtherOperations::read`
+fail/providers/qualification_inherited_grants_ambiguous incomplete 8318ms unexpected
+	`Parent::value` has no executable body: this compiler does not lower its declaration of it yet (boundary requirement: result shape or domain authorization)
+fail/providers/qualified_foreign_result_forwarding_state rejected 1318ms unexpected
+	cannot prove ensures contract for exit from wrong at statement 0: result.code == 0
+	cannot prove requires contract for call read from next: renamed in Guid::Selected (invalidated by prior mutation of renamed.value; renamed.value is part of Guid::Selected) in state `entry`
+fail/providers/service_nonboundary_requirement_rejected rejected 1049ms unexpected
+	Product provider operand `Local` does not resolve to one visible declaration of role BoundarySubject
+fail/range/indexed_field_range_runtime_write_rejected rejected 7670ms unexpected
+	cannot complete a call at statement 3 in machine `Main::main` state `main`: this write left the `requires` facts of `main.cells[*]` (data `Cell`) unproved; restore them first
+	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main.cells[*]` (data `Cell`) unproved; restore them first
+fail/recast/recast_mut_record_where_write_out_of_range rejected 1285ms unexpected
+	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main.source` (data `SignedRecord`) unproved; restore them first
+fail/slices/record_length_field_is_not_collection_extent rejected 1357ms unexpected
+	cannot prove requires contract for call require_all from Main::main: main.bytes[0..main.limit.len].len == 3 (needs fact `bytes.len == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`; authored requirement `prefix.len == 3`
+fail/slices/returned_inclusive_window_extent_mismatch rejected 2230ms unexpected
+	returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source; source Handle { arena_index: 1, generation: 44 } in main::entry statement 0: no exact invocation access supplies this descriptor; carrier Some("ref(slice(named(name(u8))))"), expected None, path [] (0 segments)
+fail/termination/proof_joint_machine_cycle_nondecreasing rejected 1254ms unexpected
+	proof-only machine call cycle: `left`, `right` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path
+fail/termination/proof_joint_machine_cycle_unmeasured rejected 1249ms unexpected
+	proof-only machine call cycle: `left`, `right` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: the proof component has no authored ranking entry
+fail/termination/runtime_non_tail_joint_machine_cycle rejected 1419ms unexpected
+	machine call cycle: `Main::left`, `Main::right` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/traits/conformance_unused_lifetime_foreign_scope rejected 1270ms unexpected
+	static operand changed its retained selected application
+fail/traits/trait_contract_undeclared_parameter_member rejected 1300ms unexpected
+	cannot form specification operator `>=` in trait `BrokenCounter` state `increment` ensures contract: no exact selected meaning for operand types [<unavailable>, <unavailable>]
+	cannot form specification operator `<=` in trait `BrokenCounter` state `increment` ensures contract: no exact selected meaning for operand types [<unavailable>, <unavailable>]
+run/calls/outcome_specific_selected_guarantee_input_exit rejected 7471ms check-target:macos_arm64
+	machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+	machine `succeed` state `entry` assignment cannot write `selected` because it is not mutable in this state (if `selected` is undeclared -- a typo -- no such field or local exists)
+	machine `succeed` state `entry` uses `mixed`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+	machine `succeed` state `entry` assignment cannot write `mixed` because it is not mutable in this state (if `mixed` is undeclared -- a typo -- no such field or local exists)
+run/domains/completed_membership_after_earlier_guarantee rejected 2461ms check-target:macos_arm64
+	cannot prove requires contract for call join from argument: Amount in Amount::Positive in state `entry`

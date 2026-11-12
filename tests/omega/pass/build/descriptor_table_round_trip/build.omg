@@ -1,7 +1,9 @@
 use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "gdt_round_trip_probe");
-    Build::depend_as(builder, "std", Source::Path { location: "../../../../../source/library/std" });
+    let mut std_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../../../../source/library/std" });
+    dependency::with_alias(&mut std_dependency, "std");
+    let std_registration: DependencyRegistration = Build::dependency(builder, std_dependency);
     Build::select_provider<GatePreparation, CheckedGatePreparation>(builder, linux_x86_64);
     Build::bind(builder, linux_x86_64::ProgramEntry, start);
     Build::bind<ProcessExit::exit_process>(builder, linux_x86_64, ForeignBinding::DllImport {

@@ -12,32 +12,21 @@ use super::{
 };
 use checked_trees::typed_trees::SourceRecordCorrespondence;
 use checked_trees::typed_trees::service_declarations::signatures::BoundarySignatureDeclaration;
-use representation_selections::OpaqueRepresentationSelection;
 use std::sync::Arc;
 
+// One selected opaque representation as review needs it: the portable
+// application that Terminal Psi also carries, which is the join key, beside the
+// in-process symbols a review report names. The owner of the selection records
+// projects these rows while Source exists. A selection whose portable
+// application could not be formed keeps its refusal, which surfaces only if a
+// canonical signature actually uses an opaque representation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct PreparedOpaqueReviewSelection {
-    application:
+pub struct PreparedOpaqueReviewSelection {
+    pub application:
         Result<language_semantics::opaque_representations::SelectedOpaqueApplication, String>,
-    opaque: symbols::SymbolHandle,
-    carrier: symbols::SymbolHandle,
-    conformance: symbols::SymbolHandle,
-}
-
-pub(super) fn prepare_opaque_reviews(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    selections: &[OpaqueRepresentationSelection],
-) -> Arc<[PreparedOpaqueReviewSelection]> {
-    selections
-        .iter()
-        .map(|selection| PreparedOpaqueReviewSelection {
-            application: selection.portable_application(typed),
-            opaque: selection.opaque(),
-            carrier: selection.carrier(),
-            conformance: selection.application().declaration,
-        })
-        .collect::<Vec<_>>()
-        .into()
+    pub opaque: symbols::SymbolHandle,
+    pub carrier: symbols::SymbolHandle,
+    pub conformance: symbols::SymbolHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

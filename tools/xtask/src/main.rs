@@ -5,7 +5,7 @@
 //! - `cargo xtask check-boundary`
 //! - `cargo xtask check-rules [--base <rev>] [--title <title>] [--body-file <path>]`
 //! - `cargo xtask corpus [--filter <fragments>] [--record] [--native] [--list-pinned-regressions]`
-//! - `cargo xtask corpus-gate <plan|check|sweep-shard|sweep-report> [options]`
+//! - `cargo xtask corpus-gate <plan|build|check|sweep-shard|sweep-report> [options]`
 //! - `cargo xtask sample-gate [--filter <fragments>] [--facts]`
 //! - `cargo xtask stage-coverage [--list <file>] [--json <path>] <program>... [-- <omega-args>...]`
 //! - `cargo xtask doctor [--json <path>]`

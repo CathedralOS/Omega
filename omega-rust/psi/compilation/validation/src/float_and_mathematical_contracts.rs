@@ -759,9 +759,8 @@ pub mod float_projection_bindings {
             symbol: symbols::SymbolHandle,
             relative_source: &str,
         ) -> bool {
-            program
-                .symbol_toolchain_relative_path(symbol)
-                .is_some_and(|relative| relative == std::path::Path::new(relative_source))
+            language_core::core_vocabulary::CoreSource::from_file(relative_source)
+                .is_some_and(|core| program.symbols.core_source(symbol) == Some(core))
         }
 
         pub(crate) fn is_sealed_toolchain_float_operator(
@@ -3409,6 +3408,26 @@ pub mod mathematical_applications {
         call: &TableCallExpression,
     ) -> bool {
         is_mathematical_declaration(program, call.target_symbol)
+    }
+
+    /*
+        A checked mathematical application in an erased initializer never
+        executes: the mathematical producer checked its complete dependent
+        application, and it has no machine entry. Consumers that reason about
+        what a call does at run time (its entry obligations, the caller
+        reference slots it installs) ask here and skip such a call.
+    */
+    pub fn is_erased_checked_application(
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+        call: &TableCallExpression,
+    ) -> bool {
+        is_mathematical_call(program, call)
+            && program
+                .prepared_mathematics()
+                .is_some_and(|view| view.application(expression).is_some())
+            && crate::mathematical_applications::erased_initializer_nodes(program)
+                .contains(&expression)
     }
 
     /// These declarations have mathematical formation rules, not machine contracts.

@@ -27,6 +27,52 @@ for the six release gates (`repository`, `source semantics`, `build and packages
 `native matrix`, `diagnostics`, and `representative programs`) across all four
 hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`).
 
+## Bootstrap mandate
+
+For bootstrap construction work, [bootstrap/MINIMIZATION.md](bootstrap/MINIMIZATION.md)
+is the owner's governing mandate. It authorizes competing peer variants, changes
+to topology and intermediate languages, compiled/interpreted/native experiments,
+and explicit accelerators. Its architecture authority supersedes the fixed-design
+and no-experiment instructions below for this scope. Formal bootstrap correctness
+certificates do not gate construction; ordinary Omega safety and proof semantics
+remain required. Use bootstrap compiler and Omega compiler as public names.
+Record unresolved changes outside the mandate in
+[OWNER_QUESTIONS_BOOTSTRAP.md](OWNER_QUESTIONS_BOOTSTRAP.md), not the product queue.
+
+## Spec first, land first
+
+Subject to the Bootstrap mandate above, these rules override longer validation
+advice elsewhere in this file or in the skills.
+
+- **Read the spec, then implement it once.** Before editing, read the governing
+  page in `wiki/spec/` and implement what it says. No exploratory trial patches,
+  no redesign of a mechanism the spec already fixes. If the spec does not decide
+  the question, record it in `OWNER_QUESTIONS.md` and move to other work.
+- **Validate only what you touched.** One focused `mbx xtask corpus --filter`
+  over the rows and samples the change targets, plus the crate's unit tests and
+  Clippy. No broad family sweeps, no before/after comparisons against main, and
+  no ledger edits: pull requests do not touch `corpus_outcomes.txt`.
+- **Land, then verify.** Squash-merge the PR yourself as soon as the focused
+  run passes (never a merge commit). Main is verified after merge; repair what
+  that finds afterwards.
+- **One PR per capability.** Do not open one-row re-pin or ledger-only PRs;
+  fold them into the PR that touches those rows.
+
+### CI right now (2026-11-12)
+
+The old workflows, the merge queue and the branch rules were removed after
+they held every merge for four hours. Until the replacement in
+[CI rebuild plan](wiki/drafts/designs/ci_rebuild_plan.md) is in place:
+
+- There is no merge queue and no `cargo xtask land`. Squash-merge your own PR.
+- The only pre-merge check is `admission` (rules and formatting, about a
+  minute). `compiler-check`, `workspace-clippy`, `corpus-gate` and Post-merge
+  smoke no longer exist; do not wait for them, re-run them or dispatch them.
+- Nothing lints or tests for you before merge. Run Clippy on the crates you
+  touched and your one focused corpus run locally, then merge.
+- Do not add workflows or required checks; CI changes follow the plan.
+- **Report only landings and blockers** to a coordinator; no progress updates.
+
 ## Explain the change
 
 Use an inverted pyramid in PR descriptions, commit bodies, progress/final
@@ -69,8 +115,8 @@ A PR in a compiler lane (`psi`, `omega`, `backend`, `compiler`, `build`,
 and its net change in red corpus rows:
 `Gate: <release-gate> | red rows: <change>`, where the name comes from the release
 matrix in [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
-A negative number means rows turned green. `check-rules` compares the number
-with the ledger diff, so a row counts only once it is recorded. Work that turns
+A negative number means rows turned green; it is your statement of what the
+change does, checked on main after merge. Work that turns
 no row green is allowed but must say what it unlocks:
 `Gate: <release-gate> | red rows: 0 | unlocks: <rows or capability>`.
 
@@ -96,13 +142,11 @@ roles below. Close a PR only for a recorded withdrawal or supersession, not age.
 
 ### Decision-making framing for compiler completion
 
-1. **Drive the six release gates and sweep whole root-cause clusters, never 1-off wins:**
-   When you fix a mechanism or migration gap, sweep and re-record **all**
-   pinned regressions in `tests/omega/corpus_outcomes.txt`
-   (`cargo xtask corpus --list-pinned-regressions`) and failing
-   programs in `samples/` (`cargo xtask sample-gate`) that share
-   that root cause in the same PR. Choose work by the rows it can move, and
-   start from the cluster: one failing program is its witness, not the task.
+1. **Drive the six release gates by root-cause cluster, never 1-off wins:**
+   Choose work by the rows it can move and fix the mechanism the spec names,
+   so every row sharing that cause turns green. Validate the rows you already
+   know share it (see [Spec first, land first](#spec-first-land-first)); do not
+   run broad sweeps to discover more before landing.
 2. **Fail-closed semantics over permissive fallbacks:** Never make a positive
    program pass by weakening a proof obligation, returning `true` when a
    lookup/rebase returns `None`, or silently erasing an unresolved construct.
@@ -120,15 +164,12 @@ roles below. Close a PR only for a recorded withdrawal or supersession, not age.
 4. **Full pipeline carry-through (`Psi 05 -> 06 -> 08 -> Native`):** Carry every
    semantic repair through Checked Psi (`05`), Lowered/Terminal Psi (`06–08`),
    and native execution (`omega run --both`, exit 0).
-5. **Board closure & clean golden records:** Delete completed bullets
+5. **Board closure, and leave the ledger alone:** Delete completed bullets
    from `TASKS.md` outright (never rewrite into `"preserving / keeping / now
-   passes"` history prose). Commit all code and fixture files before running
-   `cargo xtask corpus --record --filter <fixtures>` so `corpus_outcomes.txt`
-   never records a dirty `@<sha>+wt` stamp, a `pass/`/`run/` row as `rejected`,
-   or a `fail/` row as `unexpected`. A regression that already exists on
-   `main` is bad news the ledger must hold: record it from a PR that changes
-   only corpus ledgers and Markdown
-   ([who may record a regression](tools/testing.md#who-may-record-a-regression)).
+   passes"` history prose). Do not run `corpus --record` and do not edit
+   `tests/omega/corpus_outcomes.txt` in a pull request: the post-merge check
+   measures main and writes the ledger. Change code, fixtures and
+   `expected.txt` only.
 6. **Stop rule: decline the patch that would add another carrier.** If your fix
    would add another carrier, case or per-place branch for a mechanism that
    already has one, stop. Write a cluster report in the claim note and your
@@ -222,15 +263,14 @@ background processes never hang on open stdin:
 # Build warm optimized development compiler in worktree target/:
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=$PWD/target mbx build -p omega < /dev/null
 
-# Run focused corpus verification & record (only on a clean committed worktree):
+# Run focused corpus verification (do not record; the ledger is written on main):
 mbx xtask corpus --filter <fixtures> < /dev/null
-mbx xtask corpus --record --filter <fixtures> < /dev/null
 
 # Run focused sample native + Psi gate:
 mbx xtask sample-gate --filter <sample_path> < /dev/null
 
-# Run repository rules, formatting, lint, and boundary gates. CI fails a landing on
-# any Clippy warning, so lint every crate you touched before you push:
+# Run repository rules, formatting, lint, and boundary gates. Nothing lints for
+# you before merge, so lint every crate you touched before you push:
 mbx xtask check-rules --base origin/main --title "<lane>: <subject>"
 mbx xtask fmt --check
 mbx clippy -p <crate> --all-targets -- -D warnings
@@ -349,7 +389,7 @@ reads the allowed lanes from this table:
   `samples/cli/facts/` or `tests/omega/{pass,fail,run}/facts/`, and never add
   more than 6 `.omg` files in a PR.
 - **No direct pushes to `main` and no chasing `main`:** Land only through
-  reviewed PRs and `cargo xtask land`. Rebase only on actual conflicts or
+  squash-merged PRs. Rebase only on actual conflicts or
   needed prerequisites.
 - **Claims are informational (`cargo xtask claims`):** Register claims
   before editing shared paths; reconcile overlapping edits at rebase.

@@ -105,13 +105,12 @@ impl PreparedProductTarget {
                 );
                 Ok((entry, target_machines))
             })();
-            let evaluated_bindings =
-                provider_planning::evaluated_via_bindings::evaluate_checked_via_bindings(
-                    &source.program,
-                    source::DependencyScope::Product,
-                    profile.or_else(target::TargetProfile::host_if_supported),
-                    package_inputs.as_ref(),
-                );
+            let evaluated_bindings = build_settings::evaluate_checked_via_bindings(
+                &source.program,
+                source::DependencyScope::Product,
+                profile.or_else(target::TargetProfile::host_if_supported),
+                package_inputs.as_ref(),
+            );
             declarations.map(|(entry, target_machines)| {
                 let providers = (|| {
                     let deployment = deployment.as_ref().map_err(Clone::clone)?;
