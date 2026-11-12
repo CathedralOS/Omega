@@ -1,0 +1,1 @@
+~ pass/build/native_component_reuse: REGRESSED (checked -> rejected)
