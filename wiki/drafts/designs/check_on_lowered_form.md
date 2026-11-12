@@ -264,8 +264,13 @@ before variants are added. Route one is:
 
 ### The gate
 
-The route may not grow to another construct family until one bounded
-experiment passes. The experiment has four conditions, and it passes only when
+The owner lifted the pause on 2026-11-12: the construct lanes resume now, and
+the four conditions below are pursued alongside them rather than before them.
+Only the owner and Zac use the compiler today, so a lane that lands ahead of a
+condition costs nothing a user would see.
+
+The route was not to grow to another construct family until one bounded
+experiment passed. The experiment has four conditions, and it passes only when
 all four hold on `main`. Each one answers a question the route has not yet
 answered about itself: whether it checks the right declarations, whether a
 mistake in its own list of proof duties would be noticed, whether it can
@@ -306,8 +311,11 @@ that cannot fail cannot hold work back, and work went ahead
      Build program, which the Build activation checks with the current
      checker, nor the bound target's entry-contract source
      (`std/targets/<target>/entry.omg`), which the current checker keeps as
-     a subject. Which check judges them when the route governs is undecided,
-     and until it is the route's verdict does not cover a whole compilation.
+     a subject. The owner ruled on 2026-11-12 (`lowered-route-governance-scope`):
+     while both checkers ship, the current checker judges the Build program
+     and the entry-contract source in the same compilation, the route judges
+     everything else, and a compilation routes on the new verdict only when
+     both pass. The split ends when the route can lower Build programs.
      `Build::validate` rows are not handled either; nothing implements them.
      The `fail/` sweep of 2026-11-12 shows what that costs: four programs
      the current checker rejects for their entry are accepted whole by the
