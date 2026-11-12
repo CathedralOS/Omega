@@ -1,9 +1,9 @@
 {
   "witness": "pass/proofs/kernel_integer_subtract_order",
-  "good": "",
-  "breaking_commit": "",
-  "pr": null,
-  "mechanism": "propagated: not run (one build/corpus at a time; countdown bisect consumed budget)",
-  "status": "propagated",
-  "bisect_exit": null
+  "good": "759c80404428e6d9922a8b67cce32daf7e41a02e",
+  "breaking_commit": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+  "pr": "2228",
+  "mechanism": "tests: record four case-payload rows that already check (#2228) (tests/omega/corpus_outcomes.txt)",
+  "status": "bisected",
+  "bisect_exit": 0
 }

@@ -1,0 +1,112 @@
+fatal: ambiguous argument '911f6617ba9e^{commit}': unknown revision or path not in the working tree.
+Use '--' to separate paths from revisions, like this:
+'git <command> [<revision>...] -- [<file>...]'
+fatal: ambiguous argument '911f6617ba9e^{commit}': unknown revision or path not in the working tree.
+Use '--' to separate paths from revisions, like this:
+'git <command> [<revision>...] -- [<file>...]'
+We are not bisecting.
+Bisecting: 91 revisions left to test after this (roughly 7 steps)
+[af5163405363b1c2c2044208c5a39746b29a719b] tools: mark a lost native-rejection match as a regression when recording (#2404)
+running '/tmp/ledger-bisect-tools-7/bisect_witness.sh'
+Bisecting: 91 revisions left to test after this (roughly 7 steps)
+[f98e8ee7acb4f54c95024801e742f6d42b85da04] tests: record nine foreign-call rows that main no longer checks (#2403)
+running '/tmp/ledger-bisect-tools-7/bisect_witness.sh'
+Bisecting: 91 revisions left to test after this (roughly 7 steps)
+[6f0f37b539f43dee6ae9e90686ae23997431489c] psi: carry saved guards through recast view fields and enclose view writes (#2437)
+running '/tmp/ledger-bisect-tools-7/bisect_witness.sh'
+Bisecting: 91 revisions left to test after this (roughly 7 steps)
+[5391cd967c58ed915792361b1915df6690576b80] psi: name predicate carriers after requires rather than the retired where (#2406)
+running '/tmp/ledger-bisect-tools-7/bisect_witness.sh'
+Bisecting: 91 revisions left to test after this (roughly 7 steps)
+[544649871403a96a1ec336faf87fa13e0eef5fc3] compiler: make the root package the only validation subject of a package check (#2436)
+running '/tmp/ledger-bisect-tools-7/bisect_witness.sh'
+Bisecting: 91 revisions left to test after this (roughly 7 steps)
+[d4c99a57caee9ce706fc3c481d5ed4f015bd9c14] tests: re-record nine float rows that main already checks or rejects as expected (#2303)
+running '/tmp/ledger-bisect-tools-7/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 1 step)
+[0fa0ba3cc942bcf6baa175d6d1b8ef0705d04aa6] psi: stop erased arguments and linear casts from failing ownership checks (#2224)
+running '/tmp/ledger-bisect-tools-7/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[f3612364ffbb9489d7be1409397df6867fcbebc6] tests: record four case-payload rows that already check (#2228)
+running '/tmp/ledger-bisect-tools-7/bisect_witness.sh'
+f3612364ffbb9489d7be1409397df6867fcbebc6 is the first bad commit
+commit f3612364ffbb9489d7be1409397df6867fcbebc6
+Author: Jarod Castillo <43973221+Smotto@users.noreply.github.com>
+Date:   Wed Nov 11 00:08:50 2026 +0000
+
+    tests: record four case-payload rows that already check (#2228)
+    
+    Four case-payload rows were listed as red in the corpus ledger, but main
+    already checks them. This re-records them, so the scalar-range
+    migration's remaining-work list no longer counts them. One more row that
+    was never recorded is added, and it checks too.
+    
+    These rows are customers of **CANONICALIZE-SCALAR-RANGE-CONTRACTS**.
+    Each was migrated from a payload suffix (`case X(v: T [lo..=hi])`) to a
+    guarded data `requires` disjunct. A call inside the selected match arm
+    relies on that disjunct, e.g. `take(lo, hi)` requiring `lo <= hi`. The
+    ledger still showed the rejection recorded at `ccdb99ca2214`. At main
+    `fea4cddc5c14`, these check:
+    
+    - `pass/cases/case_where_match`
+    - `pass/cases/case_arm_pattern_names`
+    - `pass/dependent/case_where_match_contributes`
+    - `pass/dependent/case_where_generic_type_bound_coverage` (+ new row
+    `..._coverage_exit`)
+    
+    No compiler code changes.
+    
+    **Dropped from the original version of this PR:**
+    `pass/control_flow/runtime_projected_case_payload_snapshots_exit`
+    checked at the earlier base `82e12564e`, but it is rejected again at
+    main with the same diagnostic (`value < 100` not proved at the
+    `selected` call). Its row is left untouched and still red. It is a
+    regression that needs its own trace.
+    
+    Limits: these are check-target rows. None was executed natively or under
+    `omega run --both`. The parent item's `--both` acceptance stays open.
+    The original run also found these rows, which this PR does not touch:
+    `fail/facts/case_where_equality_data_predicate_through_field_rejected`
+    accepted (unsound),
+    `pass/facts/case_where_equality_data_predicate_nested_payload_carriage_exit`
+    failing Terminal lowering, and
+    `pass/facts/case_where_equality_through_call_result_exit` rejected with
+    `may overflow u64`. They were not re-checked at the new base.
+    
+    ### Validation
+    - Rebased onto main `fea4cddc5c1`. The old ledger commit was dropped and
+    every row was re-recorded instead.
+    - `mbx xtask corpus --record --filter
+    case_where_match,case_arm_pattern_names,case_where_match_contributes,case_where_generic_type_bound_coverage,runtime_projected_case_payload_snapshots_exit`
+    on a clean tree at `fea4cddc5c14`, linux_x86_64, with a freshly built
+    runner. Five rows are `checked`; the snapshots row stays `rejected` and
+    was reverted to its original line.
+    - Earlier, at `82e12564e`: three falsifiers rejected on both binaries (a
+    callee demanding `lo < hi`, an arm for a case with no predicate, and
+    swapped arguments). Not repeated at the new base.
+    - `mbx xtask check-rules --base fea4cddc5c14 --body-file`: clean.
+    
+    Agent: Claude Code | Model: claude-opus-5-5 | Effort: high | Tokens:
+    12.99M in (12.91M cached), 51.9k out | Steps: 66 | Time: 17m58s |
+    Steers: 38
+    
+    🤖 Generated with [Claude Code](https://claude.com/claude-code)
+    
+    https://claude.ai/code/session_01AAaT4ez9ixUH38qApMkCmF
+    
+    Co-authored-by: Claude <noreply@anthropic.com>
+
+ tests/omega/corpus_outcomes.txt | 13 +++++--------
+ 1 file changed, 5 insertions(+), 8 deletions(-)
+bisect found first bad commit
+Your branch is up to date with 'origin/work/ledger-bisect-part-7'.
+Your branch is up to date with 'origin/work/ledger-bisect-part-7'.
+{
+  "witness": "pass/proofs/kernel_integer_subtract_order",
+  "good": "759c80404428e6d9922a8b67cce32daf7e41a02e",
+  "breaking_commit": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+  "pr": "2228",
+  "mechanism": "tests: record four case-payload rows that already check (#2228) (tests/omega/corpus_outcomes.txt)",
+  "status": "propagated",
+  "bisect_exit": 0
+}

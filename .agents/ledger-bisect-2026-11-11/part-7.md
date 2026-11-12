@@ -23,7 +23,7 @@ Members:
 Members:
 - `pass/proofs/family_carrier_relation_laws` — still broken: proposition `chained` expects 2 proof-static binder argument(s), received 0
 
-| 1 | pass/run rejected | terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the rank produced by the selected view | `pass/proofs/kernel_integer_subtract_order` | `` |  | propagated: not run (one build/corpus at a time; countdown bisect consumed budget) | propagated |
+| 1 | pass/run rejected | terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the rank produced by the selected view | `pass/proofs/kernel_integer_subtract_order` | `f3612364ffbb` | 2228 | tests: record four case-payload rows that already check (#2228) (tests/omega/corpus_outcomes.txt) | bisected |
 Members:
 - `pass/proofs/kernel_integer_subtract_order` — still broken: terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the rank produced by the se
 
