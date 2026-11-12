@@ -187,7 +187,7 @@ machine Main::main(&mut self) {
     self.check_complete();
     assert self.parser.data_items[0].requirement_count == 2;
     assert self.parser.binary_expression_count == 2;
-    assert self.parser.data_requirements[0].end < self.parser.data_requirements[1].start;
+    assert self.parser.requirements[0].end < self.parser.requirements[1].start;
 
     self.parser.parse_view("data D requires first <= 4,, { first: u8; }");
     self.check_refused();
@@ -292,6 +292,104 @@ machine Main::main(&mut self) {
     self.parser.parse_view("machine p(){ array[index] = value; }");
     self.check_index_reset();
 
+    // Data and machine entry contracts share syntax, but each owner retains
+    // an exact disjoint range even when its body is empty or has nested states.
+    self.parser.parse_view("data A requires true {} machine outer(x:u32)->() requires x < 16, x <= 9 requires true { machine inner(view:&SourceUnit,index:u64 in Trapping)->u8 requires view.length < 131072, index < 131072 { 7 } machine empty() {} } data B requires false {} machine last() {}");
+    self.check_machine_requirement_owners();
+
+    self.parser.parse_view("machine p(values:&Values,index:u32) requires permitted(values[slot(1)], (index + 1)) && index < 8 { }");
+    self.check_complete();
+    self.check_call_stacks_empty();
+    assert self.parser.requirement_count == 1;
+    self.check_state_requirement_range(0, 0, 1);
+    assert self.parser.call_expression_count == 2;
+    assert self.parser.indexed_expression_count == 1;
+    assert self.parser.binary_expression_count == 3;
+
+    self.parser.parse_view("machine p(index:u64 in Trapping)->u64 in Trapping requires index < 131072 { index }");
+    self.check_complete();
+    self.check_state_requirement_range(0, 0, 1);
+    assert self.parser.machine_states[0].has_return_type == 1;
+
+    self.parser.parse_view("machine p()->u8 requires true reaches Console terminates by n -> Ordinal::Down { 1 }");
+    self.check_complete();
+    self.check_state_requirement_range(0, 0, 1);
+    assert self.parser.machine_clause_count == 2;
+
+    self.parser.parse_view("machine ext() requires true satisfies Service::f via Binding::CompilerIntrinsic;");
+    self.check_external_rows();
+    self.check_state_requirement_range(0, 0, 1);
+
+    self.parser.parse_view("machine p() reaches Console requires true terminates by n -> Ordinal::Down requires false {}");
+    self.check_complete();
+    self.check_state_requirement_range(0, 0, 2);
+    assert self.parser.machine_clause_count == 2;
+
+    self.parser.parse_view("machine p() requires true, {}");
+    self.check_complete();
+    self.check_state_requirement_range(0, 0, 1);
+
+    self.parser.parse_view("machine p() requires {}");
+    self.check_machine_requirement_refused(21, 22);
+
+    self.parser.parse_view("machine p() requires");
+    self.check_machine_requirement_refused(20, 20);
+
+    self.parser.parse_view("machine p() requires true,");
+    self.check_machine_requirement_refused(26, 26);
+
+    self.parser.parse_view("machine p() requires x < {}");
+    self.check_machine_requirement_refused(25, 26);
+
+    self.parser.parse_view("machine p() { machine q() requires {} }");
+    self.check_machine_requirement_refused(35, 36);
+
+    self.parser.parse_view("machine p() { machine q() requires");
+    self.check_machine_requirement_refused(34, 34);
+
+    self.parser.parse_view("machine p() requires true; {}");
+    self.check_refused();
+
+    self.parser.parse_view("machine p() requires true,, {}");
+    self.check_refused();
+
+    self.parser.parse_view("machine p() requires true requires {}");
+    self.check_refused();
+
+    self.parser.parse_view("machine p() requires (true requires false) {}");
+    self.check_refused();
+
+    self.parser.parse_view("machine p() requires true -> u8 { 1 }");
+    self.check_refused();
+
+    self.parser.parse_view("machine p()->u8 requires true ->u8 { 1 }");
+    self.check_refused();
+
+    self.parser.parse_view("machine p() { machine q() requires true ->u8 { 1 } }");
+    self.check_refused();
+
+    self.parser.parse_view("machine p() { machine q() requires true () {} }");
+    self.check_refused();
+
+    self.parser.parse_view("machine p() { machine q() requires true reaches Console {} }");
+    self.check_refused();
+
+    self.parser.parse_view("machine p()->[u8;2 requires true { 1 }");
+    self.check_refused();
+
+    self.parser.parse_view("machine p() requires machine helper {}");
+    self.check_refused();
+
+    self.parser.parse_view("machine p() requires true ensures true {}");
+    self.check_refused();
+
+    self.parser.parse_view("machine p() {} data D requires true {}");
+    self.check_complete();
+    self.check_state_requirement_range(0, 0, 0);
+    assert self.parser.requirement_count == 1;
+    assert self.parser.data_items[0].first_requirement == 0;
+    assert self.parser.data_items[0].requirement_count == 1;
+
     self.console.write_byte(65);
 }
 
@@ -338,12 +436,12 @@ machine Main::check_data_rows(&mut self) {
     assert self.parser.type_constraints[0].path_member_count == 1;
     assert self.parser.members[self.parser.type_constraints[0].first_path_member].start == 63;
     assert self.parser.members[self.parser.type_constraints[0].first_path_member].end == 69;
-    assert self.parser.data_requirement_count == 1;
+    assert self.parser.requirement_count == 1;
     assert self.parser.data_items[0].first_requirement == 0;
     assert self.parser.data_items[0].requirement_count == 1;
-    assert self.parser.data_requirements[0].expression == 2;
-    assert self.parser.data_requirements[0].start == 7;
-    assert self.parser.data_requirements[0].end == 22;
+    assert self.parser.requirements[0].expression == 2;
+    assert self.parser.requirements[0].start == 7;
+    assert self.parser.requirements[0].end == 22;
     assert self.parser.expression_count == 3;
     assert self.parser.binary_expression_count == 1;
     assert self.parser.binary_expressions[0].left == 0;
@@ -365,7 +463,7 @@ machine Main::check_requirement_owners(&mut self) {
     self.check_complete();
     assert self.parser.root_count == 3;
     assert self.parser.data_count == 3;
-    assert self.parser.data_requirement_count == 4;
+    assert self.parser.requirement_count == 4;
     assert self.parser.data_items[0].first_requirement == 0;
     assert self.parser.data_items[0].requirement_count == 3;
     assert self.parser.data_items[1].first_requirement == 3;
@@ -374,10 +472,10 @@ machine Main::check_requirement_owners(&mut self) {
     assert self.parser.data_items[2].requirement_count == 1;
     assert self.parser.expression_count == 13;
     assert self.parser.binary_expression_count == 4;
-    assert self.parser.data_requirements[0].expression == 2;
-    assert self.parser.data_requirements[1].expression == 4;
-    assert self.parser.data_requirements[2].expression == 11;
-    assert self.parser.data_requirements[3].expression == 12;
+    assert self.parser.requirements[0].expression == 2;
+    assert self.parser.requirements[1].expression == 4;
+    assert self.parser.requirements[2].expression == 11;
+    assert self.parser.requirements[3].expression == 12;
     assert self.parser.binary_expressions[2].right == 8;
     assert self.parser.binary_expressions[3].left == 9;
     assert self.parser.binary_expressions[3].right == 10;
@@ -1082,4 +1180,58 @@ machine Main::check_index_reset(&mut self) {
     assert self.parser.call_expression_count == 0;
     assert self.parser.expression_prefix_count == 0;
     self.check_index_expression(self.parser.assignment_statements[0].target, 0);
+}
+
+machine Main::check_state_requirement_range(&mut self, state_index:i32, first:i32, count:i32) {
+    assert self.parser.machine_states[state_index].first_requirement == first;
+    assert self.parser.machine_states[state_index].requirement_count == count;
+}
+
+machine Main::check_machine_requirement_owners(&mut self) {
+    self.check_complete();
+    self.check_call_stacks_empty();
+    assert self.parser.root_count == 4;
+    assert self.parser.data_count == 2;
+    assert self.parser.machine_count == 2;
+    assert self.parser.machine_state_count == 4;
+    assert self.parser.requirement_count == 7;
+    assert self.parser.data_items[0].first_requirement == 0;
+    assert self.parser.data_items[0].requirement_count == 1;
+    assert self.parser.data_items[1].first_requirement == 6;
+    assert self.parser.data_items[1].requirement_count == 1;
+    self.check_state_requirement_range(0, 1, 3);
+    self.check_state_requirement_range(1, 4, 2);
+    self.check_state_requirement_range(2, 6, 0);
+    self.check_state_requirement_range(3, 7, 0);
+    assert self.parser.machine_states[0].has_return_type == 1;
+    assert self.parser.machine_states[0].statement_count == 0;
+    assert self.parser.machine_states[1].has_return_type == 1;
+    assert self.parser.machine_states[1].statement_count == 1;
+    let predicate:i32 = self.parser.requirements[4].expression;
+    let row:i32 = self.parser.expressions[predicate].payload0;
+    let field:i32 = self.parser.binary_expressions[row].left;
+    assert self.parser.expressions[field].payload1 == 2;
+    assert self.parser.requirements[1].end < self.parser.requirements[2].start;
+    assert self.parser.requirements[2].end < self.parser.requirements[3].start;
+    assert self.parser.requirements[3].end < self.parser.requirements[4].start;
+    transition self.parser.expressions[predicate].kind {
+        OmegaExpressionKind::Binary -> operator(row)
+        _ -> self.console.exit_process(1)
+    }
+    state operator(selected_row:i32) {
+        transition self.parser.binary_expressions[selected_row].operator {
+            OmegaBinaryOperatorKind::Less -> return
+            _ -> self.console.exit_process(1)
+        }
+    }
+}
+
+machine Main::check_machine_requirement_refused(&mut self, start:i32, end:i32) {
+    transition self.parser.diagnostic_code {
+        OmegaParseDiagnosticCode::ExpectedMachineRequirement -> coordinates()
+        _ -> self.console.exit_process(1)
+    }
+    state coordinates() {
+        self.check_syntax_refused(start, end);
+    }
 }

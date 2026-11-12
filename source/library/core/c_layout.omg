@@ -1,8 +1,6 @@
 // C ABI placement for complete nonempty records. Scalars and their arrays use
 // target scalar geometry; nested fields require an explicitly selected child
 // representation. Native aggregate geometry alone is not C ABI evidence.
-use omega::language::core::layout;
-use omega::language::core::option;
 
 public data CLayout<T> = LayoutStorage<T, CAbiPolicy<T>>;
 

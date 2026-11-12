@@ -1,11 +1,3 @@
-use psi::resolution::resolution;
-use psi::resolve::containers;
-use psi::resolve::forms;
-use psi::resolve::imports;
-use psi::resolve::resolver;
-use psi::source::source;
-use psi::syntax::syntax;
-
 // Operator homes (wiki/spec/language/expressions.md#operator-families). A
 // qualified token-bound machine `machine <= Nat::less_or_equal(...)`
 // establishes its semantic home through its owner: the data declaration
@@ -15,7 +7,7 @@ use psi::syntax::syntax;
 // token at one home with the same parameters are duplicate participating
 // shapes and reject at the later one. Typing selects among a home's machines
 // by their operands (typing/operators.omg).
-public machine Resolver::bind_operator_homes(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine bind_operator_homes(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, 0) }
@@ -28,8 +20,8 @@ crashes Trap
     }
 
     machine machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
-        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
-        Resolver::set_operator_home(resolver, index, TypeBinding::Unresolved);
+        let item: MachineItem = machine_item(syntax, index);
+        set_operator_home(resolver, index, TypeBinding::Unresolved);
         transition item.operator == OperatorToken::None {
             true -> next(resolver, sources, syntax, index + 1)
             _ -> owner(resolver, sources, syntax, index, item)
@@ -37,8 +29,8 @@ crashes Trap
     }
 
     machine owner(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, entry: MachineItem) {
-        let scope: TypeScope = Resolver::machine_scope(&resolver.output, syntax, index);
-        let binding: TypeBinding = Resolver::type_binding(sources, syntax, scope, entry.owner.source_span);
+        let scope: TypeScope = resolver_machine_scope(&resolver.output, syntax, index);
+        let binding: TypeBinding = type_binding(sources, syntax, scope, entry.owner.source_span);
         transition binding {
             TypeBinding::Data { item } -> data_home(resolver, sources, syntax, index, entry, item)
             _ -> foreign(resolver, entry)
@@ -46,10 +38,10 @@ crashes Trap
     }
 
     machine data_home(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, entry: MachineItem, data: u64 in Trapping) {
-        let declared: DataItem = SyntaxTrees::data_item(syntax, data);
+        let declared: DataItem = syntax_trees_data_item(syntax, data);
         let machine_unit: u64 in Trapping = entry.name.source_span.source.value as u64 in Trapping;
         let data_unit: u64 in Trapping = declared.name.source_span.source.value as u64 in Trapping;
-        let own: bool = Resolver::same_package(sources, machine_unit, data_unit);
+        let own: bool = resolver_same_package(sources, machine_unit, data_unit);
         transition own {
             true -> homed(resolver, sources, syntax, index, entry, data)
             _ -> foreign(resolver, entry)
@@ -57,8 +49,8 @@ crashes Trap
     }
 
     machine homed(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, entry: MachineItem, data: u64 in Trapping) {
-        Resolver::set_operator_home(resolver, index, TypeBinding::Data { item: data });
-        let duplicate: bool = Resolver::earlier_operator_shape(resolver, sources, syntax, index, entry.operator, data);
+        set_operator_home(resolver, index, TypeBinding::Data { item: data });
+        let duplicate: bool = earlier_operator_shape(resolver, sources, syntax, index, entry.operator, data);
         transition duplicate {
             true -> repeated(resolver, entry)
             _ -> next(resolver, sources, syntax, index + 1)
@@ -66,11 +58,11 @@ crashes Trap
     }
 
     machine foreign(resolver: &mut Resolver, entry: MachineItem) {
-        NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::ForeignOperatorHome, entry.owner.source_span);
+        name_resolution_reject(&mut resolver.output, ResolveDiagnosticCode::ForeignOperatorHome, entry.owner.source_span);
     }
 
     machine repeated(resolver: &mut Resolver, entry: MachineItem) {
-        NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::DuplicateMachine, entry.name.source_span);
+        name_resolution_reject(&mut resolver.output, ResolveDiagnosticCode::DuplicateMachine, entry.name.source_span);
     }
 
     machine done() {}
@@ -78,7 +70,7 @@ crashes Trap
 
 // Whether a machine before `handle` binds `token` at home `data` with the
 // same parameters.
-machine Resolver::earlier_operator_shape(
+machine earlier_operator_shape(
     resolver: &Resolver,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
@@ -98,9 +90,9 @@ crashes Trap
     }
 
     machine candidate(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping, token: OperatorToken, data: u64 in Trapping, earlier: u64 in Trapping) -> bool {
-        let item: MachineItem = SyntaxTrees::machine_item(syntax, earlier);
-        let home: TypeBinding = NameResolution::operator_home(&resolver.output, earlier);
-        let same_home: bool = Resolver::homed_at(home, data);
+        let item: MachineItem = machine_item(syntax, earlier);
+        let home: TypeBinding = operator_home(&resolver.output, earlier);
+        let same_home: bool = homed_at(home, data);
         transition item.operator == token && same_home {
             true -> shape(resolver, sources, syntax, handle, token, data, earlier)
             _ -> next(resolver, sources, syntax, handle, token, data, earlier + 1)
@@ -108,7 +100,7 @@ crashes Trap
     }
 
     machine shape(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping, token: OperatorToken, data: u64 in Trapping, earlier: u64 in Trapping) -> bool {
-        let same: bool = Resolver::same_parameters(resolver, sources, syntax, earlier, handle);
+        let same: bool = same_parameters(resolver, sources, syntax, earlier, handle);
         transition same {
             true -> repeated()
             _ -> next(resolver, sources, syntax, handle, token, data, earlier + 1)
@@ -125,7 +117,7 @@ crashes Trap
 }
 
 // Whether an operator home is data declaration `data`.
-public machine Resolver::homed_at(home: TypeBinding, data: u64 in Trapping) -> bool {
+public machine homed_at(home: TypeBinding, data: u64 in Trapping) -> bool {
     transition home {
         TypeBinding::Data { item } -> data_item(item, data)
         _ -> elsewhere()
@@ -140,7 +132,7 @@ public machine Resolver::homed_at(home: TypeBinding, data: u64 in Trapping) -> b
     }
 }
 
-machine Resolver::set_operator_home(resolver: &mut Resolver, handle: u64 in Trapping, home: TypeBinding)
+machine set_operator_home(resolver: &mut Resolver, handle: u64 in Trapping, home: TypeBinding)
 crashes Trap
 {
     transition handle < 10240 {

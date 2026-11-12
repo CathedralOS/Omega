@@ -3,13 +3,8 @@
 // This is the friendly app-facing API. Its implementation should eventually be
 // proven Omega code over explicit host capabilities, not a direct OS binding.
 //
-// Each selected target contributes the irreducible native byte leaves and its
-// provider default. Target filtering keeps exactly one implementation closure.
-use targets::windows_x86_64::console_impl;
-use targets::macos_arm64::console_impl;
-use targets::macos_x86_64::console_impl;
-use targets::linux_x86_64::console_impl;
-use targets::linux_arm64::console_impl;
+// Console and its implementation declarations share the package-root logical
+// module. Physical target directories do not introduce import namespaces.
 
 // The result of a byte-level stdin read. `Eof` is ORDINAL 0: a
 // zero-initialized ByteRead IS end-of-input -- ZII, no magic sentinel

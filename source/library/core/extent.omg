@@ -9,11 +9,6 @@
 // debt or another exclusive authority. Zero-filled storage does not establish
 // an `Extent`; APIs that need an honest zero/empty state use `ExtentSlot`.
 //
-use omega::language::core::content;
-use omega::language::core::device;
-use omega::language::core::nat;
-use omega::language::core::layout;
-use omega::language::core::run;
 
 public data Extent [linear] {
     base: addr;

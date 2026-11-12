@@ -21,19 +21,12 @@
 //   or cannot be negated in i32; last_error retains the original u32 code.
 // - `last_error` reads the thread's `GetLastError` for callers that need the
 //   code behind a failed `create_file` or `duplicate_handle`.
-use filesystem_host;
-use omega::language::core::filesystem_authority;
-use targets::windows_x86_64::windows_filesystem_impl;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_transfer_native;
-use targets::windows_x86_64::windows_filesystem_metadata_native;
-use targets::windows_x86_64::windows_filesystem_file_control_native;
-use targets::windows_x86_64::windows_filesystem_position_native;
-use targets::windows_x86_64::windows_filesystem_directory_native;
-use targets::windows_x86_64::windows_filesystem_path_query_native;
-use targets::windows_x86_64::windows_filesystem_lock_native;
-use targets::windows_x86_64::windows_filesystem_reparse_native;
-use targets::windows_x86_64::filesystem_removal::native;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 
 // An untouched result is an error. Timestamp zero remains a valid FILETIME.
 public data WindowsFileTimeResult {

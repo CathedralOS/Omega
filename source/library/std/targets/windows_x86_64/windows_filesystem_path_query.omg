@@ -2,15 +2,11 @@
 // point, queries that private object, then closes it on every returning path.
 // Keep the normalized DOS spelling (including \\?\) without lossy conversion.
 // Neither a missing path nor an undersized caller buffer becomes success.
-use filesystem_host;
-use windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-use omega::language::core::numeric_conversion;
-use targets::windows_x86_64::windows_filesystem_impl;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_metadata_native;
-use targets::windows_x86_64::windows_filesystem_paths;
-use targets::windows_x86_64::windows_filesystem_path_query_native;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::widen_u32_to_u64;
+use omega::language::core::narrow_u64_to_i32_exact;
+use omega::language::core::narrow_i32_to_u64_exact;
+use omega::language::core::narrow_i64_to_u64_wrapping;
 
 windows_x86_64 machine WindowsFilesystemNativeProvider::canonicalize(path: &[u8] in Path, output: &mut [u8]) -> i32
 satisfies WindowsFilesystemHost::canonicalize

@@ -73,6 +73,9 @@ pub mod snapshot {
                 lifetime_arguments: Vec<IdentifierSnapshot>,
                 arguments: Vec<TypeReferenceSnapshot>,
             },
+            StaticSelection {
+                selection: Box<StaticArgumentSnapshot>,
+            },
             ConstExpression {
                 expression: ExpressionSnapshot,
             },
@@ -325,6 +328,11 @@ pub mod snapshot {
                     lifetime_arguments: snapshot_identifier_slice(syntax_trees, lifetime_arguments),
                     arguments: snapshot_type_references(syntax_trees, *arguments),
                 },
+                TypeReferenceNode::StaticSelection(selection) => {
+                    TypeReferenceSnapshot::StaticSelection {
+                        selection: Box::new(snapshot_static_argument(syntax_trees, selection)),
+                    }
+                }
                 TypeReferenceNode::ConstExpression(expression) => {
                     TypeReferenceSnapshot::ConstExpression {
                         expression: snapshot_expression_handle(syntax_trees, *expression),
@@ -1641,6 +1649,9 @@ pub mod snapshot {
                         None,
                     ),
                     TypeParameterKind::Machine { contract } => match contract {
+                        Some(MachineParameterContract::Inferred) => {
+                            ("inferred_machine", None, None, None, None)
+                        }
                         Some(MachineParameterContract::RequirementIdentity) => {
                             ("machine_requirement", None, None, None, None)
                         }

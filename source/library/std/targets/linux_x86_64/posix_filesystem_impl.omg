@@ -1,14 +1,16 @@
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 // Linux POSIX filesystem service over direct system calls. The kernel
 // already returns the negated `errno` on failure, which is the trait's own
 // convention, so adapters pass results through. Paths are terminated into
 // local buffers; ordinary transfers lend caller byte-view backing directly.
 // The kernel-shaped requirements are declared once here; linux_arm64
 // satisfies the same requirements with its own system call numbers.
-use posix_filesystem_host;
-use omega::language::core::math;
-use calling;
-use posix_byte_view_calling;
+use omega::language::core::min_u64;
 
 // This native requirement application fixes its kernel calling convention.
 boundary trait PosixFilesystemLinuxX86ByteViews: Calling<LinuxX86ByteViewCalling> {
@@ -21,7 +23,6 @@ boundary trait PosixFilesystemLinuxX86ByteViews: Calling<LinuxX86ByteViewCalling
 }
 
 
-use filesystem_host;
 
 // Providers call the exact `PosixFilesystemLinux` leaves; each
 // `PosixFilesystemHost` requirement publishes this trait through `invokes`.

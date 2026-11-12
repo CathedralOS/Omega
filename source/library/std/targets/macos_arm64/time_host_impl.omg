@@ -3,8 +3,7 @@
 // are ordinary checked code, not hidden arguments or constant provider rows.
 // Apple documents/implements the selected clocks in Libc/gen/clock_gettime.c:
 // https://github.com/apple-oss-distributions/Libc/blob/main/gen/clock_gettime.c
-use omega::language::core::numeric_conversion;
-use time_host;
+use omega::language::core::narrow_u32_to_i32_wrapping;
 
 // Darwin's raw read and wait have explicit `TimeHost` reach. Both macOS
 // targets bind this same schema through their own package Build rows.

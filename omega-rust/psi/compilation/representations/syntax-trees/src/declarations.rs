@@ -243,6 +243,8 @@ pub mod item {
 
         #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
         pub enum MachineParameterContract {
+            /// An authored `const F: machine`; exact typed uses must supply its type.
+            Inferred,
             RequirementIdentity,
             Structural(StateSignature),
             Nominal {
@@ -949,6 +951,13 @@ pub mod item {
 
         pub fn trait_definition(&self, handle: TraitHandle) -> &TraitNode {
             self.state_storage.traits.get(handle)
+        }
+
+        pub fn type_parameter_entries(&self) -> impl Iterator<Item = &TypeParameter> {
+            self.declaration_storage
+                .type_parameters
+                .iter()
+                .map(|(_, parameter)| parameter)
         }
 
         pub fn type_parameters(&self, span: HandleSpan<TypeParameter>) -> &[TypeParameter] {

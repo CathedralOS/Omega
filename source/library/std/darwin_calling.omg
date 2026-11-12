@@ -4,7 +4,6 @@
 // Registers and results admit 32/64-bit integers; narrow stack lanes remain
 // exact. Narrow register scalars need separate caller-extension evidence.
 // https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms
-use calling;
 
 public DarwinArm64ScalarCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {

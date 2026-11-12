@@ -705,6 +705,7 @@ fn encode_consumed_unit(unit: &ConsumedSourceUnit, out: &mut Vec<u8>) {
         }
         ConsumedSourceUnitKind::ToolchainVirtual => out.push(2),
         ConsumedSourceUnitKind::ToolchainOwned => out.push(3),
+        ConsumedSourceUnitKind::ToolchainContract => out.push(5),
     }
     encode_optional_identity(unit.package().as_ref(), out);
     encode_optional(
@@ -730,6 +731,7 @@ fn recover_consumed_unit(cursor: &mut ObservationCursor<'_>) -> Option<ConsumedS
         }),
         2 => ConsumedSourceUnitKind::ToolchainVirtual,
         3 => ConsumedSourceUnitKind::ToolchainOwned,
+        5 => ConsumedSourceUnitKind::ToolchainContract,
         _ => return None,
     };
     let package = recover_optional(cursor, recover_identity)?;
@@ -941,6 +943,68 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
 mod tests {
     use super::*;
     use effects::provider_plan::ServiceSurface;
+
+    #[test]
+    fn consumed_source_codec_preserves_contract_role_and_existing_tags() {
+        let package = PackageKeyIdentity::from_digest([1; 32]).expect("package identity");
+        let cases = [
+            (
+                ConsumedSourceUnitKind::PackageAuthored,
+                Some(package),
+                None,
+                vec![0],
+            ),
+            (
+                ConsumedSourceUnitKind::PackageGenerated(source::DependencyScope::Product),
+                Some(package),
+                None,
+                vec![1, 0],
+            ),
+            (
+                ConsumedSourceUnitKind::PackageGenerated(source::DependencyScope::Build),
+                Some(package),
+                None,
+                vec![1, 1],
+            ),
+            (
+                ConsumedSourceUnitKind::ToolchainVirtual,
+                None,
+                None,
+                vec![2],
+            ),
+            (
+                ConsumedSourceUnitKind::ToolchainOwned,
+                None,
+                Some("std"),
+                vec![3],
+            ),
+            (
+                ConsumedSourceUnitKind::ToolchainContract,
+                None,
+                Some("std"),
+                vec![5],
+            ),
+        ];
+        for (kind, owner, namespace, prefix) in cases {
+            let unit = ConsumedSourceUnit::from_retained(
+                kind,
+                owner,
+                namespace.map(str::to_owned),
+                vec!["entry.omg".to_owned()],
+                4,
+                [7; 32],
+            )
+            .expect("canonical source coordinates");
+            let mut bytes = Vec::new();
+            encode_consumed_unit(&unit, &mut bytes);
+            assert!(bytes.starts_with(&prefix));
+            let mut cursor = ObservationCursor::new(&bytes);
+            assert_eq!(recover_consumed_unit(&mut cursor), Some(unit));
+            assert!(cursor.exhausted());
+            bytes[0] = 255;
+            assert!(recover_consumed_unit(&mut ObservationCursor::new(&bytes)).is_none());
+        }
+    }
 
     #[test]
     fn review_record_roundtrip_refuses_retired_versions_and_corruption() {

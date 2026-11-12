@@ -25,7 +25,7 @@ machine OmegaParser::parse_view(
     self.member_count = 0;
     self.use_count = 0;
     self.data_count = 0;
-    self.data_requirement_count = 0;
+    self.requirement_count = 0;
     self.machine_count = 0;
     self.machine_state_count = 0;
     self.machine_parameter_count = 0;
@@ -69,7 +69,8 @@ machine OmegaParser::parse_view(
     self.data_first_field = 0;
     self.data_first_case = 0;
     self.data_first_requirement = 0;
-    self.data_requirement_start = 0;
+    self.requirement_start = 0;
+    self.requirement_owner = OmegaRequirementOwner::Data;
     self.data_is_public = 0;
     self.data_multiplicity = OmegaDataMultiplicity::Affine;
     self.type_subject_start = 0;
@@ -96,6 +97,7 @@ machine OmegaParser::parse_view(
     self.machine_first_state = 0;
     self.machine_first_clause = 0;
     self.state_first_parameter = 0;
+    self.state_first_requirement = 0;
     self.machine_parameter_has_more = 0;
     self.machine_path_member_count = 0;
     self.machine_is_public = 0;
@@ -362,7 +364,7 @@ machine OmegaParser::parse_view(
             16 -> case_end_token(0)
             17 -> type_domain_token()
             18 -> type_domain_end_token()
-            19 -> data_requirement_token()
+            19 -> requirement_token()
             23 -> type_constraint_end_token()
             24 -> array_element_token()
             25 -> array_semicolon_token()
@@ -444,7 +446,7 @@ machine OmegaParser::parse_view(
             103 -> expression_statement_operand_token()
             104 -> cast_domain_member_token()
             105 -> borrow_access_or_operand_token()
-            106 -> data_requirement_or_body_token()
+            106 -> requirement_or_body_token()
             _ -> internal_failure()
         }
     }
@@ -522,11 +524,7 @@ machine OmegaParser::parse_view(
                 source.len
             )
             18 -> type_end_at_view_end()
-            19 -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedDataRequirement,
-                source.len,
-                source.len
-            )
+            19 -> requirement_failure(source.len, source.len)
             23 -> type_end_at_view_end()
             24 -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedArrayElementType,
@@ -898,8 +896,7 @@ machine OmegaParser::parse_view(
                 source.len, source.len)
             105 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedBorrowOperand,
                 source.len, source.len)
-            106 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDataRequirement,
-                source.len, source.len)
+            106 -> requirement_failure(source.len, source.len)
             _ -> internal_failure()
         }
     }
@@ -936,11 +933,8 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
-            OmegaExpressionConsumer::DataRequirement -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedDataRequirement,
-                source.len,
-                source.len
-            )
+            OmegaExpressionConsumer::Requirement ->
+                requirement_failure(source.len, source.len)
             OmegaExpressionConsumer::TransitionSubject -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedTransitionSubject,
                 source.len,
@@ -1001,11 +995,8 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
-            OmegaExpressionConsumer::DataRequirement -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedDataRequirement,
-                source.len,
-                source.len
-            )
+            OmegaExpressionConsumer::Requirement ->
+                requirement_failure(source.len, source.len)
             OmegaExpressionConsumer::TransitionSubject -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedTransitionSubject,
                 source.len,
@@ -1066,11 +1057,8 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
-            OmegaExpressionConsumer::DataRequirement -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedDataRequirement,
-                source.len,
-                source.len
-            )
+            OmegaExpressionConsumer::Requirement ->
+                requirement_failure(source.len, source.len)
             OmegaExpressionConsumer::TransitionSubject -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedTransitionSubject,
                 source.len,
@@ -1274,6 +1262,7 @@ machine OmegaParser::parse_view(
         self.machine_first_state = self.machine_state_count;
         self.machine_first_clause = self.machine_clause_count;
         self.state_first_parameter = self.machine_parameter_count;
+        self.state_first_requirement = self.requirement_count;
         self.state_first_statement = self.statement_count;
         self.state_has_body_syntax = 0;
         self.state_is_explicit = 0;
@@ -1392,7 +1381,7 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::LeftParen -> begin_machine_parameters()
             OmegaPunctuationKind::LeftBrace -> enter_machine_body()
             OmegaPunctuationKind::Less -> incomplete_root()
-            OmegaPunctuationKind::Arrow -> begin_machine_return_type()
+            OmegaPunctuationKind::Arrow -> check_machine_return_position()
             OmegaPunctuationKind::Semicolon -> incomplete_root()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedMachineBody,
@@ -1761,7 +1750,7 @@ machine OmegaParser::parse_view(
 
     state finish_machine_parameters() {
         self.cursor = self.scan.next_cursor;
-        transition true { true -> scan_semantic(29) }
+        transition true { true -> resume_machine_header() }
     }
 
     state machine_header_end_token() {
@@ -1778,6 +1767,14 @@ machine OmegaParser::parse_view(
     }
 
     state machine_header_identifier() {
+        transition self.scan.span_equals(source, self.scan.token_start,
+            self.scan.token_end, "requires") {
+            1 -> begin_machine_requirement()
+            _ -> machine_header_satisfies_identifier()
+        }
+    }
+
+    state machine_header_satisfies_identifier() {
         transition self.scan.span_equals(
             source,
             self.scan.token_start,
@@ -1959,6 +1956,14 @@ machine OmegaParser::parse_view(
     }
 
     state machine_clause_continuation_identifier() {
+        transition self.scan.span_equals(source, self.scan.token_start,
+            self.scan.token_end, "requires") {
+            1 -> begin_machine_requirement()
+            _ -> machine_clause_continuation_via_identifier()
+        }
+    }
+
+    state machine_clause_continuation_via_identifier() {
         transition self.scan.span_equals(
             source,
             self.scan.token_start,
@@ -2486,7 +2491,7 @@ machine OmegaParser::parse_view(
     state machine_header_end_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftBrace -> enter_current_state_body()
-            OmegaPunctuationKind::Arrow -> begin_machine_return_type()
+            OmegaPunctuationKind::Arrow -> check_machine_return_position()
             OmegaPunctuationKind::Semicolon -> incomplete_root()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedMachineBody,
@@ -2737,6 +2742,7 @@ machine OmegaParser::parse_view(
     state begin_explicit_state() {
         self.state_is_explicit = 1;
         self.state_first_parameter = self.machine_parameter_count;
+        self.state_first_requirement = self.requirement_count;
         self.state_first_statement = self.statement_count;
         self.state_has_body_syntax = 0;
         self.state_has_return_type = 0;
@@ -2766,7 +2772,7 @@ machine OmegaParser::parse_view(
     state explicit_state_header_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> explicit_state_header_punctuation()
-            OmegaTokenKind::Identifier -> incomplete_root()
+            OmegaTokenKind::Identifier -> explicit_state_header_identifier()
             OmegaTokenKind::Keyword -> incomplete_root()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedStateBody,
@@ -2776,11 +2782,26 @@ machine OmegaParser::parse_view(
         }
     }
 
+    state explicit_state_header_identifier() {
+        transition self.scan.span_equals(source, self.scan.token_start,
+            self.scan.token_end, "requires") {
+            1 -> begin_machine_requirement()
+            _ -> incomplete_root()
+        }
+    }
+
+    state explicit_state_parameters_position() {
+        transition self.requirement_count == self.state_first_requirement {
+            true -> begin_machine_parameters()
+            _ -> incomplete_root()
+        }
+    }
+
     state explicit_state_header_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::LeftParen -> begin_machine_parameters()
+            OmegaPunctuationKind::LeftParen -> explicit_state_parameters_position()
             OmegaPunctuationKind::LeftBrace -> enter_current_state_body()
-            OmegaPunctuationKind::Arrow -> begin_machine_return_type()
+            OmegaPunctuationKind::Arrow -> check_machine_return_position()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedStateBody,
                 self.scan.token_start,
@@ -3133,34 +3154,53 @@ machine OmegaParser::parse_view(
             "in"
         ) {
             1 -> select_expression_membership()
-            _ -> data_requirement_tail()
+            _ -> requirement_tail()
         }
     }
 
     // The next clause keyword terminates a complete root expression; nested
     // groups still owe their closing parenthesis. Leave this token unread so
-    // the data header, which owns clause order, starts the next requirement.
-    state data_requirement_tail() {
+    // the owning header starts the next clause.
+    state requirement_tail() {
         transition self.expression_consumer {
-            OmegaExpressionConsumer::DataRequirement ->
-                data_requirement_tail_identifier()
+            OmegaExpressionConsumer::Requirement ->
+                requirement_tail_identifier()
             _ -> incomplete_root()
         }
     }
 
-    state data_requirement_tail_identifier() {
+    state requirement_tail_identifier() {
         transition self.scan.span_equals(
             source,
             self.scan.token_start,
             self.scan.token_end,
             "requires"
         ) {
-            1 -> finish_data_requirement_expression()
+            1 -> finish_requirement_expression()
+            _ -> requirement_machine_clause_tail()
+        }
+    }
+
+    state requirement_machine_clause_tail() {
+        transition self.requirement_owner {
+            OmegaRequirementOwner::Machine -> requirement_machine_clause_identifier()
             _ -> incomplete_root()
         }
     }
 
-    state finish_data_requirement_expression() {
+    state requirement_machine_clause_identifier() {
+        transition (self.scan.span_equals(source, self.scan.token_start,
+            self.scan.token_end, "satisfies") == 1) ||
+            (self.scan.span_equals(source, self.scan.token_start,
+            self.scan.token_end, "reaches") == 1) ||
+            (self.scan.span_equals(source, self.scan.token_start,
+            self.scan.token_end, "terminates") == 1) {
+            true -> finish_requirement_expression()
+            _ -> incomplete_root()
+        }
+    }
+
+    state finish_requirement_expression() {
         transition self.expression_group_count {
             0 -> finish_framed_expression()
             _ -> incomplete_root()
@@ -3255,7 +3295,7 @@ machine OmegaParser::parse_view(
 
     state finish_root_left_brace_expression() {
         transition self.expression_consumer {
-            OmegaExpressionConsumer::DataRequirement ->
+            OmegaExpressionConsumer::Requirement ->
                 finish_framed_expression()
             OmegaExpressionConsumer::TransitionSubject ->
                 finish_framed_expression()
@@ -3290,7 +3330,7 @@ machine OmegaParser::parse_view(
     state finish_root_comma_expression() {
         transition self.expression_consumer {
             OmegaExpressionConsumer::CallArgument -> finish_framed_expression()
-            OmegaExpressionConsumer::DataRequirement -> finish_framed_expression()
+            OmegaExpressionConsumer::Requirement -> finish_framed_expression()
             OmegaExpressionConsumer::StructFieldValue -> finish_framed_expression()
             _ -> incomplete_root()
         }
@@ -3592,7 +3632,7 @@ machine OmegaParser::parse_view(
 
     state scan_next_framed_operand() {
         transition self.expression_consumer {
-            OmegaExpressionConsumer::DataRequirement -> scan_semantic(19)
+            OmegaExpressionConsumer::Requirement -> scan_semantic(19)
             OmegaExpressionConsumer::TransitionSubject -> scan_semantic(60)
             OmegaExpressionConsumer::AssignmentValue -> scan_semantic(48)
             OmegaExpressionConsumer::LocalDataInitialValue -> scan_semantic(79)
@@ -3880,8 +3920,8 @@ machine OmegaParser::parse_view(
 
     state membership_expression_clause_tail() {
         transition self.expression_consumer {
-            OmegaExpressionConsumer::DataRequirement ->
-                data_requirement_tail_identifier()
+            OmegaExpressionConsumer::Requirement ->
+                requirement_tail_identifier()
             _ -> membership_expression_end_failure()
         }
     }
@@ -3927,8 +3967,8 @@ machine OmegaParser::parse_view(
         self.expression_result_start = self.expression_frame_value_starts[0];
         self.expression_end = self.expression_frame_value_ends[0];
         transition self.expression_consumer {
-            OmegaExpressionConsumer::DataRequirement ->
-                retain_data_requirement()
+            OmegaExpressionConsumer::Requirement ->
+                retain_requirement()
             OmegaExpressionConsumer::TransitionSubject ->
                 publish_transition_subject_expression()
             OmegaExpressionConsumer::AssignmentValue ->
@@ -5546,13 +5586,13 @@ machine OmegaParser::parse_view(
             "in"
         ) {
             1 -> retain_framed_operator_path()
-            _ -> retain_data_requirement_boundary_path()
+            _ -> retain_requirement_boundary_path()
         }
     }
 
-    state retain_data_requirement_boundary_path() {
+    state retain_requirement_boundary_path() {
         transition self.expression_consumer {
-            OmegaExpressionConsumer::DataRequirement -> retain_path_expression()
+            OmegaExpressionConsumer::Requirement -> retain_path_expression()
             _ -> incomplete_root()
         }
     }
@@ -5631,7 +5671,7 @@ machine OmegaParser::parse_view(
                 retain_path_indexed_base()
             OmegaExpressionConsumer::AssignmentValue ->
                 retain_path_indexed_base()
-            OmegaExpressionConsumer::DataRequirement ->
+            OmegaExpressionConsumer::Requirement ->
                 retain_path_indexed_base()
             OmegaExpressionConsumer::TransitionSubject ->
                 retain_path_indexed_base()
@@ -5699,7 +5739,7 @@ machine OmegaParser::parse_view(
         transition self.expression_consumer {
             OmegaExpressionConsumer::LocalDataInitialValue ->
                 path_expression_angle()
-            OmegaExpressionConsumer::DataRequirement ->
+            OmegaExpressionConsumer::Requirement ->
                 retain_framed_operator_path()
             OmegaExpressionConsumer::TransitionSubject ->
                 retain_framed_operator_path()
@@ -5724,6 +5764,8 @@ machine OmegaParser::parse_view(
 
     state begin_call_expression_from_path() {
         transition self.expression_consumer {
+            OmegaExpressionConsumer::Requirement ->
+                retain_call_expression_path()
             OmegaExpressionConsumer::LocalDataInitialValue ->
                 retain_call_expression_path()
             OmegaExpressionConsumer::ExpressionStatement ->
@@ -5799,7 +5841,7 @@ machine OmegaParser::parse_view(
             OmegaExpressionConsumer::AssignmentValue -> retain_path_expression()
             OmegaExpressionConsumer::LocalDataInitialValue ->
                 retain_path_expression()
-            OmegaExpressionConsumer::DataRequirement -> retain_path_expression()
+            OmegaExpressionConsumer::Requirement -> retain_path_expression()
             OmegaExpressionConsumer::TransitionSubject -> retain_path_expression()
             OmegaExpressionConsumer::ExpressionStatement ->
                 retain_path_expression()
@@ -5829,7 +5871,7 @@ machine OmegaParser::parse_view(
                 retain_assignment_value_path()
             OmegaExpressionConsumer::LocalDataInitialValue ->
                 retain_local_data_initial_value_path()
-            OmegaExpressionConsumer::DataRequirement -> retain_path_expression()
+            OmegaExpressionConsumer::Requirement -> retain_path_expression()
             OmegaExpressionConsumer::TransitionSubject ->
                 retain_transition_subject_path()
             OmegaExpressionConsumer::TransitionTargetArgument ->
@@ -5856,7 +5898,7 @@ machine OmegaParser::parse_view(
 
     state path_expression_left_brace() {
         transition self.expression_consumer {
-            OmegaExpressionConsumer::DataRequirement -> retain_path_expression()
+            OmegaExpressionConsumer::Requirement -> retain_path_expression()
             OmegaExpressionConsumer::TransitionSubject ->
                 retain_transition_subject_path()
             OmegaExpressionConsumer::TransitionPatternFieldValue ->
@@ -5920,11 +5962,8 @@ machine OmegaParser::parse_view(
                 self.scan.token_start,
                 self.scan.token_end
             )
-            OmegaExpressionConsumer::DataRequirement -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedDataRequirement,
-                self.scan.token_start,
-                self.scan.token_end
-            )
+            OmegaExpressionConsumer::Requirement -> requirement_failure(
+                self.scan.token_start, self.scan.token_end)
             OmegaExpressionConsumer::TransitionSubject -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedTransitionSubject,
                 self.scan.token_start,
@@ -6009,7 +6048,7 @@ machine OmegaParser::parse_view(
 
     state retain_transition_subject_path() {
         transition self.expression_consumer {
-            OmegaExpressionConsumer::DataRequirement -> retain_path_expression()
+            OmegaExpressionConsumer::Requirement -> retain_path_expression()
             OmegaExpressionConsumer::TransitionSubject -> retain_path_expression()
             _ -> incomplete_root()
         }
@@ -6319,7 +6358,7 @@ machine OmegaParser::parse_view(
             OmegaExpressionConsumer::CallArgument -> retain_call_argument_capacity()
             OmegaExpressionConsumer::AssignmentValue -> retain_path_expression_bounded()
             OmegaExpressionConsumer::StructFieldValue -> retain_path_expression_bounded()
-            OmegaExpressionConsumer::DataRequirement -> retain_path_expression_bounded()
+            OmegaExpressionConsumer::Requirement -> retain_path_expression_bounded()
             OmegaExpressionConsumer::TransitionSubject -> retain_path_expression_bounded()
             OmegaExpressionConsumer::ExpressionStatement ->
                 retain_path_expression_bounded()
@@ -6378,7 +6417,7 @@ machine OmegaParser::parse_view(
             OmegaExpressionConsumer::CallArgument -> retain_call_argument_handle()
             OmegaExpressionConsumer::AssignmentValue -> retain_assignment_value_handle()
             OmegaExpressionConsumer::StructFieldValue -> retain_struct_field_value_handle()
-            OmegaExpressionConsumer::DataRequirement ->
+            OmegaExpressionConsumer::Requirement ->
                 retain_framed_path_handle()
             OmegaExpressionConsumer::TransitionSubject ->
                 retain_framed_path_handle()
@@ -7035,7 +7074,7 @@ machine OmegaParser::parse_view(
 
     state primary_expression_identifier_consumer() {
         transition self.expression_consumer {
-            OmegaExpressionConsumer::DataRequirement -> finish_framed_primary()
+            OmegaExpressionConsumer::Requirement -> finish_framed_primary()
             _ -> possible_implicit_struct_field()
         }
     }
@@ -7044,7 +7083,7 @@ machine OmegaParser::parse_view(
         transition self.expression_consumer {
             OmegaExpressionConsumer::CallArgument -> finish_framed_primary()
             OmegaExpressionConsumer::AssignmentValue -> finish_framed_primary()
-            OmegaExpressionConsumer::DataRequirement -> finish_framed_primary()
+            OmegaExpressionConsumer::Requirement -> finish_framed_primary()
             OmegaExpressionConsumer::TransitionSubject -> finish_framed_primary()
             OmegaExpressionConsumer::LocalDataInitialValue ->
                 finish_framed_primary()
@@ -7109,7 +7148,7 @@ machine OmegaParser::parse_view(
                 begin_completed_indexed_value()
             OmegaExpressionConsumer::AssignmentValue ->
                 begin_completed_indexed_value()
-            OmegaExpressionConsumer::DataRequirement ->
+            OmegaExpressionConsumer::Requirement ->
                 begin_completed_indexed_value()
             OmegaExpressionConsumer::TransitionSubject ->
                 begin_completed_indexed_value()
@@ -7137,7 +7176,7 @@ machine OmegaParser::parse_view(
                 finish_framed_primary()
             OmegaExpressionConsumer::StructFieldValue ->
                 finish_framed_primary()
-            OmegaExpressionConsumer::DataRequirement ->
+            OmegaExpressionConsumer::Requirement ->
                 finish_framed_primary()
             OmegaExpressionConsumer::TransitionSubject ->
                 finish_framed_primary()
@@ -7345,6 +7384,10 @@ machine OmegaParser::parse_view(
             self.state_first_parameter;
         self.machine_states[self.machine_state_count].parameter_count =
             self.machine_parameter_count - self.state_first_parameter;
+        self.machine_states[self.machine_state_count].first_requirement =
+            self.state_first_requirement;
+        self.machine_states[self.machine_state_count].requirement_count =
+            self.requirement_count - self.state_first_requirement;
         self.machine_states[self.machine_state_count].has_return_type =
             self.state_has_return_type;
         self.machine_states[self.machine_state_count].return_type =
@@ -7401,6 +7444,10 @@ machine OmegaParser::parse_view(
             self.state_first_parameter;
         self.machine_states[self.machine_state_count].parameter_count =
             self.machine_parameter_count - self.state_first_parameter;
+        self.machine_states[self.machine_state_count].first_requirement =
+            self.state_first_requirement;
+        self.machine_states[self.machine_state_count].requirement_count =
+            self.requirement_count - self.state_first_requirement;
         self.machine_states[self.machine_state_count].has_return_type =
             self.state_has_return_type;
         self.machine_states[self.machine_state_count].return_type =
@@ -7504,7 +7551,7 @@ machine OmegaParser::parse_view(
         self.data_first_member = self.data_member_count;
         self.data_first_field = self.data_field_count;
         self.data_first_case = self.data_case_count;
-        self.data_first_requirement = self.data_requirement_count;
+        self.data_first_requirement = self.requirement_count;
         self.data_is_public = is_public;
         self.data_multiplicity = OmegaDataMultiplicity::Affine;
         self.cursor = self.scan.next_cursor;
@@ -7586,8 +7633,18 @@ machine OmegaParser::parse_view(
     }
 
     state begin_data_requirement() {
-        self.data_requirement_start = self.scan.token_start;
-        self.expression_consumer = OmegaExpressionConsumer::DataRequirement;
+        self.requirement_owner = OmegaRequirementOwner::Data;
+        transition true { true -> begin_requirement() }
+    }
+
+    state begin_machine_requirement() {
+        self.requirement_owner = OmegaRequirementOwner::Machine;
+        transition true { true -> begin_requirement() }
+    }
+
+    state begin_requirement() {
+        self.requirement_start = self.scan.token_start;
+        self.expression_consumer = OmegaExpressionConsumer::Requirement;
         self.expression_frame_value_count = 0;
         self.expression_frame_operator_count = 0;
         self.expression_group_count = 0;
@@ -7596,18 +7653,18 @@ machine OmegaParser::parse_view(
         transition true { true -> scan_semantic(19) }
     }
 
-    state data_requirement_token() {
+    state requirement_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Identifier -> begin_named_assignment_value()
             OmegaTokenKind::Integer -> check_integer_expression()
             OmegaTokenKind::StringLiteral -> retain_string_expression()
-            OmegaTokenKind::Keyword -> data_requirement_keyword()
-            OmegaTokenKind::Punctuation -> data_requirement_punctuation()
-            _ -> missing_data_requirement()
+            OmegaTokenKind::Keyword -> requirement_keyword()
+            OmegaTokenKind::Punctuation -> requirement_punctuation()
+            _ -> missing_requirement()
         }
     }
 
-    state data_requirement_keyword() {
+    state requirement_keyword() {
         transition self.scan.keyword {
             OmegaKeywordKind::SelfValue -> begin_self_assignment_value()
             OmegaKeywordKind::True -> retain_boolean_expression(1)
@@ -7616,7 +7673,7 @@ machine OmegaParser::parse_view(
         }
     }
 
-    state data_requirement_punctuation() {
+    state requirement_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftParen -> begin_expression_group()
             OmegaPunctuationKind::Exclamation ->
@@ -7625,55 +7682,82 @@ machine OmegaParser::parse_view(
                 begin_unary_expression(OmegaUnaryOperatorKind::BitwiseNot)
             OmegaPunctuationKind::Minus ->
                 begin_unary_expression(OmegaUnaryOperatorKind::Negate)
-            _ -> missing_data_requirement()
+            _ -> missing_requirement()
         }
     }
 
-    state missing_data_requirement() {
+    state requirement_failure(start: i32, end: i32) {
+        transition self.requirement_owner {
+            OmegaRequirementOwner::Data -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataRequirement, start, end)
+            OmegaRequirementOwner::Machine -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineRequirement, start, end)
+        }
+    }
+
+    state missing_requirement() {
         transition true {
-            true -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedDataRequirement,
-                self.scan.token_start,
-                self.scan.token_end
-            )
+            true -> requirement_failure(
+                self.scan.token_start, self.scan.token_end)
         }
     }
 
-    state retain_data_requirement() {
+    state retain_requirement() {
         // Every requirement owns at least one expression. The common expression
         // provision therefore also bounds this ordered clause ledger.
-        transition self.data_requirement_count < 16384 {
-            true -> retain_data_requirement_bounded()
+        transition self.requirement_count < 16384 {
+            true -> retain_requirement_bounded()
             _ -> resource_failure(
                 OmegaParserResource::Expressions,
                 16384,
-                self.data_requirement_count + 1
+                self.requirement_count + 1
             )
         }
     }
 
-    state retain_data_requirement_bounded() {
-        self.data_requirements[self.data_requirement_count].expression =
+    state retain_requirement_bounded() {
+        self.requirements[self.requirement_count].expression =
             self.expression_result;
-        self.data_requirements[self.data_requirement_count].start =
-            self.data_requirement_start;
-        self.data_requirements[self.data_requirement_count].end =
+        self.requirements[self.requirement_count].start =
+            self.requirement_start;
+        self.requirements[self.requirement_count].end =
             self.expression_end;
-        self.data_requirement_count = self.data_requirement_count + 1;
+        self.requirement_count = self.requirement_count + 1;
         transition self.scan.token_kind {
-            OmegaTokenKind::Punctuation -> data_requirement_end_punctuation()
-            _ -> data_body_token()
+            OmegaTokenKind::Punctuation -> requirement_end_punctuation()
+            _ -> requirement_header_token()
         }
     }
 
-    state data_requirement_end_punctuation() {
-        transition self.scan.punctuation {
-            OmegaPunctuationKind::Comma -> next_data_requirement()
-            _ -> data_body_token()
+    state requirement_header_token() {
+        transition self.requirement_owner {
+            OmegaRequirementOwner::Data -> data_body_token()
+            OmegaRequirementOwner::Machine -> current_machine_header_token()
         }
     }
-    state next_data_requirement() {
-        self.expression_consumer = OmegaExpressionConsumer::DataRequirement;
+
+    state current_machine_header_token() {
+        transition self.state_is_explicit {
+            1 -> explicit_state_header_token()
+            _ -> machine_header_end_token()
+        }
+    }
+
+    state resume_machine_header() {
+        transition self.state_is_explicit {
+            1 -> scan_semantic(59)
+            _ -> scan_semantic(29)
+        }
+    }
+
+    state requirement_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Comma -> next_requirement()
+            _ -> requirement_header_token()
+        }
+    }
+    state next_requirement() {
+        self.expression_consumer = OmegaExpressionConsumer::Requirement;
         self.expression_frame_value_count = 0;
         self.expression_frame_operator_count = 0;
         self.expression_group_count = 0;
@@ -7683,21 +7767,21 @@ machine OmegaParser::parse_view(
     }
     // A separator follows a retained nonempty requirement. The body's opening
     // brace therefore means a trailing comma, never an empty first clause.
-    state data_requirement_or_body_token() {
+    state requirement_or_body_token() {
         transition self.scan.token_kind {
-            OmegaTokenKind::Punctuation -> data_requirement_or_body_punctuation()
-            _ -> begin_data_requirement_element()
+            OmegaTokenKind::Punctuation -> requirement_or_body_punctuation()
+            _ -> begin_requirement_element()
         }
     }
-    state data_requirement_or_body_punctuation() {
+    state requirement_or_body_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::LeftBrace -> enter_data_body()
-            _ -> begin_data_requirement_element()
+            OmegaPunctuationKind::LeftBrace -> requirement_header_token()
+            _ -> begin_requirement_element()
         }
     }
-    state begin_data_requirement_element() {
-        self.data_requirement_start = self.scan.token_start;
-        transition true { true -> data_requirement_token() }
+    state begin_requirement_element() {
+        self.requirement_start = self.scan.token_start;
+        transition true { true -> requirement_token() }
     }
 
     state data_body_punctuation() {
@@ -8679,8 +8763,31 @@ machine OmegaParser::parse_view(
 
     state type_suffix_identifier() {
         transition self.type_consumer {
+            OmegaTypeConsumer::MachineReturn -> machine_return_suffix_identifier()
             OmegaTypeConsumer::Cast -> cast_type_suffix_depth()
             _ -> ordinary_type_suffix_identifier_dispatch()
+        }
+    }
+
+    state machine_return_suffix_identifier() {
+        transition self.scan.span_equals(source, self.scan.token_start,
+            self.scan.token_end, "in") {
+            1 -> ordinary_type_suffix_identifier_dispatch()
+            _ -> machine_return_clause_suffix()
+        }
+    }
+
+    state machine_return_clause_suffix() {
+        transition self.type_consumer {
+            OmegaTypeConsumer::MachineReturn -> machine_return_clause_depth()
+            _ -> incomplete_root()
+        }
+    }
+
+    state machine_return_clause_depth() {
+        transition self.type_array_depth == 0 {
+            true -> retain_type_for_consumer(self.type_end, self.scan.token_start)
+            _ -> incomplete_root()
         }
     }
 
@@ -8775,7 +8882,7 @@ machine OmegaParser::parse_view(
     state type_domain_end_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> type_consumer_punctuation()
-            OmegaTokenKind::Identifier -> incomplete_root()
+            OmegaTokenKind::Identifier -> machine_return_clause_suffix()
             OmegaTokenKind::Keyword -> incomplete_root()
             _ -> type_end_failure(
                 self.scan.token_start,
@@ -8804,7 +8911,7 @@ machine OmegaParser::parse_view(
     state type_constraint_end_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> type_consumer_punctuation()
-            OmegaTokenKind::Identifier -> incomplete_root()
+            OmegaTokenKind::Identifier -> machine_return_clause_suffix()
             OmegaTokenKind::Keyword -> incomplete_root()
             _ -> type_end_failure(
                 self.scan.token_start,
@@ -9042,11 +9149,19 @@ machine OmegaParser::parse_view(
         }
     }
 
+    state check_machine_return_position() {
+        transition (self.state_has_return_type == 0) &&
+            (self.requirement_count == self.state_first_requirement) {
+            true -> begin_machine_return_type()
+            _ -> incomplete_root()
+        }
+    }
+
     state machine_return_end() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftBrace -> retain_type_for_consumer(
                 self.type_end,
-                self.scan.next_cursor
+                self.scan.token_start
             )
             OmegaPunctuationKind::Semicolon -> incomplete_root()
             OmegaPunctuationKind::ColonColon -> incomplete_root()
@@ -9514,7 +9629,7 @@ machine OmegaParser::parse_view(
         self.state_has_return_type = 1;
         self.state_return_type = self.type_root;
         self.cursor = next_cursor;
-        transition true { true -> resume_state_body() }
+        transition true { true -> resume_machine_header() }
     }
 
     state retain_machine_parameter_by_reference(next_cursor: i32) {
@@ -9594,7 +9709,7 @@ machine OmegaParser::parse_view(
         self.data_items[self.data_count].first_requirement =
             self.data_first_requirement;
         self.data_items[self.data_count].requirement_count =
-            self.data_requirement_count - self.data_first_requirement;
+            self.requirement_count - self.data_first_requirement;
         self.data_items[self.data_count].name.start = self.data_name_start;
         self.data_items[self.data_count].name.end = self.data_name_end;
         self.data_items[self.data_count].first_member = self.data_first_member;

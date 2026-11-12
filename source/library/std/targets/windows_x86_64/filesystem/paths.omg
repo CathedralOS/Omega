@@ -2,11 +2,12 @@
 // UNC and extended UNC roots as existing namespaces, not components to create.
 // An already-existing prefix succeeds only after a followed directory query;
 // ordinary files and dangling links must not turn mkdir failure into success.
-use filesystem;
-use filesystem_host;
-use windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-use targets::windows_x86_64::filesystem::errors;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 
 windows_x86_64 machine windows_filesystem_remove_dir_all(path: &[u8] in Path) -> UnitResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
@@ -23,7 +24,6 @@ invokes WindowsFilesystemHost
     let transferred: i64 = block WindowsFilesystemHost::read_link(path, output, count);
     windows_filesystem_transferred(transferred, count)
 }
-use targets::windows_x86_64::filesystem::metadata;
 
 machine windows_filesystem_extended_path(path: &[u8]) -> bool {
     transition path.len >= 4 { true -> prefix(path) false -> false }

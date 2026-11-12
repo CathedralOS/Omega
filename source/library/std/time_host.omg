@@ -36,10 +36,6 @@
 //            reads never advance it, so interpreter canaries assert EXACT
 //            values. Wall clock = 2026-01-01T00:00:00Z + elapsed, already in
 //            Unix units (epoch offset 0, units 1000).
-use targets::macos_arm64::time_host_impl;
-use targets::linux_x86_64::time_host_impl;
-use targets::linux_arm64::time_host_impl;
-use targets::windows_x86_64::time_host_impl;
 
 // Package Build selects each ordinary checked implementation. The two Darwin
 // targets share one implementation and raw requirement schema; their Build

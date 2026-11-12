@@ -669,6 +669,7 @@ impl BuildOutputIdentity<'_> {
         self.digest.byte(match origin {
             SourceOrigin::User => 0,
             SourceOrigin::Toolchain => 1,
+            SourceOrigin::ToolchainContract => 2,
         });
         self.digest.byte(match dependency_scope {
             DependencyScope::Product => 0,

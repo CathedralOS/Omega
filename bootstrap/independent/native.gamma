@@ -1,0 +1,214 @@
+; Direct Linux x86-64 realization of shared Gamma instruction records.
+; r14 owns 256 word registers on the process stack; r15 owns the anonymous
+; 128-GiB Gamma memory reservation. Scratch host registers never hold language
+; values across instructions. Native calls use the separately bounded stack.
+; Byte constants below are little-endian x86 instructions, not an Alpha VM.
+
+; 498b86 disp32: register slot at r14 + reg*8
+(def n_load_a ((reg Int)) Int
+  (let (
+    (v0 Int (i_word 8817481 3)) ; 49 8b 86
+    (v1 Int (i_word (* reg 8) 4))
+  ) 0))
+
+; 498b9e disp32: register slot at r14 + reg*8
+(def n_load_b ((reg Int)) Int
+  (let (
+    (v0 Int (i_word 10390345 3)) ; 49 8b 9e
+    (v1 Int (i_word (* reg 8) 4))
+  ) 0))
+
+; 498986 disp32: register slot at r14 + reg*8
+(def n_store ((reg Int)) Int
+  (let (
+    (v0 Int (i_word 8816969 3)) ; 49 89 86
+    (v1 Int (i_word (* reg 8) 4))
+  ) 0))
+
+; movabs rax,address; call rax (ffd0) or jmp rax (ffe0)
+(def n_jump ((address Int) (call Int)) Int
+  (let (
+    (v0 Int (i_word 47176 2)) ; 48 b8
+    (v1 Int (i_word address 8))
+    (v2 Int (i_word (if call 53503 57599) 2))
+  ) 0))
+
+; Reserve/zero register slots; mmap 128 GiB; fail with status3 on mmap error.
+(def n_start () Int
+  (let (
+    (v0 Int (i_word 5260204399143977288 8)) ; 48 81 ec 00 08 00 00 49
+    (v1 Int (i_word 282272770156169 8)) ; 89 e6 31 c0 b9 00 01 00
+    (v2 Int (i_word 13306809736395048960 8)) ; 00 48 89 e7 f3 48 ab b8
+    (v3 Int (i_word 13711489651447955465 8)) ; 09 00 00 00 31 ff 48 be
+    (v4 Int (i_word 137438953472 8)) ; 00 00 00 00 20 00 00 00
+    (v5 Int (i_word 2502384011213538234 8)) ; ba 03 00 00 00 41 ba 22
+    (v6 Int (i_word 18446674560888602688 8)) ; 40 00 00 49 c7 c0 ff ff
+    (v7 Int (i_word 5189571502403878911 8)) ; ff ff 45 31 c9 0f 05 48
+    (v8 Int (i_word 13262664396488835389 8)) ; 3d 01 f0 ff ff 72 0e b8
+    (v9 Int (i_word 4375466429214883843 8)) ; 03 00 00 00 89 c7 b8 3c
+    (v10 Int (i_word 14378103571432341504 8)) ; 00 00 00 0f 05 49 89 c7
+  ) 0))
+
+; read(0,rsp,1); EOF yields -1; OS read failure exits3.
+(def n_read () Int
+  (let (
+    (v0 Int (i_word 18388690070366094152 8)) ; 48 83 ec 08 31 c0 31 ff
+    (v1 Int (i_word 7430637896 8)) ; 48 89 e6 ba 01 00 00 00
+    (v2 Int (i_word 13766512028741534991 8)) ; 0f 05 48 85 c0 79 0c bf
+    (v3 Int (i_word 66760971649027 8)) ; 03 00 00 00 b8 3c 00 00
+    (v4 Int (i_word 14359939090542300928 8)) ; 00 0f 05 48 85 c0 48 c7
+    (v5 Int (i_word 1082118453336211392 8)) ; c0 ff ff ff ff 74 04 0f
+    (v6 Int (i_word 2467867943765174 7)) ; b6 04 24 48 83 c4 08
+  ) 0))
+
+; write(1,rsp,1); short/error write exits3. Gamma publication was validated before flush.
+(def n_write () Int
+  (let (
+    (v0 Int (i_word 13268735384452105032 8)) ; 48 83 ec 08 88 04 24 b8
+    (v1 Int (i_word 1919850381313 8)) ; 01 00 00 00 bf 01 00 00
+    (v2 Int (i_word 1902243301376 8)) ; 00 48 89 e6 ba 01 00 00
+    (v3 Int (i_word 8359235626109046528 8)) ; 00 0f 05 48 83 f8 01 74
+    (v4 Int (i_word 4375247037990682380 8)) ; 0c bf 03 00 00 00 b8 3c
+    (v5 Int (i_word 14160240839946665984 8)) ; 00 00 00 0f 05 48 83 c4
+    (v6 Int (i_word 8 1)) ; 08
+  ) 0))
+
+; exit(register[reg]); runtime validates authored statuses.
+(def n_exit ((reg Int)) Int
+  (let (
+    (v0 Int (n_load_a reg))
+    (v1 Int (i_word 260798122312 8)) ; 48 89 c7 b8 3c 00 00 00
+    (v2 Int (i_word 1295 2)) ; 0f 05
+  ) 0))
+
+(def n_imm ((reg Int) (value Int)) Int
+  (let (
+    (v0 Int (i_word 47176 2)) ; 48 b8
+    (v1 Int (i_word value 8))
+    (v2 Int (n_store reg))
+  ) 0))
+
+(def n_add ((a Int) (b Int)) Int
+  (let (
+    (v0 Int (n_load_a a))
+    (v1 Int (n_load_b b))
+    (v2 Int (i_word 14156104 3)) ; 48 01 d8
+    (v3 Int (n_store a))
+  ) 0))
+
+(def n_sub ((a Int) (b Int)) Int
+  (let (
+    (v0 Int (n_load_a a))
+    (v1 Int (n_load_b b))
+    (v2 Int (i_word 14166344 3)) ; 48 29 d8
+    (v3 Int (n_store a))
+  ) 0))
+
+(def n_mul ((a Int) (b Int)) Int
+  (let (
+    (v0 Int (n_load_a a))
+    (v1 Int (n_load_b b))
+    (v2 Int (i_word 3283029832 4)) ; 48 0f af c3
+    (v3 Int (n_store a))
+  ) 0))
+
+; cqo; idiv rbx; optional mov rax,rdx. Shared lowering checks both trap cases.
+(def n_div ((a Int) (b Int) (modulo Int)) Int
+  (let (
+    (v0 Int (n_load_a a))
+    (v1 Int (n_load_b b))
+    (v2 Int (i_word 1082185521480 5)) ; 48 99 48 f7 fb
+    (v3 Int (if modulo (i_word 13666632 3) 0))
+    (v4 Int (n_store a))
+  ) 0))
+
+; movzx eax,byte[r15+rbx] or mov rax,[r15+rbx].
+(def n_load ((a Int) (b Int) (byte Int)) Int
+  (let (
+    (v0 Int (n_load_b b))
+    (v1 Int (if byte (i_word 133223026497 5) (i_word 520391497 4)))
+    (v2 Int (n_store a))
+  ) 0))
+
+; mov byte[r15+rbx],al or mov [r15+rbx],rax.
+(def n_store_memory ((a Int) (b Int) (byte Int)) Int
+  (let (
+    (v0 Int (n_load_b a))
+    (v1 Int (n_load_a b))
+    (v2 Int (if byte (i_word 520390721 4) (i_word 520390985 4)))
+  ) 0))
+
+; test rax,rax or cmp rax,rbx; inverse short jcc skips absolute jump.
+(def n_branch ((a Int) (b Int) (address Int) (kind Int)) Int
+  (let (
+    (v0 Int (n_load_a a))
+    (v1 Int (if (lt kind 15) (i_word 12617032 3) (n_load_b b)))
+    (v2 Int (if (lt kind 15) 0 (i_word 14170440 3)))
+    (v3 Int (i_word (if (eq kind 14) 3188 (if (eq kind 15) 3197 3189)) 2))
+    (v4 Int (n_jump address 0))
+  ) 0))
+
+(def i_size ((op Int)) Int
+  (if (eq op 0) 17 (if (eq op 1) 17 (if (eq op 2) 14 (if (eq op 3) 24 (if (eq op 4) 24 (if (eq op 5) 25 (if (eq op 6) 26 (if (eq op 7) 29 (if (eq op 8) 19 (if (eq op 9) 18 (if (eq op 10) 18 (if (eq op 11) 18 (if (eq op 12) 12 (if (eq op 13) 24 (if (eq op 14) 24 (if (eq op 15) 31 (if (eq op 16) 31 (if (eq op 17) 62 (if (eq op 18) 56 (if (eq op 19) 12 (if (eq op 20) 1 (if (eq op 21) 0 (p_fail))))))))))))))))))))))))
+
+(def i_emit ((ins Int) (labels Int)) Int
+  (let ((op Int (c_a ins)) (a Int (c_b ins))
+        (b Int (c_c ins)) (c Int (c_d ins)))
+    (if (eq op 0) (n_exit a)
+    (if (eq op 1) (n_imm a b)
+    (if (eq op 2) (let moved Int (n_load_a b) (n_store a))
+    (if (eq op 3) (n_add a b)
+    (if (eq op 4) (n_sub a b)
+    (if (eq op 5) (n_mul a b)
+    (if (eq op 6) (n_div a b 0)
+    (if (eq op 7) (n_div a b 1)
+    (if (eq op 8) (n_load a b 1)
+    (if (eq op 9) (n_store_memory a b 1)
+    (if (eq op 10) (n_load a b 0)
+    (if (eq op 11) (n_store_memory a b 0)
+    (if (eq op 12) (n_jump (+ 4194520 (m_get labels a)) 0)
+    (if (eq op 13) (n_branch a 0 (+ 4194520 (m_get labels b)) op)
+    (if (eq op 14) (n_branch a 0 (+ 4194520 (m_get labels b)) op)
+    (if (eq op 15) (n_branch a b (+ 4194520 (m_get labels c)) op)
+    (if (eq op 16) (n_branch a b (+ 4194520 (m_get labels c)) op)
+    (if (eq op 17) (let received Int (n_read) (n_store a))
+    (if (eq op 18) (let loaded Int (n_load_a a) (n_write))
+    (if (eq op 19) (n_jump (+ 4194520 (m_get labels a)) 1)
+    (if (eq op 20) (write 195)
+    (if (eq op 21) 0
+    (p_fail)))))))))))))))))))))))))
+
+; ELF64 ET_EXEC, one read/execute PT_LOAD; entry0x400080. No host linker/loader interpreter.
+(def n_header ((size Int)) Int
+  (let (
+    (v0 Int (i_word 282584257676671 8)) ; 7f 45 4c 46 02 01 01 00
+    (v1 Int (i_word 0 8)) ; 00 00 00 00 00 00 00 00
+    (v2 Int (i_word 4299030530 8)) ; 02 00 3e 00 01 00 00 00
+    (v3 Int (i_word 4194432 8)) ; 80 00 40 00 00 00 00 00
+    (v4 Int (i_word 64 8)) ; 40 00 00 00 00 00 00 00
+    (v5 Int (i_word 0 8)) ; 00 00 00 00 00 00 00 00
+    (v6 Int (i_word 15762873573703680 8)) ; 00 00 00 00 40 00 38 00
+    (v7 Int (i_word 1 8)) ; 01 00 00 00 00 00 00 00
+    (v8 Int (i_word 21474836481 8)) ; 01 00 00 00 05 00 00 00
+    (v9 Int (i_word 0 8)) ; 00 00 00 00 00 00 00 00
+    (v10 Int (i_word 4194304 8)) ; 00 00 40 00 00 00 00 00
+    (v11 Int (i_word 4194304 8)) ; 00 00 40 00 00 00 00 00
+    (v12 Int (i_word (+ size 216) 8))
+    (v13 Int (i_word (+ size 216) 8))
+    (v14 Int (i_word 4096 8)) ; 00 10 00 00 00 00 00 00
+    (v15 Int (i_word 0 8)) ; 00 00 00 00 00 00 00 00
+  ) 0))
+
+; Buffered publication owns 128 MiB, including header and startup.
+(def i_limit () Int 134217513)
+
+(def n_output ((xs Int) (labels Int)) Int
+  (if (p_length xs)
+    (let emitted Int (i_emit (p_head xs) labels)
+      (n_output (p_tail xs) labels)) (pair 0 1)))
+
+(def i_publish ((xs Int) (labels Int) (size Int)) Int
+  (if (lt size (i_limit))
+    (let ((header Int (n_header size)) (startup Int (n_start)))
+      (n_output xs labels))
+    (pair 254 0)))

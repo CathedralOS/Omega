@@ -1,0 +1,45 @@
+; Alpha realization of the shared Gamma compiler instruction records.
+
+(def i_size ((op Int)) Int
+  (if (eq op 21) 0
+    (if (eq op 20) 1
+      (if (eq op 1) 10
+        (if (eq op 12) 9
+          (if (eq op 19) 9
+            (if (eq op 13) 10
+              (if (eq op 14) 10
+                (if (eq op 15) 11
+                  (if (eq op 16) 11
+                    (if (eq op 0) 2
+                      (if (eq op 17) 2 (if (eq op 18) 2 3)))))))))))))
+
+(def i_emit ((ins Int) (labels Int)) Int
+  (let ((op Int (c_a ins)) (a Int (c_b ins))
+        (b Int (c_c ins)) (c Int (c_d ins)))
+    (if (eq op 21) 0
+      (let ignored Int (write op)
+        (if (eq op 20) 0
+          (if (eq op 12) (i_word (m_get labels a) 8)
+            (if (eq op 19) (i_word (m_get labels a) 8)
+              (let ignored2 Int (write a)
+                (if (eq op 1) (i_word b 8)
+                  (if (eq op 13) (i_word (m_get labels b) 8)
+                    (if (eq op 14) (i_word (m_get labels b) 8)
+                      (if (eq op 0) 0
+                        (if (eq op 17) 0
+                          (if (eq op 18) 0
+                            (let ignored3 Int (write b)
+                              (if (eq op 15) (i_word (m_get labels c) 8)
+                                (if (eq op 16) (i_word (m_get labels c) 8) 0)))))))))))))))))
+
+(def i_output ((xs Int) (labels Int)) Int
+  (if (p_length xs)
+    (let ignored Int (i_emit (p_head xs) labels)
+      (i_output (p_tail xs) labels)) (pair 0 1)))
+
+(def i_publish ((xs Int) (labels Int) (size Int)) Int
+  (let capacity Int (c_check (lt size (i_limit)) 0)
+    (i_output xs labels)))
+
+; The audited seed hole holds at most 16 MiB minus its four-byte length.
+(def i_limit () Int 16777213)

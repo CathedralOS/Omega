@@ -3135,6 +3135,12 @@ pub(crate) mod access_views {
                     visit_expression(syntax, *expression, binders, deferred);
                     false
                 }
+                TypeReferenceNode::StaticSelection(selection) => visit_static_arguments(
+                    syntax,
+                    std::slice::from_ref(selection),
+                    binders,
+                    deferred,
+                ),
                 TypeReferenceNode::Unit => false,
             }
         }
@@ -3144,13 +3150,24 @@ pub(crate) mod access_views {
             arguments: &[StaticMachineArgument],
             binders: &[&str],
             deferred: &mut Vec<TypeReferenceHandle>,
-        ) {
+        ) -> bool {
+            let mut depends = false;
             for argument in arguments {
-                visit_type(syntax, argument.type_reference, binders, deferred);
+                depends |= visit_type(syntax, argument.type_reference, binders, deferred);
                 if let Some(application) = &argument.application {
-                    visit_static_arguments(syntax, &application.arguments, binders, deferred);
+                    depends |=
+                        visit_static_arguments(syntax, &application.arguments, binders, deferred);
+                    if let Some(member) = syntax.expressions.static_member(application.member) {
+                        depends |= visit_static_arguments(
+                            syntax,
+                            std::slice::from_ref(member),
+                            binders,
+                            deferred,
+                        );
+                    }
                 }
             }
+            depends
         }
 
         fn visit_statement(
@@ -4247,6 +4264,22 @@ pub(crate) mod access_views {
         declaration: source::SourceSpan,
         context: &str,
     ) -> Result<(), String> {
+        // A missing package-edge table does not merge separately issued contracts.
+        if let Some(sources) = sources
+            && let (Some(requester_file), Some(declaration_file)) =
+                (sources.file_at(requester), sources.file_at(declaration))
+            && (requester_file.origin == source::SourceOrigin::ToolchainContract
+                || declaration_file.origin == source::SourceOrigin::ToolchainContract)
+        {
+            return if sources.same_checked_instance(requester, declaration)
+                || requester_file.origin == source::SourceOrigin::Toolchain
+                || declaration_file.origin == source::SourceOrigin::Toolchain
+            {
+                Ok(())
+            } else {
+                Err(format!("{context} crosses closed-contract owner custody"))
+            };
+        }
         let Some(authority) = authority else {
             return Ok(());
         };

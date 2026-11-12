@@ -320,18 +320,7 @@ pub(crate) mod declaration_selection {
                 {
                     continue;
                 }
-                let module = self.symbols.symbol_module(symbol);
-                let exposed = !module.is_valid()
-                    || self.symbols.source_module(reference.source_id) == module
-                    || self
-                        .symbols
-                        .source_module_import_paths(reference.source_id)
-                        .any(|path| {
-                            matches!(
-                                self.symbols.source_module_import_target(reference.source_id, path),
-                                Some(target) if target == symbol || target == module
-                            )
-                        });
+                let exposed = self.symbols.source_domain_is_exposed(reference, symbol);
                 if !exposed {
                     continue;
                 }
@@ -400,14 +389,16 @@ pub(crate) mod declaration_selection {
             if selects_family(&address) {
                 return Some(address);
             }
-            let module = self.symbols.symbol_module(first);
             for path in self.symbols.source_module_import_paths(reference.source_id) {
                 let target = self
                     .symbols
                     .source_module_import_target(reference.source_id, path);
                 let address = if target == Some(first) {
                     path.to_owned()
-                } else if module.is_valid() && target == Some(module) {
+                } else if self
+                    .symbols
+                    .source_import_exposes_domain(reference, path, first)
+                {
                     format!("{path}::{leaf}")
                 } else {
                     continue;
@@ -1132,6 +1123,35 @@ pub(crate) mod declaration_selection {
                 name.source_span(),
             )?;
             self.symbols.builtin_type_atom(selected)
+        }
+
+        pub(super) fn type_declaration_kind(
+            &self,
+            syntax: &SyntaxTrees,
+            name: &Identifier,
+        ) -> Result<Option<SymbolKind>, Diagnostic> {
+            match self
+                .symbols
+                .lookup_top_level_by_name_and_kinds_from_source_matching(
+                    name.as_str(syntax),
+                    &[
+                        SymbolKind::BuiltinType,
+                        SymbolKind::Data,
+                        SymbolKind::Domain,
+                        SymbolKind::TypeAlias,
+                        SymbolKind::Trait,
+                    ],
+                    name.source_span(),
+                    |_| true,
+                ) {
+                symbols::SymbolLookup::Unique(symbol) => Ok(Some(self.symbols.get(symbol).kind)),
+                symbols::SymbolLookup::NotFound => Ok(None),
+                symbols::SymbolLookup::Ambiguous { .. } => Err(Diagnostic::error(format!(
+                    "type path owner `{}` is ambiguous",
+                    name.as_str(syntax)
+                ))
+                .with_source_span(name.source_span())),
+            }
         }
 
         /*
@@ -1893,6 +1913,8 @@ pub(crate) mod declaration_selection {
         }
     }
 }
+#[path = "preparation_callable_types.rs"]
+mod callable_types;
 #[path = "preparation_generic_data.rs"]
 pub(crate) mod generic_data;
 #[path = "preparation_machine_equations.rs"]
@@ -3116,6 +3138,18 @@ pub(crate) mod trait_defaults {
                         })
                 }
             }
+            TypeReferenceNode::StaticSelection(selection) => {
+                let mut changed = false;
+                let selected =
+                    rewritten_static_argument(syntax, &selection, substitution, &mut changed);
+                if changed {
+                    syntax
+                        .type_references
+                        .insert(TypeReferenceNode::StaticSelection(selected))
+                } else {
+                    handle
+                }
+            }
             TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => handle,
         }
     }
@@ -3701,9 +3735,13 @@ pub(crate) mod trait_defaults {
         }
     }
 }
-pub(crate) mod type_aliases {
+pub(crate) mod declared_types {
     /*
-        Declaration-owned transparent type expansion before nominal synthesis.
+        Declaration-owned type normalization before nominal synthesis.
+
+        Alias expansion and const callable classification share the existing
+        lexical header walk. Both need the selected namespace before constant
+        discovery; a requirement path must not enter scalar const evaluation.
 
         Source application rows retain the alias telescope independently from the
         ordinary type replacing it. This stage forms no checked admission receipt.
@@ -4145,7 +4183,7 @@ pub(crate) mod type_aliases {
                 Ok(())
             }
 
-            fn static_arguments(
+            pub(super) fn static_arguments(
                 &mut self,
                 syntax: &mut SyntaxTrees,
                 arguments: &mut [StaticMachineArgument],
@@ -4420,6 +4458,13 @@ pub(crate) mod type_aliases {
                 }
             }
             match node {
+                TypeReferenceNode::StaticSelection(mut selection) => {
+                    self.static_arguments(syntax, std::slice::from_mut(&mut selection), bound)?;
+                    syntax.type_references.replace_type_reference(
+                        reference,
+                        TypeReferenceNode::StaticSelection(selection),
+                    );
+                }
                 TypeReferenceNode::Reference { referee, .. } => {
                     self.reference(syntax, referee, bound)?
                 }
@@ -4828,7 +4873,7 @@ pub(crate) mod type_aliases {
         selection: &ConstantSelection<'_>,
         declarations: &[&SyntaxTrees],
     ) -> Result<(), Vec<Diagnostic>> {
-        if !has_alias_declarations(syntax, declarations) {
+        if !needs_normalization(syntax, declarations) {
             return Ok(());
         }
         let templates = syntax.clone();
@@ -4869,6 +4914,23 @@ pub(crate) mod type_aliases {
         Ok(())
     }
 
+    fn needs_normalization(syntax: &SyntaxTrees, declarations: &[&SyntaxTrees]) -> bool {
+        has_alias_declarations(syntax, declarations)
+            || syntax.items.type_parameter_entries().any(|parameter| {
+                let TypeParameterKind::Const { type_reference } = parameter.kind else {
+                    return false;
+                };
+                match syntax.type_references.type_reference(type_reference) {
+                    TypeReferenceNode::StaticSelection(_) => true,
+                    TypeReferenceNode::Named(name)
+                    | TypeReferenceNode::Generic {
+                        base_name: name, ..
+                    } => name.as_str(syntax).contains("::"),
+                    _ => false,
+                }
+            })
+    }
+
     fn has_alias_declarations(syntax: &SyntaxTrees, declarations: &[&SyntaxTrees]) -> bool {
         std::iter::once(syntax)
             .chain(declarations.iter().copied())
@@ -4883,7 +4945,7 @@ pub(crate) mod type_aliases {
         Build-time evaluation expands type heads before discovering constant and
         representation work. Imported declaration forests lend headers only.
     */
-    pub fn normalize_type_aliases(
+    pub fn normalize_declared_types(
         mut request: super::generic_data::GenericDataRequest<'_>,
     ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
         let declarations = request
@@ -4891,7 +4953,7 @@ pub(crate) mod type_aliases {
             .into_iter()
             .chain(request.retained_declaration_syntax)
             .collect::<Vec<_>>();
-        if !has_alias_declarations(&request.syntax, &declarations) {
+        if !needs_normalization(&request.syntax, &declarations) {
             return Ok(request.syntax);
         }
         let selection = ConstantSelection::with_retained_base(
@@ -4935,6 +4997,7 @@ pub(crate) mod type_aliases {
             parameters: HandleSpan<syntax_trees::item::TypeParameter>,
             inherited: &[String],
         ) -> Result<Vec<String>, Diagnostic> {
+            let parameter_span = parameters;
             let parameters = syntax.items.type_parameters(parameters).to_vec();
             let mut bound = inherited.to_vec();
             bound.extend(
@@ -4942,10 +5005,24 @@ pub(crate) mod type_aliases {
                     .iter()
                     .map(|parameter| parameter.name.as_str(syntax).to_owned()),
             );
-            for parameter in parameters {
+            for (index, parameter) in parameters.into_iter().enumerate() {
                 match parameter.kind {
-                    TypeParameterKind::Const { type_reference }
-                    | TypeParameterKind::Value { type_reference } => {
+                    TypeParameterKind::Const { type_reference } => {
+                        self.reference(syntax, type_reference, &bound)?;
+                        if let Some(contract) = super::callable_types::nominal_contract(
+                            syntax,
+                            self.selection,
+                            type_reference,
+                            &bound,
+                            &self.declarations,
+                        )? {
+                            syntax.items.type_parameters_mut(parameter_span)[index].kind =
+                                TypeParameterKind::Machine {
+                                    contract: Some(contract),
+                                };
+                        }
+                    }
+                    TypeParameterKind::Value { type_reference } => {
                         self.reference(syntax, type_reference, &bound)?
                     }
                     TypeParameterKind::Machine {
@@ -5385,7 +5462,7 @@ pub(crate) fn prepare(
         top_level_bindings,
         base,
     )?;
-    type_aliases::normalize(&mut syntax, &constant_selection)?;
+    declared_types::normalize(&mut syntax, &constant_selection)?;
     generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;
     validate_with_const_resolution_mode(&syntax, &constant_selection, constants)?;
     synthesize_trait_defaults_after_module_validation(&mut syntax, &constant_selection)?;

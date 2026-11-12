@@ -1,6 +1,4 @@
-use omega::language::core::extent;
-use calling;
-use entry_shapes;
+use omega::language::core::ProgramStorageEntry;
 
 // The Linux kernel enters a static ELF executable on AArch64 with the
 // machine stack pointer at the initial process-stack image

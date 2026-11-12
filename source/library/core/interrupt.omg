@@ -16,8 +16,6 @@
 // requirement through `established by`; installation makes its matching
 // parameter inbound. No package can reconstruct either obligation from fields.
 
-use omega::language::core::assembly;
-use omega::language::core::representation;
 
 public boundary data InterruptMaskGuard [linear];
 public boundary data InterruptAcknowledgement [linear];

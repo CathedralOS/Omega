@@ -10,9 +10,10 @@
 // callers can detect an impossible path. Callers stage input bytes into
 // `msg[..msg_n]`; the 32-byte digest lands in `out32`.
 
-module core::sha256;
+module sha256;
 
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u32_to_u8_wrapping;
+use omega::language::core::narrow_u64_to_u8_wrapping;
 
 public data Sha256 {
     bad: bool;

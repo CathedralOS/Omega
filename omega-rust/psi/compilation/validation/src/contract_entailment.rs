@@ -23934,7 +23934,7 @@ pub(crate) mod proof_integer {
                     && symbol.is_valid()
                     && match program.symbols.symbol_source_origin(*symbol) {
                         Some(source::SourceOrigin::Toolchain) => true,
-                        Some(source::SourceOrigin::User) => false,
+                        Some(source::SourceOrigin::User | source::SourceOrigin::ToolchainContract) => false,
                         None => !program.symbols.has_source_metadata(),
                     }
                     && crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)

@@ -1,4 +1,3 @@
-use omega::language::core::conversion;
 
 // Compiler-owned relationship between provider-backed opaque semantics and a
 // concrete physical representation. A named implementation names both as

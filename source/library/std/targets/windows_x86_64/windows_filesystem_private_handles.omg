@@ -4,9 +4,6 @@
 // as evidence. Zero denotes failed acquisition, never an admissible query.
 // This classifies mode/alias discipline, not directory kind, ownership, or
 // ordinary-empty release. A later disposition may attach deletion to a handle.
-use targets::windows_x86_64::windows_filesystem_directory;
-use targets::windows_x86_64::windows_filesystem_reparse;
-use targets::windows_x86_64::filesystem_removal::acquisition;
 
 domain i64::WindowsPrivateNonalertFileOrAbsent
 requires self != -1

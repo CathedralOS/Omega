@@ -885,6 +885,11 @@ pub(crate) mod signatures {
                 }
                 resolved::data::TypeParameterKind::Machine { contract } => {
                     let contract = match contract {
+                        resolved::data::MachineParameterContract::Inferred => {
+                            return Err(Diagnostic::error(
+                                "an inferred callable parameter reached typed lowering without an exact originating type",
+                            ));
+                        }
                         resolved::data::MachineParameterContract::RequirementIdentity => {
                             typed::data::MachineParameterContract::RequirementIdentity
                         }

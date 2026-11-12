@@ -1,16 +1,8 @@
-use psi::parse::expression;
-use psi::parse::input;
-use psi::parse::parser;
-use psi::parse::types;
-use psi::source::source;
-use psi::syntax::syntax;
-use psi::tokens::tokens;
-
 // `[public] const [Owner::]NAME: Type = value;`, entered at the `const` word.
 // A constant names an immutable compile-time value, package-scoped or scoped
 // to one owner type; its value is an ordinary expression, constructions
 // included. The item and its root are retained at the closing `;`.
-public machine Parser::parse_constant(
+public machine parse_constant(
     parser: &mut Parser,
     input: &TokenStream,
     item_start: u64 in Trapping,
@@ -29,8 +21,8 @@ crashes Trap
     }
 
     machine keyword(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
-        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedConstantName);
+        take_current(parser, input);
+        expect_name(parser, input, ParseDiagnosticCode::ExpectedConstantName);
         transition parser.output.accepted {
             true -> first_name(parser, input)
             _ -> done()
@@ -40,7 +32,7 @@ crashes Trap
     machine first_name(parser: &mut Parser, input: &TokenStream) {
         parser.declaration_name_start = parser.name_start;
         parser.declaration_name_end = parser.name_end;
-        let owned: bool = Parser::at_punctuation(parser, input, PunctuationKind::ColonColon);
+        let owned: bool = at_punctuation(parser, input, PunctuationKind::ColonColon);
         transition owned {
             true -> owned_name(parser, input)
             _ -> colon(parser, input)
@@ -48,11 +40,11 @@ crashes Trap
     }
 
     machine owned_name(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
+        take_current(parser, input);
         parser.declaration_has_owner = true;
         parser.declaration_owner_start = parser.declaration_name_start;
         parser.declaration_owner_end = parser.declaration_name_end;
-        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedConstantName);
+        expect_name(parser, input, ParseDiagnosticCode::ExpectedConstantName);
         transition parser.output.accepted {
             true -> owned_named(parser, input)
             _ -> done()
@@ -66,7 +58,7 @@ crashes Trap
     }
 
     machine colon(parser: &mut Parser, input: &TokenStream) {
-        Parser::expect_punctuation(parser, input, PunctuationKind::Colon, ParseDiagnosticCode::ExpectedConstantColon);
+        expect_punctuation(parser, input, PunctuationKind::Colon, ParseDiagnosticCode::ExpectedConstantColon);
         transition parser.output.accepted {
             true -> constant_type(parser, input)
             _ -> done()
@@ -74,7 +66,7 @@ crashes Trap
     }
 
     machine constant_type(parser: &mut Parser, input: &TokenStream) {
-        Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedConstantType);
+        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedConstantType);
         transition parser.output.accepted {
             true -> equals(parser, input, parser.type_result)
             _ -> done()
@@ -82,7 +74,7 @@ crashes Trap
     }
 
     machine equals(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping) {
-        Parser::expect_punctuation(parser, input, PunctuationKind::Equal, ParseDiagnosticCode::ExpectedConstantEquals);
+        expect_punctuation(parser, input, PunctuationKind::Equal, ParseDiagnosticCode::ExpectedConstantEquals);
         transition parser.output.accepted {
             true -> initializer(parser, input, type_reference)
             _ -> done()
@@ -90,7 +82,7 @@ crashes Trap
     }
 
     machine initializer(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping) {
-        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedConstantValue, true, true);
+        parse_expression(parser, input, ParseDiagnosticCode::ExpectedConstantValue, true, true);
         transition parser.output.accepted {
             true -> end(parser, input, type_reference, parser.expression_result)
             _ -> done()
@@ -98,7 +90,7 @@ crashes Trap
     }
 
     machine end(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping, value: u64 in Trapping) {
-        Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedConstantEnd);
+        expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedConstantEnd);
         transition parser.output.accepted {
             true -> retain_capacity(parser, input, type_reference, value)
             _ -> done()
@@ -121,11 +113,11 @@ crashes Trap
 
     machine retain(parser: &mut Parser, type_reference: u64 in Trapping, value: u64 in Trapping) {
         let constant: u64 in Trapping = parser.output.constant_count as u64 in Trapping;
-        let span: SourceSpan = Parser::source_span(parser, parser.declaration_start, parser.token_end);
+        let span: SourceSpan = parser_source_span(parser, parser.declaration_start, parser.token_end);
         parser.output.constants[parser.output.constant_count] = ConstantItem {
             has_owner: parser.declaration_has_owner,
-            owner: Parser::identifier_span(parser, parser.declaration_owner_start, parser.declaration_owner_end),
-            name: Parser::identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
+            owner: identifier_span(parser, parser.declaration_owner_start, parser.declaration_owner_end),
+            name: identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
             type_reference: type_reference,
             value: value,
             is_public: parser.declaration_is_public,
@@ -141,7 +133,7 @@ crashes Trap
     }
 
     machine reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
-        Parser::reject_current(parser, input, code);
+        reject_current(parser, input, code);
     }
 
     machine done() {}

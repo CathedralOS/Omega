@@ -7,8 +7,8 @@ it is not a checked refinement certificate or a cumulative pair-allocation bound
 
 The subject is the canonical [`delta_compiler.gamma`](../../delta_compiler.gamma)
 prefix plus the ordered [`implementation.gamma.sources`](../implementation.gamma.sources)
-closure: 147,840 bytes, SHA-256
-`fbcb9e17b7ce0c75849136086bc5a4b6df4264054be72b5aae6d70325f9d0929`.
+closure: 151,525 bytes, SHA-256
+`de94946dd946c90c3311dba52aa4622a3c80a18866d5483531de1312cc62e0c6`.
 It executes under the exact source/tape and provisions in the
 [Gamma evaluator profile](../../../2_gamma/EVALUATOR_PROFILE.md).
 Changes to either executable subject require rechecking the corresponding
@@ -33,7 +33,7 @@ the selected Gamma evaluator validates and executes the grouped syntax directly.
 
 ## Fixed source and call inventory
 
-The compiler contains 377 Gamma definitions. Inspecting every body gives these
+The compiler contains 385 Gamma definitions. Inspecting every body gives these
 maxima, including bodies not reached from the canonical `main`:
 
 | Fixed-source quantity | Maximum | Owning body |
@@ -57,9 +57,9 @@ The evaluator releases that tail context before reusing the current activation.
 
 Weight each caller-to-callee edge by the pending enclosing user calls plus one
 for a non-tail callee activation. Include each call's temporary argument context
-as a local peak. The complete inventory has 67 recursive components. Only three
-call sites on recursive cycles have positive weight: two in `capture_sort` and
-one in `emit_decimal`. The capture merge passes (`capture_merge_all`,
+as a local peak. The current source graph has 71 recursive components. Five call sites on
+recursive cycles have positive weight: two in `capture_sort`, one in
+`emit_decimal`, and the two balanced children of `lowering_literal_tree`. The capture merge passes (`capture_merge_all`,
 `capture_merge_pass`) and the support-member loops (`support_sum_region`,
 `support_check_members`, `emit_support_bytes`) are zero-weight tail edges.
 
@@ -67,6 +67,7 @@ one in `emit_decimal`. The capture merge passes (`capture_merge_all`,
 | --- | --- | ---: |
 | [`capture_sort`](../normalization/capture/sets.gamma) | For `count >= 2`, both children are at most `ceil(count / 2)` and run sequentially. Any positive signed 64-bit count reaches the base case in at most 63 halvings. | 63 |
 | [`emit_decimal`](../emission/text.gamma) | Recursive calls divide a value at least ten by ten. A positive signed 64-bit value has at most 19 decimal digits. | 18 |
+| [`lowering_literal_tree`](../lowering/literals.gamma) | Each child has at most `ceil(p/2)` decoded bytes, with `p <= 4,194,304`. | 22 |
 
 The sort allowance does not depend on a capture-allocation estimate. Values
 below two do not recurse. Trie descent across name bytes, sibling-row scans,
@@ -75,18 +76,19 @@ sibling-rebuild allowance. The remaining parser, grammar, typing, lowering,
 normalization, capture, emission,
 list, and cursor cycles have only zero-weight tail edges.
 
-Remove those three bounded edges, collapse zero-weight recursive components,
+Remove those five bounded edges, collapse zero-weight recursive components,
 and propagate maximum weighted demands from local peaks through the resulting
-acyclic graph. The previous 18-context fixed overhead from `main` remains a
-conservative bound: the support-member rewrite removes the counted fixed-text
-writers and adds tail-recursive sum and copy loops whose calls sit in tail
-position, not additional nested user calls. Reserving 64 for
-that overhead and adding both recursion allowances, even though their
-deepest paths do not coexist, gives:
+acyclic graph. The previous source had an eighteen-context fixed overhead
+from `main`. The support-member copy/sum loops remain tail-recursive.
+Reserving 64 for fixed overhead also covers the eight literal helpers: at most
+sixteen added fixed contexts plus the preceding eighteen-context bound remain
+below 64.
+Adding all three recursion allowances, even though their deepest paths do not
+coexist, gives:
 
 ```text
-live call contexts <= 64 + 63 + 18 = 145 < 256
-live function frames <= one main frame + live contexts = 146
+live call contexts <= 64 + 63 + 18 + 22 = 167 < 256
+live function frames <= one main frame + live contexts = 168
 ```
 
 This inventory was checked with disposable source inspection and direct review
@@ -105,7 +107,7 @@ therefore retains at most its parameters plus all its body's local bindings,
 including every binding in a grouped `let`:
 
 ```text
-live lexical rows <= 146 * 16 = 2,336 < 131,072
+live lexical rows <= 168 * 16 = 2,688 < 131,072
 ```
 
 Every expression-list level retains at most eleven temporary-value entries:
@@ -119,7 +121,7 @@ does not retain previous argument blocks. Allow one extra result entry per
 activation for `enter_function`'s return handling:
 
 ```text
-temporary entries <= 146 * (17 * 11 + 1) = 27,448 < 524,288
+temporary entries <= 168 * (17 * 11 + 1) = 31,584 < 524,288
 ```
 
 The validator executes no Gamma bodies, so its one-body requirements are smaller
@@ -146,7 +148,10 @@ per-occurrence charge derived in the same style:
   environment binds per source occurrence — at most `39*S + 36` site pairs —
   and the [lowering audit](../lowering/README.md#traversal-and-rebuild-pairs)
   charges continuation frames, plan construction, and the produced `G` at
-  `<= 200*S + 91` with `G <= 40*S + 15`.
+  `<= 200*S + 91` with `G_base <= 40*S + 15`. Byte literals additionally
+  charge `34*Decoded + 12*Literals` pairs and `5*Decoded + 2*Literals` plan nodes, where `Decoded` is
+  total decoded literal bytes and `Literals` the literal count; literal bytes do not
+  disappear inside their one syntax atom.
 - The shared [name-trie and cursor audit](../checking/names/README.md#pair-accounting)
   charges lookups, descents, fresh suffixes, and immutable rebuilds; departed
   ancestor levels amortize to descended name bytes through the cursor zipper
@@ -154,9 +159,10 @@ per-occurrence charge derived in the same style:
   pairs rather than copying up to 63 sibling rows.
 
 The cumulative question those per-occurrence products left open — whether
-the coarse envelope (at most `295*S + 34*N + 149` pairs for checking,
+the coarse envelope (at most
+`295*S + 34*N + 149 + 34*Decoded + 12*Literals` pairs for checking,
 lowering, and shared names, before the normalizer's `45*G + 7*F + 1`) plus
-the closed capture envelope `60,672*N*N + 5,680*N + 2,980*S + 1,118` fits the
+the closed capture envelope `60,672*N*N + 5,680*N + 2,980*S + 1,118 + 128*(5*Decoded + 2*Literals)` fits the
 selected arena — remains open as a general containment proof: the
 envelope exceeds the 3,422,453,760-pair arena from `N = 238`, so it cannot
 serve as the containment proof. The

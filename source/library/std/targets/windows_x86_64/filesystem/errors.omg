@@ -1,8 +1,9 @@
 // Portable translation of real Win32 failures. Unknown codes remain Other;
 // neither a zero last-error nor a malformed raw status can manufacture success.
 // Numeric identities: Microsoft WinError.h, system-error-codes--0-499-.
-use filesystem;
-use omega::language::core::numeric_conversion;
+use omega::language::core::widen_i32_to_i64;
+use omega::language::core::narrow_i64_to_u32_exact;
+use omega::language::core::narrow_i64_to_u64_exact;
 
 machine windows_filesystem_error(code: u32) -> ErrorKind {
     transition code {

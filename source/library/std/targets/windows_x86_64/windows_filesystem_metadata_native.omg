@@ -9,9 +9,7 @@
 // https://learn.microsoft.com/windows/win32/api/winbase/ns-winbase-file_basic_info
 // https://learn.microsoft.com/windows/win32/api/winbase/ns-winbase-file_standard_info
 // https://learn.microsoft.com/windows/win32/api/winbase/ns-winbase-file_attribute_tag_info
-use omega::language::core::filesystem_authority;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_metadata;
+use omega::language::core::FilesystemMetadataQuery;
 
 // A pinned disk-file classification, not ownership of arbitrary integers.
 // Zero is the failed classifier result; queries also require nonzero.

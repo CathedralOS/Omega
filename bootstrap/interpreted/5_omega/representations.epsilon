@@ -362,9 +362,14 @@ data OmegaDataSyntax {
     end: i32;
 }
 
-// Source-ordered clauses own ordinary expression handles. Their enclosing data
-// row supplies the subject; no clause changes the field's carrier type.
-data OmegaDataRequirementSyntax {
+// Source-ordered predicates own ordinary expression handles. Data and machine
+// state rows retain disjoint ranges; the owner determines predicate scope.
+data OmegaRequirementOwner {
+    case Data;
+    case Machine;
+}
+
+data OmegaRequirementSyntax {
     expression: i32;
     start: i32;
     end: i32;
@@ -654,7 +659,7 @@ data OmegaPathExpressionKind {
 }
 
 data OmegaExpressionConsumer {
-    case DataRequirement;
+    case Requirement;
     case CallArgument;
     case AssignmentValue;
     case StructFieldValue;
@@ -737,6 +742,8 @@ data OmegaMachineStateSyntax {
     return_type: i32;
     first_statement: i32;
     statement_count: i32;
+    first_requirement: i32;
+    requirement_count: i32;
 }
 
 data OmegaMachineSyntax {
@@ -782,6 +789,7 @@ data OmegaParseDiagnosticCode {
     case ExpectedDataFieldType;
     case ExpectedTypeDomain;
     case ExpectedDataRequirement;
+    case ExpectedMachineRequirement;
     case UnexpectedTypeSuffix;
     case ExpectedArrayElementType;
     case ExpectedArraySeparatorOrEnd;
@@ -930,7 +938,7 @@ data OmegaParser {
     members: [OmegaRelativeSpan; 16384];
     uses: [OmegaUseSyntax; 4096];
     data_items: [OmegaDataSyntax; 4096];
-    data_requirements: [OmegaDataRequirementSyntax; 16384];
+    requirements: [OmegaRequirementSyntax; 16384];
     machine_items: [OmegaMachineSyntax; 4096];
     machine_states: [OmegaMachineStateSyntax; 4096];
     machine_parameters: [OmegaMachineParameterSyntax; 16384];
@@ -994,7 +1002,7 @@ data OmegaParser {
     member_count: i32;
     use_count: i32;
     data_count: i32;
-    data_requirement_count: i32;
+    requirement_count: i32;
     machine_count: i32;
     machine_state_count: i32;
     machine_parameter_count: i32;
@@ -1032,7 +1040,8 @@ data OmegaParser {
     data_first_field: i32;
     data_first_case: i32;
     data_first_requirement: i32;
-    data_requirement_start: i32;
+    requirement_start: i32;
+    requirement_owner: OmegaRequirementOwner;
     data_is_public: i32;
     data_multiplicity: OmegaDataMultiplicity;
     type_subject_start: i32;
@@ -1060,6 +1069,7 @@ data OmegaParser {
     machine_first_state: i32;
     machine_first_clause: i32;
     state_first_parameter: i32;
+    state_first_requirement: i32;
     machine_parameter_has_more: i32;
     machine_path_member_count: i32;
     machine_is_public: i32;

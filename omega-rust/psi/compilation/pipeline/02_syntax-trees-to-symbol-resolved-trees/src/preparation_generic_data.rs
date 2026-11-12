@@ -1292,6 +1292,13 @@ pub(crate) mod domain_heads {
                             ));
                         }
                     }
+                    TypeReferenceNode::StaticSelection(selection) => {
+                        super::uses::visit_static_argument_type_inputs(
+                            syntax,
+                            std::slice::from_ref(selection),
+                            &mut |reference| types.push(reference),
+                        );
+                    }
                     TypeReferenceNode::Named(_)
                     | TypeReferenceNode::DynamicTrait { .. }
                     | TypeReferenceNode::ConstExpression(_)
@@ -1537,6 +1544,13 @@ mod eligibility {
                 }
                 TypeReferenceNode::FixedArray { element_type, .. } => {
                     collect(syntax, *element_type, edges)
+                }
+                TypeReferenceNode::StaticSelection(selection) => {
+                    super::uses::visit_static_argument_type_inputs(
+                        syntax,
+                        std::slice::from_ref(selection),
+                        &mut |reference| collect(syntax, reference, edges),
+                    );
                 }
                 TypeReferenceNode::Reference { .. }
                 | TypeReferenceNode::Slice { .. }
@@ -4734,7 +4748,7 @@ fn normalize_generic_data_in_mode(
             .into_iter()
             .chain(retained_declaration_syntax)
             .collect::<Vec<_>>();
-        super::type_aliases::normalize_with_declarations(&mut syntax, &selection, &declarations)?;
+        super::declared_types::normalize_with_declarations(&mut syntax, &selection, &declarations)?;
         let (syntax, warnings) = normalize_generic_data_with_warnings(syntax, mode, domain)?;
         report_preparation_diagnostics(warnings)?;
         return Ok(syntax);
@@ -4749,7 +4763,7 @@ fn normalize_generic_data_in_mode(
         .into_iter()
         .chain(retained_declaration_syntax)
         .collect::<Vec<_>>();
-    super::type_aliases::normalize_with_declarations(&mut syntax, &selection, &declarations)?;
+    super::declared_types::normalize_with_declarations(&mut syntax, &selection, &declarations)?;
     domain_heads::normalize(&mut syntax, Some(&selection))?;
     validate_with_const_resolution_mode(&syntax, &selection, mode)?;
     let mut warnings = Vec::new();

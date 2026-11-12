@@ -2,9 +2,6 @@
 // checked adapters where the native protocol differs, and binds the exact
 // requirement directly where the native signature already matches. Source
 // checking sees every supplied implementation; target choice stays in Build.
-use targets::linux_x86_64::clock_impl;
-use targets::linux_arm64::clock_impl;
-use targets::macos_arm64::clock_impl;
 
 public boundary trait Clock {
     // Block the caller for `milliseconds`. Each hosted adapter may enter its

@@ -46,7 +46,7 @@ mod constant_entries {
 }
 mod library_slice {
     use semantic_vocabulary::PackageKeyIdentity;
-    use source::{SourceFile, SourceOrigin};
+    use source::SourceFile;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -107,7 +107,7 @@ mod library_slice {
                 .selected_files()
                 .filter(|file| self.in_slice(file))
                 .map(SliceSource::of)
-                .collect();
+                .collect::<Option<_>>()?;
             if slice.is_empty() {
                 return None;
             }
@@ -205,7 +205,7 @@ mod library_slice {
         }
 
         pub(super) fn in_slice(&self, file: &SourceFile) -> bool {
-            file.origin == SourceOrigin::Toolchain
+            file.origin.is_toolchain()
                 || file
                     .package_identity
                     .is_some_and(|package| Some(package) != self.root_package)
@@ -216,13 +216,14 @@ mod library_slice {
     pub(super) struct SliceSource {
         package: [u8; 32],
         path: String,
+        toolchain: Option<[u8; 32]>,
         scope: u8,
         stratum: u8,
         content: [u8; 32],
     }
 
     impl SliceSource {
-        pub(super) fn of(file: &SourceFile) -> Self {
+        pub(super) fn of(file: &SourceFile) -> Option<Self> {
             let relative = file
                 .path
                 .strip_prefix(&file.package_root)
@@ -231,16 +232,22 @@ mod library_slice {
                 b"omega-library-source-v1\0",
             );
             content.bytes(file.source.as_bytes());
-            Self {
+            let toolchain = if file.origin.is_toolchain() {
+                Some(source::source_identity::toolchain_source_identity_digest(file).ok()?)
+            } else {
+                None
+            };
+            Some(Self {
                 package: file
                     .package_identity
                     .map(PackageKeyIdentity::digest)
                     .unwrap_or([0; 32]),
                 path: relative.to_string_lossy().replace('\\', "/"),
+                toolchain,
                 scope: file.dependency_scope as u8,
                 stratum: file.resolution_stratum as u8,
                 content: content.finish(),
-            }
+            })
         }
 
         pub(super) fn encode(
@@ -249,6 +256,13 @@ mod library_slice {
         ) {
             digest.raw(&self.package);
             digest.bytes(self.path.as_bytes());
+            match self.toolchain {
+                Some(identity) => {
+                    digest.byte(1);
+                    digest.raw(&identity);
+                }
+                None => digest.byte(0),
+            }
             digest.byte(self.scope);
             digest.byte(self.stratum);
             digest.raw(&self.content);
@@ -390,6 +404,21 @@ mod library_slice {
         }
 
         #[test]
+        fn retained_slice_distinguishes_closed_contracts_from_ambient_core() {
+            let core = file(
+                "/library",
+                "entry.omg",
+                SourceOrigin::Toolchain,
+                None,
+                "body",
+            );
+            let mut contract = core.clone();
+            contract.origin = SourceOrigin::ToolchainContract;
+            assert!(LibrarySliceRequest::default().in_slice(&contract));
+            assert!(SliceSource::of(&core) != SliceSource::of(&contract));
+        }
+
+        #[test]
         fn a_slice_source_is_named_by_package_relative_path_and_bytes() {
             let package = PackageKeyIdentity::from_digest([2; 32]);
             let here = SliceSource::of(&file("/a/std", "x.omg", SourceOrigin::User, package, "m"));
@@ -494,7 +523,7 @@ pub(crate) mod checked_slice {
             {
                 return None;
             }
-            files.push((file.source_id.0, SliceSource::of(file)));
+            files.push((file.source_id.0, SliceSource::of(file)?));
         }
         if files.is_empty() {
             return None;

@@ -60,7 +60,7 @@ def main():
     work = test.ROOT / "build" / ("source-gamma-" + mode)
     work.mkdir(parents=True, exist_ok=True)
     source = b"\n".join((test.ROOT / "bootstrap/compiled_vm" / name).read_bytes()
-                         for name in ("compiler.gamma", "frontend.gamma"))
+                         for name in ("compiler.gamma", "frontend.gamma", "alpha_backend.gamma"))
     (work / "compiler.gamma").write_bytes(source)
     reconstruct(work)
     request = struct.pack("<I", len(source)) + source + source

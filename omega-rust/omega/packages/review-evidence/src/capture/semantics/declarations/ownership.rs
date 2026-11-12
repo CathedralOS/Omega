@@ -5,7 +5,9 @@ checked source custody.
 Toolchain source identities use the same checked source snapshot and sorted
 digest roster as review type identity: `SourceId` is only a private join
 coordinate, while canonical review bytes retain the compiler-computed digest
-without rehashing each declaration. Current Product declaration membership is
+without rehashing each declaration. The digest includes the consumed source role,
+so closed contract provenance remains distinct from ambient core provenance.
+Current Product declaration membership is
 checked against immutable custody so a supplied selection mask cannot hide a
 live checked declaration, and Product review roots exclude Build declarations.
 */
@@ -71,9 +73,11 @@ pub(crate) fn nominal_owner_from_symbols(
         return Ok(PackageReviewNominalOwner::Unresolved);
     };
     match source_file.origin {
-        source::SourceOrigin::Toolchain => Ok(PackageReviewNominalOwner::ToolchainSource(
-            toolchain_source_identity(source_file, exact_toolchain_sources)?,
-        )),
+        source::SourceOrigin::Toolchain | source::SourceOrigin::ToolchainContract => {
+            Ok(PackageReviewNominalOwner::ToolchainSource(
+                toolchain_source_identity(source_file, exact_toolchain_sources)?,
+            ))
+        }
         source::SourceOrigin::User => Ok(PackageReviewNominalOwner::Unresolved),
     }
 }
@@ -82,7 +86,7 @@ pub(crate) fn toolchain_source_identity(
     source_file: &source::SourceFile,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<PackageReviewToolchainSourceIdentity, Vec<Diagnostic>> {
-    if source_file.origin != source::SourceOrigin::Toolchain {
+    if !source_file.origin.is_toolchain() {
         return Err(vec![Diagnostic::error(format!(
             "toolchain source identity requested for non-toolchain source `{}`",
             source_file.path.display(),

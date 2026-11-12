@@ -2128,7 +2128,7 @@ pub(crate) mod parameters {
                     "<const Callback: machine>",
                     GenericParameterSyntax::MachineDeclaration,
                 )
-                .is_err()
+                .is_ok()
             );
         }
 
@@ -2439,22 +2439,22 @@ pub(crate) mod parameters {
                             ));
                         }
                         let input = input.take_keyword(tokens::KeywordKind::Machine, "machine")?;
-                        if !input.at_punctuation(PunctuationKind::LeftParen)
-                            && !input.at_punctuation(PunctuationKind::Less)
+                        let (contract, input) = if input.at_punctuation(PunctuationKind::LeftParen)
+                            || input.at_punctuation(PunctuationKind::Less)
                         {
-                            return Err(input.error_here(
-                                "a structural callable type requires its complete parameter and result contract",
-                            ));
-                        }
-                        let (contract, input) = super::contracts::parse_typed_machine_contract(
-                            syntax_trees,
-                            name.clone(),
-                            input,
-                        )?;
+                            let (signature, rest) = super::contracts::parse_typed_machine_contract(
+                                syntax_trees,
+                                name.clone(),
+                                input,
+                            )?;
+                            (MachineParameterContract::Structural(signature), rest)
+                        } else {
+                            (MachineParameterContract::Inferred, input)
+                        };
                         (
                             name,
                             TypeParameterKind::Machine {
-                                contract: Some(MachineParameterContract::Structural(contract)),
+                                contract: Some(contract),
                             },
                             input,
                         )

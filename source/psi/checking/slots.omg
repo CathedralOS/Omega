@@ -1,16 +1,10 @@
-use psi::checking::checker;
-use psi::checks::checks;
-use psi::resolution::resolution;
-use psi::syntax::syntax;
-use psi::types::types;
-
 // Public slot records for a trait requirement. The requirement's signature is
 // the slot: each reference parameter's declared domain is a qualification
 // precondition, and a returned reference of that same input type records that
 // parameter as its returned-borrow origin. The index counts reference
 // parameters only, in authored order.
 
-public machine Checker::project_slots(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing)
+public machine project_slots(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing)
 crashes Trap
 {
     transition { _ -> next_machine(checker, syntax, typing, 0) }
@@ -23,7 +17,7 @@ crashes Trap
     }
 
     machine one(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping) {
-        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        let item: MachineItem = machine_item(syntax, index);
         transition item.container == MachineContainer::Trait {
             true -> requirement(checker, syntax, typing, index, item)
             _ -> next_machine(checker, syntax, typing, index + 1)
@@ -50,8 +44,8 @@ crashes Trap
         index: u64 in Trapping,
         item: MachineItem
     ) {
-        let handle: u64 in Trapping = Typing::reference_type(typing, item.return_type);
-        let row: TypeRow = TypeTable::row(&typing.types, handle);
+        let handle: u64 in Trapping = reference_type(typing, item.return_type);
+        let row: TypeRow = type_table_row(&typing.types, handle);
         transition row.kind == TypeKind::Reference {
             true -> parameters(checker, syntax, typing, index, item, 0, 0, 0, false, true, row.inner)
             _ -> parameters(checker, syntax, typing, index, item, 0, 0, 0, false, false, 0)
@@ -90,9 +84,9 @@ crashes Trap
         returns_reference: bool,
         return_inner: u64 in Trapping
     ) {
-        let parameter: Parameter = SyntaxTrees::parameter(syntax, item.first_parameter + offset);
-        let handle: u64 in Trapping = Typing::reference_type(typing, parameter.type_reference);
-        let row: TypeRow = TypeTable::row(&typing.types, handle);
+        let parameter: Parameter = syntax_trees_parameter(syntax, item.first_parameter + offset);
+        let handle: u64 in Trapping = reference_type(typing, parameter.type_reference);
+        let row: TypeRow = type_table_row(&typing.types, handle);
         transition row.kind == TypeKind::Reference {
             true -> reference_parameter(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, row.inner)
             _ -> parameters(checker, syntax, typing, index, item, offset + 1, structural, matched, found, returns_reference, return_inner)
@@ -113,7 +107,7 @@ crashes Trap
         return_inner: u64 in Trapping,
         inner_handle: u64 in Trapping
     ) {
-        let inner: TypeRow = TypeTable::row(&typing.types, inner_handle);
+        let inner: TypeRow = type_table_row(&typing.types, inner_handle);
         let same: bool = returns_reference && inner_handle == return_inner;
         transition inner.domain == DomainBinding::Declared {
             true -> qualify(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, same, inner.domain_item)
@@ -136,7 +130,7 @@ crashes Trap
         same: bool,
         domain_item: u64 in Trapping
     ) {
-        let recorded: bool = Checks::push_slot_qualification(&mut checker.output, structural, domain_item);
+        let recorded: bool = push_slot_qualification(&mut checker.output, structural, domain_item);
         transition { _ -> advance(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, same && recorded) }
     }
 
@@ -195,7 +189,7 @@ crashes Trap
         index: u64 in Trapping,
         matched: u64 in Trapping
     ) {
-        let recorded: bool = Checks::push_slot_origin(&mut checker.output, SlotOriginKind::Parameter, matched);
+        let recorded: bool = push_slot_origin(&mut checker.output, SlotOriginKind::Parameter, matched);
         transition recorded {
             true -> next_machine(checker, syntax, typing, index + 1)
             _ -> next_machine(checker, syntax, typing, index + 1)
