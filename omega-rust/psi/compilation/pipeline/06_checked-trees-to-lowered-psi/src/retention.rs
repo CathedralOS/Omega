@@ -5661,6 +5661,11 @@ pub(crate) mod suspension_call_plan {
                 SuspensionValueBorrowFrontier::Unresolved => {
                     TerminalSuspensionValueLoans::Unresolved
                 }
+                SuspensionValueBorrowFrontier::TemplateDependent { .. } => {
+                    return invalid_suspension(
+                        "closed suspension crossing retains a template-dependent loan frontier",
+                    );
+                }
             };
         }
         Ok(graph)

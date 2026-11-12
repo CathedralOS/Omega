@@ -2831,6 +2831,11 @@ pub(crate) mod carry {
         RetainedLoans {
             loans: HandleSpan<Handle<SuspensionCrossingLoanFact>>,
         },
+        // Known leaves are checked now; the value's exact type and subject
+        // retain the symbolic remainder until application checking resolves it.
+        TemplateDependent {
+            loans: HandleSpan<Handle<SuspensionCrossingLoanFact>>,
+        },
     }
 
     pub type SuspensionCrossingValueOrigin =

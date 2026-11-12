@@ -75,7 +75,10 @@ machine main() crashes Trap {
     let recursive: u32 = first<quiet>(3, 73u32);
     let allowed: u32 = suspend retain_scalar<may_pause>(73u32);
     let generic_allowed: u32 = suspend retain_value<u32, may_pause>(73u32, 73u32);
-    transition direct_acquired == 61u32 && acquired == 73u32 && observed == 73u32 && unmarked == 73u32 && recursive == 73u32 && allowed == 73u32 && generic_allowed == 73u32 { true -> done() _ -> bad() }
+    let backing: u32 = 89u32;
+    let retained: &u32 = suspend retain_value<&u32, may_pause>(&backing, 73u32);
+    let borrowed_allowed: u32 = retained;
+    transition direct_acquired == 61u32 && acquired == 73u32 && observed == 73u32 && unmarked == 73u32 && recursive == 73u32 && allowed == 73u32 && generic_allowed == 73u32 && borrowed_allowed == 89u32 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

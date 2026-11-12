@@ -6277,6 +6277,7 @@ mod carry {
         */
         pub(super) fn value_frontier(
             program: &dyn ::validation::CheckingInput,
+            type_parameters: &[symbols::SymbolHandle],
             borrow: &BorrowFacts,
             flow: &FlowFacts,
             frontier: &Arena<LoanFact>,
@@ -6302,12 +6303,15 @@ mod carry {
             if !type_reference.is_valid() {
                 return SuspensionValueBorrowFrontier::Unresolved;
             }
-            let Some(paths) =
-                crate::borrow::view_link::borrow_carrying_owner_paths(program, type_reference)
-            else {
+            let Some(declaration) = validation::borrow_contracts::declaration_borrow_frontier(
+                program,
+                type_reference,
+                type_parameters,
+            ) else {
                 return SuspensionValueBorrowFrontier::Unresolved;
             };
-            if paths.is_empty() {
+            let paths = declaration.owner_paths;
+            if paths.is_empty() && !declaration.template_dependent {
                 return SuspensionValueBorrowFrontier::ViewFree;
             }
             let symbol = match value.origin {
@@ -6389,8 +6393,11 @@ mod carry {
                 }
                 return SuspensionValueBorrowFrontier::Unresolved;
             }
-            SuspensionValueBorrowFrontier::RetainedLoans {
-                loans: value_loans.insert_many(matching),
+            let loans = value_loans.insert_many(matching);
+            if declaration.template_dependent {
+                SuspensionValueBorrowFrontier::TemplateDependent { loans }
+            } else {
+                SuspensionValueBorrowFrontier::RetainedLoans { loans }
             }
         }
 
@@ -6723,6 +6730,9 @@ mod carry {
                     .span(loans)
                     .filter(|links| !links.is_empty())
                     .ok_or("the stored loan-leaf frontier is missing")?,
+                SuspensionValueBorrowFrontier::TemplateDependent { loans } => value_loans
+                    .span(loans)
+                    .ok_or("the known loan-leaf frontier is missing")?,
                 SuspensionValueBorrowFrontier::Unresolved => {
                     return Err("the stored loan-leaf frontier is incomplete");
                 }
@@ -7008,7 +7018,11 @@ mod carry {
             }
             Ok(CarryPolicy {
                 suspension: CarrySuspension::Allowed,
-                ..CarryPolicy::STRICT
+                ..if links.is_empty() {
+                    CarryPolicy::PERMISSIVE
+                } else {
+                    CarryPolicy::STRICT
+                }
             })
         }
 
@@ -7485,6 +7499,13 @@ mod carry {
             let source_values = state_carry_values(program, state);
             let (static_scope, _) = program
                 .machine_declaration_scope(machine, |left, right| left.symbol == right.symbol);
+            let type_parameters = static_scope
+                .iter()
+                .filter(|parameter| {
+                    matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                })
+                .map(|parameter| parameter.symbol)
+                .collect::<Vec<_>>();
             let Some(state_flow) = facts.flow.control.state(machine.symbol, state.symbol) else {
                 continue;
             };
@@ -7637,6 +7658,7 @@ mod carry {
                 for live in &mut crossing.live_values {
                     live.borrow_frontier = loans::value_frontier(
                         program,
+                        &type_parameters,
                         &facts.borrow,
                         &facts.flow,
                         &suspension_loans,
@@ -8047,8 +8069,17 @@ mod carry {
                 .requires_borrow_preservation
                 .then(|| lifetime.as_ref().err().copied())
                 .flatten();
+            // A template-dependent frontier proves its known leaves, not the
+            // unknown part's permission or preservation. Keep its ordinary
+            // policy and symbolic type in the conditional contract. Every
+            // selected application is checked with its substituted frontier.
+            let template_dependent = matches!(
+                live.borrow_frontier,
+                checked_trees::SuspensionValueBorrowFrontier::TemplateDependent { .. }
+            );
             let policy = if obligation.requires_borrow_preservation {
                 match lifetime {
+                    Ok(demand) if template_dependent => obligation.ordinary.intersect(demand),
                     Ok(demand) => obligation.borrow_independent.intersect(demand),
                     Err(_) => obligation.ordinary.intersect(CarryPolicy::STRICT),
                 }
