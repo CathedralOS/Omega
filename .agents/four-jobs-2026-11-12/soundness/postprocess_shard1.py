@@ -5,8 +5,10 @@ from __future__ import annotations
 import difflib
 import json
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from collections import Counter
 from pathlib import Path
 
@@ -41,6 +43,16 @@ BUCKETS = (
 SPEC_CHECK_TIME = (
     "wiki/spec/language/state_contracts.md",
     "`ensures` remains the distinct normal-completion guarantee and proof obligation.",
+)
+
+MODULAR_ENTRY_MACHINES = (
+    "wiki/spec/language/machines.md#nested-machines-and-identity",
+    "A written entry contract remains complete even when all currently visible callers happen to establish stronger facts.",
+)
+
+MODULAR_ENTRY_INFERENCE = (
+    "wiki/spec/language/state_contracts.md#private-entry-inference",
+    "An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.",
 )
 
 ROUTE_NON_VERDICT = frozenset({"outside", "no-entry", "unreached"})
@@ -126,20 +138,6 @@ def first_requires_predicate(source: str) -> str:
     return m.group(2).strip() if m else ""
 
 
-def requires_duplicated_in_transition(source: str) -> tuple[bool, str, str]:
-    req = first_requires_predicate(source)
-    if not req:
-        return False, "", ""
-    for m in re.finditer(r"transition\s+([^\n{]+)", source):
-        guard = m.group(1).strip()
-        if req == guard or req in guard or guard in req:
-            return True, req, guard
-        for frag in re.findall(r"[\w().:]+\s*[=<>!]+\s*[\w().:]+", req):
-            if frag.replace(" ", "") in guard.replace(" ", ""):
-                return True, req, guard
-    return False, "", ""
-
-
 def machine_body_after_first_requires(source: str) -> str:
     m = re.search(r"^(\s*)requires\b[^\n]*\n", source, re.MULTILINE)
     if not m:
@@ -156,29 +154,26 @@ def read_mutant_validity(
     note = ""
 
     if kind == "drop_requires":
-        dup, rq, tq = requires_duplicated_in_transition(original)
-        if dup:
-            return False, "", "", "", f"valid: requires `{rq}` restated in transition `{tq}`"
         block = machine_body_after_first_requires(mutant)
+        dropped = first_requires_predicate(original)
         for line in block.splitlines():
             s = line.strip()
             if s.startswith("ensures "):
-                dropped = first_requires_predicate(original)
                 return (
                     True,
                     s,
-                    SPEC_CHECK_TIME[0],
-                    SPEC_CHECK_TIME[1],
-                    f"ensures remains after dropping requires `{dropped}`",
+                    MODULAR_ENTRY_MACHINES[0],
+                    f"{MODULAR_ENTRY_MACHINES[1]} {MODULAR_ENTRY_INFERENCE[1]}",
+                    f"ensures remains after dropping requires `{dropped}` (modular entry; callers cannot restate)",
                 )
             if s and s not in ("{", "}"):
                 if re.search(r"/\s*[^/\s]|\[\s*\w|embed\(|\.len\b", s):
                     return (
                         True,
                         s,
-                        "wiki/spec/language/state_contracts.md",
-                        "Machine `requires` applies at every invocation, including terminal and recursive calls.",
-                        "body operation still present without entry requires",
+                        MODULAR_ENTRY_MACHINES[0],
+                        MODULAR_ENTRY_MACHINES[1],
+                        "body still needs entry fact; modular entry rule (fix5)",
                     )
         return False, "", "", "", "valid: no ensures/body line needs dropped requires"
 
@@ -248,6 +243,87 @@ def read_mutant_validity(
     return False, "", "", "", f"valid: unhandled kind {kind}"
 
 
+def machine_before_first_requires(source: str) -> str:
+    m = re.search(r"machine\s+(\w+)\s*\([^)]*\)", source)
+    return m.group(1) if m else ""
+
+
+def synthesize_violating_call(source: str, machine: str, req: str) -> str | None:
+    sig = re.search(
+        rf"machine\s+{re.escape(machine)}\s*\(([^)]*)\)",
+        source,
+    )
+    if not sig:
+        return None
+    params = [p.split(":")[0].strip() for p in sig.group(1).split(",") if p.strip()]
+    cm = re.search(rf"\b{re.escape(machine)}\s*\(([^)]*)\)", source)
+    if not cm:
+        args = ["0"] * len(params)
+    else:
+        args = [a.strip() for a in cm.group(1).split(",")]
+    ge = re.search(r"(\w+)\s*>=\s*(\w+)", req)
+    le = re.search(r"(\w+)\s*<=\s*(\w+)", req)
+    if ge:
+        left, right = ge.group(1), ge.group(2)
+        try:
+            li, ri = params.index(left), params.index(right)
+            args[li], args[ri] = "0", "1"
+        except ValueError:
+            return None
+    elif le:
+        left, right = le.group(1), le.group(2)
+        try:
+            li, ri = params.index(left), params.index(right)
+            args[li], args[ri] = "1", "0"
+        except ValueError:
+            return None
+    else:
+        return None
+    return f"{machine}({', '.join(args)})"
+
+
+def probe_drop_requires_subtype(mutant_path: str, original: str) -> tuple[str, str]:
+    """fix5: violating caller probe → inferred-entry vs unchecked."""
+    machine = machine_before_first_requires(original)
+    req = first_requires_predicate(original)
+    if not machine or not req:
+        return "", "no probe: missing machine or requires"
+    main_omg = REPO / mutant_path / "main.omg"
+    src = main_omg.read_text(encoding="utf-8")
+    call = synthesize_violating_call(original, machine, req)
+    if not call:
+        return "unchecked", "no violating call synthesized"
+    if not re.search(r"machine\s+main\s*\(", src):
+        return "unchecked", "no main() to host probe call"
+    probe_src = re.sub(
+        r"(machine\s+main\s*\([^)]*\)\s*(?:crashes\s+\w+\s*)?\{)",
+        rf"\1\n    {call};\n",
+        src,
+        count=1,
+    )
+    if probe_src == src:
+        return "unchecked", "could not insert probe call"
+    mdir = main_omg.parent
+    with tempfile.TemporaryDirectory(dir=str(mdir)) as td:
+        probe_main = Path(td) / "main.omg"
+        if (mdir / "build.omg").is_file():
+            shutil.copy2(mdir / "build.omg", Path(td) / "build.omg")
+        probe_main.write_text(probe_src, encoding="utf-8")
+        for extra in main_omg.parent.iterdir():
+            if extra.suffix == ".omg" and extra.name not in ("main.omg", "build.omg"):
+                shutil.copy2(extra, Path(td) / extra.name)
+        r = subprocess.run(
+            [str(OMEGA), "--check", str(probe_main)],
+            env=ENV,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    if r.returncode == 0:
+        return "unchecked", f"violating call `{call}` accepted"
+    return "inferred-entry", f"violating call `{call}` rejected (exit {r.returncode})"
+
+
 def only_q7_mut_violation(spec_quote: str, kind: str) -> bool:
     if kind in ("remove_mut", "amp_to_ampmut"):
         return "mut" in spec_quote.lower() or "writable authority" in spec_quote.lower()
@@ -273,6 +349,8 @@ def triage_row(row: dict[str, str], q7: set[str]) -> dict[str, str]:
         "spec_file": "",
         "spec_quote": "",
         "q7_listed": "",
+        "hole_subtype": "",
+        "probe_note": "",
     }
 
     if kind == "none":
@@ -318,6 +396,10 @@ def triage_row(row: dict[str, str], q7: set[str]) -> dict[str, str]:
             out["hand_verdict"] = "confirmed-hole"
             out["accepted_by"] = acc
             out["verdict_reason"] = vnote or ob
+            if kind == "drop_requires" and mutant_path:
+                sub, pnote = probe_drop_requires_subtype(mutant_path, original)
+                out["hole_subtype"] = sub
+                out["probe_note"] = pnote
             return out
         out["hand_verdict"] = "rejected-both"
         out["verdict_reason"] = vnote or "invalid; both checkers reject"
@@ -390,7 +472,15 @@ def main() -> None:
         print("no rows")
         return
 
-    extra = ["accepted_by", "validity_note", "verdict_reason", "q7_listed", "mutant_diff"]
+    extra = [
+        "accepted_by",
+        "validity_note",
+        "verdict_reason",
+        "q7_listed",
+        "mutant_diff",
+        "hole_subtype",
+        "probe_note",
+    ]
     for col in extra:
         if col not in hdr:
             hdr.append(col)
@@ -482,7 +572,8 @@ def main() -> None:
     for row in confirmed:
         bucket_lines += [
             f"### `{row['mutation_kind']}` — `{row['fixture']}`",
-            f"- accepted_by: **{row['accepted_by']}**",
+            f"- accepted_by: **{row['accepted_by']}**; subtype: **{row.get('hole_subtype', '')}**",
+            f"- Entry probe: {row.get('probe_note', '')}",
             f"- Mutant: `{row['mutant_path']}`",
             f"- Current: **{row['current_verdict']}**; route: **{row['route_verdict']}**",
             f"- Validity: {row['validity_note']}",
