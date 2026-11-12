@@ -1,9 +1,10 @@
 {
   "witness": "pass/termination/measure_field_computed_limit",
-  "good": "759c80404428e6d9922a8b67cce32daf7e41a02e",
-  "breaking_commit": "f3612364ffbb9489d7be1409397df6867fcbebc6",
-  "pr": "2228",
-  "mechanism": "tests: record four case-payload rows that already check (#2228) (tests/omega/corpus_outcomes.txt)",
+  "good": "f9dc8a8db79c0265eda79c59daee2acae0e7be54",
+  "breaking_commit": "78f48cd3217e44c9e1379dbf6cf291bd6b9d4c8c",
+  "pr": null,
+  "mechanism": "checking: preserve integer representation views in crash entry operands (TASKS.md, omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_calls/entry_equations.rs, omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_calls/route_substitution.rs, omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_calls/summary_predicates.rs)",
   "status": "bisected",
-  "bisect_exit": 0
+  "bisect_exit": 0,
+  "ledger_only_break": false
 }
