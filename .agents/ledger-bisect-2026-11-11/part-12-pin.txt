@@ -1,0 +1,43 @@
+pass/facts/as_slice_views_generic_offset_selector_exit rejected 2546ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_root_exit rejected 2426ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_shadowed_extent_exit rejected 2536ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_stored_reference_selectors_exit rejected 2491ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_through_call_result_exit rejected 2593ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_through_const_name_exit rejected 2463ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_through_field_exit rejected 2408ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_through_local_exit rejected 2374ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_through_match_join_exit rejected 2444ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_through_other_machine_exit rejected 2505ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_through_other_state_exit rejected 2264ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_through_parameter_exit rejected 2651ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_through_target_body_exit rejected 2383ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/generics/runtime_inherited_composite_requirement_exit rejected 1744ms check-target:macos_arm64
+	normal call `forward` (Handle { arena_index: 13439, generation: 1 }) in machine `observe` state `entry` statement 2: completed result reference permissions are unavailable
+pass/operators/crash_routes rejected 2839ms check-target:macos_arm64
+	boundary requirement `Comparison::equal` in package Some(PackageKeyIdentity([81, 251, 88, 226, 158, 74, 61, 185, 196, 181, 224, 70, 135, 113, 253, 192, 246, 177, 252, 143, 135, 220, 221, 242, 141, 43, 170, 217, 141, 239, 57, 225])) resolves to 0 selected ProviderPlans; expected exactly one
+	boundary requirement `Comparison::equal` in package Some(PackageKeyIdentity([81, 251, 88, 226, 158, 74, 61, 185, 196, 181, 224, 70, 135, 113, 253, 192, 246, 177, 252, 143, 135, 220, 221, 242, 141, 43, 170, 217, 141, 239, 57, 225])) resolves to 0 selected ProviderPlans; expected exactly one
+pass/ownership/runtime_match_projected_subject_cleanup_exit rejected 2664ms check-target:macos_arm64
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "binding_subject", reason: "selection survivor requires an exact emitted operation-result frontier", gap: None })
+pass/providers/checked_fixed_operator_dispatch_exit rejected 12058ms check-target:macos_arm64
+	boundary requirement `CheckedMath::select_left` in package Some(PackageKeyIdentity([16, 55, 161, 70, 75, 255, 80, 58, 92, 208, 187, 145, 84, 137, 49, 200, 80, 189, 159, 34, 234, 155, 101, 4, 187, 206, 201, 154, 217, 213, 190, 172])) resolves to 0 selected ProviderPlans; expected exactly one
+pass/providers/checked_fixed_operator_physical_custody rejected 8409ms check-target:macos_arm64
+	boundary requirement `CheckedMath::select_left` in package Some(PackageKeyIdentity([25, 207, 235, 164, 24, 166, 181, 36, 52, 48, 95, 81, 2, 81, 147, 17, 62, 205, 230, 204, 26, 111, 103, 126, 39, 42, 158, 80, 146, 179, 63, 57])) resolves to 0 selected ProviderPlans; expected exactly one
+fail/borrows/evidence_bound_record_result_keeps_loan rejected 1109ms unexpected
+	normal call `forward` (Handle { arena_index: 13385, generation: 1 }) in machine `invalid` state `entry` statement 2: completed result reference permissions are unavailable
+fail/proofs/result_index_authored_operator rejected 1508ms unexpected
+	cannot form specification operator `[]` in machine `issue` ensures contract: no exact selected meaning for operand types [[Value; 2], <unavailable>]
+fail/providers/checked_boundary_extent_index_out_of_bounds rejected 12250ms unexpected
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [BoundaryMachineId(28)], external imports unavailable to constant execution: []

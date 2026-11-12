@@ -1,0 +1,54 @@
+{
+  "fixed": [
+    "fail/borrows/evidence_bound_record_result_keeps_loan",
+    "pass/generics/runtime_inherited_composite_requirement_exit",
+    "fail/proofs/result_index_authored_operator",
+    "fail/providers/checked_boundary_extent_index_out_of_bounds"
+  ],
+  "clusters_at_pin": [
+    {
+      "cluster_id": "as_slice_ensures_len",
+      "rows": 13,
+      "kind": "pass/run rejected",
+      "witness": "pass/facts/as_slice_views_generic_offset_selector_exit",
+      "diag": "cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count",
+      "members": [
+        "pass/facts/as_slice_views_generic_offset_selector_exit",
+        "pass/facts/as_slice_views_generic_root_exit",
+        "pass/facts/as_slice_views_generic_shadowed_extent_exit",
+        "pass/facts/as_slice_views_generic_stored_reference_selectors_exit",
+        "pass/facts/as_slice_views_generic_through_call_result_exit",
+        "pass/facts/as_slice_views_generic_through_const_name_exit",
+        "pass/facts/as_slice_views_generic_through_field_exit",
+        "pass/facts/as_slice_views_generic_through_local_exit",
+        "pass/facts/as_slice_views_generic_through_match_join_exit",
+        "pass/facts/as_slice_views_generic_through_other_machine_exit",
+        "pass/facts/as_slice_views_generic_through_other_state_exit",
+        "pass/facts/as_slice_views_generic_through_parameter_exit",
+        "pass/facts/as_slice_views_generic_through_target_body_exit"
+      ]
+    },
+    {
+      "cluster_id": "crash_routes_boundary",
+      "rows": 3,
+      "kind": "pass/run rejected",
+      "witness": "pass/operators/crash_routes",
+      "diag": "boundary requirement `Comparison::equal` in package Some(PackageKeyIdentity([81, 251, 88, 226, 158, 74, 61, 185, 196, 181, 224, 70, 135, 113, 253, 192, 246, 177, 252, 143, 135, 220, 221, 242, 141, 43, 170, 217, 141, 239, 57, 225])) resolves to 0 selected ProviderPlans; expected exactly one",
+      "members": [
+        "pass/operators/crash_routes",
+        "pass/providers/checked_fixed_operator_dispatch_exit",
+        "pass/providers/checked_fixed_operator_physical_custody"
+      ]
+    },
+    {
+      "cluster_id": "match_binding_subject",
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "witness": "pass/ownership/runtime_match_projected_subject_cleanup_exit",
+      "diag": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"binding_subject\", reason: \"selection survivor requires an exact emitted operation-result frontier\", gap: None })",
+      "members": [
+        "pass/ownership/runtime_match_projected_subject_cleanup_exit"
+      ]
+    }
+  ]
+}

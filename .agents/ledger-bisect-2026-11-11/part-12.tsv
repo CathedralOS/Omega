@@ -1,0 +1,18 @@
+fixture	class	first_diagnostic	cluster_id
+pass/facts/as_slice_views_generic_offset_selector_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
+pass/facts/as_slice_views_generic_root_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
+pass/facts/as_slice_views_generic_shadowed_extent_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
+pass/facts/as_slice_views_generic_stored_reference_selectors_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
+pass/facts/as_slice_views_generic_through_call_result_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
+pass/facts/as_slice_views_generic_through_const_name_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
+pass/facts/as_slice_views_generic_through_field_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
+pass/facts/as_slice_views_generic_through_local_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
+pass/facts/as_slice_views_generic_through_match_join_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
+pass/facts/as_slice_views_generic_through_other_machine_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
+pass/facts/as_slice_views_generic_through_other_state_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
+pass/facts/as_slice_views_generic_through_parameter_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
+pass/facts/as_slice_views_generic_through_target_body_exit	still broken	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count	as_slice_ensures_len
+fail/borrows/evidence_bound_record_result_keeps_loan	fixed on main		fixed
+pass/generics/runtime_inherited_composite_requirement_exit	fixed on main		fixed
+fail/proofs/result_index_authored_operator	fixed on main		fixed
+fail/providers/checked_boundary_extent_index_out_of_bounds	fixed on main		fixed
