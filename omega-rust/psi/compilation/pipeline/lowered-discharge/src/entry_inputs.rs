@@ -428,13 +428,50 @@ fn canonical(proposition: Proposition, id: MachineId) -> Checked<Proposition> {
 }
 
 fn canonical_parts(
-    parts: Vec<Proposition>,
+    mut parts: Vec<Proposition>,
     conjunction: bool,
     id: MachineId,
 ) -> Checked<Proposition> {
     let mut keyed = Vec::with_capacity(parts.len());
-    for part in parts {
-        let part = canonical(part, id)?;
+    let (unit, zero) = if conjunction {
+        (Proposition::Truth, Proposition::Falsehood)
+    } else {
+        (Proposition::Falsehood, Proposition::Truth)
+    };
+    while let Some(part) = parts.pop() {
+        // An inferred caller condition can itself join several arrivals.
+        // Flatten the same connective before ordering: Terminal's canonical
+        // contract encoding refuses nested conjunctions and disjunctions.
+        let part = match part {
+            Proposition::Conjunction(nested) if conjunction => {
+                parts.extend(nested);
+                continue;
+            }
+            Proposition::Disjunction(nested) if !conjunction => {
+                parts.extend(nested);
+                continue;
+            }
+            other => canonical(other, id)?,
+        };
+        // Normalizing the other connective can collapse a singleton and
+        // reveal this connective too; it has the same associative meaning.
+        match part {
+            Proposition::Conjunction(nested) if conjunction => {
+                parts.extend(nested);
+                continue;
+            }
+            Proposition::Disjunction(nested) if !conjunction => {
+                parts.extend(nested);
+                continue;
+            }
+            _ => {}
+        }
+        if part == zero {
+            return Ok(zero);
+        }
+        if part == unit {
+            continue;
+        }
         keyed.push((
             terminal_codec::canonical_proposition_order_key(&part).map_err(|_| {
                 refusal(

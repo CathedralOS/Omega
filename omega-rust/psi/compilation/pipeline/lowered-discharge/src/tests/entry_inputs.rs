@@ -85,21 +85,33 @@ fn one_unsafe_private_arrival_is_not_hidden_by_a_guarded_arrival() {
 
 #[test]
 fn private_inputs_cross_an_omitted_helper_chain() {
-    let mut entry = guarded_calls(1);
-    // Both entry arms call machine 2, which forwards to the predecessor.
-    let forward = machine(
-        vec![u32_type()],
-        vec![returns(call(3, vec![slot(0, u32_type())]))],
+    // Each forwarder has two possible positive inputs. The predecessor's
+    // input joins those already-disjunctive conditions into one contract.
+    let entry = machine(
+        vec![],
+        vec![
+            Statement::Evaluate(call(2, vec![unsigned(1)])),
+            Statement::Evaluate(call(2, vec![unsigned(2)])),
+            Statement::Evaluate(call(3, vec![unsigned(3)])),
+            returns(call(3, vec![unsigned(4)])),
+        ],
     );
-    entry.requires.clear();
-    assert!(matches!(
-        judge(Ok(with_private_inputs(
-            vec![entry, forward, predecessor()],
-            &[2, 3]
-        )))
-        .unwrap(),
-        RouteVerdict::Accepted(_)
-    ));
+    let forward = || {
+        machine(
+            vec![u32_type()],
+            vec![returns(call(4, vec![slot(0, u32_type())]))],
+        )
+    };
+    let RouteVerdict::Accepted(accepted) = judge(Ok(with_private_inputs(
+        vec![entry, forward(), forward(), predecessor()],
+        &[2, 3, 4],
+    )))
+    .unwrap() else {
+        panic!("every forwarded input permits subtracting one")
+    };
+    accepted
+        .publish()
+        .expect("the proved input contract must encode canonically");
 }
 
 #[test]
