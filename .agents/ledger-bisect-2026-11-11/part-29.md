@@ -14,7 +14,7 @@ Measured PIN: `51e8c45c793007f211d0d9baee7de16767172444`
 | ---: | --- | --- | --- | --- | ---: | --- | --- |
 | 1 | pass/run rejected | `two_children` has no executable body | `pass/ownership/runtime_match_conditional_observation_cleanup_exit` | `22f215eb3e7d` | 2078 | case-pattern common-field preservation stopped lowering two_children observation cleanup (#2078) | bisected |
 | 1 | incomplete | `main` has no executable body: structural result loan | `run/borrows/returned_descriptor_entry_snapshot` | `77271bfb9134` | 1794 | incoming backing / stored-call structural result loans stopped lowering returned descriptor entry (#1794) | bisected |
-| 1 | incomplete | `main` has no executable body: captured origin paths | `run/slices/returned_record_fixed_array_window` | `` |  |  | propagated |
+| 1 | incomplete | `main` has no executable body: captured origin paths | `run/slices/returned_record_fixed_array_window` | `e8fb4b1364b0` | 1432 | psi: select case-where equality bodies through Build (#1432) — captured-origin path loweri | bisected |
 | 1 | pass/run rejected | cannot prove requires contract for call capacity from geom | `pass/proofs/reviewed_mathematical_data_contract_exit` | `` |  |  | propagated |
 
 ## Members
@@ -27,6 +27,7 @@ Measured PIN: `51e8c45c793007f211d0d9baee7de16767172444`
 - good (first-parent search): `2476d1be2203`
 ### c2
 - `run/slices/returned_record_fixed_array_window`
+- good (first-parent search): `bd78ac0d130b`
 ### c3
 - `pass/proofs/reviewed_mathematical_data_contract_exit`
 
