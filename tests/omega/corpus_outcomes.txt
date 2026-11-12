@@ -347,8 +347,8 @@ fail/arithmetic/relative_midpoint_zero_divisor rejected 753ms expected @ccdb99ca
 	exact arithmetic in machine `midpoint` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/remainder_dividend_range_excludes_zero_rejected rejected 1688ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from wrong at statement 0: result >= 5 && result <= 7
-fail/arithmetic/remainder_postcondition_signed_minimum_underbound_rejected rejected 2435ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from bounded at statement 0: result >= -9223372036854775806
+fail/arithmetic/remainder_postcondition_signed_minimum_underbound_rejected rejected 2098ms expected @1d746590974e
+	machine `bounded` cannot prove ensures contract proof fact `result >= -9223372036854775806` on the transition arm guarded by `<always>`
 fail/arithmetic/remainder_signed_minimum_underbound_rejected rejected 2065ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from remainder at statement 0: result >= -9223372036854775806 && result <= 9223372036854775806
 fail/arithmetic/repeated_call_argument_snapshots_are_distinct rejected 7589ms expected @d663540513b7
@@ -2315,8 +2315,8 @@ fail/build/generic_const_zero_context_requires_establishment rejected 1849ms exp
 	machine `entry_start` state `entry` statement 1: reading `entry_storage.<whole value>` crosses an open default-domain invariant window before data `Context` is established: the zeroed representation is not yet a `Context` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/build/generic_zero_context_requires_establishment rejected 1595ms expected @ccdb99ca2214
 	machine `entry_start` state `entry` statement 1: reading `entry_storage.<whole value>` crosses an open default-domain invariant window before data `Context` is established: the zeroed representation is not yet a `Context` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-fail/build/helper_contract_context rejected 256ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from incorrect at statement 0: result == 4
+fail/build/helper_contract_context rejected 895ms expected @1d746590974e
+	machine `incorrect` ensures contract proof fact `result == 4` is disproved by constant arithmetic on the transition arm guarded by `<always>`
 fail/build/hosted_program_entry_visible_parameter rejected 3189ms expected @ccdb99ca2214
 	hosted `ProgramEntry` exposes no arrival parameters, but `launch` declares `argument`
 fail/build/installed_arrival_without_context rejected 148041ms expected @6c822102aed4
@@ -4241,8 +4241,8 @@ fail/core/numeric_trapping_conversion_altered_cause_rejected rejected 10948ms ex
 	call from `narrow` to `narrow_u16_to_u8_trapping` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/core/numeric_trapping_conversion_published_without_crash_rejected rejected 10323ms expected @ccdb99ca2214
 	call from `narrow` to `narrow_u16_to_u8_trapping` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/core/numeric_widened_range_shift_overflow_rejected rejected 9152ms expected @ccdb99ca2214
-	exact arithmetic in machine `scale` state `entry` terminal expression may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`). Here the operand `widen_u8_to_u16(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u16 in Wrapping`).
+fail/core/numeric_widened_range_shift_overflow_rejected rejected 15560ms expected @1d746590974e
+	exact arithmetic in machine `scale` state `entry` return value may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`). Here the operand `widen_u8_to_u16(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u16 in Wrapping`). terminal expression may overflow `u16`.
 fail/core/numeric_widened_result_narrow_carrier_rejected rejected 7775ms expected @ccdb99ca2214
 	store in machine `Main::main` state `main` local `widened` implicitly converts `u16` to `u8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)
 fail/core/owned_content_partition_borrowed_parent rejected 6060ms expected @26c39d0e6335
@@ -5180,9 +5180,9 @@ fail/domains/routed_qualification_predicate_cannot_authorize rejected 2146ms exp
 	cannot prove default-domain field requirement for return from forge, state entry, at statement 1: ticket requires Ticket::Issued
 fail/domains/routed_qualification_reference_recast rejected 628ms expected @ccdb99ca2214
 	machine `forge` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
-fail/domains/routed_record_capture_after_sibling_mutation rejected 1936ms expected @ccdb99ca2214
-	construction of `Pair` field `ticket` is not proven in domain `Ticket::Issued` in capture state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
-	cannot prove default-domain field requirement for return from capture, state entry, at statement 1: Pair.ticket requires Ticket::Issued
+fail/domains/routed_record_capture_after_sibling_mutation rejected 1654ms expected @1d746590974e
+	construction of `Pair` field `ticket` is not proven in domain `Ticket::Issued` in capture state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from capture at statement 0: Pair.ticket requires Ticket::Issued
 fail/domains/routed_selected_copy_partial_membership rejected 2976ms expected @ccdb99ca2214
 	cannot prove scalar result domain for return from select at statement 2: u64::Issued
 fail/domains/routed_selected_replacement_unissued rejected 5916ms expected @ccdb99ca2214
@@ -5607,8 +5607,8 @@ fail/expressions/borrowed_field_store_match_type_mismatch rejected 792ms expecte
 	machine `assign` state `entry` assignment expects the `Category` data type but got `Pair` in the `place` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/expressions/call_result_case_membership_foreign_case_rejected rejected 1596ms expected @ccdb99ca2214
 	case membership must test a value of the exact declaring data type (machine `main`, state `entry`)
-fail/expressions/cast_result_range rejected 1947ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from main at statement 0: result <= 10
+fail/expressions/cast_result_range rejected 1892ms expected @1d746590974e
+	machine `main` ensures contract proof fact `result <= 10` is disproved by constant arithmetic on the transition arm guarded by `<always>`
 fail/expressions/cast_struct_to_number_rejected rejected 13425ms expected @ccdb99ca2214
 	machine `Main::main` state `main` casts a `P` value to `i32`, but `as` converts between scalar types only
 fail/expressions/comparison_result_integer_store_rejected rejected 856ms expected @ccdb99ca2214
@@ -11271,45 +11271,35 @@ fail/facts/predicate_array_copy_through_target_body_rejected rejected 3347ms exp
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/predicate_type_formation_through_call_result_rejected rejected 1976ms expected @62ce026b5931+wt
+fail/facts/predicate_type_formation_through_call_result_rejected rejected 1680ms expected @1d746590974e
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_const_name_rejected rejected 576ms expected @62ce026b5931+wt
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_const_name_rejected rejected 1074ms expected @1d746590974e
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_field_rejected rejected 1774ms expected @62ce026b5931+wt
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_field_rejected rejected 1811ms expected @1d746590974e
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_local_rejected rejected 1764ms expected @62ce026b5931+wt
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_local_rejected rejected 1705ms expected @1d746590974e
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_match_join_rejected rejected 1583ms expected @62ce026b5931+wt
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_match_join_rejected rejected 1785ms expected @1d746590974e
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_other_machine_rejected rejected 2292ms expected @62ce026b5931+wt
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_other_machine_rejected rejected 1704ms expected @1d746590974e
 	data `Value` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_other_state_rejected rejected 2255ms expected @62ce026b5931+wt
+	data `Value` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_other_state_rejected rejected 1988ms expected @1d746590974e
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_parameter_rejected rejected 2126ms expected @62ce026b5931+wt
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_parameter_rejected rejected 1656ms expected @1d746590974e
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_target_body_rejected rejected 1882ms expected @62ce026b5931+wt
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_target_body_rejected rejected 1670ms expected @1d746590974e
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/progress_selector_nested_arrival_through_call_result_rejected rejected 46286ms expected @71d7a6330d0b
 	machine `select` derives progress premise `package:921c829449d507bc490d904826b185de03760b39d480fe9b49ddf4c0665abb3d:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
 fail/facts/progress_selector_nested_arrival_through_const_name_rejected rejected 38623ms expected @71d7a6330d0b
@@ -12983,8 +12973,8 @@ fail/facts/signed_8bit_exact_multiplication_bound_through_parameter_rejected rej
 fail/facts/signed_8bit_exact_multiplication_bound_through_target_body_rejected rejected 2825ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_prod from X86Probe::compute_target_body: prod >= 30 && prod <= 100 (needs fact `prod >= 30 && prod <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `compute_target_body`
 	cannot prove requires contract for call verify_prod from ArmProbe::compute_target_body: prod >= 30 && prod <= 100 (needs fact `prod >= 30 && prod <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `compute_target_body`
-fail/facts/signed_8bit_exact_subtraction_bound_through_call_result_rejected rejected 3132ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from produce_diff at statement 0: result >= 40 && result <= 90
+fail/facts/signed_8bit_exact_subtraction_bound_through_call_result_rejected rejected 3572ms expected @1d746590974e
+	machine `produce_diff` cannot prove ensures contract proof fact `result >= 40 && result <= 90` on the transition arm guarded by `<always>`
 fail/facts/signed_8bit_exact_subtraction_bound_through_const_name_rejected rejected 2742ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_diff from main: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_8bit_exact_subtraction_bound_through_field_rejected rejected 2997ms expected @ccdb99ca2214
@@ -13038,16 +13028,16 @@ fail/facts/signed_8bit_shift_left_bound_through_parameter_rejected rejected 2631
 fail/facts/signed_8bit_shift_left_bound_through_target_body_rejected rejected 3169ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_i8_shifted from X86Probe::exercise: shifted >= 100 && shifted <= 100 (needs fact `s >= 100 && s <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `exercise`
 	cannot prove requires contract for call verify_i8_shifted from ArmProbe::exercise: shifted >= 100 && shifted <= 100 (needs fact `s >= 100 && s <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `exercise`
-fail/facts/signed_8bit_shift_right_bound_through_call_result_rejected rejected 2876ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from shift_right at statement 0: result >= 25 && result <= 25
+fail/facts/signed_8bit_shift_right_bound_through_call_result_rejected rejected 3580ms expected @1d746590974e
+	machine `shift_right` cannot prove ensures contract proof fact `result >= 25 && result <= 25` on the transition arm guarded by `<always>`
 fail/facts/signed_8bit_shift_right_bound_through_const_name_rejected rejected 3310ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_shifted from compute_const: shifted >= 25 && shifted <= 25 (needs fact `shifted >= 25 && shifted <= 25` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_8bit_shift_right_bound_through_field_rejected rejected 3047ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_shifted from compute_field: container.shifted >= 25 && container.shifted <= 25 (needs fact `shifted >= 25 && shifted <= 25` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_8bit_shift_right_bound_through_local_rejected rejected 1965ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_shifted from compute_local: shifted >= 25 && shifted <= 25 (needs fact `shifted >= 25 && shifted <= 25` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/signed_8bit_shift_right_bound_through_match_join_rejected rejected 2953ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from choose_shifted at statement 0: result >= 25 && result <= 25
+fail/facts/signed_8bit_shift_right_bound_through_match_join_rejected rejected 4052ms expected @1d746590974e
+	machine `choose_shifted` cannot prove ensures contract proof fact `result >= 25 && result <= 25` on the transition arm guarded by `<always>`
 fail/facts/signed_8bit_shift_right_bound_through_other_machine_rejected rejected 2926ms expected @ccdb99ca2214
 	cannot prove requires contract for call forward from compute_forward: val >> shift >= 25 && val >> shift <= 25 (needs fact `shifted >= 25 && shifted <= 25` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_8bit_shift_right_bound_through_other_state_rejected rejected 2857ms expected @ccdb99ca2214
@@ -13143,8 +13133,8 @@ fail/facts/signed_division_remainder_through_target_body_rejected rejected 2831m
 	cannot prove index `idx` is within length 4 in compute_target::entry
 	cannot prove index `idx` is within length 4 in compute_target::entry
 	cannot prove index `idx` is within length 4 in compute_target::entry
-fail/facts/signed_exact_addition_bound_through_call_result_rejected rejected 2216ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from compute_sum at statement 0: result >= 30 && result <= 70
+fail/facts/signed_exact_addition_bound_through_call_result_rejected rejected 3638ms expected @1d746590974e
+	machine `compute_sum` cannot prove ensures contract proof fact `result >= 30 && result <= 70` on the transition arm guarded by `<always>`
 fail/facts/signed_exact_addition_bound_through_const_name_rejected rejected 2448ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume_margin from probe: margin >= 0 && margin <= 40 (needs fact `margin >= 0 && margin <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_exact_addition_bound_through_field_rejected rejected 4347ms expected @ccdb99ca2214
@@ -13162,16 +13152,16 @@ fail/facts/signed_exact_addition_bound_through_parameter_rejected rejected 2633m
 fail/facts/signed_exact_addition_bound_through_target_body_rejected rejected 3413ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume_margin from X86Probe::target_probe: margin >= 0 && margin <= 40 (needs fact `margin >= 0 && margin <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `target_probe`
 	cannot prove requires contract for call consume_margin from ArmProbe::target_probe: margin >= 0 && margin <= 40 (needs fact `margin >= 0 && margin <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `target_probe`
-fail/facts/signed_exact_multiplication_bound_through_call_result_rejected rejected 3611ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from multiply at statement 0: result >= 40 && result <= 90
+fail/facts/signed_exact_multiplication_bound_through_call_result_rejected rejected 4208ms expected @1d746590974e
+	machine `multiply` cannot prove ensures contract proof fact `result >= 40 && result <= 90` on the transition arm guarded by `<always>`
 fail/facts/signed_exact_multiplication_bound_through_const_name_rejected rejected 3179ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_product from probe: product >= 40 && product <= 90 (needs fact `product >= 40 && product <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_exact_multiplication_bound_through_field_rejected rejected 2873ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_field from compute_field: holder.product >= 40 && holder.product <= 90 (needs fact `h.product >= 40 && h.product <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_exact_multiplication_bound_through_local_rejected rejected 2567ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_product from compute_local: product >= 40 && product <= 90 (needs fact `product >= 40 && product <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/signed_exact_multiplication_bound_through_match_join_rejected rejected 3170ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from choose_product at statement 0: result >= 40 && result <= 90
+fail/facts/signed_exact_multiplication_bound_through_match_join_rejected rejected 3971ms expected @1d746590974e
+	machine `choose_product` cannot prove ensures contract proof fact `result >= 40 && result <= 90` on the transition arm guarded by `<always>`
 fail/facts/signed_exact_multiplication_bound_through_other_machine_rejected rejected 3118ms expected @ccdb99ca2214
 	cannot prove requires contract for call forward from compute_forward: factor * scale >= 40 && factor * scale <= 90 (needs fact `product >= 40 && product <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_exact_multiplication_bound_through_other_state_rejected rejected 3051ms expected @ccdb99ca2214
@@ -13951,8 +13941,8 @@ fail/facts/unsigned_64bit_bitwise_or_bound_through_target_body_rejected rejected
 	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected rejected 2674ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from produce_xored at statement 0: result >= 40 && result <= 63
+fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected rejected 4032ms expected @1d746590974e
+	machine `produce_xored` ensures contract proof fact `result >= 40 && result <= 63` is disproved by constant arithmetic on the transition arm guarded by `<always>`
 fail/facts/unsigned_64bit_bitwise_xor_bound_through_const_name_rejected rejected 2878ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_xored from main: xored >= 40 && xored <= 63 (needs fact `xored >= 40 && xored <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/unsigned_64bit_bitwise_xor_bound_through_field_rejected rejected 3426ms expected @ccdb99ca2214
@@ -14112,8 +14102,8 @@ fail/facts/unsigned_8bit_exact_arithmetic_bound_through_target_body_rejected rej
 	exact arithmetic in machine `verify_target` state `entry` local `headroom` may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `verify_target` state `entry` local `headroom` may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `verify_target` state `entry` local `headroom` may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/unsigned_8bit_exact_multiplication_bound_through_call_result_rejected rejected 2640ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from compute_prod at statement 0: result >= 80 && result <= 180
+fail/facts/unsigned_8bit_exact_multiplication_bound_through_call_result_rejected rejected 4082ms expected @1d746590974e
+	machine `compute_prod` cannot prove ensures contract proof fact `result >= 80 && result <= 180` on the transition arm guarded by `<always>`
 fail/facts/unsigned_8bit_exact_multiplication_bound_through_const_name_rejected rejected 1715ms expected @ccdb99ca2214
 	exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_8bit_exact_multiplication_bound_through_field_rejected rejected 1612ms expected @ccdb99ca2214
@@ -14290,8 +14280,8 @@ fail/facts/unsigned_exact_addition_bound_through_target_body_rejected rejected 1
 	exact arithmetic in machine `verify_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `verify_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `verify_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/unsigned_exact_multiplication_bound_through_call_result_rejected rejected 22566ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from compute_product at statement 0: result >= 30 && result <= 80
+fail/facts/unsigned_exact_multiplication_bound_through_call_result_rejected rejected 3650ms expected @1d746590974e
+	machine `compute_product` cannot prove ensures contract proof fact `result >= 30 && result <= 80` on the transition arm guarded by `<always>`
 fail/facts/unsigned_exact_multiplication_bound_through_const_name_rejected rejected 1749ms expected @ccdb99ca2214
 	exact arithmetic in machine `probe` state `entry` local `upper_diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_exact_multiplication_bound_through_field_rejected rejected 1541ms expected @ccdb99ca2214
@@ -14429,25 +14419,27 @@ fail/facts/wrapping_integer_arithmetic_through_target_body_rejected rejected 131
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/write_only_borrow_struct_destination_through_call_result_rejected rejected 2015ms expected @ccdb99ca2214
-	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/write_only_borrow_struct_destination_through_const_name_rejected rejected 1361ms expected @ccdb99ca2214
-	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/write_only_borrow_struct_destination_through_field_rejected rejected 1720ms expected @ccdb99ca2214
-	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/write_only_borrow_struct_destination_through_local_rejected rejected 1271ms expected @ccdb99ca2214
-	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/write_only_borrow_struct_destination_through_match_join_rejected rejected 1482ms expected @ccdb99ca2214
-	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/write_only_borrow_struct_destination_through_other_machine_rejected rejected 1674ms expected @ccdb99ca2214
-	exact arithmetic in machine `evaluate_destination` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/write_only_borrow_struct_destination_through_other_state_rejected rejected 1136ms expected @ccdb99ca2214
-	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/write_only_borrow_struct_destination_through_parameter_rejected rejected 1362ms expected @ccdb99ca2214
-	exact arithmetic in machine `subtract_parameter` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/write_only_borrow_struct_destination_through_target_body_rejected rejected 1339ms expected @ccdb99ca2214
-	exact arithmetic in machine `X86Probe::target_probe` state `target_probe` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `ArmProbe::target_probe` state `target_probe` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/write_only_borrow_struct_destination_through_call_result_rejected rejected 3657ms expected @1d746590974e
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/write_only_borrow_struct_destination_through_const_name_rejected rejected 3748ms expected @1d746590974e
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/write_only_borrow_struct_destination_through_field_rejected rejected 3901ms expected @1d746590974e
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/write_only_borrow_struct_destination_through_local_rejected rejected 4434ms expected @1d746590974e
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/write_only_borrow_struct_destination_through_match_join_rejected rejected 4111ms expected @1d746590974e
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/write_only_borrow_struct_destination_through_other_machine_rejected rejected 3885ms expected @1d746590974e
+	exact arithmetic in machine `evaluate_destination` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+	machine `evaluate_destination` cannot prove ensures contract proof fact `result <= 95` on the transition arm guarded by `<always>`
+fail/facts/write_only_borrow_struct_destination_through_other_state_rejected rejected 3675ms expected @1d746590974e
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/write_only_borrow_struct_destination_through_parameter_rejected rejected 4063ms expected @1d746590974e
+	exact arithmetic in machine `subtract_parameter` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+	machine `subtract_parameter` cannot prove ensures contract proof fact `result <= 95` on the transition arm guarded by `<always>`
+fail/facts/write_only_borrow_struct_destination_through_target_body_rejected rejected 3930ms expected @1d746590974e
+	exact arithmetic in machine `X86Probe::target_probe` state `target_probe` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+	exact arithmetic in machine `ArmProbe::target_probe` state `target_probe` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
 fail/facts/write_only_ieee_store_readback_through_call_result_rejected rejected 2553ms expected @ccdb99ca2214
 	machine `store` state `entry` reads write-only parameter `r`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/write_only_ieee_store_readback_through_const_name_rejected rejected 2520ms expected @ccdb99ca2214
@@ -17712,8 +17704,8 @@ fail/proofs/unknown_boolean_return_is_not_omitted rejected 3415ms expected @0d0c
 	cannot prove requires contract for call demand from main: choose(false) == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/value_call_refuted_inequality_rejected rejected 3952ms expected @26c39d0e6335
 	cannot prove requires contract: machine `invalid_nonzero_identity` state `entry` value call to `nonzero_identity` violates required fact `!core::Identity<Nat>(value, Nat)`: the instantiated fact is structurally false
-fail/proofs/wrapping_zero_product_does_not_cancel_factor rejected 12168ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from claimed_zero at statement 0: result == 0
+fail/proofs/wrapping_zero_product_does_not_cancel_factor rejected 14363ms expected @1d746590974e
+	machine `claimed_zero` cannot prove ensures contract proof fact `result == 0` on the transition arm guarded by `<always>`
 fail/proofs/zero_value_executable_rejected rejected 990ms expected @ccdb99ca2214
 	machine `Main::main` state `main` uses `zero_value<Choice>()` in executable code; `zero_value<T>()` is a proof-only representation observation and may appear only in contracts
 fail/proofs/zero_value_gated_home_rejected rejected 866ms expected @911f6617ba9e
@@ -18504,8 +18496,10 @@ fail/slices/lane38_saved_predicate_reachable rejected 2865ms expected @ccdb99ca2
 	cannot prove requires contract for call inspect from replace: ascii_only(bytes[0..1]) (needs fact `ascii_only(bytes)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view)`
 fail/slices/match_index_guard_does_not_escape rejected 1602ms expected @ccdb99ca2214
 	cannot prove index `0` is within unknown slice length of `values` in observe::entry
-fail/slices/matched_open_window_end rejected 965ms expected @ccdb99ca2214
-	exact arithmetic in machine `open_end` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+fail/slices/matched_open_window_end rejected 1684ms expected @1d746590974e
+	exact arithmetic in machine `open_end` state `entry` return value may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `i64`.
+	cannot prove ensures contract for exit from open_end at statement 0: result.len == 2
+	cannot prove subslice range end bound `0..which + 2` is within slice length 4
 fail/slices/matched_window_end_join_disagrees rejected 1736ms unexpected @ccdb99ca2214
 	cannot prove ensures contract for exit from from_join at statement 0: result.len == 2
 fail/slices/matched_window_indexed_subject_write_overlap rejected 7055ms expected @911f6617ba9e
@@ -22002,8 +21996,7 @@ pass/domains/referent_field_byte_store_keeps_fixed_array_domain checked 16175ms 
 pass/domains/refinement_chain_predicates checked 2310ms @ccdb99ca2214
 pass/domains/refinement_chain_routed_provenance checked 1970ms @0cea3356c5b0+wt
 pass/domains/retained_routed_qualification_cast checked 2281ms @ccdb99ca2214
-pass/domains/routed_record_capture_before_sibling_mutation rejected 2531ms regressed-from:checked @457d20765d91
-	cannot prove default-domain field requirement for call clear from capture::entry: parameter number requires Ticket::Issued
+pass/domains/routed_record_capture_before_sibling_mutation checked 2236ms @1d746590974e
 pass/domains/routed_selected_copy_exit checked 4463ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/routed_selected_replacement_exit checked 6779ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_authored_borrowed_result_domain_exit checked 5817ms check-target:linux_x86_64 @ccdb99ca2214
