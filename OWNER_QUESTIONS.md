@@ -804,3 +804,148 @@ per type.
 
 Until answered the lowered-form checker takes the first way, which meets
 either answer.
+
+### Q19 - May two machines' guarantees each name the other in a specification call when both bodies are plain definitions?
+
+Decision name: `mutual-specification-call-guarantees`.
+
+**Customer.** `tests/omega/fail/core/scoped_integer_call_guarantees_cannot_form_cycle`:
+
+```omega
+machine first(value: i16) -> i16
+ensures (second(value) as i16 in Saturating) == result { value }
+machine second(value: i16) -> i16
+ensures (first(value) as i16 in Wrapping) == result { value }
+machine main() {}
+```
+
+The fixture pins "cannot prove ensures contract for exit", and its ledger row
+records one such diagnostic per machine. The current checker accepts the
+program (`omega --check` exits 0 at `2aab3a555`); the row read
+`rejected` from the unreachable stamp `@ccdb99ca2214` and is recorded `checked`
+here, as main measures it. Both guarantees are
+true: each body is `value`, neither body calls anything, and unfolding the two
+bodies proves both exits without citing either guarantee. The casts and
+arithmetic policies do not matter; the program without them, and the
+self-cycle `machine first(value: i16) -> i16 ensures first(value) == result { value }`,
+are accepted the same way. Every false variant probed still rejects: a body
+returning `7i16`, a self-cycle `== 9i16`, an opaque callee, a callee that
+`crashes Trap`, and a mutually tail-recursive pair.
+
+**Gap.** These contracts were checked:
+
+- [Total arithmetic](wiki/spec/proofs/contracts.md#total-arithmetic): *"A call
+  interpreted denotationally needs a checked observation-free, reach-free,
+  crash-free, terminating invocation, not merely a same-spelled mathematical
+  operation."* It does not say whether `second` is "checked" for this purpose
+  while `second`'s own guarantee is still being proved from `first`.
+- [Citation and induction](wiki/spec/proofs/contracts.md#citation-and-induction):
+  *"Mutual recursion requires a joint ranking; citation cycles cannot justify
+  themselves."* Here no guarantee is cited: the proof reads the bodies, and
+  the bodies are not recursive.
+- [Mathematical bindings](wiki/spec/proofs/mathematical_bindings.md):
+  *"Mathematical conversion unfolds checked definitions ... arbitrary
+  self-reference is not a definition."* The bodies are not self-referential;
+  only the contracts refer to each other.
+
+- [Local call summaries](wiki/spec/language/state_contracts.md#local-call-summaries)
+  (`callee-result-body-summary`, settled 2026-11-11): *"An exact checked call
+  inside the same fingerprinted verification unit may use the callee's written
+  contract plus checked body-derived result and state facts"* and *"recursive
+  groups need checked invariants or induction: assuming a proposed summary
+  around a cycle is not a proof."* Read alone this makes the program valid:
+  the bodies form no recursive group. It speaks of calls, though, and does not
+  say whether a specification call in a contract counts as one, or whether
+  two contracts that mention each other form a "group".
+
+#1704 retired `scoped_integer_call_guarantee_requires_published_equality` on
+the reasoning that unfolding a checked body is a valid proof. `check-rules`
+now refuses a pull request that removes a pinned `expected.txt`, so this
+fixture cannot be retired the same way without the owner's answer. The compiler has
+a guard for the stricter reading: `independent_application` refuses a
+specification call whose target's declaration, contracts included, depends on
+the machine being proved. One later exit pass reaches `unfold_application`
+without that test, which is why the program is accepted.
+
+**Question.**
+
+- **(a)** Is a specification call eligible whenever the callee's body is a
+  checked, non-recursive, observation-free definition, whatever its contracts
+  mention? Then the program is valid, the fixture is retired as #1704's was,
+  and the independence test narrows to body dependencies.
+- **(b)** Or must the callee's whole declaration, contracts included, be
+  independent of the machine being proved? Then the program rejects, and the
+  independence test moves to the one place applications are unfolded so no
+  exit pass can skip it.
+
+Until answered the row stays as recorded here and the checker is unchanged.
+
+### Q20 - May a nested machine establish its parent's named evidence output, and how does a terminal call discharge an outcome-specific guarantee?
+
+Decision name: `nested-evidence-output-establishment`.
+
+**Customer.** Three run fixtures,
+`tests/omega/run/calls/outcome_specific_selected_guarantee_{result,input,inputs}_exit`.
+The first:
+
+```omega
+machine pick(threshold: u32) -> Outcome
+ensures Outcome::Success -> { selected: succeeded(result); }
+{
+    transition threshold > 3 {
+        true -> succeed()
+        false -> fail()
+    }
+    machine succeed() -> Outcome {
+        selected = Fresh;
+        Outcome::Success
+    }
+    machine fail() -> Outcome { Outcome::Failure }
+}
+```
+
+`pick` promises the evidence output `selected` on its `Success` outcome, and
+its nested machine `succeed` assigns `selected`. The ledger records the rows
+`rejected`: "machine `succeed` state `entry` uses `selected`, which is not a
+declared local, parameter, field, or type in this state". The green siblings
+`outcome_specific_selected_guarantee_{exit,nested_exit,variants_exit}` and
+`pass/calls/outcome_specific_root_exit` assign the output in the declaring
+machine's own body. The same rejection reproduces with an unconditional
+`ensures selected: above(5)` assigned from a nested machine, so it is not
+specific to outcome-specific guarantees.
+
+The rewrite that gives `succeed` its own guarantee
+(`machine succeed() -> Outcome ensures Outcome::Success -> { selected: succeeded(result); }`)
+is also refused today: "cannot classify the ordinary result case on exit
+through pick::entry". The exit check accepts only a literal constructor as the
+result case, not the result of a terminal call.
+
+**Gap.** These contracts were checked:
+
+- [Bindings and arrivals](wiki/spec/language/state_contracts.md#bindings-and-arrivals):
+  *"Nesting does not assume the parent's entry requirements again, import its
+  return guarantees, or supply facts invalidated by mutation."* Read alone, a
+  nested machine does not see its parent's guarantee, so it cannot name the
+  parent's output.
+- [Returns and proof use](wiki/spec/language/state_contracts.md#returns-and-proof-use):
+  *"A terminal call owes both the callee's result and the caller's completion
+  contract; lexical ancestry adds no further return targets."* and
+  *"Outcome-specific guarantees follow the matching nominal result case"*.
+  Read together, `pick`'s `Success` guarantee is owed at the terminal call
+  `succeed()`, and could be discharged from `succeed`'s own guarantee on the
+  matching case.
+- No ratified page gives the source rule for writing an evidence output name:
+  which bodies may assign it, and whether the name is in scope in nested
+  machines.
+
+**Question.**
+
+- **(a)** Is a named evidence output assignable only in the machine that
+  declares it? Then the three programs are invalid as written and are migrated
+  so `succeed` declares the guarantee, and the exit check learns to discharge
+  the caller's guarantee from a terminal callee's guarantee and result case.
+- **(b)** Or may a nested machine reached by a terminal call assign its
+  parent's output, as these fixtures do? Then output names enter nested scope,
+  and the spec needs the rule for which nested machines qualify.
+
+Until answered the three rows are left as recorded and the checker is unchanged.
