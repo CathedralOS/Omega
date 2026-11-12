@@ -4316,6 +4316,53 @@ pub(crate) mod expression_stack {
             7 * 1024 - 1,
         );
     }
+
+    /// Nested groups, calls, indexes, struct literals and matches are parsed
+    /// by the expression frame loop, so nesting costs heap frames rather than
+    /// host stack: a thousand levels of each fit a 256 KiB thread stack.
+    #[test]
+    fn nested_expressions_parse_on_a_small_thread_stack() {
+        const LEVELS: usize = 1000;
+        let shapes = [
+            format!("{}value{}", "(".repeat(LEVELS), ")".repeat(LEVELS)),
+            format!("{}value{}", "compute(".repeat(LEVELS), ")".repeat(LEVELS)),
+            format!("{}0{}", "table[".repeat(LEVELS), "]".repeat(LEVELS)),
+            format!(
+                "{}value{}",
+                "Pair { left: ".repeat(LEVELS),
+                " }".repeat(LEVELS)
+            ),
+            format!(
+                "{}subject{}",
+                "match ".repeat(LEVELS),
+                " { _ -> 1 }".repeat(LEVELS)
+            ),
+            format!(
+                "{}0{}",
+                "-(table[1 + ".repeat(LEVELS / 2),
+                "].field)".repeat(LEVELS / 2)
+            ),
+        ];
+        for (shape, source) in shapes.into_iter().enumerate() {
+            let nodes = std::thread::Builder::new()
+                .stack_size(256 * 1024)
+                .spawn(move || {
+                    parse_expression(&source)
+                        .0
+                        .expressions
+                        .iter_expressions()
+                        .count()
+                })
+                .expect("spawn small-stack parser thread")
+                .join()
+                .expect("parse nested expression on a small stack");
+            // Parentheses add no node; every other shape adds one per level.
+            assert!(
+                nodes >= if shape == 0 { 1 } else { LEVELS },
+                "shape {shape}"
+            );
+        }
+    }
 }
 pub(crate) mod inline_assembly {
     use crate::parser::parse_syntax_trees;
