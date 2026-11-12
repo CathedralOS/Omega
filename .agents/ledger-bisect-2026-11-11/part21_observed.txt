@@ -1,0 +1,38 @@
+pass/borrows/dynamic_window_return_custody_exit rejected 2309ms check-target:macos_arm64
+	returned projection does not match this invocation and result path
+pass/borrows/runtime_slice_reference_result_exit rejected 2235ms check-target:macos_arm64
+	returned projection does not match this invocation and result path
+pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit rejected 10588ms check-target:macos_arm64
+	terminating machine drain reaches recursive component `step`, which has no `terminates by` ranking -- spell one on that component
+pass/facts/non_owning_reference_erasure_through_call_result_exit rejected 2117ms check-target:macos_arm64
+	cannot prove default-domain field requirement for return from write at statement 2: storage requires Storage::Issued
+	cannot prove default-domain field requirement for call write from main::entry: parameter storage requires Storage::Issued
+pass/facts/non_owning_reference_erasure_through_const_name_exit rejected 2217ms check-target:macos_arm64
+	cannot prove default-domain field requirement for return from write at statement 2: storage requires Storage::Issued
+	cannot prove default-domain field requirement for call write from main::entry: parameter storage requires Storage::Issued
+pass/facts/non_owning_reference_erasure_through_field_exit rejected 2129ms check-target:macos_arm64
+	cannot prove default-domain field requirement for return from write at statement 2: storage requires Storage::Issued
+	cannot prove default-domain field requirement for call write from main::entry: parameter storage requires Storage::Issued
+pass/facts/non_owning_reference_erasure_through_local_exit rejected 2224ms check-target:macos_arm64
+	cannot prove default-domain field requirement for return from write at statement 2: storage requires Storage::Issued
+	cannot prove default-domain field requirement for call write from main::entry: parameter storage requires Storage::Issued
+pass/facts/non_owning_reference_erasure_through_other_machine_exit rejected 2169ms check-target:macos_arm64
+	cannot prove default-domain field requirement for return from write at statement 1: storage requires Storage::Issued
+	cannot prove default-domain field requirement for call write from main::entry: parameter storage requires Storage::Issued
+pass/facts/non_owning_reference_erasure_through_other_state_exit rejected 2281ms check-target:macos_arm64
+	cannot prove default-domain field requirement for return from write at statement 0: storage requires Storage::Issued
+	cannot prove default-domain field requirement for call write from main::entry: parameter storage requires Storage::Issued
+pass/facts/non_owning_reference_erasure_through_parameter_exit rejected 2173ms check-target:macos_arm64
+	cannot prove default-domain field requirement for return from write at statement 1: storage requires Storage::Issued
+	cannot prove default-domain field requirement for call write from main::entry: parameter storage requires Storage::Issued
+pass/facts/non_owning_reference_erasure_through_target_body_exit rejected 2265ms check-target:macos_arm64
+	cannot prove default-domain field requirement for return from ErasedWriteCode::write at statement 2: storage requires Storage::Issued
+	cannot prove default-domain field requirement for call write from main::entry: parameter storage requires Storage::Issued
+pass/facts/recoverable_replacement_window_through_target_body_exit incomplete 2683ms check-target:macos_arm64
+	`X86Repair::repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `X86Repair::repair::repair`, statement 3
+pass/terminal_psi/debug_identity_complete_module rejected 5901ms check-target:macos_arm64 terminal-inspections:failed
+	inspection constant omitted its expected debug companion
+fail/borrows/runtime_slice_result_retains_backing rejected 1170ms unexpected
+	returned projection does not match this invocation and result path
+fail/facts/temporary_case_cleanup_through_other_machine_rejected rejected 2228ms unexpected
+	cannot prove ensures contract for exit from forward at statement 0: result.value == 2
