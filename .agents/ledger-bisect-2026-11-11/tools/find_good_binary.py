@@ -45,6 +45,8 @@ def is_bad(witness: str, rev: str) -> bool | None:
         return True
     if code == 0:
         return False
+    if code == 125:
+        raise SystemExit(f"skip/build fail rc=125 for {witness} at {rev}")
     raise SystemExit(f"ambiguous rc={code} for {witness} at {rev}")
 
 
