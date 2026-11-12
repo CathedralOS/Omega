@@ -585,6 +585,255 @@ mod module_namespaces {
     }
 
     #[test]
+    fn logical_import_requires_retained_owner_metadata() {
+        for path in ["dependency", "dependency::Item"] {
+            let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+                None,
+                vec![SourceScopedTopLevelBinding::logical_module_import(
+                    SourceId(0),
+                    SourceId(1),
+                    path,
+                    1,
+                )],
+            );
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            builder.insert_children(
+                root,
+                [(
+                    SymbolKind::Data,
+                    SymbolNameRef::OwnedSource {
+                        value: "Item",
+                        source_span: reference(1),
+                    },
+                )],
+            );
+            let symbols = builder.finish();
+            assert!(
+                symbols
+                    .validate_source_module_import(SourceId(0), path)
+                    .is_err()
+            );
+            assert!(
+                symbols
+                    .source_module_import_targets(SourceId(0), path)
+                    .is_empty()
+            );
+            assert!(!symbols.is_source_package_qualifier(reference(0), "dependency"));
+            assert_eq!(data_reference(&symbols, 0, "dependency::Item"), None);
+        }
+    }
+
+    #[test]
+    fn logical_callable_import_retains_all_overloads_without_selecting_one() {
+        for moduled in [false, true] {
+            let path = if moduled {
+                "dependency::math::f"
+            } else {
+                "dependency::f"
+            };
+            let (_, _, sources) = namespace_table([1, 2, 2], Vec::new());
+            let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+                Some(sources),
+                vec![SourceScopedTopLevelBinding::logical_module_import(
+                    SourceId(0),
+                    SourceId(1),
+                    path,
+                    1,
+                )],
+            );
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+                root,
+                [1, 2].map(|source| {
+                    (
+                        SymbolKind::Machine,
+                        SymbolNameRef::OwnedSource {
+                            value: "f",
+                            source_span: reference(source),
+                        },
+                    )
+                }),
+            ))
+            .collect::<Vec<_>>();
+            let mut symbols = builder.finish();
+            if moduled {
+                register_module(&mut symbols, 1, &["math"]);
+                register_module(&mut symbols, 2, &["math"]);
+            }
+            assert!(
+                symbols
+                    .validate_source_module_import(SourceId(0), path)
+                    .is_ok()
+            );
+            assert_eq!(
+                symbols.source_module_import_targets(SourceId(0), path),
+                declarations
+            );
+            assert_eq!(symbols.source_module_import_target(SourceId(0), path), None);
+            assert_eq!(
+                symbols.top_level_candidates_from_source("f", &[SymbolKind::Machine], reference(0)),
+                declarations
+            );
+            for declaration in declarations {
+                assert!(symbols.source_reference_may_select_symbol(reference(0), declaration));
+            }
+        }
+    }
+
+    #[test]
+    fn named_module_domain_lookup_requires_its_exact_qualifier_or_exposing_import() {
+        for path in [
+            "dependency::units",
+            "dependency::units::u64::Near",
+            "dependency::units::Item",
+        ] {
+            let (_, _, sources) = namespace_table([1, 2, 2], Vec::new());
+            let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+                Some(sources),
+                vec![SourceScopedTopLevelBinding::logical_module_import(
+                    SourceId(0),
+                    SourceId(1),
+                    path,
+                    1,
+                )],
+            );
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+                root,
+                [
+                    (SymbolKind::BuiltinType, SymbolNameRef::Static("u64")),
+                    (
+                        SymbolKind::Domain,
+                        SymbolNameRef::OwnedSource {
+                            value: "u64::Near",
+                            source_span: reference(1),
+                        },
+                    ),
+                    (
+                        SymbolKind::Domain,
+                        SymbolNameRef::OwnedSource {
+                            value: "u64::Far",
+                            source_span: reference(1),
+                        },
+                    ),
+                    (
+                        SymbolKind::Domain,
+                        SymbolNameRef::OwnedSource {
+                            value: "u64::Child",
+                            source_span: reference(2),
+                        },
+                    ),
+                    (
+                        SymbolKind::Data,
+                        SymbolNameRef::OwnedSource {
+                            value: "Item",
+                            source_span: reference(1),
+                        },
+                    ),
+                ],
+            ))
+            .collect::<Vec<_>>();
+            let mut symbols = builder.finish();
+            register_module(&mut symbols, 1, &["units"]);
+            register_module(&mut symbols, 2, &["units", "child"]);
+            assert!(
+                symbols
+                    .validate_source_module_import(SourceId(0), path)
+                    .is_ok()
+            );
+            for name in ["u64::Far", "units::u64::Far"] {
+                assert_eq!(
+                    domain_reference(&symbols, 0, name),
+                    (path == "dependency::units").then_some(declarations[2])
+                );
+                assert_eq!(
+                    symbols.domain_name_reaches(declarations[2], name, reference(0)),
+                    path == "dependency::units"
+                );
+            }
+            assert_eq!(
+                domain_reference(&symbols, 0, "dependency::units::u64::Far"),
+                Some(declarations[2])
+            );
+            assert!(!symbols.source_domain_is_exposed(reference(0), declarations[3]));
+            assert_eq!(domain_reference(&symbols, 0, "u64::Child"), None);
+            assert_eq!(
+                domain_reference(&symbols, 0, "units::child::u64::Child"),
+                (path == "dependency::units").then_some(declarations[3])
+            );
+        }
+        let (_, _, sources) = namespace_table([1, 2, 2], Vec::new());
+        let mut builder = SymbolTableBuilder::with_sources(Some(sources));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let domain = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            [(
+                SymbolKind::Domain,
+                SymbolNameRef::OwnedSource {
+                    value: "u64::Far",
+                    source_span: reference(1),
+                },
+            )],
+        ))
+        .next()
+        .unwrap();
+        let mut symbols = builder.finish();
+        register_module(&mut symbols, 1, &["units"]);
+        assert_eq!(domain_reference(&symbols, 0, "units::u64::Far"), None);
+        assert!(!symbols.domain_name_reaches(domain, "units::u64::Far", reference(0)));
+    }
+
+    #[test]
+    fn logical_root_domain_cannot_be_redirected_by_a_local_same_named_carrier() {
+        let (_, _, sources) = namespace_table([1, 2, 2], Vec::new());
+        let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+            Some(sources),
+            vec![SourceScopedTopLevelBinding::logical_module_import(
+                SourceId(0),
+                SourceId(1),
+                "dependency",
+                1,
+            )],
+        );
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            [
+                (
+                    SymbolKind::Data,
+                    SymbolNameRef::OwnedSource {
+                        value: "Item",
+                        source_span: reference(0),
+                    },
+                ),
+                (
+                    SymbolKind::Data,
+                    SymbolNameRef::OwnedSource {
+                        value: "Item",
+                        source_span: reference(1),
+                    },
+                ),
+                (
+                    SymbolKind::Domain,
+                    SymbolNameRef::OwnedSource {
+                        value: "Item::Near",
+                        source_span: reference(1),
+                    },
+                ),
+            ],
+        ))
+        .collect::<Vec<_>>();
+        let symbols = builder.finish();
+        assert!(symbols.source_domain_is_exposed(reference(0), declarations[2]));
+        assert_eq!(domain_reference(&symbols, 0, "Item::Near"), None);
+        assert!(!symbols.domain_name_reaches(declarations[2], "Item::Near", reference(0)));
+        assert_eq!(
+            domain_reference(&symbols, 0, "dependency::Item::Near"),
+            Some(declarations[2])
+        );
+    }
+
+    #[test]
     fn logical_root_import_qualifies_siblings_without_bare_or_transitive_exposure() {
         let (symbols, declarations, _) = namespace_table(
             [1, 2, 1],
