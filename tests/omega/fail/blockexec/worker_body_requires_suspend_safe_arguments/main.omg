@@ -1,20 +1,18 @@
 // A selected suspending callback cannot retain suspension-forbidden arguments.
 public boundary trait WorkerProvider {
-    machine execute<T, Arguments, machine Target>(arguments: Arguments) -> T
-    requires machine Target(arguments: Arguments) -> T suspends blocks;
+    machine execute<T, Arguments, const Target: machine(arguments: Arguments) -> T suspends blocks>(arguments: Arguments) -> T
     ensures true
     reaches
     suspends blocks;
 }
 data CheckedWorkerProvider {}
-machine CheckedWorkerProvider::execute<T, Arguments, machine Target>(arguments: Arguments) -> T
-requires machine Target(arguments: Arguments) -> T suspends blocks;
+machine CheckedWorkerProvider::execute<T, Arguments, const Target: machine(arguments: Arguments) -> T suspends blocks>(arguments: Arguments) -> T
 satisfies WorkerProvider::execute
 suspends blocks
 {
     suspend block Target(arguments)
 }
-data Token [carry(suspension: forbidden, cpu: any, thread: any, address: movable)] { id: u64; }
+public data Token [carry(suspension: forbidden, cpu: any, thread: any, address: movable)] { id: u64; }
 data Request { token: Token; salt: u64; }
 public machine identity(arguments: Token) -> Token { arguments }
 public machine may_pause(arguments: Token) -> Token suspends { arguments }
@@ -23,8 +21,7 @@ machine mix(arguments: Request) -> Token {
     Token { id: arguments.token.id ^ arguments.salt }
 }
 
-machine invoke_worker<T, Arguments, machine Target>(arguments: Arguments) -> T
-requires machine Target(arguments: Arguments) -> T suspends blocks;
+machine invoke_worker<T, Arguments, const Target: machine(arguments: Arguments) -> T suspends blocks>(arguments: Arguments) -> T
 suspends blocks {
     suspend block Target(arguments)
 }
