@@ -428,6 +428,25 @@ mod tests {
     use crate::{Record, RecordLimits, decode, encode};
     use std::sync::Arc;
 
+    #[test]
+    fn equal_hashed_collections_write_equal_bytes() {
+        let ascending: std::collections::HashMap<u64, String> =
+            (0..64).map(|key| (key, key.to_string())).collect();
+        let descending: std::collections::HashMap<u64, String> =
+            (0..64).rev().map(|key| (key, key.to_string())).collect();
+        let limits = RecordLimits::default();
+        let bytes = encode(&ascending, limits).unwrap();
+        assert_eq!(bytes, encode(&descending, limits).unwrap());
+        let restored: std::collections::HashMap<u64, String> = decode(&bytes, limits).unwrap();
+        assert_eq!(restored, ascending);
+
+        let left: std::collections::HashSet<String> =
+            (0..64).map(|value| value.to_string()).collect();
+        let right: std::collections::HashSet<String> =
+            (0..64).rev().map(|value| value.to_string()).collect();
+        assert_eq!(encode(&left, limits).unwrap(), encode(&right, limits).unwrap());
+    }
+
     #[derive(Debug, PartialEq, Eq, Record)]
     enum Payload {
         Empty,
