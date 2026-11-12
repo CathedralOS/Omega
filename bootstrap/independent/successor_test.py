@@ -31,6 +31,8 @@ def main():
     parser.add_argument("--reuse-constructed", action="store_true")
     parser.add_argument("--seconds", type=int, default=1800)
     parser.add_argument("--omega", action="store_true")
+    parser.add_argument("--omega-control", action="store_true",
+                        help="construct the real lexer classifiers and execute nominal/control checks")
     parser.add_argument("--omega-utf8", action="store_true",
                         help="construct the real decoder and execute arithmetic/refusal controls")
     parser.add_argument("--literals", action="store_true",
@@ -49,6 +51,7 @@ def main():
               "pid": os.getpid(), "started_at": datetime.now(timezone.utc).isoformat(),
               "reused_constructed_predecessor": args.reuse_constructed,
               "omega_fixture": args.omega, "omega_utf8": args.omega_utf8,
+              "omega_control": args.omega_control,
               "byte_literals": args.literals,
               "compile_epsilon": args.compile_epsilon}
 
@@ -113,7 +116,7 @@ def main():
         checkpoint("epsilon", ())
     vm.epsilon_customer(work, producer=NativeCompiler, realize=construction.realize)
     result["passed_stages"].append("epsilon")
-    next_stage = "omega" if args.omega or args.omega_utf8 else "complete"
+    next_stage = "omega" if args.omega or args.omega_utf8 or args.omega_control else "complete"
     checkpoint("compiled_epsilon" if args.compile_epsilon else next_stage,
                (("epsilon_request", "epsilon-request.bin"),
                 ("epsilon_gamma_receipt", "epsilon.gamma"),
@@ -133,6 +136,18 @@ def main():
         checkpoint("complete", (("omega_request", "omega-request.bin"),
                                 ("omega_observation", "omega-observation.bin"),
                                 ("omega_tape", "omega.tape")))
+    if args.omega_control:
+        checkpoint("omega_control", ())
+        vm.omega_control_customer(work, args.seconds)
+        result["passed_stages"].append("omega_control")
+        subjects = [("omega_bootstrap_compiler", "bootstrap-compiler.epsilon"),
+                    ("omega_control_source", "control-source.epsilon"),
+                    ("omega_control_program", "control-program.omg"),
+                    ("omega_control_request", "control-request.bin"),
+                    ("omega_control_observation", "control-observation.bin")]
+        subjects.extend((f"omega_control_tape_{index}", f"control-{index}.tape")
+                        for index in range(17))
+        checkpoint("complete", subjects)
     if args.omega_utf8:
         checkpoint("omega_utf8", ())
         vm.omega_utf8_customer(work, args.seconds)
