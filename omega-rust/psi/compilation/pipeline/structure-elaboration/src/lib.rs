@@ -47,6 +47,7 @@ Gaps found against the contract are listed in the crate README, "Findings".
 
 mod body;
 mod canonical;
+mod components;
 mod lower;
 mod names;
 mod outcome;
@@ -54,7 +55,7 @@ mod read;
 
 pub use body::{
     Body, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
-    Statement, Strict, Target, ValueType, self_place,
+    Statement, Strict, Target, Termination, ValueType, self_place,
 };
 pub use names::{Binder, ClauseText, MachineNames, Piece};
 pub use outcome::Outcome;
@@ -93,6 +94,8 @@ pub enum Unpositioned {
     DispatchContinuation,
     /// The join block of a value-position `match` and the jumps into it.
     MatchJoin,
+    /// The head block of one member of a call component lowered as a loop.
+    LoopHead,
     /// The Unit completion after a unit machine's last statement.
     ImplicitReturn,
     /// The block a call continues in after the edge that retires the homes
@@ -120,6 +123,11 @@ pub struct MachineSources {
     pub operations: IdTable<OperationId, SourceOrigin>,
     pub edges: IdTable<EdgeId, SourceOrigin>,
     pub obligations: IdTable<ObligationId, SourceOrigin>,
+    /// The member of the call component each loop head stands for, in
+    /// block order (`lower`, `component`). The lowered form does not say
+    /// which machine's body a head begins; a diagnostic about an arrival
+    /// names it as the callee.
+    pub heads: Vec<(BlockId, MachineId)>,
 }
 
 /// What one compilation asks to have judged. This is request information: the
@@ -412,7 +420,6 @@ pub fn elaborate_witness(
     let mut program = read::Program::new(typed, false);
     let entry = program.witnessed(declaring_trait, requirement, arguments)?;
     let callee = program.machine(implementation)?;
-    program.forwards(entry, callee);
     let required =
         terminal_check_tables::row(&program.signatures, entry, entry, Construct::Machine)?;
     let supplied =
@@ -483,7 +490,6 @@ fn finish_reading(
         let body = program.body(next)?;
         bodies.push(body);
     }
-    program.refuse_recursion()?;
     let mut elaboration = lower_generic(
         entry,
         &bodies,
@@ -504,9 +510,8 @@ fn finish_reading(
 /// `elaborate` reads typed trees and then calls this; a checker's tests call
 /// it directly to state programs. `records` holds every record type the
 /// bodies and signatures name, a nested record before its owner; a scalar
-/// program passes an empty table. The reader refuses recursion first; a
-/// cycle passed here directly is refused by the outcome pass, which walks
-/// callees first. `machines` is left empty: these bodies have no typed-tree
+/// program passes an empty table. A call cycle is lowered as a loop when
+/// `components` serves it and refused by name otherwise. `machines` is left empty: these bodies have no typed-tree
 /// machine.
 pub fn lower_bodies(
     entry: MachineId,
@@ -549,6 +554,7 @@ pub fn lower_generic(
             ));
         }
     }
+    let components = components::components(bodies, signatures)?;
     let outcomes = outcome::outcomes(bodies, signatures, requirements)?;
     let mut module = TerminalModule::for_entry(entry);
     // Terminal Psi declares each record type once for the module, with the
@@ -570,16 +576,20 @@ pub fn lower_generic(
                 Unserved::Machine("identity overflow"),
             )
         })?;
-        let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
+        let component = terminal_check_tables::row(&components, id, id, Construct::Machine)?;
         let lowered = lower::machine(
             id,
-            body,
+            bodies,
+            component,
             signatures,
             &outcomes,
             &declared.records,
             requirements.contains(&id),
         )?;
         module.machines.push(lowered.machine);
+        // Machines are lowered in identity order and each machine's heads in
+        // block order, which is the order the module's roster requires.
+        module.scalar_block_invariants.extend(lowered.invariants);
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
     }

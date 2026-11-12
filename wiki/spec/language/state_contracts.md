@@ -145,6 +145,12 @@ A written `ensures` is a minimum guarantee, not an instruction to forget stronge
 local facts. For a machine whose two normal-return branches both yield `false`,
 the local summary establishes `result == false` without an authored postcondition.
 
+Contracts may not form a cycle. If a machine's `requires` or `ensures` calls a
+machine whose own contract, directly or through other contracts, calls back to
+the first, the program is rejected, even when every body involved is a plain
+non-recursive definition. State the fact directly instead, such as
+`ensures result == value`.
+
 Across a verification-unit boundary, ordinary calls use the published contract.
 Additional semantic result/state guarantees needed by independent clients are
 authored, not automatically exported from the body. Published contracts also

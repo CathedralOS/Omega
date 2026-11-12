@@ -26,6 +26,8 @@ require_omega_request_fixture_identity ||
   fail "bound request fixture refused the canonical checkout"
 require_omega_executable_entries_identity ||
   fail "bound executable entries refused the canonical checkout"
+require_omega_ocreq_entry_identity ||
+  fail "bound Omega program refused the canonical checkout"
 echo "entries: bound gate-local customer entries pass"
 
 materialize_omega_compiler "$TMP/compiler.epsilon" ||
@@ -174,6 +176,19 @@ rc=0
 [ "$rc" = 3 ] ||
   fail "truncated executable entry: expected exit 3, got $rc"
 echo "executable entries: a one-byte change or truncation is refused with its record"
+
+cp "$OMEGA_PATH_OMEGA_OCREQ_ENTRY" "$TMP/corrupt-program.omg"
+flip_byte "$TMP/corrupt-program.omg"
+rc=0
+(
+  export OMEGA_PATH_OMEGA_OCREQ_ENTRY=$TMP/corrupt-program.omg
+  require_omega_ocreq_entry_identity
+) 2>"$TMP/corrupt-program.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "corrupted Omega program: expected exit 3, got $rc"
+grep -q 'tools/bootstrap/README.md' "$TMP/corrupt-program.err" ||
+  fail "corrupted Omega program: refusal did not cite the source record"
+echo "Omega program: actual source identity passes and a one-byte change refuses"
 
 for record in \
   tests/bootstrap/omega-parser/gate.py \

@@ -56,8 +56,7 @@ normal completion is served only in terminal position (an arm target or a
 call statement), where it becomes the block's no-normal invocation.
 Everything else is refused with `RefusalReason::Unsupported` and a detail
 naming the construct (`expression match`, `type reference`, `call no-normal
-call inside an expression`, ...): a reference, slice, loop, recursion
-through a cycle, generic, callable value, suspension, assembly, float,
+call inside an expression`, ...): a reference, slice, generic, callable value, suspension, assembly, float,
 domain, cast that names a domain, or service reach is never skipped, approximated or passed through. A
 refusal anywhere in the compilation refuses the whole compilation.
 
@@ -298,6 +297,40 @@ and no operation of the lowered form would own it, so it is refused.
 | an erased local with no initializer | `statement erased local without an initializer` |
 | a runtime expression that reads an erased binding | `expression runtime use of an erased binding` (finding 34) |
 | a crash route guard that names an erased formal | `contract route guard names a value that is not a formal` |
+
+### Loops
+
+A loop in Omega is a machine whose transition arm calls it again, directly
+or through other machines. The subset serves such a call cycle between
+scalar machines when every call between its members stands in terminal
+position (an arm's target, or the body's final value) and no member promises
+termination: `machine spin(n: u32) -> u32 { transition n > 0 { true ->
+spin(n - 1) false -> 0 } }`, and the same through two or more machines.
+[termination](../../../../../wiki/spec/language/termination.md#calls-and-productive-loops):
+"A productive terminal-transfer cycle without a termination promise may run
+forever and owes no rank". [Call cycles as loops](#call-cycles-as-loops)
+gives the lowered form.
+
+The rest of the loops lane
+(`wiki/drafts/designs/loops_recursion_termination_lane.md`) is refused by
+name until the slice that serves it:
+
+| Construct | Refusal detail |
+| --- | --- |
+| a call of a member whose result the caller goes on to use, `1 + f(n)` | `call recursion outside a terminal position` |
+| a `terminates by` witness, on any machine | `contract ranking witness` |
+| a bare `terminates` on a machine that lies on a cycle or calls into one | `contract termination promise over a call cycle` |
+| `terminates` under a progress premise | `contract termination under a progress premise` |
+| `ensures` on a member | `contract ensures on a call cycle` |
+| a `crashes Cause` clause with a route guard on a member | `contract guarded crash route on a call cycle` |
+| a record or sum formal, result, local or expression in a member, or a local declared without an initializer | `machine storage on a call cycle` |
+| an `[erased]` formal or local in a member | `machine erased binding on a call cycle` |
+| a formal, result or local of a type parameter in a member | `machine value of a type parameter on a call cycle` |
+
+A bare `terminates` on a machine that reaches no cycle is served: every
+machine it can reach is acyclic and inside the subset, which is the
+specification's "A private acyclic body needs no annotation and derives a
+local `Terminates` summary".
 
 ### Records
 
@@ -544,6 +577,57 @@ only joins are the short-circuit joins and the join of a `match`. A machine with
 place, and its place, root and write tables are empty because the form
 implies none.
 
+## Call cycles as loops
+
+[components.rs](src/components.rs) finds the call components of the bodies
+read: the strongly connected sets of the call graph. Nesting plays no part
+([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md):
+"Source nesting does not bound the component or justify any edge."). Each
+machine still gets its own Terminal machine, and a machine on a cycle holds
+its whole component in its own graph
+(control flow: "Constant-stack terminal cycles may become block backedges"):
+
+- **The entry** holds the machine's formals as machine parameters and jumps
+  to the machine's own head with them.
+- **One head block per member**, whose block parameters are that member's
+  scalar formals. The member's body is lowered once beneath it with its
+  slots bound to those parameters, so nothing in a loop names a machine
+  formal.
+- **A terminal call of a member** evaluates its arguments left to right and
+  jumps to that member's head with them. It is no call operation and gets no
+  invocation row: the lowered form has no call there.
+
+A component of `k` machines is therefore lowered `k` times, once per
+machine. Nothing is shared between those graphs.
+
+**`requires` at a head.** A member's `requires` clauses, each formal
+replaced by the head's parameter, are the head's one row in the module's
+`scalar_block_invariants`, a canonical conjunction when there are several
+(control flow: "A scalar block invariant is a semantic row identifying a
+machine, destination block, scalar predicate, and one obligation for every
+actual incoming edge."). Every edge into the head mints one
+`ArrivalInvariant` obligation at that edge and one arrival in the row: the
+entry's jump, and each jump back. That is
+[state contracts](../../../../../wiki/spec/language/state_contracts.md#bindings-and-arrivals)
+on the lowered form: "Machine `requires` applies at every invocation,
+including terminal and recursive calls." A member with no `requires` has no
+row and its head owes nothing. The predicate is the authored one; nothing
+here infers a loop invariant.
+
+The entry is never a head (control flow: "The machine entry cannot carry a
+row: invocation supplies the machine's declared preconditions rather than an
+explicit control-flow edge"), so a machine's own `requires` reach its loop
+only by being proved on the entry's jump.
+
+**Outcomes.** Whether a machine completes normally and which causes it may
+crash with is the least fixed point over the call graph
+([outcome.rs](src/outcome.rs)): every machine starts as never completing,
+and the bodies are walked until nothing changes. A machine whose every path
+calls it again never completes, and a call of it is an `InvokeNoNormal`
+terminator (control flow: "An infinite path has no normal return").
+
+No `ranked_scc` is written: these cycles promise nothing.
+
 ## Places, roots and the write log
 
 A record value is storage, so lowering a record fills three tables in step
@@ -735,7 +819,7 @@ interpreter loads and runs both.
 | `CallRequirement` | one per callee `requires` clause per call, clause = position in the callee's canonical `requires` | the point before the call |
 | `PublishedGuarantee` | one per `ensures` clause, the identity `ContractClause` carries | the entry block |
 | `NormalGuarantee` | one per `ensures` clause per normal exit edge, naming its `PublishedGuarantee` | that edge |
-| `ArrivalInvariant` | one per edge into a block with parameters (only short-circuit joins have them); the predicate is the checker's | that edge |
+| `ArrivalInvariant` | one per edge into a block with parameters: a short-circuit join, whose predicate the checker infers, or a loop head, whose predicate is its member's `requires` | that edge |
 | `CrashCoverage` | one per crash site and cause. `CrashSite::Block`: a `Crash` terminator (its one cause), or an `InvokeNoNormal` terminator (each cause among its continuations). `CrashSite::Operation`: a `Call` or `CallUnit` whose callee may return and publishes crash routes (each cause among its continuations) | the point before the terminator or the call |
 
 ## Source correspondence
@@ -1002,3 +1086,22 @@ worked around by adding to `terminal-check-tables`.
     current checker and then fails in Psi 06 ("scalar read has no authored
     binding"). This route lowers it: the local names the term. The witness is
     `tests/omega/pending/relevance/erased_local_forwarded_to_erased_formal`.
+36. **A recursive call records its selection as the entry state.** A call of
+    another machine carries an authored selection that resolves to the
+    symbol the call names. A call of the machine being read names the
+    machine and its selection resolves to that machine's one state. The
+    reader accepts a selection when both symbols enter the same machine
+    (`entered_machine`: a machine, or the one state of one), comparing
+    symbols only.
+37. **A ranking witness is refused wherever it stands.** The typed trees
+    hold its subjects twice, as rendered text
+    (`RankingWitness::subjects`) and as typed expressions
+    (`RankingExpressionCustody`). This slice reads neither and refuses the
+    witness, on an acyclic machine too, because whether a witness with
+    nothing to rank is an error is the ranking slice's to decide. That slice
+    reads the custody and never the text.
+38. **A final value counts as terminal position.** Stage 01 leaves a body's
+    final expression as an expression, and the reader makes it the
+    unguarded arm that completes the machine, so `machine f(n: u32) -> u32
+    { f(n) }` is a jump back like `transition { _ -> f(n) }`. Whether the
+    current checker treats the two alike was not measured.

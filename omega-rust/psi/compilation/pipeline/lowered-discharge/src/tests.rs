@@ -13,7 +13,7 @@ use semantic_vocabulary::{
 };
 use structure_elaboration::{
     Body, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict,
-    Target, Unpositioned, ValueType,
+    Target, Termination, Unpositioned, ValueType,
 };
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
@@ -164,6 +164,7 @@ fn lower(machines: Vec<Machine>) -> Checked<structure_elaboration::Elaboration> 
             requires: machine.requires,
             ensures: machine.ensures,
             crashes: CrashCeiling::Authored(Vec::new()),
+            termination: Termination::Silent,
         });
     }
     structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -1367,6 +1368,7 @@ fn elaborate_over(
             requires: machine.requires,
             ensures: Vec::new(),
             crashes: CrashCeiling::Authored(Vec::new()),
+            termination: Termination::Silent,
         });
     }
     structure_elaboration::lower_bodies(id(1), &bodies, &signatures, records).unwrap()
@@ -5586,6 +5588,7 @@ mod generic_bodies {
                 requires: machine.requires,
                 ensures: machine.ensures,
                 crashes: CrashCeiling::DeclaredNone,
+                termination: structure_elaboration::Termination::Silent,
             });
         }
         structure_elaboration::lower_generic(
@@ -5910,6 +5913,7 @@ fn crashing_below_ten(
         requires: Vec::new(),
         ensures: Vec::new(),
         crashes: CrashCeiling::Authored(routes),
+        termination: structure_elaboration::Termination::Silent,
     });
     let mut elaboration =
         structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -5995,6 +5999,7 @@ fn crashing_at_zero(requires: Vec<Proposition>) -> (structure_elaboration::Elabo
         requires,
         ensures: Vec::new(),
         crashes: CrashCeiling::DeclaredNone,
+        termination: structure_elaboration::Termination::Silent,
     });
     let mut elaboration =
         structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -6045,6 +6050,7 @@ fn calling_a_zero_route(
         requires,
         ensures: Vec::new(),
         crashes: CrashCeiling::DeclaredNone,
+        termination: structure_elaboration::Termination::Silent,
     });
     bodies.push(Body {
         slots: vec![u32_type().into()],
@@ -6069,6 +6075,7 @@ fn calling_a_zero_route(
                 bound(u32_type(), IntegerValue::Unsigned(0)),
             )),
         )])),
+        termination: structure_elaboration::Termination::Silent,
     });
     let mut elaboration =
         structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -6161,6 +6168,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             requires: Vec::new(),
             ensures: Vec::new(),
             crashes: CrashCeiling::Authored(caller_routes),
+            termination: structure_elaboration::Termination::Silent,
         });
         bodies.push(Body {
             slots: vec![u32_type().into()],
@@ -6180,6 +6188,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             requires: Vec::new(),
             ensures: Vec::new(),
             crashes: CrashCeiling::Authored(trap_when(vec![terminal_psi::CrashRouteGuard::Truth])),
+            termination: structure_elaboration::Termination::Silent,
         });
         let mut elaboration =
             structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -6397,3 +6406,4 @@ fn an_erased_formal_written_before_a_runtime_one_keeps_both_positions() {
     let (elaboration, result) = run(vec![main(50), keep_first()]);
     assert_unproved(verdicts(&elaboration, &result, 1, requirement)[0].1);
 }
+mod loops;

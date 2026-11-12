@@ -51,8 +51,6 @@ pub(crate) struct Program<'t> {
     /// What diagnostics call each machine's constructs, pushed with its
     /// signature and completed as its body is read.
     pub names: IdTable<MachineId, crate::MachineNames>,
-    /// Every direct call read so far, as (caller, callee).
-    calls: Vec<(MachineId, MachineId)>,
     /// Whether this is a generic check form: the entry's implementation
     /// parameters stay rigid, and a call through one names the requirement.
     rigid: bool,
@@ -147,7 +145,6 @@ impl<'t> Program<'t> {
             symbols: IdTable::default(),
             signatures: IdTable::default(),
             names: IdTable::default(),
-            calls: Vec::new(),
             rigid,
             requirements: Vec::new(),
             selections: Vec::new(),
@@ -298,25 +295,6 @@ mod tests {
         for (node, expected) in cases {
             assert_eq!(refused(&typed, node), expected);
         }
-    }
-
-    #[test]
-    fn a_call_cycle_is_refused_as_recursion() {
-        let typed = TypedTrees::default();
-        let mut program = Program::new(&typed, false);
-        for _ in 0..3 {
-            program.symbols.push(SymbolHandle::invalid());
-        }
-        let m = |raw| MachineId::new(raw).unwrap();
-        program.calls = vec![(m(1), m(2)), (m(2), m(3)), (m(1), m(3))];
-        assert_eq!(program.refuse_recursion(), Ok(()));
-        program.calls.push((m(3), m(2)));
-        assert_eq!(
-            program.refuse_recursion().unwrap_err().detail,
-            "call recursion"
-        );
-        program.calls = vec![(m(1), m(1))];
-        assert_eq!(program.refuse_recursion().unwrap_err().machine, m(1));
     }
 
     #[test]

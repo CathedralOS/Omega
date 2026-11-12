@@ -1,9 +1,10 @@
 /*
 The machine family of the reader: which declarations are admitted (the subset
-gate), their signatures and formals, the call-graph recursion refusal, and
+gate), their signatures and formals, and
 the driver that reads one body statement by statement.
 */
 
+use language_semantics::{TerminationGuarantee, TerminationInterface};
 use semantic_vocabulary::{MachineId, ValueId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
@@ -16,7 +17,8 @@ use typed_trees::statement::StatementNode;
 use super::contracts::{ClauseScope, ResultTerm};
 use super::{Program, Slot, crash_cause, span};
 use crate::body::{
-    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target, ValueType,
+    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target, Termination,
+    ValueType,
 };
 use crate::canonical::{self, Repeated};
 use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
@@ -147,11 +149,6 @@ impl<'t> Program<'t> {
         Ok(id)
     }
 
-    /// Records that the witness `caller` calls `callee`.
-    pub fn forwards(&mut self, caller: MachineId, callee: MachineId) {
-        self.calls.push((caller, callee));
-    }
-
     /// The `MachineId` that stands for a trait requirement in a generic
     /// check form: its signature and contract, read as any machine's, and
     /// no body. A requirement with value parameters is one machine per
@@ -181,44 +178,6 @@ impl<'t> Program<'t> {
         self.scopes.push(Vec::new());
         self.requirements.push(id);
         Ok(id)
-    }
-
-    /// Refuses recursion: a cycle in the call graph read so far, including a
-    /// machine that calls itself. Kahn's algorithm over the call edges; a
-    /// machine left with incoming edges lies on or behind a cycle.
-    pub fn refuse_recursion(&self) -> Checked<()> {
-        let count = self.symbols.len();
-        let index = |machine: MachineId| machine.get() as usize - 1;
-        let mut incoming = vec![0_usize; count];
-        for (_, callee) in &self.calls {
-            incoming[index(*callee)] += 1;
-        }
-        let mut ready: Vec<usize> = (0..count)
-            .filter(|machine| incoming[*machine] == 0)
-            .collect();
-        while let Some(machine) = ready.pop() {
-            for (caller, callee) in &self.calls {
-                if index(*caller) == machine {
-                    incoming[index(*callee)] -= 1;
-                    if incoming[index(*callee)] == 0 {
-                        ready.push(index(*callee));
-                    }
-                }
-            }
-        }
-        // Kahn's algorithm settles every machine exactly when there is no
-        // cycle, so a remaining incoming edge is the whole test.
-        match incoming.iter().position(|edges| *edges != 0) {
-            None => Ok(()),
-            Some(position) => {
-                let machine = MachineId::new(position as u64 + 1).expect("positions start at 1");
-                Err(refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Call("recursion"),
-                ))
-            }
-        }
     }
 
     pub(super) fn declaration(
@@ -445,7 +404,7 @@ impl<'t> Program<'t> {
                 Unserved::Contract("contracts on a state"),
             ));
         }
-        let (signature, mut names) = self.contract(
+        let (mut signature, mut names) = self.contract(
             id,
             state.symbol,
             state.parameters,
@@ -458,6 +417,7 @@ impl<'t> Program<'t> {
             &binders,
             &[],
         )?;
+        signature.termination = self.termination(id, machine)?;
         // Diagnostics name the declaration the author wrote, not a clone
         // stage 04 generated from it.
         let authored = crate::template_of(self.typed, symbol)
@@ -815,9 +775,41 @@ impl<'t> Program<'t> {
                 requires,
                 ensures,
                 crashes,
+                // A requirement's termination is its selected member's to
+                // keep; a machine's is read from its plan by its caller.
+                termination: Termination::Silent,
             },
             names,
         ))
+    }
+
+    /// What the header says about ending, from the plan stage 02 fills once
+    /// (`MachineTerminationPlan`). Only the presence of a promise and of a
+    /// witness is read here: the plan's `RankingWitness` holds its subjects
+    /// as rendered text, which this reader never resolves.
+    fn termination(&self, id: MachineId, machine: &Machine) -> Checked<Termination> {
+        let plan = &machine.termination_plan;
+        let promised = match &plan.interface {
+            TerminationInterface::InternalDerived
+            | TerminationInterface::Published(TerminationGuarantee::NoGuarantee) => false,
+            TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) => {
+                // termination.md, "Opaque progress profiles": a premise
+                // attaches a provider's progress profile to a subject.
+                if !premises.is_empty() {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("termination under a progress premise"),
+                    ));
+                }
+                true
+            }
+        };
+        Ok(match (&plan.implementation_witness, promised) {
+            (Some(_), _) => Termination::Witnessed,
+            (None, true) => Termination::Promised,
+            (None, false) => Termination::Silent,
+        })
     }
 
     /// Whether the type parameter `rigid` of `machine` is declared `[copy]`.

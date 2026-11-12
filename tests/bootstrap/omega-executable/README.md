@@ -1,12 +1,12 @@
 # Omega source to an Alpha executable
 
-This gate connects the complete manifested Epsilon-written Omega compiler to
+This gate connects the manifested Epsilon-written bootstrap compiler to
 its existing parser and Alpha tape encoder through the real request route:
 the gate frames the canonical OCREQ V1 request (one application package
 snapshotting [program.omg](program.omg) as a single `.omg` regular file,
 empty edges, `alpha_bootstrap_tape` product on the `alpha_bootstrap` profile,
 bound SHA-256 subject commitment), and
-[main_ocreq.epsilon](main_ocreq.epsilon) runs D's own
+[main_ocreq.epsilon](main_ocreq.epsilon) runs the bootstrap compiler's
 `OmegaRequestStructure::check` shape passes, extracts the root package's single
 `.omg` member, compiles it, and publishes the unwrapped artifact on `Complete`
 or exactly one OCOUT V1 frame on failure. The admitted slice is
@@ -34,7 +34,7 @@ rebuilds Beta from source, and uses the rebuilt compiler to
 construct the Gamma evaluator from source, and compares both tapes exactly
 with their bound artifacts. It executes those constructed bytes to reconstruct
 the Epsilon execution receipt through the Gamma-written Delta compiler, checks
-the complete Epsilon-written Omega compiler plus its request-route entry,
+the Epsilon-written bootstrap compiler plus its request-route entry,
 seals the source into the canonical request, and stamps and executes only the
 actual successful output.
 No Rust compiler, host parser, host typechecker, or host code generator supplies
@@ -61,36 +61,21 @@ different output directory. These are host controls, not language semantics.
 
 ## Current compiler slice
 
-[Scalar compilation](../../../bootstrap/5_omega/scalar_compilation.epsilon)
-accepts ordinary nullary free machines returning a `u8` terminal expression:
-unsuffixed nonnegative decimal literals without digit separators joined by the
-`+ - * / % << >> & | ^` binary operators and the `~` bitwise-complement
-prefix, folded under the default Exact policy so every intermediate node
-must stay representable in `u8`; plus `true`/`false` literals and the
-`==`/`!=`/`<`/`<=`/`>`/`>=`/`&&`/`||`/`!` operators folding to a Boolean
-carrier class that transition subjects consume — a class-mismatched operand
-is a carrier-class rejection and a Boolean at the `u8` terminal stays a
-coverage refusal. It checks every
-admitted declaration, detects duplicate names,
-resolves an explicitly supplied entry name, checks the result range before
-emission, and uses the shared encoder's labels, call/return and finalization.
-Multiple admitted machines are emitted in authored order; neither the source
-filename nor the value 42 has special meaning to the compiler.
+[The bootstrap compiler's coverage and storage contract](../../../bootstrap/5_omega/README.md)
+is authoritative for this gate. It currently admits a nullary `u8` entry,
+plain `u8` parameters/results, immutable initialized locals, resolved free
+calls, nested calls as complete arguments, and constant-selected state
+transfers. It checks all bodies and rejects reentrant ordinary-call graphs
+before emission. The private static cells preserve caller values and pending
+arguments. Unsupported nested ordinary calls cannot fall through to globals.
 
-The same slice admits bounded control flow. A state body is zero or more
-nullary call statements to free machines — the machine-call edge carries a
-return address and leaves the callee's `r0` — followed by exactly one
-terminal: a folded `u8` expression returning in `r0`, a grouped nullary call
-expression such as `(helper())` that returns the callee's `r0`, or a
-`transition` block. A transition targets authored states of the same
-machine; a subjectless block admits exactly one wildcard arm, and a
-subjectful block folds its subject and selects the first matching integer,
-Boolean, or wildcard arm. Every arm's target resolves and matches the
-target's parameter count before any emission, so a transition is a checked
-direct jump — no call frame, no return edge — exactly as the state contract
-specifies. Receivers, `self` paths, machine or runtime arguments,
-parameterized states, locals, assignments, `let` bindings, and non-literal
-guards stay `Incomplete` coverage refusals.
+Anonymous constant arithmetic is a bounded exact subset: integral `+ - * /`
+with every intermediate in `0..255`, comparisons, and Boolean operations.
+Fractional, signed or wider intermediates, anonymous remainder, and
+width-dependent anonymous operations refuse as unsupported. A destination
+annotation never changes anonymous division into truncating integer division.
+Runtime arithmetic, richer carriers, clauses, mutable data and dynamic control
+remain outside current emission coverage.
 
 The route selects `main` — the machine name `alpha_bootstrap::ProgramEntry`
 binds. Another source can be exercised without changing compiler code:
@@ -137,7 +122,7 @@ invocations split among [controls.epsilon](controls.epsilon),
 [controls_h.epsilon](controls_h.epsilon),
 [controls_i.epsilon](controls_i.epsilon), and
 [controls_j.epsilon](controls_j.epsilon): zero and maximum byte results,
-folded arithmetic, bitwise and shift operations with precedence and grouping,
+folded integral arithmetic and explicit anonymous bitwise/shift refusals,
 multiple declarations and selection of a non-first entry, duplicate names,
 missing entry, out-of-range and oversized decimal values, an out-of-range
 expression operand, overflow, underflow, division and modulo by zero,
@@ -156,8 +141,8 @@ and state targets, call and transition arity mismatches, an empty authored
 state, an unmatched subject, duplicate authored state names, an unreachable
 statement after a transition block, receiver and `self` call paths, a
 parameterized state, a multi-arm or non-wildcard subjectless block, an
-integer arm under a Boolean subject, truncating division, additive-versus-shift
-and bitwise-tier precedence, an ungrouped terminal call, two sequential call
+integer arm under a Boolean subject, refused fractional anonymous division,
+unsupported shift and bitwise expressions, an ungrouped terminal call, two sequential call
 statements, a wildcard arm ahead of a matching literal arm, and a Boolean arm
 under an integer subject.
 Every rejection requires an empty unsealed
@@ -182,15 +167,15 @@ top of the bound member closure, never part of the manifested members.
 | --- | ---: | --- |
 | `main.epsilon` | 1,757 | `c0af3126f13c8c511d04f224e630f60f3316c0f9fa6e310e72f66779c7c3ce9e` |
 | `main_ocreq.epsilon` | 19,249 | `5d5d0b8ed0146b055ffdbb6d680bb902a0e350c80b13577bf148879c6c753943` |
-| `controls.epsilon` | 3,631 | `78995d1f7975bbd7b8d82230b557f43bb263addb5be3deb2b9bf56cb03efa0a9` |
-| `controls_b.epsilon` | 3,084 | `261d1529b50ab7b36c9dd228a0df7a4250d46d2913dcd85897ee8b911e98dbc3` |
-| `controls_c.epsilon` | 2,824 | `0dbc7da705e7da63a7589b49a25677037dcd43c31c3266f31511986b3eba54ae` |
-| `controls_d.epsilon` | 2,850 | `916218b57476fe59f22a2d493b6529502e3ac3a4fda856d4e16b9a156a0f57c9` |
+| `controls.epsilon` | 3,536 | `f30a9a3206fdbe7a13b1b6377af7b5d95bca5e27c495bf4faab262fcc0525089` |
+| `controls_b.epsilon` | 2,804 | `28701862d665951b2e432c58c77b7b1bcbc9d2b8ae53417f95bc76fa19908c6e` |
+| `controls_c.epsilon` | 2,834 | `1ec2b16b0d97631bc88f23c0d39c417e6184875c1178913fba4629b815fc3465` |
+| `controls_d.epsilon` | 2,852 | `b54adbcd30b9f192217b89b96efd3b548443a6e9426bb7891c98845fa89e8adb` |
 | `controls_e.epsilon` | 2,797 | `83ce536dacd5efb9238d7f5869ed5d6269c6481a24b4cdd0b7d3985777c150bc` |
 | `controls_f.epsilon` | 4,425 | `fbc7ed2868f9e70833fdfc36c927238c8fd11184e5127e372d732c8ab6ebff0e` |
 | `controls_g.epsilon` | 3,127 | `3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9` |
 | `controls_h.epsilon` | 3,193 | `b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e` |
-| `controls_i.epsilon` | 3,863 | `8f583b6510c940e3ef0cdc0223a1e263da37ea4f6decbea1a3130f4ba33645d0` |
+| `controls_i.epsilon` | 3,722 | `9c7d77740284bbca570197290d2d73188681b3763e15a22bf3ce5592f4c12846` |
 | `controls_j.epsilon` | 4,461 | `406e2bc4353983ebc81d6daa215a9b42f72b85056bc5f3263e1917e7e01efb94` |
 
 `tools/bootstrap/omega/compiler_env.sh` checks every entry identity before
@@ -210,3 +195,12 @@ compiler-refinement proof. `main_ocreq.epsilon` is the gate's entry: the real
 OCREQ/OCOUT route for the `alpha_bootstrap_tape` slice, bound like every
 other selectable entry. `main.epsilon` remains bound for the `--diagnostic`
 raw-source lane.
+
+The additional [controls_values.epsilon](controls_values.epsilon) customer uses
+an internal selected-entry boundary to check parameter/local/call lowering and
+negative cases, then publishes length-framed artifacts for actual Alpha
+execution. `python3 bootstrap/compiled_vm/source_test.py --omega-values`
+constructs its source-only semantic producer path. Each invocation stores the
+exact packed compiler, complete customer, request and observation; historical
+measurements remain bound to their original sources. This customer is separate
+from the public OCREQ admission checks.

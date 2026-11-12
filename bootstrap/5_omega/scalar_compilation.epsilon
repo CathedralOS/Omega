@@ -16,10 +16,9 @@ data OmegaScalarCompiler {
     machine_labels: [i32; 4096];
     // Per-state checking results and emission bindings. state_terminal_kind
     // selects each admitted state's exit: 1 = folded u8 immediate return,
-    // 2 = terminal nullary machine call then return, 3 = direct transition
-    // jump to another state of the same machine. state_values holds the
-    // folded u8 for kind 1; state_targets holds the resolved machine index
-    // for kind 2 and the resolved state index for kind 3.
+    // 3 = direct transition to another state of the same machine,
+    // 4 = a checked scalar value expression. state_values holds the folded
+    // u8 for kind 1; state_targets holds a state or expression index.
     state_labels: [i32; 4096];
     state_terminal_kind: [i32; 4096];
     state_values: [i32; 4096];
@@ -27,13 +26,29 @@ data OmegaScalarCompiler {
     // Resolved callee machine index for each admitted non-terminal call
     // statement, indexed by the statement's arena position.
     call_targets: [i32; 16384];
+    // Checked scalar values: 1 is an immediate, 2 a private storage cell,
+    // 3 a resolved call. Cells are disjoint for parameters, immutable locals,
+    // and pending arguments. No source address or reference is admitted.
+    value_kinds: [i32; 16384];
+    value_payloads: [i32; 16384];
+    // Every ordinary call in every state contributes an edge. State transfers
+    // stay inside their owner machine. Refusing cycles therefore prevents a
+    // live invocation's private cells from being re-entered or overwritten.
+    call_edge_heads: [i32; 4096];
+    call_edge_targets: [i32; 32768];
+    call_edge_next: [i32; 32768];
+    call_edge_offsets: [i32; 32768];
+    call_edge_count: i32;
+    call_colors: [i32; 4096];
+    call_walk: [i32; 4096];
+    call_cursors: [i32; 4096];
     // Expression folding scratch. eval_order collects one terminal
     // expression's subtree in preorder (children always carry larger slot
     // positions than their parent), then a reverse scan folds children
     // before their consumers; operand_values holds each visited node's
     // folded value (0..255) or -2 for an unsupported form, and
-    // operand_classes tags every folded node's carrier class - 0 for a u8
-    // integer, 1 for a Boolean. fold_value receives the completed root
+    // operand_classes tags every folded node - 0 for an anonymous exact
+    // number, 1 for a Boolean. fold_value receives the completed root
     // value and fold_class its class; fold_anchor is the caller-chosen
     // Incomplete coordinate when any node stays unsupported.
     operand_values: [i32; 16384];
@@ -45,7 +60,7 @@ data OmegaScalarCompiler {
     fold_value: i32;
     fold_class: i32;
     // The folded transition subject under the arm scan: subject_class is 0
-    // for a u8 integer value and 1 for a Boolean in subject_value.
+    // for an anonymous numeric value and 1 for a Boolean in subject_value.
     subject_class: i32;
     subject_value: i32;
     // Canonical outcome tuple for the eventual OCOUT publication
@@ -230,10 +245,11 @@ machine OmegaScalarCompiler::resolve_state(
     }
 }
 
-// Fold the parsed expression subtree rooted at root to its value under
-// the machine's default Exact policy: every node's result must be
-// representable in its carrier class. Returns 0 with the value in
-// self.fold_value and the class in self.fold_class (0 = u8, 1 = Boolean),
+// Fold a bounded subset of anonymous exact arithmetic and Boolean expressions.
+// Anonymous nodes do not acquire u8 meaning from their destination. This
+// implementation retains only integral intermediate values in 0..255; a wider
+// or fractional intermediate is unsupported, never silently narrowed. Returns
+// 0 with self.fold_value and self.fold_class (0 = anonymous number, 1 = Boolean),
 // 1 when any node is an unsupported form, or 2 after the
 // source's refusal tuple has been recorded through the shared recorders.
 // Children always precede their parents in eval_order, so one preorder
@@ -328,9 +344,8 @@ machine OmegaScalarCompiler::fold_expression(
         transition true { true -> fold_next() }
     }
 
-    // `~x` is total at the carrier width like the binary bitwise family on
-    // a u8 operand; `!x` complements a Boolean operand. Negate is not
-    // total on the unsigned carrier under Exact, so it stays unsupported.
+    // Width-dependent anonymous complement and signed intermediate values
+    // are outside this bounded folder. Boolean negation retains its class.
     state fold_unary(expression: i32) {
         let row: OmegaUnaryExpressionSyntax = self.parser.unary_expressions[
             self.parser.expressions[expression].payload0];
@@ -342,17 +357,8 @@ machine OmegaScalarCompiler::fold_expression(
 
     state fold_unary_operator(expression: i32, row: OmegaUnaryExpressionSyntax) {
         transition row.operator {
-            OmegaUnaryOperatorKind::BitwiseNot -> fold_bitwise_not(expression, row)
             OmegaUnaryOperatorKind::LogicalNot -> fold_logical_not(expression, row)
             _ -> mark_unsupported(expression)
-        }
-    }
-
-    state fold_bitwise_not(expression: i32, row: OmegaUnaryExpressionSyntax) {
-        transition self.operand_classes[row.operand] == 0 {
-            true -> store_folded(expression,
-                self.operand_values[row.operand] ^ 255, 0)
-            _ -> reject_unary_operator(row)
         }
     }
 
@@ -400,6 +406,13 @@ machine OmegaScalarCompiler::fold_expression(
     }
 
     state out_of_range(expression: i32) {
+        transition expression == root {
+            true -> reject_literal(expression)
+            _ -> mark_unsupported(expression)
+        }
+    }
+
+    state reject_literal(expression: i32) {
         self.record_reject(12, 4,
             self.parser.expressions[expression].payload0);
         return 2;
@@ -421,9 +434,8 @@ machine OmegaScalarCompiler::fold_expression(
         }
     }
 
-    // Every admitted operator names its operand classes: arithmetic,
-    // bitwise, and shift operations take u8 operands to a u8 result;
-    // ordering comparisons take u8 operands to a Boolean result; equality
+    // Arithmetic consumes anonymous exact numbers; ordering compares them.
+    // Neither operation introduces a computational carrier. Equality
     // compares same-class operands; the logical operators take Boolean
     // operands to a Boolean result. A class mismatch is a carrier-class
     // rejection at the operator, not an unsupported form.
@@ -455,12 +467,6 @@ machine OmegaScalarCompiler::fold_expression(
             OmegaBinaryOperatorKind::Subtract -> fold_subtract(expression, row)
             OmegaBinaryOperatorKind::Multiply -> fold_multiply(expression, row)
             OmegaBinaryOperatorKind::Divide -> fold_divide(expression, row)
-            OmegaBinaryOperatorKind::Modulo -> fold_modulo(expression, row)
-            OmegaBinaryOperatorKind::ShiftLeft -> fold_shift_left(expression, row)
-            OmegaBinaryOperatorKind::ShiftRight -> fold_shift_right(expression, row)
-            OmegaBinaryOperatorKind::BitwiseAnd -> fold_bitwise_and(expression, row)
-            OmegaBinaryOperatorKind::BitwiseOr -> fold_bitwise_or(expression, row)
-            OmegaBinaryOperatorKind::BitwiseXor -> fold_bitwise_xor(expression, row)
             _ -> mark_unsupported(expression)
         }
     }
@@ -470,7 +476,7 @@ machine OmegaScalarCompiler::fold_expression(
             255 - self.operand_values[row.right] {
             true -> store_folded(expression,
                 self.operand_values[row.left] + self.operand_values[row.right], 0)
-            _ -> reject_operator(row)
+            _ -> mark_unsupported(expression)
         }
     }
 
@@ -478,7 +484,7 @@ machine OmegaScalarCompiler::fold_expression(
         transition self.operand_values[row.left] >= self.operand_values[row.right] {
             true -> store_folded(expression,
                 self.operand_values[row.left] - self.operand_values[row.right], 0)
-            _ -> reject_operator(row)
+            _ -> mark_unsupported(expression)
         }
     }
 
@@ -494,7 +500,7 @@ machine OmegaScalarCompiler::fold_expression(
             255 / self.operand_values[row.right] {
             true -> store_folded(expression,
                 self.operand_values[row.left] * self.operand_values[row.right], 0)
-            _ -> reject_operator(row)
+            _ -> mark_unsupported(expression)
         }
     }
 
@@ -503,70 +509,19 @@ machine OmegaScalarCompiler::fold_expression(
     state fold_divide(expression: i32, row: OmegaBinaryExpressionSyntax) {
         transition self.operand_values[row.right] == 0 {
             true -> reject_operator(row)
-            _ -> store_folded(expression,
+            _ -> fold_integral_divide(expression, row)
+        }
+    }
+
+    state fold_integral_divide(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.left] % self.operand_values[row.right] == 0 {
+            true -> store_folded(expression,
                 self.operand_values[row.left] / self.operand_values[row.right], 0)
+            _ -> mark_unsupported(expression)
         }
     }
 
-    state fold_modulo(expression: i32, row: OmegaBinaryExpressionSyntax) {
-        transition self.operand_values[row.right] == 0 {
-            true -> reject_operator(row)
-            _ -> store_folded(expression,
-                self.operand_values[row.left] % self.operand_values[row.right], 0)
-        }
-    }
-
-    // Exact shifts require the count below the 8-bit carrier width; left
-    // shifts also owe their result's representability proof. The count check
-    // runs first so the Epsilon shift never sees a trapping count.
-    state fold_shift_left(expression: i32, row: OmegaBinaryExpressionSyntax) {
-        transition self.operand_values[row.right] < 8 {
-            true -> fold_shift_left_bounded(expression, row)
-            _ -> reject_operator(row)
-        }
-    }
-
-    state fold_shift_left_bounded(expression: i32, row: OmegaBinaryExpressionSyntax) {
-        transition self.operand_values[row.left] <=
-            255 >> self.operand_values[row.right] {
-            true -> store_folded(expression,
-                self.operand_values[row.left] << self.operand_values[row.right], 0)
-            _ -> reject_operator(row)
-        }
-    }
-
-    state fold_shift_right(expression: i32, row: OmegaBinaryExpressionSyntax) {
-        transition self.operand_values[row.right] < 8 {
-            true -> store_folded(expression,
-                self.operand_values[row.left] >> self.operand_values[row.right], 0)
-            _ -> reject_operator(row)
-        }
-    }
-
-    // Bitwise operations are total at the carrier width, so their results
-    // always fit u8.
-    state fold_bitwise_and(expression: i32, row: OmegaBinaryExpressionSyntax) {
-        transition true {
-            true -> store_folded(expression,
-                self.operand_values[row.left] & self.operand_values[row.right], 0)
-        }
-    }
-
-    state fold_bitwise_or(expression: i32, row: OmegaBinaryExpressionSyntax) {
-        transition true {
-            true -> store_folded(expression,
-                self.operand_values[row.left] | self.operand_values[row.right], 0)
-        }
-    }
-
-    state fold_bitwise_xor(expression: i32, row: OmegaBinaryExpressionSyntax) {
-        transition true {
-            true -> store_folded(expression,
-                self.operand_values[row.left] ^ self.operand_values[row.right], 0)
-        }
-    }
-
-    // Equality admits same-class operands - two u8 values or two Booleans  - 
+    // Equality admits same-class operands: two anonymous numbers or Booleans,
     // and produces a Boolean result; mixed classes are a carrier-class
     // rejection at the operator.
     state fold_equality(expression: i32, row: OmegaBinaryExpressionSyntax) {
@@ -600,7 +555,7 @@ machine OmegaScalarCompiler::fold_expression(
         }
     }
 
-    // Ordering compares u8 operands and produces a Boolean result.
+    // Ordering compares anonymous numbers and produces a Boolean result.
     state fold_ordered(expression: i32, row: OmegaBinaryExpressionSyntax) {
         transition (self.operand_classes[row.left] == 0) &&
             (self.operand_classes[row.right] == 0) {
@@ -717,6 +672,350 @@ machine OmegaScalarCompiler::fold_expression(
     }
 }
 
+// A supported value has exactly the u8 carrier. Other type constructors and
+// qualifications remain coverage boundaries; no representation is guessed.
+machine OmegaScalarCompiler::is_u8_type(
+    &mut self, source: &[u8], type_index: i32
+) -> i32 {
+    let row: OmegaTypeReferenceSyntax = self.parser.type_references[type_index];
+    transition row.kind {
+        OmegaTypeReferenceKind::Named -> named(row)
+        _ -> return 0
+    }
+    state named(row: OmegaTypeReferenceSyntax) {
+        return self.span_equals(source, row.payload0, row.payload1, "u8");
+    }
+}
+
+// The same admitted parameter shape governs declarations and duplicate
+// signatures; unsupported overload families never masquerade as duplicates.
+machine OmegaScalarCompiler::is_u8_parameter(
+    &mut self, source: &[u8], parameter_index: i32
+) -> i32 {
+    let parameter: OmegaMachineParameterSyntax =
+        self.parser.machine_parameters[parameter_index];
+    transition (parameter.is_const == 0) && (parameter.is_mutable == 0) &&
+        (parameter.is_self == 0) &&
+        (self.is_u8_type(source, parameter.type_reference) == 1) {
+        true -> return 1
+        _ -> return 0
+    }
+}
+
+// Lookup sees this state's parameters and only already completed local
+// declarations. Initializers cannot read their own not-yet-created binding;
+// nested states never capture another state's values.
+machine OmegaScalarCompiler::value_cell(
+    &mut self, source: &[u8], state_index: i32, before: i32,
+    start: i32, end: i32
+) -> i32 {
+    transition true { true -> parameter(0) }
+    state parameter(offset: i32) {
+        let body: OmegaMachineStateSyntax = self.parser.machine_states[state_index];
+        transition offset < body.parameter_count {
+            true -> parameter_name(offset)
+            _ -> local(0)
+        }
+    }
+    state parameter_name(offset: i32) {
+        let body: OmegaMachineStateSyntax = self.parser.machine_states[state_index];
+        let slot: i32 = body.first_parameter + offset;
+        let name: OmegaRelativeSpan = self.parser.machine_parameters[slot].name;
+        transition self.span_equals(source, start, end, source[name.start..name.end]) {
+            1 -> return slot
+            _ -> parameter(offset + 1)
+        }
+    }
+    state local(offset: i32) {
+        transition offset < before {
+            true -> local_kind(offset)
+            _ -> return -1
+        }
+    }
+    state local_kind(offset: i32) {
+        let body: OmegaMachineStateSyntax = self.parser.machine_states[state_index];
+        let row: OmegaStatementSyntax = self.parser.statements[body.first_statement + offset];
+        transition row.kind {
+            OmegaStatementKind::LocalData -> local_name(offset, row.item_index)
+            _ -> local(offset + 1)
+        }
+    }
+    state local_name(offset: i32, local_index: i32) {
+        let name: OmegaRelativeSpan = self.parser.local_data_statements[local_index].name;
+        transition self.span_equals(source, start, end, source[name.start..name.end]) {
+            1 -> return 16384 + local_index
+            _ -> local(offset + 1)
+        }
+    }
+}
+
+machine OmegaScalarCompiler::retain_edge(
+    &mut self, caller: i32, callee: i32, coordinate: i32
+) -> i32 {
+    transition self.call_edge_count < 32768 {
+        true -> retain()
+        _ -> fail()
+    }
+    state retain() {
+        let edge: i32 = self.call_edge_count;
+        self.call_edge_targets[edge] = callee;
+        self.call_edge_offsets[edge] = coordinate;
+        self.call_edge_next[edge] = self.call_edge_heads[caller];
+        self.call_edge_heads[caller] = edge;
+        self.call_edge_count = edge + 1;
+        return 1;
+    }
+    state fail() { self.record_internal(); return 0; }
+}
+
+machine OmegaScalarCompiler::check_value_arguments(
+    &mut self, source: &[u8], owner: i32, state_index: i32, before: i32,
+    first_argument: i32, count: i32
+) -> i32 {
+    transition true { true -> next(0) }
+    state next(offset: i32) {
+        transition offset < count {
+            true -> value(offset)
+            _ -> return 1
+        }
+    }
+    state value(offset: i32) {
+        transition self.check_value(source, owner, state_index, before,
+            self.parser.call_arguments[first_argument + offset]) {
+            1 -> next(offset + 1)
+            _ -> return 0
+        }
+    }
+}
+
+// Values are constants, ordinary local/parameter names, or ordinary calls.
+// Dynamic arithmetic has no implicit runtime-check fallback: the existing
+// exact constant folder must establish every arithmetic intermediate.
+machine OmegaScalarCompiler::check_value(
+    &mut self, source: &[u8], owner: i32, state_index: i32, before: i32,
+    expression: i32
+) -> i32 {
+    let row: OmegaExpressionSyntax = self.parser.expressions[expression];
+    transition row.kind {
+        OmegaExpressionKind::Path -> path(row)
+        OmegaExpressionKind::Call -> call(self.parser.call_expressions[row.payload0])
+        _ -> constant()
+    }
+    state path(row: OmegaExpressionSyntax) {
+        transition (row.payload1 == 1) && (row.payload2 == 0) {
+            true -> name(self.parser.members[row.payload0])
+            _ -> unsupported(self.diagnostic_offset)
+        }
+    }
+    state name(span: OmegaRelativeSpan) {
+        let cell: i32 = self.value_cell(source, state_index, before, span.start, span.end);
+        transition cell >= 0 {
+            true -> retain(2, cell)
+            _ -> rejected(span.start)
+        }
+    }
+    state call(call: OmegaCallExpressionSyntax) {
+        transition (call.has_receiver == 0) && (call.machine_argument_count == 0) {
+            true -> target(call)
+            _ -> unsupported(call.start)
+        }
+    }
+    state target(call: OmegaCallExpressionSyntax) {
+        transition self.resolve_state(source, owner, call.target.start, call.target.end) < 0 {
+            true -> global_target(call)
+            _ -> unsupported(call.target.start)
+        }
+    }
+    state global_target(call: OmegaCallExpressionSyntax) {
+        let callee: i32 = self.resolve_machine(source, call.target.start, call.target.end);
+        transition callee >= 0 {
+            true -> arity(call, callee)
+            _ -> rejected(call.target.start)
+        }
+    }
+    state arity(call: OmegaCallExpressionSyntax, callee: i32) {
+        transition call.argument_count == self.parser.machine_states[
+            self.parser.machine_items[callee].first_state].parameter_count {
+            true -> arguments(call, callee)
+            _ -> rejected(call.start)
+        }
+    }
+    state arguments(call: OmegaCallExpressionSyntax, callee: i32) {
+        transition self.check_value_arguments(source, owner, state_index, before,
+            call.first_argument, call.argument_count) {
+            1 -> edge(call, callee)
+            _ -> return 0
+        }
+    }
+    state edge(call: OmegaCallExpressionSyntax, callee: i32) {
+        transition self.retain_edge(owner, callee, call.start) {
+            1 -> retain(3, callee)
+            _ -> return 0
+        }
+    }
+    state constant() {
+        self.fold_anchor = self.diagnostic_offset;
+        transition self.fold_expression(source, expression) {
+            0 -> constant_class()
+            1 -> unsupported(self.fold_anchor)
+            _ -> return 0
+        }
+    }
+    state constant_class() {
+        transition self.fold_class == 0 {
+            true -> retain(1, self.fold_value)
+            _ -> rejected(self.fold_anchor)
+        }
+    }
+    state retain(kind: i32, value: i32) {
+        self.value_kinds[expression] = kind;
+        self.value_payloads[expression] = value;
+        return 1;
+    }
+    state unsupported(coordinate: i32) {
+        self.record_incomplete(4, coordinate);
+        return 0;
+    }
+    state rejected(coordinate: i32) {
+        self.record_reject(-1, 4, coordinate);
+        return 0;
+    }
+}
+
+// Three-color DFS over every state-owned ordinary call. All admitted state
+// transfers remain inside that same owner machine, so they cannot evade this
+// reentrancy check. The explicit walk is bounded by the machine arena.
+machine OmegaScalarCompiler::check_call_graph(&mut self) -> i32 {
+    transition true { true -> root(0) }
+    state root(index: i32) {
+        transition index < self.parser.machine_count {
+            true -> root_color(index)
+            _ -> return 1
+        }
+    }
+    state root_color(index: i32) {
+        transition self.call_colors[index] {
+            0 -> begin(index)
+            _ -> root(index + 1)
+        }
+    }
+    state begin(index: i32) {
+        self.call_walk[0] = index;
+        self.call_cursors[0] = self.call_edge_heads[index];
+        self.call_colors[index] = 1;
+        transition true { true -> walk(index, 0) }
+    }
+    state walk(root_index: i32, depth: i32) {
+        transition self.call_cursors[depth] >= 0 {
+            true -> edge(root_index, depth, self.call_cursors[depth])
+            _ -> finish(root_index, depth)
+        }
+    }
+    state edge(root_index: i32, depth: i32, edge_index: i32) {
+        self.call_cursors[depth] = self.call_edge_next[edge_index];
+        let callee: i32 = self.call_edge_targets[edge_index];
+        transition self.call_colors[callee] {
+            0 -> descend(root_index, depth, callee)
+            1 -> cycle(edge_index)
+            _ -> walk(root_index, depth)
+        }
+    }
+    state descend(root_index: i32, depth: i32, callee: i32) {
+        transition depth + 1 < 4096 {
+            true -> enter(root_index, depth + 1, callee)
+            _ -> internal()
+        }
+    }
+    state enter(root_index: i32, depth: i32, callee: i32) {
+        self.call_walk[depth] = callee;
+        self.call_cursors[depth] = self.call_edge_heads[callee];
+        self.call_colors[callee] = 1;
+        transition true { true -> walk(root_index, depth) }
+    }
+    state finish(root_index: i32, depth: i32) {
+        self.call_colors[self.call_walk[depth]] = 2;
+        transition depth {
+            0 -> root(root_index + 1)
+            _ -> walk(root_index, depth - 1)
+        }
+    }
+    state cycle(edge_index: i32) {
+        self.record_incomplete(4, self.call_edge_offsets[edge_index]);
+        return 0;
+    }
+    state internal() { self.record_internal(); return 0; }
+}
+
+// Alpha code uses r0 for a scalar result and r1 only as an address scratch.
+// The complete private region is [0x02000000, 0x02060000): 49,152 words.
+// It cannot overlap the maximum 16 MiB code or Alpha's return stack. With the
+// checked call DAG at most 4,096 ordinary source activations can be live.
+machine OmegaScalarCompiler::emit_value_load(&mut self, cell: i32) -> i32 {
+    transition (self.tape.emit_imm(1, 33554432 + cell * 8, 0) == 1) &&
+        (self.tape.emit_rr(10, 0, 1) == 1) {
+        true -> return 1
+        _ -> return 0
+    }
+}
+machine OmegaScalarCompiler::emit_value_store(&mut self, cell: i32) -> i32 {
+    transition (self.tape.emit_imm(1, 33554432 + cell * 8, 0) == 1) &&
+        (self.tape.emit_rr(11, 1, 0) == 1) {
+        true -> return 1
+        _ -> return 0
+    }
+}
+machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
+    transition self.value_kinds[expression] {
+        1 -> return self.tape.emit_imm(0, self.value_payloads[expression], 0)
+        2 -> return self.emit_value_load(self.value_payloads[expression])
+        3 -> call(self.parser.call_expressions[self.parser.expressions[expression].payload0])
+        _ -> return self.tape.fail_internal(expression)
+    }
+    state call(call: OmegaCallExpressionSyntax) {
+        return self.emit_value_call(self.value_payloads[expression],
+            call.first_argument, call.argument_count);
+    }
+}
+machine OmegaScalarCompiler::emit_value_call(
+    &mut self, callee: i32, first_argument: i32, count: i32
+) -> i32 {
+    transition true { true -> evaluate(0) }
+    state evaluate(offset: i32) {
+        transition offset < count {
+            true -> argument(offset)
+            _ -> transfer(0)
+        }
+    }
+    state argument(offset: i32) {
+        let slot: i32 = first_argument + offset;
+        transition (self.emit_value(self.parser.call_arguments[slot]) == 1) &&
+            (self.emit_value_store(32768 + slot) == 1) {
+            true -> evaluate(offset + 1)
+            _ -> return 0
+        }
+    }
+    // Evaluate all arguments before touching any callee parameter. A later
+    // argument may itself call the same callee as the pending outer call.
+    state transfer(offset: i32) {
+        transition offset < count {
+            true -> parameter(offset)
+            _ -> invoke()
+        }
+    }
+    state parameter(offset: i32) {
+        let target: i32 = self.parser.machine_states[
+            self.parser.machine_items[callee].first_state].first_parameter + offset;
+        transition (self.emit_value_load(32768 + first_argument + offset) == 1) &&
+            (self.emit_value_store(target) == 1) {
+            true -> transfer(offset + 1)
+            _ -> return 0
+        }
+    }
+    state invoke() {
+        return self.tape.emit_jump_label(19, self.machine_labels[callee]);
+    }
+}
+
 machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     self.status = OmegaScalarCompilationStatus::Pending;
     self.diagnostic_offset = 0;
@@ -730,6 +1029,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     self.outcome_limit = 0;
     self.outcome_requested = 0;
     self.emission_resource = 12;
+    self.call_edge_count = 0;
     self.tape.initialize();
     self.parser.parse_view(source);
     transition self.parser.status {
@@ -756,9 +1056,22 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     state check_roots() {
         transition (self.parser.root_count == self.parser.machine_count) &&
             (self.parser.machine_count > 0) {
-            true -> check_machine(0)
+            true -> reset_call_graph(0)
             _ -> non_machine_root(0)
         }
+    }
+
+    state reset_call_graph(index: i32) {
+        transition index < self.parser.machine_count {
+            true -> reset_call_node(index)
+            _ -> check_declarations(0)
+        }
+    }
+
+    state reset_call_node(index: i32) {
+        self.call_edge_heads[index] = -1;
+        self.call_colors[index] = 0;
+        transition true { true -> reset_call_graph(index + 1) }
     }
 
     // A non-machine root is valid Omega this slice does not implement; the
@@ -781,9 +1094,19 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
         }
     }
 
-    state check_machine(index: i32) {
+    // Census all declaration identities before any body can resolve a call.
+    // Otherwise an earlier caller could select the first member of a later
+    // overload family and falsely reject its arity before coverage is known.
+    state check_declarations(index: i32) {
         transition index < self.parser.machine_count {
             true -> machine_shape(index)
+            _ -> check_machine(0)
+        }
+    }
+
+    state check_machine(index: i32) {
+        transition index < self.parser.machine_count {
+            true -> begin_states(index)
             _ -> check_entry()
         }
     }
@@ -802,7 +1125,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     state check_duplicate(index: i32, previous: i32) {
         transition previous < index {
             true -> compare_name(index, previous)
-            _ -> begin_states(index)
+            _ -> check_declarations(index + 1)
         }
     }
 
@@ -813,8 +1136,39 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
             self.parser.machine_items[previous].first_path_member];
         transition self.span_equals(source, name.start, name.end,
             source[other.start..other.end]) {
-            1 -> reject(10, 4, name.start)
+            1 -> duplicate_arity(index, previous, name.start)
             _ -> check_duplicate(index, previous + 1)
+        }
+    }
+
+    // Structural identity ignores parameter spelling. Differing arity or an
+    // unimplemented operand type denotes an unsupported overload family.
+    state duplicate_arity(index: i32, previous: i32, coordinate: i32) {
+        transition self.parser.machine_states[
+            self.parser.machine_items[index].first_state].parameter_count ==
+            self.parser.machine_states[
+            self.parser.machine_items[previous].first_state].parameter_count {
+            true -> duplicate_parameter(index, previous, 0, coordinate)
+            _ -> incomplete(4, coordinate)
+        }
+    }
+
+    state duplicate_parameter(index: i32, previous: i32, offset: i32, coordinate: i32) {
+        transition offset < self.parser.machine_states[
+            self.parser.machine_items[index].first_state].parameter_count {
+            true -> duplicate_parameter_type(index, previous, offset, coordinate)
+            _ -> reject(10, 4, coordinate)
+        }
+    }
+
+    state duplicate_parameter_type(index: i32, previous: i32,
+        offset: i32, coordinate: i32) {
+        transition (self.is_u8_parameter(source, self.parser.machine_states[
+            self.parser.machine_items[index].first_state].first_parameter + offset) == 1) &&
+            (self.is_u8_parameter(source, self.parser.machine_states[
+            self.parser.machine_items[previous].first_state].first_parameter + offset) == 1) {
+            true -> duplicate_parameter(index, previous, offset + 1, coordinate)
+            _ -> incomplete(4, coordinate)
         }
     }
 
@@ -822,6 +1176,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     // is its generated top-level entry and the rest are authored states.
     state begin_states(index: i32) {
         let item: OmegaMachineSyntax = self.parser.machine_items[index];
+        self.diagnostic_offset = item.start;
         transition true { true -> check_states(index, item.first_state) }
     }
 
@@ -841,8 +1196,8 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
         }
     }
 
-    // The entry is the machine's top-level body: it must declare no
-    // parameters and the machine's single admitted scalar return type.
+    // A free machine's parameters and result use the admitted u8 carrier.
+    // Only the external selected entry must be nullary.
     state entry_shape(index: i32, state_index: i32) {
         transition self.parser.machine_states[state_index].name_kind {
             OmegaMachineStateNameKind::GeneratedEntry ->
@@ -854,7 +1209,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     state entry_bounds(index: i32, state_index: i32) {
         let body: OmegaMachineStateSyntax =
             self.parser.machine_states[state_index];
-        transition (body.parameter_count == 0) && (body.has_return_type == 1) {
+        transition body.has_return_type == 1 {
             true -> entry_return_type(index, state_index)
             _ -> incomplete(4, self.diagnostic_offset)
         }
@@ -873,8 +1228,54 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
             self.parser.machine_states[state_index].return_type];
         transition self.span_equals(source, type_value.payload0,
             type_value.payload1, "u8") {
-            1 -> state_body(index, state_index)
+            1 -> entry_parameter(index, state_index, 0)
             _ -> incomplete(4, self.diagnostic_offset)
+        }
+    }
+
+    state entry_parameter(index: i32, state_index: i32, offset: i32) {
+        transition offset < self.parser.machine_states[state_index].parameter_count {
+            true -> entry_parameter_type(index, state_index, offset)
+            _ -> state_body(index, state_index)
+        }
+    }
+
+    state entry_parameter_type(index: i32, state_index: i32, offset: i32) {
+        let parameter: OmegaMachineParameterSyntax = self.parser.machine_parameters[
+            self.parser.machine_states[state_index].first_parameter + offset];
+        transition self.is_u8_parameter(source,
+            self.parser.machine_states[state_index].first_parameter + offset) {
+            1 -> entry_parameter_scope(index, state_index, offset, parameter.name)
+            _ -> incomplete(4, parameter.name.start)
+        }
+    }
+
+    // Runtime binding names must not hide a declaration this slice resolves
+    // by spelling. Qualified/declaration-shadowing resolution stays outside
+    // the admitted subset instead of silently selecting a different callee.
+    state entry_parameter_scope(index: i32, state_index: i32, offset: i32,
+        name: OmegaRelativeSpan) {
+        transition (self.resolve_machine(source, name.start, name.end) < 0) &&
+            (self.resolve_state(source, index, name.start, name.end) < 0) {
+            true -> entry_parameter_name(index, state_index, offset, 0)
+            _ -> incomplete(4, name.start)
+        }
+    }
+
+    state entry_parameter_name(index: i32, state_index: i32, offset: i32, previous: i32) {
+        transition previous < offset {
+            true -> entry_parameter_compare(index, state_index, offset, previous)
+            _ -> entry_parameter(index, state_index, offset + 1)
+        }
+    }
+
+    state entry_parameter_compare(index: i32, state_index: i32, offset: i32, previous: i32) {
+        let first: i32 = self.parser.machine_states[state_index].first_parameter;
+        let name: OmegaRelativeSpan = self.parser.machine_parameters[first + offset].name;
+        let other: OmegaRelativeSpan = self.parser.machine_parameters[first + previous].name;
+        transition self.span_equals(source, name.start, name.end, source[other.start..other.end]) {
+            1 -> reject(10, 4, name.start)
+            _ -> entry_parameter_name(index, state_index, offset, previous + 1)
         }
     }
 
@@ -983,9 +1384,45 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
                 incomplete(4, self.parser.assignment_statements[
                     self.parser.statements[statement].item_index].start)
             OmegaStatementKind::LocalData ->
-                incomplete(4, self.parser.local_data_statements[
-                    self.parser.statements[statement].item_index].start)
+                check_local(index, state_index, statement_offset,
+                    self.parser.local_data_statements[self.parser.statements[statement].item_index])
             _ -> internal()
+        }
+    }
+
+    state check_local(index: i32, state_index: i32, statement_offset: i32,
+        local: OmegaLocalDataStatementSyntax) {
+        transition (local.is_mutable == 0) && (local.has_initial_value == 1) &&
+            (self.is_u8_type(source, local.type_reference) == 1) {
+            true -> local_name(index, state_index, statement_offset, local)
+            _ -> incomplete(4, local.start)
+        }
+    }
+
+    state local_name(index: i32, state_index: i32, statement_offset: i32,
+        local: OmegaLocalDataStatementSyntax) {
+        transition self.value_cell(source, state_index, statement_offset,
+            local.name.start, local.name.end) < 0 {
+            true -> local_scope(index, state_index, statement_offset, local)
+            _ -> reject(10, 4, local.name.start)
+        }
+    }
+
+    state local_scope(index: i32, state_index: i32, statement_offset: i32,
+        local: OmegaLocalDataStatementSyntax) {
+        transition (self.resolve_machine(source, local.name.start, local.name.end) < 0) &&
+            (self.resolve_state(source, index, local.name.start, local.name.end) < 0) {
+            true -> local_value(index, state_index, statement_offset, local)
+            _ -> incomplete(4, local.name.start)
+        }
+    }
+
+    state local_value(index: i32, state_index: i32, statement_offset: i32,
+        local: OmegaLocalDataStatementSyntax) {
+        transition self.check_value(source, index, state_index, statement_offset,
+            local.initial_value) {
+            1 -> next_statement(index, state_index, statement_offset + 1)
+            _ -> return
         }
     }
 
@@ -997,9 +1434,8 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
         }
     }
 
-    // Non-terminal statements are calls into sibling machines: only a plain
-    // nullary invocation is admitted, so a receiver path, a self receiver, or
-    // static machine arguments stay coverage refusals.
+    // Non-terminal statements are ordinary calls into free machines. Receiver
+    // paths and static machine arguments remain coverage boundaries.
     state check_call(index: i32, state_index: i32, statement: i32) {
         let call: OmegaCallStatementSyntax = self.parser.call_statements[
             self.parser.statements[statement].item_index];
@@ -1014,6 +1450,14 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     state call_target(index: i32, state_index: i32, statement: i32,
         call: OmegaCallStatementSyntax) {
         let name: OmegaRelativeSpan = self.parser.members[call.target_member];
+        transition self.resolve_state(source, index, name.start, name.end) < 0 {
+            true -> global_call_target(index, state_index, statement, call, name)
+            _ -> incomplete(4, name.start)
+        }
+    }
+
+    state global_call_target(index: i32, state_index: i32, statement: i32,
+        call: OmegaCallStatementSyntax, name: OmegaRelativeSpan) {
         let callee: i32 = self.resolve_machine(source, name.start, name.end);
         transition callee >= 0 {
             true -> call_arity(index, state_index, statement, call, callee)
@@ -1021,15 +1465,32 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
         }
     }
 
-    // The call supplies exactly the callee's declared parameter list; every
-    // admitted callee is nullary, and a mismatched edge is a checking
-    // refusal, not a coverage boundary.
+    // Every ordinary argument must match the callee's declared u8 parameter
+    // list; a mismatched arity is a checking refusal.
     state call_arity(index: i32, state_index: i32, statement: i32,
         call: OmegaCallStatementSyntax, callee: i32) {
         transition call.argument_count == self.parser.machine_states[
             self.parser.machine_items[callee].first_state].parameter_count {
-            true -> retain_call(index, state_index, statement, callee)
+            true -> call_values(index, state_index, statement, call, callee)
             _ -> reject(-1, 4, call.start)
+        }
+    }
+
+    state call_values(index: i32, state_index: i32, statement: i32,
+        call: OmegaCallStatementSyntax, callee: i32) {
+        transition self.check_value_arguments(source, index, state_index,
+            statement - self.parser.machine_states[state_index].first_statement,
+            call.first_argument, call.argument_count) {
+            1 -> call_edge(index, state_index, statement, call, callee)
+            _ -> return
+        }
+    }
+
+    state call_edge(index: i32, state_index: i32, statement: i32,
+        call: OmegaCallStatementSyntax, callee: i32) {
+        transition self.retain_edge(index, callee, call.start) {
+            1 -> retain_call(index, state_index, statement, callee)
+            _ -> return
         }
     }
 
@@ -1058,42 +1519,24 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     state terminal_kind(index: i32, state_index: i32, expression: i32) {
         transition self.parser.expressions[expression].kind {
             OmegaExpressionKind::Call ->
-                terminal_call(index, state_index, expression)
+                terminal_value(index, state_index, expression)
+            OmegaExpressionKind::Path ->
+                terminal_value(index, state_index, expression)
             _ -> terminal_fold(index, state_index, expression)
         }
     }
 
-    state terminal_call(index: i32, state_index: i32, expression: i32) {
-        let call: OmegaCallExpressionSyntax = self.parser.call_expressions[
-            self.parser.expressions[expression].payload0];
-        transition (call.has_receiver == 0) && (call.machine_argument_count == 0) {
-            true -> terminal_call_target(index, state_index, call)
-            _ -> incomplete(4, call.start)
+    state terminal_value(index: i32, state_index: i32, expression: i32) {
+        transition self.check_value(source, index, state_index,
+            self.parser.machine_states[state_index].statement_count - 1, expression) {
+            1 -> retain_value_terminal(index, state_index, expression)
+            _ -> return
         }
     }
 
-    state terminal_call_target(index: i32, state_index: i32,
-        call: OmegaCallExpressionSyntax) {
-        let callee: i32 = self.resolve_machine(source,
-            call.target.start, call.target.end);
-        transition callee >= 0 {
-            true -> terminal_call_arity(index, state_index, call, callee)
-            _ -> reject(-1, 4, call.target.start)
-        }
-    }
-
-    state terminal_call_arity(index: i32, state_index: i32,
-        call: OmegaCallExpressionSyntax, callee: i32) {
-        transition call.argument_count == self.parser.machine_states[
-            self.parser.machine_items[callee].first_state].parameter_count {
-            true -> retain_call_terminal(index, state_index, callee)
-            _ -> reject(-1, 4, call.start)
-        }
-    }
-
-    state retain_call_terminal(index: i32, state_index: i32, callee: i32) {
-        self.state_terminal_kind[state_index] = 2;
-        self.state_targets[state_index] = callee;
+    state retain_value_terminal(index: i32, state_index: i32, expression: i32) {
+        self.state_terminal_kind[state_index] = 4;
+        self.state_targets[state_index] = expression;
         transition true { true -> check_states(index, state_index + 1) }
     }
 
@@ -1434,8 +1877,23 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
 
     state check_entry() {
         transition self.selected_machine >= 0 {
-            true -> labels(0)
+            true -> entry_arity()
             _ -> reject(11, 0, 0)
+        }
+    }
+
+    state entry_arity() {
+        transition self.parser.machine_states[
+            self.parser.machine_items[self.selected_machine].first_state].parameter_count {
+            0 -> call_graph()
+            _ -> incomplete(4, self.parser.machine_items[self.selected_machine].start)
+        }
+    }
+
+    state call_graph() {
+        transition self.check_call_graph() {
+            1 -> labels(0)
+            _ -> return
         }
     }
 
@@ -1533,7 +1991,19 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
                 emit_call_statement(index, state_index, statement_offset)
             OmegaStatementKind::Transition ->
                 emit_statements(index, state_index, statement_offset + 1)
+            OmegaStatementKind::LocalData ->
+                emit_local(index, state_index, statement_offset)
             _ -> internal()
+        }
+    }
+
+    state emit_local(index: i32, state_index: i32, statement_offset: i32) {
+        let local_index: i32 = self.parser.statements[
+            self.parser.machine_states[state_index].first_statement + statement_offset].item_index;
+        transition (self.emit_value(self.parser.local_data_statements[local_index].initial_value) == 1) &&
+            (self.emit_value_store(16384 + local_index) == 1) {
+            true -> emit_statements(index, state_index, statement_offset + 1)
+            _ -> emission_failure()
         }
     }
 
@@ -1542,8 +2012,10 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
         let callee: i32 = self.call_targets[
             self.parser.machine_states[state_index].first_statement +
             statement_offset];
-        transition self.tape.emit_jump_label(19,
-            self.machine_labels[callee]) {
+        let call: OmegaCallStatementSyntax = self.parser.call_statements[
+            self.parser.statements[self.parser.machine_states[state_index].first_statement +
+                statement_offset].item_index];
+        transition self.emit_value_call(callee, call.first_argument, call.argument_count) {
             1 -> emit_statements(index, state_index, statement_offset + 1)
             _ -> emission_failure()
         }
@@ -1552,27 +2024,23 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     state emit_terminal(index: i32, state_index: i32) {
         transition self.state_terminal_kind[state_index] {
             1 -> emit_immediate(index, state_index)
-            2 -> emit_call_terminal(index, state_index)
             3 -> emit_jump_terminal(index, state_index)
+            4 -> emit_value_terminal(index, state_index)
             _ -> internal()
+        }
+    }
+
+    state emit_value_terminal(index: i32, state_index: i32) {
+        transition (self.emit_value(self.state_targets[state_index]) == 1) &&
+            (self.tape.emit_ret() == 1) {
+            true -> emit_state(index, state_index + 1)
+            _ -> emission_failure()
         }
     }
 
     state emit_immediate(index: i32, state_index: i32) {
         transition (self.tape.emit_imm(0, self.state_values[state_index], 0) ==
             1) && (self.tape.emit_ret() == 1) {
-            true -> emit_state(index, state_index + 1)
-            _ -> emission_failure()
-        }
-    }
-
-    // A terminal machine call leaves the callee's r0 result in place and the
-    // return edge carries it to this state's caller.
-    state emit_call_terminal(index: i32, state_index: i32) {
-        let callee: i32 = self.state_targets[state_index];
-        transition (self.tape.emit_jump_label(19,
-            self.machine_labels[callee]) == 1) &&
-            (self.tape.emit_ret() == 1) {
             true -> emit_state(index, state_index + 1)
             _ -> emission_failure()
         }

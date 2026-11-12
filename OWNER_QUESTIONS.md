@@ -266,114 +266,6 @@ fields are themselves shared references gives an argument that is
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q6 - Which in-memory filesystem does a test group select, and what does it implement?
-
-Decision name: `test-group-virtual-filesystem`.
-
-**Customer.** [Requirement-based test groups](wiki/spec/build/testing.md)
-require a group that selects a private in-memory filesystem
-(`memory.service<Filesystem, MemoryFilesystem>()`) to run on both engines
-under its implementation acceptance, and `TASKS.md` item `BUILD-TEST-GROUPS`
-carries that acceptance. Registration, discovery, both-engine execution and
-the roster report are implemented; no provider exists for such a group to
-select.
-
-**Gap.** These contracts were checked and do not define the provider:
-
-- [Testing](wiki/spec/build/testing.md#group-configuration-and-authority):
-  *"Benign captured output and a private in-memory filesystem require no
-  approval ceremony, but are explicitly selected"*, and *"Operations supported
-  by the delegated virtual interface use that backing; real-only or otherwise
-  unavailable operations reject without a host fallback."* It names neither
-  the virtual interface nor which operations it supports.
-- [Chapter 23](wiki/language_guide/chapter_23_testing.md#services-and-fixtures)
-  spells the selection `service<Filesystem, MemoryFilesystem>`, but std's
-  filesystem slot is the boundary trait `FilesystemService`
-  (`source/library/std/filesystem.omg`), `Filesystem` is an empty data type,
-  and no `MemoryFilesystem` exists anywhere in `source/library`.
-- [Platform services](wiki/spec/build/platform_services.md) and
-  [provider selection](wiki/spec/build/provider_selection.md) define real
-  filesystem providers and root-delegated replacement, not a virtual backing's
-  path model, initial contents or per-test state.
-
-**Question.**
-
-- **(a)** Is the virtual filesystem a std provider for the whole
-  `FilesystemService` slot, with every operation implemented over private
-  per-invocation state (directories, metadata, permissions and enumeration
-  included)?
-- **(b)** Or is it a narrower declared virtual interface (for example content
-  read/write/create/exists only), where the other `FilesystemService`
-  operations reject before execution as unsupported by the backing?
-- In either case: which library owns it (`std` or a separate test-support
-  package), what its initial contents are, and whether the selection operand
-  names the `FilesystemService` slot or the guide's `Filesystem` type.
-
-Until answered, test groups run only without services, and
-`BUILD-TEST-GROUPS` keeps only its virtual-filesystem acceptance.
-
-### Q7 - May `&mut` lend a binding declared without `mut`, and may the borrower replace its value?
-
-Decision name: `immutable-binding-exclusive-loan`.
-
-**Customer.** `tests/omega/fail/constraints/computed_local_value_invalidated`
-declares `let saved: u8 = 3 + 4;` without `mut`, calls
-`replace(&mut saved)` where `replace` writes `value = 8`, and returns
-`saved` under `ensures result == 7`. When the program runs the result is
-`8`. The fixture pins "ensures". The current checker accepts it
-(`mbx xtask corpus --filter` reports `rejected -> checked` at `a4dd6090e`),
-and it was already accepted at `5209eac45` (2026-11-03), the oldest commit in
-the fetched history. The same program with `let saved: u8 = 7;` is also
-accepted; with `let mut saved` both forms are rejected with the expected
-ensures diagnostic. The ledger row is recorded `checked` here, as main
-measures it at `11582c84f`.
-
-**Cause.** The checker holds two incompatible readings at once:
-
-- Admission lends a non-`mut` binding exclusively. Assignment rejects a bare
-  reassignment `saved = 8` ("not mutable in this state",
-  `omega-rust/psi/compilation/validation/src/places.rs`), but it admits field
-  writes to a non-`mut` local and admits `&mut saved`. At least 190 `pass/`,
-  `run/`, sample and library files lend a non-`mut` local with `&mut`
-  (for example `pass/facts/nominal_loan_backing_cleanup_through_local_exit`,
-  whose callee writes `room.count = 99`).
-- Value tracking treats a non-`mut` binding as never written.
-  `checks_current_scalar_values.rs` documents the flag as *"A by-value
-  binding declared without `mut`. No store or call can reach it: a write
-  needs a mutable place, and so does a `&mut` loan."* Exit-contract scalar
-  rosters (`is_scalar_roster_local` in `checks_contracts_exits.rs`) and about
-  fifty other sites rely on the same premise.
-
-Under either reading the customer is invalid, but the two readings reject it
-in different places, and the second reading is unsound while the first is
-admitted. Repairing only the value tracker flips this row and leaves the
-literal-initializer variant accepted through the other sites.
-
-**Gap.** These contracts were checked and are silent on whether `mut`
-governs exclusive lending:
-
-- [Ownership](wiki/spec/language/ownership.md): the access table gives
-  `&mut T` *"Exclusive observation and mutation"* and says nothing about the
-  binding the loan is formed from.
-- [Expressions](wiki/spec/language/expressions.md): *"mutable and write-only
-  lending require explicit `&mut` and `&write` expressions"*, and a mutable
-  subrange *"source must already permit exclusive access"*, without saying
-  whether a non-`mut` local permits it.
-- [Machines](wiki/spec/language/machines.md) shows `let mut counter` lent as
-  `&mut counter` but states no rule for a non-`mut` binding.
-
-**Question.**
-
-- **(a)** Does `mut` govern only bare reassignment, so `&mut` may lend any
-  owned local and the borrower may replace its whole value? Then every site
-  that treats a non-`mut` binding as unwritable must consult the binding's
-  exclusive loans, and the fixture is rejected by its ensures.
-- **(b)** Or does an exclusive loan require a `mut` binding? Then admission
-  rejects `&mut saved`, the fixture's pinned fragment changes to that
-  refusal, and the lending files above add `mut`.
-
-Until answered the row stays as recorded and the checker is unchanged.
-
 ### Q10 - Who supplies TaskRuntime and interrupt masking once authored compiler intrinsics are refused?
 
 Decision name: `sealed-runtime-providers`.
@@ -428,81 +320,6 @@ provider at all.
 Until answered, `via ForeignBinding::CompilerIntrinsic` stays accepted at
 these sites, and BUILD-OWNED-NATIVE-BINDINGS keeps its `CompilerIntrinsic`
 retirement.
-
-### Q19 - May two machines' guarantees each name the other in a specification call when both bodies are plain definitions?
-
-Decision name: `mutual-specification-call-guarantees`.
-
-**Customer.** `tests/omega/fail/core/scoped_integer_call_guarantees_cannot_form_cycle`:
-
-```omega
-machine first(value: i16) -> i16
-ensures (second(value) as i16 in Saturating) == result { value }
-machine second(value: i16) -> i16
-ensures (first(value) as i16 in Wrapping) == result { value }
-machine main() {}
-```
-
-The fixture pins "cannot prove ensures contract for exit", and its ledger row
-records one such diagnostic per machine. The current checker accepts the
-program (`omega --check` exits 0 at `2aab3a555`); the row read
-`rejected` from the unreachable stamp `@ccdb99ca2214` and is recorded `checked`
-here, as main measures it. Both guarantees are
-true: each body is `value`, neither body calls anything, and unfolding the two
-bodies proves both exits without citing either guarantee. The casts and
-arithmetic policies do not matter; the program without them, and the
-self-cycle `machine first(value: i16) -> i16 ensures first(value) == result { value }`,
-are accepted the same way. Every false variant probed still rejects: a body
-returning `7i16`, a self-cycle `== 9i16`, an opaque callee, a callee that
-`crashes Trap`, and a mutually tail-recursive pair.
-
-**Gap.** These contracts were checked:
-
-- [Total arithmetic](wiki/spec/proofs/contracts.md#total-arithmetic): *"A call
-  interpreted denotationally needs a checked observation-free, reach-free,
-  crash-free, terminating invocation, not merely a same-spelled mathematical
-  operation."* It does not say whether `second` is "checked" for this purpose
-  while `second`'s own guarantee is still being proved from `first`.
-- [Citation and induction](wiki/spec/proofs/contracts.md#citation-and-induction):
-  *"Mutual recursion requires a joint ranking; citation cycles cannot justify
-  themselves."* Here no guarantee is cited: the proof reads the bodies, and
-  the bodies are not recursive.
-- [Mathematical bindings](wiki/spec/proofs/mathematical_bindings.md):
-  *"Mathematical conversion unfolds checked definitions ... arbitrary
-  self-reference is not a definition."* The bodies are not self-referential;
-  only the contracts refer to each other.
-
-- [Local call summaries](wiki/spec/language/state_contracts.md#local-call-summaries)
-  (`callee-result-body-summary`, settled 2026-11-11): *"An exact checked call
-  inside the same fingerprinted verification unit may use the callee's written
-  contract plus checked body-derived result and state facts"* and *"recursive
-  groups need checked invariants or induction: assuming a proposed summary
-  around a cycle is not a proof."* Read alone this makes the program valid:
-  the bodies form no recursive group. It speaks of calls, though, and does not
-  say whether a specification call in a contract counts as one, or whether
-  two contracts that mention each other form a "group".
-
-#1704 retired `scoped_integer_call_guarantee_requires_published_equality` on
-the reasoning that unfolding a checked body is a valid proof. `check-rules`
-now refuses a pull request that removes a pinned `expected.txt`, so this
-fixture cannot be retired the same way without the owner's answer. The compiler has
-a guard for the stricter reading: `independent_application` refuses a
-specification call whose target's declaration, contracts included, depends on
-the machine being proved. One later exit pass reaches `unfold_application`
-without that test, which is why the program is accepted.
-
-**Question.**
-
-- **(a)** Is a specification call eligible whenever the callee's body is a
-  checked, non-recursive, observation-free definition, whatever its contracts
-  mention? Then the program is valid, the fixture is retired as #1704's was,
-  and the independence test narrows to body dependencies.
-- **(b)** Or must the callee's whole declaration, contracts included, be
-  independent of the machine being proved? Then the program rejects, and the
-  independence test moves to the one place applications are unfolded so no
-  exit pass can skip it.
-
-Until answered the row stays as recorded here and the checker is unchanged.
 
 ### Q20 - May a nested machine establish its parent's named evidence output, and how does a terminal call discharge an outcome-specific guarantee?
 
@@ -658,3 +475,29 @@ if so with what provenance, or what interpreter code may do with it.
 
 Until answered, the interpreter declines this fixture and the native leg alone
 runs it.
+
+### Q25 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
+
+Decision name: `operating-system-library-name`. Raised by Jarod for Zac.
+
+**Customer.** Everyone reading or writing Omega imports. `std` does not say
+what the library is. Its contents are the program's connection to the
+operating system: files (`filesystem`, the POSIX and Windows filesystem
+hosts), the console, clocks and time, process exit, macOS and Windows GUI,
+the calling conventions for OS calls, and each target's program entry
+(`targets/`). Everything that works without an operating system already lives
+in `core`, and heap allocation in `alloc`.
+
+**Question.** Rename `source/library/std` and every `std::` path to:
+
+- **(a)** `os`, or
+- **(b)** `system`, or
+- **(c)** keep `std`.
+
+And separately, rename `source/library/alloc` and every `alloc::` path to
+`allocation`, the spelled-out word, for the same reason (yes or no).
+
+Code is written by agents, so length is not a concern; the name should say
+what the library is. A rename is one mechanical change across the library,
+fixtures, samples and documentation, landed in one pull request at a time
+chosen to avoid in-flight work.

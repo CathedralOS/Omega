@@ -254,6 +254,37 @@ def omega_customer(work, timeout, controls=False):
     print(f"{label} customer: {len(tape)} Alpha bytes -> exit {expected}; elapsed {time.monotonic()-started:.3f}s", flush=True)
 
 
+def omega_values_customer(work, timeout):
+    """Execute the source-owned parameter/local/call checks and their tapes."""
+    closure = pack("bootstrap/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
+    entry = (ROOT / "tests/bootstrap/omega-executable/controls_values.epsilon").read_bytes()
+    source = closure + entry
+    request = epsilon_request((work / "epsilon.delta").read_bytes(), source, b"")
+    (work / "values-source.epsilon").write_bytes(source)
+    (work / "values-request.bin").write_bytes(request)
+    print(f"Omega values customer: {len(source)} source bytes; allowance {timeout}s", flush=True)
+    started = time.monotonic()
+    status, observation = execute(work / "epsilon", request, timeout)
+    (work / "values-observation.bin").write_bytes(observation)
+    assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
+    offset = 5
+    for index, expected in enumerate((42, 42, 53, 44, 52, 42, 56, 37, 47, 43)):
+        assert offset + 5 <= len(observation), ("truncated artifact frame", index)
+        code = observation[offset]
+        length = struct.unpack_from("<I", observation, offset + 1)[0]
+        offset += 5
+        assert code == expected and 0 < length <= 16777212
+        assert offset + length <= len(observation), ("truncated artifact", index)
+        tape = work / f"values-{index}.tape"
+        executable = work / f"values-{index}"
+        tape.write_bytes(observation[offset:offset + length])
+        offset += length
+        stamp(tape, executable)
+        assert execute(executable) == (expected, b""), index
+    assert offset == len(observation), "unexpected publication after the final artifact"
+    print(f"Omega values customer: ten emitted executables and 35 source-owned refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--customer-only", action="store_true")
@@ -261,6 +292,7 @@ def main():
     parser.add_argument("--epsilon", action="store_true", help="construct and execute the complete Epsilon evaluator")
     parser.add_argument("--omega", action="store_true", help="also run the complete bootstrap compiler's existing executable fixture")
     parser.add_argument("--omega-controls", action="store_true", help="run its existing changed-source, rejection, and reset controls")
+    parser.add_argument("--omega-values", action="store_true", help="run the parameter, local, nested-call and refusal customer")
     parser.add_argument("--omega-timeout", type=int, default=1800)
     args = parser.parse_args()
     work = ROOT / "build/compiled-vm"
@@ -273,12 +305,14 @@ def main():
         controls(work, evaluator)
     if not args.controls_only:
         customer(work, evaluator)
-        if args.epsilon or args.omega or args.omega_controls:
+        if args.epsilon or args.omega or args.omega_controls or args.omega_values:
             epsilon_customer(work)
         if args.omega:
             omega_customer(work, args.omega_timeout)
         if args.omega_controls:
             omega_customer(work, args.omega_timeout, controls=True)
+        if args.omega_values:
+            omega_values_customer(work, args.omega_timeout)
 
 
 if __name__ == "__main__":
