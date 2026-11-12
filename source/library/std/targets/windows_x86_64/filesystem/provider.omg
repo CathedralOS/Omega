@@ -2,17 +2,12 @@
 // owners below perform real OS work; this map preserves each public capability
 // row and invokes only the Windows raw family. Unsupported portable contracts
 // are explicit here, never filled by sentinel rows in that raw family.
-use filesystem;
-use windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-use targets::windows_x86_64::filesystem::handles;
-use targets::windows_x86_64::filesystem::errors;
-use targets::windows_x86_64::filesystem::metadata;
-use targets::windows_x86_64::filesystem::sequences;
-use targets::windows_x86_64::filesystem::copy;
-use targets::windows_x86_64::filesystem::paths;
-use targets::windows_x86_64::filesystem::directory;
-use targets::windows_x86_64::filesystem::locking;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 
 FilesystemWindowsProvider satisfies FilesystemService {
     machine create(path: &[u8] in Path) -> OpenResult

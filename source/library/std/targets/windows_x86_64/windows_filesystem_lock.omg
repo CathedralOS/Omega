@@ -5,13 +5,7 @@
 // Classification rejects asynchronous objects before borrowing a request.
 // Native overlap/repeated-acquisition semantics are preserved, not made
 // recursive or idempotent. These locks do not protect memory-mapped access.
-use windows_filesystem_host;
-use omega::language::core::numeric_conversion;
-use targets::windows_x86_64::windows_filesystem_impl;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_transfer;
-use targets::windows_x86_64::windows_filesystem_transfer_native;
-use targets::windows_x86_64::windows_filesystem_lock_native;
+use omega::language::core::narrow_i64_to_u64_wrapping;
 
 windows_x86_64 machine WindowsFilesystemNativeProvider::lock_file(handle: u64, exclusive: bool, nonblocking: bool) -> i32
 satisfies WindowsFilesystemHost::lock_file {

@@ -7,8 +7,7 @@
 // Admission retains the selected syscall and its exact ABI. Native execution
 // still requires general syscall lowering and emission; this checked adapter
 // supplies neither target instructions nor fabricated import-stack evidence.
-use omega::language::core::numeric_conversion;
-use clock;
+use omega::language::core::narrow_u32_to_i32_wrapping;
 
 // The raw poll wait is its own boundary trait. Selecting `Clock` does not
 // grant this seam; the requirement names `Clock` as its explicit reach.

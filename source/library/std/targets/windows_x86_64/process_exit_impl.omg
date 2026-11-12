@@ -5,9 +5,9 @@
 // `ProcessExit::exit_process` is owned by `omega::language::core`, which no
 // package's build program can name as a product dependency, so the
 // package-owned locator model cannot reach it.
-use omega::language::core::external_binding;
-use omega::language::core::process_exit;
-use process_exit;
+use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
+use omega::language::core::ProcessExit;
 windows_x86_64 machine process_exit_binding() -> ForeignBinding<12, 11, 0> {
     ForeignBinding::DllImport {
         import: DllImport::PeByName {

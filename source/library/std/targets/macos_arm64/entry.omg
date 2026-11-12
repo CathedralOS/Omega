@@ -1,6 +1,4 @@
-use omega::language::core::extent;
-use calling;
-use entry_shapes;
+use omega::language::core::ProgramStorageEntry;
 
 // Apple's dyld calls appMain(argc, argv, envp, apple) and receives an int:
 // https://github.com/apple-oss-distributions/dyld/blob/main/dyld/dyldMain.cpp

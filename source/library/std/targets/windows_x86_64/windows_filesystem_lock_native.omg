@@ -5,7 +5,6 @@
 // exactly the same range. Both contracts have empty filesystem service reach.
 // https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-lockfileex
 // https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-unlockfile
-use targets::windows_x86_64::windows_filesystem_transfer_native;
 
 // x64 OVERLAPPED: two pointer-sized status fields, the two DWORD offsets,
 // then the event HANDLE. Zero initialization selects offset zero and no event.

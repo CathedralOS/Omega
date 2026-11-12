@@ -3,9 +3,9 @@
 // rename or another operation with a broader authority row.
 // Owned attribute opens retain anonymous SQOS rather than native impersonation.
 // https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-setfileinformationbyhandle
-use omega::language::core::filesystem_authority;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_metadata_native;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
 
 data WindowsNativeFileEndOfFileInfo { length: i64; }
 

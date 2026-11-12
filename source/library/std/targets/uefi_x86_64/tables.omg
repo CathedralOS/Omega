@@ -11,7 +11,12 @@
 // the Rust field vocabulary), and `unload` is a function-pointer carrier. The
 // implicit four-byte pads after `revision` and `load_options_size` are ABI
 // alignment the report encodes as gaps between declared members.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::FixedLayout;
 
 data EfiLoadedImage {
     revision: u32;

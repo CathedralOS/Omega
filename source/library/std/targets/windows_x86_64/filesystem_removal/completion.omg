@@ -2,11 +2,9 @@
 // mutation includes the close which commits a pending disposition; ordinary
 // empty-release authority is neither assumed nor manufactured here. The first
 // error wins over later unwind errors, and CloseHandle is never retried.
-use omega::language::core::filesystem_authority;
-use omega::language::core::numeric_conversion;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_private_handles;
-use targets::windows_x86_64::filesystem_removal::native;
+use omega::language::core::FilesystemNamespaceMutation;
+use omega::language::core::narrow_i64_to_i32_wrapping;
+use omega::language::core::widen_u32_to_i64;
 
 machine windows_removal_error(code: u32) -> u32 {
     transition code != 0 { true -> (code) false -> 31 }

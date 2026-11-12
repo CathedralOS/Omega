@@ -1,6 +1,5 @@
 // Shared pure helpers for hosted entry calling policies. Target plans retain
 // their ABI choices, arrival contracts, rejecting diagnostics and state plans.
-use calling;
 
 data HostedEntryShapes {}
 

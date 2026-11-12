@@ -4,15 +4,10 @@
 // Clear a slot before disposing or unwinding it, so even a failed close is
 // attempted exactly once. No work budget silently cuts off wide directories.
 // The finite handle stack fails explicitly with ERROR_NOT_ENOUGH_MEMORY.
-use omega::language::core::filesystem_authority;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_private_handles;
-use targets::windows_x86_64::windows_filesystem_directory;
-use targets::windows_x86_64::windows_filesystem_directory_entry;
-use targets::windows_x86_64::windows_filesystem_directory_native;
-use targets::windows_x86_64::filesystem_removal::acquisition;
-use targets::windows_x86_64::filesystem_removal::attributes;
-use targets::windows_x86_64::filesystem_removal::completion;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 
 data WindowsRemovalFrame [copy] {
     case Empty;

@@ -3,14 +3,12 @@
 // reparse objects are deleted as leaves, never traversed. Success includes
 // disposing and closing every owned handle, including the root. Failures keep
 // the first native error while releasing the remaining private handles once.
-use filesystem_host;
-use omega::language::core::filesystem_authority;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_private_handles;
-use targets::windows_x86_64::filesystem_removal::acquisition;
-use targets::windows_x86_64::filesystem_removal::attributes;
-use targets::windows_x86_64::filesystem_removal::completion;
-use targets::windows_x86_64::filesystem_removal::traversal;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 
 windows_x86_64 machine windows_remove_tree(path: &[u8] in Path) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + DirectoryEnumeration {

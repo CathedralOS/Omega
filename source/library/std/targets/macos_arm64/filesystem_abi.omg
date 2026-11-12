@@ -2,7 +2,7 @@
 // layout-neutral; every nested timespec selects its C representation explicitly.
 // sys/stat.h fixes the stat extent at144/alignment8, including four timestamp
 // pairs and the reserved tail. A sparse record must use its own named policy.
-use omega::language::core::c_layout;
+use omega::language::core::CLayout;
 
 public data DarwinTimespec [copy] {
     seconds: i64;
