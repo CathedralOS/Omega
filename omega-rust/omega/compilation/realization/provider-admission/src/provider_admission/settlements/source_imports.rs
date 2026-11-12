@@ -19,8 +19,8 @@ use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::BoundaryMachineId;
 
-// Exact native rows retain their source declaration ABI. Other rows keep
-// their ordinary or direct-leaf custody, checked by those existing owners.
+// The saved native choice must still name the declaration used to form this
+// ABI. Ordinary calls and direct imports are checked separately.
 fn require_exact_native_declaration_abi(
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -535,6 +535,7 @@ mod exact_native_declaration_tests {
             require_exact_native_declaration_abi(&plan, &row, &other_abi),
             Err("signature")
         );
+        row.requirement_identity = row.declared_requirement_identity;
         row.calling_signature = None;
         assert_eq!(
             require_exact_native_declaration_abi(&plan, &row, &other_abi),

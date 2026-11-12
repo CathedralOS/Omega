@@ -435,42 +435,98 @@ fn checked_native_scope_binds_completed_direct_and_family_choices() {
             unreachable!()
         };
         assert!(!binding.calling_applications.is_empty());
-        for (calling_index, calling) in binding.calling_applications.iter().enumerate() {
-            let original = leaf
-                .satisfied_schema
-                .calling_application(&calling.abi)
-                .expect("actual foreign ABI retains its original checked boundary contract");
+        let route = leaf
+            .plan
+            .identities
+            .text(leaf.plan.rows[0].requirement_identity);
+        let mut boundaries = module.boundary_machines.iter().filter(|boundary| {
+            module.identities.text(boundary.identity) == Some(route)
+                && boundary.declaration.as_ref().is_some_and(|declaration| {
+                    module
+                        .identities
+                        .text(declaration.source.semantic_declaration)
+                        == Some(leaf.declaration_identity.as_str())
+                        && module.identities.text(declaration.source.callable)
+                            == Some(leaf.callable_identity.as_str())
+                })
+        });
+        let boundary = boundaries
+            .next()
+            .expect("the original foreign leaf rejoins its emitted declaration");
+        assert!(boundaries.next().is_none());
+        let abi = module.calling_abi_identity(boundary.id).unwrap();
+        let matching = binding
+            .calling_applications
+            .iter()
+            .enumerate()
+            .filter(|(_, application)| application.abi == abi)
+            .collect::<Vec<_>>();
+        let [(calling_index, calling)] = matching.as_slice() else {
+            panic!(
+                "the actual foreign declaration must retain exactly one complete ABI application"
+            );
+        };
+        assert_eq!(
+            calling.requirement_identity,
+            leaf.satisfied_requirement_identity
+        );
+        assert_eq!(
+            calling.abi.requirement_identity,
+            leaf.satisfied_requirement_identity
+        );
+        assert_eq!(calling.recomputed_commitment().unwrap(), calling.commitment);
+        let originals = leaf
+            .satisfied_schema
+            .declaration
+            .methods
+            .iter()
+            .filter(|method| {
+                leaf.satisfied_schema
+                    .identity_text(method.requirement_identity)
+                    == leaf.satisfied_requirement_identity
+            })
+            .collect::<Vec<_>>();
+        let [original_method] = originals.as_slice() else {
+            panic!("the original contract must be unique");
+        };
+        // An authored calling policy has its own stored promise. A default ABI
+        // instead belongs to the checked foreign binding just rejoined above.
+        if !leaf
+            .satisfied_schema
+            .calling_for_requirement(original_method.requirement_identity)
+            .is_empty()
+        {
+            let original = leaf.satisfied_schema.calling_application(&abi).unwrap();
             assert_eq!(calling.commitment, original.commitment.as_bytes());
             assert_eq!(calling.report_fingerprint, original.report_fingerprint);
-            let wrong = module
-                .calling_abi_signatures
-                .iter()
-                .find(|declaration| {
-                    declaration.id != calling.abi.id()
-                        && module.identities.text(declaration.requirement_identity)
-                            != Some(leaf.satisfied_requirement_identity.as_str())
-                })
-                .expect("another real declaration ABI supplies the substitution control")
-                .identity(&module.identities)
-                .unwrap();
-            let mut changed = leaf.clone();
-            let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) =
-                &mut changed.execution
-            else {
-                unreachable!()
-            };
-            binding.calling_applications[calling_index].requirement_identity =
-                wrong.requirement_identity.clone();
-            binding.calling_applications[calling_index].abi = wrong;
-            binding.calling_applications[calling_index].commitment = binding.calling_applications
-                [calling_index]
-                .recomputed_commitment()
-                .unwrap();
-            assert_eq!(
-                changed.validate_bound_calling_custody(module).unwrap_err(),
-                "direct foreign execution changed its public declaration ABI"
-            );
         }
+        let wrong = module
+            .calling_abi_signatures
+            .iter()
+            .find(|declaration| {
+                declaration.id != calling.abi.id()
+                    && module.identities.text(declaration.requirement_identity)
+                        != Some(leaf.satisfied_requirement_identity.as_str())
+            })
+            .expect("another real declaration ABI supplies the substitution control")
+            .identity(&module.identities)
+            .unwrap();
+        let mut changed = leaf.clone();
+        let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut changed.execution
+        else {
+            unreachable!()
+        };
+        binding.calling_applications[*calling_index].requirement_identity =
+            wrong.requirement_identity.clone();
+        binding.calling_applications[*calling_index].abi = wrong;
+        binding.calling_applications[*calling_index].commitment = binding.calling_applications
+            [*calling_index]
+            .recomputed_commitment()
+            .unwrap();
+        assert_eq!(
+            changed.validate_bound_calling_custody(module).unwrap_err(),
+            "direct foreign execution changed its public declaration ABI"
+        );
     }
 }
 
