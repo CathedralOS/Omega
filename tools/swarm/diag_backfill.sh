@@ -217,7 +217,7 @@ RECORD_SLOTS=${RECORD_SLOTS:-1}
   # `rejected` (0/9) while the lane believed the record had been aborted, and the
   # wrapper's post-record verification never ran so nothing caught it.
   set -m 2>/dev/null || true
-  OMEGA_CORPUS_JOBS=3 OMEGA_CORPUS_FIXTURE_SECS=600 \
+  OMEGA_CORPUS_JOBS=3 \
     python3 tools/corpus_gate.py --filter "$fact" --record >"$REC_LOG" 2>&1 &
   recorder_pid=$!
   set +m 2>/dev/null || true

@@ -28,11 +28,11 @@
 //! frozen runners built elsewhere), `OMEGA_CORPUS_FIXTURE_FILTER` (comma-separated `tier/group/name`
 //! fragments), `OMEGA_CORPUS_SHARD=k/N` (deterministic hash slice, stable
 //! across fixture additions), `OMEGA_CORPUS_JOBS` (worker count, default host
-//! parallelism capped at 12), `OMEGA_CORPUS_FIXTURE_SECS` (per-fixture cap,
-//! default 120 — a timed-out fixture detaches its compile, records status
-//! `timeout`, and the pool applies back-pressure so stragglers cannot multiply
-//! past the worker count), `OMEGA_CORPUS_RECORDS=<path>` (write the records
-//! to that file rather than stdout, which a fixture's build log also reaches).
+//! parallelism capped at 12), `OMEGA_CORPUS_RECORDS=<path>` (write the records
+//! to that file rather than stdout, which a fixture's build log also reaches;
+//! each record is appended as its fixture finishes, and the file is rewritten
+//! in fixture order at the end). A fixture has no time limit: it runs until it
+//! finishes, and a slow one is visible in its recorded time.
 //! `OMEGA_CORPUS_FIXTURE_PATHS` selects comma-separated exact paths instead of
 //! fragments. An empty or duplicate exact list refuses; qualification also
 //! verifies the complete requested and observed rosters.
@@ -2235,20 +2235,15 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
     )
 }
 
-/// A compile that outlives its budget still burns CPU: the worker waits on a
-/// channel, never a join, so a straggler detaches instead of blocking the
-/// pool. `live` counts in-flight compiles so the pool can apply back-pressure
-/// (a straggler-heavy corpus otherwise cascades — detached compiles saturate
-/// the box, slow every remaining fixture into its cap, and spawn more
-/// stragglers). `process::exit` at the end reclaims whatever is still live.
-fn run_one_bounded(
+/// Runs one fixture to completion on its own thread, turning a panic into a
+/// `crashed` record. There is no time limit: a slow compile is reported by
+/// its recorded time, and stopping it early would only lose its result and
+/// leave it burning CPU beside the fixtures that follow.
+fn run_one_on_thread(
     tier: &'static str,
     base: &Path,
     main: &Path,
     sequence: usize,
-    cap: std::time::Duration,
-    live: &std::sync::Arc<std::sync::atomic::AtomicUsize>,
-    timed_out: &std::sync::Arc<std::sync::atomic::AtomicUsize>,
 ) -> (String, u128) {
     let started = std::time::Instant::now();
     let main_owned = main.to_path_buf();
@@ -2260,8 +2255,6 @@ fn run_one_bounded(
         .to_string_lossy()
         .replace('\\', "/");
     let (sender, receiver) = std::sync::mpsc::channel();
-    live.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let live_owned = std::sync::Arc::clone(live);
     let rel_owned = rel.clone();
     // A fixture is one whole invocation: build-script execution, product
     // queries, preparation and checked lowering. Those frames nest — a
@@ -2294,17 +2287,11 @@ fn run_one_bounded(
                     )
                 }
             };
-            // Panic diagnostics sanitize source paths too. Publish completion only
-            // after the last staging access, so exit-time cleanup cannot release
-            // this session's reservation while a detached thread still uses it.
-            live_owned.fetch_sub(1, std::sync::atomic::Ordering::Release);
             let _ = sender.send(record);
         });
     if let Err(error) = spawned {
-        // A thread that never started produces no record. Charge the failure to
-        // this fixture and release the slot it reserved rather than waiting out
-        // the cap for a compile that never began.
-        live.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+        // A thread that never started produces no record. Charge the failure
+        // to this fixture.
         return (
             record_text(
                 tier,
@@ -2318,29 +2305,15 @@ fn run_one_bounded(
             0,
         );
     }
-    match receiver.recv_timeout(cap) {
-        Ok(record) => record,
-        Err(error) => {
-            let (status, millis) = match error {
-                std::sync::mpsc::RecvTimeoutError::Timeout => {
-                    timed_out.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    ("timeout", started.elapsed().as_millis())
-                }
-                std::sync::mpsc::RecvTimeoutError::Disconnected => {
-                    // The compile thread died before publishing its record
-                    // and its own fetch_sub, so decrement here to keep the
-                    // back-pressure count honest. Distinct status: a crash is
-                    // a bug, not a budget overrun.
-                    live.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
-                    ("crashed", started.elapsed().as_millis())
-                }
-            };
-            (
-                record_text(tier, &rel, status, millis, None, &[], &[]),
-                millis,
-            )
-        }
-    }
+    // A closed channel means the compile thread died before publishing its
+    // record: a crash, which is a bug and gets its own status.
+    receiver.recv().unwrap_or_else(|_| {
+        let millis = started.elapsed().as_millis();
+        (
+            record_text(tier, &rel, "crashed", millis, None, &[], &[]),
+            millis,
+        )
+    })
 }
 
 /// `OMEGA_CORPUS_FIXTURE_FILTER`: comma-separated trimmed substrings matched
@@ -2377,39 +2350,6 @@ fn shard_of(name: &str) -> u64 {
     hash.finish()
 }
 
-/// `OMEGA_CORPUS_TIMINGS=<path>`: a prior records file (the gate passes its
-/// golden) supplying per-fixture `millis`. The pool then schedules heavy
-/// fixtures first — longest-processing-time ordering overlaps capped
-/// stragglers with the tail of small fixtures instead of serializing them at
-/// the end. Execution order only: records stay alphabetical for stable
-/// golden diffs.
-fn prior_millis() -> std::collections::HashMap<String, u64> {
-    let mut millis = std::collections::HashMap::new();
-    let Some(path) = env::var_os("OMEGA_CORPUS_TIMINGS") else {
-        return millis;
-    };
-    let Ok(text) = fs::read_to_string(&path) else {
-        eprintln!("corpus_runner: could not read OMEGA_CORPUS_TIMINGS {path:?}");
-        return millis;
-    };
-    // A header line is `<fixture> <status> <milliseconds>ms ...`; comment and
-    // tab-indented diagnostic lines carry no timing.
-    for line in text.lines() {
-        if line.starts_with('#') || line.starts_with('\t') {
-            continue;
-        }
-        let mut fields = line.split(' ');
-        if let (Some(fixture), Some(_status), Some(ms)) =
-            (fields.next(), fields.next(), fields.next())
-            && let Some(value) = ms.strip_suffix("ms").and_then(|ms| ms.parse::<u64>().ok())
-        {
-            millis.insert(fixture.to_string(), value);
-        }
-    }
-    eprintln!("corpus_runner: {} prior timings loaded", millis.len());
-    millis
-}
-
 fn main() {
     terminal_runtime::run_native_provider_worker_if_requested();
     if env::var_os("NEXTEST").is_some() {
@@ -2433,11 +2373,6 @@ fn main() {
                 .unwrap_or(4)
         });
     let shard = fixture_shard();
-    let cap = env::var("OMEGA_CORPUS_FIXTURE_SECS")
-        .ok()
-        .and_then(|value| value.parse::<u64>().ok())
-        .map(std::time::Duration::from_secs)
-        .unwrap_or(std::time::Duration::from_secs(120));
     let filter = match fixture_filter() {
         Ok(selection) => selection,
         Err(message) => {
@@ -2445,7 +2380,6 @@ fn main() {
             process::exit(2);
         }
     };
-    let prior = prior_millis();
     let mut migration_mains = match migration_pending_mains(&root) {
         Ok(mains) => mains,
         Err(message) => {
@@ -2453,7 +2387,7 @@ fn main() {
             process::exit(2);
         }
     };
-    let mut jobs: Vec<(&'static str, PathBuf, PathBuf, std::time::Duration)> = Vec::new();
+    let mut jobs: Vec<(&'static str, PathBuf, PathBuf)> = Vec::new();
     let tiers: &[&'static str] = if native_target().is_some() {
         &["pass", "run", "pending"]
     } else {
@@ -2494,16 +2428,7 @@ fn main() {
             {
                 continue;
             }
-            // The cap is a wedge detector, not a regression boundary: a
-            // fixture's real time inflates under pool contention, so a known
-            // fixture gets at least 3x its recorded time before "timeout" —
-            // a flap near the boundary then needs a genuine slowdown, not a
-            // busier box.
-            let fixture_cap = prior
-                .get(&candidate)
-                .map(|ms| cap.max(std::time::Duration::from_millis(ms * 3)))
-                .unwrap_or(cap);
-            jobs.push((tier, base.clone(), main, fixture_cap));
+            jobs.push((tier, base.clone(), main));
         }
     }
     if jobs.is_empty() && (!filter.is_unfiltered() || shard.is_some()) {
@@ -2512,7 +2437,7 @@ fn main() {
     }
     // Execution order: alphabetical. Heavy-first (LPT) was measured *worse*
     // here — these compiles are memory-bound, so packing the heavy fixtures
-    // together inflated every wall time ~3x and pushed them over their caps;
+    // together inflated every wall time ~3x;
     // alphabetical interleaves heavy groups with light ones naturally.
     // `order` still exists so record output stays alphabetical even if a
     // future scheduler reorders execution.
@@ -2520,64 +2445,49 @@ fn main() {
     let order = std::sync::Arc::new(order);
     let jobs = std::sync::Arc::new(jobs);
     let next = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let live = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let timed_out = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let done = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let total = jobs.len();
     let records = std::sync::Arc::new(std::sync::Mutex::new(vec![String::new(); jobs.len()]));
+    let stream = env::var_os("OMEGA_CORPUS_RECORDS")
+        .and_then(|path| fs::File::create(path).ok())
+        .map(|file| std::sync::Arc::new(std::sync::Mutex::new(file)));
     let mut workers_joined = Vec::new();
     for _ in 0..workers.min(jobs.len().max(1)) {
         let records = std::sync::Arc::clone(&records);
         let next = std::sync::Arc::clone(&next);
         let jobs = std::sync::Arc::clone(&jobs);
         let order = std::sync::Arc::clone(&order);
-        let live = std::sync::Arc::clone(&live);
-        let timed_out = std::sync::Arc::clone(&timed_out);
         let done = std::sync::Arc::clone(&done);
+        let stream = stream.clone();
         workers_joined.push(std::thread::spawn(move || {
             loop {
-                // Exhaustion needs no execution capacity. In particular, the
-                // last timed-out fixture must not delay publishing its record
-                // while this worker waits for work that does not exist.
                 let slot = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 if slot >= order.len() {
                     break;
                 }
-                // Back-pressure: never leave more than `workers` compiles in
-                // flight, stragglers included. Give up after 2*cap so genuinely
-                // wedged compiles stall the pool only temporarily, not forever.
-                let mut waited = std::time::Duration::ZERO;
-                while live.load(std::sync::atomic::Ordering::Relaxed) >= workers && waited < cap * 2
-                {
-                    std::thread::sleep(std::time::Duration::from_millis(50));
-                    waited += std::time::Duration::from_millis(50);
-                }
                 let index = order[slot];
-                let (tier, base, main, fixture_cap) = &jobs[index];
-                let (record, _millis) =
-                    run_one_bounded(tier, base, main, index, *fixture_cap, &live, &timed_out);
-                records.lock().unwrap()[index] = record;
+                let (tier, base, main) = &jobs[index];
+                let (record, _millis) = run_one_on_thread(tier, base, main, index);
+                // Publish the outcome as soon as it exists, on stderr and in
+                // the records file, so a run that is stopped keeps every
+                // fixture that finished. The file is rewritten in fixture
+                // order when the run completes.
                 let finished = done.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-                if finished.is_multiple_of(200) || finished == total {
-                    eprintln!(
-                        "corpus_runner: {finished}/{total} done, \
-                         {} compile(s) in flight",
-                        live.load(std::sync::atomic::Ordering::Relaxed)
-                    );
+                eprintln!(
+                    "corpus_runner: {finished}/{total} {}",
+                    record.lines().next().unwrap_or_default()
+                );
+                if let Some(stream) = stream.as_deref() {
+                    use std::io::Write;
+                    let mut stream = stream.lock().unwrap();
+                    let _ = writeln!(stream, "{record}").and_then(|()| stream.flush());
                 }
+                records.lock().unwrap()[index] = record;
             }
         }));
     }
     for worker in workers_joined {
         let _ = worker.join();
-    }
-    let timed_out = timed_out.load(std::sync::atomic::Ordering::Relaxed);
-    let still_live = live.load(std::sync::atomic::Ordering::Acquire);
-    if timed_out > 0 || still_live > 0 {
-        eprintln!(
-            "corpus_runner: {timed_out} fixture(s) timed out, \
-             {still_live} compile(s) still in flight at exit"
-        );
     }
     let records = std::sync::Arc::try_unwrap(records)
         .unwrap_or_else(|records| records.lock().unwrap().clone().into())
@@ -2600,10 +2510,8 @@ fn main() {
         }
         None => print!("{text}"),
     }
-    // A live straggler can still remove build paths. Retain the reservation
-    // until it dies with this process, rather than letting a same-PID session
-    // reuse the root while those paths remain live.
-    sealed_fixture_staging::discard_staged_snapshots(still_live);
+    // Every fixture ran to completion, so nothing still uses the staging root.
+    sealed_fixture_staging::discard_staged_snapshots(0);
     // Equal slice keys are checks a library-slice reuse would not repeat.
     let slices = compiler::library_slice_totals();
     eprintln!(

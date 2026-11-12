@@ -57,7 +57,6 @@ jobs:
       CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
       CARGO_BUILD_FINGERPRINT: content
       OMEGA_CORPUS_JOBS: '2'
-      OMEGA_CORPUS_FIXTURE_SECS: '300'
       RUST_MIN_STACK: '67108864'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -344,8 +343,6 @@ jobs:
     env:
       HOME: /root
       OMEGA_CORPUS_JOBS: '4'
-      # Hosted runners are slower than the hosts the ledger was timed on.
-      OMEGA_CORPUS_FIXTURE_SECS: '300'
     steps:
       - name: Install build tools
         run: |
