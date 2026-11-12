@@ -232,12 +232,9 @@ fn replay_calling_review(
         let package_inputs = fixture.package_inputs.clone();
         // Reuse the admitted dependency snapshots and completed Builds for this
         // check instead of starting another source preparation.
-        let checked = fixture_package_inputs::check_fixture(
-            &mut fixture,
-            "macos_arm64",
-            Default::default(),
-        )
-        .expect("source and original calling policies check");
+        let checked =
+            fixture_package_inputs::check_fixture(&mut fixture, "macos_arm64", Default::default())
+                .expect("source and original calling policies check");
         let execution = checked.execution();
         let source = checked.source_inspection().program();
         let target = execution.selected_target_profile.expect("fixture target");

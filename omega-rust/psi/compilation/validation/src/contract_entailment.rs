@@ -44,7 +44,7 @@ pub(crate) mod arithmetic_judgment {
                 decisions: &mut ApplicationDecisions,
             ) -> Option<Polynomial> {
                 let call = expression_table(program).call_node(expression)?;
-                if super::super::super::struct_trace() {
+                if super::super::super::struct_trace_owner(program, engine.source_owner) {
                     eprintln!(
                         "STRUCT declaration-call begin expression={expression:?} owner={:?} owned={} reads={}",
                         engine.source_owner,
@@ -106,7 +106,7 @@ pub(crate) mod arithmetic_judgment {
                         Some((*argument, input))
                     })
                     .collect::<Option<Vec<_>>>()?;
-                if super::super::super::struct_trace() {
+                if super::super::super::struct_trace_owner(program, engine.source_owner) {
                     eprintln!(
                         "STRUCT declaration-call inputs expression={expression:?} actuals={actuals:?}"
                     );
@@ -9920,7 +9920,7 @@ pub(crate) mod citations {
             }
             predicates.extend(established.predicates);
         }
-        if super::struct_trace() {
+        if super::struct_trace_owner(program, machine.symbol) {
             eprintln!("CITE machine={} predicates={predicates:?}", machine.name);
         }
         predicates
@@ -49681,6 +49681,12 @@ pub(crate) mod structural_judgment {
                 right: StructuralTerm,
                 depth: usize,
             ) -> StructuralJudgment {
+                if self.trace_contract() {
+                    eprintln!(
+                        "STRUCT identity caller={:?} left={left:?} right={right:?} rewrites={:?}",
+                        self.machine_symbol, self.rewrites,
+                    );
+                }
                 let mut remaining = IDENTITY_QUERY_WORK_LIMIT;
                 self.judge_identity_with_budget(left, right, depth, &mut remaining)
             }
@@ -54051,6 +54057,10 @@ pub(crate) mod structural_judgment {
         }
 
         impl<'program> StructuralJudge<'program> {
+            fn trace_contract(&self) -> bool {
+                super::struct_trace_owner(self.program, self.machine_symbol)
+            }
+
             pub(crate) fn integer_premise_revision(&self) -> usize {
                 self.rewrites.integer_premise_revision()
             }
@@ -56722,8 +56732,26 @@ pub(crate) mod structural_judgment {
                         self.resolve_identity_context(right, depth, remaining, &mut substitutions)?,
                     ]))
                 })();
+                if crate::trace_flags::struct_contract_selection().is_some()
+                    && self.trace_contract()
+                {
+                    match result.as_ref() {
+                        Ok(IdentityNormalization::Proven) => eprintln!(
+                            "identity-normalization owner={:?}: proven",
+                            self.machine_symbol
+                        ),
+                        Ok(IdentityNormalization::Values(values)) => eprintln!(
+                            "identity-normalization owner={:?} values={values:?}",
+                            self.machine_symbol
+                        ),
+                        Err(reason) => eprintln!(
+                            "identity-normalization owner={:?}: {reason}",
+                            self.machine_symbol
+                        ),
+                    }
+                }
                 if let Err(reason) = result.as_ref()
-                    && std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+                    && crate::trace_flags::struct_trace()
                 {
                     eprintln!(
                         "identity-normalization owner={:?}: {reason}",
@@ -57073,7 +57101,7 @@ pub(crate) mod structural_judgment {
                 let resolved = match self.prepare_induction_value(machine, value) {
                     Ok(resolved) => resolved,
                     Err(reason) => {
-                        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        if crate::trace_flags::struct_trace() {
                             eprintln!("induction-value owner={:?}: {reason}", self.machine_symbol);
                         }
                         return;
@@ -82806,7 +82834,7 @@ pub(crate) mod structural_judgment {
         ) -> Option<ObservedEqualityTerms> {
             let source_term = |expression, side| {
                 let term = self.declaration_term(expression);
-                if super::struct_trace() && term.is_none() {
+                if self.trace_contract() && term.is_none() {
                     eprintln!(
                         "STRUCT equality-part-refused caller={:?} side={side} expression={}",
                         self.machine_symbol,
@@ -82835,7 +82863,7 @@ pub(crate) mod structural_judgment {
                     reference,
                     &resolved,
                 ) {
-                    if super::struct_trace() {
+                    if self.trace_contract() {
                         eprintln!(
                             "STRUCT equality-observation-refused caller={:?} reference={reference:?} source={term:?} resolved={resolved:?}",
                             self.machine_symbol
@@ -83606,7 +83634,7 @@ pub(crate) mod structural_judgment {
                 return None;
             };
             let target = *target;
-            if super::struct_trace() {
+            if self.trace_contract() {
                 eprintln!("STRUCT unfold? {machine_name} args {arguments:?} depth {depth}");
             }
             if depth >= 32 {
@@ -83991,7 +84019,7 @@ pub(crate) mod structural_judgment {
                 &call.machine_arguments,
                 self.frame_resolver(),
             );
-            if super::struct_trace()
+            if self.trace_contract()
                 && let Err(reason) = candidate
             {
                 eprintln!(
@@ -84544,7 +84572,7 @@ pub(crate) mod structural_judgment {
                         None
                     };
                     if let Some(reason) = refusal {
-                        if super::struct_trace() {
+                        if self.trace_contract() {
                             eprintln!(
                                 "STRUCT term-call-refused caller={:?} expression={} target={:?} reason={reason}",
                                 self.machine_symbol,
@@ -84947,7 +84975,7 @@ pub(crate) mod structural_judgment {
                     }
                     }
                     if !self.has_identity_equality_meaning(fact) {
-                        if super::struct_trace() {
+                        if self.trace_contract() {
                             eprintln!(
                                 "STRUCT equality-refused caller={:?} fact={} reason=identity-authority",
                                 self.machine_symbol,
@@ -84957,7 +84985,7 @@ pub(crate) mod structural_judgment {
                         return StructuralJudgment::Unknown;
                     }
                     let Some(terms) = self.declaration_term_pair(binary) else {
-                        if super::struct_trace() {
+                        if self.trace_contract() {
                             eprintln!(
                                 "STRUCT equality-refused caller={:?} fact={} reason=term-formation",
                                 self.machine_symbol,
@@ -84968,7 +84996,7 @@ pub(crate) mod structural_judgment {
                     };
                     let [left, right] = terms.resolved;
                     let [source_left, source_right] = terms.source;
-                    if super::struct_trace() {
+                    if self.trace_contract() {
                         eprintln!(
                             "STRUCT equality caller={:?} left={left:?} right={right:?} rewrites={:?}",
                             self.machine_symbol, self.rewrites,
@@ -91935,6 +91963,15 @@ pub(crate) fn struct_trace() -> bool {
     crate::trace_flags::struct_trace()
 }
 
+fn struct_trace_owner(program: &dyn crate::CheckingInput, owner: SymbolHandle) -> bool {
+    let Some(selected) = crate::trace_flags::struct_contract_selection() else {
+        return struct_trace();
+    };
+    program
+        .machine_by_symbol(owner)
+        .is_some_and(|machine| machine.name.as_str() == selected)
+}
+
 const RESULT_BINDER: &str = "result";
 
 pub fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
@@ -92150,7 +92187,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 }
                 (bound.judge_proposition(program, fact), None)
             };
-            if struct_trace() {
+            if struct_trace_owner(program, machine.symbol) {
                 eprintln!(
                     "STRUCT normal-return machine={} value={value:?} fact={} verdict={}",
                     machine.name,
@@ -92342,7 +92379,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                     .as_ref()
                     .map(|name| name.as_str().to_owned())
             });
-            if struct_trace() {
+            if struct_trace_owner(program, machine.symbol) {
                 eprintln!(
                     "ROUTE machine={} fact=`{}` mention={:?} zero_value={}",
                     machine.name,
