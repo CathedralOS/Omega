@@ -166,6 +166,7 @@ fn a_private_call_without_normal_return_still_owes_its_inferred_input() {
         signatures.push(Signature {
             parameters: vec![u32_type().into()],
             erased: Vec::new(),
+            borrowed: Vec::new(),
             result: Some(u32_type().into()),
             requires,
             ensures: Vec::new(),
