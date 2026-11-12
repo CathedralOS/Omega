@@ -899,8 +899,12 @@ implementation parameter such as `Selected satisfies Step`, whose body calls
 `Selected::apply(..)`, a [value parameter](#value-parameters) such as
 `const Units: u64`, and an opaque [type parameter](#type-parameters) `T`,
 whose values a body can only pass on. No production path calls any of it. A
-type parameter the body branches on (`requires T == u32 || T == u64`) is not
-served; [what is missing](#what-the-lowered-form-does-not-carry) says why.
+type parameter the body branches on (`requires T == u32 || T == u64`) has no
+generic form yet: each machine generated from one is read and judged as a
+closed machine, under its own type
+([structure-elaboration](../structure-elaboration/README.md#generic-machines)),
+and [what is missing](#what-the-lowered-form-does-not-carry) says what a
+generic form of it needs.
 
 The example the tests and the corpus fixture use:
 
@@ -1172,6 +1176,14 @@ Read from the types, not built:
   ([type parameters](#type-parameters)); a place has a declared
   `StructuralTypeId`, and there is no entry for one whose type is a
   parameter, so generic data and a `T` instantiated at a data type are not.
+- **A branch on a type equation.** A body of a finite family is rigid
+  outside its type-equation branches and concrete inside each arm. The
+  lowered form has no terminator that selects an arm by a type, and the
+  arms return values of different types into one result. Whether such a
+  body must be checked in that form at all, or once per listed type as its
+  generated machines now are, is owner question Q18
+  (`finite-family-generic-check`); what a contract clause beside a type
+  equation means is Q17.
 - **An operation on it.** Terminal operations are selected per type
   (`ExactIntegerAdd` holds its `IntegerType`), and the safety goal of each
   comes from that type's range. One generic body has no single operation.

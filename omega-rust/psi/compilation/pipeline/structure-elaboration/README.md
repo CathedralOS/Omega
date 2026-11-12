@@ -192,6 +192,29 @@ parameter, a local of type `T` and a call that returns a `T` are refused. A
 machine stage 04 generated for a type argument is a closed machine and
 reads as one, as far as its clauses and body are in the subset.
 
+**A generated machine of a finite type family** keeps its type equations.
+Stage 04 does not fold them: the machine generated from `threshold<T>
+requires T == u32 || T == u64 { transition T == u32 { true -> (37u32) _ ->
+(73u64) } }` for `u32` still holds `requires u32 == u32 || u32 == u64`, a
+local bound to `u32 == u32`, both arms, and an arm that returns a `u64`
+from a machine whose result is `u32`. Such an equation is static
+([generics.md](../../../../../wiki/spec/language/generics.md#static-type-equality):
+"a branch with established `T == u32` may use that equality to check its
+operations and values as u32. On leaving the branch, only facts common to
+its surviving predecessors remain"), so the reader decides it
+(`static_truth`): two closed builtin types are equal exactly when their
+symbols name the same compiler-installed atom, and a local bound to such a
+truth, and `==`, `&&`, `||` and `!` over those, are decided with it. A
+`requires` or `ensures` clause decided as true adds no clause, and one
+decided as false is refused. An arm whose guard is decided as false is the
+branch of another type: it is left unread, because it is typed under an
+equation that is false here. An arm decided as true is taken
+unconditionally, and the arms after it are left unread. A lone Boolean
+literal decides nothing this way: only a type equation makes a condition
+static. An equation with a type parameter, a data type or an application on
+either side is not decided, so the generic form of such a machine is still
+refused (`expression type expression`).
+
 `elaborate_witness` builds the statement that an implementation refines a
 requirement: the requirement's contract, at the given value arguments, on a
 body that is one call of the implementation. `template_of` gives the

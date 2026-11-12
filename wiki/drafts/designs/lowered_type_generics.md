@@ -53,9 +53,25 @@ and the premise arrives with the first rule that needs it. There is no
 rigid place type, so a `T` instantiated at a data type takes no proof, and
 no abstract cleanup step. And a `T` value may be used once unless `T` is
 `[copy]`, a restriction the text does not have, because the route has no
-judgment of moves. Step 3 is not built: a generated machine of a finite
-family keeps its type-equation `requires` clause, which the reader does not
-read.
+judgment of moves.
+
+Step 3, a finite family, is built for generated machines only. The method
+below noted that "whether stage 04 folds a type-equation branch in a
+generated specialization was not checked"; it does not. The machine
+generated for `u32` keeps `u32 == u32`, both arms and the arm of the other
+type. The reader now decides closed type equations statically, so each
+generated machine is read under its own type and judged as a closed machine:
+`threshold<u32>` and `threshold<u64>` in
+`pass/contracts/generic_effective_result_comparison_exit`, and `choose<u32>`
+and `choose<u64>` in `fail/contracts/specialized_normal_call_wrong_type_contract`,
+are each accepted by the route (compiler test `lowered_route_generics`).
+That is the per-type check of [the middle form](#the-alternative-check-only-specializations),
+for the types in use, and it is what a carried certificate would be decided
+against. The generic form of such a body (rigid outside its arms, concrete
+inside each) is not built: it needs a check-only terminator the lowered
+form does not have, and whether it is needed at all is the question filed
+as `finite-family-generic-check`. `core::integer::min` waits for
+`contract-conjunct-under-type-equation`.
 
 ## What the specification asks
 
