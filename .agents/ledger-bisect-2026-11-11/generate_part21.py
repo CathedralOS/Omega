@@ -26,17 +26,30 @@ WITNESS_MAP = {
 def parse_summary_line(text: str) -> dict:
     head = text.split("\n", 1)[0]
     if "status=flaky" in head:
-        m = re.search(r"good=([0-9a-f]{40}) break=([0-9a-f]{40}).*break_codes=(\[.*?\]) parent_codes=(\[.*?\])", head)
-        return {"status": "flaky", "good": m.group(1) if m else "", "break": m.group(2) if m else "", "break_codes": m.group(3) if m else "", "parent_codes": m.group(4) if m else ""}
-    if "never_good_since" in head:
-        m = re.search(r"never_good_since_([0-9a-f]{40})", head)
+        m = re.search(
+            r"good=([0-9a-f]{40}) parent=([0-9a-f]{40}) break=([0-9a-f]{40}).*"
+            r"verify_break_codes=(\[[^\]]*\]) verify_parent_codes=(\[[^\]]*\])",
+            head,
+        )
+        if m:
+            return {
+                "status": "flaky",
+                "good": m.group(1),
+                "parent": m.group(2),
+                "break": m.group(3),
+                "break_codes": m.group(4),
+                "parent_codes": m.group(5),
+            }
+    if "verdict=never-good" in head or "status=never_good" in head:
+        m = re.search(r"intro=([0-9a-f]{40})", head)
         return {"status": "never_good", "intro": m.group(1) if m else ""}
     if "status=propagated" in head:
         m = re.search(r"reason=(\S+)", head)
         return {"status": "propagated", "reason": m.group(1) if m else ""}
     m = re.search(
-        r"good=([0-9a-f]{40}) parent=([0-9a-f]{40}) break=([0-9a-f]{40}) pr=(\d*) on_first_parent=(\w+).*status=bisected",
-        head.replace("\n", " "),
+        r"good=([0-9a-f]{40}) parent=([0-9a-f]{40}) break=([0-9a-f]{40}) pr=(\d*) "
+        r"on_first_parent=(\w+) verify_break_codes=(\[[^\]]*\]) verify_parent_codes=(\[[^\]]*\]) status=bisected",
+        head,
     )
     if m:
         return {
@@ -46,6 +59,8 @@ def parse_summary_line(text: str) -> dict:
             "break": m.group(3),
             "pr": m.group(4),
             "on_first_parent": m.group(5),
+            "break_codes": m.group(6),
+            "parent_codes": m.group(7),
         }
     return {"status": "pending"}
 
@@ -110,8 +125,38 @@ def main() -> None:
             lines.append(f"- First-parent between good and PIN: `{bi.get('on_first_parent')}`")
             lines.append("")
 
-        attr = bi.get("break", "") if bi["status"] == "bisected" else bi["status"]
+        split_logs = sorted(AG.glob(f"bisect-{cid}.*.log"))
+        for sp in split_logs:
+            lines.append(f"#### Split `{sp.name}`")
+            lines.append("")
+            cp = AG / f"cluster-{sp.stem.replace('bisect-', '')}.md"
+            if cp.exists():
+                lines.append(cp.read_text().strip())
+                lines.append("")
+
+        def attr_for(fix: str) -> str:
+            short = fix.split("/")[-1]
+            sp_log = AG / f"bisect-{cid}.{short}.log"
+            if sp_log.exists():
+                sb = parse_summary_line(sp_log.read_text())
+                if sb["status"] == "bisected":
+                    return sb["break"]
+            if bi["status"] == "bisected":
+                flip_md = AG / f"cluster-{cid}.md"
+                if flip_md.exists() and fix in flip_md.read_text():
+                    for line in flip_md.read_text().splitlines():
+                        if f"`{fix}`" in line and "|" in line:
+                            parts = [p.strip() for p in line.split("|")]
+                            if len(parts) >= 4:
+                                pe, be = parts[2], parts[3]
+                                if pe == "0" and be == "1":
+                                    return bi["break"]
+            if bi["status"] == "bisected":
+                return bi["break"]
+            return bi["status"]
+
         for f in fixes:
+            attr = attr_for(f)
             tsv.append(f"{f}\tstill broken\t{(obs[f]['diagnostics'] or [''])[0][:200]}\t{cid}\t{attr}")
             lines.append(f"- `{f}` → attribution: `{attr}`")
 
