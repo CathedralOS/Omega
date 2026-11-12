@@ -43,11 +43,12 @@ newer push replaces it, so a burst of merges is judged once.
 
 - `ledger` starts from the last published ledger, splices in every measured
   row whose outcome differs, better or worse
-  (`corpus-gate sweep-report --records <dir>`), and publishes the result as the
-  asset `corpus_outcomes.txt` of the release `corpus-ledger`, replaced on each
-  run, with notes naming the measured commit. Pull requests do not edit the
-  ledger and main accepts no direct push, so the file in the repository is
-  left as it is.
+  (`corpus-gate sweep-report --records <dir>`). `pages` then publishes the
+  result on the project site with the book (`pages.yml`), at
+  `corpus/corpus_outcomes.txt`, beside `corpus/measured.txt` naming the
+  measured commit. Pull requests do not edit the ledger and main accepts no
+  direct push, so the file in the repository is left as it is. The ledger is
+  not a release: releases are the product that installers resolve.
 
 A run started by hand with the input `full` set (Actions, Post-merge check,
 Run workflow) also runs every Rust test in the workspace in `build`, and

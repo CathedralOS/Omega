@@ -414,14 +414,15 @@ means observable behavior moved; `--record` re-pins the golden when the
 movement is intended.
 
 Pull requests no longer edit that file. The post-merge check publishes the
-ledger it measured as the asset `corpus_outcomes.txt` of the release
-`corpus-ledger`. When a copy is at `build/corpus-ledger/corpus_outcomes.txt`,
+ledger it measured on the project site, at
+<https://cathedralos.github.io/Omega/corpus/corpus_outcomes.txt>,
+with `measured.txt` beside it naming the commit it was measured at. When a copy is at `build/corpus-ledger/corpus_outcomes.txt`,
 `cargo xtask corpus` compares with it and says so; otherwise it compares with
 the file in the repository. `--record` and `--golden` are unaffected. Fetch
 the copy with:
 
 ```bash
-gh release download corpus-ledger --pattern corpus_outcomes.txt --dir build/corpus-ledger --clobber
+curl -fsSL --create-dirs -o build/corpus-ledger/corpus_outcomes.txt https://cathedralos.github.io/Omega/corpus/corpus_outcomes.txt
 ```
 
 ```bash
