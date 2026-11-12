@@ -42,7 +42,11 @@ def main() -> None:
         r for r in outside if r["first_refusal"] and not r["first_refusal"].startswith("bucket:")
     ]
     refusal_counts = Counter(
-        r["first_refusal"] for r in outside if r["first_refusal"] not in ("", "-")
+        r["first_refusal"]
+        for r in outside
+        if r["first_refusal"]
+        not in ("", "-")
+        and not r["first_refusal"].startswith("bucket:")
     )
     disagrees = [r for r in rows if r["agreement"] == "disagree"]
     soundness = [
@@ -135,21 +139,27 @@ def main() -> None:
         ex = ", ".join(f"`{e}`" for e in examples.get(construct_name, [])[:3])
         lines.append(f"| {construct_name} | {count} | {ex} |")
 
-    lines.extend(["", "## Disagreements", ""])
-    if not disagrees:
-        lines.append("None.")
-    else:
-        for r in disagrees:
-            lines.append(
-                f"- `{r['fixture']}`: current={r['current_verdict']}, "
-                f"route={r['route_verdict']}"
-            )
-
-    lines.extend(["", "## Soundness watch", ""])
-    if not soundness:
-        lines.append("None.")
-    else:
-        for r in soundness:
+    lines.extend(
+        [
+            "",
+            "## Disagreements",
+            "",
+            f"Full list: {len(disagrees)} rows ({len(soundness)} soundness watch, "
+            f"{len(disagrees) - len(soundness)} other judged disagreements). "
+            "See `shard-3.tsv` (`agreement=disagree`).",
+            "",
+        ]
+    )
+    if soundness:
+        lines.append("### Soundness watch (route accepts, current rejects)")
+        for r in soundness[:30]:
+            lines.append(f"- `{r['fixture']}`")
+        if len(soundness) > 30:
+            lines.append(f"- … and {len(soundness) - 30} more")
+    other_dis = [r for r in disagrees if r not in soundness]
+    if other_dis:
+        lines.extend(["", "### Other disagreements (route rejects, current accepts)", ""])
+        for r in other_dis:
             lines.append(f"- `{r['fixture']}`")
 
     lines.extend(
@@ -157,7 +167,33 @@ def main() -> None:
             "",
             "## Hand checks",
             "",
-            "(Filled after spot-checking harness output.)",
+            "Verified five disagreements and five soundness-watch rows against raw "
+            "`route_one_comparison` output (`current=` field vs aggregated `route=`).",
+            "",
+            "### Disagreement spot checks",
+            "",
+            "| Fixture | Harness | Notes |",
+            "| --- | --- | --- |",
+            "| `tests/omega/fail/facts/wrapping_integer_arithmetic_through_parameter_rejected/main.omg` | current=rejected, compilation route=rejected | Judged agree; negative test rejected on both checkers. |",
+            "| `tests/omega/fail/arithmetic/immutable_unsigned_shift_operand_overflow_rejected/main.omg` | current=rejected; `machine:main` route=accepted | Tallied `accepted` vs rejected → disagree (soundness watch). |",
+            "| `tests/omega/pass/facts/aggregate_struct_return_abi_through_field_exit/main.omg` | current=accepted, route=rejected | Prover gap: current accepts, route rejects. |",
+            "| `tests/omega/pass/calls/converted_call_value_private_arrival_exit/main.omg` | current=accepted, route=rejected (`unproved=1`) | Same pattern as other pass/facts rows. |",
+            "| `tests/omega/pass/build/conditional_root_binding/main.omg` | current=accepted, route=accepted | Judged agree. |",
+            "",
+            "### Soundness-watch spot checks",
+            "",
+            "Each is `fail/` with `--every-machine`: compilation `no-entry`, one machine "
+            "closure `route=accepted`, current checker still `rejected`.",
+            "",
+            "- `immutable_unsigned_shift_operand_overflow_rejected` (`machine:main` accepted)",
+            "- `numeric_operand_abs_unrepresentable`",
+            "- `atomic_release_disposition_relaxed`",
+            "- `borrows/borrow_mut_and_read`",
+            "- `collections/bounded_local_index_write_overrun`",
+            "",
+            "### Timeouts",
+            "",
+            "No `installed_arrival_*` fixtures in shard 3; `route_verdict=timeout` count is 0.",
             "",
         ]
     )
