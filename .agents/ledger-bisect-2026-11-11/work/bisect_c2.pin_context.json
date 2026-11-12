@@ -1,0 +1,9 @@
+{
+  "witness": "pass/borrows/copied_intermediate_descriptor_snapshot_exit",
+  "pin_commit": "51e8c45c793007f211d0d9baee7de16767172444",
+  "pin_status": "incomplete",
+  "pin_first_diag": "`main` has no executable body: this compiler does not lower a state of it yet (reference retirement: stored occurrences); in state `main::entry`",
+  "pin_diag_norm": "`_` has no executable body: this compiler does not lower a state of it yet (reference retirement: stored occurrences); in state `_`",
+  "ledger_expected_status": "checked",
+  "tier": "pass"
+}

@@ -1,0 +1,33 @@
+# bad: [51e8c45c793007f211d0d9baee7de16767172444] psi: check a body over a const value parameter once and carry its proofs (#2505)
+# good: [d785033a078018ce4ff17cd590f61dba897907b0] psi: consolidate and document validation crates (#2159)
+git bisect start '--first-parent' '51e8c45c793007f211d0d9baee7de16767172444' 'd785033a078018ce4ff17cd590f61dba897907b0'
+# bad: [9fcbd798b684bf1c6013fbd39ff0d4ab23f5640d] tests: bind the Windows raw fixture imports through Build rows (#2334)
+git bisect bad 9fcbd798b684bf1c6013fbd39ff0d4ab23f5640d
+# bad: [fca627657c010e60f711e5790b71a2bb6774ebd1] psi: evaluate call-argument slice endpoints once (#2229)
+git bisect bad fca627657c010e60f711e5790b71a2bb6774ebd1
+# skip: [0ee11cf0b75b2c267d136bdec02cc593d321738d] docs: spell task calls by trait path and state the stack backing policies (#2199)
+git bisect skip 0ee11cf0b75b2c267d136bdec02cc593d321738d
+# bad: [b79a713e037766daa29723a1a2caa01071a949b1] psi: preserve integer types in mathematical predicate proofs (#2197)
+git bisect bad b79a713e037766daa29723a1a2caa01071a949b1
+# skip: [06af8fee3fe1183a2d61f3b3488b359e6e6fcdb7] samples: record Linux coverage for representation agreement (#2179)
+git bisect skip 06af8fee3fe1183a2d61f3b3488b359e6e6fcdb7
+# bad: [3ec75ded8c556fb49a66f5df8e21d7c2706a3052] psi: preserve logical negation of mathematical identity predicates (#2175)
+git bisect bad 3ec75ded8c556fb49a66f5df8e21d7c2706a3052
+# bad: [225426a7aeeabfa4c945df67d3113dd27f46fb38] psi: support explicit identity in conversion laws (#2045)
+git bisect bad 225426a7aeeabfa4c945df67d3113dd27f46fb38
+# skip: [43ba5756faf0c4baf8b004a55ad358044cadeae3] tests: re-record eight guard and layout rows that check again on main (#2165)
+git bisect skip 43ba5756faf0c4baf8b004a55ad358044cadeae3
+# good: [f1b713fe8384377ce92435d6698c442d4fb0dfbe] psi: bind state parameter predicates in parallel and profile pre-flow stages (#1982)
+git bisect good f1b713fe8384377ce92435d6698c442d4fb0dfbe
+# good: [189c63d654f82b3cd95e4aa173e25c75515a3b12] psi: avoid repeating work when checking large programs (#2164)
+git bisect good 189c63d654f82b3cd95e4aa173e25c75515a3b12
+# skip: [e580a2ef1990569f94b655938f495dfcd57454f7] docs: say where representation hiding lives (#2167)
+git bisect skip e580a2ef1990569f94b655938f495dfcd57454f7
+# good: [6326c6ae7aa971cc2f8eeb749f0e13385e3f85b5] psi: spell empty rows as reaches none and ratify binder contract dependencies (#2166)
+git bisect good 6326c6ae7aa971cc2f8eeb749f0e13385e3f85b5
+# skip: [ad3cf2407872ee6ed049f8d4c13ac744c00cf0b5] docs: say how hosts bound bulk data work under the logical schedule (#2168)
+git bisect skip ad3cf2407872ee6ed049f8d4c13ac744c00cf0b5
+# only skipped commits left to test
+# possible first bad commit: [225426a7aeeabfa4c945df67d3113dd27f46fb38] psi: support explicit identity in conversion laws (#2045)
+# possible first bad commit: [ad3cf2407872ee6ed049f8d4c13ac744c00cf0b5] docs: say how hosts bound bulk data work under the logical schedule (#2168)
+# possible first bad commit: [e580a2ef1990569f94b655938f495dfcd57454f7] docs: say where representation hiding lives (#2167)
