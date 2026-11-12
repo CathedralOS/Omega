@@ -71,17 +71,21 @@ Existing claim and note fields remain intact. Historical future expiries,
 including `2099-01-01`, retain their recorded meaning; the command does not infer
 a replacement expiry from `claimed_utc` or `lease_minutes`.
 
-Every command fetches only the newest registry commit (`--depth=1`): each
+Every command fetches only the advertised registry commit (`--depth=1`): each
 commit's message holds the whole record, and the reference's history runs to
 tens of thousands of them, so a full fetch could exhaust a cloud session's
-memory. The history stays on the remote.
+memory. The history stays on the remote. The fetch requests the exact advertised
+commit so a concurrent writer cannot change which record belongs to the lease.
+Only a successful remote read with no registry reference initializes an empty
+registry. Remote read, fetch, commit-message and record-format failures exit 1;
+they never report an empty registry or proceed to a write.
 
 Mutations read the registry snapshot, create a new Git commit containing the
 updated record, and push with a compare-and-swap lease on its reference. A
 concurrent writer or network error can reject the push; inspect status before
 retrying an uncertain write. Exit 0 reports success, exit 2 reports an invalid
 subcommand or a missing required claim/note/release argument, and reported clock
-or Git write failures exit 1. Claims remain cooperative coordination rather
+or Git failures exit 1. Claims remain cooperative coordination rather
 than access control.
 
 ## Validation
@@ -89,4 +93,6 @@ than access control.
 `mbx test -p xtask claims::` runs frozen-clock unit tests without accessing the
 remote registry. They check creation and eight-hour expiry, calendar and offset
 boundaries, exact expiry filtering, malformed expiry retention, and preservation
-of historical records.
+of historical records. Local temporary Git remotes also exercise absent,
+unreadable and malformed registries and concurrent reference updates without
+contacting the shared registry.
