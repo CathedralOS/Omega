@@ -2,6 +2,8 @@
 
 Status: in progress
 
+Lead review buckets (every mutant row belongs to exactly one bucket below).
+
 ## Commands
 
 ```bash
@@ -12,5179 +14,762 @@ export OMEGA_LIBRARY_ROOT=$PWD/source/library OMEGA_CORPUS_ROOT=$PWD
 python3 .agents/four-jobs-2026-11-12/soundness/run_shard_mutations.py
 ```
 
-Harness: `target/debug/omega --check` (current checker), `timeout 120 target/debug/examples/route_one_comparison` (route). Shard index rule: fixture line `i` in sorted `pass/`+`run/` list with `i % 8 == 6`.
+## Fixture coverage
 
-## Counts
+| Metric | Count |
+| --- | ---: |
+| Fixtures in shard | 30 |
+| Originals skipped (current checker does not accept) | 8 |
+| Fixtures checked with zero mutation patterns | 2 |
+| Mutants attempted (generated × checked) | 35 |
+| Mutant rows recorded | 35 |
 
-- fixtures in shard: 1130
-- originals skipped (current does not accept): 118
-- mutants generated: 469
-- mutants run: 469
-- candidates (either accepts or disagree): 469
-- confirmed holes kept: 469
-- disagreements kept: 330
-- discarded valid (both reject, no disagreement): 0
-- discarded no rule: 0
-- timeouts: 0
+Mutant total stability: `mutants_attempted` equals the sum of bucket counts below (one row per attempted mutant). Fixtures with no applicable patterns do not add rows.
 
-## Confirmed holes and disagreements
+## Mutant buckets (sum = mutants attempted)
 
-### tests/omega/pass/arithmetic/checked_flag_proof_signed_mask/main.omg — flip_to_mut_loan
+| Bucket | Count |
+| --- | ---: |
+| `confirmed_hole` | 8 |
+| `known_gap_q7_mut` | 0 |
+| `discarded_both_reject` | 18 |
+| `discarded_route_only` | 0 |
+| `discarded_valid_mutant` | 9 |
+| `discarded_no_specific_rule` | 0 |
+| `discarded_timeout` | 0 |
+| `mutant_run_error` | 0 |
+| **Total** | **35** |
 
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__checked_flag_proof_signed_mask__main.omg__flip_to_mut_loan__33dddbda8b7a4228/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
+## Confirmed holes by mutation kind
 
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
+| Kind | Count |
+| --- | ---: |
+| `drop_requires` | 1 |
+| `remove_mut` | 7 |
+
+## Kept rows
 
 ### tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg — remove_mut
 
-- Original tier: `pass`
-- Mutation: let mut values -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__remove_mut__10ff42d0ca60c80a/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
+- Bucket: `confirmed_hole`
+- Mutation: remove mut from `values`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__remove_mut__221870285650b17a/main.omg`
+- Current: `accepted`; route: `no-entry`
+- Route detail: route=no-entry
+- Broken obligation: `28:     values[direct] = 2.0;`
+- Spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
 
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__drop_requires__615e4fcebcc33af4/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__weaken_requires__b3ab713df4f44c56/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__weaken_requires__86d52d74da640c01/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__flip_to_mut_loan__812f268293dcee22/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
+> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage.
 
 ### tests/omega/pass/arithmetic/runtime_boolean_field_shift_count_exit/main.omg — remove_mut
 
-- Original tier: `pass`
-- Mutation: let mut guard -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_boolean_field_shift_count_exit__main.omg__remove_mut__d18d099dc0c88dd0/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
+- Bucket: `confirmed_hole`
+- Mutation: remove mut from `guard`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_boolean_field_shift_count_exit__main.omg__remove_mut__f309fcc21272105d/main.omg`
+- Current: `accepted`; route: `outside`
+- Route detail: route=outside
+- Broken obligation: `5:     guard.count = count;`
+- Spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
 
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/arithmetic/runtime_boolean_field_shift_count_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_boolean_field_shift_count_exit__main.omg__flip_to_mut_loan__69f736f1c415262e/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/arithmetic/runtime_captured_boolean_recurrence/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut condition -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_captured_boolean_recurrence__main.omg__remove_mut__567fa9d8227fb733/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage.
 
 ### tests/omega/pass/arithmetic/runtime_captured_boolean_recurrence/main.omg — drop_requires
 
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_captured_boolean_recurrence__main.omg__drop_requires__18dd7b3809419645/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
+- Bucket: `confirmed_hole`
+- Mutation: delete first requires line
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_captured_boolean_recurrence__main.omg__drop_requires__3a6e19b82553794b/main.omg`
+- Current: `accepted`; route: `outside`
+- Route detail: route=outside
+- Broken obligation: `8:         true -> decimal(rest - 10, count + 1) (arithmetic on `rest` formerly guarded by `count <= 9 && embed(rest) + embed(count) * 10 <= 99`)`
+- Spec (`wiki/spec/language/machines.md` § Call preconditions):
 
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/arithmetic/runtime_captured_boolean_recurrence/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_captured_boolean_recurrence__main.omg__weaken_requires__7c30a3cbffb7776d/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/arithmetic/runtime_captured_boolean_recurrence/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_captured_boolean_recurrence__main.omg__flip_to_mut_loan__47e90131bf30f090/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/arithmetic/runtime_signed_minimum_remainder_postcondition_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_signed_minimum_remainder_postcondition_exit__main.omg__flip_to_mut_loan__eda5fa6d085b7246/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
+> Every machine application establishes the selected contract's `requires` under the exact argument substitution.
 
 ### tests/omega/pass/arithmetic/sparse_captured_utf_path_exit/main.omg — remove_mut
 
-- Original tier: `pass`
-- Mutation: let mut output -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__sparse_captured_utf_path_exit__main.omg__remove_mut__4f809f02a1eeb3a1/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
+- Bucket: `confirmed_hole`
+- Mutation: remove mut from `output`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__sparse_captured_utf_path_exit__main.omg__remove_mut__a1bf5fc91e003f1e/main.omg`
+- Current: `accepted`; route: `outside`
+- Route detail: route=outside
+- Broken obligation: `46:         output[output_offset] = narrow_u32_to_u16_wrapping(character.point);`
+- Spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
 
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/arithmetic/sparse_captured_utf_path_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__sparse_captured_utf_path_exit__main.omg__flip_to_mut_loan__d32f635847a60b02/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/arrays/computed_fixed_array_length_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arrays__computed_fixed_array_length_exit__main.omg__flip_to_mut_loan__d0e2ec6c3919791a/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/arrays/runtime_completed_array_window_replacement_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut cell -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arrays__runtime_completed_array_window_replacement_exit__main.omg__remove_mut__099e906ffa223a0b/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/arrays/runtime_completed_array_window_replacement_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arrays__runtime_completed_array_window_replacement_exit__main.omg__drop_requires__d46b7126fb2c2352/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/arrays/runtime_completed_array_window_replacement_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arrays__runtime_completed_array_window_replacement_exit__main.omg__weaken_requires__9cceba158a498c99/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/arrays/runtime_completed_array_window_replacement_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arrays__runtime_completed_array_window_replacement_exit__main.omg__flip_to_mut_loan__475d55cb4142c497/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/asm/atomic_release_disposition_pair_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut word -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__atomic_release_disposition_pair_exit__main.omg__remove_mut__63e9f4a5ebd222cc/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage.
 
 ### tests/omega/pass/asm/checked_asm_nominal_symbolic_conjunction_exit/main.omg — remove_mut
 
-- Original tier: `pass`
-- Mutation: let mut cursor -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_asm_nominal_symbolic_conjunction_exit__main.omg__remove_mut__2081fee7512be4b2/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
+- Bucket: `confirmed_hole`
+- Mutation: remove mut from `cursor`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_asm_nominal_symbolic_conjunction_exit__main.omg__remove_mut__dd1ae77a62b9561c/main.omg`
+- Current: `accepted`; route: `outside`
+- Route detail: route=outside
+- Broken obligation: `23:     let observed: u64 = move_selected(snapshot(cursor, 9), reset(&mut cursor) + 11);`
+- Spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
 
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/asm/checked_asm_nominal_symbolic_conjunction_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_asm_nominal_symbolic_conjunction_exit__main.omg__drop_requires__e00ecd5b72dd7ab6/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/asm/checked_asm_nominal_symbolic_conjunction_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_asm_nominal_symbolic_conjunction_exit__main.omg__weaken_requires__abdf4dfe7445f47b/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/asm/checked_asm_nominal_symbolic_conjunction_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_asm_nominal_symbolic_conjunction_exit__main.omg__flip_to_mut_loan__2be550a83c25960a/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
+> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage.
 
 ### tests/omega/pass/asm/checked_label_borrow_last_use_exit/main.omg — remove_mut
 
-- Original tier: `pass`
-- Mutation: let mut entry_storage -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_label_borrow_last_use_exit__main.omg__remove_mut__0a6ba8abea0556a8/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
+- Bucket: `confirmed_hole`
+- Mutation: remove mut from `entry_storage`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_label_borrow_last_use_exit__main.omg__remove_mut__5ef632b5dd793d32/main.omg`
+- Current: `accepted`; route: `outside`
+- Route detail: route=outside
+- Broken obligation: `30:     Main::main(&mut entry_storage);`
+- Spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
 
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/asm/checked_label_borrow_last_use_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_label_borrow_last_use_exit__main.omg__flip_to_mut_loan__1b76f003d32679d8/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/asm/scratch_snapshot_survives_input_write_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__scratch_snapshot_survives_input_write_exit__main.omg__drop_requires__0ec11805cf655378/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
+> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage.
 
 ### tests/omega/pass/atomics/placed_atomic_shared_store/main.omg — remove_mut
 
-- Original tier: `pass`
-- Mutation: let mut entries -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__atomics__placed_atomic_shared_store__main.omg__remove_mut__1ed660626c86d733/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
+- Bucket: `confirmed_hole`
+- Mutation: remove mut from `entries`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__atomics__placed_atomic_shared_store__main.omg__remove_mut__698bd3fb4dace34b/main.omg`
+- Current: `accepted`; route: `no-entry`
+- Route detail: route=no-entry
+- Broken obligation: `6:     entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };`
+- Spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
 
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage.
 
 ### tests/omega/pass/atomics/runtime_atomic_computed_updates_exit/main.omg — remove_mut
 
-- Original tier: `pass`
-- Mutation: let mut trace -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__atomics__runtime_atomic_computed_updates_exit__main.omg__remove_mut__b93beb17b8690622/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/atomics/runtime_atomic_computed_updates_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__atomics__runtime_atomic_computed_updates_exit__main.omg__flip_to_mut_loan__d6f8e239e09efc1e/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/atomics/runtime_mixed_common_atomic_cell_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__atomics__runtime_mixed_common_atomic_cell_exit__main.omg__flip_to_mut_loan__60c31da6ee990c4e/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrow/runtime_indexed_write_only_local_receiver_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut cells -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrow__runtime_indexed_write_only_local_receiver_exit__main.omg__remove_mut__95274c9293d876e6/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrow/runtime_indexed_write_only_local_receiver_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrow__runtime_indexed_write_only_local_receiver_exit__main.omg__drop_requires__f0d442609b9b7d02/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/borrow/runtime_indexed_write_only_local_receiver_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrow__runtime_indexed_write_only_local_receiver_exit__main.omg__flip_to_mut_loan__925a9b6f1de6321f/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrow/runtime_static_callable_preserves_readonly_subject_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrow__runtime_static_callable_preserves_readonly_subject_exit__main.omg__drop_requires__a78b06456e3d16aa/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/borrow/runtime_static_callable_preserves_readonly_subject_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrow__runtime_static_callable_preserves_readonly_subject_exit__main.omg__flip_to_mut_loan__9e99acf0f612cd35/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrow/runtime_write_only_exclusive_reference_aggregate_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut held -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrow__runtime_write_only_exclusive_reference_aggregate_exit__main.omg__remove_mut__e82708131068d7cd/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrow/runtime_write_only_exclusive_reference_aggregate_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrow__runtime_write_only_exclusive_reference_aggregate_exit__main.omg__flip_to_mut_loan__10f106d031b56e3d/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut held -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrow__runtime_write_only_exclusive_reference_returned_view_exit__main.omg__remove_mut__a6c77f14c3c1d21a/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrow__runtime_write_only_exclusive_reference_returned_view_exit__main.omg__flip_to_mut_loan__6920e273b648f706/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrow/storage_address_byte_window_identity_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrow__storage_address_byte_window_identity_exit__main.omg__flip_to_mut_loan__de434952217f75d9/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/aliased_descriptor_slot_after_last_use_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut holder -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__aliased_descriptor_slot_after_last_use_exit__main.omg__remove_mut__f97a392cb244e20e/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/aliased_descriptor_slot_after_last_use_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__aliased_descriptor_slot_after_last_use_exit__main.omg__flip_to_mut_loan__b0f1286650d25361/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/borrowed_literal_backing_releases_input_loan_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut second -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__borrowed_literal_backing_releases_input_loan_exit__main.omg__remove_mut__5041045f507f6952/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/borrowed_literal_backing_releases_input_loan_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__borrowed_literal_backing_releases_input_loan_exit__main.omg__flip_to_mut_loan__ab61e5ba0cfe0662/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/conditional_copied_slot_restores_parent_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut original -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__conditional_copied_slot_restores_parent_exit__main.omg__remove_mut__a63e4651d95ed547/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/conditional_copied_slot_restores_parent_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__conditional_copied_slot_restores_parent_exit__main.omg__flip_to_mut_loan__9df7fe4a9bd3f4ad/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/copied_input_descriptor_independent_mutation_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut counter -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__copied_input_descriptor_independent_mutation_exit__main.omg__remove_mut__cc68f5139f2705c7/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/copied_input_descriptor_independent_mutation_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__copied_input_descriptor_independent_mutation_exit__main.omg__flip_to_mut_loan__c696a2d82c41ab8d/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/foreign_output_copied_lifetime_last_use/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut first -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__foreign_output_copied_lifetime_last_use__main.omg__remove_mut__65b2786fbf4de8cb/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/initialized_empty_array_snapshot_replacement_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut packet -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__initialized_empty_array_snapshot_replacement_exit__main.omg__remove_mut__71e9c5c23b431503/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/initialized_empty_array_snapshot_replacement_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__initialized_empty_array_snapshot_replacement_exit__main.omg__flip_to_mut_loan__fcf9c7f2e2436992/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/literal_index_reference_copy_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut bytes -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__literal_index_reference_copy_exit__main.omg__remove_mut__0a146431972975a2/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/literal_index_reference_copy_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__literal_index_reference_copy_exit__main.omg__flip_to_mut_loan__4cdb720e36a0e9e9/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/local_subslice_parent_lent_after_last_use_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut bytes -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__local_subslice_parent_lent_after_last_use_exit__main.omg__remove_mut__dd3658b87dd60904/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/local_subslice_parent_lent_after_last_use_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__local_subslice_parent_lent_after_last_use_exit__main.omg__drop_requires__dbbe1f4f316b9bc2/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/borrows/local_subslice_parent_lent_after_last_use_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__local_subslice_parent_lent_after_last_use_exit__main.omg__weaken_requires__1f65f214778af6b4/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/borrows/local_subslice_parent_lent_after_last_use_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__local_subslice_parent_lent_after_last_use_exit__main.omg__flip_to_mut_loan__3130a453b00027a0/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/opaque_incoming_nested_projected_array_result_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut backing -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__opaque_incoming_nested_projected_array_result_exit__main.omg__remove_mut__48eeb031629177b3/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/opaque_incoming_nested_projected_array_result_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__opaque_incoming_nested_projected_array_result_exit__main.omg__drop_requires__6aa3768683e3aeb8/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/borrows/opaque_incoming_nested_projected_array_result_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__opaque_incoming_nested_projected_array_result_exit__main.omg__flip_to_mut_loan__bb5e9b3f18750a3e/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/ordinary_select_provider_reference_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut holder -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__ordinary_select_provider_reference_exit__main.omg__remove_mut__26047f8c04b2d3b5/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/ordinary_select_provider_reference_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__ordinary_select_provider_reference_exit__main.omg__flip_to_mut_loan__79a060ea91b68810/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/plain_read_after_exclusive_loan_last_use_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut items -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__plain_read_after_exclusive_loan_last_use_exit__main.omg__remove_mut__1b4a313b962e5590/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/plain_read_after_exclusive_loan_last_use_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__plain_read_after_exclusive_loan_last_use_exit__main.omg__drop_requires__ad844d400c944eba/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/borrows/plain_read_after_exclusive_loan_last_use_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__plain_read_after_exclusive_loan_last_use_exit__main.omg__weaken_requires__3398e68f2ec52a15/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/borrows/plain_read_after_exclusive_loan_last_use_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__plain_read_after_exclusive_loan_last_use_exit__main.omg__flip_to_mut_loan__714c2300683318ea/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/qualified_reference_field_retarget_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut protected -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__qualified_reference_field_retarget_exit__main.omg__remove_mut__b8600a335fa69fba/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/resident_view_borrowed_helper_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut entries -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__resident_view_borrowed_helper_exit__main.omg__remove_mut__c870ab4901bf19f6/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/resident_view_borrowed_helper_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__resident_view_borrowed_helper_exit__main.omg__drop_requires__008de9f6ea9be31c/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/borrows/resident_view_borrowed_helper_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__resident_view_borrowed_helper_exit__main.omg__flip_to_mut_loan__2bc5275d2be6cdb1/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/runtime_byte_case_partial_cleanup_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_byte_case_partial_cleanup_exit__main.omg__flip_to_mut_loan__5cba6bea6f0a763e/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/runtime_computed_backing_reference_copy_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_computed_backing_reference_copy_exit__main.omg__drop_requires__d5791e2cb3911aef/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/borrows/runtime_computed_backing_reference_copy_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_computed_backing_reference_copy_exit__main.omg__weaken_requires__8395ce35635cf3f0/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/borrows/runtime_computed_backing_reference_copy_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_computed_backing_reference_copy_exit__main.omg__flip_to_mut_loan__19aa09fcad22dc2c/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/runtime_copied_byte_distinct_epochs_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut entry_storage -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_copied_byte_distinct_epochs_exit__main.omg__remove_mut__632e49cf38084812/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/runtime_copied_byte_distinct_epochs_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_copied_byte_distinct_epochs_exit__main.omg__drop_requires__cec963ad87c42e85/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/borrows/runtime_copied_byte_distinct_epochs_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_copied_byte_distinct_epochs_exit__main.omg__weaken_requires__0943f022ae4c92a4/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/borrows/runtime_copied_byte_distinct_epochs_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_copied_byte_distinct_epochs_exit__main.omg__flip_to_mut_loan__9e05fc11429b9e9e/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/runtime_dependent_forwarded_window_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut direct_counter -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_dependent_forwarded_window_exit__main.omg__remove_mut__576e2aa49077bc69/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/runtime_dependent_forwarded_window_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_dependent_forwarded_window_exit__main.omg__drop_requires__7b4cc37c0d901593/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/borrows/runtime_dependent_forwarded_window_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_dependent_forwarded_window_exit__main.omg__weaken_requires__be6e09230d107238/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/borrows/runtime_dependent_forwarded_window_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_dependent_forwarded_window_exit__main.omg__flip_to_mut_loan__72a607ff7479f54b/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/runtime_formed_child_descriptor_replacement_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut original -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_formed_child_descriptor_replacement_exit__main.omg__remove_mut__083128b817a7eb4d/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/runtime_formed_child_descriptor_replacement_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_formed_child_descriptor_replacement_exit__main.omg__drop_requires__0721a3f0b41bc533/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/borrows/runtime_formed_child_descriptor_replacement_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_formed_child_descriptor_replacement_exit__main.omg__flip_to_mut_loan__cc2c0d52a81f966a/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/runtime_independent_qualified_owner_reference_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_independent_qualified_owner_reference_exit__main.omg__drop_requires__82688e3a43b2fd6b/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/borrows/runtime_independent_qualified_owner_reference_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_independent_qualified_owner_reference_exit__main.omg__weaken_requires__3ec61dd94f7bd7d9/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/borrows/runtime_independent_qualified_owner_reference_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_independent_qualified_owner_reference_exit__main.omg__flip_to_mut_loan__7db1496c31ba3d3c/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/runtime_independent_qualified_owner_reference_exit/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_independent_qualified_owner_reference_exit__main.omg__borrow_mut_on_immutable__cd00b2c54f063eec/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/borrows/runtime_match_payload_parent_disjoint_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut backing -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_match_payload_parent_disjoint_exit__main.omg__remove_mut__4e4004f3e3d071ee/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/runtime_match_payload_parent_disjoint_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_match_payload_parent_disjoint_exit__main.omg__flip_to_mut_loan__a14691c798065f2e/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/runtime_mutable_reference_captures_selector_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut cells -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_mutable_reference_captures_selector_exit__main.omg__remove_mut__3bcca1c547b3268d/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/runtime_mutable_reference_captures_selector_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_mutable_reference_captures_selector_exit__main.omg__drop_requires__2b8c7d18ea4f853a/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/borrows/runtime_mutable_reference_captures_selector_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_mutable_reference_captures_selector_exit__main.omg__flip_to_mut_loan__69ae47969c83a478/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/runtime_owned_input_reference_replacement_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_owned_input_reference_replacement_exit__main.omg__flip_to_mut_loan__35cf2265d19a638a/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/runtime_projected_record_region_loop_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut entry_storage -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_projected_record_region_loop_exit__main.omg__remove_mut__3fc6040ed61fc15d/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/runtime_projected_record_region_loop_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_projected_record_region_loop_exit__main.omg__drop_requires__54c79d1055ec11f3/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/borrows/runtime_projected_record_region_loop_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_projected_record_region_loop_exit__main.omg__weaken_requires__02db558d2d236820/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/borrows/runtime_projected_record_region_loop_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_projected_record_region_loop_exit__main.omg__flip_to_mut_loan__b361edeb44af3549/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/runtime_qualified_statement_descriptor_replacement_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut original -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_qualified_statement_descriptor_replacement_exit__main.omg__remove_mut__854753cfda970395/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/runtime_qualified_statement_descriptor_replacement_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_qualified_statement_descriptor_replacement_exit__main.omg__drop_requires__3549d06c79bbb2cd/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/borrows/runtime_qualified_statement_descriptor_replacement_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_qualified_statement_descriptor_replacement_exit__main.omg__flip_to_mut_loan__6fe5000f3fb1bb79/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/runtime_reference_call_scalar_snapshot_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut entry_storage -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_reference_call_scalar_snapshot_exit__main.omg__remove_mut__85a84c8cc49b90fe/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/runtime_reference_call_scalar_snapshot_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_reference_call_scalar_snapshot_exit__main.omg__flip_to_mut_loan__b1327a715d6ede89/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/runtime_selected_stored_carrier_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut left -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_selected_stored_carrier_exit__main.omg__remove_mut__bc9fea0372e5430a/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/runtime_selected_stored_carrier_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_selected_stored_carrier_exit__main.omg__flip_to_mut_loan__0ed6737f8b1be341/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/runtime_static_callback_snapshot_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut visits -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_static_callback_snapshot_exit__main.omg__remove_mut__d9631aafa28fb1a9/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/runtime_static_callback_snapshot_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_static_callback_snapshot_exit__main.omg__drop_requires__a96cb9fc17b979b1/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/borrows/runtime_static_callback_snapshot_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_static_callback_snapshot_exit__main.omg__flip_to_mut_loan__5f272ea23bc7ee64/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/runtime_writeonly_nested_reference_array_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut first -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_writeonly_nested_reference_array_exit__main.omg__remove_mut__db3c44bf1d197478/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/borrows/runtime_writeonly_nested_reference_array_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_writeonly_nested_reference_array_exit__main.omg__flip_to_mut_loan__382ac80e52c11036/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/stored_view_return_consumers/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__stored_view_return_consumers__main.omg__borrow_mut_on_immutable__26399af817bbcc20/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/borrows/suspension_saved_reference_view_all_suppliers_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__suspension_saved_reference_view_all_suppliers_exit__main.omg__flip_to_mut_loan__45e15b58fa2f3936/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/borrows/tagged_scalar_field_live_copy_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__tagged_scalar_field_live_copy_exit__main.omg__flip_to_mut_loan__78b1a8bd60384417/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/boundary/requirement_float_precondition_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__boundary__requirement_float_precondition_exit__main.omg__drop_requires__3b9f83e14c48ce87/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/build/activation_descriptor_write_observed_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut carrier -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__build__activation_descriptor_write_observed_exit__main.omg__remove_mut__6d653e431b2173c9/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/build/activation_descriptor_write_observed_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__build__activation_descriptor_write_observed_exit__main.omg__flip_to_mut_loan__673eb72d02701bc0/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/build/copied_domain_source_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__build__copied_domain_source_exit__main.omg__flip_to_mut_loan__a522a85883948278/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/build/installed_entry_ram_two_occurrences_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut entries -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__build__installed_entry_ram_two_occurrences_exit__main.omg__remove_mut__2a4b119f7891f908/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/build/installed_entry_ram_two_occurrences_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__build__installed_entry_ram_two_occurrences_exit__main.omg__flip_to_mut_loan__8b4e70e3b31b7596/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/build/runtime_retained_const_application_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__build__runtime_retained_const_application_exit__main.omg__flip_to_mut_loan__4eb8cf278ef14f46/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/build/sibling_module_service_exclusion_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut entry_storage -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__build__sibling_module_service_exclusion_exit__main.omg__remove_mut__5f5e94a94677fdb7/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/calls/converted_call_value_private_arrival_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__converted_call_value_private_arrival_exit__main.omg__drop_requires__e3ff1b90665705f2/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/calls/converted_call_value_private_arrival_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__converted_call_value_private_arrival_exit__main.omg__weaken_requires__2f8c72858e96d25c/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/calls/converted_call_value_private_arrival_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__converted_call_value_private_arrival_exit__main.omg__weaken_requires__419acebd5b763b4b/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/calls/converted_call_value_private_arrival_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__converted_call_value_private_arrival_exit__main.omg__flip_to_mut_loan__139255d9f85ec1c0/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/calls/native_code_layout_frame_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__native_code_layout_frame_exit__main.omg__drop_requires__cff93fb9ddfdb02f/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/calls/native_code_layout_frame_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__native_code_layout_frame_exit__main.omg__flip_to_mut_loan__556a72490cde13e5/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/calls/nested_binding_call/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__nested_binding_call__main.omg__borrow_mut_on_immutable__37fd371b902a30e6/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/calls/nested_scalar_argument_evaluation_order_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut value -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__nested_scalar_argument_evaluation_order_exit__main.omg__remove_mut__eedaedc5eae0e765/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/calls/nested_scalar_argument_evaluation_order_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__nested_scalar_argument_evaluation_order_exit__main.omg__flip_to_mut_loan__3039b3a0ab7b5291/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/calls/owned_overaligned_local_call/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut entries -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__owned_overaligned_local_call__main.omg__remove_mut__583e8d17dae0de9f/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/calls/owned_overaligned_local_call/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__owned_overaligned_local_call__main.omg__flip_to_mut_loan__e685616a840ad6b2/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/calls/recursive_terminal_block_acknowledgement_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut entry_storage -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__recursive_terminal_block_acknowledgement_exit__main.omg__remove_mut__f9640f609ac052e1/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/calls/recursive_terminal_block_acknowledgement_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__recursive_terminal_block_acknowledgement_exit__main.omg__drop_requires__8f41c19a1535c76a/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/calls/recursive_terminal_block_acknowledgement_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__recursive_terminal_block_acknowledgement_exit__main.omg__weaken_requires__851f32b7e24a7a8e/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/calls/recursive_terminal_block_acknowledgement_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__recursive_terminal_block_acknowledgement_exit__main.omg__flip_to_mut_loan__f6d820df7856c893/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/calls/runtime_constructor_child_membership_snapshot_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut entry_storage -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__runtime_constructor_child_membership_snapshot_exit__main.omg__remove_mut__2fb2e17500d37181/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/calls/runtime_constructor_child_membership_snapshot_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__runtime_constructor_child_membership_snapshot_exit__main.omg__drop_requires__b13ddb3f9acd4430/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/calls/runtime_constructor_child_membership_snapshot_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__runtime_constructor_child_membership_snapshot_exit__main.omg__flip_to_mut_loan__09d58f071594d639/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/calls/runtime_guarded_reference_return_machine_crash/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut node -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__runtime_guarded_reference_return_machine_crash__main.omg__remove_mut__056bb843fb6fa461/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/calls/runtime_guarded_terminal_structural_result_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__runtime_guarded_terminal_structural_result_exit__main.omg__flip_to_mut_loan__05b6179f77919b94/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/calls/runtime_nested_constructor_child_snapshots_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut entry_storage -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__runtime_nested_constructor_child_snapshots_exit__main.omg__remove_mut__52c0fa294d859efa/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/calls/runtime_nested_constructor_child_snapshots_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__runtime_nested_constructor_child_snapshots_exit__main.omg__drop_requires__41f7611087a1961b/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/calls/runtime_nested_constructor_child_snapshots_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__runtime_nested_constructor_child_snapshots_exit__main.omg__flip_to_mut_loan__2db18e6e154f07d3/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/calls/runtime_qualified_owned_result_argument_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__runtime_qualified_owned_result_argument_exit__main.omg__weaken_requires__7cd50011cb51c669/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/calls/runtime_qualified_owned_result_argument_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__runtime_qualified_owned_result_argument_exit__main.omg__flip_to_mut_loan__b6786f67a3b15bd2/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/calls/runtime_selected_call_argument_from_fieldwise_local_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut pair -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__runtime_selected_call_argument_from_fieldwise_local_exit__main.omg__remove_mut__5513444bd7f377eb/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/calls/runtime_selected_call_argument_from_fieldwise_local_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__runtime_selected_call_argument_from_fieldwise_local_exit__main.omg__flip_to_mut_loan__12e088ba83010b3f/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/calls/terminal_call_acknowledgements/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__terminal_call_acknowledgements__main.omg__flip_to_mut_loan__1c31e2922f5dfec0/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/capabilities/alternative_synchronous_provider_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__capabilities__alternative_synchronous_provider_exit__main.omg__flip_to_mut_loan__38e3d212ac83aeda/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/cases/arm_field_placement/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__cases__arm_field_placement__main.omg__borrow_mut_on_immutable__4535568bd30fa1a3/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/cases/case_where_common/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__cases__case_where_common__main.omg__drop_requires__5f9c67f91716135b/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/cases/case_where_common/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__cases__case_where_common__main.omg__weaken_requires__21cb2da1150e2206/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/cases/case_where_common/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__cases__case_where_common__main.omg__flip_to_mut_loan__eebe219fc7c23443/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/cases/match_reference_local/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__cases__match_reference_local__main.omg__flip_to_mut_loan__ec479bfb2032ed80/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/cases/runtime_case_payload_policy_cast_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut entry_storage -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__cases__runtime_case_payload_policy_cast_exit__main.omg__remove_mut__a49c337d6fcfaf9d/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/cases/runtime_case_payload_policy_cast_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__cases__runtime_case_payload_policy_cast_exit__main.omg__flip_to_mut_loan__a39a8eae076be5ec/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/cases/unit_empty_arm/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__cases__unit_empty_arm__main.omg__flip_to_mut_loan__bf1d62bb0496b1c2/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/cases/unit_empty_arm/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__cases__unit_empty_arm__main.omg__borrow_mut_on_immutable__c6198ea88a720295/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/collections/runtime_captured_structural_copy_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut matrix -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_captured_structural_copy_exit__main.omg__remove_mut__4d483fa55645bae3/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/collections/runtime_captured_structural_copy_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_captured_structural_copy_exit__main.omg__flip_to_mut_loan__c41ee680ab7fcd2a/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/collections/runtime_float_array_projection_return_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_float_array_projection_return_exit__main.omg__drop_requires__22096277e1185226/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/collections/runtime_float_array_projection_return_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_float_array_projection_return_exit__main.omg__flip_to_mut_loan__05c96f83240beaad/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/collections/runtime_nested_selected_element_extents_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_nested_selected_element_extents_exit__main.omg__flip_to_mut_loan__7f07006795c324b5/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/collections/runtime_projected_element_descriptor_read_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut cells -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_projected_element_descriptor_read_exit__main.omg__remove_mut__72791647f6d4c727/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/collections/runtime_projected_element_descriptor_read_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_projected_element_descriptor_read_exit__main.omg__drop_requires__80d2c52c7b6d7552/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/collections/runtime_projected_element_descriptor_read_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_projected_element_descriptor_read_exit__main.omg__flip_to_mut_loan__28ddbacecb854dd3/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/collections/runtime_sequential_index_observations_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut cursor -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_sequential_index_observations_exit__main.omg__remove_mut__00f4b4e819c41736/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/collections/runtime_sequential_index_observations_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_sequential_index_observations_exit__main.omg__drop_requires__46c9321ee1f41ebb/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/collections/runtime_sequential_index_observations_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_sequential_index_observations_exit__main.omg__weaken_requires__7636eff739257bbd/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/collections/runtime_sequential_index_observations_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_sequential_index_observations_exit__main.omg__flip_to_mut_loan__02ac8f7a99abeb83/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/collections/runtime_stored_reference_array_replacement_contract_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut backing -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_stored_reference_array_replacement_contract_exit__main.omg__remove_mut__285f6664dc2858c2/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/collections/runtime_stored_reference_array_replacement_contract_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_stored_reference_array_replacement_contract_exit__main.omg__drop_requires__80f205ebbc35cafc/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/collections/runtime_stored_reference_array_replacement_contract_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_stored_reference_array_replacement_contract_exit__main.omg__flip_to_mut_loan__2cdae37c3d6fd831/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/collections/typed_run_relocation_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut cell -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__typed_run_relocation_exit__main.omg__remove_mut__eb0ae99506122ee8/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/collections/typed_run_relocation_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__typed_run_relocation_exit__main.omg__drop_requires__78dc336f78360d4f/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/collections/typed_run_relocation_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__typed_run_relocation_exit__main.omg__flip_to_mut_loan__9cf418083ee82178/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/comptime/runtime_const_array_cast_expression_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__comptime__runtime_const_array_cast_expression_exit__main.omg__drop_requires__2e4e13648ab728f5/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/comptime/runtime_const_array_cast_expression_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__comptime__runtime_const_array_cast_expression_exit__main.omg__weaken_requires__5db86b575e42f3ea/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/concurrency/incoming_loan_after_suspend/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut value -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__concurrency__incoming_loan_after_suspend__main.omg__remove_mut__83c8d4f9acee3dbf/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/concurrency/incoming_loan_after_suspend/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__concurrency__incoming_loan_after_suspend__main.omg__flip_to_mut_loan__48fa52b4d1094317/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/concurrency/suspend_carry_task/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__concurrency__suspend_carry_task__main.omg__borrow_mut_on_immutable__849fd49bf4ec6060/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/constants/predicate_constant_static_index/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__constants__predicate_constant_static_index__main.omg__drop_requires__1ec9cb9085c1bd66/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/constants/predicate_constant_static_index/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__constants__predicate_constant_static_index__main.omg__weaken_requires__facb4308b4dbe266/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/constants/target_layout_derived_helper_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__constants__target_layout_derived_helper_exit__main.omg__flip_to_mut_loan__412a6029adf82ec8/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/constraints/proof_machine_order_fact/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__constraints__proof_machine_order_fact__main.omg__drop_requires__66f87ae51234a47a/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/contracts/boolean_result_all_normal_returns_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__boolean_result_all_normal_returns_exit__main.omg__drop_requires__a5f80ee7266a5fec/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/contracts/completed_anonymous_cast_preserves_prefix_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__completed_anonymous_cast_preserves_prefix_exit__main.omg__drop_requires__3a55201bde546699/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/contracts/completed_anonymous_cast_preserves_prefix_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__completed_anonymous_cast_preserves_prefix_exit__main.omg__weaken_requires__1ecd5549c1817dc7/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/contracts/completed_anonymous_cast_preserves_prefix_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__completed_anonymous_cast_preserves_prefix_exit__main.omg__flip_to_mut_loan__318d9b8173402f27/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/contracts/contradictory_match_predecessor_join_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__contradictory_match_predecessor_join_exit__main.omg__drop_requires__788fc1f2351064f5/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/contracts/contradictory_match_predecessor_join_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__contradictory_match_predecessor_join_exit__main.omg__weaken_requires__9d1720a0582166af/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/contracts/contradictory_match_predecessor_join_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__contradictory_match_predecessor_join_exit__main.omg__weaken_requires__b51526e54b1c22fe/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/contracts/contradictory_match_predecessor_join_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__contradictory_match_predecessor_join_exit__main.omg__flip_to_mut_loan__1c7dab8281c78828/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/contracts/folded_actual_requires/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__folded_actual_requires__main.omg__drop_requires__f30170fe4fdb777b/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/contracts/folded_actual_requires/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__folded_actual_requires__main.omg__weaken_requires__664c507ef29623b4/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/contracts/folded_actual_requires/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__folded_actual_requires__main.omg__borrow_mut_on_immutable__b02c4f9efc1110b2/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/contracts/policy_field_ensures/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__policy_field_ensures__main.omg__drop_requires__15e353860f5cc45d/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/contracts/policy_field_ensures/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__policy_field_ensures__main.omg__borrow_mut_on_immutable__a7cb25698ec3b7b0/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/contracts/runtime_recursive_result_bound_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__runtime_recursive_result_bound_exit__main.omg__drop_requires__38691068984b3474/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/contracts/runtime_recursive_result_bound_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__runtime_recursive_result_bound_exit__main.omg__weaken_requires__82ce34cc7b42ac05/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/contracts/runtime_recursive_result_bound_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__runtime_recursive_result_bound_exit__main.omg__flip_to_mut_loan__c407a46eb3c285ff/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/contracts/static_type_requires_prior_call_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__static_type_requires_prior_call_exit__main.omg__drop_requires__ba5ecc3bc49ed399/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/contracts/static_type_requires_prior_call_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__contracts__static_type_requires_prior_call_exit__main.omg__flip_to_mut_loan__4cfc4f3062c13d69/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/control_flow/bool_subject_dispatch_compile/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__bool_subject_dispatch_compile__main.omg__borrow_mut_on_immutable__961d667a53db0b16/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/control_flow/constant_aggregate_dispatch_complete/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__constant_aggregate_dispatch_complete__main.omg__drop_requires__579b03c373840eb4/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/control_flow/constant_aggregate_dispatch_complete/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__constant_aggregate_dispatch_complete__main.omg__flip_to_mut_loan__645aa88d0556d882/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/control_flow/guarded_leaf_branch_expansion/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__guarded_leaf_branch_expansion__main.omg__borrow_mut_on_immutable__3d31b8fbe034d4fc/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/control_flow/runtime_branch_parameter_cleanup_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__runtime_branch_parameter_cleanup_exit__main.omg__flip_to_mut_loan__d348b338932dae91/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/control_flow/runtime_completed_readonly_home_replacement_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__runtime_completed_readonly_home_replacement_exit__main.omg__drop_requires__4b9c2d6bda38ee23/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/control_flow/runtime_completed_readonly_home_replacement_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__runtime_completed_readonly_home_replacement_exit__main.omg__weaken_requires__2301f31fe0000dff/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/control_flow/runtime_completed_readonly_home_replacement_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__runtime_completed_readonly_home_replacement_exit__main.omg__flip_to_mut_loan__d2cb836196af9a9f/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/control_flow/runtime_narrow_signed_case_payload_state_guard_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__runtime_narrow_signed_case_payload_state_guard_exit__main.omg__flip_to_mut_loan__b34456c658ffef4e/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/control_flow/runtime_saved_transition_subject_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut calls -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__runtime_saved_transition_subject_exit__main.omg__remove_mut__50b199ff869c869b/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/control_flow/runtime_saved_transition_subject_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__runtime_saved_transition_subject_exit__main.omg__flip_to_mut_loan__a7a35d421741af53/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/control_flow/runtime_static_type_terminal_unit_cleanup_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut frame -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__runtime_static_type_terminal_unit_cleanup_exit__main.omg__remove_mut__f2b92f9403f62407/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/control_flow/runtime_static_type_terminal_unit_cleanup_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__runtime_static_type_terminal_unit_cleanup_exit__main.omg__drop_requires__f15b341a5edf6092/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/control_flow/runtime_static_type_terminal_unit_cleanup_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__runtime_static_type_terminal_unit_cleanup_exit__main.omg__flip_to_mut_loan__44febebcdae3c244/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/control_flow/saved_case_predicate_disjoint_effects_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut marker -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__saved_case_predicate_disjoint_effects_exit__main.omg__remove_mut__3bb79c4b04ad1c49/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/control_flow/saved_case_predicate_disjoint_effects_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__saved_case_predicate_disjoint_effects_exit__main.omg__flip_to_mut_loan__496dec2815afd072/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/control_flow/shared_view_selected_disposition_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut holder -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__shared_view_selected_disposition_exit__main.omg__remove_mut__f2f729b15260c24f/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/control_flow/shared_view_selected_disposition_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__shared_view_selected_disposition_exit__main.omg__flip_to_mut_loan__d169753a3a8d8686/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/core/address_interval_partition_reverse_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__core__address_interval_partition_reverse_exit__main.omg__drop_requires__55cf90897a803189/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/core/address_interval_partition_reverse_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__core__address_interval_partition_reverse_exit__main.omg__weaken_requires__ee5160cdc0e422a6/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/core/address_interval_partition_reverse_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__core__address_interval_partition_reverse_exit__main.omg__flip_to_mut_loan__1bfdd557b6dfd264/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/core/address_interval_partition_reverse_exit/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__core__address_interval_partition_reverse_exit__main.omg__borrow_mut_on_immutable__341a8c725795e035/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/core/independent_content_factory_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__core__independent_content_factory_exit__main.omg__flip_to_mut_loan__006b55fef403b069/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/core/independent_content_factory_exit/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__core__independent_content_factory_exit__main.omg__borrow_mut_on_immutable__5cd050cbae5f08cf/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/core/numeric_widening_preserves_values/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__core__numeric_widening_preserves_values__main.omg__flip_to_mut_loan__ab765aa758ff5515/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/core/vacant_extent_partition_endpoints/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__core__vacant_extent_partition_endpoints__main.omg__drop_requires__3e3f81a6d8f24c99/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/core/vacant_extent_partition_endpoints/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__core__vacant_extent_partition_endpoints__main.omg__flip_to_mut_loan__11574e5204dda6b4/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/dependent/boundary_requires_caller_field_extent_compile/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__boundary_requires_caller_field_extent_compile__main.omg__drop_requires__f4913ee5c19d5e46/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/dependent/boundary_requires_caller_field_extent_compile/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__boundary_requires_caller_field_extent_compile__main.omg__weaken_requires__16d2444c0fe55ab9/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/dependent/boundary_requires_caller_field_extent_compile/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__boundary_requires_caller_field_extent_compile__main.omg__borrow_mut_on_immutable__372fd4cd94ec9acf/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/dependent/closed_case_common_and_active_payload_projection/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__closed_case_common_and_active_payload_projection__main.omg__drop_requires__07761ee86579ffd9/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/dependent/closed_case_common_and_active_payload_projection/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__closed_case_common_and_active_payload_projection__main.omg__flip_to_mut_loan__685c915bfbfa2f30/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/dependent/data_requires_cyclic_handoff_walk_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut idle -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__data_requires_cyclic_handoff_walk_exit__main.omg__remove_mut__dfcfb030b16c1026/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/dependent/data_requires_cyclic_handoff_walk_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__data_requires_cyclic_handoff_walk_exit__main.omg__drop_requires__4bb0ffcd198a2d31/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/dependent/data_requires_cyclic_handoff_walk_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__data_requires_cyclic_handoff_walk_exit__main.omg__weaken_requires__2837c4254a6e4110/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/dependent/data_requires_cyclic_handoff_walk_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__data_requires_cyclic_handoff_walk_exit__main.omg__weaken_requires__d01f896cebb52197/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/dependent/data_requires_cyclic_handoff_walk_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__data_requires_cyclic_handoff_walk_exit__main.omg__flip_to_mut_loan__04360cc196374d35/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/dependent/data_where_cross_field_disequality_compile/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__data_where_cross_field_disequality_compile__main.omg__drop_requires__71bf2a67f0ffec1f/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/dependent/data_where_half_open_interval_compile/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__data_where_half_open_interval_compile__main.omg__drop_requires__a5f2d6d3913a41c9/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/dependent/data_where_negation_bound_compile/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__data_where_negation_bound_compile__main.omg__drop_requires__fc97edf85185f033/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/dependent/data_where_signed_disequality_compile/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__data_where_signed_disequality_compile__main.omg__drop_requires__c7b7c9c458a5316a/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/dependent/data_where_three_field_equality_compile/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__data_where_three_field_equality_compile__main.omg__drop_requires__2530076adb41b4e5/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/dependent/domain_member_with_where_compile/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__domain_member_with_where_compile__main.omg__drop_requires__4c7600fe79aa3bcf/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/dependent/runtime_borrowed_coupled_last_store_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut envelope -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__runtime_borrowed_coupled_last_store_exit__main.omg__remove_mut__156cc3397cd1a348/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/dependent/runtime_borrowed_coupled_last_store_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__runtime_borrowed_coupled_last_store_exit__main.omg__drop_requires__2d19cf7d1930150b/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/dependent/runtime_borrowed_coupled_last_store_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__runtime_borrowed_coupled_last_store_exit__main.omg__weaken_requires__a7103caf32688307/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/dependent/runtime_borrowed_coupled_last_store_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__runtime_borrowed_coupled_last_store_exit__main.omg__flip_to_mut_loan__e503c0fa629714f6/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/dependent/runtime_slice_coordinate_citation_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut cells -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__runtime_slice_coordinate_citation_exit__main.omg__remove_mut__c85526959f57c299/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/dependent/runtime_slice_coordinate_citation_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__runtime_slice_coordinate_citation_exit__main.omg__drop_requires__51966b4a6d10aa42/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/dependent/runtime_slice_coordinate_citation_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__runtime_slice_coordinate_citation_exit__main.omg__weaken_requires__d3241231e967b5c6/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/dependent/runtime_slice_coordinate_citation_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__runtime_slice_coordinate_citation_exit__main.omg__weaken_requires__96d3137a6181e363/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/dependent/runtime_slice_coordinate_citation_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__runtime_slice_coordinate_citation_exit__main.omg__flip_to_mut_loan__53a6b7253f9dba6f/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/domains/bitwise_live_membership_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__bitwise_live_membership_exit__main.omg__weaken_requires__95c47a03ad5f07a2/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/domains/bitwise_live_membership_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__bitwise_live_membership_exit__main.omg__flip_to_mut_loan__b5621fbbd7f49954/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/domains/carried_nested_payload_qualification/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut envelope -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__carried_nested_payload_qualification__main.omg__remove_mut__c1474ec1a3cb22b8/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/domains/carried_nested_payload_qualification/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__carried_nested_payload_qualification__main.omg__flip_to_mut_loan__b3172038bba057ad/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/domains/domain_family_result/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__domain_family_result__main.omg__borrow_mut_on_immutable__b20ac818c80a29fe/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/domains/domain_pattern_match_bound_ordered_effects_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut visits -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__domain_pattern_match_bound_ordered_effects_exit__main.omg__remove_mut__70ebf1408af90c35/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/domains/domain_pattern_match_bound_ordered_effects_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__domain_pattern_match_bound_ordered_effects_exit__main.omg__drop_requires__bcf561f426e6db4f/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/domains/domain_pattern_match_bound_ordered_effects_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__domain_pattern_match_bound_ordered_effects_exit__main.omg__weaken_requires__e57f7fedb6525bce/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/domains/domain_pattern_match_bound_ordered_effects_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__domain_pattern_match_bound_ordered_effects_exit__main.omg__flip_to_mut_loan__e00f92f02483ac28/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/domains/erasing_cast_keeps_predicates_and_named_domains_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__erasing_cast_keeps_predicates_and_named_domains_exit__main.omg__flip_to_mut_loan__d51b645e4c4274f0/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/domains/inactive_impossible_payload_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__inactive_impossible_payload_exit__main.omg__drop_requires__3d52618eb545bf61/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/domains/inactive_impossible_payload_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__inactive_impossible_payload_exit__main.omg__flip_to_mut_loan__d97e032ba6f34213/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/domains/linear_qualification_projected_sibling/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__linear_qualification_projected_sibling__main.omg__flip_to_mut_loan__08115094034f2812/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/domains/linear_qualification_projected_sibling/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__linear_qualification_projected_sibling__main.omg__borrow_mut_on_immutable__77f7ec02fde1de15/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/domains/moved_payload_uses_current_membership_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut whole -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__moved_payload_uses_current_membership_exit__main.omg__remove_mut__acf239e31823a4d4/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/domains/moved_payload_uses_current_membership_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__moved_payload_uses_current_membership_exit__main.omg__flip_to_mut_loan__0c32cd5c74115ca6/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/domains/qualified_record_capture_after_mutation/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut value -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__qualified_record_capture_after_mutation__main.omg__remove_mut__aa8eff3dbda81031/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/domains/qualified_structural_argument_same_shape_no_call/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__qualified_structural_argument_same_shape_no_call__main.omg__drop_requires__68e308f338455d04/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/domains/qualified_structural_argument_same_shape_no_call/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__qualified_structural_argument_same_shape_no_call__main.omg__weaken_requires__474f1387d952e217/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/domains/qualified_structural_argument_same_shape_no_call/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__qualified_structural_argument_same_shape_no_call__main.omg__flip_to_mut_loan__e70b2f5a03f136f0/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/domains/routed_record_capture_before_sibling_mutation/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__routed_record_capture_before_sibling_mutation__main.omg__drop_requires__29883e41701e211b/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/domains/runtime_scalar_domain_generic_issuer_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__runtime_scalar_domain_generic_issuer_exit__main.omg__drop_requires__0cb87ed9c32ed2d6/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/domains/runtime_scalar_domain_generic_issuer_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__runtime_scalar_domain_generic_issuer_exit__main.omg__weaken_requires__fff6eaee63cc927d/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/domains/tagged_scalar_reference_carriers_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__tagged_scalar_reference_carriers_exit__main.omg__flip_to_mut_loan__b40cf4ef6dc44c65/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/drops/borrowed_projection_earlier_call_capture_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut seed -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__borrowed_projection_earlier_call_capture_exit__main.omg__remove_mut__004a2b93cd2faf8f/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/drops/borrowed_projection_earlier_call_capture_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__borrowed_projection_earlier_call_capture_exit__main.omg__drop_requires__5d99eef2eb336d20/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/drops/conditional_structural_return_cleanup_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut cell -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__conditional_structural_return_cleanup_exit__main.omg__remove_mut__66c45c3b16d59481/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/drops/conditional_structural_return_cleanup_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__conditional_structural_return_cleanup_exit__main.omg__drop_requires__c26413b750e87ce9/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/drops/core_drop_owner_hook/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__core_drop_owner_hook__main.omg__borrow_mut_on_immutable__d51c324ade111135/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/drops/lifetime_owner_drop_hook/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__lifetime_owner_drop_hook__main.omg__borrow_mut_on_immutable__a511f68c74952a00/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/drops/result_cleanup_named_boolean_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut count -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__result_cleanup_named_boolean_exit__main.omg__remove_mut__1841e28bd0b702f4/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/drops/result_cleanup_named_boolean_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__result_cleanup_named_boolean_exit__main.omg__drop_requires__86b855da49022d04/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/drops/result_cleanup_named_boolean_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__result_cleanup_named_boolean_exit__main.omg__flip_to_mut_loan__4b3249f163b5fc2e/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/drops/runtime_cleanup_case_evidence_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut drops -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_cleanup_case_evidence_exit__main.omg__remove_mut__d3b99911aca61013/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/drops/runtime_cleanup_case_evidence_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_cleanup_case_evidence_exit__main.omg__flip_to_mut_loan__28f220a2b58e1fbd/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/drops/runtime_empty_array_owner_cleanup_sites_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_empty_array_owner_cleanup_sites_exit__main.omg__drop_requires__1b0255a6467199bd/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/drops/runtime_empty_array_owner_cleanup_sites_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_empty_array_owner_cleanup_sites_exit__main.omg__flip_to_mut_loan__9197ea35dd4bf51f/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/drops/runtime_empty_array_owner_cleanup_sites_exit/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_empty_array_owner_cleanup_sites_exit__main.omg__borrow_mut_on_immutable__c7dae4372c976009/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/drops/runtime_local_nominal_return_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut cell -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_local_nominal_return_exit__main.omg__remove_mut__8a37d4cd178c7fc6/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/drops/runtime_local_nominal_return_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_local_nominal_return_exit__main.omg__drop_requires__db886143b0e5ca01/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/drops/runtime_nested_empty_array_owner_cleanup_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut holder -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_nested_empty_array_owner_cleanup_exit__main.omg__remove_mut__a2e78e35cc5f620e/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/drops/runtime_nested_empty_array_owner_cleanup_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_nested_empty_array_owner_cleanup_exit__main.omg__drop_requires__06f1d95f2f9220f6/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/drops/runtime_nested_empty_array_owner_cleanup_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_nested_empty_array_owner_cleanup_exit__main.omg__weaken_requires__1a5e1040ddd1f89e/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/drops/runtime_nominal_state_loan_crash_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut cell -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_nominal_state_loan_crash_exit__main.omg__remove_mut__410a8016de478ef1/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/drops/runtime_nominal_state_loan_crash_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_nominal_state_loan_crash_exit__main.omg__drop_requires__15bafe2275a58f43/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/drops/runtime_owner_scoped_generic_cleanup_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut first -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_owner_scoped_generic_cleanup_exit__main.omg__remove_mut__1e6cbc2ba2da9745/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/drops/runtime_owner_scoped_generic_cleanup_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_owner_scoped_generic_cleanup_exit__main.omg__flip_to_mut_loan__68ee8c864bbbe95f/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/drops/runtime_replaced_record_custody_transfer_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut pair -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_replaced_record_custody_transfer_exit__main.omg__remove_mut__b1499a89dbfe1d69/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/drops/runtime_replaced_record_custody_transfer_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_replaced_record_custody_transfer_exit__main.omg__flip_to_mut_loan__95b5f71a08b7dfc8/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/drops/runtime_selected_nominal_owner_cleanup_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut cell -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_selected_nominal_owner_cleanup_exit__main.omg__remove_mut__7585ea45688bfd4d/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/drops/runtime_selected_nominal_owner_cleanup_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_selected_nominal_owner_cleanup_exit__main.omg__flip_to_mut_loan__cfed9bc841ecb311/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/drops/runtime_sibling_constructor_source_frontier_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_sibling_constructor_source_frontier_exit__main.omg__flip_to_mut_loan__4a2ca1b062c0efb5/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/drops/runtime_sibling_constructor_source_frontier_exit/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_sibling_constructor_source_frontier_exit__main.omg__borrow_mut_on_immutable__92d819646793a54e/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/drops/transfer_cleanup_into_state/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__transfer_cleanup_into_state__main.omg__borrow_mut_on_immutable__2949c4f8a6aa4622/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/errors/member_crash_route/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__errors__member_crash_route__main.omg__drop_requires__f7065660db155fb0/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/expressions/anonymous_structural_match_results_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut marker -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__expressions__anonymous_structural_match_results_exit__main.omg__remove_mut__dc7e5131b127f991/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/expressions/anonymous_structural_match_results_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__expressions__anonymous_structural_match_results_exit__main.omg__flip_to_mut_loan__160ca4eedbba74b0/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/expressions/deep_paren_nesting/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__expressions__deep_paren_nesting__main.omg__borrow_mut_on_immutable__c698fe3a3cc9f306/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/expressions/match_float_interpretation/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut calls -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__expressions__match_float_interpretation__main.omg__remove_mut__bef30ad813e7fbcb/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/expressions/match_float_interpretation/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__expressions__match_float_interpretation__main.omg__flip_to_mut_loan__8828daf336ff6f37/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/expressions/runtime_match_structural_predicate_effect_order_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut tag_counter -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__expressions__runtime_match_structural_predicate_effect_order_exit__main.omg__remove_mut__7589d5a67d9d45d3/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/expressions/runtime_match_structural_predicate_effect_order_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__expressions__runtime_match_structural_predicate_effect_order_exit__main.omg__flip_to_mut_loan__595645ea97f8d2fb/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/expressions/runtime_owned_match_multiple_projected_claims_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut output -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__expressions__runtime_owned_match_multiple_projected_claims_exit__main.omg__remove_mut__96feb5addced0437/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/expressions/runtime_owned_match_multiple_projected_claims_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__expressions__runtime_owned_match_multiple_projected_claims_exit__main.omg__drop_requires__638f3ea6c520839a/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/expressions/runtime_owned_match_multiple_projected_claims_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__expressions__runtime_owned_match_multiple_projected_claims_exit__main.omg__flip_to_mut_loan__de74b049a7ed46cd/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/abi_multi_arg_spill_through_other_machine_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__abi_multi_arg_spill_through_other_machine_exit__main.omg__drop_requires__6f27aec4a2ae4abd/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/abi_multi_arg_spill_through_other_machine_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__abi_multi_arg_spill_through_other_machine_exit__main.omg__flip_to_mut_loan__43675c695a4b10b7/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/abstract_signature_call_applied_callback_nested_body_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__abstract_signature_call_applied_callback_nested_body_exit__main.omg__drop_requires__d5e9704bc2f71c3b/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/abstract_signature_call_applied_callback_nested_body_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__abstract_signature_call_applied_callback_nested_body_exit__main.omg__flip_to_mut_loan__883bf5148ffbed7c/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/abstract_signature_call_applied_callback_through_local_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__abstract_signature_call_applied_callback_through_local_exit__main.omg__drop_requires__ba06deb4ca89f735/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/abstract_signature_call_constant_initializer_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__abstract_signature_call_constant_initializer_exit__main.omg__drop_requires__468c4b7f18340d70/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/abstract_signature_call_constant_initializer_through_field_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__abstract_signature_call_constant_initializer_through_field_exit__main.omg__drop_requires__8e6e89a0be1923cd/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/abstract_signature_call_through_other_target_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__abstract_signature_call_through_other_target_exit__main.omg__drop_requires__b2f3c68d745cae3b/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/additional_input_domain_mutation_through_other_state_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut cell -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__additional_input_domain_mutation_through_other_state_exit__main.omg__remove_mut__33bf1fbcec789740/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/address_count_partition_through_other_machine_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__address_count_partition_through_other_machine_exit__main.omg__drop_requires__c1cd6e1541d5b306/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/address_count_partition_through_other_machine_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__address_count_partition_through_other_machine_exit__main.omg__weaken_requires__1ef0ea51869a3cc0/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/address_count_partition_through_other_machine_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__address_count_partition_through_other_machine_exit__main.omg__flip_to_mut_loan__f276eab6a467e563/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/address_count_partition_through_other_machine_exit/main.omg — borrow_mut_on_immutable
-
-- Original tier: `pass`
-- Mutation: first &mut -> &write on non-mut local context
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__address_count_partition_through_other_machine_exit__main.omg__borrow_mut_on_immutable__895d4f18f24ff655/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan`, formation of `&mut` or `&write` loans to owned storage requires a `mut` binding on that local.
-
-### tests/omega/pass/facts/affine_discard_root_cleanup_through_match_join_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut dropped_true -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__affine_discard_root_cleanup_through_match_join_exit__main.omg__remove_mut__323f80cd21bd39f4/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/affine_discard_root_cleanup_through_match_join_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__affine_discard_root_cleanup_through_match_join_exit__main.omg__drop_requires__44336ccf6edcd223/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/affine_discard_root_cleanup_through_match_join_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__affine_discard_root_cleanup_through_match_join_exit__main.omg__weaken_requires__1a85f52d874ec7c0/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/affine_discard_root_cleanup_through_match_join_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__affine_discard_root_cleanup_through_match_join_exit__main.omg__flip_to_mut_loan__157bc3a6c87bd16a/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/aggregate_storage_address_identity_through_local_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut value -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__aggregate_storage_address_identity_through_local_exit__main.omg__remove_mut__e9c2dc456f63abc5/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/aggregate_storage_address_identity_through_local_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__aggregate_storage_address_identity_through_local_exit__main.omg__flip_to_mut_loan__214527e7fb33c742/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/aggregate_struct_return_abi_through_field_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__aggregate_struct_return_abi_through_field_exit__main.omg__drop_requires__6fefd18eda6bf611/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/aggregate_struct_return_abi_through_field_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__aggregate_struct_return_abi_through_field_exit__main.omg__flip_to_mut_loan__381073192fbb307c/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/alias_fact_transfer_through_const_name_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut a -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__alias_fact_transfer_through_const_name_exit__main.omg__remove_mut__4b85f053bd392e19/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/alias_fact_transfer_through_const_name_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__alias_fact_transfer_through_const_name_exit__main.omg__drop_requires__807d766db5624b07/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/alias_fact_transfer_through_const_name_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__alias_fact_transfer_through_const_name_exit__main.omg__flip_to_mut_loan__4b17ce3d4f19194a/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/applied_requirement_indices_through_call_result_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__applied_requirement_indices_through_call_result_exit__main.omg__drop_requires__69b19a566b6233cd/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/applied_requirement_indices_through_call_result_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__applied_requirement_indices_through_call_result_exit__main.omg__flip_to_mut_loan__1a1cc11cbe19fa64/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/applied_requirement_indices_through_target_body_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__applied_requirement_indices_through_target_body_exit__main.omg__drop_requires__68beb81d069cd5fb/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/applied_requirement_indices_through_target_body_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__applied_requirement_indices_through_target_body_exit__main.omg__flip_to_mut_loan__99b79d51aaad8ac6/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/applied_zero_establishment_through_parameter_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__applied_zero_establishment_through_parameter_exit__main.omg__drop_requires__e8b54d6aba9b2a54/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/array_element_default_domain/other_state/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__array_element_default_domain__other_state__main.omg__drop_requires__453b570587fa36fc/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/array_element_default_domain/other_state/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__array_element_default_domain__other_state__main.omg__weaken_requires__6566db371c2930d4/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/array_element_default_domain/other_state/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__array_element_default_domain__other_state__main.omg__weaken_requires__5c4a18ca58d7a7fa/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/array_element_default_domain/other_state/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__array_element_default_domain__other_state__main.omg__flip_to_mut_loan__473d70c6bb92d3ab/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/as_slice_views_through_call_result_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__as_slice_views_through_call_result_exit__main.omg__drop_requires__1482df771ae3fe47/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/as_slice_views_through_target_body_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__as_slice_views_through_target_body_exit__main.omg__drop_requires__57224e6387100c1f/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/assumed_binding_input_authority_through_parameter_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__assumed_binding_input_authority_through_parameter_exit__main.omg__drop_requires__952f85b6778eefda/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/assumed_binding_input_authority_through_parameter_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__assumed_binding_input_authority_through_parameter_exit__main.omg__weaken_requires__8f8e0c5de22dede8/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/assumed_binding_result_bound_through_other_state_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__assumed_binding_result_bound_through_other_state_exit__main.omg__drop_requires__6b6169a11eb8c4c1/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/assumed_binding_result_bound_through_other_state_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__assumed_binding_result_bound_through_other_state_exit__main.omg__weaken_requires__1795a7a47f29eaad/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/atomic_bounded_fetch/match_join/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut path -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__atomic_bounded_fetch__match_join__main.omg__remove_mut__12311e7dacd74a44/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/atomic_bounded_fetch/match_join/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__atomic_bounded_fetch__match_join__main.omg__drop_requires__87a3b6a0483d234c/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/atomic_bounded_fetch/match_join/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__atomic_bounded_fetch__match_join__main.omg__weaken_requires__7714c04db660ba23/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/atomic_bounded_fetch/match_join/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__atomic_bounded_fetch__match_join__main.omg__flip_to_mut_loan__8ab4932808678d10/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/atomic_bounded_resident/local/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__atomic_bounded_resident__local__main.omg__drop_requires__958eacc8223edf85/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/atomic_bounded_resident/local/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__atomic_bounded_resident__local__main.omg__weaken_requires__306010859d8d5077/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/atomic_compare_exchange_once_local_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__atomic_compare_exchange_once_local_exit__main.omg__flip_to_mut_loan__25f5efe1eaf5a9d6/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/atomic_compare_exchange_once_through_other_machine_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__atomic_compare_exchange_once_through_other_machine_exit__main.omg__flip_to_mut_loan__17fc67fe28871413/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/atomic_try_exchange_once/controls/wide/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__atomic_try_exchange_once__controls__wide__main.omg__flip_to_mut_loan__08c65a94f0173615/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/body_bearing_comparison_case_fields_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__body_bearing_comparison_case_fields_exit__main.omg__drop_requires__a324dbff239e9b6c/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/body_bearing_comparison_case_fields_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__body_bearing_comparison_case_fields_exit__main.omg__flip_to_mut_loan__aa4c397ef48e7231/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/body_bearing_comparison_through_local_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__body_bearing_comparison_through_local_exit__main.omg__drop_requires__53897480a2650d36/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/body_bearing_comparison_through_local_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__body_bearing_comparison_through_local_exit__main.omg__flip_to_mut_loan__636d6c6a66a8c7a3/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/borrowed_case_result_through_field_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_case_result_through_field_exit__main.omg__drop_requires__12b695547ee37134/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/borrowed_case_result_through_field_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_case_result_through_field_exit__main.omg__flip_to_mut_loan__d45c0b734d9cd57d/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/borrowed_content_partition_through_const_name_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut strategy -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_content_partition_through_const_name_exit__main.omg__remove_mut__e37b179626d5df72/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/borrowed_content_partition_through_const_name_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_content_partition_through_const_name_exit__main.omg__flip_to_mut_loan__1ca731fe37555273/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/borrowed_projection_cleanup_through_call_result_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut direct_drops -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_projection_cleanup_through_call_result_exit__main.omg__remove_mut__98b60f90ce96c344/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/borrowed_projection_cleanup_through_call_result_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_projection_cleanup_through_call_result_exit__main.omg__drop_requires__e2f0dd3271913642/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/borrowed_projection_cleanup_through_call_result_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_projection_cleanup_through_call_result_exit__main.omg__flip_to_mut_loan__f6fc6e536838e898/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/borrowed_projection_cleanup_through_target_body_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut direct_drops -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_projection_cleanup_through_target_body_exit__main.omg__remove_mut__1dc0a4a7e476ed1e/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/borrowed_projection_cleanup_through_target_body_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_projection_cleanup_through_target_body_exit__main.omg__drop_requires__79d2befae2a02aac/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/borrowed_projection_cleanup_through_target_body_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_projection_cleanup_through_target_body_exit__main.omg__flip_to_mut_loan__8f11f7878a045f98/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/borrowed_restoration_window_through_parameter_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut cell -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_restoration_window_through_parameter_exit__main.omg__remove_mut__6fbe8c6c6b50caa1/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/borrowed_restoration_window_through_parameter_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_restoration_window_through_parameter_exit__main.omg__flip_to_mut_loan__18e0926e468d7374/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/borrowed_store_call_through_other_state_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut subject -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_store_call_through_other_state_exit__main.omg__remove_mut__c5a3532261ed1cef/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/borrowed_store_call_through_other_state_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_store_call_through_other_state_exit__main.omg__drop_requires__edc692c51577983d/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/borrowed_store_call_through_other_state_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_store_call_through_other_state_exit__main.omg__weaken_requires__b42d998996039c30/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/borrowed_store_call_through_other_state_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_store_call_through_other_state_exit__main.omg__flip_to_mut_loan__0e9ed7757adcf710/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/boundary_provider_call_through_other_machine_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__boundary_provider_call_through_other_machine_exit__main.omg__flip_to_mut_loan__06a0403f2fbcdfbb/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/boundary_zero_origin_through_match_join_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut request -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__boundary_zero_origin_through_match_join_exit__main.omg__remove_mut__cf9cf0012a1b5af6/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/boundary_zero_origin_through_match_join_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__boundary_zero_origin_through_match_join_exit__main.omg__drop_requires__eb8d377843e5ee8a/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/bounded_activation_claim_split_through_local_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut live -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_activation_claim_split_through_local_exit__main.omg__remove_mut__5bcab037f61af1f7/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/bounded_activation_claim_split_through_local_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_activation_claim_split_through_local_exit__main.omg__drop_requires__27528968754bffb8/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/bounded_activation_claim_split_through_local_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_activation_claim_split_through_local_exit__main.omg__weaken_requires__00355f46b616a735/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/bounded_activation_claim_split_through_local_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_activation_claim_split_through_local_exit__main.omg__flip_to_mut_loan__62922a1a3b09329a/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/bounded_activation_computed_bound_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut live -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_activation_computed_bound_exit__main.omg__remove_mut__e37725b4eea153b2/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/bounded_activation_computed_bound_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_activation_computed_bound_exit__main.omg__drop_requires__75cbb4842094f59d/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/bounded_activation_computed_bound_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_activation_computed_bound_exit__main.omg__weaken_requires__c25de777372a9177/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/bounded_activation_computed_bound_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_activation_computed_bound_exit__main.omg__flip_to_mut_loan__79e2ca73f5ee34e7/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/bounded_activation_through_local_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut live -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_activation_through_local_exit__main.omg__remove_mut__aa6834d4b1739712/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/bounded_activation_through_local_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_activation_through_local_exit__main.omg__drop_requires__a0b63fcaa9366a43/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/bounded_activation_through_local_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_activation_through_local_exit__main.omg__weaken_requires__c9e71a1f401c5ffb/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/bounded_activation_through_local_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_activation_through_local_exit__main.omg__flip_to_mut_loan__f25c66fe6b641e5f/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/bounded_products_through_call_result_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_products_through_call_result_exit__main.omg__drop_requires__85c9cdb9b83f30b4/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/bounded_products_through_call_result_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_products_through_call_result_exit__main.omg__weaken_requires__e2d7697a3002bd41/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/bounded_products_through_call_result_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_products_through_call_result_exit__main.omg__flip_to_mut_loan__0f36df280eb2a81e/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/bounded_products_through_target_body_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_products_through_target_body_exit__main.omg__drop_requires__c5a3fe09d468d7f8/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/bounded_products_through_target_body_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_products_through_target_body_exit__main.omg__weaken_requires__9ad23c054608879d/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/bounded_products_through_target_body_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_products_through_target_body_exit__main.omg__flip_to_mut_loan__5fde24144d5a229f/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/bounded_scalar_sums_through_parameter_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_scalar_sums_through_parameter_exit__main.omg__drop_requires__101142bc1283ae0d/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/bounded_scalar_sums_through_parameter_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_scalar_sums_through_parameter_exit__main.omg__weaken_requires__b54557c7753eddf7/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/bounded_scalar_sums_through_parameter_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_scalar_sums_through_parameter_exit__main.omg__flip_to_mut_loan__f4bb896458f24aae/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/build_activation_borrow/other_state/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut owned -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__build_activation_borrow__other_state__main.omg__remove_mut__1306db646e62665a/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/build_activation_borrow/other_state/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__build_activation_borrow__other_state__main.omg__flip_to_mut_loan__8dba4c30caaa9ada/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/build_target_provider_through_field_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__build_target_provider_through_field_exit__main.omg__flip_to_mut_loan__32ae7ac2f804dd10/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/build_target_provider_through_other_state_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__build_target_provider_through_other_state_exit__main.omg__drop_requires__7f73c41766930c29/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/build_target_provider_through_other_state_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__build_target_provider_through_other_state_exit__main.omg__weaken_requires__45f99616f932bc6c/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/c_layout_nested_representation_through_match_join_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut entries -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__c_layout_nested_representation_through_match_join_exit__main.omg__remove_mut__451c91d3f6b79be0/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/c_layout_nested_representation_through_match_join_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__c_layout_nested_representation_through_match_join_exit__main.omg__flip_to_mut_loan__a0c4578f04020682/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/c_layout_scalar_record_through_match_join_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut record -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__c_layout_scalar_record_through_match_join_exit__main.omg__remove_mut__e7b17ffd4c898074/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/c_layout_scalar_record_through_match_join_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__c_layout_scalar_record_through_match_join_exit__main.omg__flip_to_mut_loan__9cc3e5f3275ef164/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/call_result_bound_discharge_through_local_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut entry_storage -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__call_result_bound_discharge_through_local_exit__main.omg__remove_mut__f2ba8679df83d4ee/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/call_result_bound_discharge_through_local_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__call_result_bound_discharge_through_local_exit__main.omg__drop_requires__0204d40b5cad066c/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/call_result_bound_discharge_through_local_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__call_result_bound_discharge_through_local_exit__main.omg__weaken_requires__1128b9132bde2c0b/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/callee_saved_across_nested_calls_through_field_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__callee_saved_across_nested_calls_through_field_exit__main.omg__drop_requires__dc3695305866491e/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/callee_saved_across_nested_calls_through_field_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__callee_saved_across_nested_calls_through_field_exit__main.omg__weaken_requires__556bfbd6fb086967/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/captured_storage_bounds_through_const_name_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut first -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__captured_storage_bounds_through_const_name_exit__main.omg__remove_mut__e22170b2289c0ee9/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/captured_storage_bounds_through_const_name_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__captured_storage_bounds_through_const_name_exit__main.omg__drop_requires__89c07d6e5d6af7b5/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/captured_storage_bounds_through_const_name_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__captured_storage_bounds_through_const_name_exit__main.omg__weaken_requires__63d1b067fe7fbf42/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/captured_storage_bounds_through_const_name_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__captured_storage_bounds_through_const_name_exit__main.omg__weaken_requires__a7bd9e6a90f2f881/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/captured_storage_bounds_through_const_name_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__captured_storage_bounds_through_const_name_exit__main.omg__flip_to_mut_loan__29ac2a5791fb5bce/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/captured_window_slot_retirement_through_call_result_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut original -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__captured_window_slot_retirement_through_call_result_exit__main.omg__remove_mut__12ffcdb5594b999b/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/captured_window_slot_retirement_through_call_result_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__captured_window_slot_retirement_through_call_result_exit__main.omg__drop_requires__bbfb24db6fa23ccc/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/captured_window_slot_retirement_through_call_result_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__captured_window_slot_retirement_through_call_result_exit__main.omg__flip_to_mut_loan__e35796cad50e4056/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/captured_window_slot_retirement_through_target_body_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut original -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__captured_window_slot_retirement_through_target_body_exit__main.omg__remove_mut__f446b059ce36fa52/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/captured_window_slot_retirement_through_target_body_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__captured_window_slot_retirement_through_target_body_exit__main.omg__drop_requires__d38fb9d78a4edfa3/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/captured_window_slot_retirement_through_target_body_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__captured_window_slot_retirement_through_target_body_exit__main.omg__flip_to_mut_loan__b4187822479d679b/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/case_dependent_default_domain_through_parameter_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut current -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_dependent_default_domain_through_parameter_exit__main.omg__remove_mut__a03733bb7f369f1c/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/case_dependent_default_domain_through_parameter_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_dependent_default_domain_through_parameter_exit__main.omg__drop_requires__0a61494284e7182d/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/case_dependent_default_domain_through_parameter_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_dependent_default_domain_through_parameter_exit__main.omg__weaken_requires__c91e925d045d4564/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/case_dependent_default_domain_through_parameter_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_dependent_default_domain_through_parameter_exit__main.omg__flip_to_mut_loan__0448ea9fe5886354/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/case_payload_stored_loan_through_local_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut backing -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_payload_stored_loan_through_local_exit__main.omg__remove_mut__e74257a522624c06/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/case_payload_stored_loan_through_local_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_payload_stored_loan_through_local_exit__main.omg__drop_requires__399a03b845a93880/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/case_payload_stored_loan_through_local_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_payload_stored_loan_through_local_exit__main.omg__flip_to_mut_loan__92f9a563a0ca5207/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/case_payload_transport_through_field_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_payload_transport_through_field_exit__main.omg__drop_requires__f9e37228df3b708a/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/case_payload_transport_through_field_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_payload_transport_through_field_exit__main.omg__weaken_requires__7bdd830b1ff07048/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/case_payload_transport_through_field_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_payload_transport_through_field_exit__main.omg__flip_to_mut_loan__81a603da0f5f53ea/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/case_tag_discriminant_layout_through_const_name_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_tag_discriminant_layout_through_const_name_exit__main.omg__drop_requires__12b9be0ddf7e13a5/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/case_tag_discriminant_layout_through_const_name_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_tag_discriminant_layout_through_const_name_exit__main.omg__weaken_requires__e37e7b194f573a98/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/case_tag_discriminant_layout_through_const_name_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_tag_discriminant_layout_through_const_name_exit__main.omg__flip_to_mut_loan__556245ddcc822f7f/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/case_type_equation_recovery_through_call_result_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_type_equation_recovery_through_call_result_exit__main.omg__drop_requires__cb931d187d490645/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/case_type_equation_recovery_through_call_result_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_type_equation_recovery_through_call_result_exit__main.omg__flip_to_mut_loan__6fb9bb2f0029e0ef/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/case_type_equation_recovery_through_target_body_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_type_equation_recovery_through_target_body_exit__main.omg__drop_requires__f06b4e973b13eea4/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/case_type_equation_recovery_through_target_body_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_type_equation_recovery_through_target_body_exit__main.omg__flip_to_mut_loan__c56003d0b5843714/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/case_where_equality_data_predicate_through_local_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_where_equality_data_predicate_through_local_exit__main.omg__drop_requires__58f8d4f41ffa5b13/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/case_where_equality_data_predicate_through_local_exit/main.omg — weaken_requires
-
-- Original tier: `pass`
-- Mutation: requires >= to >
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_where_equality_data_predicate_through_local_exit__main.omg__weaken_requires__5105fa1cc783c0d7/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. This applies equally to named and token-bound calls, runtime execution, compile-time evaluation, and mathematical use.
-
-### tests/omega/pass/facts/case_where_equality_data_predicate_through_local_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_where_equality_data_predicate_through_local_exit__main.omg__flip_to_mut_loan__7d082bd2062bc5af/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/case_where_equality_through_call_result_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut entry_storage -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_where_equality_through_call_result_exit__main.omg__remove_mut__96da3c4741d178af/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/case_where_equality_through_call_result_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_where_equality_through_call_result_exit__main.omg__drop_requires__b8348e8ae3f86e52/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/case_where_equality_through_call_result_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_where_equality_through_call_result_exit__main.omg__flip_to_mut_loan__423330806ad04a66/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/case_where_equality_through_target_body_exit/main.omg — remove_mut
-
-- Original tier: `pass`
-- Mutation: let mut entry_storage -> let (written binding)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_where_equality_through_target_body_exit__main.omg__remove_mut__d5cd66c7826f25a2/main.omg`
-- Current checker: `accepted`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
-
-### tests/omega/pass/facts/case_where_equality_through_target_body_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_where_equality_through_target_body_exit__main.omg__drop_requires__f121c753807141d5/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/case_where_equality_through_target_body_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_where_equality_through_target_body_exit__main.omg__flip_to_mut_loan__11c5a6711131d300/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
-
-### tests/omega/pass/facts/checked_asm_add_carry_through_parameter_exit/main.omg — drop_requires
-
-- Original tier: `pass`
-- Mutation: delete first requires clause
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__checked_asm_add_carry_through_parameter_exit__main.omg__drop_requires__c834fba5b431c207/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/machines.md`):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. A written `requires` is complete under entry inference; omitting it admits invocations when required premises do not hold.
-
-### tests/omega/pass/facts/checked_asm_add_carry_through_parameter_exit/main.omg — flip_to_mut_loan
-
-- Original tier: `pass`
-- Mutation: shared & -> &mut (first)
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__checked_asm_add_carry_through_parameter_exit__main.omg__flip_to_mut_loan__b53c3dfc0b286f09/main.omg`
-- Current checker: `rejected`; route: `accepted`
-- Hand check: `confirmed-invalid`
-- Spec rule (`wiki/spec/language/ownership.md`):
-
-> `&mut T` is an exclusive observation and mutation loan; forming `&mut` where only shared `&T` authority exists violates exclusivity and mutability rules.
+- Bucket: `confirmed_hole`
+- Mutation: remove mut from `trace`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__atomics__runtime_atomic_computed_updates_exit__main.omg__remove_mut__b0b9c59434b0adde/main.omg`
+- Current: `accepted`; route: `outside`
+- Route detail: route=outside
+- Broken obligation: `6:     trace.code = trace.code * 10 + digit;`
+- Spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
+
+> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage.
+
+
+## Hand verification (5 confirmed holes)
+
+#### Hand verification: tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg / remove_mut
+
+- Bucket: `confirmed_hole`
+- Obligation: `28:     values[direct] = 2.0;`
+
+**Mutant diff (excerpt)**
+```diff
+-     let mut values: [f64; 8] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
++     let values: [f64; 8] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__remove_mut__221870285650b17a/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`no-entry`
+- Route detail: route=no-entry
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__remove_mut__221870285650b17a/main.omg	current=accepted	current_us=1400964	root=compilation	route=no-entry
+
+```
+
+#### Hand verification: tests/omega/pass/arithmetic/runtime_boolean_field_shift_count_exit/main.omg / remove_mut
+
+- Bucket: `confirmed_hole`
+- Obligation: `5:     guard.count = count;`
+
+**Mutant diff (excerpt)**
+```diff
+-     let mut guard: Guard;
++     let guard: Guard;
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_boolean_field_shift_count_exit__main.omg__remove_mut__f309fcc21272105d/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`outside`
+- Route detail: route=outside
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_boolean_field_shift_count_exit__main.omg__remove_mut__f309fcc21272105d/main.omg	current=accepted	current_us=2904231	root=compilation	route=outside	Unsupported: type data with custody
+
+```
+
+#### Hand verification: tests/omega/pass/arithmetic/runtime_captured_boolean_recurrence/main.omg / drop_requires
+
+- Bucket: `confirmed_hole`
+- Obligation: `8:         true -> decimal(rest - 10, count + 1) (arithmetic on `rest` formerly guarded by `count <= 9 && embed(rest) + embed(count) * 10 <= 99`)`
+
+**Mutant diff (excerpt)**
+```diff
+- requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
++ {
+- {
++     transition rest >= 10 {
+-     transition rest >= 10 {
++         true -> decimal(rest - 10, count + 1)
+-         true -> decimal(rest - 10, count + 1)
++         _ -> (count)
+-         _ -> (count)
++     }
+-     }
++ }
+- }
++ 
+- 
++ machine next(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
+- machine next(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
++ requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
+- requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
++ { count }
+- { count }
++ 
+- 
++ machine local(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
+- machine local(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
++ requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
+- requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
++ {
+- {
++     let selected: bool = rest >= 10;
+-     let selected: bool = rest >= 10;
++     let copied: bool = selected;
+-     let copied: bool = selected;
++     let combined: bool = copied && copied;
+-     let combined: bool = copied && copied;
++     transition combined {
+-     transition combined {
++         true -> next(rest - 10, count + 1)
+-         true -> next(rest - 10, count + 1)
++         _ -> (count)
+-         _ -> (count)
++     }
+-     }
++ }
+- }
++ 
+- 
++ machine replaced(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
+- machine replaced(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
++ requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
+- requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
++ {
+- {
++     let mut condition: Condition = Condition { selected: false };
+-     let mut condition: Condition = Condition { selected: false };
++     condition.selected = rest >= 10;
+-     condition.selected = rest >= 10;
++     transition condition.selected {
+-     transition condition.selected {
++         true -> next(rest - 10, count + 1)
+-         true -> next(rest - 10, count + 1)
++         _ -> (count)
+-         _ -> (count)
++     }
+-     }
++ }
+- }
++ 
+- 
++ machine field(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
+- machine field(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
++ requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
+- requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
++ {
+- {
++     let condition: Condition = Condition { selected: rest >= 10 };
+-     let condition: Condition = Condition { selected: rest >= 10 };
++     let copied: Condition = condition;
+-     let copied: Condition = condition;
++     transition copied.selected {
+-     transition copied.selected {
++         true -> next(rest - 10, count + 1)
+-         true -> next(rest - 10, count + 1)
++         _ -> (count)
+-         _ -> (count)
++     }
+-     }
++ }
+- }
++ 
+- 
++ machine denied(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
+- machine denied(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
++ requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
+- requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
++ {
+- {
++     let below: bool = rest < 10;
+-     let below: bool = rest < 10;
++     transition below {
+-     transition below {
++         false -> next(rest - 10, count + 1)
+-         false -> next(rest - 10, count + 1)
++         _ -> (count)
+-         _ -> (count)
++     }
+-     }
++ }
+- }
++ 
+- 
++ machine historical(mut rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
+- machine historical(mut rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
++ requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
+- requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
++ {
+- {
++     let observed: u64 in Trapping = rest;
+-     let observed: u64 in Trapping = rest;
++     let selected: bool = rest >= 10;
+-     let selected: bool = rest >= 10;
++     rest = 0;
+-     rest = 0;
++     transition selected {
+-     transition selected {
++         true -> next(observed - 10, count + 1)
+-         true -> next(observed - 10, count + 1)
++         _ -> (count)
+-         _ -> (count)
++     }
+-     }
++ }
+- }
++ 
+- 
++ machine main() crashes Trap {
+- machine main() crashes Trap {
++     let digits: u64 in Trapping = decimal(99, 0);
+-     let digits: u64 in Trapping = decimal(99, 0);
++     let zero: u64 in Trapping = decimal(0, 0);
+-     let zero: u64 in Trapping = decimal(0, 0);
++     let one: u64 in Trapping = decimal(10, 0);
+-     let one: u64 in Trapping = decimal(10, 0);
++     let from_local: u64 in Trapping = local(49, 5);
+-     let from_local: u64 in Trapping = local(49, 5);
++     let from_field: u64 in Trapping = field(29, 7);
+-     let from_field: u64 in Trapping = field(29, 7);
++     let from_denial: u64 in Trapping = denied(19, 8);
+-     let from_denial: u64 in Trapping = denied(19, 8);
++     let from_history: u64 in Trapping = historical(39, 6);
+-     let from_history: u64 in Trapping = historical(39, 6);
++     let from_replacement: u64 in Trapping = replaced(59, 4);
+-     let from_replacement: u64 in Trapping = replaced(59, 4);
++     transition digits == 9 && zero == 0 && one == 1
+-     transition digits == 9 && zero == 0 && one == 1
++         && from_local == 6 && from_field == 8 && from_denial == 9
+-         && from_local == 6 && from_field == 8 && from_denial == 9
++         && from_history == 7 && from_replacement == 5 {
+-         && from_history == 7 && from_replacement == 5 {
++         true -> done()
+-         true -> done()
++         _ -> wrong()
+-         _ -> wrong()
++     }
+-     }
++     machine done() {}
+-     machine done() {}
++     machine wrong() { crash Trap; }
+-     machine wrong() { crash Trap; }
++ }
+(lines differ)
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_captured_boolean_recurrence__main.omg__drop_requires__3a6e19b82553794b/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`outside`
+- Route detail: route=outside
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_captured_boolean_recurrence__main.omg__drop_requires__3a6e19b82553794b/main.omg	current=accepted	current_us=3022048	root=compilation	route=outside	Unsupported: type constrained
+
+```
+
+#### Hand verification: tests/omega/pass/arithmetic/sparse_captured_utf_path_exit/main.omg / remove_mut
+
+- Bucket: `confirmed_hole`
+- Obligation: `46:         output[output_offset] = narrow_u32_to_u16_wrapping(character.point);`
+
+**Mutant diff (excerpt)**
+```diff
+-     let mut output: [u16; 4096];
++     let output: [u16; 4096];
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__sparse_captured_utf_path_exit__main.omg__remove_mut__a1bf5fc91e003f1e/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`outside`
+- Route detail: route=outside
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__sparse_captured_utf_path_exit__main.omg__remove_mut__a1bf5fc91e003f1e/main.omg	current=accepted	current_us=3741179	root=compilation	route=outside	Unsupported: type reference
+
+```
+
+#### Hand verification: tests/omega/pass/asm/checked_asm_nominal_symbolic_conjunction_exit/main.omg / remove_mut
+
+- Bucket: `confirmed_hole`
+- Obligation: `23:     let observed: u64 = move_selected(snapshot(cursor, 9), reset(&mut cursor) + 11);`
+
+**Mutant diff (excerpt)**
+```diff
+-     let mut cursor: u64 = 2;
++     let cursor: u64 = 2;
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_asm_nominal_symbolic_conjunction_exit__main.omg__remove_mut__dd1ae77a62b9561c/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`outside`
+- Route detail: route=outside
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_asm_nominal_symbolic_conjunction_exit__main.omg__remove_mut__dd1ae77a62b9561c/main.omg	current=accepted	current_us=2986937	root=compilation	route=outside	Unsupported: contract term other than a formal or literal
+
+```
+
+
+## Hand verification (5 discarded drop_requires, current accepts)
+
+#### Hand verification: tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg / drop_requires
+
+- Bucket: `discarded_valid_mutant`
+- Obligation: ``
+
+**Mutant diff (excerpt)**
+```diff
+- // Disjunctive equality requires bound an Exact profile slot.
++ // Disjunctive equality // `side == 0 || side == 1` is the convex hull [0, 1], so `position * 2 + side`
+- // `side == 0 || side == 1` is the convex hull [0, 1], so `position * 2 + side`
++ // fits i32 for position in 0..=3. The product is formed in a subordinate
+- // fits i32 for position in 0..=3. The product is formed in a subordinate
++ // state, and the mirrored spelling puts the parameter on the right of `==`.
+- // state, and the mirrored spelling puts the parameter on the right of `==`.
++ 
+- 
++ machine slot(position: i32, side: i32) -> i32
+- machine slot(position: i32, side: i32) -> i32
++ requires position >= 0 && position <= 3 && (side == 0 || side == 1)
+- requires position >= 0 && position <= 3 && (side == 0 || side == 1)
++ ensures result >= 0 && result < 8
+- ensures result >= 0 && result < 8
++ {
+- {
++     transition { _ -> product(position, side) }
+-     transition { _ -> product(position, side) }
++     machine product(position: i32, side: i32) -> i32
+-     machine product(position: i32, side: i32) -> i32
++     requires position >= 0 && position <= 3 && (side == 0 || side == 1)
+-     requires position >= 0 && position <= 3 && (side == 0 || side == 1)
++     {
+-     {
++         position * 2 + side
+-         position * 2 + side
++     }
+-     }
++ }
+- }
++ 
+- 
++ machine slot_mirrored(position: i32, side: i32) -> i32
+- machine slot_mirrored(position: i32, side: i32) -> i32
++ requires position >= 0 && position <= 3 && (0 == side || 1 == side)
+- requires position >= 0 && position <= 3 && (0 == side || 1 == side)
++ ensures result >= 0 && result < 8
+- ensures result >= 0 && result < 8
++ {
+- {
++     side + position * 2
+-     side + position * 2
++ }
+- }
++ 
+- 
++ machine main() {
+- machine main() {
++     let mut values: [f64; 8] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+-     let mut values: [f64; 8] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
++     let direct: i32 = slot(1, 0);
+-     let direct: i32 = slot(1, 0);
++     values[direct] = 2.0;
+-     values[direct] = 2.0;
++     values[slot_mirrored(3, 1)] = 7.0;
+-     values[slot_mirrored(3, 1)] = 7.0;
++ }
+(lines differ)
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__drop_requires__20f4386e814c5bcb/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`no-entry`
+- Route detail: route=no-entry
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__drop_requires__20f4386e814c5bcb/main.omg	current=accepted	current_us=1509308	root=compilation	route=no-entry
+
+```
+
+#### Hand verification: tests/omega/pass/arrays/runtime_completed_array_window_replacement_exit/main.omg / drop_requires
+
+- Bucket: `discarded_valid_mutant`
+- Obligation: ``
+
+**Mutant diff (excerpt)**
+```diff
+-     requires selector <= 1
++         ensures selector <= 1
+-     ensures selector <= 1
++ {
+- {
++     selector = 1;
+-     selector = 1;
++     [7, 9]
+-     [7, 9]
++ }
+- }
++ machine fill(destination: &write [u64; 4], source: [u64; 2]) {
+- machine fill(destination: &write [u64; 4], source: [u64; 2]) {
++     destination[1..3] = source;
+-     destination[1..3] = source;
++ }
+- }
++ 
+- 
++ machine Main::main(main: &mut Main) reaches Console crashes Trap {
+- machine Main::main(main: &mut Main) reaches Console crashes Trap {
++     let mut values: [u64; 4] = [1, 2, 3, 4];
+-     let mut values: [u64; 4] = [1, 2, 3, 4];
++     values[1..3] = [values[2], values[1]];
+-     values[1..3] = [values[2], values[1]];
++     let snapshot: bool = values[0] == 1 && values[1] == 3
+-     let snapshot: bool = values[0] == 1 && values[1] == 3
++         && values[2] == 2 && values[3] == 4;
+-         && values[2] == 2 && values[3] == 4;
++     values[1..=2] = pair();
+-     values[1..=2] = pair();
++     let called: bool = values[1] == 5 && values[2] == 6;
+-     let called: bool = values[1] == 5 && values[2] == 6;
++     let source: [u64; 2] = [11, 13];
+-     let source: [u64; 2] = [11, 13];
++     fill(&write values, source);
+-     fill(&write values, source);
++     let copied: bool = values[0] == 1 && values[1] == 11
+-     let copied: bool = values[0] == 1 && values[1] == 11
++         && values[2] == 13 && values[3] == 4 && source[0] == 11;
+-         && values[2] == 13 && values[3] == 4 && source[0] == 11;
++ 
+- 
++     let mut selector: u64 = 0;
+-     let mut selector: u64 = 0;
++     let mut nested: [[u64; 2]; 2] = [[1, 2], [3, 4]];
+-     let mut nested: [[u64; 2]; 2] = [[1, 2], [3, 4]];
++     nested[selector][..] = selecting_pair(&mut selector);
+-     nested[selector][..] = selecting_pair(&mut selector);
++     let captured: bool = selector == 1 && nested[0][0] == 7
+-     let captured: bool = selector == 1 && nested[0][0] == 7
++         && nested[0][1] == 9 && nested[1][0] == 3 && nested[1][1] == 4;
+-         && nested[0][1] == 9 && nested[1][0] == 3 && nested[1][1] == 4;
++ 
+- 
++     let mut tokens: [Token; 3] = [
+-     let mut tokens: [Token; 3] = [
++         Token { value: 17, marker: 65, counter: &mut main.old_first },
+-         Token { value: 17, marker: 65, counter: &mut main.old_first },
++         Token { value: 19, marker: 66, counter: &mut main.old_middle },
+-         Token { value: 19, marker: 66, counter: &mut main.old_middle },
++         Token { value: 23, marker: 67, counter: &mut main.old_last }
+-         Token { value: 23, marker: 67, counter: &mut main.old_last }
++     ];
+-     ];
++     Console::write_byte(91);
+-     Console::write_byte(91);
++     tokens[1..3] = [
+-     tokens[1..3] = [
++         Token { value: tokens[2].value, marker: 68, counter: &mut main.new_middle },
+-         Token { value: tokens[2].value, marker: 68, counter: &mut main.new_middle },
++         Token { value: tokens[1].value, marker: 69, counter: &mut main.new_last }
+-         Token { value: tokens[1].value, marker: 69, counter: &mut main.new_last }
++     ];
+-     ];
++     Console::write_byte(93);
+-     Console::write_byte(93);
++     transition snapshot && called && copied && captured
+-     transition snapshot && called && copied && captured
++         && tokens[0].value == 17 && tokens[1].value == 23 && tokens[2].value == 19
+-         && tokens[0].value == 17 && tokens[1].value == 23 && tokens[2].value == 19
++         && main.old_middle.value == 19 && main.old_last.value == 23 {
+-         && main.old_middle.value == 19 && main.old_last.value == 23 {
++         true -> done()
+-         true -> done()
++         false -> bad()
+-         false -> bad()
++     }
+-     }
++     machine done() { Console::write_byte(10); }
+-     machine done() { Console::write_byte(10); }
++     machine bad() { crash Trap; }
+-     machine bad() { crash Trap; }
++ }
+- }
++ 
+- 
++ // The entry owns ordinary local state; selection supplies no context.
+- // The entry owns ordinary local state; selection supplies no context.
++ machine entry_start() reaches Console crashes Trap {
+- machine entry_start() reaches Console crashes Trap {
++     let mut entry_storage: Main;
+-     let mut entry_storage: Main;
++     Main::main(&mut entry_storage);
+-     Main::main(&mut entry_storage);
++ }
+(lines differ)
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arrays__runtime_completed_array_window_replacement_exit__main.omg__drop_requires__12a9849cc4390efb/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`outside`
+- Route detail: route=outside
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arrays__runtime_completed_array_window_replacement_exit__main.omg__drop_requires__12a9849cc4390efb/main.omg	current=accepted	current_us=3637507	root=compilation	route=outside	Unsupported: machine service reach
+
+```
+
+
+## Hand verification (5 remove_mut rows)
+
+#### Hand verification: tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg / remove_mut
+
+- Bucket: `confirmed_hole`
+- Obligation: `28:     values[direct] = 2.0;`
+
+**Mutant diff (excerpt)**
+```diff
+-     let mut values: [f64; 8] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
++     let values: [f64; 8] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__remove_mut__221870285650b17a/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`no-entry`
+- Route detail: route=no-entry
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__remove_mut__221870285650b17a/main.omg	current=accepted	current_us=1404860	root=compilation	route=no-entry
+
+```
+
+#### Hand verification: tests/omega/pass/arithmetic/runtime_boolean_field_shift_count_exit/main.omg / remove_mut
+
+- Bucket: `confirmed_hole`
+- Obligation: `5:     guard.count = count;`
+
+**Mutant diff (excerpt)**
+```diff
+-     let mut guard: Guard;
++     let guard: Guard;
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_boolean_field_shift_count_exit__main.omg__remove_mut__f309fcc21272105d/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`outside`
+- Route detail: route=outside
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_boolean_field_shift_count_exit__main.omg__remove_mut__f309fcc21272105d/main.omg	current=accepted	current_us=3042547	root=compilation	route=outside	Unsupported: type data with custody
+
+```
+
+#### Hand verification: tests/omega/pass/arithmetic/runtime_captured_boolean_recurrence/main.omg / remove_mut
+
+- Bucket: `discarded_valid_mutant`
+- Obligation: ``
+
+**Mutant diff (excerpt)**
+```diff
+-     let mut condition: Condition = Condition { selected: false };
++     let condition: Condition = Condition { selected: false };
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_captured_boolean_recurrence__main.omg__remove_mut__87faae966e7fddd1/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`outside`
+- Route detail: route=outside
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_captured_boolean_recurrence__main.omg__remove_mut__87faae966e7fddd1/main.omg	current=accepted	current_us=3122143	root=compilation	route=outside	Unsupported: type constrained
+
+```
+
+#### Hand verification: tests/omega/pass/arithmetic/sparse_captured_utf_path_exit/main.omg / remove_mut
+
+- Bucket: `confirmed_hole`
+- Obligation: `46:         output[output_offset] = narrow_u32_to_u16_wrapping(character.point);`
+
+**Mutant diff (excerpt)**
+```diff
+-     let mut output: [u16; 4096];
++     let output: [u16; 4096];
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__sparse_captured_utf_path_exit__main.omg__remove_mut__a1bf5fc91e003f1e/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`outside`
+- Route detail: route=outside
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__sparse_captured_utf_path_exit__main.omg__remove_mut__a1bf5fc91e003f1e/main.omg	current=accepted	current_us=3834309	root=compilation	route=outside	Unsupported: type reference
+
+```
+
+#### Hand verification: tests/omega/pass/arrays/runtime_completed_array_window_replacement_exit/main.omg / remove_mut
+
+- Bucket: `discarded_valid_mutant`
+- Obligation: ``
+
+**Mutant diff (excerpt)**
+```diff
+-         let mut cell: i32 = byte;
++         let cell: i32 = byte;
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arrays__runtime_completed_array_window_replacement_exit__main.omg__remove_mut__b9a3bdab948d8393/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`outside`
+- Route detail: route=outside
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arrays__runtime_completed_array_window_replacement_exit__main.omg__remove_mut__b9a3bdab948d8393/main.omg	current=accepted	current_us=3924242	root=compilation	route=outside	Unsupported: machine service reach
+
+```
 
