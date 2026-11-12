@@ -1,0 +1,23 @@
+// A selected suspending callback and an independent suspender both require ordinary carry permission.
+data Kept [carry(suspension: forbidden, cpu: any, thread: any, address: movable)] { value: u32; }
+machine observe(kept: Kept) -> u32 { kept.value }
+public machine retain<const Callback: machine(value: u32) -> u32 suspends>(value: u32) -> u32
+suspends {
+    let kept: Kept = Kept { value: value };
+    let callback_result: u32 = suspend Callback(value);
+    observe(kept)
+}
+public machine quiet(value: u32) -> u32 { value }
+public machine may_pause(value: u32) -> u32 suspends { value }
+public machine independent(value: u32) -> u32 suspends { value }
+public machine fixed<const Callback: machine(value: u32) -> u32 suspends>(value: u32) -> u32
+suspends {
+    let kept: Kept = Kept { value: value };
+    let callback_result: u32 = suspend Callback(value);
+    let independent_result: u32 = suspend independent(value);
+    observe(kept)
+}
+machine main() suspends {
+    let selected: u32 = suspend retain<may_pause>(73u32);
+    let fixed_result: u32 = suspend fixed<quiet>(73u32);
+}

@@ -7435,12 +7435,11 @@ mod carry {
     }
 
     /*
-        Reject a call that may suspend while a suspension-forbidden lexical value
-        remains live in the caller activation. This is deliberately a local check:
-        suspension joins the value policy with the callee's inferred suspension
-        possibility
-        here. The independent activation-wide analysis derives CPU/thread
-        preservation obligations without publishing a provider preemption mode.
+        A quiet callback needs no permission to keep a value across suspension.
+        Keep that permission requirement conditional until callback selection,
+        alongside the same exact live subjects and loans. Lifetime and access
+        checks still run here; only suspension permission may wait for selection.
+        The independent activation-wide analysis retains CPU/thread demands.
     */
     pub(super) fn check_suspension_carry(
         program: &dyn ::validation::CheckingInput,
@@ -7463,6 +7462,8 @@ mod carry {
                 continue;
             };
             let source_values = state_carry_values(program, state);
+            let (static_scope, _) = program
+                .machine_declaration_scope(machine, |left, right| left.symbol == right.symbol);
             let Some(state_flow) = facts.flow.control.state(machine.symbol, state.symbol) else {
                 continue;
             };
@@ -7483,6 +7484,37 @@ mod carry {
                 {
                     continue;
                 }
+
+                let mut summaries = facts
+                    .operational
+                    .machine_by_symbol(machine.symbol)
+                    .into_iter()
+                    .flat_map(|machine| facts.operational.states.span_or_empty(machine.states))
+                    .filter(|summary| summary.symbol == state.symbol)
+                    .flat_map(|state| facts.operational.calls.span_or_empty(state.calls))
+                    .filter(|summary| {
+                        summary.statement_index == call.statement_index
+                            && summary.call_ordinal == call.call_ordinal
+                    });
+                let Some(summary) = summaries.next().filter(|_| summaries.next().is_none()) else {
+                    diagnostics.push(Diagnostic::error(
+                        "possibly suspending call lost its exact operational dependency".to_owned(),
+                    ));
+                    continue;
+                };
+                let condition = summary.suspension_dependency;
+                let conditional_permission = !condition.concrete
+                    && !condition.parameters.is_empty()
+                    && facts
+                        .operational
+                        .dependency_parameters
+                        .span_or_empty(condition.parameters)
+                        .iter()
+                        .all(|dependency| {
+                            static_scope
+                                .iter()
+                                .any(|parameter| parameter.symbol == *dependency)
+                        });
 
                 let call_site = validation::find_call_site(
                     program,
@@ -7562,14 +7594,23 @@ mod carry {
                     );
                 }
                 resolve_crossing_carry(
-                    program,
                     &facts.borrow,
                     &facts.flow,
                     &suspension_loans,
                     &suspension_value_loans,
                     state_borrows,
-                    call,
                     borrows,
+                    conditional_permission,
+                    &summary.target_name,
+                    summary
+                        .static_machine_parameter
+                        .is_valid()
+                        .then(|| {
+                            program
+                                .machine_holding_state(call.target_symbol)
+                                .map(|target| target.name.as_str())
+                        })
+                        .flatten(),
                     &mut crossing,
                     &mut diagnostics,
                 );
@@ -7579,6 +7620,7 @@ mod carry {
                     statement_index: call.statement_index,
                     call_ordinal: call.call_ordinal,
                     target: call.target_symbol,
+                    condition,
                     effective: crossing.effective,
                     live_values: crossing.live_values,
                     borrows,
@@ -7905,14 +7947,15 @@ mod carry {
     }
 
     fn resolve_crossing_carry(
-        program: &dyn ::validation::CheckingInput,
         borrow: &checked_trees::BorrowFacts,
         flow: &checked_trees::FlowFacts,
         loans: &arena::Arena<checked_trees::SuspensionCrossingLoanFact>,
         value_loans: &arena::Arena<arena::Handle<checked_trees::SuspensionCrossingLoanFact>>,
         state: &checked_trees::StateBorrowFact,
-        call: &checked_trees::BorrowCallFact,
         frontier: checked_trees::SuspensionCrossingBorrowFrontier,
+        conditional_permission: bool,
+        target_name: &str,
+        selected_callback: Option<&str>,
         crossing: &mut CrossingAccumulator,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
@@ -7933,7 +7976,6 @@ mod carry {
             })
             .collect::<Vec<_>>();
         crossing.effective = CarryPolicy::PERMISSIVE;
-        let target_name = crate::published::labels::symbol_name(program, call.target_symbol);
         for ((live, obligation), lifetime) in crossing
             .live_values
             .iter_mut()
@@ -7954,7 +7996,9 @@ mod carry {
             };
             live.effective = policy;
             crossing.effective = crossing.effective.intersect(policy);
-            if policy.suspension == CarrySuspension::Allowed {
+            if policy.suspension == CarrySuspension::Allowed
+                || (conditional_permission && missing_borrow_obligation.is_none())
+            {
                 continue;
             }
 
@@ -7973,6 +8017,9 @@ mod carry {
             if let Some(reason) = missing_borrow_obligation {
                 message.push_str("; missing retained-loan obligation: ");
                 message.push_str(reason);
+            }
+            if let Some(selected) = selected_callback {
+                message.push_str(&format!("; selected callback: `{selected}`"));
             }
             if diagnostics
                 .iter()

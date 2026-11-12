@@ -4876,6 +4876,11 @@ pub(crate) mod suspension_call_plan {
                         .any(|block| block.state == crossing.state)
             })
         {
+            if !crossing.condition.parameters.is_empty() {
+                return unsupported(
+                    "closed suspension crossing retains an unresolved callback carry condition",
+                );
+            }
             let mut occurrences = source_calls.iter().filter(|occurrence| {
                 occurrence.matches_statement(
                     crossing.state,

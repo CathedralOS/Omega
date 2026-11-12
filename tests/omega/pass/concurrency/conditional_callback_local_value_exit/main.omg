@@ -1,0 +1,19 @@
+// Expected exit: 0
+// A quiet selected callback does not require suspension permission for the live local value.
+data Kept [carry(suspension: forbidden, cpu: any, thread: any, address: movable)] { value: u32; }
+machine observe(kept: Kept) -> u32 { kept.value }
+public machine retain<const Callback: machine(value: u32) -> u32 suspends>(value: u32) -> u32
+suspends {
+    let kept: Kept = Kept { value: value };
+    let callback_result: u32 = suspend Callback(value);
+    observe(kept)
+}
+public machine quiet(value: u32) -> u32 { value }
+public machine may_pause(value: u32) -> u32 suspends { value }
+machine main() crashes Trap {
+    let observed: u32 = suspend retain<quiet>(73u32);
+    let unmarked: u32 = retain<quiet>(73u32);
+    transition observed == 73u32 && unmarked == 73u32 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

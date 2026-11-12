@@ -7770,11 +7770,7 @@ mod machine_facts {
             .map(|machine| {
                 let blocking_row = blocking.iter().find(|row| row.symbol == machine.symbol);
                 let checked_may_block = blocking_row.is_some_and(|row| row.transitive_may_block);
-                let published_may_block = if machine.target_family_interface {
-                    checked_may_block
-                } else {
-                    machine.blocks
-                };
+                let published_may_block = checked_may_block;
                 let publishes_operational_contract = machine.is_public
                     || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody;
                 checked_trees::MachineBlockingFact {
@@ -7806,11 +7802,7 @@ mod machine_facts {
                 let suspension_row = suspensions.iter().find(|row| row.symbol == machine.symbol);
                 let checked_may_suspend =
                     suspension_row.is_some_and(|row| row.transitive_may_suspend);
-                let published_may_suspend = if machine.target_family_interface {
-                    checked_may_suspend
-                } else {
-                    machine.suspends
-                };
+                let published_may_suspend = checked_may_suspend;
                 let publishes_operational_contract = machine.is_public
                     || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody;
                 checked_trees::MachineSuspensionFact {

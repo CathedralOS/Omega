@@ -2733,6 +2733,7 @@ pub(crate) mod carry {
         pub statement_index: usize,
         pub call_ordinal: usize,
         pub target: SymbolHandle,
+        pub condition: flow_effects::ContractDependency<bool>,
         pub effective: CarryPolicy,
         pub live_values: Vec<SuspensionCrossingLiveValueFact>,
         pub borrows: SuspensionCrossingBorrowFrontier,

@@ -190,6 +190,113 @@ pub mod flow_effects {
         }
     }
 
+    pub mod dependencies {
+        use arena::{Arena, HandleSpan};
+        use symbols::SymbolHandle;
+
+        // A helper adds its own effects and those of its exact callback
+        // parameters. The same expression is built with local vectors, retained
+        // in checked arenas, and normalized to binder positions for publication.
+        // Reach and operational effects differ only in the fixed value's type.
+        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
+        pub struct ContractDependency<Contribution, Parameters = HandleSpan<SymbolHandle>> {
+            pub concrete: Contribution,
+            pub parameters: Parameters,
+        }
+
+        impl<Parameters: Default> From<bool> for ContractDependency<bool, Parameters> {
+            fn from(concrete: bool) -> Self {
+                Self {
+                    concrete,
+                    parameters: Parameters::default(),
+                }
+            }
+        }
+
+        impl<Parameter> ContractDependency<bool, Vec<Parameter>> {
+            pub fn parameter(parameter: Parameter, possible: bool) -> Self {
+                Self {
+                    concrete: false,
+                    parameters: possible.then_some(parameter).into_iter().collect(),
+                }
+            }
+
+            pub fn possible(&self) -> bool {
+                self.concrete || !self.parameters.is_empty()
+            }
+        }
+
+        impl ContractDependency<bool, Vec<SymbolHandle>> {
+            pub fn retain(&self, parameters: &mut Arena<SymbolHandle>) -> ContractDependency<bool> {
+                ContractDependency {
+                    concrete: self.concrete,
+                    parameters: parameters.insert_many(self.parameters.clone()),
+                }
+            }
+        }
+
+        impl std::ops::BitOrAssign<bool> for ContractDependency<bool, Vec<SymbolHandle>> {
+            fn bitor_assign(&mut self, contribution: bool) {
+                *self |= &Self::from(contribution);
+            }
+        }
+
+        impl std::ops::BitOrAssign<&Self> for ContractDependency<bool, Vec<SymbolHandle>> {
+            fn bitor_assign(&mut self, contribution: &Self) {
+                self.concrete |= contribution.concrete;
+                if self.concrete {
+                    self.parameters.clear();
+                    return;
+                }
+                self.parameters.extend_from_slice(&contribution.parameters);
+                self.parameters
+                    .sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+                self.parameters.dedup();
+            }
+        }
+
+        impl std::ops::BitOrAssign for ContractDependency<bool, Vec<SymbolHandle>> {
+            fn bitor_assign(&mut self, contribution: Self) {
+                *self |= &contribution;
+            }
+        }
+
+        impl std::ops::BitOr for ContractDependency<bool, Vec<SymbolHandle>> {
+            type Output = Self;
+            fn bitor(mut self, contribution: Self) -> Self {
+                self |= contribution;
+                self
+            }
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use super::ContractDependency;
+            type Condition = ContractDependency<bool, Vec<symbols::SymbolHandle>>;
+
+            #[test]
+            fn callback_conditions_are_finite_normalized_or_expressions() {
+                let a = Condition::parameter(symbols::SymbolHandle::from_parts(2, 1), true);
+                let b = Condition::parameter(symbols::SymbolHandle::from_parts(1, 1), true);
+                let c = Condition::parameter(symbols::SymbolHandle::from_parts(3, 1), true);
+                assert_eq!(
+                    (a.clone() | b.clone()) | c.clone(),
+                    a.clone() | (b.clone() | c.clone())
+                );
+                assert_eq!(a.clone() | b.clone(), b | a.clone());
+                assert_eq!(a.clone() | a.clone(), a);
+                let mut fixed = a | c;
+                fixed |= true;
+                assert!(fixed.concrete);
+                assert!(fixed.parameters.is_empty());
+                assert!(
+                    !Condition::parameter(symbols::SymbolHandle::from_parts(9, 1), false)
+                        .possible()
+                );
+            }
+        }
+    }
+
     pub mod operational {
         use arena::{Arena, Handle, HandleSpan, RevisionIndex};
         use semantic_vocabulary::proof_applications::{
@@ -210,6 +317,7 @@ pub mod flow_effects {
             pub captured_selector_calls: CapturedSelectorCalls, // Complete selected-row alternatives at captured selector calls.
             pub selected_call_contexts: SelectedCallContexts, // Calls resolved under known selector arguments.
             pub static_machine_bindings: Arena<StaticMachineCallBinding>,
+            pub dependency_parameters: Arena<SymbolHandle>,
             pub machine_index: OperationalMachineIndex, // Revision-guarded `symbol -> machine index` lookup.
         }
 
@@ -310,6 +418,8 @@ pub mod flow_effects {
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct MachineOperational {
             pub symbol: SymbolHandle,
+            pub suspension_dependency: super::dependencies::ContractDependency<bool>,
+            pub blocking_dependency: super::dependencies::ContractDependency<bool>,
             pub published_may_suspend: bool, // Authored suspension ceiling.
             pub published_may_block: bool,   // Authored blocking ceiling.
             pub transitive_may_suspend: bool, // Effective recursive suspension summary consumed by callers.
@@ -339,6 +449,8 @@ pub mod flow_effects {
             pub static_machine_bindings: HandleSpan<StaticMachineCallBinding>,
             pub target_machine_symbol: SymbolHandle,
             pub target_operator_symbol: SymbolHandle, // Named-operator declaration when not a machine/state call.
+            pub suspension_dependency: super::dependencies::ContractDependency<bool>,
+            pub blocking_dependency: super::dependencies::ContractDependency<bool>,
             pub direct_may_suspend: bool,
             pub direct_may_block: bool,
             pub transitive_may_suspend: bool,
@@ -446,11 +558,8 @@ pub mod flow_effects {
         };
         use symbols::SymbolHandle;
 
-        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
-        pub struct ServiceReachDependency {
-            pub concrete: ServiceReachRowId,
-            pub parameters: HandleSpan<SymbolHandle>,
-        }
+        pub type ServiceReachDependency =
+            super::dependencies::ContractDependency<ServiceReachRowId>;
 
         #[derive(Debug, Clone, Default, PartialEq, Eq)]
         pub struct MachineServiceReachInference {
@@ -550,6 +659,7 @@ pub mod flow_effects {
     }
 
     pub use capabilities::{CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan};
+    pub use dependencies::ContractDependency;
     pub use invocations::{
         InvocationInferencePlan, InvocationTarget, MachineInvocationInference,
         RealizedInvocationTarget,
@@ -569,7 +679,7 @@ pub mod flow_effects {
 pub use flow_effects::{
     CallOperational, CallServiceReachInference, CapabilityFlowFact, CapabilityFlowKind,
     CapabilityFlowPlan, CapturedSelectorArgument, CapturedSelectorCall, CapturedSelectorCalls,
-    CapturedSelectorOrigin, CleanupDependency, InstallationReachRequirement,
+    CapturedSelectorOrigin, CleanupDependency, ContractDependency, InstallationReachRequirement,
     InvocationInferencePlan, InvocationTarget, MachineInvocationInference, MachineOperational,
     MachineServiceReachInference, OperationalPlan, RealizedInvocationTarget, SelectedCallContext,
     SelectedCallContexts, SelectedContextCall, SelectedContextTarget, ServiceReachDependency,
