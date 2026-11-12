@@ -1529,7 +1529,13 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
         request.occurrences,
         &mut prepared.completed,
     )
-    .expect("prepare the admitted package's exact source closure");
+    .unwrap_or_else(|error| {
+        panic!(
+            "prepare the admitted package's exact source closure at occurrence {}: {:?}",
+            error.occurrence,
+            error.failure.into_diagnostics()
+        )
+    });
     let mut outcomes = prepared
         .session
         .compiler()
