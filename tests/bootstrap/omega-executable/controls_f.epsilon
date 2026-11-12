@@ -19,7 +19,7 @@ machine Main::main(&mut self) {
     assert self.compiler.tape.decode_address(32) == 11;
     assert self.compiler.tape.bytes[40] == 20;
 
-    self.compiler.compile("machine helper() -> u8 { 6 * 7 } machine answer() -> u8 { transition { _ -> finish() } state finish() { helper(); (helper()) } }", "answer");
+    self.compiler.compile("machine helper() -> u8 { 6 * 7 } machine answer() -> u8 { transition { _ -> finish() } machine finish() { helper(); (helper()) } }", "answer");
     self.complete(50);
     assert self.compiler.tape.decode_address(1) == 22;
     assert self.compiler.tape.bytes[13] == 42;
@@ -28,7 +28,7 @@ machine Main::main(&mut self) {
     assert self.compiler.tape.decode_address(41) == 11;
     assert self.compiler.tape.bytes[49] == 20;
 
-    self.compiler.compile("machine answer() -> u8 { transition 2 - 1 { 1 -> finish() _ -> other() } state finish() { 42 } state other() { 0 } }", "answer");
+    self.compiler.compile("machine answer() -> u8 { transition 2 - 1 { 1 -> finish() _ -> other() } machine finish() { 42 } machine other() { 0 } }", "answer");
     self.complete(42);
     assert self.compiler.tape.decode_address(1) == 11;
     assert self.compiler.tape.decode_address(12) == 20;
@@ -43,7 +43,7 @@ machine Main::main(&mut self) {
     assert self.compiler.tape.bytes[23] == 7;
     assert self.compiler.tape.bytes[31] == 20;
 
-    self.compiler.compile("machine answer() -> u8 { transition true { true -> yes() _ -> no() } state yes() { 1 } state no() { 0 } }", "answer");
+    self.compiler.compile("machine answer() -> u8 { transition true { true -> yes() _ -> no() } machine yes() { 1 } machine no() { 0 } }", "answer");
     self.complete(42);
     assert self.compiler.tape.decode_address(1) == 11;
     assert self.compiler.tape.decode_address(12) == 20;

@@ -107,7 +107,6 @@ data OmegaKeywordKind {
     case Return;
     case SelfType;
     case SelfValue;
-    case State;
     case Struct;
     case Target;
     case Transition;
@@ -295,7 +294,7 @@ data OmegaTypeArrayKind {
 
 // Compact tagged type node. Payload interpretation is owned by kind:
 // Named uses payload0/payload1 as its name span; Constrained uses payload0 as
-// its base node and payload1/payload2 as its constraint span; FixedArray uses
+// its base node and payload1/payload2 as first type_constraints row/count; FixedArray uses
 // payload0 for its element and payload1/payload2 for the exact length span;
 // Slice uses payload0 for its element.
 // Reference uses payload0 for its referee, payload1 for access (0 shared,
@@ -522,6 +521,11 @@ data OmegaTransitionPatternFieldSyntax {
     end: i32;
 }
 
+data OmegaTransitionTargetKind {
+    case Machine;
+    case Result;
+}
+
 // The first transition slice retains zero or one subject and expands every arm
 // into one ordinary statement, matching the canonical syntax tree. Guard
 // spelling stays source-shaped. Qualified case paths and their optional braces
@@ -540,6 +544,9 @@ data OmegaTransitionStatementSyntax {
     guard_first_pattern_field: i32;
     guard_pattern_field_count: i32;
     guard_has_rest: i32;
+    // Machine owns target/arguments; Result owns an ordinary expression row.
+    target_kind: OmegaTransitionTargetKind;
+    result_expression: i32;
     target: OmegaRelativeSpan;
     first_argument: i32;
     argument_count: i32;
@@ -1115,6 +1122,8 @@ data OmegaParser {
     transition_pattern_value_expression: i32;
     transition_arrow_start: i32;
     transition_arrow_end: i32;
+    transition_target_kind: OmegaTransitionTargetKind;
+    transition_result_expression: i32;
     transition_target_start: i32;
     transition_target_end: i32;
     transition_first_argument: i32;

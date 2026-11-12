@@ -1,11 +1,11 @@
 # Parser fixture expectations
 
 `main.epsilon` calls `OmegaParser::parse_view` through ordinary
-Epsilon execution. The harness must include all eight whole manifested D source
-members, followed by this entrypoint. There are sixteen parser invocations on
+Epsilon execution. The harness must include every whole manifested bootstrap
+compiler source member, followed by this entrypoint. There are twenty-four invocations on
 one receiver. Success is `Exit(0)` with stdout `A`; the private tagged execution
 observation is `000000000041`. This fixture does not establish full Omega
-acceptance: `Complete` owns the retained syntax rows described by D's README,
+acceptance: `Complete` owns the retained syntax rows described by the compiler's README,
 while `Incomplete` leaves those rows unavailable to consumers.
 
 The first data input keeps `b: u32` and requires `b <= 9` on its data
@@ -33,6 +33,15 @@ the cast assignment. The transition subject adds the ninth expression;
 assignments and one transition arm give four statements. The implicit entry
 state and explicit `done` state give two state rows. The cast's `in Trapping`
 belongs to its cast row, not to a type-constraint row.
+
+The Boolean transition input retains two machine-state rows, each with one
+parameter, and four transition arms. Three result arms reference ordinary
+Boolean expression rows with values true, false, and true; their target spans
+and argument counts are empty. The remaining machine arm retains its named
+target and one argument. A later invocation retains `done(7)` as a machine
+target with one argument and no result expression, checking receiver reuse.
+The retired nested `state` declaration refuses without exposing rows, while a
+machine actually named `state` parses as an ordinary identifier.
 
 The bodyless external input retains one machine, one implicit state, and one
 `Satisfies` clause with `CompilerIntrinsic` binding. The next input has `via`

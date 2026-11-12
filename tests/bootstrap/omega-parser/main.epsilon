@@ -14,8 +14,22 @@ machine Main::main(&mut self) {
     self.parser.parse_view("data R requires b <= 9 { a: [u8; 2]; b: u32; c: &u8; d: u32 in Domain; }");
     self.check_data_rows();
 
-    self.parser.parse_view("machine p() { x = 7; y = Packet { tag: 1 }; z = value as u32 in Trapping; transition 1 { 1 -> done() } state done() {} }");
+    self.parser.parse_view("machine p() { x = 7; y = Packet { tag: 1 }; z = value as u32 in Trapping; transition 1 { 1 -> done() } machine done() {} }");
     self.check_machine_rows();
+
+    self.parser.parse_view("machine p(scalar: u32 in Trapping) -> bool { transition scalar == 95 { true -> true _ -> other(scalar) } machine other(value: u32 in Trapping) -> bool { transition value < 128 { true -> false _ -> true } } }");
+    self.check_transition_results();
+
+    // The retired declaration is not an alias; the word remains an identifier.
+    self.parser.parse_view("machine p() { state old() {} }");
+    self.check_retired_state_refused();
+    self.parser.parse_view("machine state() -> bool { true }");
+    self.check_complete();
+
+    // A prior Result arm must not classify a later invocation's machine call.
+    self.parser.parse_view("machine p() { transition { _ -> done(7) } machine done(value: u32) {} }");
+    self.check_complete();
+    self.check_machine_target(0, 1);
 
     self.parser.parse_view("machine ext() satisfies Service::f via Binding::CompilerIntrinsic;");
     self.check_external_rows();
@@ -48,7 +62,7 @@ machine Main::main(&mut self) {
     self.parser.parse_view("data R { a: u32 [0..=0x9]; }");
     self.check_suffix_refused(16, 17);
 
-    self.parser.parse_view("machine p() { transition 1 { 0x1 -> done() } state done() {} }");
+    self.parser.parse_view("machine p() { transition 1 { 0x1 -> done() } machine done() {} }");
     self.check_incomplete(29, 32);
 
     self.parser.parse_view("machine p() { x = self { tag: 1 }; }");
@@ -250,6 +264,58 @@ machine Main::check_machine_rows(&mut self) {
     assert self.parser.type_reference_count == 1;
     assert self.parser.type_constraint_count == 0;
     assert self.parser.cast_expressions[0].has_domain == 1;
+}
+
+machine Main::check_transition_results(&mut self) {
+    self.check_complete();
+    assert self.parser.machine_state_count == 2;
+    assert self.parser.machine_parameter_count == 2;
+    assert self.parser.machine_states[0].parameter_count == 1;
+    assert self.parser.machine_states[1].parameter_count == 1;
+    assert self.parser.transition_statement_count == 4;
+    self.check_result_target(0, 1);
+    self.check_machine_target(1, 1);
+    self.check_result_target(2, 0);
+    self.check_result_target(3, 1);
+}
+
+machine Main::check_result_target(&mut self, index: i32, value: i32) {
+    transition self.parser.transition_statements[index].target_kind {
+        OmegaTransitionTargetKind::Result -> result()
+        _ -> self.console.exit_process(1)
+    }
+    state result() {
+        assert self.parser.transition_statements[index].argument_count == 0;
+        assert self.parser.transition_statements[index].target.start == 0;
+        assert self.parser.transition_statements[index].target.end == 0;
+        let expression: i32 = self.parser.transition_statements[index].result_expression;
+        assert self.parser.expressions[expression].payload0 == value;
+        transition self.parser.expressions[expression].kind {
+            OmegaExpressionKind::Boolean -> return
+            _ -> self.console.exit_process(1)
+        }
+    }
+}
+
+machine Main::check_machine_target(&mut self, index: i32, arguments: i32) {
+    transition self.parser.transition_statements[index].target_kind {
+        OmegaTransitionTargetKind::Machine -> machine_target()
+        _ -> self.console.exit_process(1)
+    }
+    state machine_target() {
+        assert self.parser.transition_statements[index].result_expression == 0;
+        assert self.parser.transition_statements[index].argument_count == arguments;
+        assert self.parser.transition_statements[index].target.end >
+            self.parser.transition_statements[index].target.start;
+    }
+}
+
+machine Main::check_retired_state_refused(&mut self) {
+    transition self.parser.status {
+        OmegaParserStatus::Incomplete -> return
+        OmegaParserStatus::SyntaxFailure -> return
+        _ -> self.console.exit_process(1)
+    }
 }
 
 machine Main::check_external_rows(&mut self) {

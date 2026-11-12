@@ -23,7 +23,7 @@ machine Main::main(&mut self) {
     self.compiler.compile("machine answer() -> u32 { 42 }", "answer");
     self.incomplete();
 
-    self.compiler.compile("machine answer() { state other() -> u8 { 42 } }", "answer");
+    self.compiler.compile("machine answer() { machine other() -> u8 { 42 } }", "answer");
     self.incomplete();
 
     self.compiler.compile("machine answer() -> u8 { 1_2 }", "answer");

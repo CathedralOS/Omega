@@ -1,10 +1,10 @@
-# Complete-D parser customer
+# Bootstrap compiler parser customer
 
 This explicit slow gate checks and executes the complete manifested Epsilon
-Omega compiler
-closure plus one ordinary Epsilon `Main`. It reconstructs the existing Epsilon
-execution diagnostic through the selected Gamma-authored Delta compiler, then
-uses that receipt to check the customer and call D's real `OmegaParser::parse_view`.
+bootstrap compiler closure plus one ordinary Epsilon `Main`. It reconstructs
+the existing Epsilon execution diagnostic through the interpreted peer's
+Gamma-authored Delta compiler, then uses that receipt to check the customer
+and call the real `OmegaParser::parse_view`.
 No parser states are extracted, translated, or substituted by the host.
 
 Run from the repository root on macOS arm64, Linux x86-64, or Windows x64 in
@@ -62,11 +62,18 @@ returning `000000000041` with status 0 and empty stderr — now that
 Bash execution; the PE artifact is proven byte-exact under wine but the
 MINGW/MSYS shell route itself has not run on Windows hardware.
 
-The current customer reuses one parser across twenty invocations. Four header
-controls were added after the historical sixteen-invocation observations below:
+The current customer reuses one parser across twenty-four invocations. Direct
+Boolean transition results retain ordinary expression rows; parameterized
+nested-machine transfers retain their argument rows. The retired `state`
+declaration spelling refuses, while `state` remains a usable identifier. A
+subsequent machine-target arm checks that result-target rows do not leak across
+invocations. These parser observations do not establish runtime execution of
+the parsed programs; that belongs to the executable compiler customers.
+
+Four header controls were added in the historical twenty-invocation customer:
 termination and reach clauses in both orders retain their exact ranges, and
 obsolete clause semicolons refuse without being consumed as separators.
-The bound twenty-invocation subject passed on macOS arm64 on 2026-10-31:
+That twenty-invocation subject passed on macOS arm64 on 2026-10-31:
 receipt reconstruction took 148.663 seconds and the complete customer took
 6,529.480 seconds, returning exact `000000000041` (`Exit(0)`, stdout `A`) with
 host status zero and empty stderr. The observed customer is the 584,640-byte
