@@ -1,0 +1,152 @@
+{
+  "pin_clusters": [
+    {
+      "id": "pin-c1",
+      "row_count": 15,
+      "kind": "pass/run rejected",
+      "diag_sample": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism",
+      "witness": "pass/build/default_component_abi_extents",
+      "members": [
+        "pass/build/default_component_abi_extents",
+        "pass/build/native_component_case_cycle",
+        "pass/build/native_component_case_loan_cycle",
+        "pass/build/native_component_reuse",
+        "pass/components/independent_same_spelling_packages",
+        "pass/facts/component_scalar_lending_through_call_result_exit",
+        "pass/facts/component_scalar_lending_through_const_name_exit",
+        "pass/facts/component_scalar_lending_through_field_exit",
+        "pass/facts/component_scalar_lending_through_local_exit",
+        "pass/facts/component_scalar_lending_through_match_join_exit",
+        "pass/facts/component_scalar_lending_through_other_machine_exit",
+        "pass/facts/component_scalar_lending_through_other_state_exit",
+        "pass/facts/component_scalar_lending_through_parameter_exit",
+        "pass/facts/component_scalar_lending_through_target_body_exit",
+        "pass/providers/independent_imported_data_exit"
+      ],
+      "members_broken": [
+        "pass/build/default_component_abi_extents",
+        "pass/build/native_component_case_cycle",
+        "pass/build/native_component_case_loan_cycle",
+        "pass/build/native_component_reuse",
+        "pass/components/independent_same_spelling_packages",
+        "pass/facts/component_scalar_lending_through_call_result_exit",
+        "pass/facts/component_scalar_lending_through_const_name_exit",
+        "pass/facts/component_scalar_lending_through_field_exit",
+        "pass/facts/component_scalar_lending_through_local_exit",
+        "pass/facts/component_scalar_lending_through_match_join_exit",
+        "pass/facts/component_scalar_lending_through_other_machine_exit",
+        "pass/facts/component_scalar_lending_through_other_state_exit",
+        "pass/facts/component_scalar_lending_through_parameter_exit",
+        "pass/facts/component_scalar_lending_through_target_body_exit",
+        "pass/providers/independent_imported_data_exit"
+      ],
+      "members_fixed": [],
+      "member_diag": {
+        "pass/build/default_component_abi_extents": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism",
+        "pass/build/native_component_case_cycle": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism",
+        "pass/build/native_component_case_loan_cycle": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism",
+        "pass/build/native_component_reuse": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism",
+        "pass/components/independent_same_spelling_packages": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism",
+        "pass/facts/component_scalar_lending_through_call_result_exit": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism",
+        "pass/facts/component_scalar_lending_through_const_name_exit": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism",
+        "pass/facts/component_scalar_lending_through_field_exit": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism",
+        "pass/facts/component_scalar_lending_through_local_exit": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism",
+        "pass/facts/component_scalar_lending_through_match_join_exit": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism",
+        "pass/facts/component_scalar_lending_through_other_machine_exit": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism",
+        "pass/facts/component_scalar_lending_through_other_state_exit": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism",
+        "pass/facts/component_scalar_lending_through_parameter_exit": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism",
+        "pass/facts/component_scalar_lending_through_target_body_exit": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism",
+        "pass/providers/independent_imported_data_exit": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism"
+      }
+    },
+    {
+      "id": "pin-c2",
+      "row_count": 1,
+      "kind": "pass/run rejected",
+      "diag_sample": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "witness": "pass/build/explicit_provider_storage_extent_exit",
+      "members": [
+        "pass/build/explicit_provider_storage_extent_exit"
+      ],
+      "members_broken": [
+        "pass/build/explicit_provider_storage_extent_exit"
+      ],
+      "members_fixed": [],
+      "member_diag": {
+        "pass/build/explicit_provider_storage_extent_exit": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value"
+      }
+    },
+    {
+      "id": "pin-c3",
+      "row_count": 1,
+      "kind": "pass/run rejected",
+      "diag_sample": "cannot establish assignment invariants: partial write enclosure has no exact active-case frontier",
+      "witness": "pass/borrows/returned_record_case_field_store_exit",
+      "members": [
+        "pass/borrows/returned_record_case_field_store_exit"
+      ],
+      "members_broken": [
+        "pass/borrows/returned_record_case_field_store_exit"
+      ],
+      "members_fixed": [],
+      "member_diag": {
+        "pass/borrows/returned_record_case_field_store_exit": "cannot establish assignment invariants: partial write enclosure has no exact active-case frontier"
+      }
+    },
+    {
+      "id": "pin-c4",
+      "row_count": 1,
+      "kind": "pass/run rejected",
+      "diag_sample": "const argument expression in generic data `ForwardedBuffer` is invalid: const operator application requires declaration selection",
+      "witness": "pass/generics/runtime_const_data_symbolic_expression_exit",
+      "members": [
+        "pass/generics/runtime_const_data_symbolic_expression_exit"
+      ],
+      "members_broken": [
+        "pass/generics/runtime_const_data_symbolic_expression_exit"
+      ],
+      "members_fixed": [],
+      "member_diag": {
+        "pass/generics/runtime_const_data_symbolic_expression_exit": "const argument expression in generic data `ForwardedBuffer` is invalid: const operator application requires declaration selection"
+      }
+    },
+    {
+      "id": "pin-c5",
+      "row_count": 1,
+      "kind": "pass/run rejected",
+      "diag_sample": "machine call cycle: Caller::read...",
+      "witness": "pass/traits/applied_requirement_lexical_isolation_exit",
+      "members": [
+        "pass/traits/applied_requirement_lexical_isolation_exit"
+      ],
+      "members_broken": [
+        "pass/traits/applied_requirement_lexical_isolation_exit"
+      ],
+      "members_fixed": [],
+      "member_diag": {
+        "pass/traits/applied_requirement_lexical_isolation_exit": "machine call cycle: Caller::read..."
+      }
+    }
+  ],
+  "fixed_on_main": [
+    "fail/build/explicit_provider_scalar_budget",
+    "fail/build/explicit_provider_storage_extent",
+    "pass/capabilities/selected_applied_synchronous_chain_exit",
+    "pass/drops/runtime_selected_partial_owner_cleanup_exit"
+  ],
+  "prior_slice_indices": [
+    10,
+    50,
+    90,
+    130,
+    170,
+    210
+  ],
+  "counts": {
+    "fixed": 4,
+    "broken": 19,
+    "host_only": 0,
+    "missing": 0,
+    "total": 23
+  }
+}

@@ -1,0 +1,26 @@
+# bad: [51e8c45c793007f211d0d9baee7de16767172444] psi: check a body over a const value parameter once and carry its proofs (#2505)
+# good: [6966f21a71342fa6725fb12763e3a7250b8761e7] psi: give callable headers explicit delimiter ownership (#1023)
+git bisect start '--first-parent' '51e8c45c793007f211d0d9baee7de16767172444' '6966f21a71342fa6725fb12763e3a7250b8761e7'
+# bad: [c805a6fbfed7100d2250281d6f6584f77f7d77ec] compiler: let both engines inspect selected native code layouts (#1755)
+git bisect bad c805a6fbfed7100d2250281d6f6584f77f7d77ec
+# bad: [39a69f97dd6e8b06e0f5da8f01ae826b2b28289d] compiler: bound native product checker compilation memory (#1399)
+git bisect bad 39a69f97dd6e8b06e0f5da8f01ae826b2b28289d
+# bad: [2aec23ad553b3d045f71a95d477a9d767204da7e] samples: migrate retained mutable supply to Build (#1195)
+git bisect bad 2aec23ad553b3d045f71a95d477a9d767204da7e
+# bad: [ca20d0c585423571631b838f511d71ab4040416b] psi: consolidate integer interval and premise reasoning (#1098)
+git bisect bad ca20d0c585423571631b838f511d71ab4040416b
+# good: [02d6d92b37d4cee20861321d9ad0dfc58a0bb3d8] psi: retain complete lexicographic invocation ranks through native execution (#1048)
+git bisect good 02d6d92b37d4cee20861321d9ad0dfc58a0bb3d8
+# bad: [b48729f90d5987a15429e3bcfe5c084cb76d250d] psi: read inferred call regions from their arguments in index checks (#1077)
+git bisect bad b48729f90d5987a15429e3bcfe5c084cb76d250d
+# bad: [0d5180a7d8bbdedca136fb88f1c1dc2a9b39db23] psi: drop the widened-capture carrier fallback superseded by #1038 (#1083)
+git bisect bad 0d5180a7d8bbdedca136fb88f1c1dc2a9b39db23
+# good: [e888ffb81d847e6cbc5472f74164131b4f3d2af6] loc: twelve-crate qualified-path collapse (batch X, −2919) (#1078)
+git bisect good e888ffb81d847e6cbc5472f74164131b4f3d2af6
+# bad: [64fd22d07601f459f4b80e5639c6315ca4f36a05] tools: compare the pilot's CLI argument by its host spelling (#1080)
+git bisect bad 64fd22d07601f459f4b80e5639c6315ca4f36a05
+# bad: [5c8eb743ff48855b17414a8f50663b8c91062073] samples: migrate the foreign scalar record fact family to build-owned bindings (#1071)
+git bisect bad 5c8eb743ff48855b17414a8f50663b8c91062073
+# bad: [55f4a84e523c0f1b64f7d72d80f4cb83e84e7017] psi: preserve indexed observations through normal call completion (#1074)
+git bisect bad 55f4a84e523c0f1b64f7d72d80f4cb83e84e7017
+# first bad commit: [55f4a84e523c0f1b64f7d72d80f4cb83e84e7017] psi: preserve indexed observations through normal call completion (#1074)

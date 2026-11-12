@@ -1,0 +1,435 @@
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 356 revisions left to test after this (roughly 9 steps)
+[39a69f97dd6e8b06e0f5da8f01ae826b2b28289d] compiler: bound native product checker compilation memory (#1399)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 178 revisions left to test after this (roughly 8 steps)
+[2aec23ad553b3d045f71a95d477a9d767204da7e] samples: migrate retained mutable supply to Build (#1195)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 88 revisions left to test after this (roughly 7 steps)
+[ca20d0c585423571631b838f511d71ab4040416b] psi: consolidate integer interval and premise reasoning (#1098)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 44 revisions left to test after this (roughly 6 steps)
+[02d6d92b37d4cee20861321d9ad0dfc58a0bb3d8] psi: retain complete lexicographic invocation ranks through native execution (#1048)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 22 revisions left to test after this (roughly 5 steps)
+[b48729f90d5987a15429e3bcfe5c084cb76d250d] psi: read inferred call regions from their arguments in index checks (#1077)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 10 revisions left to test after this (roughly 4 steps)
+[0d5180a7d8bbdedca136fb88f1c1dc2a9b39db23] psi: drop the widened-capture carrier fallback superseded by #1038 (#1083)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 5 revisions left to test after this (roughly 3 steps)
+[e888ffb81d847e6cbc5472f74164131b4f3d2af6] loc: twelve-crate qualified-path collapse (batch X, −2919) (#1078)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 2 revisions left to test after this (roughly 2 steps)
+[64fd22d07601f459f4b80e5639c6315ca4f36a05] tools: compare the pilot's CLI argument by its host spelling (#1080)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 1 step)
+[5c8eb743ff48855b17414a8f50663b8c91062073] samples: migrate the foreign scalar record fact family to build-owned bindings (#1071)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[55f4a84e523c0f1b64f7d72d80f4cb83e84e7017] psi: preserve indexed observations through normal call completion (#1074)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+55f4a84e523c0f1b64f7d72d80f4cb83e84e7017 is the first bad commit
+commit 55f4a84e523c0f1b64f7d72d80f4cb83e84e7017
+Author: Jarod Castillo <43973221+Smotto@users.noreply.github.com>
+Date:   Sat Oct 31 22:29:22 2026 +0000
+
+    psi: preserve indexed observations through normal call completion (#1074)
+    
+    * psi: preserve indexed observations through normal call completion
+    
+    Retain observed disjoint cells at an exact captured store after RHS effects.
+    Share selected public-contract bindings and normal guarantees between value
+    and statement calls, with real statement handles owning fresh output identity.
+    Use current specification selectors and checked collection-predicate element
+    consequences through the existing typed observation readers.
+    
+    All nine frozen indexed-handback places refuse at base
+     a91a8de86514f5b0ba71509b3af4d656916d6062. The optimized Linux x86_64 repair
+    runs all nine plus two additional positives with native/Terminal exits 0/0;
+    15 invalid controls match their authored contract refusal. Pins are exact
+    sample copies and each row twin changes only the store destination.
+    
+    Focused corpus: 31/33 positives execute 0/0; the two other refusals reproduce
+    identically with the exact-base producer. All 43 selected invalids reject,
+    41 at their authored reason; two old Build-API controls fail identically on
+    base. Keep those limitations separate from the completed new row.
+    
+    * psi: record indexed handback execution and replay evidence
+    
+    * psi: retain indexed handback integration acceptance
+
+ TASKS.md                                           |   2 +-
+ .../calls/write_frames/demand/normal_subjects.rs   |  21 +-
+ .../src/proof_contracts/collection_predicates.rs   |  77 +++-
+ .../contract_entailment/structural_case_arms.rs    |  67 +++
+ .../contract_entailment/structural_judgment.rs     |  14 +-
+ .../structural_judgment/domain_premises.rs         | 160 ++++++-
+ .../structural_judgment/normal_returns.rs          | 328 +++-----------
+ .../normal_returns/call_bindings.rs                | 342 +++++++++++++++
+ .../normal_returns/statements.rs                   | 115 +++++
+ .../structural_judgment/rewrite_table.rs           |   9 +-
+ .../selected_contracts/terms.rs                    |  14 +
+ .../structural_judgment/storage_effects.rs         |  95 +++-
+ .../structural_judgment/term_identity.rs           |  27 +-
+ .../cli/facts/saved_observation_snapshot/README.md |   4 +
+ .../call_result/indexed_handback/build.omg         |   7 +
+ .../call_result/indexed_handback/invalid/build.omg |   7 +
+ .../indexed_handback/invalid/expected.txt          |   1 +
+ .../call_result/indexed_handback/invalid/main.omg  |  41 ++
+ .../indexed_handback/invalid/sample.json           |   7 +
+ .../call_result/indexed_handback/main.omg          |  41 ++
+ .../const_name/indexed_handback/build.omg          |   7 +
+ .../const_name/indexed_handback/invalid/build.omg  |   7 +
+ .../indexed_handback/invalid/expected.txt          |   1 +
+ .../const_name/indexed_handback/invalid/main.omg   |  38 ++
+ .../indexed_handback/invalid/sample.json           |   7 +
+ .../const_name/indexed_handback/main.omg           |  38 ++
+ .../field/indexed_handback/build.omg               |   7 +
+ .../field/indexed_handback/invalid/build.omg       |   7 +
+ .../field/indexed_handback/invalid/expected.txt    |   1 +
+ .../field/indexed_handback/invalid/main.omg        |  39 ++
+ .../field/indexed_handback/invalid/sample.json     |   7 +
+ .../field/indexed_handback/main.omg                |  39 ++
+ .../indexed_handback/README.md                     | 159 +++++++
+ .../local/indexed_handback/build.omg               |   7 +
+ .../controls/no_separation/build.omg               |   7 +
+ .../controls/no_separation/expected.txt            |   1 +
+ .../controls/no_separation/main.omg                |  20 +
+ .../controls/no_separation/sample.json             |   7 +
+ .../controls/predicate_body/build.omg              |   7 +
+ .../controls/predicate_body/expected.txt           |   1 +
+ .../controls/predicate_body/main.omg               |   8 +
+ .../controls/predicate_body/sample.json            |   7 +
+ .../controls/rhs_clobber/build.omg                 |   7 +
+ .../controls/rhs_clobber/expected.txt              |   1 +
+ .../indexed_handback/controls/rhs_clobber/main.omg |  24 +
+ .../controls/rhs_clobber/sample.json               |   7 +
+ .../controls/selector_overwrite/build.omg          |   7 +
+ .../controls/selector_overwrite/expected.txt       |   1 +
+ .../controls/selector_overwrite/main.omg           |  25 ++
+ .../controls/selector_overwrite/sample.json        |   7 +
+ .../controls/selector_stale/build.omg              |   7 +
+ .../controls/selector_stale/expected.txt           |   1 +
+ .../controls/selector_stale/main.omg               |  25 ++
+ .../controls/selector_stale/sample.json            |   7 +
+ .../controls/whole_replacement/build.omg           |   7 +
+ .../controls/whole_replacement/expected.txt        |   1 +
+ .../controls/whole_replacement/main.omg            |  20 +
+ .../controls/whole_replacement/sample.json         |   7 +
+ .../local/indexed_handback/invalid/build.omg       |   7 +
+ .../local/indexed_handback/invalid/expected.txt    |   1 +
+ .../local/indexed_handback/invalid/main.omg        |  37 ++
+ .../local/indexed_handback/invalid/sample.json     |   7 +
+ .../local/indexed_handback/main.omg                |  37 ++
+ .../local/indexed_handback/rhs_disjoint/build.omg  |   7 +
+ .../local/indexed_handback/rhs_disjoint/main.omg   |  23 +
+ .../indexed_handback/selector_current/build.omg    |   7 +
+ .../indexed_handback/selector_current/main.omg     |  25 ++
+ .../match_join/indexed_handback/build.omg          |   7 +
+ .../match_join/indexed_handback/invalid/build.omg  |   7 +
+ .../indexed_handback/invalid/expected.txt          |   1 +
+ .../match_join/indexed_handback/invalid/main.omg   |  54 +++
+ .../indexed_handback/invalid/sample.json           |   7 +
+ .../match_join/indexed_handback/main.omg           |  54 +++
+ .../other_machine/indexed_handback/build.omg       |   7 +
+ .../indexed_handback/invalid/build.omg             |   7 +
+ .../indexed_handback/invalid/expected.txt          |   1 +
+ .../indexed_handback/invalid/main.omg              |  44 ++
+ .../indexed_handback/invalid/sample.json           |   7 +
+ .../other_machine/indexed_handback/main.omg        |  44 ++
+ .../other_state/indexed_handback/build.omg         |   7 +
+ .../other_state/indexed_handback/invalid/build.omg |   7 +
+ .../indexed_handback/invalid/expected.txt          |   1 +
+ .../other_state/indexed_handback/invalid/main.omg  |  43 ++
+ .../indexed_handback/invalid/sample.json           |   7 +
+ .../other_state/indexed_handback/main.omg          |  43 ++
+ .../parameter/indexed_handback/build.omg           |   7 +
+ .../parameter/indexed_handback/invalid/build.omg   |   7 +
+ .../indexed_handback/invalid/expected.txt          |   1 +
+ .../parameter/indexed_handback/invalid/main.omg    |  43 ++
+ .../parameter/indexed_handback/invalid/sample.json |   7 +
+ .../parameter/indexed_handback/main.omg            |  43 ++
+ .../target_body/indexed_handback/build.omg         |  11 +
+ .../target_body/indexed_handback/invalid/build.omg |  11 +
+ .../indexed_handback/invalid/expected.txt          |   1 +
+ .../target_body/indexed_handback/invalid/main.omg  |  50 +++
+ .../indexed_handback/invalid/sample.json           |   7 +
+ .../target_body/indexed_handback/main.omg          |  50 +++
+ tests/omega/corpus_both_linux_x86_64.txt           |  11 +
+ tests/omega/corpus_outcomes.txt                    |  41 ++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  41 ++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  38 ++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  39 ++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  37 ++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  54 +++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  20 +
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  44 ++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  43 ++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  43 ++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |   8 +
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  24 +
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  25 ++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  25 ++
+ .../build.omg                                      |  11 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  50 +++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  20 +
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  41 ++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  38 ++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  39 ++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  37 ++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  54 +++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  44 ++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  43 ++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  43 ++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  23 +
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  25 ++
+ .../build.omg                                      |  11 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  50 +++
+ .../indexed_handback_2026_10_31/evidence.tar.gz    | Bin 0 -> 34668 bytes
+ .../integration-evidence.tar.gz                    | Bin 0 -> 803113 bytes
+ ...da19ac492c58292e9ae1e20f1337544d63788974.bundle | Bin 0 -> 113299 bytes
+ .../indexed_handback_2026_10_31/manifest.json      | 487 +++++++++++++++++++++
+ ...755b31d334ffef7470ace83e920bbd5f69bd718a.bundle | Bin 0 -> 31956 bytes
+ 193 files changed, 4110 insertions(+), 296 deletions(-)
+ create mode 100644 omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs
+ create mode 100644 omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/statements.rs
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/call_result/indexed_handback/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/call_result/indexed_handback/invalid/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/call_result/indexed_handback/invalid/expected.txt
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/call_result/indexed_handback/invalid/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/call_result/indexed_handback/invalid/sample.json
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/call_result/indexed_handback/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/const_name/indexed_handback/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/const_name/indexed_handback/invalid/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/const_name/indexed_handback/invalid/expected.txt
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/const_name/indexed_handback/invalid/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/const_name/indexed_handback/invalid/sample.json
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/const_name/indexed_handback/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/field/indexed_handback/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/field/indexed_handback/invalid/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/field/indexed_handback/invalid/expected.txt
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/field/indexed_handback/invalid/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/field/indexed_handback/invalid/sample.json
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/field/indexed_handback/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/indexed_handback/README.md
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/no_separation/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/no_separation/expected.txt
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/no_separation/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/no_separation/sample.json
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/predicate_body/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/predicate_body/expected.txt
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/predicate_body/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/predicate_body/sample.json
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/rhs_clobber/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/rhs_clobber/expected.txt
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/rhs_clobber/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/rhs_clobber/sample.json
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/selector_overwrite/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/selector_overwrite/expected.txt
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/selector_overwrite/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/selector_overwrite/sample.json
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/selector_stale/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/selector_stale/expected.txt
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/selector_stale/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/selector_stale/sample.json
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/whole_replacement/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/whole_replacement/expected.txt
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/whole_replacement/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/controls/whole_replacement/sample.json
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/invalid/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/invalid/expected.txt
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/invalid/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/invalid/sample.json
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/rhs_disjoint/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/rhs_disjoint/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/selector_current/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/local/indexed_handback/selector_current/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/match_join/indexed_handback/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/match_join/indexed_handback/invalid/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/match_join/indexed_handback/invalid/expected.txt
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/match_join/indexed_handback/invalid/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/match_join/indexed_handback/invalid/sample.json
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/match_join/indexed_handback/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/other_machine/indexed_handback/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/other_machine/indexed_handback/invalid/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/other_machine/indexed_handback/invalid/expected.txt
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/other_machine/indexed_handback/invalid/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/other_machine/indexed_handback/invalid/sample.json
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/other_machine/indexed_handback/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/other_state/indexed_handback/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/other_state/indexed_handback/invalid/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/other_state/indexed_handback/invalid/expected.txt
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/other_state/indexed_handback/invalid/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/other_state/indexed_handback/invalid/sample.json
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/other_state/indexed_handback/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/parameter/indexed_handback/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/parameter/indexed_handback/invalid/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/parameter/indexed_handback/invalid/expected.txt
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/parameter/indexed_handback/invalid/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/parameter/indexed_handback/invalid/sample.json
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/parameter/indexed_handback/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/target_body/indexed_handback/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/target_body/indexed_handback/invalid/build.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/target_body/indexed_handback/invalid/expected.txt
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/target_body/indexed_handback/invalid/main.omg
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/target_body/indexed_handback/invalid/sample.json
+ create mode 100644 samples/cli/facts/saved_observation_snapshot/target_body/indexed_handback/main.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_call_result_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_call_result_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_call_result_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_const_name_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_const_name_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_const_name_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_field_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_field_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_field_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_local_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_local_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_local_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_match_join_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_match_join_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_match_join_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_no_separation_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_no_separation_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_no_separation_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_other_machine_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_other_machine_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_other_machine_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_other_state_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_other_state_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_other_state_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_parameter_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_parameter_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_parameter_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_predicate_body_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_predicate_body_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_predicate_body_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_rhs_clobber_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_rhs_clobber_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_rhs_clobber_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_selector_overwrite_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_selector_overwrite_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_selector_overwrite_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_selector_stale_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_selector_stale_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_selector_stale_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_target_body_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_target_body_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_target_body_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_whole_replacement_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_whole_replacement_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_whole_replacement_rejected/main.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_const_name_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_const_name_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_const_name_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_const_name_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_field_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_field_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_field_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_field_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_local_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_local_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_local_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_local_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_match_join_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_match_join_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_match_join_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_match_join_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_other_machine_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_other_machine_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_other_machine_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_other_machine_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_other_state_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_other_state_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_other_state_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_other_state_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_parameter_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_parameter_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_parameter_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_parameter_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_rhs_disjoint_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_rhs_disjoint_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_rhs_disjoint_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_rhs_disjoint_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_selector_current_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_selector_current_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_selector_current_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_selector_current_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_target_body_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_target_body_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_target_body_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_target_body_exit/main.omg
+ create mode 100644 wiki/drafts/measurements/indexed_handback_2026_10_31/evidence.tar.gz
+ create mode 100644 wiki/drafts/measurements/indexed_handback_2026_10_31/integration-evidence.tar.gz
+ create mode 100644 wiki/drafts/measurements/indexed_handback_2026_10_31/integration-source-da19ac492c58292e9ae1e20f1337544d63788974.bundle
+ create mode 100644 wiki/drafts/measurements/indexed_handback_2026_10_31/manifest.json
+ create mode 100644 wiki/drafts/measurements/indexed_handback_2026_10_31/source-755b31d334ffef7470ace83e920bbd5f69bd718a.bundle
+bisect found first bad commit

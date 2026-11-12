@@ -1,0 +1,9 @@
+{
+  "cluster_id": "pin-c2",
+  "witness": "pass/build/explicit_provider_storage_extent_exit",
+  "good": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+  "breaking_commit": "55f4a84e523c0f1b64f7d72d80f4cb83e84e7017",
+  "pr": "1074",
+  "mechanism": "psi: preserve indexed observations through normal call completion (#1074)",
+  "status": "bisected"
+}

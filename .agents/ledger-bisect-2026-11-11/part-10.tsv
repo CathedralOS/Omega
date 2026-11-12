@@ -1,0 +1,20 @@
+fixture	class	first_diagnostic	cluster_id
+pass/build/default_component_abi_extents	still_broken	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism	pin-c1
+pass/build/native_component_case_cycle	still_broken	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism	pin-c1
+pass/build/native_component_case_loan_cycle	still_broken	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism	pin-c1
+pass/build/native_component_reuse	still_broken	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism	pin-c1
+pass/components/independent_same_spelling_packages	still_broken	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism	pin-c1
+pass/facts/component_scalar_lending_through_call_result_exit	still_broken	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism	pin-c1
+pass/facts/component_scalar_lending_through_const_name_exit	still_broken	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism	pin-c1
+pass/facts/component_scalar_lending_through_field_exit	still_broken	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism	pin-c1
+pass/facts/component_scalar_lending_through_local_exit	still_broken	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism	pin-c1
+pass/facts/component_scalar_lending_through_match_join_exit	still_broken	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism	pin-c1
+pass/facts/component_scalar_lending_through_other_machine_exit	still_broken	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism	pin-c1
+pass/facts/component_scalar_lending_through_other_state_exit	still_broken	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism	pin-c1
+pass/facts/component_scalar_lending_through_parameter_exit	still_broken	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism	pin-c1
+pass/facts/component_scalar_lending_through_target_body_exit	still_broken	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism	pin-c1
+pass/providers/independent_imported_data_exit	still_broken	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism	pin-c1
+pass/build/explicit_provider_storage_extent_exit	still_broken	anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value	pin-c2
+pass/borrows/returned_record_case_field_store_exit	still_broken	cannot establish assignment invariants: partial write enclosure has no exact active-case frontier	pin-c3
+pass/generics/runtime_const_data_symbolic_expression_exit	still_broken	const argument expression in generic data `ForwardedBuffer` is invalid: const operator application requires declaration selection	pin-c4
+pass/traits/applied_requirement_lexical_isolation_exit	still_broken	machine call cycle: Caller::read...	pin-c5
