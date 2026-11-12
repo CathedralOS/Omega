@@ -299,6 +299,32 @@ fn checked_native_scope_binds_completed_direct_and_family_choices() {
     let artifact = retained.artifact();
     let proposal = retained.native_realization_proposal().unwrap();
     let initial = proposal.providers().selection.clone();
+    let remapped = proposal
+        .providers()
+        .direct_boundary_leaves
+        .iter()
+        .filter(|leaf| {
+            leaf.plan.rows.iter().any(|row| {
+                leaf.plan.identities.text(row.requirement_identity) != leaf.callable_identity
+            })
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !remapped.is_empty(),
+        "the existing fixture must actually retarget a direct callable to its target member"
+    );
+    for leaf in remapped {
+        let [row] = leaf.plan.rows.as_slice() else {
+            panic!("a direct leaf has exactly one row");
+        };
+        assert_eq!(row.requirement_identity, row.declared_requirement_identity);
+        assert!(
+            row.calling_signature.is_none(),
+            "retargeting must preserve the synthetic direct role"
+        );
+        leaf.validate_bound_calling_custody(artifact.semantic_module())
+            .unwrap();
+    }
     let work = terminal_psi_to_abstract_operations::prepare_native_callable_execution(
         proposal,
         artifact,

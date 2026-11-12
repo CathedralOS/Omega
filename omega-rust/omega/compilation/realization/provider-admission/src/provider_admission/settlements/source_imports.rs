@@ -19,6 +19,24 @@ use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::BoundaryMachineId;
 
+// Exact native rows retain their source declaration ABI. Other rows keep
+// their ordinary or direct-leaf custody, checked by those existing owners.
+fn require_exact_native_declaration_abi(
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    abi: &semantic_vocabulary::CallingAbiIdentity,
+) -> Result<(), &'static str> {
+    if let Some(signature) = row.calling_signature {
+        if signature != abi.id() {
+            return Err("signature");
+        }
+        if plan.identities.text(row.declared_requirement_identity) != abi.requirement_identity {
+            return Err("declared method");
+        }
+    }
+    Ok(())
+}
+
 struct ImportCoverageRows<'input> {
     boundary: BoundaryMachineId,
     requirement: &'input str,
@@ -63,14 +81,11 @@ pub(super) fn derive_source_evaluated_mechanisms(
                     rows.boundary
                 ))]
             })?;
-        if row
-            .calling_signature
-            .is_some_and(|signature| signature != abi.id())
-        {
-            return Err(vec![Diagnostic::error(format!(
-                "source import settlement for `{requirement}` substituted its exact declaration ABI"
-            ))]);
-        }
+        require_exact_native_declaration_abi(provider_plan, row, &abi).map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "source import settlement for `{requirement}` substituted its exact declaration ABI ({reason})"
+            ))]
+        })?;
         if rows.selected_count > 1 {
             return Err(vec![Diagnostic::error(format!(
                 "demanded external binding `{requirement}` resolves to {} selected provider rows",
@@ -452,4 +467,79 @@ fn authenticate_callback_application(
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod exact_native_declaration_tests {
+    use super::*;
+    use effects::provider_plan::{ProviderBinding, ServiceMethod};
+
+    #[test]
+    fn exact_native_rows_cannot_replace_the_declared_method_under_the_same_abi() {
+        // These are method/ABI coordinates, not an admitted native artifact.
+        // Two same-named declarations may share completion but not identity.
+        let mut plan = ProviderPlan::default();
+        let selected = plan.identities.intern("Boundary::invoke<Selected>");
+        let declared = plan.identities.intern("Boundary::invoke(first overload)");
+        let other = plan.identities.intern("Boundary::invoke(second overload)");
+        let surface = std::sync::Arc::make_mut(&mut plan.schema.declaration);
+        surface.methods = [
+            "Boundary::invoke(first overload)",
+            "Boundary::invoke(second overload)",
+        ]
+        .map(|identity| ServiceMethod {
+            name: "invoke".into(),
+            requirement_identity: surface.identities.intern(identity),
+            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+            ..Default::default()
+        })
+        .to_vec();
+        let abi = semantic_vocabulary::CallingAbiIdentity {
+            requirement_identity: "Boundary::invoke(first overload)".into(),
+            declaring_application: "Boundary".into(),
+            operands: Vec::new(),
+        };
+        abi.validate().unwrap();
+        let mut row = ProviderPlanRow {
+            method: "invoke".into(),
+            requirement_identity: selected,
+            declared_requirement_identity: declared,
+            calling_signature: Some(abi.id()),
+            requirement_lifetime_partition: Vec::new(),
+            admitted_same_stack_bytes: 0,
+            binding: ProviderBinding::Syscall { number: 60 },
+        };
+        assert_eq!(
+            require_exact_native_declaration_abi(&plan, &row, &abi),
+            Ok(())
+        );
+        row.declared_requirement_identity = other;
+        assert!(plan.schema.declaration.methods.iter().any(|method| {
+            plan.schema.identity_text(method.requirement_identity) == plan.identities.text(other)
+        }));
+        assert_eq!(
+            row.calling_signature,
+            Some(abi.id()),
+            "the retained ABI is unchanged"
+        );
+        assert_eq!(
+            require_exact_native_declaration_abi(&plan, &row, &abi),
+            Err("declared method")
+        );
+        row.declared_requirement_identity = declared;
+        let other_abi = semantic_vocabulary::CallingAbiIdentity {
+            requirement_identity: "Boundary::invoke(second overload)".into(),
+            ..abi.clone()
+        };
+        assert_eq!(
+            require_exact_native_declaration_abi(&plan, &row, &other_abi),
+            Err("signature")
+        );
+        row.calling_signature = None;
+        assert_eq!(
+            require_exact_native_declaration_abi(&plan, &row, &other_abi),
+            Ok(()),
+            "ordinary and synthetic direct rows retain their separate custody route"
+        );
+    }
 }

@@ -514,6 +514,8 @@ mod proposal {
             let terminal_requirement = declaration.identities.intern(identity);
             declaration.trait_name = terminal_requirement;
             leaf.plan.rows[0].requirement_identity = leaf.plan.identities.intern(identity);
+            leaf.plan.rows[0].declared_requirement_identity =
+                leaf.plan.rows[0].requirement_identity;
             declaration.methods[0].requirement_identity = terminal_requirement;
             if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut leaf.execution
             {
