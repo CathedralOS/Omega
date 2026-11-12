@@ -1,9 +1,0 @@
-{
-  "witness": "run/ownership/sequence_owned_local_cleanup",
-  "good": "250bd1799699c18d601bca7a56f0b0d1148edd7e",
-  "bad_pin": "51e8c45c793007f211d0d9baee7de16767172444",
-  "status": "endpoint_check_failed",
-  "good_rc": 1,
-  "pin_rc": 1,
-  "method": "pin-fixed-ledger"
-}

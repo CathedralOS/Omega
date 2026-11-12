@@ -69,8 +69,17 @@ if ((${#REVS[@]} > 0)); then
     rc=$?
     echo "  probe[$probe] ${REVS[probe]:0:12} -> $rc" >&2
     if [[ "$rc" -eq 0 ]]; then
-      GOOD="${REVS[probe]}"
-      break
+      stable_hits=0
+      for _ in 1 2 3; do
+        run_test_at "${REVS[probe]}"
+        sub=$?
+        echo "    confirm ${REVS[probe]:0:12} -> $sub" >&2
+        [[ "$sub" -eq 0 ]] && stable_hits=$((stable_hits + 1))
+      done
+      if [[ "$stable_hits" -eq 3 ]]; then
+        GOOD="${REVS[probe]}"
+        break
+      fi
     fi
     ((step *= 2))
     probe=$((probe + step))
