@@ -2334,7 +2334,7 @@ mod replay {
         // fixed-array extent, as `SIZE` in `[u64; SIZE]`, which no probe
         // declaration references. The realized program must still retain it.
         let referenced_constants = {
-            let mut constants = TypeExtentConstants {
+            let mut constants = crate::const_initializers::TypeExtentConstants {
                 program: &probe,
                 visited: Vec::new(),
                 constants: Vec::new(),
