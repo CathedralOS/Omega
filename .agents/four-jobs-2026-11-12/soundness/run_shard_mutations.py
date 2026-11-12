@@ -16,7 +16,7 @@ from pathlib import Path
 PIN = "0835b3aaf803ed97f905be42d94727ff58459263"
 SHARD = int(os.environ.get("SOUNDNESS_SHARD", "6"))
 SHARD_COUNT = 8
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 OUT_ROOT = REPO / ".agents" / "four-jobs-2026-11-12" / "soundness"
 OMEGA = REPO / "target" / "debug" / "omega"
 ROUTE = REPO / "target" / "debug" / "examples" / "route_one_comparison"
@@ -110,10 +110,15 @@ def needs_mut_binding(source: str) -> bool:
 def generate_mutations(source: str) -> list[Mutation]:
     muts: list[Mutation] = []
 
-    if "let mut " in source and needs_mut_binding(source):
-        once = source.replace("let mut ", "let ", 1)
+    mut_binding = re.search(
+        r"let mut (\w+)\b[\s\S]*?(?:\1\s*\[|\1\s*\.|&(?:mut|write)\s+\1\b)",
+        source,
+    )
+    if mut_binding:
+        name = mut_binding.group(1)
+        once = re.sub(rf"\blet mut {re.escape(name)}\b", f"let {name}", source, count=1)
         if once != source:
-            muts.append(Mutation("remove_mut", "first let mut -> let", once))
+            muts.append(Mutation("remove_mut", f"let mut {name} -> let (written binding)", once))
 
     for pat, repl, kind, detail in (
         (r"requires\s+[^;{]+\{", "", "drop_requires", "delete first requires clause"),
@@ -327,9 +332,43 @@ def main() -> int:
         progress_path.write_text(str(idx + 1), encoding="utf-8")
         if (idx + 1) % 25 == 0:
             write_md(md_path, fixtures, counts, holes, finished=False)
+            maybe_git_push()
 
     write_md(md_path, fixtures, counts, holes, finished=True)
     return 0
+
+
+def maybe_git_push() -> None:
+    if os.environ.get("SOUNDNESS_NO_PUSH") == "1":
+        return
+    try:
+        subprocess.run(
+            ["git", "add", "-A", ".agents/four-jobs-2026-11-12/soundness"],
+            cwd=REPO,
+            check=False,
+            capture_output=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "commit",
+                "-m",
+                f"docs: soundness mutations shard {SHARD} progress",
+                "--allow-empty",
+            ],
+            cwd=REPO,
+            check=False,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", f"work/soundness-mutations-shard-{SHARD}"],
+            cwd=REPO,
+            check=False,
+            capture_output=True,
+            timeout=120,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        pass
 
 
 def write_md(
