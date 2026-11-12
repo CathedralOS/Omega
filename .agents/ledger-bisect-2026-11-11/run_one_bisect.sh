@@ -55,10 +55,10 @@ verify() {
 
 : >"$LOG"
 set +e
-verify good "$GOOD" 0 | tee -a "$LOG"
-gstat=$?
-verify pin "$PIN" 1 | tee -a "$LOG"
-pstat=$?
+verify good "$GOOD" 0 2>&1 | tee -a "$LOG"
+gstat=${PIPESTATUS[0]}
+verify pin "$PIN" 1 2>&1 | tee -a "$LOG"
+pstat=${PIPESTATUS[0]}
 set -e
 [[ "$gstat" -eq 0 ]] || exit 2
 [[ "$pstat" -eq 0 ]] || exit 2
