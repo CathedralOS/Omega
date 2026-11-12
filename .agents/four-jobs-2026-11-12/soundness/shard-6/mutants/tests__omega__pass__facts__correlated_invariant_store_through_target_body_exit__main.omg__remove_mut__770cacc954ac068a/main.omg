@@ -1,0 +1,73 @@
+// amount <= 320 - counter.total makes exact counter.total + amount preserve counter.total <= 320.
+// Place: target_body.
+// Expected exit: 0
+data Counter requires total <= 320 { total: u64; }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedAdvance {
+    machine advance(counter: &mut Counter, amount: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires amount <= 320 - counter.total;
+}
+
+X86Advance satisfies SelectedAdvance {
+    machine advance(counter: &mut Counter, amount: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires amount <= 320 - counter.total
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        counter.total = counter.total + amount;
+    }
+}
+
+ArmAdvance satisfies SelectedAdvance {
+    machine advance(counter: &mut Counter, amount: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires amount <= 320 - counter.total
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        counter.total = counter.total + amount;
+    }
+}
+
+
+machine main() crashes Trap {
+    let interior: Counter = Counter { total: 30 };
+    let mut endpoint: Counter = Counter { total: 300 };
+    let mut unchanged: Counter = Counter { total: 320 };
+    let mut full: Counter = Counter { total: 0 };
+    SelectedAdvance::advance(&mut interior, 40);
+    SelectedAdvance::advance(&mut endpoint, 20);
+    SelectedAdvance::advance(&mut unchanged, 0);
+    SelectedAdvance::advance(&mut full, 320);
+    transition interior.total == 70 && endpoint.total == 320
+        && unchanged.total == 320 && full.total == 320 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}
