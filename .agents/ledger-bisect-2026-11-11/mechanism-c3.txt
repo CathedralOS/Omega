@@ -1,0 +1,1 @@
+psi #348 nested invocation contract materialization drops completed call-slot relation for generic result operands
