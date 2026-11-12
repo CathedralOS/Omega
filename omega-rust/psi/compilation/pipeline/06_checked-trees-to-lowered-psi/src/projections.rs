@@ -678,8 +678,8 @@ pub(crate) mod external_provider_declarations {
                         });
                 prepared.requirements.push(RequirementCorrespondence {
                     receiving_application: Ok("unit::Handler".into()),
-                    owner: SymbolHandle::INVALID,
-                    member: SymbolHandle::INVALID,
+                    owner: SymbolHandle::invalid(),
+                    member: SymbolHandle::invalid(),
                     declaration: requirement,
                 });
                 let published = CallbackContractEnvelope {
