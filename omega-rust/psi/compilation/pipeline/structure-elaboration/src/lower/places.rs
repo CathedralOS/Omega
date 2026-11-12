@@ -138,6 +138,14 @@ pub(crate) fn declare<'a>(
                 let identity = identities.intern(&field.identity);
                 indexes.push(identity);
                 let field_type = match field.value_type {
+                    // The reader refuses a data type with such a field.
+                    ValueType::Rigid(_) => {
+                        return Err(refuse(
+                            entry,
+                            Construct::Machine,
+                            Unserved::Type("generic data"),
+                        ));
+                    }
                     ValueType::Scalar(scalar_type) => StructuralFieldType::Scalar(scalar_type),
                     ValueType::Record(nested) => {
                         // A data type holds only types declared before it,
@@ -467,6 +475,7 @@ impl<'a> Lowering<'a> {
 
     fn entry_leaves(&mut self, place: ExactPlaceId, value_type: ValueType) -> Checked<()> {
         match value_type {
+            ValueType::Rigid(_) => Err(self.internal("a field of a rigid type")),
             ValueType::Scalar(scalar_type) => self.entry_content(place, scalar_type).map(drop),
             ValueType::Record(record) => {
                 let data = self.record_type(record)?;
@@ -731,6 +740,7 @@ impl<'a> Lowering<'a> {
                 .get(*position)
                 .ok_or_else(|| self.internal("a literal names a field past its record"))?;
             let evaluated = match field.value_type {
+                ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
                 ValueType::Scalar(_) => Operand::Scalar(self.scalar(operand)?),
                 ValueType::Record(_) => Operand::Record(self.record(operand)?),
             };
@@ -806,6 +816,7 @@ impl<'a> Lowering<'a> {
                 .get(*position)
                 .ok_or_else(|| self.internal("a literal names a field past its case"))?;
             let evaluated = match field.value_type {
+                ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
                 ValueType::Scalar(_) => Operand::Scalar(self.scalar(operand)?),
                 ValueType::Record(_) => Operand::Record(self.record(operand)?),
             };
@@ -926,6 +937,7 @@ impl<'a> Lowering<'a> {
             let mut payload_fields = Vec::new();
             for field in &selected.fields {
                 parameters.push(match field.value_type {
+                    ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
                     ValueType::Scalar(scalar_type) => {
                         let value = self.value(
                             scalar_type,
@@ -1174,6 +1186,9 @@ impl<'a> Lowering<'a> {
     /// domain clause and is never gated.
     pub(super) fn declare_local(&mut self, slot: usize, source: SourceOrigin) -> Checked<()> {
         let bound = match self.slot_type(slot)? {
+            ValueType::Rigid(_) => {
+                return Err(self.internal("a local of a rigid type is declared"));
+            }
             ValueType::Record(record) => {
                 // The zero of each scalar leaf, as a constant the module
                 // holds, so the row that says what the leaf holds names a
@@ -1324,7 +1339,7 @@ impl<'a> Lowering<'a> {
             place = self.step(place, step)?;
             record = match declared.value_type {
                 ValueType::Record(nested) => nested,
-                ValueType::Scalar(_) => {
+                ValueType::Scalar(_) | ValueType::Rigid(_) => {
                     return Err(self.internal("a store path crosses a scalar field"));
                 }
             };
@@ -1349,6 +1364,7 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a stored value has another type than its field"));
         }
         match declared.value_type {
+            ValueType::Rigid(_) => Err(self.internal("a field of a rigid type")),
             ValueType::Scalar(_) => {
                 let stored = self.scalar(value)?;
                 let operation = self.operation_identity(source);
@@ -1441,6 +1457,7 @@ impl<'a> Lowering<'a> {
         for field in fields {
             prefix.push(Segment::Field(field.id));
             match field.value_type {
+                ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
                 ValueType::Scalar(scalar_type) => {
                     let zero = self.zero(scalar_type, source)?;
                     zeros.push((prefix.clone(), zero));

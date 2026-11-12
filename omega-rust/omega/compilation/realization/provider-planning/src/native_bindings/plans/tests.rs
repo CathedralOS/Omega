@@ -3,11 +3,11 @@
 
 use super::*;
 use crate::native_bindings::NativeBuildEvaluation;
-use build_time_evaluation::native_bindings::NativeBindingSelection;
 use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
     TerminalStorageScheduleIdentity,
 };
+use language_semantics::declaration_selection::NativeBindingSelection;
 use language_semantics::declaration_selection::{NativeBindingProducer, ProductTarget};
 use semantic_vocabulary::{PackageKeyIdentity, WorkScheduleIdentity};
 
