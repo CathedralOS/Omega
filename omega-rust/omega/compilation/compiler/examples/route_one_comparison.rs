@@ -7,7 +7,11 @@
 //! compilation with `structure_elaboration` and discharges it with
 //! `lowered_discharge`, twice: with every kind of knowledge, and without
 //! branch conditions, to count what branch facts buy. Each route is timed by
-//! wall clock around its own calls only. Tab-separated lines:
+//! wall clock around its own calls only.
+//!
+//! `--target <target>` selects the checking target (default `linux_x86_64`),
+//! so a target-specific fixture is checked under its authored entry binding.
+//! Tab-separated lines:
 //!
 //!     program <path> current=<accepted|rejected|stopped> current_us=<n> route=<..> route_us=<n> ...
 //!     obligation <path> <machine> <obligation> <kind> <verdict> <values from> <detail>
@@ -210,11 +214,10 @@ fn exact_operands(kind: &terminal_psi::OperationKind) -> Vec<ValueId> {
 
 /// Checks one fixture and judges what the route can on it. One `program`
 /// line body per root.
-fn probe(main: &Path, every_machine: bool, lines: &mut Vec<String>) -> Vec<String> {
+fn probe(main: &Path, target: &str, every_machine: bool, lines: &mut Vec<String>) -> Vec<String> {
     use fixture_package_inputs::FixtureFrontierCheck;
     let started = Instant::now();
-    let checked =
-        fixture_package_inputs::check_fixture_keeping_typed_frontier(main, "linux_x86_64");
+    let checked = fixture_package_inputs::check_fixture_keeping_typed_frontier(main, target);
     let current_us = started.elapsed().as_micros();
     // A program the current checker rejects is compared too: the seam keeps
     // the typed trees that checker judged, and its diagnostics.
@@ -1003,18 +1006,34 @@ fn main() {
         tally(std::io::stdin().lock());
         return;
     }
-    let every_machine = arguments
-        .next_if(|first| first == "--every-machine")
-        .is_some();
+    let mut every_machine = false;
+    let mut target = "linux_x86_64".to_owned();
+    loop {
+        match arguments.peek().map(String::as_str) {
+            Some("--every-machine") => {
+                arguments.next();
+                every_machine = true;
+            }
+            Some("--target") => {
+                arguments.next();
+                let Some(value) = arguments.next() else {
+                    eprintln!("route_one_comparison: --target requires a value");
+                    std::process::exit(2);
+                };
+                target = value;
+            }
+            _ => break,
+        }
+    }
     for argument in arguments {
         let main = Path::new(&argument);
         let mut lines = Vec::new();
         let programs = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            probe(main, every_machine, &mut lines)
+            probe(main, &target, every_machine, &mut lines)
         }))
         .unwrap_or_else(|_| vec!["panicked".to_owned()]);
         for program in programs {
-            println!("program\t{argument}\t{program}");
+            println!("program\t{argument}\t{program}\ttarget={target}");
         }
         for line in lines {
             println!("{line}");
