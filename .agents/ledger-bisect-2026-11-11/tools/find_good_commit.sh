@@ -11,12 +11,12 @@ cur="$PIN"
 steps=0
 max="${BISECT_GOOD_WALK_MAX:-80}"
 while [[ -n "$cur" && $steps -lt $max ]]; do
-  git checkout --quiet "$cur"
+  git checkout -f --quiet "$cur"
   code=0
   bash "$TOOLS/bisect_witness.sh" || code=$?
   if [[ "$code" == "0" ]]; then
     echo "$cur"
-    git checkout --quiet "$PIN"
+    git checkout -f --quiet "$PIN"
     exit 0
   fi
   cur="$(git rev-parse --first-parent "$cur^" 2>/dev/null || true)"
