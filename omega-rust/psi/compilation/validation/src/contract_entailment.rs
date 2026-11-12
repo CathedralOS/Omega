@@ -67893,6 +67893,177 @@ pub(crate) mod structural_judgment {
             use typed_trees::types::TypeReferenceHandle;
 
             #[test]
+            fn saved_nested_fields_keep_their_checked_read() {
+                use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+                use typed_trees::{
+                    TypedTrees,
+                    data::{DataDefinition, DataField, DataMember},
+                    expression::ExpressionHandle,
+                    name::Identifier,
+                    types::TypeReferenceNode,
+                };
+
+                // The saved record and its producer are equal values, but the
+                // completed read owns the field observations used by its caller.
+                let mut symbols = SymbolTableBuilder::default();
+                let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                let builtins = symbols.insert_children(root, symbols::builtin_type_symbols());
+                let saved_type =
+                    symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Saved"));
+                let indices_type =
+                    symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Indices"));
+                let indices_field = symbols
+                    .insert_children(
+                        saved_type,
+                        [(SymbolKind::Field, SymbolNameRef::Static("indices"))],
+                    )
+                    .start();
+                let index_field = symbols
+                    .insert_children(
+                        indices_type,
+                        [(SymbolKind::Field, SymbolNameRef::Static("pt_index"))],
+                    )
+                    .start();
+                let mut program = TypedTrees {
+                    symbols: symbols.finish(),
+                    ..Default::default()
+                };
+                let saved_reference =
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Named {
+                            symbol: saved_type,
+                            name: Identifier::from("Saved"),
+                        });
+                let indices_reference =
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Named {
+                            symbol: indices_type,
+                            name: Identifier::from("Indices"),
+                        });
+                let scalar_reference =
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Named {
+                            symbol: builtins.handle_at(BuiltinTypeAtom::U64.ordinal() as u32),
+                            name: Identifier::from("u64"),
+                        });
+                let shared_reference =
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Reference {
+                            referee: saved_reference,
+                            access: language_semantics::ReferenceAccess::Shared,
+                            lifetime: None,
+                        });
+                let saved_members =
+                    program
+                        .data_members
+                        .insert_many([DataMember::Field(DataField {
+                            symbol: indices_field,
+                            name: Identifier::from("indices"),
+                            type_reference: indices_reference,
+                            ..Default::default()
+                        })]);
+                program.push_data_definition(DataDefinition {
+                    symbol: saved_type,
+                    name: Identifier::from("Saved"),
+                    members: saved_members,
+                    ..Default::default()
+                });
+                let indices_members =
+                    program
+                        .data_members
+                        .insert_many([DataMember::Field(DataField {
+                            symbol: index_field,
+                            name: Identifier::from("pt_index"),
+                            type_reference: scalar_reference,
+                            ..Default::default()
+                        })]);
+                program.push_data_definition(DataDefinition {
+                    symbol: indices_type,
+                    name: Identifier::from("Indices"),
+                    members: indices_members,
+                    ..Default::default()
+                });
+
+                let captured = |occurrence| StructuralTerm::CapturedValue {
+                    expression: ExpressionHandle::from_arena_index(occurrence),
+                    statement: Default::default(),
+                    callable: SymbolHandle::invalid(),
+                    occurrence: occurrence as usize,
+                    result_type: saved_reference,
+                    integer_range: None,
+                };
+                let producer = captured(1);
+                let saved = captured(2);
+                let mut judge = StructuralJudge::from_declaration_requires(
+                    &program,
+                    SymbolHandle::invalid(),
+                    &[],
+                    &[],
+                    false,
+                );
+                judge.runtime_body_values = true;
+                judge.assume_normal_equation(
+                    producer.clone(),
+                    StructuralTerm::Application {
+                        result_type: saved_reference,
+                        target: SymbolHandle::invalid(),
+                        selections: Vec::new(),
+                        machine: "producer".to_owned(),
+                        arguments: Vec::new(),
+                    },
+                );
+                judge.assume_normal_equation(saved.clone(), producer.clone());
+                Arc::make_mut(&mut judge.completed_nominal_values).push(
+                    crate::proof_contracts::contract_entailment::structural_judgment::CompletedNominalValue {
+                        anchor: ExpressionHandle::from_arena_index(2),
+                        reference: saved_reference,
+                        value: saved.clone(),
+                        observed_value: producer.clone(),
+                    },
+                );
+                let observed = crate::proof_contracts::contract_entailment::structural_terms::owned_projection_observation(&program, saved_reference, saved.clone());
+                let indices = judge
+                    .observed_field_term(observed.clone(), "indices", 0)
+                    .expect("the saved record has an indices field");
+                assert_eq!(crate::proof_contracts::contract_entailment::structural_terms::owned_observation_type(&program, &indices), Some(indices_reference));
+                let expected = StructuralTerm::Projection {
+                    subject: Box::new(saved),
+                    path: "indices.pt_index".to_owned(),
+                };
+                let index = judge
+                    .observed_field_term(indices.clone(), "pt_index", 0)
+                    .expect("the saved indices have a scalar field");
+                assert!(index.semantic_value().same_resolution_payload(&expected));
+                assert!(
+                    judge
+                        .observed_field_term(observed.clone(), "missing", 0)
+                        .is_none()
+                );
+
+                // Membership comparisons still resolve the earlier subject. A
+                // read must keep its type instead of borrowing that comparison.
+                let membership = judge.completed_nominal_subject(&indices);
+                assert!(
+                    membership.same_resolution_payload(&StructuralTerm::Projection {
+                        subject: Box::new(producer),
+                        path: "indices".to_owned()
+                    })
+                );
+                let descriptor = crate::proof_contracts::contract_entailment::structural_terms::descriptor_only_observation(shared_reference, observed.clone());
+                assert!(
+                    judge
+                        .observed_field_term(descriptor, "indices", 0)
+                        .is_none()
+                );
+                judge.require_closed_computation = true;
+                assert!(judge.observed_field_term(observed, "indices", 0).is_none());
+            }
+
+            #[test]
             fn completed_queries_keep_full_authority_depth_and_premise_context() {
                 let program = typed_trees::TypedTrees::default();
                 let judge = StructuralJudge::from_declaration_requires(
@@ -83327,7 +83498,21 @@ pub(crate) mod structural_judgment {
             field_name: &str,
             depth: usize,
         ) -> Option<StructuralTerm> {
-            let value = if self.runtime_body_values {
+            // A saved value's fields belong to that read. Keep its checked type
+            // while selecting a field; following an equality to its producer
+            // first can lose that field observation. Closed computation still
+            // evaluates the complete source before selecting a field.
+            let observed =
+                super::structural_terms::owned_observation_type(self.program, &receiver_term)
+                    .or_else(|| {
+                        super::structural_terms::shared_inline_observation_type(
+                            self.program,
+                            &receiver_term,
+                        )
+                    });
+            let value = if !self.require_closed_computation && observed.is_some() {
+                receiver_term
+            } else if self.runtime_body_values {
                 self.completed_value_identity(receiver_term)
             } else {
                 self.resolve_at(receiver_term, depth + 1)
@@ -83339,20 +83524,14 @@ pub(crate) mod structural_judgment {
                 || super::structural_terms::shared_inline_observation_type(self.program, &value)
                     .is_some()
             {
-                let projected = super::observed_projections::project_declared_field(
+                // Keep the field's checked type and saved source occurrence.
+                // Membership comparisons resolve their own subjects; doing that
+                // here would move this read back to its producer's field.
+                return super::observed_projections::project_declared_field(
                     self.program,
                     self,
                     value,
                     field_name,
-                )?;
-                return Some(
-                    if super::structural_terms::owned_observation_type(self.program, &projected)
-                        .is_some()
-                    {
-                        self.completed_nominal_subject(&projected)
-                    } else {
-                        projected
-                    },
                 );
             }
             let projected = super::observed_projections::project_field(value, field_name)?;
