@@ -10,20 +10,31 @@ Measured commit (PIN): `51e8c45c793007f211d0d9baee7de16767172444`
 - Still broken on PIN: **4**
 - PIN diagnostic clusters (after regroup): **3**
 
-## PIN clusters (regrouped by first diagnostic)
+## Corrected bisect (exponential first-parent walk)
+
+Good commits are the first power-of-two first-parent distance from the PIN whose witness exits 0.
+Exit 1 is only the PIN status together with the PIN diagnostic text. A fresh `CARGO_TARGET_DIR=/tmp/bisect-target-<sha>` is used for every commit.
+The binary-search culprits, including any ledger-only commit, are withdrawn.
+
+| cluster | good | first bad (PIN diagnostic) | stops matching | PR | triple at bad | triple at parent |
+| --- | --- | --- | --- | ---: | --- | --- |
+| countdown | pending | pending | pending |  |  |  |
+| family | pending | pending | pending |  |  |  |
+| kernel | pending | pending | pending |  |  |  |
+## PIN clusters (measurement only; earlier breaking commits withdrawn)
 
 | rows | kind | diagnostic | witness | breaking commit | PR | mechanism | status |
 | ---: | --- | --- | --- | --- | ---: | --- | --- |
-| 2 | pass/run rejected | terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view | `pass/termination/measure_field_computed_limit` | `5a4177a6b2d3` |  | psi: preserve computed dispatch custody and call completion (omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/completion.rs, o | bisected |
+| 2 | pass/run rejected | terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view | `pass/termination/measure_field_computed_limit` | withdrawn |  | withdrawn | withdrawn |
 Members:
 - `pass/termination/measure_computed_endpoint` — still broken: terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view
 - `pass/termination/measure_field_computed_limit` — still broken: terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view
 
-| 1 | pass/run rejected | proposition `chained` expects 2 proof-static binder argument(s), received 0 | `pass/proofs/family_carrier_relation_laws` | `e06a115a8c16` | 945 | psi: implement named FixedLayout policies and explicit representation storage (#945) (Cargo.lock, TASKS.md, omega-rust/omega/application/terminal-runtime/src/ex | bisected |
+| 1 | pass/run rejected | proposition `chained` expects 2 proof-static binder argument(s), received 0 | `pass/proofs/family_carrier_relation_laws` | withdrawn |  | withdrawn | withdrawn |
 Members:
 - `pass/proofs/family_carrier_relation_laws` — still broken: proposition `chained` expects 2 proof-static binder argument(s), received 0
 
-| 1 | pass/run rejected | terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the rank produced by the selected view | `pass/proofs/kernel_integer_subtract_order` | `e8fb4b1364b0` | 1432 | psi: select case-where equality bodies through Build (#1432) (omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment. | bisected |
+| 1 | pass/run rejected | terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the rank produced by the selected view | `pass/proofs/kernel_integer_subtract_order` | withdrawn |  | withdrawn | withdrawn |
 Members:
 - `pass/proofs/kernel_integer_subtract_order` — still broken: terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the rank produced by the se
 

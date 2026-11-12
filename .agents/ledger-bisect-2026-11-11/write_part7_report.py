@@ -70,17 +70,66 @@ def main() -> int:
         f"- Still broken on PIN: **{classify['counts']['broken']}**",
         f"- PIN diagnostic clusters (after regroup): **{len(pin_clusters)}**",
         "",
-        "## PIN clusters (regrouped by first diagnostic)",
+    ]
+    redo_path = HERE / "redo_results.json"
+    redo = json.loads(redo_path.read_text()) if redo_path.exists() else {}
+    lines += [
+        "## Corrected bisect (exponential first-parent walk)",
+        "",
+        "Good commits are the first power-of-two first-parent distance from the PIN whose witness exits 0.",
+        "Exit 1 is only the PIN status together with the PIN diagnostic text. A fresh `CARGO_TARGET_DIR=/tmp/bisect-target-<sha>` is used for every commit.",
+        "The binary-search culprits, including any ledger-only commit, are withdrawn.",
+        "",
+        "| cluster | good | first bad (PIN diagnostic) | stops matching | PR | triple at bad | triple at parent |",
+        "| --- | --- | --- | --- | ---: | --- | --- |",
+    ]
+    for key in ("countdown", "family", "kernel"):
+        row = redo.get(key) or {}
+        if not row:
+            lines.append(f"| {key} | pending | pending | pending |  |  |  |")
+            continue
+        good = row.get("good") or row.get("note") or ""
+        first = row.get("first_bad") or ""
+        stops = row.get("stops_matching") or ""
+        pr = row.get("pr") or ""
+        lines.append(
+            f"| {key} | `{good}` | `{first}` | `{stops}` | {pr} | `{row.get('triple_bad')}` | `{row.get('triple_parent')}` |"
+        )
+        lines.append("")
+        lines.append(f"Witness `{row.get('witness')}` status `{row.get('status', '')}`.")
+        if row.get("first_bad_parent"):
+            lines.append(f"First-bad parent `{row['first_bad_parent']}`.")
+        for member, info in (row.get("member_results") or {}).items():
+            lines.append(
+                f"- `{member}` at good `{info.get('at_good')}`, at first bad `{info.get('at_bad')}`"
+                + (f": {info.get('diag_at_bad', '')[:160]}" if info.get("diag_at_bad") else "")
+            )
+        for split in row.get("splits") or []:
+            lines.append(
+                f"- split `{split.get('witness')}` good `{split.get('good')}` first bad `{split.get('first_bad')}` PR {split.get('pr') or ''}"
+            )
+            if split.get("hunk"):
+                lines.append("")
+                lines.append(f"Split hunk `{split.get('hunk_file') or ''}`:")
+                lines.append("```diff")
+                lines.append(split["hunk"] if split["hunk"] != "mechanism not established" else "mechanism not established")
+                lines.append("```")
+        lines.append("")
+        lines.append(f"Hunk `{row.get('hunk_file') or ''}`:")
+        lines.append("```diff")
+        lines.append(row.get("hunk") or "mechanism not established")
+        lines.append("```")
+        lines.append("")
+    lines += [
+        "## PIN clusters (measurement only; earlier breaking commits withdrawn)",
         "",
         "| rows | kind | diagnostic | witness | breaking commit | PR | mechanism | status |",
         "| ---: | --- | --- | --- | --- | ---: | --- | --- |",
     ]
     for r in table_rows:
         diag = r["diagnostic"].replace("|", "\\|")[:140]
-        mech = r["mechanism"].replace("|", "\\|")[:160]
-        brk = (r["breaking_commit"] or "")[:12]
         lines.append(
-            f"| {r['rows']} | {r['kind']} | {diag} | `{r['witness']}` | `{brk}` | {r['pr']} | {mech} | {r['status']} |"
+            f"| {r['rows']} | {r['kind']} | {diag} | `{r['witness']}` | withdrawn |  | withdrawn | withdrawn |"
         )
         lines.append("Members:")
         for m in r["members"]:
@@ -126,16 +175,40 @@ def main() -> int:
 
     (HERE / "part-7.md").write_text("\n".join(lines) + "\n")
 
-    tsv_lines = ["fixture\tclass\tfirst_diagnostic\tcluster_id"]
+    tsv_lines = ["fixture\tclass\tfirst_diagnostic\tcluster_id\tgood\tfirst_bad\tstops_matching\tpr\ttriple_bad\ttriple_parent\tat_good\tat_bad\thunk_file"]
     for i, c in enumerate(pin_clusters):
         cid = f"pin-{i}"
         for m in c["members"]:
             cls = next((x[1] for x in classify["rows"] if x[0] == m), "unknown")
             fd = next((x[2] for x in classify["rows"] if x[0] == m), "")
-            tsv_lines.append(f"{m}\t{cls}\t{fd}\t{cid}")
+            tsv_lines.append(f"{m}\t{cls}\t{fd}\t{cid}\t\t\t\t\t\t\t\t")
     for fix, cls, diag in classify["rows"]:
         if cls == "fixed on main":
-            tsv_lines.append(f"{fix}\tfixed on main\t{diag}\tfixed")
+            tsv_lines.append(f"{fix}\tfixed on main\t{diag}\tfixed\t\t\t\t\t\t\t\t")
+    for key in ("countdown", "family", "kernel"):
+        row = redo.get(key) or {}
+        if not row:
+            continue
+        for member, info in (row.get("member_results") or {row.get("witness"): {}}).items():
+            tsv_lines.append(
+                "\t".join(
+                    [
+                        member or "",
+                        row.get("status") or "",
+                        (row.get("pin_diag") or "").replace("\t", " "),
+                        f"bisect-{key}",
+                        row.get("good") or "",
+                        row.get("first_bad") or "",
+                        row.get("stops_matching") or "",
+                        str(row.get("pr") or ""),
+                        json.dumps(row.get("triple_bad")),
+                        json.dumps(row.get("triple_parent")),
+                        "" if info.get("at_good") is None else str(info.get("at_good")),
+                        "" if info.get("at_bad") is None else str(info.get("at_bad")),
+                        row.get("hunk_file") or "",
+                    ]
+                )
+            )
     (HERE / "part-7.tsv").write_text("\n".join(tsv_lines) + "\n")
     print("wrote part-7.md and part-7.tsv")
     return 0
