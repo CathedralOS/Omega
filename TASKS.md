@@ -182,7 +182,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## P3 - Terminal Psi, proofs, and observation
 
-- **STRUCTURAL-BORROW-IDENTITY.** (covers **WRITE-ONLY-BORROW**, **PLACED-ACCESS-NATIVE-OPS**, **GENERIC-FIXED-ARRAY-VIEWS**, **BORROW-PROOF-CONVERGENCE**, **TERMINAL-SLICE-VIEW-VOCABULARY**) Complete structural loans and slice views, including nested element-view copies; enforce [owned-local mutability and independent fact invalidation](wiki/spec/language/ownership.md#owned-local-mutability).
+- **STRUCTURAL-BORROW-IDENTITY.** (covers **WRITE-ONLY-BORROW**, **PLACED-ACCESS-NATIVE-OPS**, **GENERIC-FIXED-ARRAY-VIEWS**, **BORROW-PROOF-CONVERGENCE**, **TERMINAL-SLICE-VIEW-VOCABULARY**) Complete structural loans and slice views, including nested element-view copies.
   Acceptance: `write_only`, `computed_nested_state_loan`, [reference_recast_backing_footprint](samples/cli/facts/reference_recast_backing_footprint/README.md), `disjoint_mut_subslice_windows_compile`, and `fletcher_checksum` pass `--both`.
 
 <a id="normalized-abi-lowering"></a>

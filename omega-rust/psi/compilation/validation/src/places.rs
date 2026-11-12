@@ -1161,9 +1161,7 @@ pub(crate) fn validate_assignment_target_handle(
     );
     let writes_borrowed_storage =
         access == Some(crate::value_custody::expression_types::StorageWriteAccess::BorrowedStorage);
-    if !writable_roots.contains_for_write(root_name)
-        && !writes_borrowed_storage
-    {
+    if !writable_roots.contains_for_write(root_name) && !writes_borrowed_storage {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{machine_name}` state `{state_name}` assignment cannot write `{root_name}` \
              because it is not mutable in this state (if `{root_name}` is undeclared -- a typo -- \
