@@ -28,9 +28,12 @@ unset CARGO_TARGET_DIR
 BISECT_TARGET="/tmp/omega-target-bisect-$(git rev-parse HEAD)"
 mkdir -p "$BISECT_TARGET"
 chmod u+w "$BISECT_TARGET" 2>/dev/null || true
+RUNNER=$(ls -t "$BISECT_TARGET"/debug/build/compiler/*/out/corpus_runner-* 2>/dev/null | head -1)
+if [[ "${BISECT_SKIP_BUILD:-}" != 1 ]] || [[ ! -x "$RUNNER" ]]; then
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$BISECT_TARGET" nice -n 19 mbx build -p omega < /dev/null >/dev/null 2>&1 || exit 125
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$BISECT_TARGET" nice -n 19 mbx test -p compiler --test corpus_runner --no-run < /dev/null >/dev/null 2>&1 || exit 125
 RUNNER=$(ls -t "$BISECT_TARGET"/debug/build/compiler/*/out/corpus_runner-* 2>/dev/null | head -1)
+fi
 [[ -x "$RUNNER" ]] || exit 125
 export OMEGA_CORPUS_ROOT="$ROOT" OMEGA_LIBRARY_ROOT="$ROOT/source/library"
 export OMEGA_CORPUS_FIXTURE_FILTER="$WITNESS" OMEGA_CORPUS_RECORDS=/tmp/bisect_one_record.txt
