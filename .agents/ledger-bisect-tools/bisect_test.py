@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bisect test: compare witness run to fixed PIN ledger + PIN observation."""
+"""Bisect test vs fixed PIN ledger/observation copies."""
 from __future__ import annotations
 
 import json
@@ -41,8 +41,7 @@ def main() -> int:
     witness, rec_path = sys.argv[1], Path(sys.argv[2])
     if not PIN_OBS.exists():
         return 125
-    state = json.loads(PIN_OBS.read_text())
-    pin = state.get(witness)
+    pin = json.loads(PIN_OBS.read_text()).get(witness)
     if not pin:
         return 125
     text = rec_path.read_text() if rec_path.exists() else ""
@@ -52,8 +51,23 @@ def main() -> int:
     _, status, first_diag = parsed
     good = pin["pin_good_status"]
     bad = pin["pin_bad_status"]
+    tier = pin.get("tier", witness.split("/")[0])
+
     if status == good:
         return 0
+
+    if tier == "fail":
+        if status in ("rejected", "incomplete"):
+            if status == bad and norm_diag(first_diag) == pin["pin_bad_diag_norm"]:
+                return 1
+            return 125
+        return 1
+
+    # pass/run: any regression below the PIN ledger expectation is bad for bisect.
+    good_rank = {"built": 3, "checked": 2}
+    bad_rank = {"incomplete": 1, "rejected": 0}
+    if good_rank.get(status, bad_rank.get(status, -1)) < good_rank.get(good, 2):
+        return 1
     if status == bad and norm_diag(first_diag) == pin["pin_bad_diag_norm"]:
         return 1
     return 125
