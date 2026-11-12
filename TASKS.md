@@ -134,6 +134,9 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 - **UNIVERSAL-INTERPRETER-CLOSURE.** Delete `omega-rust/psi/interpreter/checked-interpreter/` and finish `omega-rust/omega/interpreter/terminal-runtime/src/execution.rs`.
   Acceptance: audits find no tree visitor, and `omega run --both`, `--engine native|terminal`, and `interpreter_migration.json` pass on all hosts.
 
+- **TERMINAL-RUNTIME-DRIVERS: syscall bridge.** The interpreter cannot run an exact Linux syscall binding (`ForeignBinding::Syscall`): `host_imports.rs` has no syscall adapter, and `native_provider::NativeImport` admits only bindings with an import locator because `emit_native_foreign_adapter` (`image-emission/src/entries.rs`) builds every adapter around an imported symbol. Add a syscall-bridge adapter kind through machine/image emission, `native-artifact` provisions and `NativeImport` admission, preserving the selected Linux contract on a matching host ([embedding](wiki/spec/build/embedding.md#target-environments-and-execution-engines)).
+  Acceptance: `pass/providers/kernel_import_result_chain_exit`, converted to `ProcessExit` on `work/tests-kernel-import-process-exit`, passes `--both` with exit 70 on `linux_x86_64` and `linux_arm64`.
+
 ## Immediate product closure
 
 - **REQUIRES-UNIFICATION.** Run `tests/psi/*/test-*.sh` over the `where` deletion; each gate's `omega update` peaks near 14 GB single-threaded.
