@@ -40,7 +40,8 @@ UNJUDGED = frozenset(
 
 TSV_HEADER = (
     "fixture\ttier\troute_verdict\tcurrent_verdict\tagreement\t"
-    "first_refusal\tseconds\tflags\tchecker_diag_class\n"
+    "first_refusal\tseconds\tflags\tchecker_diag_class\t"
+    "roots\tvacuous_accept_roots\n"
 )
 
 
@@ -56,7 +57,14 @@ def shard_fixtures() -> list[str]:
     ]
     raw = subprocess.check_output(cmd, text=True)
     paths = sorted(raw.splitlines(), key=lambda line: line)
-    return [p for i, p in enumerate(paths) if i % 8 == SHARD]
+    shard = [p for i, p in enumerate(paths) if i % 8 == SHARD]
+    # When |corpus| % 8 == 7, NR=|corpus| has NR%8==7 but (NR-1)%8==6; shard 7
+    # still owns that trailing fixture so the shard has 2174 rows like siblings.
+    if SHARD == 7 and len(paths) % 8 == 7:
+        last = paths[-1]
+        if last not in shard:
+            shard.append(last)
+    return shard
 
 
 def tier(fixture: str) -> str:
@@ -95,6 +103,10 @@ def parse_fields(body: str) -> dict[str, str]:
                 fields["route"] = val.split("\t")[0]
         elif part.startswith("reason="):
             fields["reason"] = part[len("reason=") :]
+        elif part.startswith("obligations="):
+            fields["obligations"] = part[len("obligations=") :]
+        elif part.startswith("judged="):
+            fields["judged"] = part[len("judged=") :]
         i += 1
     return fields
 
@@ -234,18 +246,49 @@ def first_checker_diagnostic(lines: list[str]) -> tuple[str, str]:
     return "", ""
 
 
-def parse_program_lines(lines: list[str]) -> tuple[str, list[str]]:
-    current = ""
-    routes: list[str] = []
+def program_lines_fields(lines: list[str]) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
     for line in lines:
         if not line.startswith("program\t"):
             continue
         body = "\t".join(line.split("\t")[2:])
-        f = parse_fields(body)
+        out.append(parse_fields(body))
+    return out
+
+
+def parse_program_lines(lines: list[str]) -> tuple[str, list[str]]:
+    fields = program_lines_fields(lines)
+    current = ""
+    routes: list[str] = []
+    for f in fields:
         if f.get("current"):
             current = f["current"]
         routes.append(f.get("route", "-"))
     return current, routes
+
+
+def format_roots(fields: list[dict[str, str]]) -> str:
+    parts = []
+    for f in fields:
+        root = f.get("root", "?")
+        route = f.get("route", "-")
+        parts.append(f"{root}:{route}")
+    return ";".join(parts)
+
+
+def format_vacuous_accept_roots(fields: list[dict[str, str]]) -> str:
+    vacuous: list[str] = []
+    for f in fields:
+        if f.get("route") != "accepted":
+            continue
+        try:
+            obligations = int(f.get("obligations") or "0")
+            judged = int(f.get("judged") or "0")
+        except ValueError:
+            continue
+        if obligations == 0 and judged == 0:
+            vacuous.append(f.get("root", "?"))
+    return ";".join(vacuous)
 
 
 def near_timeout_flags(secs: float, route_verdict: str) -> str:
@@ -282,6 +325,8 @@ def run_one(fixture: str) -> tuple[str, ...]:
             f"{secs:.2f}",
             "",
             "",
+            "",
+            "",
         )
     secs = time.monotonic() - start
     if proc.returncode == 124:
@@ -295,6 +340,8 @@ def run_one(fixture: str) -> tuple[str, ...]:
             f"{secs:.2f}",
             "",
             "",
+            "",
+            "",
         )
     if proc.returncode != 0 and not proc.stdout.strip():
         err = (proc.stderr or "nonzero exit").replace("\t", " ")[:200]
@@ -306,6 +353,8 @@ def run_one(fixture: str) -> tuple[str, ...]:
             "n-a",
             err,
             f"{secs:.2f}",
+            "",
+            "",
             "",
             "",
         )
@@ -324,6 +373,8 @@ def run_one(fixture: str) -> tuple[str, ...]:
             f"{secs:.2f}",
             "",
             "",
+            "",
+            "",
         )
 
     current, route_by_root = parse_program_lines(lines)
@@ -338,13 +389,18 @@ def run_one(fixture: str) -> tuple[str, ...]:
             f"{secs:.2f}",
             "",
             "",
+            "",
+            "",
         )
 
+    prog_fields = program_lines_fields(lines)
     route_verdict = program_route_verdict(route_by_root)
     refusal = first_refusal_from_output(lines, route_by_root, route_verdict)
     agr = agreement_label(current, route_verdict)
     flags = near_timeout_flags(secs, route_verdict)
     dclass, _ = first_checker_diagnostic(lines)
+    roots = format_roots(prog_fields)
+    vacuous = format_vacuous_accept_roots(prog_fields)
     return (
         fixture,
         tier(fixture),
@@ -355,6 +411,8 @@ def run_one(fixture: str) -> tuple[str, ...]:
         f"{secs:.2f}",
         flags,
         dclass,
+        roots,
+        vacuous,
     )
 
 
@@ -426,7 +484,7 @@ def write_md(fixtures_done: int, *, final: bool = False) -> None:
     near_timeout: list[list[str]] = []
 
     for row in rows:
-        if len(row) < 9:
+        if len(row) < 11:
             continue
         rv = row[2]
         totals[rv] += 1
@@ -514,6 +572,30 @@ def write_md(fixtures_done: int, *, final: bool = False) -> None:
         out.write(
             f"| agree+disagree (= accepted+rejected rows) | "
             f"{agree + disagree} (= {judged_routes}) |\n\n"
+        )
+
+        vac_acc_roots = vac_part_roots = 0
+        vac_acc_rows = vac_part_rows = 0
+        for row in rows:
+            if len(row) < 11:
+                continue
+            vac_list = [v for v in row[10].split(";") if v]
+            if not vac_list:
+                continue
+            if row[2] == "accepted":
+                vac_acc_roots += len(vac_list)
+                vac_acc_rows += 1
+            elif row[2] == "partial":
+                vac_part_roots += len(vac_list)
+                vac_part_rows += 1
+        out.write("## Vacuous accept roots (obligations=0, judged=0)\n\n")
+        out.write(
+            f"- **accepted** bucket: {vac_acc_roots} roots across "
+            f"{vac_acc_rows} fixtures\n"
+        )
+        out.write(
+            f"- **partial** bucket: {vac_part_roots} roots across "
+            f"{vac_part_rows} fixtures\n\n"
         )
 
         if near_timeout:

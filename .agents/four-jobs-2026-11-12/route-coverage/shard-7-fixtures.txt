@@ -2171,3 +2171,4 @@ tests/omega/run/ranges/borrowed_case_payload_alias/main.omg
 tests/omega/run/slices/disjoint_local_state_windows/main.omg
 tests/omega/run/state_owned_nested_borrow/main.omg
 tests/omega/run/traits/implementation_value_same_selections/main.omg
+tests/omega/run/variant_record_normalization_repeats/main.omg
