@@ -92,7 +92,8 @@
         "pass/memory/runtime_linear_native_allocation_exit"
       ],
       "bisect": {
-        "status": "pending"
+        "status": "propagated",
+        "reason": "no good first-parent ancestor"
       }
     },
     {
