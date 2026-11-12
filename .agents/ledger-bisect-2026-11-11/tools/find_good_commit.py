@@ -13,7 +13,11 @@ WITNESS = os.environ["BISECT_WITNESS"]
 
 
 def run_test(root: Path, rev: str) -> int:
-    subprocess.check_call(["git", "-C", str(root), "checkout", rev], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.check_call(
+        ["git", "-C", str(root), "checkout", "-f", rev],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
     env = {**os.environ, "BISECT_WITNESS": WITNESS}
     return subprocess.run(
         ["/tmp/ledger-bisect-tools/bisect_witness.sh"],

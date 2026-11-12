@@ -9,7 +9,7 @@ TOOLS="$ROOT/.agents/ledger-bisect-2026-11-11/tools"
 rm -rf /tmp/ledger-bisect-tools
 cp -a "$TOOLS" /tmp/ledger-bisect-tools
 cd "$ROOT"
-git checkout work/ledger-bisect-part-22
+git checkout -f work/ledger-bisect-part-22
 export BISECT_WITNESS="$WITNESS" PIN_COMMIT="$PIN"
 python3 "$TOOLS/find_good_commit.py" | tee ".agents/ledger-bisect-2026-11-11/find_good_${CLUSTER_ID}.log"
 GOOD=$(cat /tmp/ledger_bisect_good.txt)
