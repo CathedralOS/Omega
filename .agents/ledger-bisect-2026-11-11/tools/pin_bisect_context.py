@@ -10,7 +10,19 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
+def repo_root() -> Path:
+    if env := os.environ.get("BISECT_REPO_ROOT"):
+        return Path(env)
+    shown = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return Path(shown.stdout.strip())
+
+
+REPO = repo_root()
 PIN_SHA = os.environ.get("BISECT_PIN", "51e8c45c793007f211d0d9baee7de16767172444")
 PIN_LEDGER = Path("/tmp/ledger-bisect-corpus_outcomes.txt")
 CTX = Path("/tmp/ledger-bisect-context.json")

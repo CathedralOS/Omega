@@ -2,7 +2,8 @@
 # git bisect run helper: 0 good, 1 bad (PIN regression), 125 skip/build/other
 set -euo pipefail
 WITNESS="${BISECT_WITNESS:?}"
-ROOT="$(git -C "$(dirname "$0")/../../.." rev-parse --show-toplevel)"
+ROOT="${BISECT_REPO_ROOT:-$(git rev-parse --show-toplevel)}"
+export BISECT_REPO_ROOT="$ROOT"
 cd "$ROOT"
 # Ledger-only merge commits cannot change compiler behavior.
 if git rev-parse -q --verify HEAD^1 >/dev/null 2>&1; then
@@ -10,7 +11,7 @@ if git rev-parse -q --verify HEAD^1 >/dev/null 2>&1; then
   if ((${#files[@]} > 0)); then
     ledger_only=1
     for f in "${files[@]}"; do
-      if [[ "$f" != tests/omega/corpus_outcomes.txt && "$f" != *.md ]]; then
+      if [[ "$f" != tests/omega/corpus_outcomes.txt ]] && [[ ! "$f" =~ \.md$ ]]; then
         ledger_only=0
         break
       fi

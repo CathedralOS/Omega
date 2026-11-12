@@ -3,7 +3,8 @@
 set -euo pipefail
 WITNESS="${1:?witness fixture}"
 OUT_JSON="${2:?output json}"
-ROOT="$(git -C "$(dirname "$0")/../../.." rev-parse --show-toplevel)"
+ROOT="$(git rev-parse --show-toplevel)"
+export BISECT_REPO_ROOT="$ROOT"
 TOOLCACHE="/tmp/ledger-bisect-tools"
 mkdir -p "$TOOLCACHE"
 cp -a "$ROOT/.agents/ledger-bisect-2026-11-11/tools/." "$TOOLCACHE/"
@@ -45,6 +46,18 @@ print(json.dumps({"results": [int(r1), int(r2), int(r3)], "expect": int(expect),
 PY
 }
 
+protect_agents() {
+  while IFS= read -r f; do
+    git update-index --skip-worktree "$f" 2>/dev/null || true
+  done < <(git ls-files ".agents/ledger-bisect-2026-11-11/")
+}
+
+unprotect_agents() {
+  while IFS= read -r f; do
+    git update-index --no-skip-worktree "$f" 2>/dev/null || true
+  done < <(git ls-files ".agents/ledger-bisect-2026-11-11/")
+}
+
 is_ledger_only_commit() {
   git rev-parse -q --verify HEAD^1 >/dev/null 2>&1 || return 1
   mapfile -t files < <(git diff --name-only HEAD^1 HEAD)
@@ -68,6 +81,8 @@ find_good_commit() {
 }
 
 git checkout -qf "$BRANCH"
+protect_agents
+trap unprotect_agents EXIT
 git checkout -qf "$PIN"
 export BISECT_PIN="$PIN"
 MEASURE="$ROOT/.agents/ledger-bisect-2026-11-11/work/pin_measure.txt"
