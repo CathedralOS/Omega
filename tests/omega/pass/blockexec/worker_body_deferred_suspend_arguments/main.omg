@@ -1,4 +1,4 @@
-// Expected exit: 0. A selected worker provider invokes the supplied body.
+// Expected exit: 0. An ordinary worker invokes its selected quiet callback.
 public boundary trait WorkerProvider {
     machine execute<T, Arguments, const Target: machine(arguments: Arguments) -> T suspends blocks>(arguments: Arguments) -> T
     ensures true
