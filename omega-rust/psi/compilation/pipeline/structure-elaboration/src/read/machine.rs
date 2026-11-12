@@ -26,6 +26,94 @@ use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
 use source::SourceSpan;
 
 impl<'t> Program<'t> {
+    /// A helper with no written input requirement can use what every caller
+    /// guarantees. A written `requires true` must still support every input.
+    /// Its declaration marker survives when normalization removes the literal
+    /// fact; an empty clause list alone cannot distinguish the two contracts.
+    /// Every subject declaration is read; a callable used as a value or an
+    /// unserved selection refuses the whole route. Only direct calls remain
+    /// for those helpers. A reached dependency need not include every caller,
+    /// so its helpers and static requirement implementations keep their envelope.
+    pub(crate) fn private_input_contracts(&self, entry: MachineId) -> Checked<Vec<MachineId>> {
+        let mut private = Vec::new();
+        let mut fixed = self.symbols.map(|_, _| false);
+        for id in std::iter::once(&entry)
+            .chain(&self.fixed_inputs)
+            .chain(&self.requirements)
+            .chain(
+                self.selections
+                    .iter()
+                    .map(|selection| &selection.implementation),
+            )
+        {
+            *fixed.get_mut(*id).ok_or_else(|| {
+                refuse(
+                    *id,
+                    Construct::Machine,
+                    Unserved::Machine("input boundary without a machine"),
+                )
+            })? = true;
+        }
+        for &id in &self.subject_machines {
+            if fixed.get(id) == Some(&true) {
+                continue;
+            }
+            let symbol = terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+            let Some(machine) = self.typed.machine_by_symbol(*symbol) else {
+                continue;
+            };
+            let contracts = span(
+                &self.typed.signature_contracts,
+                machine.contracts,
+                id,
+                "contract span",
+            )?;
+            if !machine.is_public
+                && !contracts.iter().any(|clause| {
+                    clause.kind == SignatureContractKind::Requires
+                        && clause.keyword_source_span.is_some()
+                })
+            {
+                private.push(id);
+            }
+        }
+        // Build/preparation code and declaration sidecars can refer to a
+        // subject helper without becoming one of this module's callers.
+        // Any such use keeps the input boundary open. A reached subset is
+        // never mistaken for the helper's complete possible-use set.
+        if private.is_empty() {
+            return Ok(private);
+        }
+        let mut targets = Vec::with_capacity(private.len() * 2);
+        for id in &private {
+            let symbol = *terminal_check_tables::row(&self.symbols, *id, *id, Construct::Machine)?;
+            targets.push(symbol);
+            let (_, state) = self.declaration(*id, symbol)?;
+            targets.push(state.symbol);
+        }
+        let uses =
+            InputSymbolUses::new(self.symbols.values().copied(), targets).ok_or_else(|| {
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Machine("private input use with an invalid symbol"),
+                )
+            })?;
+        let mut outside = OutsideInputUses { uses };
+        typed_trees::references::visit_program(self.typed, &mut outside);
+        private.retain(|id| {
+            let symbol = *self.symbols.get(*id).expect("candidate was read above");
+            let state = self
+                .declaration(*id, symbol)
+                .expect("candidate declaration was checked")
+                .1;
+            [symbol, state.symbol]
+                .iter()
+                .all(|symbol| outside.uses.get(*symbol).is_some_and(|row| !row.outside))
+        });
+        Ok(private)
+    }
+
     fn next_identity(&self) -> Checked<MachineId> {
         MachineId::new(self.symbols.len() as u64 + 1).ok_or_else(|| {
             refuse(
@@ -670,9 +758,10 @@ impl<'t> Program<'t> {
             }
             let facts = span(&typed.proof_facts, contract.facts, id, "fact span")?;
             match contract.kind {
-                // A clause that is the literal `true` states nothing: it
-                // asks nothing of a caller and promises nothing, so it adds
-                // no clause, as an absent `requires` or `ensures` adds none.
+                // A literal `true` asks nothing of a caller and promises
+                // nothing, so it adds no hypothesis. A written `requires`
+                // still fixes the complete input contract; the declaration
+                // marker is read separately by `private_input_contracts`.
                 // So does a clause closed type equations decide as true:
                 // `requires T == u32 || T == u64` in the machine generated
                 // for `u32`.
@@ -1269,6 +1358,137 @@ impl<'t> Program<'t> {
             slots: slots.iter().map(|slot| slot.value_type).collect(),
             statements: body,
         })
+    }
+}
+
+/// References outside the machines whose complete bodies the route read.
+/// Text and source locations do not decide whether an entry can be invoked.
+struct OutsideInputUses {
+    uses: InputSymbolUses,
+}
+
+impl Extend<SymbolHandle> for OutsideInputUses {
+    fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+        for symbol in symbols {
+            if let Some(row) = self.uses.get_mut(symbol)
+                && row.target
+            {
+                row.outside = true;
+            }
+        }
+    }
+}
+
+impl typed_trees::references::TypedReferences for OutsideInputUses {
+    fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+        !self.uses.get(symbol).is_some_and(|row| row.lowered)
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+struct InputSymbolUse {
+    lowered: bool,
+    target: bool,
+    outside: bool,
+}
+
+/// Slots are dense within an arena page. Keep each generation separate so
+/// equal slot numbers in independently loaded symbol pages never alias.
+struct InputSymbolUses {
+    pages: Vec<(u32, Vec<InputSymbolUse>)>,
+}
+
+impl InputSymbolUses {
+    fn new(
+        lowered: impl IntoIterator<Item = SymbolHandle>,
+        targets: impl IntoIterator<Item = SymbolHandle>,
+    ) -> Option<Self> {
+        let mut symbols: Vec<_> = lowered
+            .into_iter()
+            .map(|symbol| {
+                (
+                    symbol,
+                    InputSymbolUse {
+                        lowered: true,
+                        ..InputSymbolUse::default()
+                    },
+                )
+            })
+            .chain(targets.into_iter().map(|symbol| {
+                (
+                    symbol,
+                    InputSymbolUse {
+                        target: true,
+                        ..InputSymbolUse::default()
+                    },
+                )
+            }))
+            .collect();
+        symbols.sort_unstable_by_key(|(symbol, _)| (symbol.generation(), symbol.arena_index()));
+        let mut pages: Vec<(u32, Vec<InputSymbolUse>)> = Vec::new();
+        for (symbol, roles) in symbols {
+            if !symbol.is_valid() {
+                return None;
+            }
+            if pages
+                .last()
+                .is_none_or(|(generation, _)| *generation != symbol.generation())
+            {
+                pages.push((symbol.generation(), Vec::new()));
+            }
+            let slots = &mut pages.last_mut()?.1;
+            let index = symbol.arena_index() as usize;
+            if slots.len() <= index {
+                slots.resize(index + 1, InputSymbolUse::default());
+            }
+            slots[index].lowered |= roles.lowered;
+            slots[index].target |= roles.target;
+        }
+        Some(Self { pages })
+    }
+
+    fn get(&self, symbol: SymbolHandle) -> Option<&InputSymbolUse> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        let page = self
+            .pages
+            .binary_search_by_key(&symbol.generation(), |(generation, _)| *generation)
+            .ok()?;
+        self.pages[page].1.get(symbol.arena_index() as usize)
+    }
+
+    fn get_mut(&mut self, symbol: SymbolHandle) -> Option<&mut InputSymbolUse> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        let page = self
+            .pages
+            .binary_search_by_key(&symbol.generation(), |(generation, _)| *generation)
+            .ok()?;
+        self.pages[page].1.get_mut(symbol.arena_index() as usize)
+    }
+}
+
+#[cfg(test)]
+mod input_symbol_uses {
+    use super::*;
+    use typed_trees::references::TypedReferences;
+
+    #[test]
+    fn a_foreign_page_with_the_same_slot_cannot_hide_an_outside_caller() {
+        let helper = SymbolHandle::from_parts(1, 7);
+        let foreign_caller = SymbolHandle::from_parts(1, 8);
+        let mut outside = OutsideInputUses {
+            uses: InputSymbolUses::new([helper], [helper]).unwrap(),
+        };
+        assert!(!outside.declaration(helper));
+        assert!(outside.declaration(foreign_caller));
+        outside.extend([foreign_caller]);
+        assert!(!outside.uses.get(helper).unwrap().outside);
+        // Visiting that foreign declaration reveals its call of the helper.
+        outside.extend([helper]);
+        assert!(outside.uses.get(helper).unwrap().outside);
     }
 }
 

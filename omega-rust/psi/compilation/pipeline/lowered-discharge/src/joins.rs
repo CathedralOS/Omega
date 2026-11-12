@@ -112,7 +112,11 @@ fn in_scope(tables: &MachineTables, block: BlockId, proposition: &Proposition) -
 }
 
 /// `term` with each defined value replaced by its definition, recursively.
-fn unfold(term: &ScalarTerm, definitions: &[(ValueId, &ScalarTerm)], depth: usize) -> ScalarTerm {
+pub(crate) fn unfold(
+    term: &ScalarTerm,
+    definitions: &[(ValueId, &ScalarTerm)],
+    depth: usize,
+) -> ScalarTerm {
     if depth > UNFOLD_DEPTH {
         return term.clone();
     }
@@ -128,7 +132,7 @@ fn unfold(term: &ScalarTerm, definitions: &[(ValueId, &ScalarTerm)], depth: usiz
     unfolded
 }
 
-fn connective(mut parts: Vec<Proposition>, conjunction: bool) -> Proposition {
+pub(crate) fn connective(mut parts: Vec<Proposition>, conjunction: bool) -> Proposition {
     let (unit, zero) = if conjunction {
         (Proposition::Truth, Proposition::Falsehood)
     } else {

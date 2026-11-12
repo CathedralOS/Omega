@@ -54,6 +54,7 @@ on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 mod arrivals;
 mod crashes;
 mod describe;
+mod entry_inputs;
 mod graph;
 mod joins;
 mod minted;
@@ -326,6 +327,7 @@ pub enum Knowledge {
 
 /// `discharge`, with the knowledge set chosen.
 pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Checked<Discharge> {
+    entry_inputs::infer(elaboration, knowledge)?;
     let module = &elaboration.module;
     let mut machines = IdTable::default();
     let identities: Vec<MachineId> = elaboration.tables.machines.keys().collect();
@@ -1304,6 +1306,7 @@ pub(crate) fn substitute(
 ) -> Result<Proposition, Unbound> {
     Ok(match proposition {
         Proposition::Truth => Proposition::Truth,
+        Proposition::Falsehood => Proposition::Falsehood,
         Proposition::Equal(left, right) => {
             Proposition::Equal(bound(left, bindings)?, bound(right, bindings)?)
         }
@@ -1341,6 +1344,16 @@ fn bound(term: &ScalarTerm, bindings: &mut dyn Bindings) -> Result<ScalarTerm, U
         } => bindings.field(*root, path, ScalarType::Integer(*scalar_type)),
         ScalarTerm::BooleanField { root, path } => bindings.field(*root, path, ScalarType::Boolean),
         ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => Ok(term.clone()),
+        ScalarTerm::StructuralRead { .. } => Err(Unbound::Unsupported(
+            "clause structural read is outside the scalar subset",
+        )),
+        _ if !term.operands().is_empty() => {
+            let mut bound_term = term.clone();
+            for operand in bound_term.operands_mut() {
+                *operand = bound(operand, bindings)?;
+            }
+            Ok(bound_term)
+        }
         _ => Err(Unbound::Unsupported(
             "clause term outside the scalar subset",
         )),
@@ -1486,14 +1499,6 @@ fn stated_goal(
             )?;
             let callee = terminal_machine(machines, callee(id, invocation, &row.callee)?, id)?;
             let erased = erased_actuals(lowered, &callee.contract, id, invocation, row.site)?;
-            let InvocationSite::Operation(site) = row.site else {
-                return Err(refusal(
-                    RefusalReason::Unsupported,
-                    id,
-                    Construct::Invocation(invocation),
-                    "invocation outside an operation",
-                ));
-            };
             let clause = usize::try_from(clause)
                 .ok()
                 .and_then(|clause| callee.contract.requires.get(clause))
@@ -1508,13 +1513,40 @@ fn stated_goal(
             // A scalar formal is the scalar actual in its lane; a field of a
             // record formal is what that field of the record actual holds
             // when the call is made.
-            substitute(
-                clause,
-                &mut ErasedTerms {
-                    terms: &erased,
-                    runtime: &mut storage.at_call(tables, &row.actuals, callee, site, concerns)?,
-                },
-            )
+            let over_actuals = |runtime: &mut dyn Bindings| {
+                substitute(
+                    clause,
+                    &mut ErasedTerms {
+                        terms: &erased,
+                        runtime,
+                    },
+                )
+            };
+            match row.site {
+                InvocationSite::Operation(site) => over_actuals(&mut storage.at_call(
+                    tables,
+                    &row.actuals,
+                    callee,
+                    site,
+                    concerns,
+                )?),
+                InvocationSite::InvokeNoNormal(_) => {
+                    let actuals = scalar_actuals(&row.actuals);
+                    over_actuals(&mut ScalarActuals {
+                        actuals: &actuals,
+                        result: None,
+                        tables,
+                    })
+                }
+                _ => {
+                    return Err(refusal(
+                        RefusalReason::Unsupported,
+                        id,
+                        Construct::Invocation(invocation),
+                        "invocation outside a direct call",
+                    ));
+                }
+            }
             .map_err(|unbound| unbound.refusal(id, concerns))
         }
         ObligationKind::DataDomain { operation, clause } => {
