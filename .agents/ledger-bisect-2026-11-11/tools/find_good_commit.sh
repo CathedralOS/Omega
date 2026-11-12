@@ -1,9 +1,10 @@
 #!/bin/bash
-# Newest first-parent ancestor of PIN where witness matches fixed-PIN good (binary search).
+# Newest first-parent ancestor of PIN where witness matches fixed-PIN expectation.
 set -euo pipefail
 PIN="${BISECT_PIN:?}"
 SCRIPT="${BISECT_WITNESS_SCRIPT:?}"
 ROOT="${BISECT_REPO_ROOT:?}"
+MAX_STEPS="${BISECT_FIND_GOOD_MAX:-1500}"
 cd "$ROOT"
 start_ref="$(git rev-parse HEAD)"
 trap 'git checkout -fq "$start_ref" 2>/dev/null || git checkout -fq "$PIN"' EXIT
@@ -15,8 +16,7 @@ if ((${#commits[@]} < 2)); then
 fi
 
 run_test() {
-  local commit=$1
-  git checkout -fq "$commit"
+  git checkout -fq "$1"
   set +e
   "$SCRIPT"
   local ec=$?
@@ -33,26 +33,24 @@ fi
 
 lo=1
 hi=$((${#commits[@]} - 1))
-answer=""
+((hi > MAX_STEPS)) && hi=$MAX_STEPS
+best=""
 
 while ((lo <= hi)); do
   mid=$(((lo + hi) / 2))
-  echo "find_good probe mid=$mid/$((${#commits[@]} - 1)) $(git log -1 --oneline "${commits[mid]}")" >&2
+  echo "find_good probe ${mid}/${hi} $(git log -1 --oneline "${commits[mid]}")" >&2
   ec="$(run_test "${commits[mid]}")"
   if [[ "$ec" == "0" ]]; then
-    answer="${commits[mid]}"
+    best="${commits[mid]}"
     hi=$((mid - 1))
-  elif [[ "$ec" == "1" ]]; then
-    lo=$((mid + 1))
   else
-    # skip build/ambiguous: treat as inconclusive toward older
     lo=$((mid + 1))
   fi
 done
 
-if [[ -z "$answer" ]]; then
-  echo "find_good_commit: no good commit in first-parent chain" >&2
+if [[ -z "$best" ]]; then
+  echo "find_good_commit: no good commit within ${MAX_STEPS} first-parent steps of PIN" >&2
   exit 1
 fi
-echo "find_good: ${answer}" >&2
-echo "$answer"
+echo "find_good: ${best}" >&2
+echo "$best"
