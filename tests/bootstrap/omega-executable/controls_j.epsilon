@@ -11,7 +11,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.compiler.compile("machine answer() -> u8 { transition 1 < 2 { true -> yes() _ -> no() } machine yes() { 42 } machine no() { 0 } }", "answer");
+    self.compiler.compile("machine answer() -> u8 { transition 1 < 2 { true -> yes() _ -> no() } machine yes() -> u8 { 42 } machine no() -> u8 { 0 } }", "answer");
     self.complete(42);
     assert self.compiler.tape.decode_address(1) == 11;
     assert self.compiler.tape.decode_address(12) == 20;
@@ -19,7 +19,7 @@ machine Main::main(&mut self) {
     assert self.compiler.tape.bytes[33] == 0;
     assert self.compiler.tape.bytes[41] == 20;
 
-    self.compiler.compile("machine answer() -> u8 { transition !(2 == 3) { true -> yes() _ -> no() } machine yes() { 42 } machine no() { 0 } }", "answer");
+    self.compiler.compile("machine answer() -> u8 { transition !(2 == 3) { true -> yes() _ -> no() } machine yes() -> u8 { 42 } machine no() -> u8 { 0 } }", "answer");
     self.complete(42);
     assert self.compiler.tape.decode_address(1) == 11;
     assert self.compiler.tape.decode_address(12) == 20;
@@ -27,7 +27,7 @@ machine Main::main(&mut self) {
     assert self.compiler.tape.bytes[33] == 0;
     assert self.compiler.tape.bytes[41] == 20;
 
-    self.compiler.compile("machine answer() -> u8 { transition (7 + 3) >= 10 && 4 != 5 { true -> yes() _ -> no() } machine yes() { 42 } machine no() { 0 } }", "answer");
+    self.compiler.compile("machine answer() -> u8 { transition (7 + 3) >= 10 && 4 != 5 { true -> yes() _ -> no() } machine yes() -> u8 { 42 } machine no() -> u8 { 0 } }", "answer");
     self.complete(42);
     assert self.compiler.tape.decode_address(1) == 11;
     assert self.compiler.tape.decode_address(12) == 20;
@@ -35,7 +35,7 @@ machine Main::main(&mut self) {
     assert self.compiler.tape.bytes[33] == 0;
     assert self.compiler.tape.bytes[41] == 20;
 
-    self.compiler.compile("machine answer() -> u8 { transition 3 <= 2 || 6 > 5 { true -> yes() _ -> no() } machine yes() { 42 } machine no() { 0 } }", "answer");
+    self.compiler.compile("machine answer() -> u8 { transition 3 <= 2 || 6 > 5 { true -> yes() _ -> no() } machine yes() -> u8 { 42 } machine no() -> u8 { 0 } }", "answer");
     self.complete(42);
     assert self.compiler.tape.decode_address(1) == 11;
     assert self.compiler.tape.decode_address(12) == 20;
@@ -44,15 +44,15 @@ machine Main::main(&mut self) {
     assert self.compiler.tape.bytes[41] == 20;
 
     self.compiler.compile("machine answer() -> u8 { 1 < 2 }", "answer");
-    self.incomplete();
-
-    self.compiler.compile("machine answer() -> u8 { transition 1 && 2 { true -> yes() _ -> no() } machine yes() { 42 } machine no() { 0 } }", "answer");
     self.rejected();
 
-    self.compiler.compile("machine answer() -> u8 { transition 1 < true { true -> yes() _ -> no() } machine yes() { 42 } machine no() { 0 } }", "answer");
+    self.compiler.compile("machine answer() -> u8 { transition 1 && 2 { true -> yes() _ -> no() } machine yes() -> u8 { 42 } machine no() -> u8 { 0 } }", "answer");
     self.rejected();
 
-    self.compiler.compile("machine answer() -> u8 { transition 1 == true { true -> yes() _ -> no() } machine yes() { 42 } machine no() { 0 } }", "answer");
+    self.compiler.compile("machine answer() -> u8 { transition 1 < true { true -> yes() _ -> no() } machine yes() -> u8 { 42 } machine no() -> u8 { 0 } }", "answer");
+    self.rejected();
+
+    self.compiler.compile("machine answer() -> u8 { transition 1 == true { true -> yes() _ -> no() } machine yes() -> u8 { 42 } machine no() -> u8 { 0 } }", "answer");
     self.rejected();
 
     self.compiler.compile("machine answer() -> u8 { 20 + 22 }", "answer");

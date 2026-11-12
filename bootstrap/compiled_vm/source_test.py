@@ -42,12 +42,14 @@ def main():
     parser.add_argument("--omega", action="store_true")
     parser.add_argument("--omega-values", action="store_true",
                         help="execute bootstrap parameter/local/call and refusal controls")
+    parser.add_argument("--omega-control", action="store_true",
+                        help="execute actual lexer predicates and typed runtime control checks")
     parser.add_argument("--compiler-only", action="store_true",
                         help="stop after compiler construction, rebuilds, and differential controls")
     args = parser.parse_args()
     if args.seconds <= 0:
         parser.error("--seconds must be positive")
-    if args.compiler_only and (args.omega or args.omega_values):
+    if args.compiler_only and (args.omega or args.omega_values or args.omega_control):
         parser.error("--compiler-only and Omega customers select incompatible scopes")
     mode = "accelerated" if args.accelerated else "reference"
     work = test.ROOT / "build" / ("source-gamma-" + mode)
@@ -100,6 +102,8 @@ def main():
         test.omega_customer(work, args.seconds)
     if args.omega_values:
         test.omega_values_customer(work, args.seconds)
+    if args.omega_control:
+        test.omega_control_customer(work, args.seconds)
     print(f"{mode} construction and requested customers passed", flush=True)
 
 

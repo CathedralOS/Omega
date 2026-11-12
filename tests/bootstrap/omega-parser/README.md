@@ -62,14 +62,15 @@ returning `000000000041` with status 0 and empty stderr — now that
 Bash execution; the PE artifact is proven byte-exact under wine but the
 MINGW/MSYS shell route itself has not run on Windows hardware.
 
-The current customer reuses one parser across thirty-five invocations. Direct
+The current customer reuses one parser across thirty-six invocations. Direct
 Boolean transition results retain ordinary expression rows; parameterized
 nested-machine transfers retain their argument rows. The retired `state`
 declaration spelling refuses, while `state` remains a usable identifier. A
 subsequent machine-target arm checks that result-target rows do not leak across
 invocations. Calls preserve surrounding operators, groups and prefixes across
 argument parsing; static call arguments remain distinguishable from `<`
-comparisons. Explicit carrier casts and single `+Domain` / `-Domain` entries
+comparisons. Statement-leading unary prefixes use that same expression frame.
+Explicit carrier casts and single `+Domain` / `-Domain` entries
 retain distinct tags. Retired whole-type domain casts and unsupported multi-entry
 casts refuse. These parser observations do not establish runtime execution of
 the parsed programs; that belongs to the executable compiler customers.
@@ -219,8 +220,8 @@ or proof evidence. No Windows profiling result is claimed.
 
 ## Bound customer entry
 
-The [customer](main.epsilon) entry is bound at 12,774 bytes, SHA-256
-`211bb77c96ae219dc6aa8abfd67cebb5b12e02e2464b3184bf31538b95009a56`. The customer is the bound compiler closure followed by this entry.
+The [customer](main.epsilon) entry is bound at 20,502 bytes, SHA-256
+`6e14bc4d513fe07feabbde0164730bd784a83fb8517254414d761f5ba4dbc84a`. The customer is the bound compiler closure followed by this entry.
 `tools/bootstrap/omega/compiler_env.sh` checks the entry identity before every
 packing and `tests/bootstrap/omega-identity.sh` covers the refusals. The same
 pins stand inline in `gate.py`; they are records of this one subject, not

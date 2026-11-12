@@ -280,3 +280,34 @@ publication, then reset and emitted an actual executable returning 43. That
 `20ffacd689a6712f78070ccde506f14a4abe5f9edaaa3f4f9189893b05a620ed`,
 passed in 76.013 seconds. The older observations above retain their own input
 identities; the entire matrix was not rerun after this diagnostic-only repair.
+
+
+## Compiler-source lexer customer
+
+`--omega-control` constructs and executes the real lexer identifier predicates,
+with their bodies and signatures unchanged, through the source-built Epsilon
+tape above. The wrapper uses explicit `as +Trapping` casts and tests both
+predicates across ASCII boundaries and the upper half of `u32`. Additional
+source-owned cases check staged parallel transfers, skipped looping Boolean
+operands, nested calls/comparisons, domain casts, refusals and compiler reuse.
+This extends the bootstrap compiler toward an actual successor source unit;
+it does not construct the complete Omega compiler.
+
+A canonical explicit-domain smoke completed in 478.167 seconds and emitted a
+2,153-byte Alpha program that exited 42 without output. Its Epsilon source was
+644,808 bytes, SHA-256
+`449d795abd68930a95fc0f08ee190caa3bfb2519465851e96b693370f8a09b7a`,
+including bootstrap compiler
+`7f0540c05d1c31033f3164dc1fb0c552d41ae2e57764451387c2618e47de46e3`.
+The exact 1,341-byte Omega customer had SHA-256
+`d26ea6de810d23de785af5b4cfc9a7490b865431ddedf181b878343879268117`;
+its tape had SHA-256
+`58a5d2ff0e45242e9382c7f940fdfede2089742152d8bb747a61b633e7ccf0b7`.
+This observation predates the final public crash-ceiling and visibility checks.
+
+An earlier grouped run failed at its short-circuit call-expression customer
+(Epsilon exit 12 after 1,114.986 seconds). Its two preceding tapes executed,
+but the earlier lexer wrapper also omitted required explicit domain casts;
+that acceptance is not conformance evidence. The repaired parser preserves
+expression context around nested calls instead of weakening the looping-RHS
+witness. Historical observations remain bound to their own source bytes.

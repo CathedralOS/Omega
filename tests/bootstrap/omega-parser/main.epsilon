@@ -129,6 +129,14 @@ machine Main::main(&mut self) {
     // Reusing the same receiver after failures must rebuild the same live rows.
     self.parser.parse_view("data R requires b <= 9 { a: [u8; 2]; b: u32; c: &u8; d: u32 in Domain; }");
     self.check_data_rows();
+    self.parser.parse_view("machine logical() -> bool { !false } machine negative() -> u8 { -1 } machine inverted() -> u8 { ~1 }");
+    self.check_complete();
+    assert self.parser.machine_count == 3;
+    assert self.parser.unary_expression_count == 3;
+    assert self.parser.expression_prefix_count == 0;
+    assert self.parser.expression_group_count == 0;
+    self.check_call_stacks_empty();
+
     self.console.write_byte(65);
 }
 

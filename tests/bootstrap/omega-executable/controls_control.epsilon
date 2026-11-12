@@ -1,0 +1,106 @@
+// The first program is the exact canonical lexer declarations followed by
+// lexer_controls.omg. Remaining controls exercise the same generic backend.
+boundary trait Console {
+    machine exit_process(return_code: i32) -> never;
+    machine write_byte(value: i32);
+    machine read_byte() -> i32;
+    machine write_line(text: &[u8]);
+}
+data Main { console: Console; compiler: OmegaScalarCompiler; source: [u8; 65536]; length: i32; }
+machine Main::main(&mut self) {
+    self.length = 0;
+    transition true { true -> read() }
+    state read() {
+        let value: i32 = self.console.read_byte();
+        transition value == -1 { true -> run() _ -> append(value) }
+    }
+    state append(value: i32) {
+        assert self.length < 65536;
+        self.source[self.length] = value;
+        self.length = self.length + 1;
+        transition true { true -> read() }
+    }
+    state run() {
+        self.positive(self.source.as_slice[0..self.length], 42, 10);
+        self.positive("machine main() -> u8 { transition { _ -> swap(41, 42, false) } machine swap(a: u8, b: u8, done: bool) -> u8 { transition done { true -> finish(a) _ -> swap(b, a, true) } } machine finish(answer: u8) -> u8 { answer } }", 42, 11);
+        self.positive("machine negated() -> bool { !false } machine looping() -> bool { transition { _ -> again() } machine again() -> bool { transition { _ -> again() } } } machine main() -> u8 { let left: bool = false && looping(); let right: bool = true || looping(); transition !left && right && negated() { true -> yes() _ -> no() } machine yes() -> u8 { 43 } machine no() -> u8 { 1 } }", 43, 12);
+        self.positive("machine word(x: u32 in Trapping) -> u32 in Trapping { x } machine main() -> u8 { let high: u32 in Trapping = word(4294967295 as +Trapping); let low: u32 in Trapping = word(2147483648 as +Trapping); let plain_high: u32 = high as -Trapping; let byte: u8 = 255; let good: bool = plain_high > byte && high > low && high >= word(4294967295 as +Trapping) && low < word(4294967295 as +Trapping) && low <= word(2147483648 as +Trapping) && high != low && (high == word(4294967295 as +Trapping)) == true; transition good { true -> yes() _ -> no() } machine yes() -> u8 { 44 } machine no() -> u8 { 1 } }", 44, 13);
+        self.positive("machine word(x: u32 in Trapping) -> u32 in Trapping { x } machine main() -> u8 { let good: bool = (word(1 as +Trapping) < word(2 as +Trapping)) == (word(3 as +Trapping) >= word(3 as +Trapping)); transition good { false -> no() true -> yes() } machine yes() -> u8 { 45 } machine no() -> u8 { 1 } }", 45, 14);
+        self.refusal("machine word(x: u32 in Trapping) -> bool { x == 0 } machine main() -> u8 { let bad: bool = word(4294967296 as +Trapping); 42 }", 1, 40);
+        self.refusal("machine main() -> u8 { let bad: bool = 1; 42 }", 1, 41);
+        self.refusal("machine main() -> u8 { let bad: u8 = true; 42 }", 1, 42);
+        self.refusal("machine word(x: u32 in Trapping) -> bool { x == 0 } machine main() -> u8 { let small: u8 = 1; let bad: bool = word(small); 42 }", 1, 43);
+        self.refusal("machine word(x: u32 in Wrapping) -> bool { x == 0 } machine main() -> u8 { 42 }", 2, 44);
+        self.refusal("machine main() -> u8 { transition { _ -> next(1) } machine next(value: bool) -> u8 { 42 } }", 1, 45);
+        self.refusal("machine main() -> u8 { transition { _ -> next() } machine next(value: bool) -> u8 { 42 } }", 1, 46);
+        self.refusal("machine choose(value: bool) -> u8 { transition value { true -> yes() } machine yes() -> u8 { 42 } } machine main() -> u8 { choose(true) }", 1, 47);
+        self.refusal("machine main() -> u8 { transition { _ -> next() } machine next() -> bool { true } }", 1, 48);
+        self.refusal("machine main() -> u8 { transition { _ -> finish() } state finish() { 42 } }", 2, 49);
+        self.refusal("machine main() -> u8 { transition { _ -> next(1) } machine next(value: u8) -> u8 { value } machine next(value: bool) -> u8 { 42 } }", 2, 50);
+        self.refusal("machine main() -> u8 { transition { _ -> next(1) } machine next(first: u8) -> u8 { first } machine next(second: u8) -> u8 { second } }", 1, 51);
+        self.refusal("machine guarded(x: u32 in Trapping) -> bool requires x == 0 { true } machine main() -> u8 { let bad: bool = guarded(1 as +Trapping); 42 }", 0, 52);
+        self.refusal("machine dead(x: bool) -> bool { transition x { true -> true _ -> missing(1) } } machine main() -> u8 { 42 }", 1, 53);
+        self.refusal("machine main() -> u8 { transition { _ -> finish() } machine finish() { 42 } }", 2, 55);
+        self.refusal("machine word(x: u32 in Trapping) -> bool { x == 0 } machine main() -> u8 { let bad: bool = word(0); 42 }", 1, 56);
+        self.refusal("machine main() -> u8 { let bad: u32 in Trapping = 1; 42 }", 1, 57);
+        self.refusal("machine word() -> u32 in Trapping { 1 } machine main() -> u8 { 42 }", 1, 58);
+        self.refusal("machine main() -> u8 { transition { _ -> next(1) } machine next(value: u32 in Trapping) -> u8 { 42 } }", 1, 59);
+        self.refusal("machine main() -> u8 { let plain: u32 = 1; let bad: u32 in Trapping = plain as u32 in Trapping; 42 }", 0, 60);
+        self.refusal("machine main() -> u8 { let flag: bool = true; transition flag && (1 < 2) { true -> yes() } machine yes() -> u8 { 42 } }", 1, 54);
+        assert self.compiler.outcome_space == 4;
+        assert self.compiler.outcome_coordinate == 80;
+        self.positive("machine word(x: u32 in Trapping) -> u32 in Trapping { x } machine main() -> u8 { let small: u8 = 42; let plain: u32 = small as u32; let qualified: u32 in Trapping = plain as +Trapping; let copied: u32 in Trapping = word(qualified); let restored: u32 = copied as -Trapping; transition restored == small { true -> yes() _ -> no() } machine yes() -> u8 { 46 } machine no() -> u8 { 1 } }", 46, 16);
+        self.refusal("public machine compare(value: u32 in Trapping) -> bool { value == 0 } machine main() -> u8 { 42 }", 2, 61);
+        assert self.compiler.outcome_space == 4;
+        assert self.compiler.outcome_coordinate == 0;
+        self.refusal("machine compare(value: u32 in Trapping) -> bool { value == 0 } public machine expose(value: u32 in Trapping) -> bool { compare(value) } machine main() -> u8 { 42 }", 2, 62);
+        assert self.compiler.outcome_space == 4;
+        assert self.compiler.outcome_coordinate == 63;
+        self.refusal("public machine expose(value: u32 in Trapping) -> bool { compare(value) } machine compare(value: u32 in Trapping) -> bool { value == 0 } machine main() -> u8 { 42 }", 2, 63);
+        assert self.compiler.outcome_space == 4;
+        assert self.compiler.outcome_coordinate == 0;
+        self.refusal("pub machine main() -> u8 { 42 }", 2, 64);
+        self.positive("public machine compare(value: u32) -> bool { let pub: u32 = value; pub == 47 } public machine main() -> u8 { transition compare(47) { true -> yes() _ -> no() } machine yes() -> u8 { 47 } machine no() -> u8 { 1 } }", 47, 90);
+    }
+}
+
+machine Main::positive(&mut self, source: &[u8], expected: i32, failure: i32) {
+    self.compiler.compile(source, "main");
+    transition self.compiler.status {
+        OmegaScalarCompilationStatus::Complete -> publish()
+        _ -> self.console.exit_process(failure)
+    }
+    state publish() {
+        assert self.compiler.tape.finalized == 1;
+        self.console.write_byte(expected);
+        let length: i32 = self.compiler.tape.payload_length();
+        self.console.write_byte(length % 256);
+        self.console.write_byte((length / 256) % 256);
+        self.console.write_byte((length / 65536) % 256);
+        self.console.write_byte((length / 16777216) % 256);
+        transition true { true -> byte(0) }
+    }
+    state byte(index: i32) {
+        transition index < self.compiler.tape.payload_length() {
+            true -> write(index)
+            _ -> return
+        }
+    }
+    state write(index: i32) {
+        self.console.write_byte(self.compiler.tape.bytes[index]);
+        transition true { true -> byte(index + 1) }
+    }
+}
+machine Main::refusal(&mut self, source: &[u8], expected: i32, failure: i32) {
+    self.compiler.compile(source, "main");
+    transition self.compiler.status {
+        OmegaScalarCompilationStatus::Reject -> check(1)
+        OmegaScalarCompilationStatus::Incomplete -> check(2)
+        _ -> self.console.exit_process(failure)
+    }
+    state check(actual: i32) {
+        assert (expected == 0) || (expected == actual);
+        assert self.compiler.tape.finalized == 0;
+        assert self.compiler.tape.payload_length() == 0;
+    }
+}

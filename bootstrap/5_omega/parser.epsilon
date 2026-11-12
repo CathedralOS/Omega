@@ -5,7 +5,7 @@
 // positions; no purpose or preflight fact escapes this invocation.
 //
 // The retained syntax currently owns ordinary `use path::member;`, basic
-// `[pub] data` roots, and `[pub]`/target-scoped machine roots with source-ordered
+// `[public] data` roots, and `[public]`/target-scoped machine roots with source-ordered
 // states, state parameters, optional immediate return types, and bodies
 // containing neutral path calls, simple assignments, or restricted transition
 // blocks. Exact non-generic satisfies bindings and nonempty reach ceilings are
@@ -2546,23 +2546,25 @@ machine OmegaParser::parse_view(
     state state_body_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::RightBrace -> finish_current_state()
-            OmegaPunctuationKind::LeftParen -> begin_grouped_expression_statement()
+            OmegaPunctuationKind::LeftParen -> begin_punctuated_expression_statement()
+            OmegaPunctuationKind::Exclamation -> begin_punctuated_expression_statement()
+            OmegaPunctuationKind::Tilde -> begin_punctuated_expression_statement()
+            OmegaPunctuationKind::Minus -> begin_punctuated_expression_statement()
             _ -> incomplete_root()
         }
     }
 
-    // A statement-leading parenthesis opens a grouped terminal expression:
-    // the shared group machinery owns the operand until its closing paren,
-    // then the framed tail continues with binary operators or the state
-    // right brace exactly like an ungrouped primary.
-    state begin_grouped_expression_statement() {
+    // A terminal expression may start with a group or unary prefix. Enter
+    // the shared operand grammar with a fresh frame so its prefix and group
+    // ownership is identical to a local initializer or call argument.
+    state begin_punctuated_expression_statement() {
         self.state_has_body_syntax = 1;
         self.expression_consumer = OmegaExpressionConsumer::ExpressionStatement;
         self.expression_frame_value_count = 0;
         self.expression_frame_operator_count = 0;
         self.expression_group_count = 0;
         self.expression_prefix_count = 0;
-        transition true { true -> begin_expression_group() }
+        transition true { true -> assignment_value_punctuation() }
     }
 
     state begin_local_data_statement() {

@@ -17,19 +17,19 @@ machine Main::main(&mut self) {
     self.compiler.compile("machine answer() -> u8 { a.b(); 1 }", "answer");
     self.incomplete();
 
-    self.compiler.compile("machine answer() -> u8 { transition { _ -> finish(1) } machine finish(x: u8) { 1 } }", "answer");
+    self.compiler.compile("machine answer() -> u8 { transition { _ -> finish(1) } machine finish(x: u8) -> u8 { 1 } }", "answer");
+    self.complete(80);
+
+    self.compiler.compile("machine answer() -> u8 { transition { _ -> first() _ -> second() } machine first() -> u8 { 1 } machine second() -> u8 { 2 } }", "answer");
     self.incomplete();
 
-    self.compiler.compile("machine answer() -> u8 { transition { _ -> first() _ -> second() } machine first() { 1 } machine second() { 2 } }", "answer");
+    self.compiler.compile("machine answer() -> u8 { transition { 1 -> first() } machine first() -> u8 { 1 } }", "answer");
     self.incomplete();
 
-    self.compiler.compile("machine answer() -> u8 { transition { 1 -> first() } machine first() { 1 } }", "answer");
+    self.compiler.compile("machine answer() -> u8 { transition true { 1 -> first() _ -> second() } machine first() -> u8 { 1 } machine second() -> u8 { 0 } }", "answer");
     self.incomplete();
 
-    self.compiler.compile("machine answer() -> u8 { transition true { 1 -> first() _ -> second() } machine first() { 1 } machine second() { 0 } }", "answer");
-    self.incomplete();
-
-    self.compiler.compile("machine helper() -> u8 { transition { _ -> finish() } } machine answer() -> u8 { transition { _ -> finish() } machine finish() { 1 } }", "answer");
+    self.compiler.compile("machine helper() -> u8 { transition { _ -> finish() } } machine answer() -> u8 { transition { _ -> finish() } machine finish() -> u8 { 1 } }", "answer");
     self.rejected();
 
     self.compiler.compile("machine answer() -> u8 { 20 + 22 }", "answer");
