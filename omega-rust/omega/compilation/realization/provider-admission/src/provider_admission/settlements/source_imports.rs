@@ -63,6 +63,14 @@ pub(super) fn derive_source_evaluated_mechanisms(
                     rows.boundary
                 ))]
             })?;
+        if row
+            .calling_signature
+            .is_some_and(|signature| signature != abi.id())
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "source import settlement for `{requirement}` substituted its exact declaration ABI"
+            ))]);
+        }
         if rows.selected_count > 1 {
             return Err(vec![Diagnostic::error(format!(
                 "demanded external binding `{requirement}` resolves to {} selected provider rows",
@@ -192,7 +200,9 @@ fn settled_host_cohort_row(
     row: &ProviderPlanRow,
     mechanism: effects::TerminalMechanismIdentity,
 ) -> Option<TerminalAuthorityPolicyRow> {
-    let requirement = provider_plan.identities.text(row.requirement_identity);
+    let requirement = provider_plan
+        .identities
+        .text(row.declared_requirement_identity);
     let mut methods = provider_plan
         .schema
         .declaration
@@ -383,12 +393,10 @@ fn authenticate_callback_application(
         .selected_external
         .filter(|_| rows.selected_count == 1)
         .ok_or("callback registrar has no unique selected external provider")?;
-    let mut methods = plan
-        .schema
-        .declaration
-        .methods
-        .iter()
-        .filter(|method| method.name == row.method);
+    let mut methods = plan.schema.declaration.methods.iter().filter(|method| {
+        plan.schema.identity_text(method.requirement_identity)
+            == plan.identities.text(row.declared_requirement_identity)
+    });
     let method = methods
         .next()
         .ok_or("callback selected provider has no method contract")?;
@@ -398,9 +406,14 @@ fn authenticate_callback_application(
     let application = &callback.registrar_application;
     if application.abi.requirement_identity
         != plan.schema.identity_text(method.requirement_identity)
+        || application.requirement_identity
+            != plan.identities.text(row.declared_requirement_identity)
+        || row
+            .calling_signature
+            .is_some_and(|signature| signature != application.abi.id())
         || !selected.selected_row_matches_requirement(
             requirement,
-            &application.requirement_identity,
+            plan.identities.text(row.requirement_identity),
             plan.report_fingerprint(),
         )
         || plan

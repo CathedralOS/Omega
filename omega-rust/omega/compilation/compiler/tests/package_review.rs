@@ -1008,6 +1008,15 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
 // outer and local arguments control exactly which call instances it can supply.
 #[test]
 fn native_binding_keeps_applied_boundary_scopes_through_package_reload() {
+    check_native_binding_applications(false);
+}
+
+#[test]
+fn native_binding_keeps_distinct_local_bindings_in_one_boundary_plan() {
+    check_native_binding_applications(true);
+}
+
+fn check_native_binding_applications(select_second_local: bool) {
     use checked_trees::provider_declarations::{
         ProviderApplicationView, ProviderDeclarationOrigin, ProviderDeclarationRequest,
         ProviderDeclarationRow,
@@ -1029,10 +1038,13 @@ fn native_binding_keeps_applied_boundary_scopes_through_package_reload() {
         .split_once("machine main()")
         .expect("fixture entry");
     let callback = &declarations[declarations.find("data CallbackBody").unwrap()..];
-    let source = format!(
+    let mut source = format!(
         "{declarations}\n{}\npublic boundary trait Getter<Value> {{ machine read() -> i32 reaches; }}\nmachine main() {{}}\n",
         callback.replace("CallbackBody", "SpareCallbackBody")
     );
+    if select_second_local {
+        source.push_str(&callback.replace("CallbackBody", "DormantCallbackBody"));
+    }
     std::fs::write(scratch.join("main.omg"), source).unwrap();
     let build = std::fs::read_to_string(fixture.join("build.omg")).unwrap();
     let start = build
@@ -1048,9 +1060,29 @@ fn native_binding_keeps_applied_boundary_scopes_through_package_reload() {
     let getter = binding
         .replace("Registrar<u64>::install", "Getter<u8>::read")
         .replace("atexit", "getpid");
-    let dormant = closed.replace("CallbackBody", "SpareCallbackBody");
+    let spare = closed
+        .replace("CallbackBody", "SpareCallbackBody")
+        .replace("libc.so.6", "/lib/x86_64-linux-gnu/libc.so.6");
+    let dormant = closed.replace(
+        "CallbackBody",
+        if select_second_local {
+            "DormantCallbackBody"
+        } else {
+            "SpareCallbackBody"
+        },
+    );
     let mut build = build;
-    build.insert_str(end, &format!("\n{second}\n{closed}\n{getter}"));
+    build.insert_str(
+        end,
+        &format!(
+            "\n{second}\n{closed}\n{getter}{}",
+            if select_second_local {
+                format!("\n{spare}")
+            } else {
+                String::new()
+            }
+        ),
+    );
     build.push_str(&format!(
         "\nmachine unused(builder: &mut Build) {{\n{dormant}\n}}\n"
     ));
@@ -1073,7 +1105,7 @@ fn native_binding_keeps_applied_boundary_scopes_through_package_reload() {
     assert_eq!(
         native.len(),
         4,
-        "two open methods, one closed method and one method without locals"
+        "all selected locals remain inside their one outer boundary plan"
     );
     let mut applications = native
         .iter()
@@ -1130,6 +1162,7 @@ fn native_binding_keeps_applied_boundary_scopes_through_package_reload() {
                         application: origin.application,
                     },
                     requirement_identity: candidate.plan.identities.text(row.requirement_identity),
+                    declared_requirement_identity: candidate.plan.identities.text(row.declared_requirement_identity),
                     application: ProviderApplicationView::External,
                 }
             })
@@ -1182,7 +1215,7 @@ fn native_binding_keeps_applied_boundary_scopes_through_package_reload() {
         .collect::<Vec<_>>();
     assert_eq!(
         closed.len(),
-        2,
+        if select_second_local { 3 } else { 2 },
         "selected and dormant callback instances are both formed"
     );
     let selected_closed = native
@@ -1205,8 +1238,8 @@ fn native_binding_keeps_applied_boundary_scopes_through_package_reload() {
         .collect::<Vec<_>>();
     assert_eq!(
         selected_closed.len(),
-        1,
-        "exactly one Registrar method instance is bound"
+        if select_second_local { 2 } else { 1 },
+        "only executed Registrar binding intents are selected"
     );
     for application in closed {
         let (owner, _) = checked
@@ -1218,9 +1251,38 @@ fn native_binding_keeps_applied_boundary_scopes_through_package_reload() {
             .trait_requirement_callable_identity_text(owner, application.signature);
         assert_eq!(
             facts.selected_requirement_row(&identity).is_some(),
-            application.signature.symbol == selected_closed[0],
+            selected_closed.contains(&application.signature.symbol),
             "selected origin must supply its own local instance and refuse the dormant sibling: {identity}"
         );
+        if let Some((plan, row)) = facts.selected_requirement_row(&identity) {
+            let origin = native
+                .iter()
+                .find(|candidate| candidate.plan == *plan)
+                .unwrap()
+                .provenance
+                .row_realizations
+                .iter()
+                .filter_map(|realization| realization.native())
+                .find(|origin| {
+                    origin.application.is_some_and(|handle| {
+                        checked
+                            .typed
+                            .product_operand_applications
+                            .get(handle)
+                            .declaration
+                            == application.signature.symbol
+                    })
+                })
+                .expect("selected row retains its own checked application");
+            assert_eq!(
+                row.binding,
+                origin.origin.primary.evaluated.provider_binding(),
+                "each exact local must keep its own locator"
+            );
+            assert_eq!(plan.identities.text(row.requirement_identity), identity);
+            assert_ne!(row.requirement_identity, row.declared_requirement_identity);
+            assert!(row.calling_signature.is_some());
+        }
     }
     let handoff = checked
         .package_build_handoff()
@@ -1237,7 +1299,7 @@ fn native_binding_keeps_applied_boundary_scopes_through_package_reload() {
             restored.native_declarations().len(),
             restored.native_intents().len()
         ),
-        (5, 4)
+        if select_second_local { (6, 5) } else { (5, 4) }
     );
     let mut typed = checked.typed.clone().into_inner();
     let selections = build_time_evaluation::native_bindings::collect_captured(
@@ -1246,7 +1308,7 @@ fn native_binding_keeps_applied_boundary_scopes_through_package_reload() {
         restored.native_intents(),
     )
     .expect("authenticate receiving applications");
-    assert_eq!(selections.len(), 4);
+    assert_eq!(selections.len(), if select_second_local { 5 } else { 4 });
     let mut outer = selections
         .iter()
         .map(|selection| {
@@ -1258,7 +1320,7 @@ fn native_binding_keeps_applied_boundary_scopes_through_package_reload() {
         .collect::<Vec<_>>();
     outer.sort_unstable();
     outer.dedup();
-    assert_eq!(outer.len(), 4);
+    assert_eq!(outer.len(), if select_second_local { 5 } else { 4 });
     for missing in [false, true] {
         let mut declarations = restored.native_declarations().to_vec();
         if missing {

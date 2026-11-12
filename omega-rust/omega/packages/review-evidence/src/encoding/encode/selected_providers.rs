@@ -82,6 +82,11 @@ fn row(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("method", |encoder| encoder.string(&row.method))?;
     encoder.field_by("requirement", &row.requirement, encode_nominal)?;
+    encoder.option_field(
+        "requirement_application",
+        row.requirement_application.as_ref(),
+        |encoder, application| encoder.string(application),
+    )?;
     encoder.option_field("realization", row.realization.as_ref(), encode_nominal)?;
     encoder.option_field("native_build", row.native_build.as_ref(), encode_producer)?;
     encoder.field("requirement_lifetime_partition", |encoder| {

@@ -182,6 +182,7 @@ impl<'a> Reviewer<'a> {
                     effects::TerminalAuthorityClosureCustody::SelectedRequirement {
                         service_schema,
                         requirement_identity,
+                        declared_requirement_identity,
                         provider_plan,
                     } => {
                         let requirement = authority
@@ -189,9 +190,15 @@ impl<'a> Reviewer<'a> {
                             .identities()
                             .text(requirement_identity)
                             .ok_or("component authority leaf lost its original identity table")?;
+                        let declared = authority
+                            .review()
+                            .identities()
+                            .text(declared_requirement_identity)
+                            .ok_or("component authority leaf lost its declared method identity")?;
                         self.admit_leaf(
                             service_schema,
                             requirement,
+                            declared,
                             provider_plan,
                             leaf.mechanism(),
                             leaf.origin(),
@@ -208,6 +215,9 @@ impl<'a> Reviewer<'a> {
                         self.admit_leaf(
                             selected_plan.schema_identity_digest(),
                             requirement,
+                            selected_plan
+                                .identities
+                                .text(selected_row.declared_requirement_identity),
                             selected_plan.identity_digest(),
                             leaf.mechanism(),
                             leaf.origin(),
@@ -232,6 +242,9 @@ impl<'a> Reviewer<'a> {
                     self.admit_leaf(
                         schema,
                         requirement,
+                        selected_plan
+                            .identities
+                            .text(selected_row.declared_requirement_identity),
                         provider_plan,
                         mechanism.mechanism,
                         mechanism.origin,
@@ -281,12 +294,24 @@ impl<'a> Reviewer<'a> {
                         .map(|leaf| (leaf.mechanism, leaf.origin))
                         .collect::<Vec<_>>();
                     for (mechanism, origin) in leaves {
-                        self.admit_leaf(schema, requirement, provider_plan, mechanism, origin)?;
+                        self.admit_leaf(
+                            schema,
+                            requirement,
+                            selected_plan
+                                .identities
+                                .text(selected_row.declared_requirement_identity),
+                            provider_plan,
+                            mechanism,
+                            origin,
+                        )?;
                     }
                 } else {
                     self.admit_leaf(
                         schema,
                         requirement,
+                        selected_plan
+                            .identities
+                            .text(selected_row.declared_requirement_identity),
                         provider_plan,
                         mechanism,
                         TerminalAuthorityClosureLeafOrigin::SelectedBoundary,
@@ -367,6 +392,7 @@ impl<'a> Reviewer<'a> {
         &mut self,
         schema: ServiceSchemaDigest,
         requirement: &str,
+        declared_requirement: &str,
         provider_plan: ProviderPlanDigest,
         mechanism: TerminalMechanismIdentity,
         origin: TerminalAuthorityClosureLeafOrigin,
@@ -384,7 +410,7 @@ impl<'a> Reviewer<'a> {
         let permitted = self
             .context
             .permission_policy
-            .map(|policy| policy.permission_for(schema, requirement))
+            .map(|policy| policy.permission_for(schema, declared_requirement))
             .transpose()
             .map_err(|_| {
                 format!(
@@ -394,6 +420,7 @@ impl<'a> Reviewer<'a> {
         let leaf = TerminalAuthorityClosureLeaf::new(
             schema,
             self.identities.intern(requirement),
+            self.identities.intern(declared_requirement),
             provider_plan,
             mechanism,
             origin,

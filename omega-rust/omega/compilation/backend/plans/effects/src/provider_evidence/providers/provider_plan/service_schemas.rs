@@ -336,12 +336,12 @@ impl ServiceSchema {
         method: &ServiceMethod,
         row_identities: &ProviderIdentityTable,
     ) -> bool {
-        row.requirement_identity.is_valid()
+        row.declared_requirement_identity.is_valid()
             && row.method == method.name
             && self
                 .declaration
                 .identities
-                .id_at(row_identities.text(row.requirement_identity))
+                .id_at(row_identities.text(row.declared_requirement_identity))
                 == Some(method.requirement_identity)
     }
 

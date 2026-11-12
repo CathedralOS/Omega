@@ -46,6 +46,7 @@ pub(crate) fn capture_plan_declarations(
                 crate::ProviderRowRealization::Toolchain => ProviderDeclarationOrigin::Toolchain,
             },
             requirement_identity: plan.identities.text(row.requirement_identity),
+            declared_requirement_identity: plan.identities.text(row.declared_requirement_identity),
             application: match row.binding {
                 ProviderBinding::CompilerIntrinsic { .. } | ProviderBinding::Syscall { .. } => {
                     ProviderApplicationView::PhysicalLeaf

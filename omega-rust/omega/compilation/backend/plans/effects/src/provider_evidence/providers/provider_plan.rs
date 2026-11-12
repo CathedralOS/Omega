@@ -74,6 +74,10 @@ pub struct TableFieldStorage {
 pub struct ProviderPlanRow {
     pub method: String,
     pub requirement_identity: ProviderIdentityId,
+    // Several closed calls can implement one declared method. Keep the method
+    // contract separately so their distinct bindings share one whole schema.
+    pub declared_requirement_identity: ProviderIdentityId,
+    pub calling_signature: Option<semantic_vocabulary::CallingSignatureId>,
     pub requirement_lifetime_partition: Vec<u32>,
     pub admitted_same_stack_bytes: u64,
     pub binding: ProviderBinding,
@@ -169,7 +173,11 @@ impl ProviderPlanRow {
         right_table: &ProviderIdentityTable,
     ) -> bool {
         self.method == other.method
-            && self.requirement_identity == other.requirement_identity
+            && left_table.text(self.requirement_identity)
+                == right_table.text(other.requirement_identity)
+            && left_table.text(self.declared_requirement_identity)
+                == right_table.text(other.declared_requirement_identity)
+            && self.calling_signature == other.calling_signature
             && self.requirement_lifetime_partition == other.requirement_lifetime_partition
             && self.admitted_same_stack_bytes == other.admitted_same_stack_bytes
             && match (&self.binding, &other.binding) {
@@ -270,6 +278,14 @@ impl ProviderPlan {
         for row in rows {
             encoder.string(&row.method);
             encoder.string(self.identities.text(row.requirement_identity));
+            encoder.string(self.identities.text(row.declared_requirement_identity));
+            match row.calling_signature {
+                Some(signature) => {
+                    encoder.byte(1);
+                    encoder.u64(signature.get());
+                }
+                None => encoder.byte(0),
+            }
             encoder.len(row.requirement_lifetime_partition.len());
             for ordinal in &row.requirement_lifetime_partition {
                 encoder.u64(u64::from(*ordinal));
@@ -462,9 +478,11 @@ impl ProviderPlan {
                 binding => format!("{binding:?}"),
             };
             rendered.push_str(&format!(
-                "\nr:{}/{}/lifetimes:{:?}/stack:{}/{}",
+                "\nr:{}/{}/declared:{}/calling:{:?}/lifetimes:{:?}/stack:{}/{}",
                 row.method,
                 self.identities.text(row.requirement_identity),
+                self.identities.text(row.declared_requirement_identity),
+                row.calling_signature,
                 row.requirement_lifetime_partition,
                 row.admitted_same_stack_bytes,
                 binding_identity
@@ -809,8 +827,49 @@ impl ProviderPlan {
                 }
             }
         }
+        let mut selected_requirements = self
+            .rows
+            .iter()
+            .map(|row| row.requirement_identity)
+            .collect::<Vec<_>>();
+        selected_requirements.sort_unstable();
+        for pair in selected_requirements
+            .windows(2)
+            .filter(|pair| pair[0] == pair[1])
+        {
+            errors.push(format!(
+                "plan `{}` repeats selected requirement `{}`",
+                self.name,
+                self.identities.text(pair[0])
+            ));
+        }
         for row in &self.rows {
-            if !row.requirement_identity.is_valid() {
+            if !row.declared_requirement_identity.is_valid()
+                || self
+                    .identities
+                    .text(row.declared_requirement_identity)
+                    .is_empty()
+            {
+                errors.push(format!(
+                    "plan `{}` row `{}` has no declared method coordinate",
+                    self.name, row.method
+                ));
+            }
+            if row.requirement_identity != row.declared_requirement_identity
+                && (row.calling_signature.is_none()
+                    || !matches!(
+                        row.binding,
+                        ProviderBinding::Import { .. } | ProviderBinding::Syscall { .. }
+                    ))
+            {
+                errors.push(format!(
+                    "plan `{}` row `{}` has no exact native application ABI",
+                    self.name, row.method
+                ));
+            }
+            if !row.requirement_identity.is_valid()
+                || self.identities.text(row.requirement_identity).is_empty()
+            {
                 errors.push(format!(
                     "plan `{}` row `{}` has no exact requirement identity",
                     self.name, row.method
@@ -909,22 +968,6 @@ impl ProviderPlan {
                 }
             }
         }
-        for method in &self.schema.declaration.methods {
-            let count = self
-                .rows
-                .iter()
-                .filter(|row| self.schema.row_binds_method(row, method, &self.identities))
-                .count();
-            if count > 1 {
-                errors.push(format!(
-                    "plan `{}` binds `{}::{}` {count} times; one row per method",
-                    self.name,
-                    self.schema
-                        .identity_text(self.schema.declaration.trait_name),
-                    method.name
-                ));
-            }
-        }
         for row in &self.rows {
             if !self
                 .schema
@@ -946,18 +989,32 @@ impl ProviderPlan {
     }
 
     pub fn covers_schema(&self) -> bool {
+        let mut selected_requirements = self
+            .rows
+            .iter()
+            .map(|row| row.requirement_identity)
+            .collect::<Vec<_>>();
+        selected_requirements.sort_unstable();
+        if selected_requirements
+            .windows(2)
+            .any(|pair| pair[0] == pair[1])
+        {
+            return false;
+        }
         self.schema.declaration.methods.iter().all(|method| {
             self.rows
                 .iter()
                 .filter(|row| self.schema.row_binds_method(row, method, &self.identities))
                 .count()
-                == 1
+                >= 1
         }) && self.rows.iter().all(|row| {
-            self.schema
-                .declaration
-                .methods
-                .iter()
-                .any(|method| self.schema.row_binds_method(row, method, &self.identities))
+            !self.identities.text(row.requirement_identity).is_empty()
+                && self
+                    .schema
+                    .declaration
+                    .methods
+                    .iter()
+                    .any(|method| self.schema.row_binds_method(row, method, &self.identities))
         })
     }
 }

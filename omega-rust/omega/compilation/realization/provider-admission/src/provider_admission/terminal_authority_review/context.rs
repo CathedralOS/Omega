@@ -309,7 +309,8 @@ impl<'a> ReviewContext<'a> {
                 let identity = plan.identities.text(row.requirement_identity);
                 if !plan.schema.declaration.methods.iter().any(|method| {
                     Some(method.parameter_count) == arity
-                        && plan.schema.identity_text(method.requirement_identity) == identity
+                        && plan.schema.identity_text(method.requirement_identity)
+                            == plan.identities.text(row.declared_requirement_identity)
                 }) {
                     continue;
                 }

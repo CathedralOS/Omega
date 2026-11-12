@@ -53,6 +53,8 @@ struct PreparedNativeRequirement {
     owner: symbols::SymbolHandle,
     signature: symbols::SymbolHandle,
     identity: String,
+    declared_identity: String,
+    calling_signature: Option<semantic_vocabulary::CallingSignatureId>,
     method: String,
     surface: Option<RetainedServiceSurface>,
 }
@@ -90,17 +92,26 @@ impl PreparedNativeBuildBindings {
                     let scope = application.map(|application| application.scope.scope(typed)
                         .filter(|scope| scope.declaration.symbol == declaring.symbol)
                         .ok_or_else(|| fail("native Build requirement changed its applied boundary owner"))).transpose()?;
-                    let application_identity = match selected {
-                        Some(selected) => Some(typed.trait_requirement_callable_identity_text(owner, selected.signature)),
-                        None => scope.as_ref().map(|scope| scope.portable_application_identity(typed)
-                            .and_then(|identity| typed.type_identity_text(identity))
-                            .ok_or_else(|| fail("native Build requirement lost its portable outer application"))).transpose()?,
+                    let application_identity = scope.as_ref().map(|scope| scope.portable_application_identity(typed)
+                        .and_then(|identity| typed.type_identity_text(identity))
+                        .ok_or_else(|| fail("native Build requirement lost its portable outer application"))).transpose()?;
+                    let declared_identity = typed.trait_requirement_callable_identity_text(owner, signature);
+                    let (identity, calling_signature) = match selected {
+                        Some(selected) => {
+                            let calling = services.signatures().abi_for_boundary(selected.signature.symbol)
+                                .ok_or_else(|| fail("native Build requirement lost its prepared declaration ABI"))?
+                                .as_ref().map_err(|reason| fail(reason.as_str()))?;
+                            (typed.trait_requirement_callable_identity_text(owner, selected.signature), Some(*calling))
+                        }
+                        None => (declared_identity.clone(), None),
                     };
                     Ok(PreparedNativeRequirement {
                         application: application_identity,
                         owner: owner.symbol,
                         signature: signature.symbol,
-                        identity: typed.trait_requirement_callable_identity_text(owner, signature),
+                        identity,
+                        declared_identity,
+                        calling_signature,
                         method: signature.name.as_str().to_owned(),
                         surface: match scope {
                             Some(scope) => services.retain_application(scope),
@@ -256,6 +267,11 @@ impl PreparedNativeBuildBindings {
             candidate.plan.rows.push(ProviderPlanRow {
                 method: requirement.method.clone(),
                 requirement_identity: candidate.plan.identities.intern(&requirement.identity),
+                declared_requirement_identity: candidate
+                    .plan
+                    .identities
+                    .intern(&requirement.declared_identity),
+                calling_signature: requirement.calling_signature,
                 requirement_lifetime_partition: Vec::new(),
                 admitted_same_stack_bytes: 0,
                 binding: production.evaluated.provider_binding(),

@@ -18,7 +18,7 @@ pub(crate) fn selected_calling_applications(
         .rows
         .get(row_index)
         .ok_or_else(|| Diagnostic::error("selected boundary entry lost its provider row"))?;
-    let requirement = plan.identities.text(row.requirement_identity);
+    let requirement = plan.identities.text(row.declared_requirement_identity);
     if requirement.is_empty() {
         return Err(Diagnostic::error(
             "selected boundary entry has no exact requirement identity",
@@ -43,8 +43,16 @@ pub(crate) fn selected_calling_applications(
         .iter()
         .filter(|declaration| {
             module.identities.text(declaration.requirement_identity) == Some(requirement)
+                && row
+                    .calling_signature
+                    .is_none_or(|signature| signature == declaration.id)
         })
         .collect::<Vec<_>>();
+    if row.calling_signature.is_some() && declarations.len() != 1 {
+        return Err(Diagnostic::error(
+            "selected closed method lost its exact published declaration ABI",
+        ));
+    }
     for declaration in &declarations {
         declaration
             .physical_owner
@@ -53,7 +61,13 @@ pub(crate) fn selected_calling_applications(
     }
     let calling = plan
         .schema
-        .calling_for_requirement(method.requirement_identity);
+        .calling_for_requirement(method.requirement_identity)
+        .into_iter()
+        .filter(|application| {
+            row.calling_signature
+                .is_none_or(|signature| application.abi.id() == signature)
+        })
+        .collect::<Vec<_>>();
     if !calling.is_empty()
         && declarations.iter().any(|declaration| {
             declaration.physical_owner == Ok(CallingDeclarationOwner::TopLevelRequirement)
