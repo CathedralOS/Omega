@@ -1,0 +1,66 @@
+good=ffc4d649fa8c2244d87091f8b8a694db7a181036
+We are not bisecting.
+Bisecting: 352 revisions left to test after this (roughly 9 steps)
+[3f0100ebf628b377021c9d646a6c43b16d809507] psi: build integer writes, rank components and contract envelopes in parallel (#2125)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 175 revisions left to test after this (roughly 8 steps)
+[f6cfbbbd84cb7ab010e7ebafba3cb542c56b23db] psi: prepare the permission walk's pure per-state queries on the checking pool (#1949)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 87 revisions left to test after this (roughly 7 steps)
+[171b994082a0cddd46f2c036c60121bc3d29320f] psi: transport caller guards into nested machine entries (#1860)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 43 revisions left to test after this (roughly 6 steps)
+[112405e16cc4df9cde768442b58732f9d8757ade] compiler: accept fixed array lengths alongside callbacks (#1809)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 21 revisions left to test after this (roughly 5 steps)
+[8c1d4257d8757ed161af7f0c4cb4132584f83f6c] psi: keep a call result's guarded return range across a nested arrival (#1773)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 10 revisions left to test after this (roughly 4 steps)
+[138655b5f0b790cb04e3f9b8fd09dc3225b7b745] compiler: avoid repeated bound scans when checking integer codecs (#1798)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 5 revisions left to test after this (roughly 3 steps)
+[9566f10e0d29e065c093c9c543ecab3530c48d52] psi: keep float field contracts through Build selection (#1786)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 2 revisions left to test after this (roughly 1 step)
+[0a946bebae9eb2d2cb5864660c0595dfdd0355a8] compiler: infer hosted console read_byte leaf supply (#1791)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[bfcc2b3bb7956f86a66f07cd044eebe5c806be9d] psi: match applied domain carriers to their explicit arguments (#1790)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+bfcc2b3bb7956f86a66f07cd044eebe5c806be9d is the first bad commit
+commit bfcc2b3bb7956f86a66f07cd044eebe5c806be9d
+Author: Zachary Canann <zacharycanann@gmail.com>
+Date:   Wed Nov 4 04:15:12 2026 +0000
+
+    psi: match applied domain carriers to their explicit arguments (#1790)
+    
+    * psi: match applied domain carriers to their explicit arguments
+    
+    * tests: retain applied carrier domain acceptance and refusal
+
+ .../src/grammar/declarations/domain.rs             | 14 ++---
+ .../src/grammar/type_syntax/parse_type.rs          | 13 ++++-
+ .../src/tests/definitions_and_contracts.rs         | 47 +++++++++++++++
+ .../src/contracts/proof_facts/domain_selections.rs |  3 +
+ .../src/expressions/qualification_casts.rs         |  1 +
+ .../src/type_reference/domain_constraints.rs       | 42 ++++----------
+ .../callable_applications/domain_scopes/tests.rs   | 66 ++++++++++++++++++++++
+ .../src/typed_trees/declarations/domain.rs         | 31 ++++++++++
+ .../type_references/constraint_validation.rs       | 22 +++-----
+ tests/omega/corpus_outcomes.txt                    |  3 +
+ .../expected.txt                                   |  1 +
+ .../main.omg                                       |  6 ++
+ .../pass/domains/applied_generic_carrier/build.omg |  7 +++
+ .../expected_interpreter_exit.txt                  |  1 +
+ .../expected_native_exit.txt                       |  1 +
+ .../pass/domains/applied_generic_carrier/main.omg  | 21 +++++++
+ 16 files changed, 226 insertions(+), 53 deletions(-)
+ create mode 100644 tests/omega/fail/domains/applied_generic_carrier_wrong_arguments/expected.txt
+ create mode 100644 tests/omega/fail/domains/applied_generic_carrier_wrong_arguments/main.omg
+ create mode 100644 tests/omega/pass/domains/applied_generic_carrier/build.omg
+ create mode 100644 tests/omega/pass/domains/applied_generic_carrier/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/domains/applied_generic_carrier/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/domains/applied_generic_carrier/main.omg
+bisect found first bad commit
+Your branch is up to date with 'origin/work/ledger-bisect-part-26'.
+bisected pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit bfcc2b3bb795 pr 1790

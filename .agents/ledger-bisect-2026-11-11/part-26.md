@@ -40,10 +40,11 @@ Members:
 - `pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit`
 - endpoints: good=[0, 0, 0] flaky=False; pin=[1, 1, 1] flaky=False; anchor=[1, 1, 1] flaky=False
 
-| 1 | pass/run regression | machine `clear_selected` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's st | `pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit` | `` |  |  | pending |
+| 1 | pass/run regression | machine `clear_selected` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's st | `pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit` | `bfcc2b3bb795` | 1790 | psi: match applied domain carriers to their explicit arguments (#1790) —  .../src/grammar/declarations/domain.rs             \| 14 ++---; .../src/grammar/type_s | bisected |
 
 Members:
 - `pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit`
+- endpoints: good=[1, 1, 1] flaky=True; pin=[1, 1, 1] flaky=False; anchor=[1, 1, 1] flaky=False
 
 - fixed on main: `fail/termination/nested_helper_record_measure_result_equation_not_decreasing`
 - fixed on main: `fail/termination/nested_helper_record_measure_result_equation_wrong_subject`

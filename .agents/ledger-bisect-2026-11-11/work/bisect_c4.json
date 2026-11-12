@@ -1,0 +1,41 @@
+{
+  "witness": "pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit",
+  "good": "ffc4d649fa8c2244d87091f8b8a694db7a181036",
+  "bad": "51e8c45c793007f211d0d9baee7de16767172444",
+  "anchor": "741270df60f7",
+  "breaking_commit": "bfcc2b3bb7956f86a66f07cd044eebe5c806be9d",
+  "pr": "1790",
+  "mechanism": "psi: match applied domain carriers to their explicit arguments (#1790) \u2014  .../src/grammar/declarations/domain.rs             | 14 ++---; .../src/grammar/type_syntax/parse_type.rs          | 13 ++++-; .../src/tests/definitions_and_contracts.rs         | 47 +++++++++++++++; .../src/contracts/proof_facts/domain_selections.rs |  3 +; .../src/expressions/qualification_casts.rs         |  1 +; .../src/t",
+  "status": "bisected",
+  "bisect_exit": 0,
+  "endpoints": {
+    "good": {
+      "results": [
+        1,
+        1,
+        1
+      ],
+      "expect": 0,
+      "flaky": true
+    },
+    "pin": {
+      "results": [
+        1,
+        1,
+        1
+      ],
+      "expect": 1,
+      "flaky": false
+    },
+    "anchor": {
+      "results": [
+        1,
+        1,
+        1
+      ],
+      "expect": 1,
+      "flaky": false
+    }
+  },
+  "pin_context_path": ".agents/ledger-bisect-2026-11-11/work/bisect_c4.pin_context.json"
+}

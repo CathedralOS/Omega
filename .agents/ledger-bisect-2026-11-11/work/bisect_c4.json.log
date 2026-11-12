@@ -1,0 +1,22 @@
+# bad: [51e8c45c793007f211d0d9baee7de16767172444] psi: check a body over a const value parameter once and carry its proofs (#2505)
+# good: [ffc4d649fa8c2244d87091f8b8a694db7a181036] compiler: keep build-native provenance through named provider maps (#1787)
+git bisect start '--first-parent' '51e8c45c793007f211d0d9baee7de16767172444' 'ffc4d649fa8c2244d87091f8b8a694db7a181036'
+# bad: [3f0100ebf628b377021c9d646a6c43b16d809507] psi: build integer writes, rank components and contract envelopes in parallel (#2125)
+git bisect bad 3f0100ebf628b377021c9d646a6c43b16d809507
+# bad: [f6cfbbbd84cb7ab010e7ebafba3cb542c56b23db] psi: prepare the permission walk's pure per-state queries on the checking pool (#1949)
+git bisect bad f6cfbbbd84cb7ab010e7ebafba3cb542c56b23db
+# bad: [171b994082a0cddd46f2c036c60121bc3d29320f] psi: transport caller guards into nested machine entries (#1860)
+git bisect bad 171b994082a0cddd46f2c036c60121bc3d29320f
+# bad: [112405e16cc4df9cde768442b58732f9d8757ade] compiler: accept fixed array lengths alongside callbacks (#1809)
+git bisect bad 112405e16cc4df9cde768442b58732f9d8757ade
+# bad: [8c1d4257d8757ed161af7f0c4cb4132584f83f6c] psi: keep a call result's guarded return range across a nested arrival (#1773)
+git bisect bad 8c1d4257d8757ed161af7f0c4cb4132584f83f6c
+# bad: [138655b5f0b790cb04e3f9b8fd09dc3225b7b745] compiler: avoid repeated bound scans when checking integer codecs (#1798)
+git bisect bad 138655b5f0b790cb04e3f9b8fd09dc3225b7b745
+# bad: [9566f10e0d29e065c093c9c543ecab3530c48d52] psi: keep float field contracts through Build selection (#1786)
+git bisect bad 9566f10e0d29e065c093c9c543ecab3530c48d52
+# bad: [0a946bebae9eb2d2cb5864660c0595dfdd0355a8] compiler: infer hosted console read_byte leaf supply (#1791)
+git bisect bad 0a946bebae9eb2d2cb5864660c0595dfdd0355a8
+# bad: [bfcc2b3bb7956f86a66f07cd044eebe5c806be9d] psi: match applied domain carriers to their explicit arguments (#1790)
+git bisect bad bfcc2b3bb7956f86a66f07cd044eebe5c806be9d
+# first bad commit: [bfcc2b3bb7956f86a66f07cd044eebe5c806be9d] psi: match applied domain carriers to their explicit arguments (#1790)

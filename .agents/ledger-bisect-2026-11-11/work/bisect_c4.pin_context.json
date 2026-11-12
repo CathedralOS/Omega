@@ -1,0 +1,9 @@
+{
+  "witness": "pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit",
+  "pin_commit": "51e8c45c793007f211d0d9baee7de16767172444",
+  "pin_status": "rejected",
+  "pin_first_diag": "machine `clear_selected` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate",
+  "pin_diag_norm": "machine `_` cannot lend restricted field `_` to `_`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate",
+  "ledger_expected_status": "checked",
+  "tier": "pass"
+}
