@@ -332,16 +332,16 @@ crashes Trap
     lowerer.ready[0] = false;
     transition { _ -> next(lowerer, syntax, resolution, typing) }
     machine next(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing) {
-        let count: u64 in Trapping = lowerer.work_count;
+        let count: u64 = lowerer.work_count as -Trapping;
         transition count > 0 && count <= 4096 {
             true -> node(lowerer, syntax, resolution, typing, count - 1)
             _ -> done()
         }
     }
-    machine node(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, slot: u64 in Trapping) {
-        let handle: u64 in Trapping = lowerer.work[(slot) as -Trapping];
+    machine node(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, slot: u64) {
+        let handle: u64 in Trapping = lowerer.work[slot];
         let expression: Expression = syntax_trees_expression(syntax, handle);
-        transition lowerer.ready[(slot) as -Trapping] {
+        transition lowerer.ready[slot] {
             true -> completed(lowerer, syntax, resolution, typing, handle, expression)
             _ -> classify(lowerer, syntax, resolution, typing, handle, expression)
         }
@@ -375,16 +375,17 @@ crashes Trap
         }
     }
     machine cast_room(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression) {
-        transition lowerer.work_count > 0 && lowerer.work_count < 4096 {
-            true -> cast_child(lowerer, syntax, resolution, typing, expression)
+        let count: u64 = lowerer.work_count as -Trapping;
+        transition count > 0 && count < 4096 {
+            true -> cast_child(lowerer, syntax, resolution, typing, expression, count)
             _ -> full(lowerer)
         }
     }
-    machine cast_child(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression) {
-        lowerer.ready[(lowerer.work_count - 1) as -Trapping] = true;
-        lowerer.work[(lowerer.work_count) as -Trapping] = expression.left;
-        lowerer.ready[(lowerer.work_count) as -Trapping] = false;
-        lowerer.work_count = lowerer.work_count + 1;
+    machine cast_child(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, count: u64) {
+        lowerer.ready[count - 1] = true;
+        lowerer.work[count] = expression.left;
+        lowerer.ready[count] = false;
+        lowerer.work_count = (count + 1) as +Trapping;
         transition { _ -> next(lowerer, syntax, resolution, typing) }
     }
     machine completed(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
@@ -438,18 +439,19 @@ crashes Trap
         transition { _ -> record(lowerer, syntax, resolution, typing, handle, result) }
     }
     machine children(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression) {
-        transition lowerer.work_count > 0 && lowerer.work_count <= 4094 {
-            true -> push(lowerer, syntax, resolution, typing, expression)
+        let count: u64 = lowerer.work_count as -Trapping;
+        transition count > 0 && count <= 4094 {
+            true -> push(lowerer, syntax, resolution, typing, expression, count)
             _ -> full(lowerer)
         }
     }
-    machine push(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression) {
-        lowerer.ready[(lowerer.work_count - 1) as -Trapping] = true;
-        lowerer.work[(lowerer.work_count) as -Trapping] = expression.right;
-        lowerer.ready[(lowerer.work_count) as -Trapping] = false;
-        lowerer.work[(lowerer.work_count + 1) as -Trapping] = expression.left;
-        lowerer.ready[(lowerer.work_count + 1) as -Trapping] = false;
-        lowerer.work_count = lowerer.work_count + 2;
+    machine push(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, count: u64) {
+        lowerer.ready[count - 1] = true;
+        lowerer.work[count] = expression.right;
+        lowerer.ready[count] = false;
+        lowerer.work[count + 1] = expression.left;
+        lowerer.ready[count + 1] = false;
+        lowerer.work_count = (count + 2) as +Trapping;
         transition { _ -> next(lowerer, syntax, resolution, typing) }
     }
     machine binary(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
