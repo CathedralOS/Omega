@@ -60,20 +60,36 @@ mod body_completion {
         }
         let program = &lowerer.symbol_resolved_trees;
         let mut demanded = Vec::with_capacity(program.machines.len());
+        let mut by_symbol: Vec<Option<(SymbolHandle, bool)>> = Vec::new();
         // Lowering stores lexical parents before their nested declarations.
         for machine in program.machines.iter() {
-            let inherited = machine.lexical_parent.is_valid()
-                && demanded
-                    .get(machine.lexical_parent.arena_index() as usize)
+            let inherited = if machine.lexical_parent.is_valid() {
+                let parent = program.machines.get(machine.lexical_parent).symbol;
+                by_symbol
+                    .get(parent.arena_index() as usize)
                     .copied()
-                    .unwrap_or(false);
-            demanded.push(
-                inherited
-                    || program
-                        .machine_type_parameters(machine)
-                        .iter()
-                        .any(crate::selection::callable_inference::pending),
-            );
+                    .flatten()
+                    .filter(|(known, _)| *known == parent)
+                    .map(|(_, demand)| demand)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "callable type inference lost its preceding lexical declaration owner",
+                        )]
+                    })?
+            } else {
+                false
+            };
+            let demand = inherited
+                || program
+                    .machine_type_parameters(machine)
+                    .iter()
+                    .any(crate::selection::callable_inference::pending);
+            demanded.push(demand);
+            let slot = machine.symbol.arena_index() as usize;
+            if by_symbol.len() <= slot {
+                by_symbol.resize(slot + 1, None);
+            }
+            by_symbol[slot] = Some((machine.symbol, demand));
         }
         let pending = lowerer
             .pending_machine_bodies

@@ -42,8 +42,14 @@ struct Parameters {
 impl Parameters {
     fn new(program: &SymbolResolvedTrees) -> Self {
         let mut by_symbol = Vec::new();
-        let mut inferred = vec![false; program.tables.declarations.data_type_parameters.len()];
+        // Handles are one-based physical slots; Arena::len counts live rows.
+        // Grow from actual handles so retired slots cannot alias dense ordinals.
+        let mut inferred = Vec::new();
         for (handle, parameter) in program.tables.declarations.data_type_parameters.iter() {
+            let slot = handle.arena_index() as usize;
+            if inferred.len() <= slot {
+                inferred.resize(slot + 1, false);
+            }
             if !parameter.symbol.is_valid() {
                 continue;
             }
@@ -52,7 +58,7 @@ impl Parameters {
                 by_symbol.resize(index + 1, None);
             }
             by_symbol[index] = Some((parameter.symbol, handle));
-            inferred[handle.arena_index() as usize] = pending(parameter);
+            inferred[slot] = pending(parameter);
         }
         Self {
             by_symbol,
