@@ -2,7 +2,7 @@
 
 This directory contains the bootstrap compiler that must eventually construct
 the Omega compiler in [`../../source/`](../../source). It currently compiles a
-checked scalar subset into executable Alpha tapes. It does **not** yet compile
+checked scalar and record subset into executable Alpha tapes. It does **not** yet compile
 the Omega compiler source closure or close the Omega self-rebuild edge.
 
 The source can run through the sibling [`../4_epsilon/`](../4_epsilon)
@@ -43,10 +43,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 18,166 lines / 645,486 bytes with SHA-256
-`ec5caf34674af271f408e03bdbe77608b445c306956a0dc1064a41792141f377`.
+manifest materializes 19,534 lines / 706,044 bytes with SHA-256
+`9f6abccac3ceab338541d78a77e912388146a51e3d60f0ebd326013cec670baa`.
 The manifest itself is 1,339 bytes, SHA-256
-`3f8cc706fb78c155affb98a4ce8aa42f1cb9bea79762b07a07deeff6040d24c1`;
+`e2e86c7f779b4b0eb30e373c183f6aec53281ec338b5756df1421cb24d473238`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -63,10 +63,11 @@ The direct `compile(source, entry)` boundary is an internal compilation customer
 not a replacement public request protocol.
 
 The emitted subset retains a nullary `u8` program entry. Free and nested
-machines may use plain `u8`, `u32`, `bool`, and `u32 in Trapping` parameters/results;
-immutable initialized locals use the same carriers and policy. Every admitted
-machine writes its own result annotation; an omitted nested result never inherits
-the enclosing machine's type. It supports
+machines may use plain `u8`, `u32`, `u64`, `bool`, `u32 in Trapping`, copy records,
+and Unit results. Omitted results independently mean Unit; a nested declaration
+never inherits its enclosing machine's result. Initialized and zero-established
+locals retain their declared types, and mutable bindings permit checked stores.
+It supports
 resolved ordinary free calls, nested argument calls, scalar comparisons,
 short-circuit Boolean operations, and parameterized same-owner tail transfers.
 Boolean transition subjects may depend on runtime values, with Boolean or
@@ -76,7 +77,7 @@ Constant transition subjects retain their specialized code path.
 A signature census runs before bodies resolve calls or transfers. Unsupported
 overload families refuse; identical admitted signatures reject as duplicates
 regardless of binder spelling. Every body and arm is checked, including those
-unreachable from the selected entry. Clauses, receivers, mutable bindings,
+unreachable from the selected entry. Machine clauses, receivers,
 other runtime carriers/policies, numeric runtime arithmetic, non-Boolean dynamic
 subjects, and ordinary calls to nested declarations remain explicit coverage
 boundaries. Nested declarations use canonical `machine`; the retired `state`
@@ -97,7 +98,8 @@ A direct out-of-range `u8` literal and division by zero reject. Full rational
 folding, explicit landing, and typed runtime operations remain work.
 
 Private static storage separates parameter, local, pending-argument and
-expression-scratch cells in `[0x02000000, 0x02080000)`, beyond the maximum 16 MiB tape and
+expression-scratch cells within a 16 MiB arena `[0x02000000, 0x03000000)`,
+beyond the maximum 16 MiB tape and
 below Alpha's return stack. Each call evaluates arguments left to right into
 its own pending cells before copying them into destination parameters, including
 same-state transfers. This preserves
@@ -105,10 +107,11 @@ earlier arguments and caller locals across nested calls. A whole-owner call
 DAG, collecting calls from every state, rejects reentrant ordinary-call cycles;
 all admitted state transfers stay within the owner, so mixed transfer/call
 cycles cannot bypass the check. At most 4,096 source ordinary calls can be live.
-No admitted source operation exposes these private cell addresses. Numeric values
-are zero-extended Alpha words, so signed 64-bit comparisons correctly order all
-admitted `u32` values. Decimal literals cover `0..4294967295`; arithmetic in that
-carrier remains unsupported. Comparisons retain carrier/policy identity rather
+No admitted source operation converts these private addresses to numeric values.
+Numeric comparisons bias both unsigned words by the high bit before Alpha's
+signed comparison, preserving unsigned order. Decimal literals currently cover
+`0..4294967295`; larger `u64` spellings and runtime arithmetic remain explicitly
+unsupported. Comparisons retain carrier/policy identity rather
 than treating every word as interchangeable. Ordinary arguments, locals and
 results never acquire or drop a domain implicitly: `as +Trapping` and
 `as -Trapping` express the supported domain changes. Core comparisons admit a
@@ -130,6 +133,55 @@ refuse until those clauses are supported. No `NoTrap` claim or complete selected
 product effect admission follows from this internal source-to-tape customer.
 Visibility uses canonical `public`; retired `pub` is an ordinary identifier,
 not a declaration modifier.
+
+Records retain declaration identity, field qualification and copy/affine
+multiplicity. The current layout gives every scalar an eight-byte word and
+fixed arrays their declared count times the element stride; this is a private
+Alpha representation, not an implementation of canonical native layout queries.
+A SourceUnit byte array therefore occupies 1 MiB. Layout recursion is bounded
+at 64 steps and the complete private storage arena at 16 MiB. By-value cycles,
+linear/opaque/authority-bearing types, stored references, selected cleanup and
+unsupported domains decline before allocation. An intact affine local with no
+contained cleanup may leave scope; it is never implicitly copied.
+
+The first default-domain solver admits direct scalar-field `<=` literal bounds,
+with the literal checked against the field's carrier. Zero establishment proves
+these predicates recursively. Every field store must preserve the declared
+bound immediately, using an admitted literal or an equal/stronger declared field
+bound. Unknown predicates and temporary invariant violations decline. A checked
+record copy preserves all nested field validity. Calls retain only declared
+validity, not stale stronger facts about fields they may mutate.
+
+Copy records support exhaustive literals, nested field projection, owned local
+storage, parameter/result transport and captured-place assignment. Literals
+evaluate their fields in authored order; arguments evaluate left to right and
+copy values into distinct staging storage before the next call can overwrite
+its result. No affine record moves or partial initialization are admitted yet.
+Fixed arrays may be retained, zero-established and copied inside these records;
+indexing, structural equivalence of separately spelled array types, and mutable
+domain-removal views remain unsupported.
+
+Shared and mutable record-reference parameters carry the original referent
+address. Calls support one reference parameter, explicit borrows of owned
+records or projected record fields, and projected reborrows. The checker tracks
+active argument loans by exact root and field range: overlapping access after
+an exclusive loan refuses, while disjoint fields remain usable. The referenced
+root cannot be rebound; escaping/stored references, bare reference-root
+forwarding/reborrowing, implicit shared lending and lifetime syntax decline.
+Mutation through a shared reference rejects. All these checks finish before
+any executable bytes are published.
+
+The `--omega-storage` customer takes exact SourceId, SourceUnit and
+`source_unit_clear` declarations from `source/psi/source/source.omg`, adds
+`storage_controls.omg`, and executes the emitted result. Companion controls
+exercise copy independence, nested record results, projected borrowing,
+qualification, bounds, refusal and reuse. Clear updates only its three authored
+fields; array-element preservation is not yet an executed canary test because
+indexed access is outside this slice.
+
+```sh
+python3 bootstrap/compiled_vm/source_test.py --omega-storage
+```
 
 The `--omega-control` source-built customer extracts the exact canonical
 `is_identifier_start` and `is_identifier_continue` declarations from

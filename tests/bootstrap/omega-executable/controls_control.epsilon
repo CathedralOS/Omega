@@ -40,7 +40,7 @@ machine Main::main(&mut self) {
         self.refusal("machine main() -> u8 { transition { _ -> next(1) } machine next(first: u8) -> u8 { first } machine next(second: u8) -> u8 { second } }", 1, 51);
         self.refusal("machine guarded(x: u32 in Trapping) -> bool requires x == 0 { true } machine main() -> u8 { let bad: bool = guarded(1 as +Trapping); 42 }", 0, 52);
         self.refusal("machine dead(x: bool) -> bool { transition x { true -> true _ -> missing(1) } } machine main() -> u8 { 42 }", 1, 53);
-        self.refusal("machine main() -> u8 { transition { _ -> finish() } machine finish() { 42 } }", 2, 55);
+        self.refusal("machine main() -> u8 { transition { _ -> finish() } machine finish() { 42 } }", 1, 55);
         self.refusal("machine word(x: u32 in Trapping) -> bool { x == 0 } machine main() -> u8 { let bad: bool = word(0); 42 }", 1, 56);
         self.refusal("machine main() -> u8 { let bad: u32 in Trapping = 1; 42 }", 1, 57);
         self.refusal("machine word() -> u32 in Trapping { 1 } machine main() -> u8 { 42 }", 1, 58);

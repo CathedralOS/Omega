@@ -28,7 +28,7 @@ requires
     last_retained: bool;
 }
 
-machine SourceUnit::clear(source_unit: &mut SourceUnit, id: SourceId) {
+machine source_unit_clear(source_unit: &mut SourceUnit, id: SourceId) {
     source_unit.id = id;
     source_unit.length = 0;
     source_unit.last_retained = true;

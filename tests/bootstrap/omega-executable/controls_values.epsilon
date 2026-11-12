@@ -24,8 +24,8 @@ machine Main::main(&mut self) {
     self.refusal("machine main() -> u8 { let value: u8 = 1; let value: u8 = 2; value }", 1, 44);
     self.refusal("machine shadow(value: u8) -> u8 { let value: u8 = 2; value } machine main() -> u8 { 42 }", 1, 45);
     self.refusal("machine hidden() -> u8 { 7 } machine main() -> u8 { let hidden: u8 = 2; hidden }", 2, 46);
-    self.refusal("machine main() -> u8 { let value: u8; value }", 2, 47);
-    self.refusal("machine main() -> u8 { let mut value: u8 = 2; value }", 2, 48);
+    self.positive("machine main() -> u8 { let value: u8; value }", 0, 47);
+    self.positive("machine main() -> u8 { let mut value: u8 = 2; value }", 2, 48);
     self.refusal("machine increment(value: u8) -> u8 { value + 1 } machine main() -> u8 { (increment(41)) }", 2, 49);
     self.refusal("machine recur(value: u8) -> u8 { (recur(value)) } machine main() -> u8 { (recur(42)) }", 2, 50);
     self.refusal("machine left(value: u8) -> u8 { (right(value)) } machine right(value: u8) -> u8 { (left(value)) } machine main() -> u8 { (left(42)) }", 2, 51);
