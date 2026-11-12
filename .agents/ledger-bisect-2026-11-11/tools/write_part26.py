@@ -17,7 +17,7 @@ def load_json(p: Path) -> dict:
 def main() -> int:
     clusters = json.loads((DIR / "work/pin_clusters.json").read_text())
     bisects = {}
-    for p in sorted((DIR / "work").glob("bisect_c*.json")):
+    for p in sorted((DIR / "work").glob("bisect_c[0-9].json")):
         data = load_json(p)
         if data:
             bisects[data["witness"]] = data
