@@ -21,6 +21,10 @@ const FIXTURE: &str =
     "tests/omega/pass/providers/checked_boundary_requirement_dispatch_exit/main.omg";
 
 fn terminal_bytes(run: &str) -> Vec<u8> {
+    terminal_product(run).0
+}
+
+fn terminal_product(run: &str) -> (Vec<u8>, u64) {
     let target_name = "linux_x86_64";
     let main = repo_root().join(FIXTURE);
     let prepared = reviewed_repository_fixture_package_inputs(&main, Some(target_name))
@@ -39,13 +43,18 @@ fn terminal_bytes(run: &str) -> Vec<u8> {
     if let Some(package_inputs) = prepared.package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
-    orchestration::compile_sources(&mut compiler::CompilationSession::default(), request)
+    let before = artifacts::compile_timings::counters::provider_defaults_execution_count();
+    let bytes = orchestration::compile_sources(&mut compiler::CompilationSession::default(), request)
         .and_then(compiler::CompileOutcomes::into_single_report)
         .unwrap_or_else(|diagnostics| panic!("{FIXTURE} {run}: {diagnostics:#?}"))
         .into_retained_terminal_artifact()
         .unwrap_or_else(|| panic!("{FIXTURE} {run} retains its Terminal artifact"))
         .artifact()
-        .to_bytes()
+        .to_bytes();
+    (
+        bytes,
+        artifacts::compile_timings::counters::provider_defaults_execution_count() - before,
+    )
 }
 
 #[test]
@@ -82,11 +91,10 @@ fn refused_core_product_speculation_publishes_the_adopted_bytes() {
 
 #[test]
 fn source_compile_has_no_core_provider_defaults_activation() {
-    let before = artifacts::compile_timings::counters::provider_defaults_execution_count();
-    let bytes = terminal_bytes("no-core-defaults");
+    let (bytes, suppliers) = terminal_product("no-core-defaults");
     assert!(!bytes.is_empty(), "the program publishes its Psi artifact");
     assert_eq!(
-        artifacts::compile_timings::counters::provider_defaults_execution_count() - before,
+        suppliers,
         0,
         "canonical float realizations need no core provider-default Build activation"
     );
