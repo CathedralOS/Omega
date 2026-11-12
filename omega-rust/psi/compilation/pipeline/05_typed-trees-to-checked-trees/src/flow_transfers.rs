@@ -2096,7 +2096,7 @@ mod scalar_values {
                 visiting: Vec<SymbolHandle>,
             }
 
-            impl NormalReturnCapture<'_, '_> {
+            impl<'capture> NormalReturnCapture<'capture, '_> {
                 fn state<Value: CapturedValue>(
                     &mut self,
                     state: &State,
@@ -2317,15 +2317,7 @@ mod scalar_values {
                             {
                                 return None;
                             }
-                            let target_index = activation_target_state_index(
-                                self.program,
-                                self.machine,
-                                path.symbol,
-                            )?;
-                            let target_state = self
-                                .program
-                                .machine_states(self.machine)
-                                .get(target_index)?;
+                            let (target_machine, target_state) = self.transfer_target(path.symbol)?;
                             let arguments =
                                 self.program.statement_table.expression_handles(*arguments);
                             let parameters = self.program.state_parameters(target_state);
@@ -2380,10 +2372,42 @@ mod scalar_values {
                                     delivered.bindings.push(value);
                                 }
                             }
-                            self.state(target_state, target_symbols, delivered)
+                            let caller = std::mem::replace(&mut self.machine, target_machine);
+                            let returned = self.state(target_state, target_symbols, delivered);
+                            self.machine = caller;
+                            returned
                         }
                         TransitionTargetNode::Terminal => None,
                     }
+                }
+
+                /*
+                    The state a transfer enters. A state of the current machine is
+                    found among its states; a transfer such as `true -> outside()`
+                    to a nested machine instead enters that machine's entry state,
+                    and the nested machine's normal result is this machine's
+                    result on that path. Only a checked body is followed.
+                */
+                fn transfer_target(
+                    &self,
+                    target: SymbolHandle,
+                ) -> Option<(&'capture Machine, &'capture State)> {
+                    let program = self.program;
+                    if let Some(index) =
+                        activation_target_state_index(program, self.machine, target)
+                    {
+                        return Some((self.machine, program.machine_states(self.machine).get(index)?));
+                    }
+                    let entry = validation::call_target_entry_symbol(program, target);
+                    let machine = program.machine_holding_state(entry)?;
+                    if !machine.body_is_present
+                        || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                        || !machine.owned_data.is_empty()
+                    {
+                        return None;
+                    }
+                    let state = program.machine_states(machine).first()?;
+                    (state.symbol == entry).then_some((machine, state))
                 }
             }
 
