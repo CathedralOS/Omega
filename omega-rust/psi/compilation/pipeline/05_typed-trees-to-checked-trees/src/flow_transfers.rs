@@ -2082,7 +2082,15 @@ mod scalar_values {
                     machine,
                     visiting: Vec::new(),
                 };
-                match capture.state(state, symbols, values)? {
+                let traced = std::env::var("OMEGA_DBG_RET").is_ok();
+                if traced {
+                    eprintln!("RETDBG capture machine={} state={}", machine.name, state.name);
+                }
+                let outcome = capture.state(state, symbols, values);
+                if traced {
+                    eprintln!("RETDBG capture result some={}", outcome.is_some());
+                }
+                match outcome? {
                     CapturedReturns::Value(value) => Some(value),
                     CapturedReturns::NoNormalValue => None,
                 }
@@ -2399,6 +2407,15 @@ mod scalar_values {
                         return Some((self.machine, program.machine_states(self.machine).get(index)?));
                     }
                     let entry = validation::call_target_entry_symbol(program, target);
+                    if std::env::var("OMEGA_DBG_RET").is_ok() {
+                        eprintln!(
+                            "RETDBG transfer from={} target={} kind={:?} holder={:?}",
+                            self.machine.name,
+                            program.symbols.name(target),
+                            program.symbols.get(target).kind,
+                            program.machine_holding_state(entry).map(|machine| machine.name.to_string()),
+                        );
+                    }
                     let machine = program.machine_holding_state(entry)?;
                     if !machine.body_is_present
                         || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -2455,6 +2472,13 @@ mod scalar_values {
             call: &typed_trees::expression::TableCallExpression,
             active: HandleSpan<FlowSemanticContextRef>,
         ) -> Option<Value> {
+            if std::env::var("OMEGA_DBG_RET").is_ok() {
+                eprintln!(
+                    "RETDBG capture_call target={} nominal={}",
+                    program.symbols.name(validation::call_target_symbol(program, call)),
+                    call.selects_only_nominal_route()
+                );
+            }
             if !call.machine_arguments.is_empty() || !call.selects_only_nominal_route() {
                 return None;
             }
