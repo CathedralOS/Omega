@@ -5233,31 +5233,30 @@ impl NamespaceDeclarations {
                 continue;
             };
             let name = path.joined_path_in(&self.text);
-            let Some(target) = program
+            let targets = program
                 .symbols
-                .source_module_import_target(first.source_span().source_id, &name)
-            else {
-                continue;
-            };
+                .source_module_import_targets(first.source_span().source_id, &name);
             let span = source::SourceSpan::new(
                 first.source_span().source_id,
                 source::Span::new(first.source_span().span.start, last.source_span().span.end),
             );
-            program
-                .record_resolved_authored_declaration_selection(
-                    span,
-                    AuthoredDeclarationSelectionExposure::PrivateImplementation,
-                    AuthoredDeclarationSelectionKind::StaticPathSegment,
-                    target,
-                )
-                .map_err(|error| {
-                    vec![
-                        Diagnostic::error(format!(
-                            "failed to retain module import selection: {error:?}"
-                        ))
-                        .with_source_span(span),
-                    ]
-                })?;
+            for target in targets {
+                program
+                    .record_resolved_authored_declaration_selection(
+                        span,
+                        AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                        AuthoredDeclarationSelectionKind::StaticPathSegment,
+                        target,
+                    )
+                    .map_err(|error| {
+                        vec![
+                            Diagnostic::error(format!(
+                                "failed to retain module import selection: {error:?}"
+                            ))
+                            .with_source_span(span),
+                        ]
+                    })?;
+            }
         }
         Ok(())
     }
