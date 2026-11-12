@@ -27,6 +27,8 @@ mkdir -p "$BISECT_TARGET"
 HEAD_SHA=$(git rev-parse HEAD)
 STAMP="$BISECT_TARGET/.bisect_head"
 if [[ ! -f "$STAMP" ]] || [[ "$(cat "$STAMP")" != "$HEAD_SHA" ]]; then
+  rm -rf "$BISECT_TARGET"
+  mkdir -p "$BISECT_TARGET"
   CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$BISECT_TARGET" nice -n 19 mbx build -p omega < /dev/null >/dev/null 2>&1 || exit 125
   CARGO_TARGET_DIR="$BISECT_TARGET" nice -n 19 mbx test --no-run -p compiler --test corpus_runner < /dev/null >/dev/null 2>&1 || exit 125
   echo "$HEAD_SHA" >"$STAMP"
