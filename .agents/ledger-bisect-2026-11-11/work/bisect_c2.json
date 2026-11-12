@@ -3,11 +3,11 @@
   "good": "d785033a078018ce4ff17cd590f61dba897907b0",
   "bad": "51e8c45c793007f211d0d9baee7de16767172444",
   "anchor": "741270df60f7",
-  "breaking_commit": "",
-  "pr": null,
-  "mechanism": "",
-  "status": "propagated",
-  "bisect_exit": 2,
+  "breaking_commit": "225426a7aeeabfa4c945df67d3113dd27f46fb38",
+  "pr": 2045,
+  "mechanism": "psi: support explicit identity in conversion laws (#2045) \u2014  .github/workflows/compiler-regression.yml          |  119 +-;  .github/workflows/compiler.yml                     |   22 +-;  .../compiler/tests/support/identity_formations.rs  |  264 +;  .../tests/supp",
+  "status": "bisected",
+  "bisect_exit": 0,
   "endpoints": {
     "good": {
       "results": [
