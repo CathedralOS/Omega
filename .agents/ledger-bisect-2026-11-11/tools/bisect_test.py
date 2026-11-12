@@ -2,11 +2,9 @@
 import sys
 from pathlib import Path
 
-REPO = Path(
-    __import__("subprocess")
-    .check_output(["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "--show-toplevel"], text=True)
-    .strip()
-)
+import os
+
+REPO = Path(os.environ.get("OMEGA_REPO", "/agent/repos/omega"))
 
 
 def parse_header(line: str) -> tuple[str, str] | None:

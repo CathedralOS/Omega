@@ -2,8 +2,9 @@
 # Find newest first-parent ancestor of BAD where witness passes (bisect_test exit 0).
 set -euo pipefail
 WITNESS="${1:?}"
-BAD="${2:-741270df60f7}"
-ROOT="$(git rev-parse --show-toplevel)"
+BAD="${2:-51e8c45c793007f211d0d9baee7de16767172444}"
+export OMEGA_REPO="/agent/repos/omega"
+ROOT="$OMEGA_REPO"
 cd "$ROOT"
 export PATH="/home/ubuntu/.local/share/mbx/bin:$PATH"
 export BISECT_WITNESS="$WITNESS"
