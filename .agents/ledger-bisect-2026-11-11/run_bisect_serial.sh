@@ -23,7 +23,10 @@ from pathlib import Path
 
 root = Path("/agent/repos/omega")
 clusters = json.loads((root / ".agents/ledger-bisect-2026-11-11/pin_clusters.json").read_text())
+start_id = int(os.environ.get("BISECT_START_CLUSTER", "0"))
 for c in sorted(clusters, key=lambda x: (-x["rows"], x["cluster_id"])):
+    if c["cluster_id"] < start_id:
+        continue
     cid = c["cluster_id"]
     w = c["witness"]
     out = root / f".agents/ledger-bisect-2026-11-11/bisects/cluster_{cid}.json"
