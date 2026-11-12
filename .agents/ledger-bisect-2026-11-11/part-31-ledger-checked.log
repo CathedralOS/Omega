@@ -1,0 +1,55 @@
+ledger_writer 6ace467e4f78bb55d5d3e6727539e4a47814ec0a (#1807)
+ledger_writer 6ace467e4f78bb55d5d3e6727539e4a47814ec0a (#1807)
+=== ledger-checked-1807 commit=6ace467e4f78bb55d5d3e6727539e4a47814ec0a witness=pass/borrows/runtime_selected_reference_mutation_complement_exit target=/tmp/ledger-bisect-target-6ace467e4f78 ===
+=== ledger-checked-1807 commit=6ace467e4f78bb55d5d3e6727539e4a47814ec0a witness=pass/borrows/runtime_selected_reference_mutation_complement_exit target=/tmp/ledger-bisect-target-6ace467e4f78 ===
+  run1 exit=1 (pass/borrows/runtime_selected_reference_mutation_complement_exit rejected 3182ms check-target:macos_arm64)
+  run1 exit=1 (pass/borrows/runtime_selected_reference_mutation_complement_exit rejected 3182ms check-target:macos_arm64)
+  run2 exit=1 (pass/borrows/runtime_selected_reference_mutation_complement_exit rejected 3143ms check-target:macos_arm64)
+  run2 exit=1 (pass/borrows/runtime_selected_reference_mutation_complement_exit rejected 3143ms check-target:macos_arm64)
+  run3 exit=1 (pass/borrows/runtime_selected_reference_mutation_complement_exit rejected 3012ms check-target:macos_arm64)
+  run3 exit=1 (pass/borrows/runtime_selected_reference_mutation_complement_exit rejected 3012ms check-target:macos_arm64)
+=== ledger-checked-1807 commit=6ace467e4f78bb55d5d3e6727539e4a47814ec0a witness=pass/borrows/runtime_uniform_projected_reference_selection_exit target=/tmp/ledger-bisect-target-6ace467e4f78 ===
+=== ledger-checked-1807 commit=6ace467e4f78bb55d5d3e6727539e4a47814ec0a witness=pass/borrows/runtime_uniform_projected_reference_selection_exit target=/tmp/ledger-bisect-target-6ace467e4f78 ===
+  run1 exit=1 (pass/borrows/runtime_uniform_projected_reference_selection_exit rejected 3228ms check-target:macos_arm64)
+  run1 exit=1 (pass/borrows/runtime_uniform_projected_reference_selection_exit rejected 3228ms check-target:macos_arm64)
+  run2 exit=1 (pass/borrows/runtime_uniform_projected_reference_selection_exit rejected 3269ms check-target:macos_arm64)
+  run2 exit=1 (pass/borrows/runtime_uniform_projected_reference_selection_exit rejected 3269ms check-target:macos_arm64)
+  run3 exit=1 (pass/borrows/runtime_uniform_projected_reference_selection_exit rejected 3168ms check-target:macos_arm64)
+  run3 exit=1 (pass/borrows/runtime_uniform_projected_reference_selection_exit rejected 3168ms check-target:macos_arm64)
+=== ledger-checked-1807 commit=6ace467e4f78bb55d5d3e6727539e4a47814ec0a witness=pass/write_only/returned_destination_transport_exit target=/tmp/ledger-bisect-target-6ace467e4f78 ===
+=== ledger-checked-1807 commit=6ace467e4f78bb55d5d3e6727539e4a47814ec0a witness=pass/write_only/returned_destination_transport_exit target=/tmp/ledger-bisect-target-6ace467e4f78 ===
+  run1 exit=1 (pass/write_only/returned_destination_transport_exit rejected 3205ms check-target:macos_arm64)
+  run1 exit=1 (pass/write_only/returned_destination_transport_exit rejected 3205ms check-target:macos_arm64)
+  run2 exit=1 (pass/write_only/returned_destination_transport_exit rejected 3097ms check-target:macos_arm64)
+  run2 exit=1 (pass/write_only/returned_destination_transport_exit rejected 3097ms check-target:macos_arm64)
+  run3 exit=1 (pass/write_only/returned_destination_transport_exit rejected 3043ms check-target:macos_arm64)
+  run3 exit=1 (pass/write_only/returned_destination_transport_exit rejected 3043ms check-target:macos_arm64)
+=== ledger-checked-1807 commit=6ace467e4f78bb55d5d3e6727539e4a47814ec0a witness=pass/generics/generic_result_parameter_receipt target=/tmp/ledger-bisect-target-6ace467e4f78 ===
+=== ledger-checked-1807 commit=6ace467e4f78bb55d5d3e6727539e4a47814ec0a witness=pass/generics/generic_result_parameter_receipt target=/tmp/ledger-bisect-target-6ace467e4f78 ===
+  run1 exit=0 (pass/generics/generic_result_parameter_receipt checked 4037ms)
+  run1 exit=0 (pass/generics/generic_result_parameter_receipt checked 4037ms)
+  run2 exit=0 (pass/generics/generic_result_parameter_receipt checked 3921ms)
+  run2 exit=0 (pass/generics/generic_result_parameter_receipt checked 3921ms)
+  run3 exit=0 (pass/generics/generic_result_parameter_receipt checked 3969ms)
+  run3 exit=0 (pass/generics/generic_result_parameter_receipt checked 3969ms)
+c3_stamp_host ada93c78b02f2f5c031fc8513f9ff13c9641f29a (#1226)
+c3_stamp_host ada93c78b02f2f5c031fc8513f9ff13c9641f29a (#1226)
+=== stamp-1226 commit=ada93c78b02f2f5c031fc8513f9ff13c9641f29a witness=pass/generics/generic_result_parameter_receipt target=/tmp/ledger-bisect-target-ada93c78b02f ===
+=== stamp-1226 commit=ada93c78b02f2f5c031fc8513f9ff13c9641f29a witness=pass/generics/generic_result_parameter_receipt target=/tmp/ledger-bisect-target-ada93c78b02f ===
+  run1 exit=1 (pass/generics/generic_result_parameter_receipt rejected 695ms)
+  run1 exit=1 (pass/generics/generic_result_parameter_receipt rejected 695ms)
+  run2 exit=1 (pass/generics/generic_result_parameter_receipt rejected 631ms)
+  run2 exit=1 (pass/generics/generic_result_parameter_receipt rejected 631ms)
+  run3 exit=1 (pass/generics/generic_result_parameter_receipt rejected 630ms)
+  run3 exit=1 (pass/generics/generic_result_parameter_receipt rejected 630ms)
+DONE
+DONE
+c0_probe idx=0 sha=51e8c45c793007f211d0d9baee7de16767172444 (need run for exit)
+c0_probe idx=50 sha=ade0aabb979920eea0ab13135fa2a86ca116acaa (need run for exit)
+c0_probe idx=100 sha=643ff5441c15ea62815109514a8047194d7397a0 (need run for exit)
+c0_probe idx=200 sha=c3d7c8fcb7d7e81897a3990d95dba9af1eb92119 (need run for exit)
+c0_probe idx=300 sha=98fbe778fbed357fe733ddc262db4270193043dd (need run for exit)
+c0_probe idx=400 sha=442a95195e64d20d6d373b6bbddcd11c7f6da38a (need run for exit)
+c0_probe idx=500 sha=0d7f183a8f708632cd7254792212742118e73b49 (need run for exit)
+c0_probe idx=600 sha=96ecfb7c12877f0a60fe20c62334f4a1fd973d4a (need run for exit)
+c0_probe idx=662 sha=6ace467e4f78bb55d5d3e6727539e4a47814ec0a (need run for exit)

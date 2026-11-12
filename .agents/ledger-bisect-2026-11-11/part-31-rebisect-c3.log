@@ -1,0 +1,79 @@
+good_idx=662 good=6ace467e4f78bb55d5d3e6727539e4a47814ec0a pin=51e8c45c793007f211d0d9baee7de16767172444
+good_idx=662 good=6ace467e4f78bb55d5d3e6727539e4a47814ec0a pin=51e8c45c793007f211d0d9baee7de16767172444
+  probe idx=331 sha=b7f23284c1bb951087e09ac308503b5ac035716b exit=
+  probe idx=331 sha=b7f23284c1bb951087e09ac308503b5ac035716b exit=
+  probe idx=497 sha=9a4739f31b27fb206d761ae9f58806f7c9aeb142 exit=
+  probe idx=497 sha=9a4739f31b27fb206d761ae9f58806f7c9aeb142 exit=
+--- restart 2026-11-12T19:17:17Z ---
+good_idx=662 good=6ace467e4f78bb55d5d3e6727539e4a47814ec0a pin=51e8c45c793007f211d0d9baee7de16767172444
+  probe idx=331 sha=b7f23284c1bb951087e09ac308503b5ac035716b exit=1
+  probe idx=165 sha=8b85a20f62c651d185acd8f6ee6e8fa4f929fc4a exit=125
+  probe idx=82 sha=3e7e3af372fc6c04666ab925be0b8baee9c6b885 exit=125
+  probe idx=41 sha=234ea171ee6e22c3350e22c6ff7bd3392b108944 exit=125
+  probe idx=20 sha=dbdf852e4fea741c75835d4903554f7b5c5ab96f exit=125
+  probe idx=10 sha=8e29f0fe531cd3ab86ec542b42afe0bc1cef840c exit=125
+  probe idx=5 sha=a1c634618d6fcb5c4d3f70e373eb25d7d575f671 exit=125
+  probe idx=2 sha=dfece9ee0666386d0fceb27ede2549b3302d82c8 exit=125
+  probe idx=1 sha=e2e7876a03e415c6aad2defbbe743e0ec24e7caa exit=125
+NEW_FIRST_BAD_IDX=1
+NEW_FIRST_BAD=e2e7876a03e415c6aad2defbbe743e0ec24e7caa
+NEW_PARENT=dfece9ee0666386d0fceb27ede2549b3302d82c8
+e2e7876a03e415c6aad2defbbe743e0ec24e7caa repo: gate pull requests on the corpus rows they can affect, sweep the ledger nightly (#2463)
+REBISECT_DONE
+--- refine lo=331 hi=662 ---
+  refine idx=496 sha=1cdcd1959ee11c39c720bbb87e3b1d2793b400a1 exit=125
+  refine idx=413 sha=b66ae3ad1f2d362fecfb78d9dee0507c5f09f8da exit=1
+  refine idx=372 sha=a8b4ee5d1df1786186d854fd77e9f4e276af0d16 exit=1
+  refine idx=351 sha=2146539f5cc4df0af023cb71b120f52b1d01fa47 exit=1
+  refine idx=341 sha=d10407470bbf906bbb2e2800ebd3ced9609bf646 exit=1
+  refine idx=336 sha=0c168e6d7fdf3c44bc1618f14d01c330337f38af exit=1
+  refine idx=333 sha=4369bc77e45490d812f35702f69416cd8c937fc3 exit=1
+  refine idx=332 sha=f8f541910d7ec1a82aeeb15ea1885ac718024697 exit=1
+REFINED_BAD_IDX=332
+REFINED_FIRST_BAD=f8f541910d7ec1a82aeeb15ea1885ac718024697
+REFINED_PARENT=4369bc77e45490d812f35702f69416cd8c937fc3
+f8f541910d7ec1a82aeeb15ea1885ac718024697 omega: consolidate and document 01 abstract-operations pipeline stage (#2145)
+=== c3-refined commit=f8f541910d7ec1a82aeeb15ea1885ac718024697 witness=pass/generics/generic_result_parameter_receipt target=/tmp/ledger-bisect-target-f8f541910d7e ===
+  run1 exit=1 (pass/generics/generic_result_parameter_receipt rejected 2514ms)
+  run2 exit=1 (pass/generics/generic_result_parameter_receipt rejected 2357ms)
+  run3 exit=1 (pass/generics/generic_result_parameter_receipt rejected 2304ms)
+=== c3-refined commit=4369bc77e45490d812f35702f69416cd8c937fc3 witness=pass/generics/generic_result_parameter_receipt target=/tmp/ledger-bisect-target-4369bc77e454 ===
+  run1 exit=1 (pass/generics/generic_result_parameter_receipt rejected 2734ms)
+  run2 exit=1 (pass/generics/generic_result_parameter_receipt rejected 2314ms)
+  run3 exit=1 (pass/generics/generic_result_parameter_receipt rejected 2285ms)
+--- parent sweep ---
+=== probe-334 commit=50a938cfd8870c70fbe8ea5a07ad0022222343ee witness=pass/generics/generic_result_parameter_receipt target=/tmp/ledger-bisect-target-50a938cfd887 ===
+  run1 exit=1 (pass/generics/generic_result_parameter_receipt rejected 2933ms)
+  run2 exit=1 (pass/generics/generic_result_parameter_receipt rejected 2702ms)
+  run3 exit=1 (pass/generics/generic_result_parameter_receipt rejected 2553ms)
+--- final bracket lo=600 hi=661 ---
+  final idx=630 sha=eff2af1d350e26feded01e70ba27e0da9c796ff6   run1 exit=1 (pass/generics/generic_result_parameter_receipt rejected 1020ms)
+  final idx=615 sha=2794de5ab4726ce75e86669e5daa9706603f2a93   run1 exit=1 (pass/generics/generic_result_parameter_receipt rejected 1175ms)
+  final idx=607 sha=194f52caa0261181a9569504acb57dbae670293f   run1 exit=0 (pass/generics/generic_result_parameter_receipt checked 4915ms)
+  final idx=603 sha=1efeb03404d5eaec79d7bd8565124df69c9d551b   run1 exit=0 (pass/generics/generic_result_parameter_receipt checked 4309ms)
+  final idx=601 sha=868c67faaa59c16852e706f074af0b6cf3b5ae69   run1 exit=0 (pass/generics/generic_result_parameter_receipt checked 4633ms)
+PIN_REGRESSION_BAD_IDX=601
+PIN_REGRESSION_BAD=868c67faaa59c16852e706f074af0b6cf3b5ae69
+PIN_REGRESSION_PARENT_IDX=600
+PIN_REGRESSION_PARENT=96ecfb7c12877f0a60fe20c62334f4a1fd973d4a
+868c67faaa59c16852e706f074af0b6cf3b5ae69 psi: check guarantees over matched sum payloads (#1875)
+=== c3-pin-regression-parent commit=868c67faaa59c16852e706f074af0b6cf3b5ae69 witness=pass/generics/generic_result_parameter_receipt target=/tmp/ledger-bisect-target-868c67faaa59 ===
+  run1 exit=0 (pass/generics/generic_result_parameter_receipt checked 4191ms)
+  run2 exit=0 (pass/generics/generic_result_parameter_receipt checked 4055ms)
+  run3 exit=0 (pass/generics/generic_result_parameter_receipt checked 4053ms)
+=== c3-historical-348 commit=5ab4e12334fba74babfc3ae8d9992572fba307e6 witness=pass/generics/generic_result_parameter_receipt target=/tmp/ledger-bisect-target-5ab4e12334fb ===
+  run1 exit=1 (pass/generics/generic_result_parameter_receipt rejected 350ms)
+  run2 exit=1 (pass/generics/generic_result_parameter_receipt rejected 310ms)
+  run3 exit=1 (pass/generics/generic_result_parameter_receipt rejected 308ms)
+=== c3-historical-348-parent commit=eab58bf427c48063e3fcf597e4550ca53ac7cb8c witness=pass/generics/generic_result_parameter_receipt target=/tmp/ledger-bisect-target-eab58bf427c4 ===
+  run1 exit=0 (pass/generics/generic_result_parameter_receipt checked 1647ms)
+  run2 exit=0 (pass/generics/generic_result_parameter_receipt checked 1541ms)
+  run3 exit=0 (pass/generics/generic_result_parameter_receipt checked 1559ms)
+=== idx-check-1bb9690 commit=1bb9690b80851e6b149c9a414b3317439183a882 witness=pass/generics/generic_result_parameter_receipt target=/tmp/ledger-bisect-target-1bb9690b8085 ===
+  run1 exit=1 (pass/generics/generic_result_parameter_receipt rejected 1079ms)
+  run2 exit=1 (pass/generics/generic_result_parameter_receipt rejected 966ms)
+  run3 exit=1 (pass/generics/generic_result_parameter_receipt rejected 960ms)
+=== idx-check-96ecfb7 commit=96ecfb7c12877f0a60fe20c62334f4a1fd973d4a witness=pass/generics/generic_result_parameter_receipt target=/tmp/ledger-bisect-target-96ecfb7c1287 ===
+  run1 exit=0 (pass/generics/generic_result_parameter_receipt checked 4311ms)
+  run2 exit=0 (pass/generics/generic_result_parameter_receipt checked 4142ms)
+  run3 exit=0 (pass/generics/generic_result_parameter_receipt checked 4137ms)
