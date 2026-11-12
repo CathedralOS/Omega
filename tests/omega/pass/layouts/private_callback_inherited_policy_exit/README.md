@@ -34,21 +34,22 @@ the binder's requirement to `Callback::call`. That parent has no calling policy.
 The selected handler, private slot, registrar and sibling must not donate one.
 
 This fixture is limited to ordinary Darwin ARM64 callback execution. The current
-Terminal foreign-call adapter refuses callback-materializing plans, so no
-native/Terminal agreement is claimed. Actual x86 interrupt acceptance remains
+Psi foreign-call adapter refuses callback-materializing plans, so no
+native/Psi agreement is claimed. Actual x86 interrupt acceptance remains
 with Cathedral's QEMU timer test.
 
 From the repository root on Darwin ARM64, use an optimized compiler built from
-the candidate being checked. Prepare the C library explicitly; the corpus does
-not automatically run `fixture/prepare.py`:
+the candidate being checked. Follow the [host build budget](../../../../../tools/build_slot.md)
+before running; these commands show a ten-CPU reservation. Prepare the C
+library explicitly; the corpus does not automatically run `fixture/prepare.py`:
 
 ```sh
 fixture=tests/omega/pass/layouts/private_callback_inherited_policy_exit
 provider_output="$PWD/build/descriptor-callback-provider"
 omega_cli="$PWD/target/debug/omega"
-python3 tools/build_slot.py -- python3 "$fixture/fixture/prepare.py" --output "$provider_output"
+RAYON_NUM_THREADS=10 nice -n 19 mbx reserve --cpus 10 -- python3 "$fixture/fixture/prepare.py" --output "$provider_output"
 export DYLD_LIBRARY_PATH="$provider_output${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
-python3 tools/build_slot.py -- "$omega_cli" update --project "$fixture" --target macos_arm64
+RAYON_NUM_THREADS=10 nice -n 19 mbx reserve --cpus 10 -- "$omega_cli" update --project "$fixture" --target macos_arm64
 ```
 
 If update requests review, inspect
@@ -57,13 +58,13 @@ fixture's reviewed declarations and foreign registration binding. Resume the
 ordinary package workflow after saving those decisions:
 
 ```sh
-python3 tools/build_slot.py -- "$omega_cli" update --project "$fixture" --resume
+RAYON_NUM_THREADS=10 nice -n 19 mbx reserve --cpus 10 -- "$omega_cli" update --project "$fixture" --resume
 ```
 
 Once update succeeds, execute the native oracle:
 
 ```sh
-python3 tools/build_slot.py -- "$omega_cli" run "$fixture/main.omg"
+RAYON_NUM_THREADS=10 nice -n 19 mbx reserve --cpus 10 -- "$omega_cli" run "$fixture/main.omg"
 ```
 
 Keep the compiler identity, preparation receipt and actual native output with
