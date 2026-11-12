@@ -7315,11 +7315,11 @@ mod carry {
             &self,
             program: &dyn ::validation::CheckingInput,
             value_name: &str,
-        ) -> Vec<language_semantics::PermissionArrival<SymbolHandle>> {
+        ) -> Vec<language_semantics::PermissionArrival<symbols::SymbolHandle>> {
             let mut latest_by_path = Vec::<(
                 String,
                 (usize, usize, usize),
-                language_semantics::PermissionArrival<SymbolHandle>,
+                language_semantics::PermissionArrival<symbols::SymbolHandle>,
             )>::new();
 
             for (event_index, event) in self
@@ -7454,6 +7454,14 @@ mod carry {
         checks still run here; only suspension permission may wait for selection.
         The independent activation-wide analysis retains CPU/thread demands.
     */
+    #[derive(Clone, Copy, Default)]
+    enum OperationalCallSummary<'a> {
+        #[default]
+        Missing,
+        Unique(&'a flow_effects::CallOperational),
+        Ambiguous,
+    }
+
     pub(super) fn check_suspension_carry(
         program: &dyn ::validation::CheckingInput,
         facts: &checked_trees::CheckFacts,
@@ -7481,6 +7489,36 @@ mod carry {
                 continue;
             };
 
+            // Both producers number calls within their source statement. Prepare
+            // that correspondence once; repeated coordinates stay ambiguous.
+            let mut operational_calls = vec![
+                Vec::<OperationalCallSummary<'_>>::new();
+                state.statement_nodes.len() as usize
+            ];
+            for summary in facts
+                .operational
+                .machine_by_symbol(machine.symbol)
+                .into_iter()
+                .flat_map(|machine| facts.operational.states.span_or_empty(machine.states))
+                .filter(|summary| summary.symbol == state.symbol)
+                .flat_map(|state| facts.operational.calls.span_or_empty(state.calls))
+            {
+                let Some(statement) = operational_calls.get_mut(summary.statement_index) else {
+                    diagnostics.push(Diagnostic::error(
+                        "operational call dependency is outside its checked source state",
+                    ));
+                    continue;
+                };
+                if statement.len() <= summary.call_ordinal {
+                    statement.resize(summary.call_ordinal + 1, OperationalCallSummary::Missing);
+                }
+                let occurrence = &mut statement[summary.call_ordinal];
+                *occurrence = match *occurrence {
+                    OperationalCallSummary::Missing => OperationalCallSummary::Unique(summary),
+                    _ => OperationalCallSummary::Ambiguous,
+                };
+            }
+
             for call in facts.borrow.calls.span_or_empty(state_borrows.calls) {
                 let Some(call_flow) =
                     crate::flow::call_flows(&facts.flow.control, state_flow.calls)
@@ -7498,18 +7536,10 @@ mod carry {
                     continue;
                 }
 
-                let mut summaries = facts
-                    .operational
-                    .machine_by_symbol(machine.symbol)
-                    .into_iter()
-                    .flat_map(|machine| facts.operational.states.span_or_empty(machine.states))
-                    .filter(|summary| summary.symbol == state.symbol)
-                    .flat_map(|state| facts.operational.calls.span_or_empty(state.calls))
-                    .filter(|summary| {
-                        summary.statement_index == call.statement_index
-                            && summary.call_ordinal == call.call_ordinal
-                    });
-                let Some(summary) = summaries.next().filter(|_| summaries.next().is_none()) else {
+                let Some(OperationalCallSummary::Unique(summary)) = operational_calls
+                    .get(call.statement_index)
+                    .and_then(|statement| statement.get(call.call_ordinal))
+                else {
                     diagnostics.push(Diagnostic::error(
                         "possibly suspending call lost its exact operational dependency".to_owned(),
                     ));
