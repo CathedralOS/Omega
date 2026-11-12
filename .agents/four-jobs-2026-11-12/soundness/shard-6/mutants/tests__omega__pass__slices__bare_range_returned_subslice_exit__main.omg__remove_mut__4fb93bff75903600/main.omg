@@ -1,0 +1,28 @@
+// `bare-range-reference-access`: passing `main.buffer[0..3]` lends the same
+// shared view as `&main.buffer[0..3]`. `split` returns a subslice of that view,
+// so the returned value borrows `main.buffer` through the call's argument
+// access, exactly as it would for the explicit borrow.
+data View { tail: &[u8]; }
+machine split(bytes: &[u8]) -> View {
+    transition bytes.len >= 1 {
+        true -> View { tail: bytes[1..bytes.len] }
+        false -> View { tail: bytes[0..0] }
+    }
+}
+data Main { buffer: [u8; 3]; }
+machine run(main: &mut Main) crashes Trap {
+    main.buffer[0] = 41;
+    main.buffer[1] = 7;
+    main.buffer[2] = 8;
+    let view: View = split(main.buffer[0..3]);
+    transition view.tail.len == 2 && view.tail[0] == 7 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine main() crashes Trap {
+    let storage: Main;
+    run(&mut storage);
+}
