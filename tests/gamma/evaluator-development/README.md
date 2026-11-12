@@ -81,7 +81,7 @@ The evaluator keeps physical function rows in authored order and searches a
 sorted pointer index by exact name. The index occupies
 `0x09000000..0x0a000000` inside the function partition, under the selected
 2,097,152-row preflight. The request cannot contain that many declarations;
-the [profile](../../../bootstrap/2_gamma/EVALUATOR_PROFILE.md) gives the
+the [profile](../../../bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md) gives the
 source-byte bound and row/index containment argument. No synthetic count is
 injected to manufacture an unreachable physical refusal.
 The 21 lookup/census controls pin row payloads and

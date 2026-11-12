@@ -2,7 +2,7 @@
 
 This is sidecar proof work for the [bootstrap chain](../README.md), not another
 language rung. Its programs are ordinary Gamma executed by the selected
-[Gamma evaluator](../2_gamma/README.md).
+[Gamma evaluator](../interpreted/2_gamma/README.md).
 
 - [`checker/`](checker/README.md) owns the generic ground-equality checker:
   conservative theory formation, explicit derivation rules, and owner-root

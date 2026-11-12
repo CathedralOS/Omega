@@ -9,8 +9,8 @@ to another independent tape and runs the Epsilon-written bootstrap compiler.
 No variant is selected by this experiment.
 
 The source construction starts from the checked-in native
-[Alpha seed](../0_alpha/README.md), the separately admitted
-[Beta compiler tape](../1_beta/AUDIT.md), and the host OS. It stamps that tape
+[Alpha seed](../interpreted/0_alpha/README.md), the separately admitted
+[Beta compiler tape](../interpreted/1_beta/AUDIT.md), and the host OS. It stamps that tape
 into Alpha, reconstructs Beta from its source, and uses the reconstructed Beta
 compiler to construct the Gamma evaluator from Beta source. Both tapes must
 match their bound artifacts exactly. The constructed Gamma evaluator then runs
@@ -88,7 +88,7 @@ artifact untouched. Successful compilation replaces it atomically.
 
 ## Meaning and storage
 
-[`../2_gamma/LANGUAGE.md`](../2_gamma/LANGUAGE.md) governs the source language.
+[`../2_gamma/LANGUAGE.md`](../interpreted/2_gamma/LANGUAGE.md) governs the source language.
 The compiler validates every function and both branches before publishing code.
 It supports wrapping words, checked scalar boundaries, immutable pairs,
 sequential grouped bindings, mutually visible functions, proper tail calls,
@@ -388,7 +388,7 @@ not reported as reruns on these final bytes.
 result. The bootstrap compiler now has checked record storage, copy-value
 transport, field writes, scoped shared/mutable reference parameters, independent
 Unit completion and a bounded default-domain solver. Its detailed supported
-semantics and refusals remain in [the compiler contract](../5_omega/README.md).
+semantics and refusals remain in [the compiler contract](../interpreted/5_omega/README.md).
 This closes one actual successor helper; indexed SourceUnit append/read and the
 complete Omega compiler remain unfinished. The integrated compiler source grows
 from 645,486 to 706,044 bytes (60,558 bytes, about 9.4%), including the shared

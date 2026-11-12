@@ -26,7 +26,7 @@ materializers require the interpreter under its `python3` name.
 
 The Windows PE seed reserves a 128 GiB extent through one startup
 `VirtualAlloc(NULL, 0x2000000000, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE)` and
-traps when the call is refused (`bootstrap/0_alpha/README.md`). Because this
+traps when the call is refused (`bootstrap/interpreted/0_alpha/README.md`). Because this
 is a committed allocation rather than a reservation, a Windows host needs
 commit headroom — RAM plus pagefile — above that extent, or the evaluator
 fails before any tape byte is read.
@@ -178,7 +178,7 @@ Each revision's gate owns its exact source and adapter pins.
 
 At each process's normal `h_halt`, LLDB read the unchanged arm64 evaluator's
 Gamma heap cursor and limit from the two register words at `x19 + 0x500`, then
-detached. The [selected pair arena](../../../bootstrap/2_gamma/EVALUATOR_PROFILE.md#private-partition)
+detached. The [selected pair arena](../../../bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md#private-partition)
 starts at 268,435,456 and allocates 40 bytes per pair:
 
 | Observation | Baseline | Compact fields |
@@ -215,7 +215,7 @@ customer passes after compact field identities; the evidence below does not
 demonstrate a need for more low-level state in this run-once chain. This is a
 decision against additional machinery now, not a claim that scanning is cheap
 or that a local optimization cannot help. The
-[evaluator rationale](../../../bootstrap/2_gamma/EVALUATOR_PROFILE.md#expression-scanning)
+[evaluator rationale](../../../bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md#expression-scanning)
 compares the implementation and audit obligations.
 
 On 2026-09-08 UTC at `9a658149720c5afbba5dc3011759f659cc752306`, a disposable

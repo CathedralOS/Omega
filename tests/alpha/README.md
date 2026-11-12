@@ -1,7 +1,7 @@
 # Alpha tests
 
 These tests exercise the Alpha VM semantics and its independent reference. The
-audited VM implementations and normative semantics remain in `bootstrap/0_alpha/`.
+audited VM implementations and normative semantics remain in `bootstrap/interpreted/0_alpha/`.
 
 | Retained child/files | Role | Deletion condition |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ excludes these large loops explicitly; it still checks return without a precedin
 call, access above the stack origin, and overlapping call storage.
 
 macOS arm64 and Linux x86-64 execution are validated for the identities in the
-[seed inventory](../../bootstrap/0_alpha/README.md#retention-inventory).
+[seed inventory](../../bootstrap/interpreted/0_alpha/README.md#retention-inventory).
 These tests do not discharge native correspondence proofs.
 
 Windows x64 execution is measured on Git Bash with the selected seed:

@@ -13,7 +13,7 @@ state machines:
 - `omega-rust/` — the Rust reference producer and differential comparator.
 - `source/psi/` + `source/omega/` — the Omega-written product compiler.
 - `source/library/` — bundled `omega::` packages (`name.omg` or `name/mod.omg`).
-- `bootstrap/{0_alpha,…,5_omega}/` — the trust-minimizing bootstrap chain (`bootstrap/proofs/` holds Gamma-written derivation checking; scripts resolve locations via `tools/bootstrap/paths.sh`).
+- `bootstrap/interpreted/{0_alpha,…,5_omega}/` — the trust-minimizing bootstrap chain (`bootstrap/proofs/` holds Gamma-written derivation checking; scripts resolve locations via `tools/bootstrap/paths.sh`).
 
 **Public naming:** Follow [public names](wiki/README.md#public-names): the portable
 IR, artifact, interpreter and CLI subsystem are **Psi**. **Terminal Psi** names
@@ -317,7 +317,7 @@ reads the allowed lanes from this table:
 | Lane | Responsibility and current path anchors |
 | --- | --- |
 | `alpha`, `beta`, `gamma`, `delta`, `epsilon` | The corresponding language rung in `bootstrap/<rung>/`, including its compiler/evaluator, Rust reference tooling, and rung-specific tests. |
-| `bootstrap-omega` | The Epsilon-written first Omega compiler D in `bootstrap/5_omega/` and its tests. Never shorten to `omega`. |
+| `bootstrap-omega` | The Epsilon-written first Omega compiler D in `bootstrap/interpreted/5_omega/` and its tests. Never shorten to `omega`. |
 | `bootstrap` | Cross-rung reconstruction, trust-chain edges, artifact provenance, `tests/bootstrap/`, and `tools/bootstrap/`. |
 | `psi` | Target-neutral source semantics through Terminal Psi in `omega-rust/psi/` or `source/psi/`. |
 | `omega` | The Terminal-Psi-consuming compiler stage in `omega-rust/omega/compilation/{representations,pipeline,realization}/` or `source/omega/`. |

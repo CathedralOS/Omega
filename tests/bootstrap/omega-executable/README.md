@@ -29,7 +29,7 @@ sh tests/bootstrap/omega-executable/run.sh
 
 The gate requires Python 3, the selected checked-in Alpha seed and the existing
 shell tools; macOS also requires `codesign`. It stamps the separately admitted
-[Beta tape](../../../bootstrap/1_beta/AUDIT.md) into the selected Alpha container,
+[Beta tape](../../../bootstrap/interpreted/1_beta/AUDIT.md) into the selected Alpha container,
 rebuilds Beta from source, and uses the rebuilt compiler to
 construct the Gamma evaluator from source, and compares both tapes exactly
 with their bound artifacts. It executes those constructed bytes to reconstruct
@@ -61,7 +61,7 @@ different output directory. These are host controls, not language semantics.
 
 ## Current compiler slice
 
-[The bootstrap compiler's coverage and storage contract](../../../bootstrap/5_omega/README.md)
+[The bootstrap compiler's coverage and storage contract](../../../bootstrap/interpreted/5_omega/README.md)
 is authoritative for this gate. It admits a nullary `u8` entry and checked
 `u8`, `u32`, bounded-literal `u64`, `bool`, and `u32 in Trapping` values through parameters, locals,
 free calls and same-owner parameterized transfers. Runtime comparisons and

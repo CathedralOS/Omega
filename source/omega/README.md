@@ -34,13 +34,13 @@ vectors and against structured variants whose anchors are computed from the
 fields they name. Set `OMEGA_CLI` and `OMEGA_TARGET` as for the Psi gates.
 
 The first compiler D is a separate Epsilon-written bootstrap implementation
-under [`../../bootstrap/5_omega/`](../../bootstrap/5_omega). Interpreted D compiles
+under [`../../bootstrap/interpreted/5_omega/`](../../bootstrap/interpreted/5_omega). Interpreted D compiles
 this final closure to `omega0`; `omega0` then recompiles the same closure to
 `omega`. Rust under [`../../omega-rust/`](../../omega-rust) remains a
 nonauthoritative development comparator.
 
 ```text
-interpreted bootstrap/5_omega D + source/{psi,omega,library} -> omega0
+interpreted bootstrap/interpreted/5_omega D + source/{psi,omega,library} -> omega0
 omega0 + source/{psi,omega,library}                        -> omega
 ```
 

@@ -20,7 +20,7 @@ materialize_epsilon_evaluator "$TMP/evaluator.delta" ||
   fail "materialization of the bound closure failed"
 require_bound_identity "materialized evaluator" "$TMP/evaluator.delta" \
   "$EPSILON_EVALUATOR_PACKED_SIZE" "$EPSILON_EVALUATOR_PACKED_SHA256" \
-  "bootstrap/4_epsilon/README.md" ||
+  "bootstrap/interpreted/4_epsilon/README.md" ||
   fail "materialized closure differs from the bound identity"
 echo "materialize: packed evaluator is exactly the bound member bytes"
 

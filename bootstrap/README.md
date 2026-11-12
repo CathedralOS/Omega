@@ -1,73 +1,38 @@
-# Bootstrap construction variants
+# Bootstrap construction paths
 
-[Whole-chain minimization](MINIMIZATION.md) governs retention and engineering
-comparisons; language and resource contracts remain with their rung owners.
-[Edge contracts](CONTRACT.md) own source/evaluator composition, acceptance,
-acceleration, and native execution requirements.
-
-Variants pursue the common [construction goal](MINIMIZATION.md) as peers; no
-variant is selected during exploration. The numbered directories currently own
-the interpreted variant. Their layout is not an architectural requirement. New
-variants may keep their own implementation beneath a descriptive directory.
-
-The [compiled VM peer](compiled_vm/README.md) constructs a Gamma compiler from
-source, then emits independent Alpha tapes for successor implementations. Its
-README records the construction route, trust boundary, and executable checks.
-
-Both source routes start from an audited native Alpha seed and the separately
-admitted [1,773-byte Beta compiler tape](1_beta/AUDIT.md). Rebuilding it from its readable
-source verifies identity; it does not eliminate the initial tape as a trust
-input. The compiled peer additionally constructs a Gamma compiler and obtains
-identical tapes through two successive self-rebuilds. Its separate Python
-compiler is a disclosed development accelerator, not part of that source route.
-
-The demonstrated upper edge compiles exercised Omega programs and executes
-their emitted tapes. Constructing the Omega compiler from `source/{psi,omega}`
-and rebuilding it with itself remain unfinished in both peers. The Gamma
-compiler's fixed point does not establish the Omega compiler's fixed point.
-
-The existing interpreted source owners are:
+[The bootstrap mandate](MINIMIZATION.md) governs this work. Each viable path must
+construct the Omega compiler from its declared auditable seed and then use that
+compiler to rebuild itself reproducibly. No path is selected during exploration.
 
 ```text
-0_alpha/    raw tape semantics and audited native VM seeds
-1_beta/     trusted imperative tape-assembly language and compiler
-2_gamma/    typed scalar/effect functional language and evaluator
-3_delta/    typed pure functional language and compiler
-4_epsilon/  fixed-storage compiler-host language and evaluator
-5_omega/    Epsilon-written bootstrap compiler
-proofs/     source-owned proof checker and artifact-specific theories
+bootstrap/
+  interpreted/   existing interpreter-based chain and its language sources
+  compiled_vm/   source-compiled Gamma route to independent Alpha tapes
+  independent/   standalone-language construction experiment
+  proofs/        optional research outside construction acceptance
 ```
 
-Numeric prefixes sort the retained rungs in Greek-letter order. They are folder
-names, not language versions; source suffixes and language names are unchanged.
-A compiler or evaluator owner is named by the language it accepts or executes;
-its source suffix names the implementing language. `.beta`, `.gamma`, `.delta`,
-`.epsilon`, and `.omg` identify source languages; `.tape` identifies raw Alpha
-bytecode. Epsilon's evaluator retains the `epsilon_compiler.delta` entrance
-name; its ordered `.sources` manifest selects the complete implementation.
-[`proofs/`](proofs/README.md) holds optional proof research; it is not
-another language rung. Alpha, Beta, and Gamma keep their small implementations
-beside their contracts. Later rungs retain concept-owned source folders without
-an enclosing `compiler/` directory.
-Tool and test directories retain their language names. Audited seed source and
-disassembly retain historical path annotations so relocation preserves their bytes.
+The [interpreted path](interpreted/README.md) contains the existing numbered
+rungs. The [compiled VM path](compiled_vm/README.md) currently reuses their seed
+and successor sources and owns its Gamma compiler. The
+[independent path](independent/README.md) has its first construction target
+specified; its implementation has not started. Shared source reuse is explicit,
+and does not require other experiments to use the same stages or implementation.
 
-The interpreted construction route is:
+The Omega-written product lives in [`source/psi`](../source/psi) and
+[`source/omega`](../source/omega), outside any bootstrap variant. Its construction
+can advance through either bootstrap or the [Rust comparator](../omega-rust).
+Keep its implementation within a deliberate subset of the language it implements
+where that simplifies the complete bootstrap, while preserving specified source
+semantics and explicit refusals. Rust-assisted results remain identified as such.
 
-```text
-Alpha -> Beta -> Gamma -> Delta -> Epsilon -> bootstrap compiler
-      -> source/{psi,omega} as the first Omega compiler -> source/{psi,omega} as the self-compiled Omega compiler
-```
+Neither existing path has constructed and reproducibly self-rebuilt the full
+Omega compiler. Executed Omega programs and the Gamma compiler's self-rebuilds
+are intermediate evidence, not that acceptance.
 
-In this variant, every rung is implemented in its immediate predecessor except Alpha's audited
-native execution floor. `5_omega/` is the bootstrap implementation of the Omega
-compiler; the final Omega-written compiler lives under [`../source/`](../source).
-The maintained Rust implementation under [`../omega-rust/`](../omega-rust) is a
-development comparator and grants no bootstrap authority.
-Beta self-reconstruction binds the readable compiler source to its admitted
-cold-start tape; no later intermediate rung is required to self-host.
-
-Cross-rung scripts resolve these owners through
-[`../tools/bootstrap/paths.sh`](../tools/bootstrap/paths.sh). Host tools that only invoke, stamp, compare and report supply no language
-semantics. Any development compiler or accelerator is instead a disclosed
-implementation with [explicit acceleration obligations](MINIMIZATION.md#explicit-acceleration).
+Each path owns its source, invocation and construction evidence. Retain only
+machinery needed by real successors or necessary validation. Record seed/trust
+assumptions, actual cold runs, development acceleration and failed experiments.
+The existing [edge contracts](CONTRACT.md) describe the retained language edges;
+they do not fix the architecture of new paths. Scripts locate retained sources
+through [`tools/bootstrap/paths.sh`](../tools/bootstrap/paths.sh).

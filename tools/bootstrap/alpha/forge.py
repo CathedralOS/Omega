@@ -3,7 +3,7 @@
 # the binary it audits.  The historical forge is gone; this re-implementation
 # exists so the seed's listing remains the buildable source of truth.
 #
-# Dialect (as committed in bootstrap/0_alpha/alpha_x64_windows.hex):
+# Dialect (as committed in bootstrap/interpreted/0_alpha/alpha_x64_windows.hex):
 #   hex pairs            literal bytes, any count per line
 #   z<N>                 N zero bytes, N decimal
 #   .pad 0x<hex>         zero-fill until absolute file offset <hex>

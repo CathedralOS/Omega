@@ -97,7 +97,7 @@ rc=0
 ) 2>"$TMP/corrupt-seed.err" || rc=$?
 [ "$rc" = 3 ] ||
   fail "corrupted seed: expected exit 3, got $rc"
-grep -q 'bootstrap/0_alpha/README.md' "$TMP/corrupt-seed.err" ||
+grep -q 'bootstrap/interpreted/0_alpha/README.md' "$TMP/corrupt-seed.err" ||
   fail "corrupted seed: refusal did not cite the retention inventory"
 [ ! -e "$TMP/refused-seed" ] ||
   fail "corrupted seed: destination was written"
@@ -126,7 +126,7 @@ do
     fail "evaluator.tsv lacks bound record $needle"
 done
 grep -q "$GAMMA_EVALUATOR_TAPE_SHA256" \
-  "$OMEGA_REPO_ROOT/bootstrap/3_delta/delta_compiler.composed" ||
+  "$OMEGA_REPO_ROOT/bootstrap/interpreted/3_delta/delta_compiler.composed" ||
   fail "delta_compiler.composed lacks bound evaluator identity"
 for needle in \
   "$GAMMA_EVALUATOR_SOURCE_SIZE" "$GAMMA_EVALUATOR_SOURCE_SHA256" \

@@ -12,7 +12,7 @@ the bound canonical entry
 consumes each customer framed as one EREQ v1 envelope and publishes canonical
 observations — `00` Exit, `01` Trap, `02` Reject — or an EEOUT refusal
 frame / lower-chain `Incomplete` status, per
-[`EVALUATOR_ENTRY.md`](../../../bootstrap/4_epsilon/EVALUATOR_ENTRY.md).
+[`EVALUATOR_ENTRY.md`](../../../bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md).
 
 The development transport gate
 [`tests/epsilon/interpreted-omega-experiment`](../interpreted-omega-experiment/README.md)

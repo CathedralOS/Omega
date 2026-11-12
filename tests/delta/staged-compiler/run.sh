@@ -396,7 +396,7 @@ for name, expression in (
 # The emitted byte runtime is the authored support member, verbatim.
 bytes_runtime = (
     Path(os.environ["GATE_DIR"]).resolve().parents[2]
-    / "bootstrap/3_delta/support/bytes.gamma"
+    / "bootstrap/interpreted/3_delta/support/bytes.gamma"
 ).read_bytes()
 
 bytes_core = b"""(data Box (Box Bytes))
