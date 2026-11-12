@@ -24,7 +24,7 @@ Members:
 - `pass/facts/non_owning_reference_erasure_through_other_state_exit` — still broken: cannot prove default-domain field requirement for return from write at statement 0: storage requires Storage::Issued
 - `pass/facts/non_owning_reference_erasure_through_parameter_exit` — still broken: cannot prove default-domain field requirement for return from write at statement 1: storage requires Storage::Issued
 
-| 2 | pass/run rejected | returned projection does not match this invocation and result path | `pass/borrows/dynamic_window_return_custody_exit` | `` |  | no_good_commit | propagated |
+| 2 | pass/run rejected | returned projection does not match this invocation and result path | `pass/borrows/dynamic_window_return_custody_exit` | `f2c75870ebaf890328b787fa6d8ed50e868edbb8` | 1672 | psi: keep helper-returned views usable across calls that may pause (#1672) (omega-rust/omega/interpr | bisected |
 Members:
 - `pass/borrows/dynamic_window_return_custody_exit` — still broken: returned projection does not match this invocation and result path
 - `pass/borrows/runtime_slice_reference_result_exit` — still broken: returned projection does not match this invocation and result path

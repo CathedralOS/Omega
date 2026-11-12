@@ -17,8 +17,9 @@ for item in "${clusters[@]}"; do
   w="${item#*:}"
   git checkout -f -q work/ledger-bisect-part-21
   rm -f ".agents/ledger-bisect-2026-11-11/bisect-${id}.log"
-  nice -n 19 .agents/ledger-bisect-2026-11-11/run_bisect_cluster.sh "$w" "$id" 2>&1 | tee ".agents/ledger-bisect-2026-11-11/bisect-${id}.log"
+  nice -n 19 .agents/ledger-bisect-2026-11-11/run_bisect_cluster.sh "$w" "$id" 2>&1 | tee "/tmp/bisect-${id}.log"
   git checkout -f -q work/ledger-bisect-part-21
+  cp "/tmp/bisect-${id}.log" ".agents/ledger-bisect-2026-11-11/bisect-${id}.log"
   cp "/tmp/find-good-${id}.log" ".agents/ledger-bisect-2026-11-11/find-good-${id}.log" 2>/dev/null || true
   python3 .agents/ledger-bisect-2026-11-11/generate_part21.py
   git checkout -f -q work/ledger-bisect-part-21
