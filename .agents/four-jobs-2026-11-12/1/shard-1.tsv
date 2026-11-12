@@ -1,0 +1,7 @@
+fixture	tier	route_verdict	current_verdict	agreement	first_refusal	seconds
+tests/omega/fail/arithmetic/affine_difference_negative_edges/main.omg	fail	outside	rejected	n-a	Unsupported	1.47
+tests/omega/fail/arithmetic/authored_max_result_bound/main.omg	fail	rejected	rejected	agree	-	1.69
+tests/omega/fail/arithmetic/boolean_shift_guard_missing_arrival/main.omg	fail	rejected	rejected	agree	-	1.52
+tests/omega/fail/arithmetic/call_result_index_selector_revision/main.omg	fail	rejected	rejected	agree	-	1.89
+tests/omega/fail/arithmetic/checked_flag_proof_shift_result_overflow/main.omg	fail	outside	rejected	n-a	Unsupported	2.53
+tests/omega/fail/arithmetic/collection_result_rebound_descriptor/main.omg	fail	outside	rejected	n-a	Unsupported	1.55
