@@ -38,6 +38,48 @@ pub enum CoreVocabulary {
     InterruptAcknowledgementCompletionComplete,
     /// Core `static_interrupt.omg`'s `StaticInterruptCompletionPermit` token.
     StaticInterruptCompletionPermit,
+    /// A reflection operation or result type in core `reflect.omg`.
+    Reflection(ReflectionDeclaration),
+}
+
+/// The `reflect.omg` declarations reflection elaboration is written against.
+/// They live in module `core::reflect`, so their package paths carry that prefix.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ReflectionDeclaration {
+    /// `schema<T>()`.
+    Schema,
+    /// `TypeSchema`, the result of `schema`.
+    TypeSchema,
+    /// `CaseInfo`, active-case metadata.
+    CaseInfo,
+    /// `FieldInfo`, field metadata.
+    FieldInfo,
+    VisitRuntimeFields,
+    VisitRuntimeFieldsMut,
+    InspectRecordFields,
+    VisitActiveFields,
+    VisitActiveFieldsMut,
+}
+
+impl ReflectionDeclaration {
+    /// Whether this is one of the field-visiting operations.
+    pub const fn is_field_visitor(self) -> bool {
+        matches!(
+            self,
+            Self::VisitRuntimeFields
+                | Self::VisitRuntimeFieldsMut
+                | Self::InspectRecordFields
+                | Self::VisitActiveFields
+                | Self::VisitActiveFieldsMut
+        )
+    }
+}
+
+impl CoreVocabulary {
+    /// Whether this is one of `reflect.omg`'s field-visiting operations.
+    pub const fn is_reflection_field_visitor(self) -> bool {
+        matches!(self, Self::Reflection(declaration) if declaration.is_field_visitor())
+    }
 }
 
 /// The selector primitives of the two segment files.
@@ -83,6 +125,7 @@ const DATA_SEGMENT: &[u8] = core_source!("data_segment.omg");
 const TASK_REGISTER: &[u8] = core_source!("task_register.omg");
 const INTERRUPT: &[u8] = core_source!("interrupt.omg");
 const STATIC_INTERRUPT: &[u8] = crate::static_interrupts::CORE_DECLARATIONS;
+const REFLECT: &[u8] = core_source!("reflect.omg");
 
 const fn row(
     file: &'static str,
@@ -215,6 +258,60 @@ const ROWS: &[CoreVocabularyRow] = &[
         STATIC_INTERRUPT,
         CoreVocabulary::StaticInterruptCompletionPermit,
     ),
+    row(
+        "reflect.omg",
+        "core::reflect::schema",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::Schema),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::TypeSchema",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::TypeSchema),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::CaseInfo",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::CaseInfo),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::FieldInfo",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::FieldInfo),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::visit_runtime_fields",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitRuntimeFields),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::visit_runtime_fields_mut",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitRuntimeFieldsMut),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::inspect_record_fields",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::InspectRecordFields),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::visit_active_fields",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitActiveFields),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::visit_active_fields_mut",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitActiveFieldsMut),
+    ),
 ];
 
 pub struct CoreVocabularyCatalog;
@@ -276,6 +373,22 @@ mod tests {
         );
         assert_eq!(
             CoreVocabularyCatalog::classify(site("assembly.omg", "MachineControl", b"edited")),
+            None
+        );
+        // `reflect.omg` declares `module core::reflect`: rows use the full
+        // package path, and the bare name matches nothing.
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site(
+                "reflect.omg",
+                "core::reflect::inspect_record_fields",
+                REFLECT
+            )),
+            Some(CoreVocabulary::Reflection(
+                ReflectionDeclaration::InspectRecordFields
+            ))
+        );
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("reflect.omg", "inspect_record_fields", REFLECT)),
             None
         );
     }

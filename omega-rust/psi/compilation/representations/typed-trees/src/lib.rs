@@ -1558,6 +1558,22 @@ impl TypedTrees {
             .find(|specialization| specialization.instance == instance)
     }
 
+    /*
+        The core vocabulary row of `symbol`'s authored declaration. A machine
+        specialization keeps its template's source span but lives under a
+        generated namespace, so it is resolved to the template first; the
+        catalog then judges the authored declaration's file, path and bytes.
+    */
+    pub fn core_vocabulary(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<language_core::core_vocabulary::CoreVocabulary> {
+        let original = self
+            .machine_specialization(symbol)
+            .map_or(symbol, |specialization| specialization.template);
+        self.symbols.core_vocabulary(original)
+    }
+
     pub fn checks_authored_selection(
         &self,
         selection: &language_semantics::declaration_selection::AuthoredDeclarationSelection,
