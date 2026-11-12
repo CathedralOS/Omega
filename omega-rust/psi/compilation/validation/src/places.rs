@@ -1142,11 +1142,6 @@ pub(crate) fn validate_assignment_target_handle(
         return;
     };
 
-    let target_is_bare_name = matches!(
-        expression_table(program).expression(target),
-        ExpressionNode::Name(_)
-    );
-
     if receiver == BorrowPolarity::Shared {
         if !writable_roots.contains_for_shared_access(root_name) {
             diagnostics.push(Diagnostic::error(format!(
@@ -1166,7 +1161,7 @@ pub(crate) fn validate_assignment_target_handle(
     );
     let writes_borrowed_storage =
         access == Some(crate::value_custody::expression_types::StorageWriteAccess::BorrowedStorage);
-    if !writable_roots.contains_for_write(root_name, target_is_bare_name)
+    if !writable_roots.contains_for_write(root_name)
         && !writes_borrowed_storage
     {
         diagnostics.push(Diagnostic::error(format!(
