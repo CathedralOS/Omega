@@ -7,7 +7,7 @@ requests by their authorized context (`Product` vs. `Build`) so each scope
 retains separate requester-local ordering and alias validation without falling
 back to the other. `PackageSelection` records request custody inside an
 acquired repository source (`Root` when omitted), and `resolved_alias` derives
-the requester-local import name from either an explicit `depend_as` override
+the requester-local import name from either an explicit `dependency::with_alias` override
 or the dependency's own declared package name.
 */
 

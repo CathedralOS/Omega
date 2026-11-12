@@ -1223,35 +1223,24 @@ pub(crate) mod prepare_expression {
                         "pending contract constant cannot be emitted as an executable value",
                     ))
                 }
-                CheckedScalarExpression::StructuralLocalField {
-                    symbol,
+                CheckedScalarExpression::StructuralParameterField {
+                    root:
+                        root @ (checked_trees::CheckedStorageRoot::OwnedLocal { .. }
+                        | checked_trees::CheckedStorageRoot::ViewLocal { .. }),
                     path,
                     primitive_type,
+                    ..
                 } => {
-                    // Formed only for an erased call actual: the observation
-                    // becomes a proof term over the local's place.
-                    let home = self
-                        .structural_locals
-                        .iter()
-                        .find(|local| {
-                            local.root == facts::PlaceRoot::Symbol(*symbol)
-                                && local.argument.path.is_empty()
-                        })
-                        .map(|local| {
-                            (
-                                local.argument.place,
-                                local.argument.access,
-                                local.structural_type,
-                            )
-                        })
-                        .ok_or(LoweringError::MissingDependencyRosterEntry {
-                            identity_kind: "structural local place",
-                            role: "erased call actual observation",
-                        })?;
-                    crate::expression_preparation::bindings::structural_fields::resolve_local(
+                    // Psi 05 forms this root only for an erased call actual
+                    // (`erased_actual_local_field`). It lowers like a
+                    // formal's field, at the local's established home; the
+                    // call site turns the result into a proof term.
+                    let (home, structural_type) = self.storage_home(*root)?;
+                    let binding = self.structural_fields.binding_at(&home, structural_type)?;
+                    crate::expression_preparation::bindings::structural_fields::resolve(
                         identities,
-                        self.structural_fields,
-                        home,
+                        std::slice::from_ref(&binding),
+                        0,
                         path,
                         terminal_scalar_type(*primitive_type)?,
                     )
@@ -1314,7 +1303,10 @@ pub(crate) mod prepare_expression {
                     scalar_type: terminal_scalar_type(*primitive_type)?,
                 }),
                 CheckedScalarExpression::StructuralParameterField {
-                    parameter_position,
+                    root:
+                        checked_trees::CheckedStorageRoot::Parameter {
+                            index: parameter_position,
+                        },
                     path,
                     primitive_type,
                     ..

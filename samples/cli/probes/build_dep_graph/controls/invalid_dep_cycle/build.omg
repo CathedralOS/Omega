@@ -1,5 +1,7 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_dep_cycle");
-    Build::depend_as(builder, "a", Source::Path { location: "a" });
+    let mut a_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "a" });
+    dependency::with_alias(&mut a_dependency, "a");
+    let a_registration: DependencyRegistration = Build::dependency(builder, a_dependency);
     builder.freestanding = true;
 }

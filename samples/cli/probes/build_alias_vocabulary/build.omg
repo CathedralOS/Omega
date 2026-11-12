@@ -4,5 +4,7 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "build_alias_vocabulary");
     builder.freestanding = true;
-    Build::depend_as(builder, "kit9", Source::Path { location: "dep" });
+    let mut kit9_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dep" });
+    dependency::with_alias(&mut kit9_dependency, "kit9");
+    let kit9_registration: DependencyRegistration = Build::dependency(builder, kit9_dependency);
 }

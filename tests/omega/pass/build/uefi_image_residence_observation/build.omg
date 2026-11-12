@@ -1,6 +1,8 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "uefi_image_residence_observation");
-    Build::depend_as(builder, "std", Source::Path { location: "../../../../../source/library/std" });
+    let mut std_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../../../../source/library/std" });
+    dependency::with_alias(&mut std_dependency, "std");
+    let std_registration: DependencyRegistration = Build::dependency(builder, std_dependency);
     Build::select_provider<std::UefiPhysicalEntry, FirmwareBootstrap>(builder, linux_arm64);
     Build::select_provider<std::UefiPhysicalEntry, FirmwareBootstrap>(builder, linux_x86_64);
     Build::select_provider<std::UefiPhysicalEntry, FirmwareBootstrap>(builder, macos_arm64);

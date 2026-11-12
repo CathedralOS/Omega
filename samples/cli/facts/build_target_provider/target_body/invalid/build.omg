@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "build_target_provider_target_body_invalid");
-    Build::depend(builder, Source::Path { location: "reading_provider" });
+    let reading_provider_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "reading_provider" }));
     Build::select_provider<Calculation, FirstCalculationBody>(builder, windows_x86_64);
     Build::select_provider<Calculation, FirstCalculationBody>(builder, macos_x86_64);
     Build::select_provider<Calculation, FirstCalculationBody>(builder, linux_x86_64);

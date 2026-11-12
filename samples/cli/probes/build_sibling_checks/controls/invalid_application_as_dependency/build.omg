@@ -4,6 +4,8 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_application_as_dependency");
-    Build::depend_as(builder, "depapp", Source::Path { location: "depapp" });
+    let mut depapp_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "depapp" });
+    dependency::with_alias(&mut depapp_dependency, "depapp");
+    let depapp_registration: DependencyRegistration = Build::dependency(builder, depapp_dependency);
     builder.freestanding = true;
 }

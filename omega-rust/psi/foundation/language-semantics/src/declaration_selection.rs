@@ -3008,8 +3008,8 @@ mod tests {
             "assume_binding_contract#WritableMemory::claim",
             "enable#Fast",
             "exclude_crash",
-            "depend",
-            "depend_as",
+            "dependency",
+            "build_dependency",
             "as_slice",
             "len",
             "select_providers",
@@ -3027,4 +3027,36 @@ mod tests {
             );
         }
     }
+}
+
+// Build's settled selection rows for assumed bindings, native bindings and
+// program-entry roots. They are plain records over symbols, spans and the
+// selection vocabulary above, so they live with that vocabulary: the Psi
+// collectors that produce them and the Omega planners that consume them both
+// name them here, and neither has to import the other to share a row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssumedBindingContract {
+    pub required: SymbolHandle,
+    pub supplied: SymbolHandle,
+    pub selecting_machine: SymbolHandle,
+    pub source_span: SourceSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeBindingSelection {
+    pub subject: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub target: ProductTarget,
+    pub locator: semantic_vocabulary::NativeBindingLocator,
+    pub producer: NativeBindingProducer,
+    pub source_occurrence_digest: [u8; 32],
+    pub supplier_package: semantic_vocabulary::PackageKeyIdentity,
+    pub source_span: SourceSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootBinding {
+    pub slot: String,
+    pub implementation: String,
+    pub implementation_symbol: SymbolHandle,
 }

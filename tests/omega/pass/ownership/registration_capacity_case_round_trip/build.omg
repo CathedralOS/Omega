@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
  Build::application(builder, "registration_capacity_case_round_trip");
- Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+ let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
  Build::select_provider<Registrar, ProviderRegistrarImplementation>(builder, linux_arm64);
  Build::select_provider<Registrar, ProviderRegistrarImplementation>(builder, linux_x86_64);
  Build::select_provider<Registrar, ProviderRegistrarImplementation>(builder, macos_arm64);

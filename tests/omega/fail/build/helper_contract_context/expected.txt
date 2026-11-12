@@ -1,2 +1,1 @@
-cannot prove ensures contract for exit from incorrect
-result == 4
+machine `incorrect` ensures contract proof fact `result == 4` is disproved by constant arithmetic
