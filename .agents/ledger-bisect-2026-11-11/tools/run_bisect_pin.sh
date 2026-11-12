@@ -2,11 +2,9 @@
 set -euo pipefail
 WITNESS="${1:?witness}"
 OUT_JSON="${2:?output json}"
-ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-SRC_TOOLS="$ROOT/.agents/ledger-bisect-2026-11-11/tools"
-bash "$SRC_TOOLS/bootstrap_tools.sh" >/dev/null
-TOOLS=/tmp/ledger-bisect-tools
+TOOLS="$(cd "$(dirname "$0")" && pwd)"
 export LEDGER_BISECT_TOOLS="$TOOLS"
+ROOT="${LEDGER_BISECT_ROOT:-$(git -C "$TOOLS" rev-parse --show-toplevel)}"
 PIN="51e8c45c793007f211d0d9baee7de16767172444"
 cd "$ROOT"
 git checkout -q "$PIN"
