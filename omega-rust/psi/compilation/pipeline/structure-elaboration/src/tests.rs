@@ -1069,11 +1069,11 @@ fn outcomes_follow_the_ceiling_or_the_body() {
 }
 
 /// An authored `crashes none` is a promise, not a request to infer: a body
-/// with no crash publishes no route, and a body that reaches a crash, by its
-/// own `crash` statement or through a callee's route, is refused by name
-/// instead of being given the route its author forbade.
+/// publishes no route whether or not structure reaches a crash, by its own
+/// `crash` statement or through a callee's route. What it reaches is then
+/// owed as coverage by no route, which lowered-discharge decides.
 #[test]
-fn a_body_that_declares_crashes_none_and_can_crash_is_refused() {
+fn a_body_that_declares_crashes_none_publishes_no_route() {
     use crate::outcome::outcomes;
     let run = |statements: Vec<Statement>, callee_statements: Vec<Statement>| {
         let mut bodies: IdTable<MachineId, Body> = IdTable::default();
@@ -1099,19 +1099,14 @@ fn a_body_that_declares_crashes_none_and_can_crash_is_refused() {
 
     assert_eq!(run(quiet(), quiet()).unwrap(), returns_normally());
     assert_eq!(run(calls(), quiet()).unwrap(), returns_normally());
-    for refusal in [
-        run(crashing(), quiet()).unwrap_err(),
-        run(calls(), crashing()).unwrap_err(),
-    ] {
-        assert_eq!(
-            (refusal.reason, refusal.machine, refusal.detail.as_str()),
-            (
-                terminal_check_tables::RefusalReason::Unsupported,
-                id(1),
-                "contract `crashes none` on a body with a crash route"
-            )
-        );
-    }
+    // Reaching a crash, by its own statement or through the callee, the body
+    // never completes normally and still publishes nothing.
+    let never_returns = Outcome {
+        completes_normally: false,
+        crash_routes: Vec::new(),
+    };
+    assert_eq!(run(crashing(), quiet()).unwrap(), never_returns);
+    assert_eq!(run(calls(), crashing()).unwrap(), never_returns);
 }
 
 /// The right operand of `&&` or `||` may be skipped, so a short-circuit whose
@@ -2640,9 +2635,20 @@ fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(shaped(Vec::new(), Some(u32_type().into())));
     let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &constrained()).unwrap();
-    // The clauses travel beside the module, by the type's identity.
-    assert_eq!(elaboration.domains.get(id(1)).unwrap().len(), 1);
-    assert_eq!(elaboration.domains.get(id(2)).unwrap().len(), 2);
+    // Each type's declaration in the module states its clauses, and the
+    // checker's table beside the module restates them by the type's
+    // identity.
+    let declared = &elaboration.module.structural_types;
+    assert_eq!(
+        declared[0].requires,
+        constrained().get(id(1)).unwrap().requires
+    );
+    assert_eq!(
+        declared[1].requires,
+        constrained().get(id(2)).unwrap().requires
+    );
+    assert_eq!(elaboration.domains.get(id(1)), Some(&declared[0].requires));
+    assert_eq!(elaboration.domains.get(id(2)), Some(&declared[1].requires));
     let machine = &elaboration.module.machines[0];
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     let operations = &block(machine, 1).operations;
@@ -2694,7 +2700,14 @@ fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
         [0, 1, 2]
     );
     assert_eq!(tables.obligations.len(), 10);
-    terminal_codec::encode_module(&elaboration.module).unwrap();
+    // The clauses are part of the encoded module: they survive a byte round
+    // trip, so they are in the artifact's identity.
+    let bytes = terminal_codec::encode_module(&elaboration.module).unwrap();
+    let decoded = terminal_codec::decode_module(&bytes).unwrap();
+    assert_eq!(
+        decoded.structural_types,
+        elaboration.module.structural_types
+    );
 }
 
 #[test]

@@ -17,17 +17,16 @@ Why this lives in `build-settings` without touching source trees:
    module if any requirement is unfulfilled), complete any demanded scalar
    applications (`complete_calling_scalar_inputs`), and instantiate a fresh
    `TerminalInstance` with the encoded structural signature argument
-   (`values::input_contents`).
+   (`terminal_values::input_contents`).
 3. After `instance.invoke(&mut meter)` returns normally, we read the structural
-   result out of the instance (`values::result_value`), charge result custody to
+   result out of the instance (`terminal_values::result_value`), charge result custody to
    the invocation account, and hand the `BuildTimeValue` back to
    `provider_planning` (`decode_boundary_plan_result` +
    `validate_calling_policy_result`) so every register/stack placement is checked
    against the exact input signature.
 */
 
-mod values;
-
+use build_time_evaluation::terminal_values::{input_contents, result_value};
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use provider_planning::calling_policy_plans::{
     CallingScalarScope, TerminalCallingPolicyInvocation, complete_calling_scalar_inputs,
@@ -39,7 +38,6 @@ use terminal_interpreter::{
     TerminalRuntimeSupplyRequest, TerminalStructuralInputs, TerminalStructuralValue,
 };
 use terminal_psi::TargetMachineCallable;
-use values::{input_contents, result_value};
 
 pub fn evaluate_terminal_calling_policy(
     invocation: TerminalCallingPolicyInvocation<'_>,
@@ -158,6 +156,7 @@ pub fn evaluate_terminal_calling_policy(
     let argument = encode_calling_policy_signature(signature)?;
     let contents = [input_contents(
         &program,
+        0,
         parameter.structural_type,
         &argument,
     )?];

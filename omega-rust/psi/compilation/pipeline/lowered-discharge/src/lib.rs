@@ -25,9 +25,15 @@ Per machine it does five things:
   Nothing comes from source shapes, names or any Psi 05 or validation fact.
 - Judges initialization: every operation and terminator that reads storage
   gets one verdict, `Unestablished` when some path to it supplies no
-  established value for a scalar leaf it reads: today the zeroed storage of
-  a gated type (`places`). It is a structural judgment over the
-  write log and the graph, not an obligation, so it has no certificate.
+  established value for a scalar leaf it reads (`places`). It is a
+  structural judgment over the write log and the graph, not an obligation,
+  so it has no certificate.
+- Follows each invariant window: a store or zero establishment that was not
+  shown to keep a data type's clause opens one on its place, the one
+  reaching walk finds every consumption point it reaches open, and the
+  clause is proved again there by the same prover (`places`,
+  `Storage::consumptions`). Zeroed storage of a gated type observed while
+  its window is open is `Unestablished`.
 - States each obligation's goal over Terminal values: an operation's safety
   goal is Terminal semantics' own canonical goal, a call requirement is the
   callee's `requires` clause under the call's actuals, a normal guarantee is
@@ -45,7 +51,10 @@ Kinds outside `OperationSafety`, `CallRequirement`, `NormalGuarantee` and
 yet.
 */
 
+mod crashes;
+mod describe;
 mod graph;
+mod joins;
 mod minted;
 mod places;
 mod prove;
@@ -53,7 +62,9 @@ mod reuse;
 mod verdict;
 
 pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
-pub use verdict::{AcceptedClosure, RouteVerdict, UnestablishedUse, UnprovedObligation, judge};
+pub use verdict::{
+    AcceptedClosure, ConsumptionSite, RouteVerdict, UnestablishedUse, UnprovedObligation, judge,
+};
 
 #[cfg(test)]
 pub(crate) use prove::has_rules_for;
@@ -66,9 +77,9 @@ use proof_admission::{
     ProofSystemMarker, verify_obligation,
 };
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, EdgeId, EvidenceIdentity, IdTable, InvocationSite, MachineId,
-    ObligationId, OperationId, PlaceId, Proposition, PropositionContext, ScalarTerm, ScalarType,
-    StructuralCaseId, StructuralTypeId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, EvidenceIdentity, IdTable, InvocationSite,
+    MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext, ScalarTerm,
+    ScalarType, StructuralCaseId, StructuralTypeId, ValueId,
 };
 use structure_elaboration::Elaboration;
 use terminal_check_tables::edges::{Actual, Callee, Destination};
@@ -109,26 +120,64 @@ pub enum Discharged {
     /// they. Empty when the machine has no normal return, where the clause
     /// holds vacuously.
     EveryExit(Vec<ObligationId>),
-    /// A `DataDomain` clause of a zero establishment (`let x: T;`) that the
-    /// zero value was not proved to satisfy, with why. It is not a refusal,
-    /// because nothing is owed where storage is only zeroed
-    /// (`wiki/spec/language/dependent_values.md`: "Zeroing storage is
-    /// permitted independently of establishing a value."). It is not a
-    /// discharge either: the type is gated ("If zero satisfies the default
-    /// domain, the value is zero-constructible. Otherwise the type is gated:
-    /// construction or checked qualification must establish the domain
-    /// before observation."), so the zeroed contents are not an established
-    /// value and every use they reach is `Unestablished` (`StorageUse`).
-    Gated(Box<Refusal>),
+    /// A `DataDomain` clause that a store or a zero establishment was not
+    /// shown to keep, with why: the write opens an invariant window.
+    /// `wiki/spec/language/dependent_values.md`, "Invariant windows": "A
+    /// write known to preserve the default domain keeps it established.
+    /// Otherwise the write opens a window on the place, whose actual new
+    /// contents remain available to ordinary flow reasoning. The domain must
+    /// be proved again at the next consumption point". Nothing is owed at
+    /// the write, so this is not a refusal; it is not a discharge either.
+    /// The clause is owed at every consumption point the window reaches
+    /// open, and each of those has its own verdict in
+    /// `MachineDischarge::windows`, under this obligation's identity.
+    ///
+    /// A zero establishment (`let x: T;`) whose zero value does not satisfy
+    /// the clause opens the same debt on storage that holds no valid value
+    /// yet: "Zeroing storage is permitted independently of establishing a
+    /// value." and "If zero satisfies the default domain, the value is
+    /// zero-constructible. Otherwise the type is gated: construction or
+    /// checked qualification must establish the domain before observation."
+    Window(Box<Refusal>),
+    /// A `DataDomain` clause of a store that writes no storage the clause
+    /// reads, where the clause was not proved over the place's values: the
+    /// clause is as true after the store as before it, so the store opens
+    /// no window and closes none. dependent_values.md: "A write known to
+    /// preserve the default domain keeps it established." It is a judgment
+    /// over the clause's names and the stored place (`Storage::untouched`),
+    /// with no certificate.
+    Preserved,
 }
 
 impl Discharged {
     pub const fn certificate(&self) -> Option<&Evidence> {
         match self {
             Self::Certificate(evidence) => Some(evidence),
-            Self::EveryExit(_) | Self::Gated(_) => None,
+            Self::EveryExit(_) | Self::Window(_) | Self::Preserved => None,
         }
     }
+}
+
+/// One consumption point an open invariant window reaches, and whether the
+/// window's clause was proved again there. dependent_values.md: "The domain
+/// must be proved again at the next consumption point" and "An unclosed
+/// window rejects with both the opening write or storage cast and the
+/// failing consumption point."
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WindowUse {
+    /// The `DataDomain` obligation the opening write left unproved
+    /// (`Discharged::Window`): the window's identity, and the identity the
+    /// certificate is issued under.
+    pub opened_by: ObligationId,
+    /// The consumption point: the operation, or for a terminator its edge
+    /// or block.
+    pub at: Construct,
+    /// The kernel's acceptance of the clause over what the place holds at
+    /// the consumption point. `Err` with reason `Unproved` when a store
+    /// opened the window, and with reason `Unestablished` when a zero
+    /// establishment did, as the storage then never held a valid value:
+    /// either is a compile error of the program.
+    pub verdict: Checked<Evidence>,
 }
 
 /// One operation or terminator that reads storage, and whether what it
@@ -152,6 +201,13 @@ pub struct MachineDischarge {
     /// One verdict per use of storage, in block and operation order, a
     /// block's terminator last.
     pub uses: Vec<StorageUse>,
+    /// One verdict per consumption point each invariant window reaches
+    /// open, in block and operation order.
+    pub windows: Vec<WindowUse>,
+    /// Joins whose inferred predicate some arrival could not establish. Each
+    /// predicate was replaced by `Truth`, which every arrival establishes,
+    /// so the join contributes nothing downstream (`joins`).
+    pub weakened_joins: Vec<BlockId>,
 }
 
 impl MachineDischarge {
@@ -281,6 +337,8 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
                     ))
                 }),
                 uses: Vec::new(),
+                windows: Vec::new(),
+                weakened_joins: Vec::new(),
             });
             continue;
         }
@@ -351,13 +409,42 @@ fn machine(
         graph,
         context,
     } = prepare(machines, structural_types, domains, id, tables, knowledge)?;
-    let mut storage = places::Storage::new(id, lowered, structural_types, domains, &graph, tables)?;
-    // Certificates first; a published clause is then decided from its exits.
+    let storage = places::Storage::new(
+        id,
+        lowered,
+        structural_types,
+        domains,
+        &graph,
+        tables,
+        &types,
+    )?;
     let mut decided: Vec<Option<Checked<Discharged>>> =
-        Vec::with_capacity(tables.obligations.len());
-    for (obligation, row) in tables.obligations.iter() {
+        (0..tables.obligations.len()).map(|_| None).collect();
+    // Join predicates first: each is checked on every arrival before it may
+    // justify anything downstream.
+    if knowledge == Knowledge::All {
+        joins::infer(lowered, id, tables, &graph, &context)?;
+    }
+    let weakened_joins = joins::check(
+        &joins::Machine {
+            machines,
+            lowered,
+            storage: &storage,
+            id,
+            types: &types,
+            graph: &graph,
+            context: &context,
+            relations: knowledge != Knowledge::LiteralIntervals,
+        },
+        tables,
+        &mut decided,
+    )?;
+    // Certificates next; a published clause is then decided from its exits.
+    for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
+        if decided[index].is_some() {
+            continue;
+        }
         if let ObligationKind::PublishedGuarantee { .. } = row.kind {
-            decided.push(None);
             continue;
         }
         let verdict = goal(
@@ -376,9 +463,9 @@ fn machine(
             )
             .map(Discharged::Certificate)
         });
-        decided.push(Some(verdict));
+        decided[index] = Some(verdict);
     }
-    let mut verdicts = IdTable::default();
+    let mut verdicts: IdTable<ObligationId, Checked<Discharged>> = IdTable::default();
     for ((obligation, row), verdict) in tables.obligations.iter().zip(&decided) {
         verdicts.push(match (verdict, row.kind) {
             (Some(verdict), _) => verdict.clone(),
@@ -393,56 +480,150 @@ fn machine(
             )),
         });
     }
-    // A zero establishment whose zero value does not satisfy a clause it
-    // owes: the type is gated. Nothing is owed where storage is only zeroed
-    // (dependent_values.md: "Zeroing storage is permitted independently of
-    // establishing a value."), so the clause's verdict is not a refusal; the
-    // zeroed contents are not an established value, and the initialization
-    // judgment below refuses every use they reach.
-    let mut gated: Vec<OperationId> = Vec::new();
+    // A store or a zero establishment that was not shown to keep a clause
+    // does not fail: it opens an invariant window, and the clause is owed
+    // at the consumption points the window reaches (dependent_values.md,
+    // "Invariant windows"). A construction makes a value and must prove its
+    // clauses where it stands, so its unproved clause stays a refusal.
+    let mut windows: Vec<places::Window> = Vec::new();
+    let mut restoring: Vec<(places::Owner, OperationId)> = Vec::new();
     let mut settled = IdTable::default();
-    let decided: &IdTable<ObligationId, Checked<Discharged>> = &verdicts;
-    for ((_, row), (_, verdict)) in tables.obligations.iter().zip(decided.iter()) {
-        settled.push(match (row.kind, verdict) {
-            (ObligationKind::DataDomain { operation, .. }, Err(unproved))
-                if matches!(unproved.reason, RefusalReason::Unproved(_))
-                    && storage.zero_establishment(operation)? =>
+    for ((obligation, row), (_, verdict)) in tables.obligations.iter().zip(verdicts.iter()) {
+        let ObligationKind::DataDomain { operation, clause } = row.kind else {
+            settled.push(verdict.clone());
+            continue;
+        };
+        let concerns = Construct::Obligation(obligation);
+        let stores = storage.store(operation)?;
+        let zeroes = storage.zero_establishment(operation)?;
+        settled.push(match verdict {
+            // data_and_literals.md: "Construction and every restoring write
+            // prove the owning default-domain clauses."
+            Ok(Discharged::Certificate(_)) if stores => {
+                restoring.push((storage.owner(operation, clause, concerns)?, operation));
+                verdict.clone()
+            }
+            Err(unproved)
+                if matches!(unproved.reason, RefusalReason::Unproved(_)) && (stores || zeroes) =>
             {
-                if !gated.contains(&operation) {
-                    gated.push(operation);
+                let owner = storage.owner(operation, clause, concerns)?;
+                if stores && storage.untouched(operation, &owner, concerns)? {
+                    Ok(Discharged::Preserved)
+                } else {
+                    windows.push(places::Window {
+                        obligation,
+                        opened_by: operation,
+                        owner,
+                        initial: zeroes,
+                        restored: Vec::new(),
+                    });
+                    Ok(Discharged::Window(Box::new(unproved.clone())))
                 }
-                Ok(Discharged::Gated(Box::new(unproved.clone())))
             }
-            // A store whose written value is not known to keep a clause does
-            // not break the program: dependent_values.md, "Invariant windows":
-            // "A write known to preserve the default domain keeps it
-            // established. Otherwise the write opens a window on the place
-            // ... The domain must be proved again at the next consumption
-            // point". This route has no windows yet, so it cannot judge the
-            // closure whole and hands it back; it never rejects a store for
-            // a clause the specification lets a later store restore.
-            (ObligationKind::DataDomain { operation, .. }, Err(unproved))
-                if matches!(unproved.reason, RefusalReason::Unproved(_))
-                    && storage.store(operation)? =>
-            {
-                Err(Refusal {
-                    reason: RefusalReason::Unsupported,
-                    machine: id,
-                    concerns: unproved.concerns,
-                    detail: format!(
-                        "a store that would open an invariant window: {}",
-                        unproved.detail
-                    ),
-                })
-            }
-            (_, verdict) => verdict.clone(),
+            verdict => verdict.clone(),
         });
     }
-    storage.gate(gated);
-    let uses = storage.uses(tables)?;
+    for window in &mut windows {
+        window.restored = restoring
+            .iter()
+            .filter(|(owner, _)| *owner == window.owner)
+            .map(|(_, operation)| *operation)
+            .collect();
+    }
+    // A store not shown to keep a clause while that clause's window on the
+    // same place is already open opens no second window: the window stays
+    // open and the store only changes the contents it holds
+    // (dependent_values.md: "whose actual new contents remain available to
+    // ordinary flow reasoning"). Its consumption points are the first
+    // window's, which names the write that opened it. Zeroed storage is the
+    // exception: a store into it makes the leaf hold a written value, so a
+    // store that does not keep the clause keeps its own window.
+    let mut opened: Vec<places::Window> = Vec::with_capacity(windows.len());
+    for window in windows {
+        let mut within = false;
+        for earlier in &opened {
+            if !earlier.initial
+                && earlier.owner == window.owner
+                && storage.open_before(tables, earlier, window.opened_by)?
+            {
+                within = true;
+                break;
+            }
+        }
+        if !within {
+            opened.push(window);
+        }
+    }
+    let windows = opened;
+    let mut uses = storage.uses(tables)?;
+    let mut closures = Vec::new();
+    for consumption in storage.consumptions(tables, &windows)? {
+        let window = windows.get(consumption.window).ok_or_else(|| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                consumption.at,
+                "a consumption names no window",
+            )
+        })?;
+        let proved = consumption.goal.and_then(|goal| {
+            decide(
+                &context,
+                &graph,
+                tables,
+                id,
+                window.obligation,
+                consumption.point,
+                goal,
+                knowledge != Knowledge::LiteralIntervals,
+            )
+        });
+        let verdict = match proved {
+            // Zeroed storage of a gated type that is observed before its
+            // domain holds was never an established value: the use itself
+            // is unestablished, which is the initialization judgment's
+            // verdict on it.
+            Err(unproved)
+                if window.initial && matches!(unproved.reason, RefusalReason::Unproved(_)) =>
+            {
+                let unestablished = Refusal {
+                    reason: RefusalReason::Unestablished,
+                    machine: id,
+                    concerns: consumption.at,
+                    detail: format!(
+                        "zeroed storage of a gated type is used before its requires holds: {}",
+                        unproved.detail
+                    ),
+                };
+                let used = uses
+                    .iter_mut()
+                    .find(|used| used.at == consumption.at)
+                    .ok_or_else(|| {
+                        refusal(
+                            RefusalReason::ForeignIdentity,
+                            id,
+                            consumption.at,
+                            "a consumption point is no use of storage",
+                        )
+                    })?;
+                if used.verdict.is_ok() {
+                    used.verdict = Err(unestablished.clone());
+                }
+                Err(unestablished)
+            }
+            proved => proved,
+        };
+        closures.push(WindowUse {
+            opened_by: window.obligation,
+            at: consumption.at,
+            verdict,
+        });
+    }
     Ok(MachineDischarge {
         verdicts: settled,
         uses,
+        windows: closures,
+        weakened_joins,
     })
 }
 
@@ -529,14 +710,21 @@ fn fill_knowledge(
         }
     }
     // What each edge of a dispatch binds: its payload parameters, each
-    // equal to what the payload leaf holds. The row holds because that edge
-    // was taken and is available on it.
+    // equal to what the payload leaf holds, and each under the clauses the
+    // type of that storage states of it, as a payload read would be. The
+    // rows hold because that edge was taken and are available on it.
     if knowledge == Knowledge::All {
         for block in &lowered.blocks {
-            for (edge, equation) in storage.payload_equations(tables, block)? {
+            let equations = storage.payload_equations(tables, block)?;
+            let premises = storage.payload_premises(tables, block)?;
+            for (edge, proposition) in equations.into_iter().chain(
+                premises
+                    .into_iter()
+                    .map(|(edge, _, premise)| (edge, premise)),
+            ) {
                 push_knowledge(
                     tables,
-                    equation,
+                    proposition,
                     ProgramPoint::Edge(edge),
                     Justification::DispatchBinding { edge },
                 );
@@ -550,13 +738,20 @@ fn fill_knowledge(
             id,
             Construct::Invocation(invocation),
         )?;
-        let InvocationSite::Operation(operation) = row.site else {
-            return Err(refusal(
-                RefusalReason::Unsupported,
-                id,
-                Construct::Invocation(invocation),
-                "invocation outside an operation",
-            ));
+        // A call with no normal completion is a terminator. Its callee's
+        // guarantees "apply only on normal return" (calls_and_outcomes.md), and
+        // it has none, so it adds no knowledge.
+        let operation = match row.site {
+            InvocationSite::Operation(operation) => operation,
+            InvocationSite::InvokeNoNormal(_) => continue,
+            _ => {
+                return Err(refusal(
+                    RefusalReason::Unsupported,
+                    id,
+                    Construct::Invocation(invocation),
+                    "invocation outside an operation or a no-normal call",
+                ));
+            }
         };
         let callee = callee(id, invocation, &row.callee)?;
         let actuals = scalar_actuals(&row.actuals);
@@ -612,9 +807,18 @@ pub(crate) fn prepare(
     // A consumer re-checking a saved proof decides rows too, so it checks
     // them the same way.
     minted::follow_the_lowered_form(id, machines, lowered, tables, &types)?;
+    minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
     if fill {
-        let storage = places::Storage::new(id, lowered, structural_types, domains, &graph, tables)?;
+        let storage = places::Storage::new(
+            id,
+            lowered,
+            structural_types,
+            domains,
+            &graph,
+            tables,
+            &types,
+        )?;
         storage.owed_are_minted(tables)?;
         fill_knowledge(machines, id, lowered, tables, knowledge, &types, &storage)?;
     }
@@ -1126,13 +1330,17 @@ fn goal(
             concerns,
             "a published clause is decided from its exits, not proved",
         )),
+        ObligationKind::ArrivalInvariant { edge } => {
+            joins::arrival_goal(lowered, id, obligation, edge, tables)
+        }
+        ObligationKind::CrashCoverage { site, cause } => {
+            crashes::coverage_goal(lowered, id, obligation, site, cause)
+        }
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }
         | ObligationKind::RestorationWindow { .. }
         | ObligationKind::DomainDebt { .. }
         | ObligationKind::EstablishmentDebt { .. }
-        | ObligationKind::ArrivalInvariant { .. }
-        | ObligationKind::CrashCoverage { .. }
         | ObligationKind::WellFoundedness { .. }
         | ObligationKind::RankComparison { .. } => Err(refusal(
             RefusalReason::Unsupported,

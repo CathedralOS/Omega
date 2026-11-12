@@ -1,1 +1,2 @@
-does not structurally decrease
+no complete structural ranking establishes strict descent on every cycle
+a computed closing argument is not proved smaller on every incoming path

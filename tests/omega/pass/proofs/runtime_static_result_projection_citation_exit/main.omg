@@ -20,8 +20,8 @@ requires machine Read(index: Nat) -> Observation terminates;
 machine result_projection<machine Read>(index: Nat)
 requires machine Read(index: Nat) -> Observation terminates;
 ensures
-    project<Read>(index) == (Read(index)).value,
-    forwarded<Read>(index) == (Read(index)).value
+    core::Identity<Nat>(project<Read>(index), (Read(index)).value),
+    core::Identity<Nat>(forwarded<Read>(index), (Read(index)).value)
 {
 }
 
@@ -31,16 +31,16 @@ machine literal(index: Nat) -> Observation terminates {
 
 machine concrete_projection(index: Nat)
 ensures
-    project<literal>(index) == index,
-    forwarded<literal>(index) == index
+    core::Identity<Nat>(project<literal>(index), index),
+    core::Identity<Nat>(forwarded<literal>(index), index)
 {
     result_projection<literal>(index);
 }
 
 machine verified_exit(code: i32) -> i32
 requires
-    project<literal>(Nat::Zero) == Nat::Zero,
-    forwarded<literal>(Nat::Zero) == Nat::Zero
+    core::Identity<Nat>(project<literal>(Nat::Zero), Nat::Zero),
+    core::Identity<Nat>(forwarded<literal>(Nat::Zero), Nat::Zero)
 {
     code
 }

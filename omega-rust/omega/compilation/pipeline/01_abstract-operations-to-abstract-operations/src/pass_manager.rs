@@ -1279,6 +1279,7 @@ use crate::validation::{
     ValidatedOptimizerCycleComponents, validate_transformed_psi_context,
     validate_verified_psi_context,
 };
+use crate::verified_unit::VerifiedPsiOptimizationUnit;
 use crate::{AnalysisError, RuleProposalError, RuleRegistryError};
 use crate::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
@@ -1303,9 +1304,7 @@ pub use optimization_unit::{
     OptimizationRunUsage, PsiOptimizationCommit, PsiValidatedCandidateDeclaration,
 };
 use optimization_unit_semantics::OptimizationUnitValidationError;
-use terminal_psi_to_abstract_operations::{
-    VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
-};
+use verified_optimization_input::VerifiedPsiOptimizationInput;
 
 pub(crate) fn baseline_psi_cost_model_identity() -> TargetCostModelIdentity {
     TargetCostModelIdentity::from_canonical_bytes(b"omega.psi-baseline-structural-cost-model.v1")

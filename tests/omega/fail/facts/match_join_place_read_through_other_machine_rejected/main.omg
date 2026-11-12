@@ -16,7 +16,9 @@ requires place.other == 17
     place.other
 }
 
-machine apply(chosen: &Pair, spare: &Pair) -> i64 {
+machine apply(chosen: &Pair, spare: &Pair) -> i64
+requires chosen.kept == 17
+{
     let joined: &Pair = match choose() {
         true -> chosen
         false -> spare
@@ -24,7 +26,9 @@ machine apply(chosen: &Pair, spare: &Pair) -> i64 {
     read_field(joined)
 }
 
-machine forward(chosen: &Pair, spare: &Pair) -> i64 {
+machine forward(chosen: &Pair, spare: &Pair) -> i64
+requires chosen.kept == 17
+{
     apply(chosen, spare)
 }
 

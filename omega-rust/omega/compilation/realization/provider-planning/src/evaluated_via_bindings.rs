@@ -15,7 +15,7 @@ mod binding_evaluation;
 
 use crate::ProviderPlanningContext;
 use crate::evaluated_via_bindings::binding_evaluation::{evaluate_one, exact_binding_vocabulary};
-use build_time_evaluation::{BuildTimeAdmissionPlan, EvaluationUsage};
+use build_time_evaluation::BuildTimeAdmissionPlan;
 use diagnostics::Diagnostic;
 use effects::provider_plan::EvaluatedBindingUsage;
 use package_compilation::PackageCompilationInputs;
@@ -30,18 +30,27 @@ pub use effects::provider_plan::EvaluatedNativeBinding;
 pub(crate) use language_semantics::native_bindings::decode_binding_value;
 pub(crate) type DecodedBindingValue = semantic_vocabulary::NativeBindingLocator;
 
-pub(crate) fn retained_usage(usage: EvaluationUsage) -> Result<EvaluatedBindingUsage, String> {
+// The usage-schema version names the engine that measured these counts: schema
+// 7 counts checked-tree cells and Text bytes, schema 8 counts Terminal logical
+// storage cells and owned payload bytes. The retained row keeps that version
+// beside the counts, so a consumer never reads one engine's cells as another's.
+pub(crate) fn retained_usage(
+    usage: evaluation_accounting::BuildEvaluationUsage,
+) -> Result<EvaluatedBindingUsage, String> {
+    usage
+        .validate()
+        .map_err(|reason| format!("evaluated binding usage is invalid: {reason:?}"))?;
     EvaluatedBindingUsage::from_evaluator(
-        usage.schema().schema_version(),
-        usage.schedule().marker(),
-        usage.work_units(),
-        usage.work_budget(),
-        usage.build_log_bytes(),
-        usage.filesystem_operation_attempts(),
-        usage.peak_live_cells(),
-        usage.peak_live_text_bytes(),
-        usage.result_cells(),
-        usage.result_text_bytes(),
+        usage.usage_schema_version,
+        usage.step_schedule_marker,
+        usage.work_units,
+        usage.invocation_work_budget,
+        usage.build_log_bytes,
+        usage.filesystem_operation_attempts,
+        usage.peak_live_storage_cells,
+        usage.peak_live_payload_bytes,
+        usage.result_storage_cells,
+        usage.result_payload_bytes,
     )
 }
 

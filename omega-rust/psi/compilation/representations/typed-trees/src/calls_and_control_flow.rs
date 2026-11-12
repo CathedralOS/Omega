@@ -1275,6 +1275,10 @@ pub mod calls {
             pub blocks: bool,
             pub contracts: HandleSpan<SignatureContract>,
             pub termination_guarantee: language_semantics::TerminationGuarantee,
+            /// The requirement wrote `crashes none`. It publishes no contract
+            /// row, so this is what tells it from an omitted clause, which
+            /// defers to the selected member's routes (generics.md).
+            pub declares_no_crash_route: bool,
         }
 
         impl Default for StateSignature {
@@ -1299,6 +1303,7 @@ pub mod calls {
                     blocks: false,
                     contracts: HandleSpan::empty(),
                     termination_guarantee: language_semantics::TerminationGuarantee::NoGuarantee,
+                    declares_no_crash_route: false,
                 }
             }
         }
@@ -2740,6 +2745,11 @@ pub mod control_flow {
                                     is_operand_capture: local.is_operand_capture,
                                     relevance: local.relevance,
                                     reflected_query_origin,
+                                    pattern_fields: self.expression_table.copy_pattern_fields_from(
+                                        &source_tables.expression_table,
+                                        local.pattern_fields,
+                                    ),
+                                    pattern_subject: local.pattern_subject,
                                 })
                             }
                             StatementNode::Transition(transition) => {
@@ -2930,12 +2940,24 @@ pub mod control_flow {
                                 );
                                 self.expression_table
                                     .remap_symbols_in(local.initial_value, symbols);
+                                // A resolved record pattern names its record
+                                // and fields by symbol, as an arm's pattern does.
+                                for row in local.pattern_fields.handles() {
+                                    let row = self.expression_table.match_field_mut(row);
+                                    if row.field_symbol.is_valid() {
+                                        row.field_symbol = remapped(row.field_symbol, symbols);
+                                    }
+                                }
                                 let StatementNode::LocalData(current) =
                                     self.statement_table.statements.get_mut(handle)
                                 else {
                                     unreachable!();
                                 };
                                 current.symbol = remapped(current.symbol, symbols);
+                                if current.pattern_subject.is_valid() {
+                                    current.pattern_subject =
+                                        remapped(current.pattern_subject, symbols);
+                                }
                             }
                             StatementNode::Transition(transition) => {
                                 for retained in self
@@ -3687,6 +3709,16 @@ pub mod control_flow {
             pub is_operand_capture: bool,
             pub relevance: language_core::BindingRelevance,
             pub reflected_query_origin: Option<StatementHandle>,
+            /// A record pattern's roster (`let { a, b as _ } = subject;`):
+            /// one row per field the author named, in authored order, bound
+            /// or waived. Typed preparation gives each row the symbol of the
+            /// subject's field it names; a row that names none stays without
+            /// one. Empty unless `role` is `RecordPattern`.
+            pub pattern_fields: HandleSpan<crate::expression::TableMatchField>,
+            /// The data declaration the roster was resolved against: the
+            /// subject's declared record type. Invalid until typed
+            /// preparation resolves the subject, and when it cannot.
+            pub pattern_subject: SymbolHandle,
         }
 
         impl TableLocalData {
@@ -3709,6 +3741,8 @@ pub mod control_flow {
                     is_operand_capture: false,
                     relevance: language_core::BindingRelevance::Relevant,
                     reflected_query_origin: None,
+                    pattern_fields: HandleSpan::empty(),
+                    pattern_subject: SymbolHandle::invalid(),
                 }
             }
         }

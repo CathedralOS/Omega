@@ -1,0 +1,15 @@
+// Assigning over `leaf` displaces a value whose automatic cleanup writes
+// counter.drops through the loan it held, in the body that holds the fact.
+data Counter { drops: u64 in Wrapping; }
+data AffineLeaf<'storage> dropped by drop_affine_leaf<'storage> { counter: &'storage mut Counter; }
+machine drop_affine_leaf<'storage>(leaf: &mut AffineLeaf<'storage>) {
+    leaf.counter.drops = leaf.counter.drops + 1;
+}
+machine demand_zero(counter: &mut Counter) requires counter.drops == 0 {}
+machine main() {
+    let mut counter: Counter = Counter { drops: 0 };
+    let mut other: Counter = Counter { drops: 0 };
+    let mut leaf: AffineLeaf = AffineLeaf { counter: &mut counter };
+    leaf = AffineLeaf { counter: &mut other };
+    demand_zero(&mut counter);
+}

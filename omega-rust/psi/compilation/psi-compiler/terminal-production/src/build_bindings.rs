@@ -312,6 +312,7 @@ pub type TerminalBuildSelectionRequest = BuildSelectionRequest<TerminalBuildProv
 pub enum TerminalBuildBindingOperation {
     AwaitProvider,
     Prepare,
+    PrepareTests, // Test-group registration, prepared on the Build's `tests` facet.
     Bind,
     BindNative,
     Select,
@@ -418,6 +419,7 @@ pub(crate) fn capture(
         let action = match call.target.as_str() {
             "await_provider" => TerminalBuildBindingOperation::AwaitProvider,
             "prepare" => TerminalBuildBindingOperation::Prepare,
+            "prepare_tests" => TerminalBuildBindingOperation::PrepareTests,
             "bind" | "bind_description" => TerminalBuildBindingOperation::Bind,
             "bind_native" => TerminalBuildBindingOperation::BindNative,
             "select" => TerminalBuildBindingOperation::Select,

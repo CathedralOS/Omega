@@ -44,7 +44,7 @@ pub(crate) fn project_data_invariant_facts(
     };
     let reviewed_package = reviewed_package(compilation, "data invariant")?;
     let mut projected = Vec::new();
-    for fact_handle in definition.where_facts.handles() {
+    for fact_handle in definition.requires_facts.handles() {
         require_exact_checked_data_fact(compilation, definition.symbol, fact_handle, identity)?;
         projected.push(project_definition_contract_fact(
             compilation,

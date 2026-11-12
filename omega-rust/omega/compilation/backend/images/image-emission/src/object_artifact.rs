@@ -5492,6 +5492,7 @@ pub(crate) mod test_support {
         shape: terminal_psi::StructuralTypeShape,
     ) -> terminal_psi::StructuralTypeDeclaration {
         terminal_psi::StructuralTypeDeclaration {
+            requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,

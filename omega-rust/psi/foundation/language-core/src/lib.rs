@@ -8,7 +8,10 @@ catalog contracts and scratch-register tables (`inline_assembly`), operator
 spellings (`operator_spelling`), compiler-owned layout query names
 (`data_layout_queries`), evaluated constant values (`constant_value`), and core
 surface operation descriptors (`activation_storage`, `descriptor_tables`,
-`layout_storage`, `static_interrupts`).
+`layout_storage`, `static_interrupts`), and the sealed intrinsic catalog of
+bundled declarations that receive compiler custody (`sealed_intrinsics`), and
+the separate catalog of core declarations checking recognizes by identity
+without granting custody (`core_vocabulary`).
 */
 
 /*
@@ -28,7 +31,9 @@ We neither parse nor judge a program, and we depend on `compiler_storage` and
 #![forbid(unsafe_code)]
 
 pub mod atomic;
+pub mod core_vocabulary;
 pub mod inline_assembly;
+pub mod sealed_intrinsics;
 mod source_semantics;
 
 pub use atomic::{AtomicOrderingPlan, MemoryOrdering};
@@ -388,6 +393,16 @@ pub mod static_interrupts {
             Self::FinishCompletion,
         ];
 
+        /// The core service an operation must reach, as vocabulary.
+        pub const fn required_service(self) -> Option<crate::core_vocabulary::CoreVocabulary> {
+            match self {
+                Self::Install => {
+                    Some(crate::core_vocabulary::CoreVocabulary::MachineControlService)
+                }
+                Self::Context | Self::BeginCompletion | Self::FinishCompletion => None,
+            }
+        }
+
         pub const fn required_service_identity(self) -> Option<&'static str> {
             match self {
                 Self::Install => Some("toolchain::MachineControl"),
@@ -401,19 +416,6 @@ pub mod static_interrupts {
                 Self::Context => 1,
                 Self::BeginCompletion => 2,
                 Self::FinishCompletion => 3,
-            }
-        }
-
-        pub fn from_core_declaration(name: &str, source: &[u8]) -> Option<Self> {
-            if source != CORE_DECLARATIONS {
-                return None;
-            }
-            match name {
-                "X86StaticInterruptScope::run" => Some(Self::Install),
-                "view_static_interrupt_context" => Some(Self::Context),
-                "begin_static_interrupt_completion" => Some(Self::BeginCompletion),
-                "finish_static_interrupt_completion" => Some(Self::FinishCompletion),
-                _ => None,
             }
         }
     }

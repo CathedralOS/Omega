@@ -1743,6 +1743,14 @@ pub(crate) mod structural_type_wire {
     use super::structural_signature_wire::{decode_structural_access, encode_structural_access};
     use super::wire::{Reader, Writer};
     use crate::sections::semantic_module::wire::{bounded_count, decode_counted};
+    use crate::term_wire::proposition_wire::{decode_proposition, encode_proposition};
+
+    /// A packed record or a sum that declares `requires` clauses takes its
+    /// own shape tag, followed after the shape by the counted clauses, so a
+    /// declaration without clauses keeps the bytes it had before clauses
+    /// had a slot.
+    const PACKED_RECORD_WITH_REQUIRES: u8 = 17;
+    const SUM_WITH_REQUIRES: u8 = 18;
 
     pub(crate) fn encode_structural_type(
         writer: &mut Writer,
@@ -1798,6 +1806,9 @@ pub(crate) mod structural_type_wire {
             }
             StructuralTypeShape::Record { fields, storage } => {
                 writer.u8(match storage {
+                    StructuralRecordStorage::Packed if !declaration.requires.is_empty() => {
+                        PACKED_RECORD_WITH_REQUIRES
+                    }
                     StructuralRecordStorage::Packed => 1,
                     StructuralRecordStorage::AccessView(_) => 14,
                     StructuralRecordStorage::Accessor(_) => 15,
@@ -1841,7 +1852,11 @@ pub(crate) mod structural_type_wire {
                 }
             }
             StructuralTypeShape::Sum { cases } => {
-                writer.u8(3);
+                writer.u8(if declaration.requires.is_empty() {
+                    3
+                } else {
+                    SUM_WITH_REQUIRES
+                });
                 writer.len("structural cases", cases.len())?;
                 for case in cases {
                     writer.id(case.id);
@@ -1866,6 +1881,23 @@ pub(crate) mod structural_type_wire {
                 }
             }
         }
+        if !declaration.requires.is_empty() {
+            if !matches!(
+                declaration.shape,
+                StructuralTypeShape::Record {
+                    storage: StructuralRecordStorage::Packed,
+                    ..
+                } | StructuralTypeShape::Sum { .. }
+            ) {
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "only a packed record or a sum declares requires clauses",
+                ));
+            }
+            writer.len("structural type requires", declaration.requires.len())?;
+            for clause in &declaration.requires {
+                encode_proposition(writer, clause, 0)?;
+            }
+        }
         Ok(())
     }
 
@@ -1884,7 +1916,9 @@ pub(crate) mod structural_type_wire {
         let descriptor_cleanup = reader.boolean()?;
         let copyable = reader.boolean()?;
         let mut scalar_restriction = None;
-        let shape = match reader.u8()? {
+        let tag = reader.u8()?;
+        let declares_requires = matches!(tag, PACKED_RECORD_WITH_REQUIRES | SUM_WITH_REQUIRES);
+        let shape = match tag {
             7 => StructuralTypeShape::Reference {
                 referent: reader.id("StructuralTypeId")?,
                 access: decode_structural_access(reader)?,
@@ -1921,7 +1955,7 @@ pub(crate) mod structural_type_wire {
                     },
                 }
             }
-            1 => StructuralTypeShape::Record {
+            1 | PACKED_RECORD_WITH_REQUIRES => StructuralTypeShape::Record {
                 storage: StructuralRecordStorage::Packed,
                 fields: decode_counted(reader, decode_structural_field)?,
             },
@@ -1959,7 +1993,7 @@ pub(crate) mod structural_type_wire {
                     tag => return Err(CodecError::InvalidTag("ArrayExtent", tag)),
                 },
             },
-            3 => StructuralTypeShape::Sum {
+            3 | SUM_WITH_REQUIRES => StructuralTypeShape::Sum {
                 cases: decode_counted(reader, |reader| {
                     Ok(StructuralCaseDeclaration {
                         id: reader.id("StructuralCaseId")?,
@@ -1981,7 +2015,22 @@ pub(crate) mod structural_type_wire {
             },
             tag => return Err(CodecError::InvalidTag("StructuralTypeShape", tag)),
         };
+        let requires = if declares_requires {
+            let requires = decode_counted(reader, |reader| decode_proposition(reader, 0))?;
+            if requires.is_empty() {
+                // The tags without clauses already say "none"; a second
+                // spelling of no clauses would give one declaration two
+                // encodings.
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "a declaration tagged with requires clauses declares none",
+                ));
+            }
+            requires
+        } else {
+            Vec::new()
+        };
         Ok(StructuralTypeDeclaration {
+            requires,
             quotient_carrier,
             owns_linear_claim,
             no_code_affine_cleanup,
@@ -2102,6 +2151,7 @@ pub(crate) mod structural_type_wire {
             let mut encodings = Vec::new();
             for copyable in [false, true] {
                 let declaration = StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,
@@ -2137,6 +2187,7 @@ pub(crate) mod structural_type_wire {
             let mut encodings = Vec::new();
             for owns_linear_claim in [false, true] {
                 let declaration = StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim,
                     no_code_affine_cleanup: false,
@@ -2176,6 +2227,7 @@ pub(crate) mod structural_type_wire {
             let stored =
                 ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).expect("signed byte"));
             let declaration = StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,

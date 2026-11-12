@@ -133,7 +133,9 @@ requirement of a boundary trait, and a token binds to an ordinary
 discriminants (`case A = 1`), old-order numbered cases (`case #N Name`),
 case-group blocks, multi-domain unions, the
 retired bracketed scalar range suffix (`u32 [0..=9]`; ranges are
-`where`/`requires`/`ensures` propositions, `scalar-range-contract-spelling`),
+`requires`/`ensures` propositions, `scalar-range-contract-spelling`),
+`where` in any clause position (retired by
+[requirement clauses](../../wiki/spec/language/state_contracts.md#requirement-clauses)),
 and the `if`, `loop`, `while` and `return` statements reject instead of
 becoming a private bridge tree.
 
@@ -174,8 +176,8 @@ mathematical definitions (`let` roots) and transparent trait refinements,
 which reject at their root as unsupported declarations before any binding,
 as does a form whose bindings resolution does not record yet
 ([`resolve/forms.omg`](resolve/forms.omg)), at that form: a nominal `requires machine ... satisfies` contract, a structural one with generic parameters or
-clauses other than `requires`, `crashes`, `suspends` and `blocks`, a `where
-proposition` contract, a proposition binder, an evidence binder on a machine,
+clauses other than `requires`, `crashes`, `suspends` and `blocks`, a proposition
+contract, a proposition binder, an evidence binder on a machine,
 data declaration, conformance, domain or proposition, or an
 operator token anywhere but on an ordinary owned machine binding an
 arithmetic or order token (a trait requirement's token, an unqualified
@@ -298,10 +300,9 @@ bare candidates, or several domains at once reject). These value bindings are
 indexed by expression handle. Every machine's `requires` and `ensures` facts
 bind in its own parameter scope, `result` in
 an `ensures` fact naming the returned value unless a parameter spells it, and
-a data declaration's `where` facts bind its fields bare, and a case's own
-`where` facts that case's payload fields first, then the declaration's
-fields ([`resolve/facts.omg`](resolve/facts.omg)); another case's payload is
-not in scope. A proposition applies only as a
+a data declaration's `requires` facts bind its fields bare
+([`resolve/facts.omg`](resolve/facts.omg)); a case states no facts of its
+own, so no fact names a payload field bare. A proposition applies only as a
 whole fact (`requires P(x)`): inside a larger fact it rejects as unsupported,
 and in a body, a transition target or a constant's value, where a value is
 computed, it rejects as proof-only. A domain's predicates bind with its
@@ -424,8 +425,7 @@ Facts type too ([`typing/facts.omg`](typing/facts.omg)): each machine's
 `requires` and `ensures` fact over its own parameters (`result` has the
 machine's result type), each `requires machine`
 contract's `requires` fact over its own parameters, and each data
-declaration's `where` fact over its fields, and each case's own `where` fact
-over its payload fields and those fields, is a Boolean. A proposition
+declaration's `requires` fact over its fields, is a Boolean. A proposition
 application is a Boolean statement that selects nothing: its arguments meet
 the proposition's parameters by ordinary admission, a generic proposition's
 bound as a generic machine call's are. Each construction field and pattern
@@ -547,7 +547,7 @@ subject, their own pattern selected and earlier ones passed over as a
 transition's arms are; the facts after it are its arms' join and its value
 their hull, and an arm value landed at a qualified match type proves the
 qualification ([`checking/matches.omg`](checking/matches.omg)). A body assumes its `requires`
-facts, and an established value's `where` facts hold of its fields
+facts, and an established value's `requires` facts hold of its fields
 ([`checking/domains.omg`](checking/domains.omg)), installed field by field as
 the fields become places, in every zone a join or restore may later meet. A
 private declaration's incoming facts are the join of every reached invocation's
@@ -630,13 +630,10 @@ obligations ([`checking/fact_values.omg`](checking/fact_values.omg)). Crash
 routes settle over the call graph: a private machine without crash clauses
 publishes what it derives, and any other machine must declare every cause it
 derives (wiki/spec/language/effects.md). A construction of data carrying
-`where` facts proves them with each field name standing for the value it
-writes, zero for an omitted field, together with the constructed case's
-own `where` facts over its payload values; a payload-free case value
-(`Type::Case`) proves them over zero fields. A chosen case arm assumes its
-case's facts, payload names standing for its binders and common names for
-the subject's fields, and a store into a field a case's fact names rejects
-as unproved, the active case being unknown there. An untyped fact is never
+`requires` facts proves them with each field name standing for the value it
+writes, zero for an omitted field; a payload-free case value (`Type::Case`)
+proves them over zero fields. A case states no facts of its own, so a
+chosen case arm assumes nothing beyond its binders' types. An untyped fact is never
 proved. A proposition application states what no zone fact expresses:
 assumed, it establishes nothing, and where it must hold it rejects as an
 unsupported fact.

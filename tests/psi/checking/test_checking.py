@@ -1969,9 +1969,9 @@ def main() -> None:
         b"trait Algebra { machine zero() -> u64 terminates; }",
     )
     # The product's own accessor and push shapes: a guard on a field and the
-    # field's `where` bound reach the machine that indexes and stores.
+    # field's `requires` bound reach the machine that indexes and stores.
     table = (
-        b"data Table\nwhere\n    count <= 4,\n{ items: [u8; 4]; count: u64; }\n"
+        b"data Table\nrequires\n    count <= 4,\n{ items: [u8; 4]; count: u64; }\n"
     )
     accepted(
         program,
@@ -2016,7 +2016,7 @@ def main() -> None:
     accepted(
         program,
         "construction-establishes-the-domain",
-        b"data Range\nwhere\n    lo <= hi,\n{ lo: u64; hi: u64; }\n"
+        b"data Range\nrequires\n    lo <= hi,\n{ lo: u64; hi: u64; }\n"
         b"machine make(x: u64) -> Range {\n"
         b"    transition x < 10 {\n"
         b"        true -> made(x)\n"
@@ -2027,43 +2027,8 @@ def main() -> None:
         b"    machine empty() -> Range { Range { lo: 0, hi: 0 } }\n"
         b"}",
     )
-    # A case's own `where` facts: construction proves the selected case's,
-    # over the payload values it writes; a chosen arm assumes them over its
-    # binders and the subject's fields; a store to a field one names is not
-    # proved, since the active case is unknown there.
-    accepted(
-        program,
-        "case-construction-proves-its-facts",
-        b"data Size { case Some(v: u64) where v < 9; case None; }\n"
-        b"machine make() -> Size { Size::Some { v: 1 } }",
-    )
-    rejected(
-        program,
-        "case-construction-breaks-its-facts",
-        b"data Size { case Some(v: u64) where v < 9; case None; }\n"
-        b"machine make() -> Size { Size::Some { v: 9 } }",
-        "DomainUnproven",
-        b"Size::Some { v: 9 }",
-    )
-    rejected(
-        program,
-        "case-construction-omits-a-payload",
-        b"data Pair { case Both(a: u64, b: u64) where b > 0; case None; }\n"
-        b"machine make() -> Pair { Pair::Both { a: 1 } }",
-        "DomainUnproven",
-        b"Pair::Both { a: 1 }",
-    )
-    accepted(
-        program,
-        "case-arm-assumes-its-facts",
-        b"data Interval { case Empty; case Range(lo: u64, hi: u64) where lo <= hi; }\n"
-        b"machine width(i: Interval) -> u64 {\n"
-        b"    transition i {\n"
-        b"        Interval::Range { lo, hi } -> (hi - lo)\n"
-        b"        _ -> (0)\n"
-        b"    }\n"
-        b"}",
-    )
+    # A case states no facts of its own: an arm learns nothing about its
+    # payload beyond its type, and a case value owes its data's `requires`.
     rejected(
         program,
         "case-arm-without-the-fact",
@@ -2077,38 +2042,13 @@ def main() -> None:
         "ArithmeticOverflow",
         b"hi - lo",
     )
-    accepted(
-        program,
-        "case-arm-assumes-common-field-facts",
-        b"data Tally { n: u64; case Some(v: u64) where v < n; case None; }\n"
-        b"machine room(t: &Tally) -> u64 {\n"
-        b"    transition t {\n"
-        b"        Tally::Some { v, .. } -> (t.n - v)\n"
-        b"        _ -> (0)\n"
-        b"    }\n"
-        b"}",
-    )
     rejected(
         program,
         "case-value-owes-the-data-facts",
-        b"data Flag\nwhere\n    x > 0,\n{ x: u64; case On; case Off; }\n"
+        b"data Flag\nrequires\n    x > 0,\n{ x: u64; case On; case Off; }\n"
         b"machine make() -> Flag { Flag::On }",
         "DomainUnproven",
         b"Flag::On",
-    )
-    rejected(
-        program,
-        "store-to-a-field-a-case-fact-names",
-        b"data Tally { n: u64; m: u64; case Some(v: u64) where v < n; case None; }\n"
-        b"machine reset(t: &mut Tally) { t.n = 0; }",
-        "DomainUnproven",
-        b"t.n = 0;",
-    )
-    accepted(
-        program,
-        "store-to-a-field-no-case-fact-names",
-        b"data Tally { n: u64; m: u64; case Some(v: u64) where v < n; case None; }\n"
-        b"machine reset(t: &mut Tally) { t.m = 0; }",
     )
     # A proposition application states what no zone fact expresses:
     # assumed, it establishes nothing; owed by a call, a return or a
@@ -2145,7 +2085,7 @@ def main() -> None:
         program,
         "proposition-data-fact-is-unsupported",
         b"proposition Ordered(lo: u64, hi: u64) = lo <= hi;\n"
-        b"data Range\nwhere\n    Ordered(lo, hi),\n{ lo: u64; hi: u64; }\n"
+        b"data Range\nrequires\n    Ordered(lo, hi),\n{ lo: u64; hi: u64; }\n"
         b"machine make() -> Range { Range { lo: 1, hi: 2 } }",
         "UnsupportedFact",
         b"Ordered(lo, hi)",
@@ -2153,7 +2093,7 @@ def main() -> None:
     rejected(
         program,
         "construction-breaks-the-domain",
-        b"data Range\nwhere\n    lo <= hi,\n{ lo: u64; hi: u64; }\n"
+        b"data Range\nrequires\n    lo <= hi,\n{ lo: u64; hi: u64; }\n"
         b"machine make() -> Range { Range { lo: 1 } }",
         "DomainUnproven",
         b"Range { lo: 1 }",
@@ -3400,7 +3340,7 @@ def main() -> None:
 
     # A recast's representations (recasts.omg): same-width integers and
     # floats view each other either way, a Boolean views as a byte shared
-    # only, a byte views as a Boolean only as a field its data's `where`
+    # only, a byte views as a Boolean only as a field its data's `requires`
     # facts bound to zero or one, a qualified source views shared only and
     # a qualified target is unsupported.
     accepted(

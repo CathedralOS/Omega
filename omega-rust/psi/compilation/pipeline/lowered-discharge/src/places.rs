@@ -1,31 +1,34 @@
 /*
 What a place holds when an operation uses it, answered once for reads, copies
-and the initialization judgment by one walk over three things the tables and
-the lowered form already hold: the forward write log, the one overlap
-relation over parent links (`overlap`), and the lowered graph.
+and the initialization judgment by one walk over three things: the stores the
+lowered operations make (`log`), the one overlap relation over the segments of
+two places (`overlap`), and the lowered graph.
+
+The stores are derived here from the operations and not read from
+elaboration's write log, because every goal over a field is stated over the
+value its leaf holds: a log that names another value would prove another
+goal. The tables' own log, place table and entry content values are checked
+against the lowered form before anything is asked of them (`log`).
 
 The walk (`Storage::reaching`). From the point before a use of one scalar
-leaf, go back over the graph. The last overlapping write met on a path is the
+leaf, go back over the graph. The last overlapping store met on a path is the
 one that reaches along it. Three things can supply a path:
 
-- a row `Content::Value(v)` on exactly the leaf supplies `v`;
-- a row `Content::Overwritten` on the leaf or a place above it supplies new
-  contents with no value identity, unless the operation at the row's point is
-  one that moves storage whole (a whole copy, a record operand of a literal,
-  a record stored into a field). Then the leaf holds what the matching leaf
-  of the operation's source held just before it, and the walk continues from
-  there. The row cannot say this itself: `Content` has no variant for "what
-  that other place held", so the source is read from the operation, whose
-  storage path the lowered form resolves (`runtime_structural_field`);
-- a path that meets no write before the machine's entry is supplied by the
+- a store of the value `v` into exactly the leaf supplies `v`;
+- a store into the leaf or a place above it that moves storage whole (a whole
+  copy, a record operand of a literal, a record stored into a field) supplies
+  what the matching leaf of its source held just before it, and the walk
+  continues from there. A call's record result supplies contents with no
+  value identity, and so does any other store that overlaps the leaf;
+- a path that meets no store before the machine's entry is supplied by the
   place's entry content when its root is a formal ("a valid initialized
   ordinary storage place at entry may supply its exact reaching value
   version", fact_validity.md), and by nothing otherwise.
 
 A local declared without an initializer is one more supplier: a data
-local's zero establishment logs a zero constant on each scalar leaf of the
-zero value, and the first declared case of each sum is read from the
-operation; a scalar local's establishment logs its zero constant on its home.
+local's zero establishment stores a zero constant into each scalar leaf of
+the zero value and establishes the first declared case of each sum; a scalar
+local's establishment stores its zero constant into its home.
 
 Two judgments read the answer, and so do the goal of a data type's
 `requires` clause (`Storage::domain_goal`: what each field the clause names
@@ -47,24 +50,33 @@ return) gets one verdict: each scalar leaf at or beneath the place it uses
 must be supplied with an established value on every path. A path that
 supplies nothing is a refusal with reason `Unestablished`. A local declared
 without an initializer is zero-constructed (`local-without-initializer`), so
-in an elaborated program the path that supplies nothing is the zeroed
-storage of a gated type. dependent_values.md: "If zero satisfies the default
-domain, the value is zero-constructible. Otherwise the type is gated:
-construction or checked qualification must establish the domain before
-observation." A scalar local's zero is always established: every scalar type
-served here admits zero. This is a structural judgment, not a proposition:
-it has no obligation row and no certificate.
+its zeros supply every leaf. Zeroed storage of a gated type is not yet a
+value: its declaration opens an invariant window, and a use that observes a
+zeroed leaf while it is open is `Unestablished` (`Storage::consumptions`).
+dependent_values.md: "If zero satisfies the default domain, the value is
+zero-constructible. Otherwise the type is gated: construction or checked
+qualification must establish the domain before observation." This is a
+structural judgment, not a proposition: it has no obligation row and no
+certificate.
+
+Invariant windows (`Storage::consumptions`). The same walk, asked which of
+three writes a path meets last: the one that opened the window, a store
+that proved the same clause of the same place, or a whole write to the
+place. The first leaves it open, the others close it. Each use of storage
+that consumes the place's domain and that the window reaches open is a
+consumption point, where the clause is stated again over what the place
+holds there.
 
 Knowledge names values only. No row here states a proposition about a place,
 and `semantic_vocabulary::Proposition`'s structural variants are not used.
 */
 
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, EdgeId, InvocationSite, MachineId, OperationId,
-    PlaceId, Proposition, PsiSemanticId, ScalarTerm, ScalarType, StructuralCaseId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, InvocationSite, MachineId, ObligationId,
+    OperationId, PlaceId, Proposition, PsiSemanticId, ScalarTerm, ScalarType, StructuralCaseId,
     StructuralPlaceKind, StructuralTypeId, ValueId,
 };
-use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment};
+use terminal_check_tables::bindings::{PlaceOrigin, PlaceRow, Segment};
 use terminal_check_tables::edges::Actual;
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::ValueOrigin;
@@ -72,14 +84,18 @@ use terminal_check_tables::{
     Checked, Construct, ExactPlaceId, IdTable, MachineTables, ProgramPoint, RefusalReason,
 };
 use terminal_psi::{
-    Block, Operation, OperationKind, RecordFieldValue, StructuralArgument,
-    StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    TerminalMachineResult, Terminator,
+    Block, Operation, OperationKind, StructuralArgument, StructuralCaseDeclaration,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+    Terminator, ValueDeclaration,
 };
 
 use crate::graph::Graph;
 use crate::{StorageUse, refusal};
+
+mod log;
+
+use log::{Logged, Stored};
 
 fn index(raw: u64) -> usize {
     usize::try_from(raw - 1).unwrap_or(usize::MAX)
@@ -156,21 +172,35 @@ pub(crate) fn overlap(left: &Lineage, right: &Lineage) -> bool {
 }
 
 fn asked_root(asked: Asked<'_>) -> PlaceId {
-    match asked {
-        Asked::Contents(place) | Asked::Case(place) => place.root,
-    }
+    asked.place().root
 }
 
 /// The entry content value of each place that has one, indexed by
 /// `ExactPlaceId - 1`. A derived column over the value table: elaboration
-/// mints at most one such value per place, and a second one is refused
-/// because it would be a second identity for one content.
+/// mints at most one such value per place.
+///
+/// The lowered form declares no entry content value, so nothing in it fixes
+/// which identity belongs to which leaf. They are minted in the order of
+/// the leaves they belong to, and any other order is refused: otherwise two
+/// rows of the same type could exchange their leaves and be read as each
+/// other's contents. A second value for one place is out of order too: it
+/// would be a second identity for one content.
 fn entry_contents(machine: MachineId, tables: &MachineTables) -> Checked<Vec<Option<ValueId>>> {
     let mut contents = vec![None; tables.places.len()];
+    let mut previous: Option<ExactPlaceId> = None;
     for (value, row) in tables.values.iter() {
         let ValueOrigin::EntryContent { place } = row.origin else {
             continue;
         };
+        if previous.is_some_and(|previous| previous >= place) {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                machine,
+                Construct::Value(value),
+                "entry content values are not in the order of the leaves they belong to",
+            ));
+        }
+        previous = Some(place);
         let slot = contents.get_mut(index(place.get())).ok_or_else(|| {
             refusal(
                 RefusalReason::ForeignIdentity,
@@ -179,32 +209,9 @@ fn entry_contents(machine: MachineId, tables: &MachineTables) -> Checked<Vec<Opt
                 "entry content of a place past the end of this machine",
             )
         })?;
-        if slot.replace(value).is_some() {
-            return Err(refusal(
-                RefusalReason::Unsupported,
-                machine,
-                Construct::Value(value),
-                "a place has two entry content values",
-            ));
-        }
+        *slot = Some(value);
     }
     Ok(contents)
-}
-
-/// One row of the write log, located in the graph.
-struct Logged {
-    lineage: Lineage,
-    block: BlockId,
-    /// Its position in the block, as `Graph::locate` orders points.
-    position: usize,
-    content: Content,
-    /// The operation whose normal continuation the row is stated at.
-    operation: Option<OperationId>,
-    /// A row on an edge reaches only that edge's destination; this walk
-    /// moves between blocks, not edges, and elaboration logs no edge write
-    /// yet. One that overlaps a use is refused rather than given to every
-    /// successor.
-    on_edge: bool,
 }
 
 /// What one scalar leaf holds on every path to a point.
@@ -223,11 +230,17 @@ enum Reached {
     /// Some path supplies nothing: no store reaches the use along it and the
     /// place held nothing at entry.
     Unestablished,
+    /// Asked of a window: some path arrives from the write that opened it
+    /// with nothing since that closed it.
+    Open,
+    /// Asked of a window: every path closed it, or never passed its opening
+    /// write.
+    Closed,
 }
 
 /// What a place is, by the lowered form's own declarations.
 enum Shape<'a> {
-    Scalar,
+    Scalar(ScalarType),
     Typed(StructuralTypeId),
     /// The payload namespace of one case of a sum: a `Case` segment, which
     /// holds no storage of its own and is followed by a payload field.
@@ -241,26 +254,155 @@ enum Asked<'q> {
     Contents(&'q Lineage),
     /// Which case this sum is established as.
     Case(&'q Lineage),
+    /// Whether the invariant window that the operation `by` opened on
+    /// `place` is still open: dependent_values.md, "Otherwise the write
+    /// opens a window on the place ... The domain must be proved again at
+    /// the next consumption point". `restored` are the stores that proved
+    /// the window's clause of that place where they wrote
+    /// (data_and_literals.md: "Construction and every restoring write prove
+    /// the owning default-domain clauses.").
+    Window {
+        place: &'q Lineage,
+        by: OperationId,
+        restored: &'q [OperationId],
+    },
 }
 
-impl Asked<'_> {
+impl<'q> Asked<'q> {
+    fn place(self) -> &'q Lineage {
+        match self {
+            Self::Contents(place) | Self::Case(place) | Self::Window { place, .. } => place,
+        }
+    }
+
     /// Whether a logged row ends a path of the walk. For contents, any
     /// write to an overlapping place. For a case, a write to the sum or to
     /// a place above it (structural_access.md: "A write to the sum or any
     /// prefix retires these facts"); a store beneath the sum changes a
-    /// payload and not the case.
-    fn ended_by(self, row: &Lineage) -> bool {
+    /// payload and not the case. For a window, the write that opened it, a
+    /// write that replaces the place whole (to it or to a place above it:
+    /// the new contents arrived as an established value) and a restoring
+    /// store; any other store beneath the place only changes the contents
+    /// of a window that stays open.
+    fn ended_by(self, row: &Logged) -> bool {
         match self {
-            Self::Contents(leaf) => overlap(row, leaf),
-            Self::Case(sum) => row.root == sum.root && sum.segments.starts_with(&row.segments),
+            Self::Contents(leaf) => overlap(&row.lineage, leaf),
+            Self::Case(sum) => {
+                row.lineage.root == sum.root && sum.segments.starts_with(&row.lineage.segments)
+            }
+            Self::Window {
+                place,
+                by,
+                restored,
+            } => {
+                overlap(&row.lineage, place)
+                    && (place.segments.starts_with(&row.lineage.segments)
+                        || row.operation == by
+                        || restored.contains(&row.operation))
+            }
         }
     }
 }
 
-/// One machine's storage as the checker reads it: the write log located in
-/// the graph, the entry contents, and the lowered declarations that say
-/// what lies beneath a place. Derived once per machine; the tables do not
-/// change beneath it, because discharge only appends knowledge.
+/// One clause of a data type's `requires` on one place of that type: what a
+/// `DataDomain` obligation is about.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Owner {
+    place: Lineage,
+    structural_type: StructuralTypeId,
+    /// The clause's position among its type's clauses.
+    position: usize,
+}
+
+/// One invariant window: a `DataDomain` clause that the store or zero
+/// establishment owing it was not shown to keep. The obligation is the
+/// window's identity. dependent_values.md, "Invariant windows": "An
+/// invariant window is compiler-derived proof debt, not a source `relax`
+/// mode, runtime poison flag, or mutable truth bit."
+#[derive(Debug, Clone)]
+pub(crate) struct Window {
+    pub(crate) obligation: ObligationId,
+    /// The store or zero establishment that opened it.
+    pub(crate) opened_by: OperationId,
+    pub(crate) owner: Owner,
+    /// Opened by a zero establishment: the storage was zeroed and no valid
+    /// value exists yet (dependent_values.md: "initial target-establishment
+    /// debt before a valid target value exists"). Otherwise a store broke
+    /// the domain of a value that was established.
+    pub(crate) initial: bool,
+    /// The stores that proved this clause of this place where they wrote.
+    pub(crate) restored: Vec<OperationId>,
+}
+
+/// One consumption point that an open window reaches, with the window's
+/// clause stated over what its place holds there.
+pub(crate) struct Consumption {
+    /// The window, by position in the list `consumptions` was given.
+    pub(crate) window: usize,
+    /// The operation, or for a terminator its edge or block.
+    pub(crate) at: Construct,
+    /// The point the clause is proved at: before the operation, or on the
+    /// edge.
+    pub(crate) point: ProgramPoint,
+    pub(crate) goal: Checked<Proposition>,
+}
+
+/// How an operation or terminator touches the storage it names.
+#[derive(Clone, Copy)]
+enum Touching<'a> {
+    /// It passes a whole value on: a whole copy, a record operand, a record
+    /// stored into a field, a call's record argument, a return, a transfer
+    /// on an edge.
+    Whole,
+    /// It reads one scalar leaf.
+    Leaf,
+    /// It tests which case a sum holds.
+    Membership,
+    /// It dispatches on a sum; the roster is judged with it.
+    Dispatch(&'a [terminal_psi::StructuralCaseSuccessorEdge]),
+}
+
+/// One operation or terminator that reads storage or names a case payload.
+struct Touch<'a> {
+    /// The operation, or for a terminator its edge or block.
+    at: Construct,
+    block: BlockId,
+    /// The point before it, as `Graph::locate` orders points.
+    up_to: usize,
+    /// The places it reads, whole or by one leaf.
+    used: Vec<Lineage>,
+    /// Those and the place it stores into.
+    named: Vec<Lineage>,
+    /// The scalar leaves whose clauses it takes as premises: a read's leaf
+    /// (`Storage::read_premises`) or a dispatch's bound payload leaves
+    /// (`Storage::payload_premises`). Each relies on the domain of every
+    /// place it lies in.
+    relied: Vec<Lineage>,
+    how: Touching<'a>,
+    /// Whether it is a use of storage the initialization and payload
+    /// judgments see. A call or exit that names no storage is not one.
+    judged: bool,
+    /// A call, or a terminator that leaves the machine: it may observe, or
+    /// it ends the scope of, every place of this machine, so it consumes
+    /// every window open there (`Storage::consumes`).
+    releases: bool,
+}
+
+/// One payload parameter a dispatch binds (`Storage::bound_payloads`).
+struct BoundPayload<'a> {
+    edge: EdgeId,
+    /// The arm's block, which declares the parameter.
+    target: BlockId,
+    /// The payload leaf of the subject it is bound from.
+    leaf: Lineage,
+    parameter: &'a ValueDeclaration,
+}
+
+/// One machine's storage as the checker reads it: the stores its operations
+/// make, located in the graph, the entry contents, and the lowered
+/// declarations that say what lies beneath a place. Derived once per
+/// machine; the tables do not change beneath it, because discharge only
+/// appends knowledge.
 pub(crate) struct Storage<'a> {
     machine: MachineId,
     lowered: &'a TerminalMachine,
@@ -271,10 +413,6 @@ pub(crate) struct Storage<'a> {
     /// The `requires` clauses of each data type, by its identity
     /// (`Elaboration::domains`).
     domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
-    /// The zero establishments whose zero value was not proved to satisfy
-    /// its type's `requires`: their contents are not an established value.
-    /// Empty until the obligations are decided (`gate`).
-    gated: Vec<OperationId>,
 }
 
 impl<'a> Storage<'a> {
@@ -285,41 +423,24 @@ impl<'a> Storage<'a> {
         domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
         graph: &'a Graph,
         tables: &MachineTables,
+        value_types: &IdTable<ValueId, ScalarType>,
     ) -> Checked<Self> {
-        let mut log = Vec::with_capacity(tables.writes.len());
-        for (_, write) in tables.writes.iter() {
-            let (block, position) = graph.locate(write.at)?;
-            let (operation, on_edge) = match write.at {
-                ProgramPoint::AfterOperation(operation) => (Some(operation), false),
-                ProgramPoint::BlockEntry(_) => (None, false),
-                ProgramPoint::Edge(_) => (None, true),
-            };
-            log.push(Logged {
-                lineage: lineage(machine, &tables.places, write.place)?,
-                block,
-                position,
-                content: write.content,
-                operation,
-                on_edge,
-            });
-        }
-        Ok(Self {
+        // First, because every lineage below is read through the place
+        // table's parent links.
+        log::places_are_interned(machine, tables)?;
+        let mut storage = Self {
             machine,
             lowered,
             types,
             graph,
             entry_contents: entry_contents(machine, tables)?,
-            log,
+            log: Vec::new(),
             domains,
-            gated: Vec::new(),
-        })
-    }
-
-    /// Marks the zero establishments whose contents are not an established
-    /// value. From here on the walk answers `Unestablished` for whatever
-    /// they supply, which is what the initialization judgment reads.
-    pub(crate) fn gate(&mut self, gated: Vec<OperationId>) {
-        self.gated = gated;
+        };
+        storage.entry_contents_are_of_formals(tables)?;
+        storage.log = storage.stores(value_types)?;
+        storage.log_is_stated(tables)?;
+        Ok(storage)
     }
 
     /// Whether `operation` writes into storage that already holds a value: a
@@ -502,7 +623,7 @@ impl<'a> Storage<'a> {
                 // A case's payload namespace is no value of its own; the
                 // sum above it is.
                 Shape::Payload(_) => {}
-                Shape::Scalar => {
+                Shape::Scalar(_) => {
                     return Err(self.foreign(concerns, "a store path crosses a scalar field"));
                 }
             }
@@ -607,10 +728,66 @@ impl<'a> Storage<'a> {
         })
     }
 
+    /// The place and clause one `DataDomain` obligation is about: `clause`
+    /// counts through the operation's whole list (`owed`).
+    pub(crate) fn owner(
+        &self,
+        operation: OperationId,
+        clause: u32,
+        concerns: Construct,
+    ) -> Checked<Owner> {
+        let found = self.operation(operation, concerns)?;
+        let mut remaining = usize::try_from(clause).unwrap_or(usize::MAX);
+        for (place, structural_type) in self.owed(found)? {
+            let clauses = self.clauses_of(structural_type, concerns)?.len();
+            if remaining < clauses {
+                return Ok(Owner {
+                    place,
+                    structural_type,
+                    position: remaining,
+                });
+            }
+            remaining -= clauses;
+        }
+        Err(self.foreign(concerns, "an operation owes no such data requires clause"))
+    }
+
+    fn clause(&self, owner: &Owner, concerns: Construct) -> Checked<&'a Proposition> {
+        self.clauses_of(owner.structural_type, concerns)?
+            .get(owner.position)
+            .ok_or_else(|| self.foreign(concerns, "a data type has no such requires clause"))
+    }
+
+    /// A clause with `self` replaced by what its place holds at the point
+    /// `up_to` of `block`: each field the one value the write log says that
+    /// leaf holds there, each case test whether the place is that case
+    /// there by structure. A field with no value identity there, or a case
+    /// no structure decides, leaves the clause unstated: the refusal is
+    /// `Unproved`.
+    fn stated(
+        &self,
+        tables: &MachineTables,
+        owner: &Owner,
+        block: BlockId,
+        up_to: usize,
+        concerns: Construct,
+    ) -> Checked<Proposition> {
+        let mut bindings = Held {
+            storage: self,
+            tables,
+            place: &owner.place,
+            block,
+            up_to,
+            concerns,
+        };
+        crate::substitute(self.clause(owner, concerns)?, &mut bindings)
+            .map_err(|unbound| unbound.refusal(self.machine, concerns))
+    }
+
     /// The goal of one `DataDomain` obligation: the clause with `self`
     /// replaced by what the place holds once the operation completes.
     ///
-    /// Each field the clause names becomes the one value the write log says
+    /// Each field the clause names becomes the one value the stores say
     /// that leaf holds at the operation's normal continuation: the operand
     /// of a construction, the stored value for the written field, and for
     /// every other field the value that reached the store. Each case test
@@ -619,8 +796,6 @@ impl<'a> Storage<'a> {
     /// only, and it is proved from the knowledge available before the
     /// operation: structural_access.md, "The obligation binds the
     /// initializer or replacement SSA value, never the old field contents."
-    /// A field with no value identity there, or a case no structure
-    /// decides, leaves the clause unstated and the obligation `Unproved`.
     pub(crate) fn domain_goal(
         &self,
         tables: &MachineTables,
@@ -628,26 +803,38 @@ impl<'a> Storage<'a> {
         clause: u32,
         concerns: Construct,
     ) -> Checked<Proposition> {
-        let found = self.operation(operation, concerns)?;
+        let owner = self.owner(operation, clause, concerns)?;
         let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
-        let mut remaining = usize::try_from(clause).unwrap_or(usize::MAX);
-        for (place, structural_type) in self.owed(found)? {
-            let clauses = self.clauses_of(structural_type, concerns)?;
-            if let Some(clause) = clauses.get(remaining) {
-                let mut bindings = Held {
-                    storage: self,
-                    tables,
-                    place: &place,
-                    block,
-                    up_to: after,
-                    concerns,
-                };
-                return crate::substitute(clause, &mut bindings)
-                    .map_err(|unbound| unbound.refusal(self.machine, concerns));
-            }
-            remaining -= clauses.len();
+        self.stated(tables, &owner, block, after, concerns)
+    }
+
+    /// Whether a store writes no storage that a clause reads, so that the
+    /// clause is as true after the store as it was before it.
+    /// dependent_values.md: "A write known to preserve the default domain
+    /// keeps it established." The places a clause reads are the fields and
+    /// the sums it names beneath its own value, found by the one
+    /// substitution; a clause it cannot follow is not known to be kept.
+    pub(crate) fn untouched(
+        &self,
+        operation: OperationId,
+        owner: &Owner,
+        concerns: Construct,
+    ) -> Checked<bool> {
+        let Some(stored) = self.operation_destination(self.operation(operation, concerns)?)? else {
+            return Ok(false);
+        };
+        let mut names = Named {
+            place: &owner.place,
+            found: Vec::new(),
+        };
+        match crate::substitute(self.clause(owner, concerns)?, &mut names) {
+            // A case test is recorded and left unstated, so that every part
+            // of its connective is still followed.
+            Ok(_) | Err(crate::Unbound::Unproved(_)) => {}
+            Err(crate::Unbound::Unsupported(_)) => return Ok(false),
+            Err(crate::Unbound::Refused(refused)) => return Err(refused),
         }
-        Err(self.foreign(concerns, "an operation owes no such data requires clause"))
+        Ok(names.found.iter().all(|named| !overlap(named, &stored)))
     }
 
     fn unsupported(&self, concerns: Construct, detail: &str) -> terminal_check_tables::Refusal {
@@ -721,7 +908,7 @@ impl<'a> Storage<'a> {
             .find(|declared| declared.id == field)
             .ok_or_else(|| self.foreign(concerns, "a field is not of the type it projects"))?;
         match declared.field_type {
-            StructuralFieldType::Scalar(_) => Ok(Shape::Scalar),
+            StructuralFieldType::Scalar(scalar_type) => Ok(Shape::Scalar(scalar_type)),
             StructuralFieldType::Structural(nested) => Ok(Shape::Typed(nested)),
             _ => Err(self.unsupported(concerns, "a field type outside plain data")),
         }
@@ -734,7 +921,7 @@ impl<'a> Storage<'a> {
         let mut at = Shape::Typed(self.root_type(place.root, concerns)?);
         for segment in &place.segments {
             at = match (at, segment) {
-                (Shape::Scalar, _) => {
+                (Shape::Scalar(_), _) => {
                     return Err(self.foreign(concerns, "a place lies beneath a scalar field"));
                 }
                 (Shape::Typed(owner), Segment::Field(field)) => {
@@ -785,7 +972,7 @@ impl<'a> Storage<'a> {
         let mut found = Vec::new();
         let mut at = place.clone();
         match self.shape(place, concerns)? {
-            Shape::Scalar => found.push(at),
+            Shape::Scalar(_) => found.push(at),
             Shape::Typed(structural_type) => {
                 self.leaves_of(structural_type, &mut at, &mut found, concerns)?;
             }
@@ -929,7 +1116,7 @@ impl<'a> Storage<'a> {
                     root: *source,
                     segments,
                 };
-                if !matches!(self.shape(&leaf, concerns)?, Shape::Scalar) {
+                if !matches!(self.shape(&leaf, concerns)?, Shape::Scalar(_)) {
                     return Err(
                         self.foreign(concerns, "a scalar read of storage that is no scalar")
                     );
@@ -976,77 +1163,6 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| self.foreign(concerns, "an operation is not where the graph places it"))
     }
 
-    /// The place whose contents an operation moved, whole, into the place
-    /// `written` that a row at its normal continuation names; `None` when
-    /// the operation stores nothing this route can trace to a place, which
-    /// leaves the row's own meaning: new contents with no value identity.
-    fn moved_from(
-        &self,
-        operation: &Operation,
-        written: &Lineage,
-        concerns: Construct,
-    ) -> Checked<Option<Lineage>> {
-        let produced = operation.result.as_structural().map(|result| result.place);
-        match &operation.kind {
-            OperationKind::StructuralLeafCopy { source, path }
-                if produced == Some(written.root) && written.segments.is_empty() =>
-            {
-                self.stored_at(*source, path, concerns).map(Some)
-            }
-            OperationKind::EstablishRecord { fields } if produced == Some(written.root) => {
-                let [Segment::Field(field)] = written.segments.as_slice() else {
-                    return Ok(None);
-                };
-                match fields.iter().find(|operand| operand.field == *field) {
-                    Some(operand) => match &operand.value {
-                        RecordFieldValue::Structural(argument) => {
-                            self.argument(argument, concerns).map(Some)
-                        }
-                        RecordFieldValue::Scalar { .. } => Ok(None),
-                    },
-                    None => Ok(None),
-                }
-            }
-            OperationKind::EstablishStructuralCase {
-                result_case,
-                fields,
-            } if produced == Some(written.root) => {
-                let [Segment::Case(case), Segment::Field(field)] = written.segments.as_slice()
-                else {
-                    return Ok(None);
-                };
-                if case != result_case {
-                    return Ok(None);
-                }
-                match fields.iter().find(|operand| operand.field == *field) {
-                    Some(operand) => match &operand.value {
-                        RecordFieldValue::Structural(argument) => {
-                            self.argument(argument, concerns).map(Some)
-                        }
-                        RecordFieldValue::Scalar { .. } => Ok(None),
-                    },
-                    None => Ok(None),
-                }
-            }
-            OperationKind::StoreStructuralField {
-                destination,
-                path,
-                field: Some(field),
-                value,
-                ..
-            } => {
-                let mut stored = self.stored_at(*destination, path, concerns)?;
-                stored.segments.push(Segment::Field(*field));
-                if stored == *written {
-                    self.argument(value, concerns).map(Some)
-                } else {
-                    Ok(None)
-                }
-            }
-            _ => Ok(None),
-        }
-    }
-
     fn block(&self, id: BlockId) -> Checked<&'a Block> {
         self.lowered
             .blocks
@@ -1055,7 +1171,7 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| self.foreign(Construct::Block(id), "a block is not at its position"))
     }
 
-    /// What one reaching row supplies to the place asked about.
+    /// What one reaching store supplies to the place asked about.
     fn supplied(
         &self,
         tables: &MachineTables,
@@ -1064,94 +1180,57 @@ impl<'a> Storage<'a> {
         budget: &mut usize,
         concerns: Construct,
     ) -> Checked<Reached> {
-        if row.on_edge {
-            return Err(self.unsupported(concerns, "a write on an edge overlaps a use"));
+        // A window asks only which store a path met last: the one that
+        // opened it, or one that closed it.
+        if let Asked::Window { by, .. } = asked {
+            return Ok(if row.operation == by {
+                Reached::Open
+            } else {
+                Reached::Closed
+            });
         }
-        // Zeroed storage of a gated type is not an established value.
-        if row
-            .operation
-            .is_some_and(|operation| self.gated.contains(&operation))
-        {
-            return Ok(Reached::Unestablished);
-        }
-        let place = match asked {
-            Asked::Contents(place) | Asked::Case(place) => place,
+        let place = asked.place();
+        // Only a store into the place or above it replaces it whole; one
+        // beneath it or beside it leaves contents this route cannot name.
+        let Some(beneath) = place.segments.strip_prefix(row.lineage.segments.as_slice()) else {
+            return Ok(Reached::Unknown);
         };
-        match row.content {
-            Content::Value(value)
-                if row.lineage == *place && matches!(asked, Asked::Contents(_)) =>
-            {
-                Ok(Reached::Value(value))
+        Ok(match (&row.stored, asked) {
+            (Stored::Value(value), Asked::Contents(_)) if beneath.is_empty() => {
+                Reached::Value(*value)
             }
-            // A value stored to another overlapping place, or a reference:
-            // the place has contents this route cannot name.
-            Content::Value(_) | Content::Reference(_) => Ok(Reached::Unknown),
-            Content::Vacated => Err(self.unsupported(concerns, "a hole overlaps a use")),
-            Content::Overwritten => {
-                // Only a row on the place or above it replaces it whole.
-                let Some(beneath) = place.segments.strip_prefix(row.lineage.segments.as_slice())
-                else {
-                    return Ok(Reached::Unknown);
-                };
-                let Some(operation) = row.operation else {
-                    return Ok(Reached::Unknown);
-                };
-                let operation = self.operation(operation, concerns)?;
-                // The row cannot say which case a construction established:
-                // the operation at the row does.
-                if let (Asked::Case(_), [], Some(case)) =
-                    (asked, beneath, self.established_as(operation, &row.lineage))
-                {
-                    return Ok(Reached::Case(case));
-                }
-                // A zero establishment holds the first declared case of
-                // every sum of the zero value.
-                if let Asked::Case(_) = asked
-                    && matches!(operation.kind, OperationKind::EstablishZeroedStructural {})
-                    && row.lineage.segments.is_empty()
-                    && let Some(case) = self.zero_case(row.lineage.root, beneath, concerns)?
-                {
-                    return Ok(Reached::Case(case));
-                }
-                let Some(mut source) = self.moved_from(operation, &row.lineage, concerns)? else {
-                    // ponytail: one scan of the invocation table per row
-                    // reached; an operation column if machines grow.
-                    let returned = tables.invocations.values().any(|invocation| {
-                        invocation.site == InvocationSite::Operation(operation.id)
-                    });
-                    return Ok(match (returned, asked) {
-                        (true, Asked::Contents(_)) => Reached::Returned,
-                        (true, Asked::Case(_)) | (false, _) => Reached::Unknown,
-                    });
-                };
+            (Stored::Value(_), _) => Reached::Unknown,
+            (Stored::Case(case), Asked::Case(_)) if beneath.is_empty() => Reached::Case(*case),
+            // The payload leaves of a construction have stores of their
+            // own, which come after this one; what is left is the sum's
+            // discriminator, or a payload of another case.
+            (Stored::Case(_), _) => Reached::Unknown,
+            // A zero establishment holds the first declared case of every
+            // sum of the zero value.
+            (Stored::Zeroed, Asked::Case(_)) => self
+                .zero_case(row.lineage.root, beneath, concerns)?
+                .map_or(Reached::Unknown, Reached::Case),
+            (Stored::Zeroed, Asked::Contents(_)) => Reached::Unknown,
+            (Stored::Returned, Asked::Contents(_)) => Reached::Returned,
+            (Stored::Returned, Asked::Case(_)) => Reached::Unknown,
+            // A window is answered by the row alone, above.
+            (Stored::Zeroed | Stored::Returned, Asked::Window { .. }) => {
+                return Err(self.foreign(concerns, "a window is followed into a store's contents"));
+            }
+            (Stored::Moved(source), _) => {
+                let mut source = source.clone();
                 source.segments.extend_from_slice(beneath);
-                let (block, after) = self
-                    .graph
-                    .locate(ProgramPoint::AfterOperation(operation.id))?;
-                let before = after
-                    .checked_sub(1)
-                    .ok_or_else(|| self.foreign(concerns, "an operation has no point before it"))?;
                 let asked = match asked {
                     Asked::Contents(_) => Asked::Contents(&source),
                     Asked::Case(_) => Asked::Case(&source),
+                    Asked::Window { .. } => {
+                        return Err(self.foreign(concerns, "a window is followed into a copy"));
+                    }
                 };
-                self.reaching(tables, asked, block, before, budget, concerns)
+                // The source as it was just before the store.
+                return self.reaching(tables, asked, row.block, row.position - 1, budget, concerns);
             }
-        }
-    }
-
-    /// The case a construction established the root `written` as, when the
-    /// operation is one and `written` is its whole result.
-    fn established_as(&self, operation: &Operation, written: &Lineage) -> Option<StructuralCaseId> {
-        let produced = operation.result.as_structural().map(|result| result.place);
-        if produced != Some(written.root) || !written.segments.is_empty() {
-            return None;
-        }
-        match &operation.kind {
-            OperationKind::EstablishScalarCase { result_case, .. }
-            | OperationKind::EstablishStructuralCase { result_case, .. } => Some(*result_case),
-            _ => None,
-        }
+        })
     }
 
     /// What taking an edge from `from` into `into` establishes about the
@@ -1221,9 +1300,7 @@ impl<'a> Storage<'a> {
                     return Ok(None);
                 }
                 let retired = self.log.iter().any(|row| {
-                    row.block == from
-                        && row.position > after
-                        && Asked::Case(sum).ended_by(&row.lineage)
+                    row.block == from && row.position > after && Asked::Case(sum).ended_by(row)
                 });
                 Ok((!retired).then_some(Reached::Case(*case)))
             }
@@ -1257,6 +1334,9 @@ impl<'a> Storage<'a> {
                 (Some(Reached::Unestablished), _) | (Some(_), Reached::Unestablished) => {
                     Reached::Unestablished
                 }
+                // A window open on one arrival is open at the join.
+                (Some(Reached::Open), _) | (Some(_), Reached::Open) => Reached::Open,
+                (Some(Reached::Closed), Reached::Closed) => Reached::Closed,
                 (Some(Reached::Value(known)), Reached::Value(value)) if known == value => {
                     Reached::Value(known)
                 }
@@ -1266,9 +1346,17 @@ impl<'a> Storage<'a> {
                 (Some(Reached::Returned), Reached::Returned) => Reached::Returned,
                 (
                     Some(
-                        Reached::Value(_) | Reached::Case(_) | Reached::Returned | Reached::Unknown,
+                        Reached::Value(_)
+                        | Reached::Case(_)
+                        | Reached::Returned
+                        | Reached::Unknown
+                        | Reached::Closed,
                     ),
-                    Reached::Value(_) | Reached::Case(_) | Reached::Returned | Reached::Unknown,
+                    Reached::Value(_)
+                    | Reached::Case(_)
+                    | Reached::Returned
+                    | Reached::Unknown
+                    | Reached::Closed,
                 ) => Reached::Unknown,
             });
         };
@@ -1282,9 +1370,7 @@ impl<'a> Storage<'a> {
             let last = self
                 .log
                 .iter()
-                .filter(|row| {
-                    row.block == block && row.position <= up_to && asked.ended_by(&row.lineage)
-                })
+                .filter(|row| row.block == block && row.position <= up_to && asked.ended_by(row))
                 .fold(None::<&Logged>, |best, row| match best {
                     Some(best) if best.position > row.position => Some(best),
                     Some(_) | None => Some(row),
@@ -1296,6 +1382,8 @@ impl<'a> Storage<'a> {
             if block == self.graph.entry() {
                 supply(
                     match (asked, self.root_kind(asked_root(asked), concerns)?) {
+                        // A path that never passed the opening write.
+                        (Asked::Window { .. }, _) => Reached::Closed,
                         // A formal is initialized storage at entry. Its content
                         // has a value identity when elaboration minted one.
                         (Asked::Contents(leaf), StructuralPlaceKind::Parameter { .. }) => self
@@ -1415,31 +1503,7 @@ impl<'a> Storage<'a> {
 
     /// What a read learns from the type of the storage it reads: each
     /// `requires` clause of a data type the leaf lies in, stated on the
-    /// read's fresh value. structural_access.md: "A validated field read or
-    /// selected-case payload copy instantiates that invariant on its fresh
-    /// scalar snapshot; other fields and unselected cases provide no
-    /// premise. The snapshot survives later writes".
-    ///
-    /// A clause is stated only when both hold.
-    ///
-    /// - What the leaf holds arrived, on every path, inside a value another
-    ///   machine established: a formal's entry content, however it was
-    ///   copied since, or a leaf of the root a call returned. The clause
-    ///   must belong to a type inside that value, on the path from its
-    ///   root to the leaf. dependent_values.md: "no
-    ///   consumption sees the value outside its required domain", and a
-    ///   call and a return each consume the value they pass. A leaf this
-    ///   machine wrote gets no premise here: its `DataDomain` obligation
-    ///   proved the clause of the written value where it was written, and
-    ///   the read equation names that value, so a store that broke the
-    ///   clause can never lend it to a later read.
-    /// - The clause names that one leaf and no other. A clause that relates
-    ///   it to a sibling cannot be stated on one read's value, and a case
-    ///   the clause tests must be established at the read by structure.
-    ///
-    /// A clause that cannot be stated is no premise; nothing is assumed in
-    /// its place. A clause that structure alone decides adds nothing and is
-    /// left out.
+    /// read's fresh value (`Storage::premises`).
     pub(crate) fn read_premises(
         &self,
         tables: &MachineTables,
@@ -1459,6 +1523,58 @@ impl<'a> Storage<'a> {
         let before = after
             .checked_sub(1)
             .ok_or_else(|| self.foreign(concerns, "a read has no point before it"))?;
+        self.premises(
+            tables,
+            &leaf,
+            (result.id, result.scalar_type),
+            (block, before),
+            concerns,
+        )
+    }
+
+    /// What one scalar observation of `leaf` learns from the types of the
+    /// storage it lies in: each `requires` clause of a data type the leaf
+    /// lies in, stated on the observed value `observed`, with every name of
+    /// the clause read at the point `at` (a block and a position in it, as
+    /// `Graph::locate` orders points). structural_access.md: "A validated
+    /// field read or selected-case payload copy instantiates that invariant
+    /// on its fresh scalar snapshot; other fields and unselected cases
+    /// provide no premise. The snapshot survives later writes".
+    ///
+    /// A clause is stated only when both hold.
+    ///
+    /// - What the leaf holds arrived, on every path, inside a value another
+    ///   machine established: a formal's entry content, however it was
+    ///   copied since, or a leaf of the root a call returned. The clause
+    ///   must belong to a type inside that value, on the path from its
+    ///   root to the leaf. dependent_values.md: "no
+    ///   consumption sees the value outside its required domain", and a
+    ///   call and a return each consume the value they pass. A leaf this
+    ///   machine wrote gets no premise here: its `DataDomain` obligation
+    ///   proved the clause of the written value where it was written, and
+    ///   the read equation names that value, so a store that broke the
+    ///   clause can never lend it to a later read.
+    /// - The clause names that one leaf and no other. A clause that relates
+    ///   it to a sibling cannot be stated on one read's value, and a case
+    ///   the clause tests must be established at `at` by structure, on the
+    ///   place the observation goes through (a copy of what arrived, or
+    ///   the place it arrived in): by a construction, a dominating true
+    ///   edge of a membership test, or the dispatch edge that entered the
+    ///   block.
+    ///
+    /// A clause that cannot be stated is no premise; nothing is assumed in
+    /// its place. A clause that structure alone decides adds nothing and is
+    /// left out.
+    fn premises(
+        &self,
+        tables: &MachineTables,
+        leaf: &Lineage,
+        observed: (ValueId, ScalarType),
+        at: (BlockId, usize),
+        concerns: Construct,
+    ) -> Checked<Vec<Proposition>> {
+        let (block, before) = at;
+        let (observed, scalar_type) = observed;
         // Where the leaf's content arrived: the leaf of a formal whose
         // entry content it still is, or this same leaf when its root is
         // what a call returned. The types that lend a clause are the ones
@@ -1467,22 +1583,22 @@ impl<'a> Storage<'a> {
         let mut budget = self.budget();
         let arrived = match self.reaching(
             tables,
-            Asked::Contents(&leaf),
+            Asked::Contents(leaf),
             block,
             before,
             &mut budget,
             concerns,
         )? {
             Reached::Returned => match self.root_kind(leaf.root, concerns)? {
-                // The root is a call's result and nothing but that call
-                // ever wrote the leaf or a place around it, so the leaf
-                // still lies in the value the callee established.
+                // Every path supplies what a call returned, and nothing but
+                // the operation that produced the root ever stored into the
+                // leaf or a place around it: the root is that call's result
+                // and the leaf still lies in the value the callee
+                // established.
                 StructuralPlaceKind::OperationResult { producer, .. }
-                    if tables.invocations.values().any(|invocation| {
-                        invocation.site == InvocationSite::Operation(producer)
-                    }) && self.log.iter().all(|row| {
-                        !overlap(&row.lineage, &leaf)
-                            || (row.lineage.segments.is_empty() && row.operation == Some(producer))
+                    if self.log.iter().all(|row| {
+                        !overlap(&row.lineage, leaf)
+                            || (row.lineage.segments.is_empty() && row.operation == producer)
                     }) =>
                 {
                     Some(leaf.clone())
@@ -1502,7 +1618,11 @@ impl<'a> Storage<'a> {
                     | ValueOrigin::Operation(_) => None,
                 }
             }
-            Reached::Case(_) | Reached::Unknown | Reached::Unestablished => None,
+            Reached::Case(_)
+            | Reached::Unknown
+            | Reached::Unestablished
+            | Reached::Open
+            | Reached::Closed => None,
         };
         let Some(arrived) = arrived else {
             return Ok(Vec::new());
@@ -1516,6 +1636,22 @@ impl<'a> Storage<'a> {
             let Shape::Typed(structural_type) = self.shape(&owner, concerns)? else {
                 continue;
             };
+            // The same value of that type as the observation reaches it: the
+            // prefix of `leaf` as far above it as `owner` is above `arrived`
+            // (a copy keeps the path beneath the place it copies). Which
+            // case it holds is asked of this place, because a dispatch or a
+            // test on the copy establishes it there, and the root the value
+            // arrived in may have been written since. A type above the
+            // observed storage has no such place.
+            let beneath = arrived.segments.len() - length;
+            let selected = leaf
+                .segments
+                .len()
+                .checked_sub(beneath)
+                .map(|kept| Lineage {
+                    root: leaf.root,
+                    segments: leaf.segments[..kept].to_vec(),
+                });
             for clause in self.clauses_of(structural_type, concerns)? {
                 let mut bindings = Observed {
                     held: Held {
@@ -1526,9 +1662,10 @@ impl<'a> Storage<'a> {
                         up_to: before,
                         concerns,
                     },
+                    selected: selected.as_ref(),
                     leaf: &arrived,
-                    result: ScalarTerm::value(result.id, result.scalar_type),
-                    scalar_type: result.scalar_type,
+                    result: ScalarTerm::value(observed, scalar_type),
+                    scalar_type,
                 };
                 match crate::substitute(clause, &mut bindings) {
                     Ok(Proposition::Truth | Proposition::Falsehood) => {}
@@ -1539,6 +1676,44 @@ impl<'a> Storage<'a> {
             }
         }
         Ok(premises)
+    }
+
+    /// The payload parameters a dispatch binds, one per payload field of
+    /// each edge: the edge, the parameter of its arm's block and the
+    /// payload leaf it is bound from. Empty for any other terminator.
+    fn bound_payloads(&self, block: &Block) -> Checked<Vec<BoundPayload<'a>>> {
+        let Terminator::StructuralCase {
+            source,
+            path,
+            cases,
+        } = &block.terminator
+        else {
+            return Ok(Vec::new());
+        };
+        let concerns = Construct::Block(block.id);
+        let subject = self.stored_at(*source, path, concerns)?;
+        let mut bound = Vec::new();
+        for edge in cases {
+            let target = self.block(edge.target)?;
+            for (position, field) in edge.payload_fields.iter().enumerate() {
+                let parameter = target.parameters.get(position).ok_or_else(|| {
+                    self.foreign(
+                        concerns,
+                        "a payload field has no parameter in its arm's block",
+                    )
+                })?;
+                let mut leaf = subject.clone();
+                leaf.segments.push(Segment::Case(edge.case));
+                leaf.segments.push(Segment::Field(*field));
+                bound.push(BoundPayload {
+                    edge: edge.edge,
+                    target: edge.target,
+                    leaf,
+                    parameter,
+                });
+            }
+        }
+        Ok(bound)
     }
 
     /// What a dispatch binds on one of its edges: each payload parameter of
@@ -1552,60 +1727,67 @@ impl<'a> Storage<'a> {
         tables: &MachineTables,
         block: &Block,
     ) -> Checked<Vec<(EdgeId, Proposition)>> {
-        let Terminator::StructuralCase {
-            source,
-            path,
-            cases,
-        } = &block.terminator
-        else {
-            return Ok(Vec::new());
-        };
         let concerns = Construct::Block(block.id);
-        let subject = self.stored_at(*source, path, concerns)?;
         let mut equations = Vec::new();
-        for edge in cases {
-            let target = self.block(edge.target)?;
-            for (position, field) in edge.payload_fields.iter().enumerate() {
-                let parameter = target.parameters.get(position).ok_or_else(|| {
-                    self.foreign(
-                        concerns,
-                        "a payload field has no parameter in its arm's block",
-                    )
-                })?;
-                let mut leaf = subject.clone();
-                leaf.segments.push(Segment::Case(edge.case));
-                leaf.segments.push(Segment::Field(*field));
-                let mut budget = self.budget();
-                let Reached::Value(held) = self.reaching(
-                    tables,
-                    Asked::Contents(&leaf),
-                    block.id,
-                    usize::MAX,
-                    &mut budget,
+        for bound in self.bound_payloads(block)? {
+            let mut budget = self.budget();
+            let Reached::Value(held) = self.reaching(
+                tables,
+                Asked::Contents(&bound.leaf),
+                block.id,
+                usize::MAX,
+                &mut budget,
+                concerns,
+            )?
+            else {
+                continue;
+            };
+            let held_type =
+                terminal_check_tables::row(&tables.values, held, self.machine, concerns)?
+                    .scalar_type;
+            if held_type != bound.parameter.scalar_type {
+                return Err(self.unsupported(
                     concerns,
-                )?
-                else {
-                    continue;
-                };
-                let held_type =
-                    terminal_check_tables::row(&tables.values, held, self.machine, concerns)?
-                        .scalar_type;
-                if held_type != parameter.scalar_type {
-                    return Err(self.unsupported(
-                        concerns,
-                        "a payload holds a value of another type than its parameter",
-                    ));
-                }
-                equations.push((
-                    edge.edge,
-                    Proposition::Equal(
-                        ScalarTerm::value(parameter.id, parameter.scalar_type),
-                        ScalarTerm::value(held, held_type),
-                    ),
+                    "a payload holds a value of another type than its parameter",
                 ));
             }
+            equations.push((
+                bound.edge,
+                Proposition::Equal(
+                    ScalarTerm::value(bound.parameter.id, bound.parameter.scalar_type),
+                    ScalarTerm::value(held, held_type),
+                ),
+            ));
         }
         Ok(equations)
+    }
+
+    /// What a dispatch's payload parameters learn from the types of the
+    /// storage they are bound from: the clauses a payload read at the head
+    /// of the arm's block would take (`Storage::premises`), stated on the
+    /// parameter. structural_access.md: "A validated field read or
+    /// selected-case payload copy instantiates that invariant on its fresh
+    /// scalar snapshot". Asked at the head of the arm, a case the clause
+    /// tests is the one the edge that entered it selected, and no case when
+    /// several edges enter it.
+    pub(crate) fn payload_premises(
+        &self,
+        tables: &MachineTables,
+        block: &Block,
+    ) -> Checked<Vec<(EdgeId, Lineage, Proposition)>> {
+        let mut premises = Vec::new();
+        for bound in self.bound_payloads(block)? {
+            for premise in self.premises(
+                tables,
+                &bound.leaf,
+                (bound.parameter.id, bound.parameter.scalar_type),
+                (bound.target, 0),
+                Construct::Edge(bound.edge),
+            )? {
+                premises.push((bound.edge, bound.leaf.clone(), premise));
+            }
+        }
+        Ok(premises)
     }
 
     /// The places an operation reads whole or by one leaf.
@@ -1815,36 +1997,59 @@ impl<'a> Storage<'a> {
         Ok(Ok(()))
     }
 
-    /// One verdict per operation and terminator that reads storage or names
-    /// a case payload. A refusal returned outright concerns the module (an
-    /// identity that does not resolve, storage outside this route); a use
-    /// that is not established is that use's verdict.
-    pub(crate) fn uses(&self, tables: &MachineTables) -> Checked<Vec<StorageUse>> {
-        let mut uses = Vec::new();
+    /// Every operation and terminator that reads storage or names a case
+    /// payload, in block and operation order, a block's terminator last. A
+    /// refusal concerns the module (an identity that does not resolve,
+    /// storage outside this route).
+    fn touches(&self, tables: &MachineTables) -> Checked<Vec<Touch<'a>>> {
+        let mut touches = Vec::new();
         for block in &self.lowered.blocks {
             for (position, operation) in block.operations.iter().enumerate() {
                 let used = self.operation_uses(operation)?;
                 let mut named = used.clone();
                 named.extend(self.operation_destination(operation)?);
-                if named.is_empty() {
-                    continue;
-                }
                 // A store reads nothing, so it is a use only when its
                 // destination lies in a case payload.
-                if used.is_empty()
-                    && !named.iter().any(|place| {
+                let judged = !used.is_empty()
+                    || named.iter().any(|place| {
                         place
                             .segments
                             .iter()
                             .any(|segment| matches!(segment, Segment::Case(_)))
-                    })
-                {
+                    });
+                // ponytail: one scan of the invocation table per operation;
+                // an operation column if machines grow.
+                let releases = tables
+                    .invocations
+                    .values()
+                    .any(|invocation| invocation.site == InvocationSite::Operation(operation.id));
+                if !judged && !releases {
                     continue;
                 }
-                let at = Construct::Operation(operation.id);
-                uses.push(StorageUse {
-                    at,
-                    verdict: self.judged(tables, &used, &named, block.id, position, at)?,
+                let mut relied = Vec::new();
+                let how = if let Some(leaf) = self.read_leaf(operation)? {
+                    if !self.read_premises(tables, operation)?.is_empty() {
+                        relied.push(leaf);
+                    }
+                    Touching::Leaf
+                } else if matches!(
+                    operation.kind,
+                    OperationKind::StructuralCaseMembership { .. }
+                ) {
+                    Touching::Membership
+                } else {
+                    Touching::Whole
+                };
+                touches.push(Touch {
+                    at: Construct::Operation(operation.id),
+                    block: block.id,
+                    up_to: position,
+                    used,
+                    named,
+                    relied,
+                    how,
+                    judged,
+                    releases,
                 });
             }
             let (edge, used) = match &block.terminator {
@@ -1857,14 +2062,24 @@ impl<'a> Storage<'a> {
                     cases,
                 } => {
                     let at = Construct::Block(block.id);
-                    let subject = [self.stored_at(*source, path, at)?];
-                    let verdict = match self.roster(&subject[0], cases, at)? {
-                        Ok(()) => {
-                            self.judged(tables, &subject, &subject, block.id, usize::MAX, at)?
+                    let subject = vec![self.stored_at(*source, path, at)?];
+                    let mut relied = Vec::new();
+                    for (_, leaf, _) in self.payload_premises(tables, block)? {
+                        if !relied.contains(&leaf) {
+                            relied.push(leaf);
                         }
-                        Err(missing) => Err(missing),
-                    };
-                    uses.push(StorageUse { at, verdict });
+                    }
+                    touches.push(Touch {
+                        at,
+                        block: block.id,
+                        up_to: usize::MAX,
+                        named: subject.clone(),
+                        used: subject,
+                        relied,
+                        how: Touching::Dispatch(cases),
+                        judged: true,
+                        releases: false,
+                    });
                     continue;
                 }
                 Terminator::ReturnStructural { edge, source, .. } => (
@@ -1911,9 +2126,13 @@ impl<'a> Storage<'a> {
                     }
                     continue;
                 }
-                Terminator::Return { .. }
-                | Terminator::ReturnUnit { .. }
-                | Terminator::Crash { .. } => continue,
+                Terminator::Return { edge, .. } | Terminator::ReturnUnit { edge, .. } => {
+                    (*edge, Vec::new())
+                }
+                // A crash may abandon an open window (dependent_values.md:
+                // "A crash may abandon an open window but supplies no
+                // survivor-safety theorem"): it consumes nothing.
+                Terminator::Crash { .. } => continue,
                 _ => {
                     return Err(self.unsupported(
                         Construct::Block(block.id),
@@ -1921,16 +2140,264 @@ impl<'a> Storage<'a> {
                     ));
                 }
             };
-            if used.is_empty() {
+            // A return or a terminal transfer ends the scope of every place
+            // of this machine; a jump stays inside it.
+            let releases = matches!(
+                block.terminator,
+                Terminator::Return { .. }
+                    | Terminator::ReturnUnit { .. }
+                    | Terminator::ReturnStructural { .. }
+                    | Terminator::InvokeNoNormal { .. }
+            );
+            let judged = !used.is_empty();
+            if !judged && !releases {
                 continue;
             }
-            let at = Construct::Edge(edge);
+            touches.push(Touch {
+                at: Construct::Edge(edge),
+                block: block.id,
+                up_to: usize::MAX,
+                named: used.clone(),
+                used,
+                relied: Vec::new(),
+                how: Touching::Whole,
+                judged,
+                releases,
+            });
+        }
+        Ok(touches)
+    }
+
+    /// One verdict per operation and terminator that reads storage or names
+    /// a case payload. A refusal returned outright concerns the module (an
+    /// identity that does not resolve, storage outside this route); a use
+    /// that is not established is that use's verdict.
+    pub(crate) fn uses(&self, tables: &MachineTables) -> Checked<Vec<StorageUse>> {
+        let mut uses = Vec::new();
+        for touch in self.touches(tables)? {
+            if !touch.judged {
+                continue;
+            }
+            let judge = || {
+                self.judged(
+                    tables,
+                    &touch.used,
+                    &touch.named,
+                    touch.block,
+                    touch.up_to,
+                    touch.at,
+                )
+            };
+            let verdict = match (touch.how, touch.used.first()) {
+                (Touching::Dispatch(edges), Some(subject)) => {
+                    match self.roster(subject, edges, touch.at)? {
+                        Ok(()) => judge()?,
+                        Err(missing) => Err(missing),
+                    }
+                }
+                (Touching::Dispatch(_), None) => {
+                    return Err(self.foreign(touch.at, "a dispatch names no subject"));
+                }
+                (Touching::Whole | Touching::Leaf | Touching::Membership, _) => judge()?,
+            };
             uses.push(StorageUse {
-                at,
-                verdict: self.judged(tables, &used, &used, block.id, usize::MAX, at)?,
+                at: touch.at,
+                verdict,
             });
         }
         Ok(uses)
+    }
+
+    /// Whether the window is still open at the point before `touch`: on
+    /// some path the last write that could close it is the one that opened
+    /// it.
+    fn open_at(
+        &self,
+        tables: &MachineTables,
+        place: &Lineage,
+        by: OperationId,
+        restored: &[OperationId],
+        touch: &Touch<'_>,
+    ) -> Checked<bool> {
+        let mut budget = self.budget();
+        Ok(self.reaching(
+            tables,
+            Asked::Window {
+                place,
+                by,
+                restored,
+            },
+            touch.block,
+            touch.up_to,
+            &mut budget,
+            touch.at,
+        )? == Reached::Open)
+    }
+
+    /// Whether `window` is open just before `operation`.
+    pub(crate) fn open_before(
+        &self,
+        tables: &MachineTables,
+        window: &Window,
+        operation: OperationId,
+    ) -> Checked<bool> {
+        let concerns = Construct::Operation(operation);
+        let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
+        let before = after
+            .checked_sub(1)
+            .ok_or_else(|| self.foreign(concerns, "an operation has no point before it"))?;
+        let mut budget = self.budget();
+        Ok(self.reaching(
+            tables,
+            Asked::Window {
+                place: &window.owner.place,
+                by: window.opened_by,
+                restored: &window.restored,
+            },
+            block,
+            before,
+            &mut budget,
+            concerns,
+        )? == Reached::Open)
+    }
+
+    /// Whether `touch` is a consumption point of `window` that the window
+    /// reaches open. dependent_values.md, "Invariant windows": "The domain
+    /// must be proved again at the next consumption point".
+    ///
+    /// A window a store opened is on a value that was established, and is
+    /// consumed where that value is relied on as a member of its domain:
+    ///
+    /// - "A read relying on the domain or a dependent coupling.": a whole
+    ///   read of the place or of a place that contains it (a whole copy, a
+    ///   record operand, a record stored into another place), which
+    ///   supplies the value under its type; and a field read, or a
+    ///   dispatch's bound payload, beneath the place that takes a clause of
+    ///   its storage's type as a premise. A field read or a dispatch that
+    ///   takes none, and a case test, learn nothing from the domain and
+    ///   consume nothing.
+    /// - "Borrow creation or a call consuming the affected domain.": a
+    ///   call's record argument that is the place or contains it.
+    /// - "Transfer, return, scope expiration or loan handback releasing the
+    ///   relevant custody or supplying a value under that domain.": a
+    ///   record return and a record passed on an edge.
+    ///
+    /// - "Boundary/capability-carrying calls that may observe or expose the
+    ///   affected storage", and scope expiration: every call, and every
+    ///   return or terminal transfer, consumes every window open there.
+    ///
+    /// "A call need not close an unrelated domain window when its complete
+    /// access, effect and outcome contracts prove that it cannot observe or
+    /// expose the broken coupling ... Unknown access/effects are treated
+    /// conservatively." The tables hold no callee summary
+    /// (`CheckTables::summaries` stays empty), so nothing here proves a call
+    /// unrelated, and none is treated as one.
+    ///
+    /// A window a zero establishment opened is on storage that holds no
+    /// valid value yet: "A zeroed storage representation can be accessed as
+    /// an established value only after its default-domain obligations
+    /// hold." Every read under its root that still observes a leaf the
+    /// declaration zeroed consumes it, a field read included.
+    fn consumes(
+        &self,
+        tables: &MachineTables,
+        touch: &Touch<'_>,
+        window: &Window,
+    ) -> Checked<bool> {
+        let place = &window.owner.place;
+        let released = touch.releases && !window.initial;
+        // A whole use passes the place on; a leaf it takes a clause of as a
+        // premise relies on the domain of every place that leaf lies in. A
+        // read, a case test or a dispatch that takes no premise relies on
+        // nothing.
+        let aimed = released
+            || touch.used.iter().any(|used| {
+                used.root == place.root
+                    && (window.initial
+                        || matches!(touch.how, Touching::Whole)
+                            && place.segments.starts_with(&used.segments))
+            })
+            || touch
+                .relied
+                .iter()
+                .any(|leaf| leaf.root == place.root && leaf.segments.starts_with(&place.segments));
+        if !aimed || !self.open_at(tables, place, window.opened_by, &window.restored, touch)? {
+            return Ok(false);
+        }
+        if !window.initial {
+            return Ok(true);
+        }
+        for used in &touch.used {
+            if used.root != place.root {
+                continue;
+            }
+            // Only leaves of the window's own place: a sibling of a nested
+            // place was zeroed by the same declaration but owes another
+            // window, or none.
+            for leaf in self.leaves(used, touch.at)? {
+                if overlap(&leaf, place)
+                    && self.open_at(tables, &leaf, window.opened_by, &[], touch)?
+                {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    /// The point a clause is proved at for a consumption: on the edge of a
+    /// terminator that has one, and otherwise just before the operation or
+    /// at the end of the block.
+    fn point(&self, touch: &Touch<'_>) -> Checked<ProgramPoint> {
+        if let Construct::Edge(edge) = touch.at {
+            return Ok(ProgramPoint::Edge(edge));
+        }
+        let operations = &self.block(touch.block)?.operations;
+        Ok(
+            match touch
+                .up_to
+                .min(operations.len())
+                .checked_sub(1)
+                .and_then(|before| operations.get(before))
+            {
+                Some(before) => ProgramPoint::AfterOperation(before.id),
+                None => ProgramPoint::BlockEntry(touch.block),
+            },
+        )
+    }
+
+    /// Every consumption point each window reaches open, in block and
+    /// operation order, with the window's clause stated over what its place
+    /// holds there. The clause is proved again at each of them.
+    pub(crate) fn consumptions(
+        &self,
+        tables: &MachineTables,
+        windows: &[Window],
+    ) -> Checked<Vec<Consumption>> {
+        let mut found = Vec::new();
+        if windows.is_empty() {
+            return Ok(found);
+        }
+        for touch in self.touches(tables)? {
+            for (position, window) in windows.iter().enumerate() {
+                if !self.consumes(tables, &touch, window)? {
+                    continue;
+                }
+                found.push(Consumption {
+                    window: position,
+                    at: touch.at,
+                    point: self.point(&touch)?,
+                    goal: self.stated(
+                        tables,
+                        &window.owner,
+                        touch.block,
+                        touch.up_to,
+                        Construct::Obligation(window.obligation),
+                    ),
+                });
+            }
+        }
+        Ok(found)
     }
 }
 
@@ -2032,7 +2499,7 @@ impl crate::Bindings for AtEntry<'_, '_> {
             storage
                 .shape(&leaf, concerns)
                 .map_err(crate::Unbound::Refused)?,
-            Shape::Scalar
+            Shape::Scalar(_)
         ) {
             return Err(crate::Unbound::Unsupported(
                 "an entry clause names storage that is no scalar field",
@@ -2116,7 +2583,7 @@ impl crate::Bindings for AtCall<'_, '_> {
             storage
                 .shape(&leaf, self.concerns)
                 .map_err(crate::Unbound::Refused)?,
-            Shape::Scalar
+            Shape::Scalar(_)
         ) {
             return Err(crate::Unbound::Unsupported(
                 "clause names storage that is no scalar field of the actual",
@@ -2226,21 +2693,96 @@ impl crate::Bindings for Held<'_, '_> {
             .map_err(crate::Unbound::Refused)?
         {
             Reached::Case(held) => Ok(held == case),
-            Reached::Value(_) | Reached::Returned | Reached::Unknown | Reached::Unestablished => {
-                Err(crate::Unbound::Unproved(
-                    "the case the data requires clause tests is not established by structure here",
-                ))
-            }
+            Reached::Value(_)
+            | Reached::Returned
+            | Reached::Unknown
+            | Reached::Unestablished
+            | Reached::Open
+            | Reached::Closed => Err(crate::Unbound::Unproved(
+                "the case the data requires clause tests is not established by structure here",
+            )),
         }
+    }
+}
+
+/// Records the places a data type's `requires` clause reads beneath the
+/// value it is about, and changes nothing: a field stays the term it was.
+/// A case test is recorded as its sum's place and left unstated, so that the
+/// substitution follows every part of the connective around it.
+struct Named<'s> {
+    place: &'s Lineage,
+    found: Vec<Lineage>,
+}
+
+impl Named<'_> {
+    fn beneath(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<(), crate::Unbound> {
+        if Some(root) != structure_elaboration::self_place() {
+            return Err(crate::Unbound::Unsupported(
+                "a data clause names storage other than its own value",
+            ));
+        }
+        self.found.push(extended(self.place.clone(), path)?);
+        Ok(())
+    }
+}
+
+impl crate::Bindings for Named<'_> {
+    fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, crate::Unbound> {
+        Err(crate::Unbound::Unsupported(
+            "a data clause names a value that is no field of its own value",
+        ))
+    }
+
+    fn field(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        self.beneath(root, path)?;
+        match scalar_type {
+            ScalarType::Integer(scalar_type) => Ok(ScalarTerm::IntegerField {
+                root,
+                path: path.to_vec(),
+                scalar_type,
+            }),
+            ScalarType::Boolean => Ok(ScalarTerm::BooleanField {
+                root,
+                path: path.to_vec(),
+            }),
+            ScalarType::IeeeFloat(_) => Err(crate::Unbound::Unsupported(
+                "a clause term outside the scalar subset",
+            )),
+        }
+    }
+
+    fn case(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        _: StructuralCaseId,
+    ) -> Result<bool, crate::Unbound> {
+        self.beneath(root, path)?;
+        Err(crate::Unbound::Unproved(
+            "a case test is recorded, not decided",
+        ))
     }
 }
 
 /// The names of a data type's `requires` clause as one read observes them:
 /// the leaf it read is its fresh result, and every other field is nothing
 /// the read can speak for ("other fields and unselected cases provide no
-/// premise"). A case test is what the walk establishes at the read.
+/// premise"). A case test is what the walk establishes at the read, of the
+/// place the read observes the value through (`selected`).
 struct Observed<'s, 'a> {
     held: Held<'s, 'a>,
+    /// The place of the clause's type on the observed path, when the type
+    /// lies at or beneath the observed storage's root.
+    selected: Option<&'s Lineage>,
     leaf: &'s Lineage,
     result: ScalarTerm,
     scalar_type: ScalarType,
@@ -2280,6 +2822,9 @@ impl crate::Bindings for Observed<'_, '_> {
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
     ) -> Result<bool, crate::Unbound> {
-        self.held.case(root, path, case)
+        let place = self.selected.ok_or(crate::Unbound::Unproved(
+            "the clause tests a case of a value above the storage the read observes",
+        ))?;
+        Held { place, ..self.held }.case(root, path, case)
     }
 }

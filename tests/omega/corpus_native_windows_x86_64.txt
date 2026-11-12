@@ -577,12 +577,7 @@ pass/build/captured_named_input_required_output checked 6635ms published:files/n
 pass/build/captured_source_generated_constant checked 7409ms published:files/generated.omg @5f668826adf3+wt
 pass/build/checked_context_core_identity_exit rejected 225ms @5f668826adf3+wt
 	closed conformance `NativePlacement satisfies PlacementLifecycle` member `initialize` does not identify one exact inherited overload; qualify the declaring trait and match the complete parameter/result-domain signature
-pass/build/component_assumption_acceptance checked 2647ms @5f668826adf3+wt
-pass/build/component_assumption_mechanism checked 2618ms @5f668826adf3+wt
 pass/build/component_assumption_policy_accepted checked 2598ms @5f668826adf3+wt
-pass/build/component_assumption_policy_changed checked 2823ms @5f668826adf3+wt
-pass/build/component_assumption_policy_missing checked 2605ms @5f668826adf3+wt
-pass/build/component_assumption_reborrow checked 3408ms @5f668826adf3+wt
 pass/build/component_assumption_user_declaration checked 3357ms @5f668826adf3+wt
 pass/build/conditional_root_binding built 3103ms @5f668826adf3+wt
 pass/build/const_index_dependency_order_exit rejected 278ms regressed-from:built+exit:0 @5f668826adf3+wt

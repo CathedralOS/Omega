@@ -18,7 +18,7 @@ use fixture_package_inputs::{
 };
 use lowered_discharge::{RouteVerdict, judge};
 use semantic_vocabulary::{IdTable, MachineId};
-use structure_elaboration::{Compilation, elaborate};
+use structure_elaboration::{Compilation, elaborate, elaborate_closure};
 use symbols::SymbolHandle;
 
 // Fixture compilation shares process-wide counters; run one at a time.
@@ -34,12 +34,18 @@ enum Expected {
     /// A subject declaration is outside what the route lowers, so the
     /// current checker decides the whole compilation.
     FallsBack,
+    /// The route lowers the whole program and an obligation of the uncalled
+    /// machine has a goal form the prover has no rule for: not accepted,
+    /// and reported as incomplete rather than as a proof failure.
+    Incomplete,
 }
 
 /// Thirteen `fail/` programs with an empty entry and a defect in an uncalled
 /// machine, all of which the route accepted when it lowered only the entry's
-/// calls. They are the five the route now rejects and one program for each of
-/// eight different reasons it hands a compilation back. `#2317` counted 13
+/// calls. They are the five the route now rejects, one program for each of
+/// seven different reasons it hands a compilation back, and one it now lowers
+/// and stops at a goal form it has no rule for (it handed that one back when
+/// this list was made). `#2317` counted 13
 /// such programs without recording which, so this list is re-derived: it
 /// includes the four that PR names.
 const UNCALLED_DEFECTS: &[(&str, Expected)] = &[
@@ -81,7 +87,7 @@ const UNCALLED_DEFECTS: &[(&str, Expected)] = &[
     ),
     (
         "tests/omega/fail/proofs/normal_return_expression_statement_is_not_return",
-        Expected::FallsBack,
+        Expected::Incomplete,
     ),
     (
         "tests/omega/fail/proofs/wrapping_zero_product_does_not_cancel_factor",
@@ -300,10 +306,10 @@ fn wrong_verdicts(programs: &[(&str, Expected)]) -> Vec<String> {
         let found = match route_verdict(&frontier).1 {
             Ok(RouteVerdict::Rejected { .. }) => Some(Expected::Rejected),
             Ok(RouteVerdict::FallBack(_)) => Some(Expected::FallsBack),
-            // Accepted is the defect these tests pin. `Incomplete` and a
-            // refusal that is not a fallback are not expected of any of
-            // these programs either.
-            Ok(RouteVerdict::Accepted(_) | RouteVerdict::Incomplete(_)) | Err(_) => None,
+            Ok(RouteVerdict::Incomplete(_)) => Some(Expected::Incomplete),
+            // Accepted is the defect these tests pin. A refusal that is not
+            // a fallback is not expected of any of these programs either.
+            Ok(RouteVerdict::Accepted(_)) | Err(_) => None,
         };
         if found != Some(*expected) {
             wrong.push(format!("{fixture}: expected {expected:?}, found {found:?}"));
@@ -366,6 +372,95 @@ fn an_uncalled_machine_is_lowered_and_judged_like_a_called_one() {
         ),
         "the unproved obligation is the subtraction that can underflow: {only:?}"
     );
+}
+
+/// Wholly anonymous arithmetic denotes an exact rational
+/// (`wiki/spec/language/numeric_values.md`: "Anonymous integer-literal
+/// division is rational division, not truncation"), so `7 / 2` is `7/2`,
+/// which no `i32` holds. The route lowered such a division as an integer
+/// division yielding a truncated value, proved that, and accepted each
+/// machine here. Integer landing also "requires ... explicit `as` when
+/// acknowledging fractional intermediates", so `(7 / 2) * 2` must not land
+/// as 7 either, and builtin remainder has no anonymous meaning at all. Each
+/// tree is now evaluated exactly and refused, so the current checker decides
+/// the closure. None of these fixtures binds an entry, so each machine is
+/// judged as the root of its own closure, as `route_one_comparison
+/// --every-machine` judges it.
+const ANONYMOUS_TREES_WITHOUT_A_LANDING: &[(&str, &str, &str)] = &[
+    (
+        "tests/omega/fail/arithmetic/fractional_integer_landing",
+        "value",
+        "expression fractional anonymous value",
+    ),
+    (
+        "tests/omega/fail/arithmetic/fractional_integer_operand",
+        "value",
+        "expression fractional anonymous value",
+    ),
+    (
+        "tests/omega/fail/arithmetic/anonymous_remainder_rejected",
+        "run",
+        "expression anonymous operation without an exact meaning",
+    ),
+    (
+        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "returned",
+        "expression anonymous value with a fractional intermediate",
+    ),
+    (
+        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "local",
+        "expression anonymous value with a fractional intermediate",
+    ),
+    (
+        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "field",
+        "expression anonymous value with a fractional intermediate",
+    ),
+    (
+        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "argument",
+        "expression anonymous value with a fractional intermediate",
+    ),
+    (
+        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "half",
+        "expression anonymous value with a fractional intermediate",
+    ),
+];
+
+#[test]
+fn an_anonymous_tree_that_cannot_land_is_handed_back_not_truncated() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let mut wrong = Vec::new();
+    let mut frontiers: Vec<(&str, Box<compiler::TypedFrontier>)> = Vec::new();
+    for (fixture, machine, detail) in ANONYMOUS_TREES_WITHOUT_A_LANDING {
+        if !frontiers.iter().any(|(checked, _)| checked == fixture) {
+            frontiers.push((fixture, rejected_frontier(fixture)));
+        }
+        let (_, frontier) = frontiers
+            .iter()
+            .find(|(checked, _)| checked == fixture)
+            .expect("checked above");
+        let typed = &frontier.typed;
+        let root = typed
+            .machines()
+            .iter()
+            .find(|declared| {
+                declared.name.as_str() == *machine
+                    && typed
+                        .symbols
+                        .symbol_source_span(declared.symbol)
+                        .and_then(|span| typed.symbols.source_file(span))
+                        .is_some_and(|file| file.origin == source::SourceOrigin::User)
+            })
+            .unwrap_or_else(|| panic!("{fixture} declares `{machine}`"));
+        match judge(elaborate_closure(typed, root.symbol)) {
+            Ok(RouteVerdict::FallBack(refusal)) if refusal.detail == *detail => {}
+            other => wrong.push(format!("{fixture} `{machine}`: {other:?}")),
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
 /// A package identity that is not the fixture's, so that the fixture's own
@@ -531,6 +626,19 @@ const UNUSED_DECLARATIONS: &[(&str, &str)] = &[
          machine same_x_symmetric(a: Point, b: Point)\n\
          requires same_x(a, b)\nensures same_x(b, a)\n{\n}",
     ),
+    // Wholly anonymous arithmetic is exact: `(2147483647 + 1) - 1` lands in
+    // `i32` although its intermediate does not, where `i32` addition would
+    // overflow.
+    (
+        "exact_anonymous_intermediate",
+        "machine spare() -> i32 ensures result == 2147483647 { (2147483647 + 1) - 1 }",
+    ),
+    // The twin of `fail/arithmetic/fractional_integer_operand`: `4096 / 2`
+    // is an integer, so the operand lands and the product is judged.
+    (
+        "integral_anonymous_operand",
+        "machine spare(input: i32) -> i32 requires input >= 0, input <= 1 { input * (4096 / 2) }",
+    ),
     // An uncalled machine that depends on a library declaration.
     (
         "dependency_call",
@@ -540,13 +648,15 @@ const UNUSED_DECLARATIONS: &[(&str, &str)] = &[
 ];
 
 /// Writes `declaration` and an empty entry as a package under the
-/// repository's ignored `target` directory (the fixture loader takes only
-/// paths inside the repository), checks it, and returns the route's verdict.
+/// repository's ignored `build` directory (the fixture loader takes only
+/// paths inside the repository, and `target` may be a link to a cache
+/// outside it, as `mbx` makes it), checks it, and returns the route's
+/// verdict.
 /// The Build binds `main` for the four hosted targets, as the corpus
 /// fixtures' Builds do.
 fn verdict_on_unused(name: &str, declaration: &str) -> Verdict {
     let root = repo_root()
-        .join("target")
+        .join("build")
         .join("lowered_route_subjects")
         .join(name);
     std::fs::create_dir_all(&root).expect("staging directory");
@@ -620,6 +730,8 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
         falls_back("declaration measure"),
         falls_back("declaration proposition"),
         falls_back("contract named proposition"),
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
         falls_back("call receiver, requirement or coercion call"),
     ];
     assert_eq!(expected.len(), UNUSED_DECLARATIONS.len());
@@ -631,4 +743,32 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// A requirement that contradicts a crash route's guard rules the route out,
+/// so a machine that writes `crashes none` keeps it. In the pending program
+/// `requires denominator != 0u64` makes both `denominator == 0u64` routes
+/// unreachable, the machine's own arm and a callee's published route, and the
+/// route accepts the whole program. The twin requires `denominator != 1u64`,
+/// which admits zero, and is rejected. Both are refused by the current
+/// checker, which is why the positive program waits in `pending/`.
+#[test]
+fn a_requirement_rules_out_the_crash_routes_it_contradicts() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let ruled_out = rejected_frontier(
+        "tests/omega/pending/contracts/requires_disequality_rules_out_crash_route_exit",
+    );
+    let verdict = route_verdict(&ruled_out).1;
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+        "every route is ruled out: {verdict:?}"
+    );
+    let left_open = rejected_frontier(
+        "tests/omega/fail/contracts/requires_disequality_leaves_crash_route_open",
+    );
+    let verdict = route_verdict(&left_open).1;
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Rejected { .. })),
+        "`denominator != 1u64` admits zero: {verdict:?}"
+    );
 }

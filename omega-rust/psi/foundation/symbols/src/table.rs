@@ -1369,6 +1369,74 @@ mod source_queries {
             Whether `symbol` was authored in the toolchain-owned build prelude
             translation unit.
         */
+        /*
+            The sealed intrinsic catalog row `symbol` is declared by, if any.
+            Generated symbols have no authored declaration span and so never
+            match: compiler custody follows the authored bundled declaration.
+        */
+        pub fn sealed_intrinsic(
+            &self,
+            symbol: SymbolHandle,
+        ) -> Option<language_core::sealed_intrinsics::SealedIntrinsic> {
+            if !symbol.is_valid() {
+                return None;
+            }
+            let file = self.source_file(self.symbol_source_span(symbol)?)?;
+            crate::sealed_intrinsic_at(file, &self.display_path(symbol, "::"))
+        }
+
+        /*
+            The core vocabulary row `symbol` is declared by, if any. This is
+            recognition only; it never implies compiler custody.
+        */
+        pub fn core_vocabulary(
+            &self,
+            symbol: SymbolHandle,
+        ) -> Option<language_core::core_vocabulary::CoreVocabulary> {
+            if !symbol.is_valid() {
+                return None;
+            }
+            let file = self.source_file(self.symbol_source_span(symbol)?)?;
+            crate::core_vocabulary_at(file, &self.display_path(symbol, "::"))
+        }
+
+        /*
+            The catalog row for `symbol` under the authored declaration path
+            its owning tree records (a machine's declared name, for example,
+            which keeps target-selected realizations in their source spelling).
+            The symbol's own file, origin and bytes still decide custody.
+        */
+        pub fn sealed_declaration(
+            &self,
+            symbol: SymbolHandle,
+            declaration: &str,
+        ) -> Option<language_core::sealed_intrinsics::SealedIntrinsic> {
+            if !symbol.is_valid() {
+                return None;
+            }
+            let file = self.source_file(self.symbol_source_span(symbol)?)?;
+            crate::sealed_intrinsic_at(file, declaration)
+        }
+
+        /*
+            The catalog row for member `member` of the authored declaration
+            `owner`. Specialized copies of a trait requirement carry no
+            authored span or namespace of their own, so callers that hold one
+            ask about the authored owner and the member's name.
+        */
+        pub fn sealed_member_intrinsic(
+            &self,
+            owner: SymbolHandle,
+            member: &str,
+        ) -> Option<language_core::sealed_intrinsics::SealedIntrinsic> {
+            if !owner.is_valid() {
+                return None;
+            }
+            let file = self.source_file(self.symbol_source_span(owner)?)?;
+            let declaration = format!("{}::{member}", self.display_path(owner, "::"));
+            crate::sealed_intrinsic_at(file, &declaration)
+        }
+
         pub fn is_build_prelude_symbol(&self, symbol: SymbolHandle) -> bool {
             self.symbol_source_span(symbol)
                 .and_then(|span| self.source_file(span))

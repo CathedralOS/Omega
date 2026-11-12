@@ -16,7 +16,9 @@ requires place.kept == 17
     place.kept
 }
 
-machine apply(chosen: &Pair, spare: &Pair) -> i64 {
+machine apply(chosen: &Pair, spare: &Pair) -> i64
+requires chosen.kept == 17
+{
     let joined: &Pair = match choose() {
         true -> chosen
         false -> spare

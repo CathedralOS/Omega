@@ -1680,10 +1680,22 @@ pub mod queries {
             collect_selected_program_references,
         };
 
+        /*
+            Project the program a Build activation checks and executes
+            (wiki/spec/build/validation_subjects.md#orchestration). Its roots are
+            the Build entry, the declarations the activation selects, and every
+            Build-scope declaration authored in a subject source; everything
+            else enters only as their closure. Executing a dependency's Build
+            (the toolchain core Build that settles provider defaults on every
+            compile, for example) therefore checks what that Build reaches and
+            never promotes the dependency's other Build-scope declarations to
+            subjects.
+        */
         pub fn project_build_program(
             original: &dyn crate::CheckingInput,
             entry: SymbolHandle,
             selected_declarations: &[SymbolHandle],
+            is_subject: impl Fn(&source::SourceFile) -> bool,
         ) -> Result<TypedTrees, Vec<Diagnostic>> {
             let instances = instantiated_declarations(original);
             let is_generated = |symbol| is_derived_declaration(original, &instances, symbol);
@@ -1721,6 +1733,16 @@ pub mod queries {
                         .and_then(|span| original.symbols.source_file(span))
                         .is_some_and(|file| file.dependency_scope == DependencyScope::Build)
             };
+            let is_subject_build_declaration = |symbol| {
+                symbol == entry
+                    || original
+                        .symbols
+                        .symbol_provenance_source_span(symbol)
+                        .and_then(|span| original.symbols.source_file(span))
+                        .is_some_and(|file| {
+                            file.dependency_scope == DependencyScope::Build && is_subject(file)
+                        })
+            };
             let generated_methods = original
                 .machines()
                 .iter()
@@ -1738,7 +1760,7 @@ pub mod queries {
                     if selected.contains(symbol) {
                         return true;
                     }
-                    is_build_scope(symbol)
+                    is_subject_build_declaration(symbol)
                         && !is_generated(symbol)
                         && (original
                             .machine(symbol)
@@ -1873,6 +1895,18 @@ pub mod queries {
                         .iter()
                         .map(|conformance| (conformance.trait_symbol, conformance.symbol)),
                 )
+                // A target family is one callable across targets: a call
+                // names its head and each target selects a member later, so
+                // a reached head keeps every member and a reached member its
+                // head.
+                .chain(original.target_machine_families.iter().flat_map(|family| {
+                    family.members.iter().flat_map(move |member| {
+                        [
+                            (family.canonical, member.machine),
+                            (member.machine, family.canonical),
+                        ]
+                    })
+                }))
                 // A value's qualification names a domain of its data type
                 // without a reference the walker follows, so a reached data
                 // type keeps its domains.
@@ -3932,6 +3966,32 @@ pub mod queries {
                 }
             }
 
+            /*
+                The argument bound to `symbol` in `scope` or an enclosing scope, with
+                the scope its own names resolve in. `None` when the symbol is unbound,
+                as a parameter of the declaration being checked is.
+            */
+            pub fn bound_argument(
+                &self,
+                symbol: SymbolHandle,
+                mut scope: usize,
+            ) -> Option<(TypeReferenceHandle, usize)> {
+                loop {
+                    let environment = &self.scopes[scope];
+                    let start = environment.starts.last().copied()?;
+                    if let Some((_, actual)) = environment.bindings[start..]
+                        .iter()
+                        .find(|(formal, _)| *formal == symbol)
+                    {
+                        return Some((*actual, environment.parent));
+                    }
+                    if scope == environment.parent {
+                        return None;
+                    }
+                    scope = environment.parent;
+                }
+            }
+
             pub fn type_identity(
                 &self,
                 program: &dyn crate::CheckingInput,
@@ -4031,9 +4091,17 @@ pub mod queries {
                 let parameters = program.data_type_parameters(definition);
                 if parameters.len() != arguments.len()
                     || lifetime_arguments.len() != definition.lifetime_parameters.len()
+                    // A const parameter binds like a type parameter: its argument is
+                    // the type reference that names its value, and identities
+                    // already resolve a `[T; N]` length through these bindings, so
+                    // `Owner<_, 1>` and `Owner<_, 2>` stay distinct. Implementation
+                    // and value parameters have no such binding here and refuse.
                     || parameters.iter().any(|parameter| {
                         !parameter.symbol.is_valid()
-                            || !matches!(parameter.kind, TypeParameterKind::Type)
+                            || !matches!(
+                                parameter.kind,
+                                TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                            )
                     })
                     || arguments.iter().any(|argument| {
                         !program

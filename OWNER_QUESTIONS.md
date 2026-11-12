@@ -67,143 +67,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - What source forms spell a brand, a stored theorem selection, an explicit choice between conflicting parent selections, and a computed record offered to Build?
-
-Decision name: `operation-record-source-forms`.
-
-**Customer.** `OPERATION-RECORD-IMPLEMENTATIONS` on [TASKS.md](TASKS.md) is a
-human-set priority item, and `OWNED-ACTIVATIONS` is sequenced after it. Its
-acceptance list in
-[operation-record implementations](wiki/drafts/designs/operation_record_implementations.md#acceptance)
-(ratified 2026-11-09 as documentation) names four behaviors that an author
-must be able to write: *"a branded pair is two"*, *"a stored theorem selection
-yields two"*, *"conflicting parents reject without an explicit choice"*, and *"A
-computed record offered to Build is checked for slots, realization and
-admission"*. The product requirement is the one the design states: a library
-that reuses existing machines in an implementation, and that keeps two policies
-with identical selections apart on purpose, without forwarding members.
-Implementation of the decided parts (selection rows, structural identity,
-static callable selections, the schema as a record type) is proceeding; these
-four acceptance cases cannot be written as programs.
-
-**Gap.** Contracts checked and found silent on the source form:
-
-- [Conformances](wiki/spec/language/conformances.md#implementations-are-operation-records):
-  *"a deliberately distinct policy carries an explicit brand"*. No section of
-  `conformances.md`, `machine_values.md`, `domains.md` or
-  [chapter 14](wiki/language_guide/chapter_14_traits.md) gives a declaration,
-  field or clause that is a brand, or says how a brand enters identity.
-- The same section: *"A strict proof is irrelevant, a stored theorem selection
-  retains its declaration identity"*. Traits declare laws today as resultless
-  `machine name(...) ensures ...;` requirements
-  (`source/library/core/algebra.omg`). Nothing says which source form makes a
-  law field a strict proof and which makes it a stored selection, so a row
-  `Trait::law = some_lemma;` has no defined sort.
-- The same section: *"a diamond duplicates nothing and conflicting selections
-  need an explicit choice"*. A diamond has one originating requirement and so
-  one slot; the text does not say what a conflict is in that case or how the
-  choice is written. Qualified rows (`Left::set = a; Right::set = b;`) already
-  separate same-named requirements of different origins.
-- The same section and
-  [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection):
-  *"Build may consume a computed record"*. `Build::select_provider<Slot,
-  Provider>(builder)` takes a named implementation as a static argument. The
-  text does not say whether a `const` record of the schema is admissible as
-  `Provider` or whether another Build operation is meant.
-
-**Questions for Zac.**
-
-- **(a) Brand:** What is a brand in source: a field of the schema, a clause on
-  the `satisfies` block, a declared marker type, or an ordinary relevant field
-  the author adds? Does it take part in identity as a relevant field value?
-- **(b) Law evidence:** Is `Trait::law = lemma;` a strict proof, so identity
-  ignores which lemma was cited, with a separate form for a stored theorem
-  selection? If so, what is that form?
-- **(c) Explicit choice:** Is the choice a qualified row naming the parent
-  whose selection wins, and is a conflict two parent implementations selecting
-  different machines for one originating requirement?
-- **(d) Computed record to Build:** Is a `const` value of the schema admissible
-  wherever `select_provider` takes a named implementation, checked for slots,
-  realization and admission as today?
-
-One reading the implementer applies meanwhile, stated so it can be corrected:
-structural identity unifies two all-row `satisfies` blocks with the same
-selections, and does not unify a block with an inline member body with any
-other, because *"An inline body still declares a new machine"*.
-
-### Q2 - Does explicit landing apply at a proof-level Int peer?
-
-Decision name: `explicit-landing-proof-int-peer`.
-
-An anonymous calculation whose exact history holds a fractional intermediate,
-used as the peer of a proof-level `Int` operand (`embed(7i32) / (1 / 2 * 4)`
-in an `ensures` clause), lands as a mathematical integer. Should it reject like
-a fixed-integer destination, and if so how does an author acknowledge it?
-
-- [numeric_values.md](wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics)
-  makes implicit integer landing an error and names `as T` with an integer
-  destination `T` as the acknowledgement; it does not say whether the
-  unbounded proof `Int` is such a `T`, and no `as Int` cast exists.
-- [explicit_integer_landing.md](wiki/drafts/designs/explicit_integer_landing.md)
-  lists "proof integer peers" in its sweep and also says "proof-level
-  mathematical operations retain their rules".
-- Landing in `i32` and embedding (`embed((1 / 2 * 4) as i32)`) is not the same
-  program: the contract prover then cannot show the divisor nonzero
-  (`tests/omega/pass/proofs/proof_integer_quotient_remainder`).
-
-Until answered, the compiler rejects every fixed-integer implicit landing and
-keeps the proof-`Int` peer as a warning.
-
-### Q3 - Do an implementation's own static arguments stay in its identity when no field depends on them, and are two empty implementations of one trait the same value?
-
-Decision name: `implementation-telescope-identity`.
-
-**Customer.** `OPERATION-RECORD-IMPLEMENTATIONS` on [TASKS.md](TASKS.md)
-(human-set priority) requires structural identity: *"Two names for the same
-selections are one implementation"*. Selection rows landed in `#2315`; the next
-step unifies implementations by their selections. Library and corpus code
-relies today on implementations that select nothing: 283 `.omg` files declare an
-empty `Name satisfies Trait {}` block as a marker, and
-`tests/omega/fail/traits/implementation_value_own_const_mismatch` pins that
-`Holder<Choice<ZERO>>` is not `Holder<Choice<EIGHT>>` for
-`Choice<const Value: u64> satisfies Tag {}`. The product requirement is a
-marker or phantom-indexed implementation that keeps two uses apart at compile
-time, which those sources already express.
-
-**Gap.** Two ratified passages of
-[conformances](wiki/spec/language/conformances.md) give different answers and
-neither names this case:
-
-- Before the operation-record section: *"The telescope participates in every
-  concrete application's identity. Adding, removing, or reordering type, const,
-  or static-machine binders breaks existing applications"*. Read alone,
-  `Choice<ZERO>` and `Choice<EIGHT>` differ.
-- [Implementations are operation records](wiki/spec/language/conformances.md#implementations-are-operation-records):
-  *"Identity is the schema application plus its canonical relevant field
-  values. A name creates no identity and grants no authority: two names for
-  one value are one implementation"*. The schema application of both is `Tag`
-  and neither has a field, so read alone they are one value, and so are any
-  two empty implementations of one trait.
-
-The same section says *"a deliberately distinct policy carries an explicit
-brand"*, whose spelling is the subject of `operation-record-source-forms`
-above, so the marker implementations cannot be migrated to brands yet.
-
-**Questions for Zac.**
-
-- **(a)** Is an implementation's own telescope application part of its identity
-  under the operation-record rule even when no selected field mentions the
-  binder, so `Choice<ZERO>` and `Choice<EIGHT>` stay distinct?
-- **(b)** Are two differently named, non-generic, empty implementations of one
-  trait one value, or does an implementation with no selections keep the
-  identity of its declaration until brands exist?
-
-Reading applied meanwhile, stated so it can be corrected: structural identity
-unifies only non-generic implementations that have at least one row and whose
-rows are all selection rows. Empty and generic implementations keep their
-current declaration-and-argument identity.
-
-### Q4 - How does the compiler publish `Incomplete` for a proof goal whose form the prover has no rule for?
+### Q1 - How does the compiler publish `Incomplete` for a proof goal whose form the prover has no rule for?
 
 Decision name: `unproved-goal-form-publication`.
 
@@ -239,7 +103,7 @@ has no diagnostic that publishes it. The route is not in the default compile,
 so no program is affected yet; a router that publishes this verdict needs the
 answer first.
 
-### Q5 - May a Build program select a provider for a requirement it declares itself?
+### Q2 - May a Build program select a provider for a requirement it declares itself?
 
 Decision name: `build-declared-requirement-provider`.
 
@@ -273,7 +137,7 @@ The question:
 
 Until answered the fixture stays red and the compiler selects nothing.
 
-### Q6 - Who approves a new rule in the proof kernel?
+### Q3 - Who approves a new rule in the proof kernel?
 
 Decision name: `kernel-rule-admission`.
 
@@ -310,3 +174,642 @@ The question:
 
 Until answered no kernel rule is added and the seven programs stay unproved
 on the new route. The current checker still accepts them.
+
+### Q4 - May a caller rely on what a callee's body returns beyond its `ensures`?
+
+Decision name: `callee-result-body-summary`.
+
+**Customer.** The checker on the lowered form
+([check on the lowered form](wiki/drafts/designs/check_on_lowered_form.md))
+must decide `tests/omega/pass/contracts/boolean_result_all_normal_returns_exit`:
+
+```omega
+machine choose(pick: bool) -> bool {
+    transition pick {
+        true -> false
+        false -> false
+    }
+}
+machine hold(value: bool) -> bool requires value == false { true }
+machine main() {
+    let direct: bool = choose(false);
+    let observed: bool = hold(direct);
+}
+```
+
+`choose` publishes no `ensures`. The current checker accepts the program: it
+evaluates `choose`'s body at the call with the actual argument
+(`05_typed-trees-to-checked-trees/src/flow_transfers.rs`, `mod
+normal_returns`, reached from `capture_call`) and records `direct == false`
+as a value fact, restricted only to direct calls of checked bodies with
+scalar parameters, not to private callees or one verification unit. The new
+route uses only the callee's contract and leaves `hold`'s requirement
+unproved, which under [what each stage may trust](wiki/drafts/designs/stage_trust.md)
+rule 2 rejects the program.
+
+**Contracts checked.**
+
+- [Proof contracts](wiki/spec/proofs/contracts.md#machines-and-bundles):
+  *"`ensures` states conclusions its body must justify. Before importing a
+  callee's conclusions, a caller establishes the assumptions under the exact
+  argument substitution."* Only `ensures` is named as what a caller imports.
+- [Proof contracts](wiki/spec/proofs/contracts.md#identity-availability-and-erasure):
+  *"Private strengthening does not become a public guarantee"*, said of
+  public trait requirements and their private realizations.
+- [Machines as runtime values](wiki/spec/language/machine_values.md):
+  *"A callable field publishes the complete contract its caller may rely
+  on."* Said of callable fields, not of named calls.
+- [Effects](wiki/spec/language/effects.md), crash routes: *"Only a body
+  inside the same fingerprinted verification unit may supply a local body
+  summary; otherwise use the published ceiling."* The same rule in
+  [calls and outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md#crash).
+  Both sit in the crash-route text.
+- [Dependent values](wiki/spec/language/dependent_values.md#mutation-frames):
+  (`published-write-frames`, settled 2026-11-10): a checked body's write
+  frame is *"Inferred from the body and published"*, and *"A caller in the
+  same fingerprinted verification unit may use the body's exact summary;
+  every other caller uses the published frame."* Inference is spelled out for
+  frames and reach, not for a result.
+
+So body-derived evidence crosses a call for crash routes and write frames
+(the exact summary within one verification unit, a published inferred frame
+beyond it), and nothing says whether it may for a result. The design record treats every axis alike (*"Information derived
+from a body crosses only edges inside 'the same fingerprinted verification
+unit'; every other edge uses the authored contract"*), and lists the result
+relation as one axis; the specification does not.
+
+**Direction reported, not ratified.** A direction relayed from the owners'
+discussion on 2026-11-11, and not in the specification: the compiler infers
+further facts from the instructions a body actually executes, with no new
+syntax (a body that writes 1000 under `ensures value > 100` acts as `ensures
+value == 1000`), rather than taking every fact only from `requires` and
+`ensures`. Its scope was not stated.
+
+**Question.** Does a fact inferred from a callee's body (here `result ==
+false`, from both arms returning `false`) reach its callers when the callee's
+`ensures` does not state it?
+
+- **Scope:** (a) only inside one fingerprinted verification unit, as crash
+  routes do; (b) across a published contract as well; or (c) not for
+  results, so callers see only `ensures`.
+- **Form:** if it reaches callers, is it a summary over the formals, checked
+  once against the body, or may it use each call's actual arguments, as the
+  current checker does?
+
+Under (c) the current checker's acceptance of this fixture is an error, and
+the fixture moves to `fail/` or gains `ensures result == false`.
+
+### Q5 - What source form binds a boundary requirement to a field of a foreign function table?
+
+Decision name: `native-table-field-binding`.
+
+**Customer.** UEFI firmware hands a loader tables of function pointers, and
+`source/library/std/targets/uefi_x86_64/handoff.omg` calls four Boot Services
+entries (`allocate_pages`, `free_pages`, `get_memory_map`,
+`exit_boot_services`) through them. Each is a bodyless leaf written
+`satisfies UefiBootServices::allocate_pages via ForeignBinding::TableFunction(allocate_pages);`.
+33 corpus fixtures and probes use the same `TableFunction` / `VtableField`
+spelling, for example `samples/uefi/uefi_hello/main.omg` and
+`samples/cli/probes/native_table_call/main.omg`. The compiler already realizes
+these: it validates an `addr` field of the exact table record and a readable
+borrow of that record, then computes the target offset
+([measurement](wiki/drafts/measurements/source_free_table_fields_2026_11_02/README.md)).
+
+**What the specification says.** The ratified `build-owned-native-bindings`
+decision retires `via` and binds DllImport and syscall leaves with
+`Build::bind<Requirement>(builder, target, locator)`. For tables it says only
+what the replacement is not:
+
+- [Foreign bindings](wiki/spec/build/foreign_bindings.md#locator-values):
+  *"`VtableField` is deliberately not a case of it ... it remains on its
+  explicit legacy carrier until NativeFieldIdentity has an ordinary typed
+  source form; it must not be smuggled into this sum"*.
+- The same section: *"Retiring `via` does not add table or instruction
+  variants to `ForeignBinding`: validated typed table/field mechanisms ...
+  must migrate without a compatibility parser"*, and *"A table call names a
+  validated field, not an authored numeric slot ordinal."*
+
+So `via` cannot be deleted while these leaves exist, and the specification
+names no form to move them to.
+
+**Question.** How does source bind a boundary requirement to a function-pointer
+field of a foreign table?
+
+- **(a)** A Build row with a second operand naming the field, such as
+  `Build::bind<UefiBootServices::allocate_pages, EfiBootServicesTable::allocate_pages>(builder, uefi_x86_64)`,
+  with the dispatch borrow taken from the requirement's first parameter.
+- **(b)** A field-typed declaration form in source next to the table record,
+  with no Build row.
+- **(c)** Something else. Separately: do vtable fields, which pass the table
+  itself as the first argument, and table functions, which do not, need two
+  forms?
+
+Until answered these leaves keep `via`, and `BUILD-OWNED-NATIVE-BINDINGS`
+cannot delete its parser.
+
+### Q6 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
+
+Decision name: `applied-provider-cycle-selection`.
+
+**Customer.** `ENTRY-CONTENT-ROOTS` on [TASKS.md](TASKS.md) accepts
+`pass/capabilities/*` through `omega run --both`.
+`tests/omega/pass/capabilities/selected_applied_synchronous_chain_exit`
+declares `FirstStage<const Phase: u64> satisfies Stage<Phase>`, whose `read`
+calls `Stage<2u64>::read()`, and `SecondStage<const Phase: u64> satisfies
+Stage<Phase>`, whose `read` returns 73. Build selects `FirstStage<1u64>` for
+`Stage<1u64>` and `SecondStage<2u64>` for `Stage<2u64>`. Neither requirement
+nor implementation states `terminates`. The product requirement is a staged
+provider chain where one application's provider calls another application of
+the same boundary.
+
+The ledger records the row `checked`, but on current `main` checking rejects
+it on every target: *"machine call cycle: `FirstStage::read` can re-enter
+itself through a selector call or boundary requirement call; termination
+across implementation selection is not yet ranked"*. Without selection,
+`FirstStage<2u64>` is a supplied implementation of `Stage<2u64>`, so
+`FirstStage<2u64>::read` → `Stage<2u64>::read` → `FirstStage<2u64>::read` is
+an unranked cycle; only the Build row for `Stage<2u64>` removes it.
+
+**Gap.** Two ratified passages give different answers:
+
+- [Provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection):
+  *"Psi checks every supplied implementation independently of target
+  selection."* `tests/omega/fail/termination/unselected_implementation_reentry_rejected`
+  pins that an unranked cycle through an unselected implementation rejects.
+  Read alone, this fixture rejects.
+- [Termination](wiki/spec/language/termination.md), checked dependency row:
+  *"Instantiate the exact selected operation's termination premises under its
+  actual argument substitution."* With
+  [generic selected requirements](wiki/spec/build/provider_selection.md#generic-selected-requirements)
+  (*"The selected generic member must implement the public contract for every
+  admitted application"*), read alone, only the selected `SecondStage<2u64>`
+  is called and there is no cycle.
+
+Neither says whether "supplied" ranges over every application a generic
+implementation could satisfy, or only the applications Build admits for it.
+
+**Question.**
+
+- **(a)** Does Psi's selection-independent cycle check include
+  `FirstStage<2u64>` as a supplier of `Stage<2u64>`, so the fixture rejects
+  and moves to `fail/` (or gains a ranking or `terminates` promise)?
+- **(b)** Or does the check range only over the applications Build admits for
+  each generic implementation, so the fixture is accepted and the call graph
+  must follow the exact closed application?
+
+Until answered the row is left red and the call graph is unchanged.
+
+### Q7 - May a nested helper's body rely on facts its caller holds at the call?
+
+Decision name: `nested-helper-caller-facts`.
+
+**Customer.** Private nested helpers in ranked loops, the ordinary way to split one
+machine's step into named parts. `tests/omega/fail/termination/private_stored_reference_rank_no_ambient_helper_bound`
+declares `count`, which branches on `remaining.child.count > 0` and on the `true`
+arm transitions to its nested helper `forward(remaining, counter)`. `forward`
+declares only `requires pending.child.count <= 7` and computes
+`pending.child.count - 1`. Its single arrival is that `true` arm, so the
+subtraction cannot underflow when the program runs. The fixture pins
+"exact arithmetic in machine `forward`"; the current checker accepts it, and the
+ledger records it `checked`. The file still carries the header "Expected exit: 0"
+and has no positive twin.
+
+**Gap.** Two ratified passages give different answers:
+
+- [State contracts](wiki/spec/language/state_contracts.md):
+  *"Live caller facts can discharge a nested helper's requirements; body
+  inference must justify any inferred private requirements on every arrival,
+  not grant them from lexical ancestry."* Read alone, `forward` has an inferred
+  private requirement `pending.child.count > 0`, which its only arrival
+  justifies, so the program is valid. [Assembly](wiki/spec/language/assembly.md)
+  says the same for blocks: *"admissible private contract inference can
+  discharge those goals ... but every actual incoming edge must justify any
+  inferred requirement. Public contracts cannot silently strengthen from one
+  implementation's body."*
+- [Machines](wiki/spec/language/machines.md#nested-machines-and-identity):
+  *"Nested contracts can use that static context and their own parameters, not
+  another invocation's local values or live facts."* Read alone, `forward` is
+  judged by its own contract, which does not bound the subtraction, so the
+  program rejects. #2317's lowered-form comparison classified 8 `pass/`/`run/`
+  programs as current-checker errors on this reading, among them
+  `runtime_boolean_divisor_state_exit`, `private_division_exact_pair_exit` and
+  `private_arrival_guarded_helper_range_exit`: each has a nested machine with
+  no `requires` that divides, multiplies or subtracts using its caller's path facts.
+
+Neither says whether a requirement inferred from a nested helper's body is part
+of "their own" contract, or is one of the caller's "live facts" the helper may
+not use.
+
+**Question.**
+
+- **(a)** May a private nested helper carry requirements inferred from its body,
+  each justified on every arrival? Then the fixture is a valid program and
+  moves to `pass/`, and the 8 programs stay accepted.
+- **(b)** Or is a nested helper judged only by its authored contract? Then the
+  fixture rejects, the 8 programs move to `fail/` or gain a `requires`, and the
+  state-contracts sentence on inferred private requirements needs narrowing.
+
+Until answered the row is left as recorded and the checker is unchanged.
+
+### Q8 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
+
+Decision name: `validation-subjects` (`Build::validate` naming).
+
+**Customer.** The toolchain release gate, which
+[validation subjects](wiki/spec/build/validation_subjects.md#admission-and-release)
+says "checks each bundled library as a subject", and any product that wants
+its dependency checked in full with `Build::validate`.
+
+The specification's example registers dependencies as identifiers:
+
+```omega
+Build::dependency(builder, core, locator);
+Build::validate(builder, core);
+```
+
+The shipped Build vocabulary has no `Build::dependency` and names no
+dependency by identifier. A dependency is registered with
+`Build::depend(builder, Source::Path { location: "vendor" })` or
+`Build::depend_as(builder, "vendor", source)`, and is known afterwards by its
+alias bytes. The bundled `core`, `std` and `alloc` are never registered by a
+product at all; the toolchain supplies them. Today
+`omega --check source/library/core/main.omg` is refused with
+`source root ... overlaps toolchain root`, so no command can check a bundled
+library as a subject.
+
+The question:
+
+- **(a)** Is the argument of `Build::validate` the dependency's alias, as in
+  `Build::validate(builder, "vendor")`, or a new identifier form?
+- **(b)** How is a bundled library named as a subject: by
+  `Build::validate(builder, "core")` without registration, by checking the
+  library's own directory as a root (lifting the overlap refusal for the
+  toolchain's own packages), or by another form?
+
+Until answered `Build::validate` is not implemented and the release gate has
+no full-package check of `core` and `std`. Ordinary checks already treat only
+the root package as a subject.
+
+### Q9 - May a guard on one copy bound a place restored from another copy of the same version?
+
+Decision name: `restored-scalar-value-facts` (scope of the copy that is guarded).
+
+**Customer.** `tests/omega/fail/contracts/scalar_copy_guard_after_source_restore`
+reads `main.items[selector]` twice, into `copied` and `saved`, with no write
+between the reads. It then writes `0` to that element, writes `saved` back,
+and branches on `copied >= 48 && copied <= 49`. The `true` arm calls
+`bounded`, which requires `main.items[selector]` to lie in `48..=49`. When the
+program runs the requirement always holds: both copies hold the value the
+element had before the two writes, and the element holds that value again.
+The fixture pins "cannot prove requires contract". The current checker
+accepts it (`mbx xtask corpus --filter` reports `rejected -> checked` at
+`c507708a7a`), and the ledger row is recorded `checked` here. The fixture
+was last edited on 2026-10-27, before the decision below.
+
+**Gap.** The ratified text reads as describing this exact program:
+
+- [Terminal fact validity](wiki/spec/terminal-psi/fact_validity.md#restored-scalar-values):
+  *"For integer copies `copied` and `saved` of that same version, their
+  equality survives later writes to the original storage. A restoring store
+  of `saved` introduces an equality for the new storage version at its
+  captured destination. A guard on `copied` can then prove bounds on a later
+  read of that version."*
+- [State contracts](wiki/spec/language/state_contracts.md#restoring-a-saved-scalar-value)
+  (named decision `restored-scalar-value-facts`, ratified 2026-11-02):
+  *"Writing the saved value back establishes a new equality between the
+  current contents of that exact destination and the saved value. A
+  subsequent guard on the copy may therefore justify a requirement on the
+  restored contents."*
+
+Read together, the program is valid and the fixture contradicts the
+specification. Only the state-contracts sentence says "the copy" in the
+singular. It could be read as admitting only a guard on `saved` itself, not
+on a second copy of the same version.
+
+**Question.**
+
+- **(a)** Does a guard on any integer copy of the restored version justify
+  the requirement, as the fact-validity text says? Then the program is valid.
+  The fixture moves to `pass/` or is retired, and the checker is unchanged.
+- **(b)** Or does only a guard on the copy that was written back justify it?
+  Then the fact-validity sentence narrows and the checker must stop relating
+  `copied` to the restored element.
+
+Until answered the row stays as recorded and the checker is unchanged.
+
+### Q10 - May a denotational call observe a record with shared reference fields through a shared reference?
+
+Decision name: `shared-observation-denotational-content`.
+
+**Customer.** `tests/omega/fail/layouts/fixed_layout_policy_borrowed_content`
+declares `data Payload [copy] { left: &u64; value: u64; right: u64; }` and
+lays it out with a `FixedLayout` policy. Its `validate` machine publishes
+`ensures policy(result, storage, expected)`, where `storage` is
+`&LayoutStorage<Payload, Policy>` and `policy` reads only `storage.value`.
+The fixture's header says *"A layout cannot make a borrowed field into a
+repeatable proof value"*. It pins "the application carries forbidden
+denotational content". The current checker accepts it (`rejected -> checked`
+at `c507708a7a`), and the ledger row is recorded `checked` here. The layout plays
+no part: the same program with `storage: &Payload` is also accepted.
+
+**Cause.** #2184 (`4a194ff149`, 2026-11-09) made shared reference arguments
+use a separate `SharedObservation` content rule in
+`omega-rust/psi/compilation/validation/src/proof_contracts_core.rs`. That
+rule follows a readable reference field inside the shared referent instead
+of refusing it: *"The enclosing shared loan permits reads through these
+fields; their actual observations still retain storage and backing
+identity."* Before #2184 the argument went through the value-observation
+rule, which refuses every reference field. That refusal is the diagnostic the
+fixture pins. Slices of reference-bearing elements still refuse under the new
+rule (`fail/facts/computed_subslice_extent_nested_reference_elements_rejected`).
+
+**Gap.** These contracts were checked and do not say whether such content is
+admissible:
+
+- [Contracts](wiki/spec/proofs/contracts.md): *"A call interpreted
+  denotationally needs a checked observation-free, reach-free, crash-free,
+  terminating invocation"*, and repeated pure comparisons share a denotation
+  only for *"exact unchanged arguments"*; *"observation-dependent inputs ...
+  invalidate that reasoning"*.
+- [Invocation admission](wiki/spec/language/evaluation.md#invocation-admission)
+  lists the admission axes. None of them mentions reference fields reached
+  through a shared argument.
+- [Ownership](wiki/spec/language/ownership.md): *"Shared reference and
+  borrowed-view fields may occur in `[copy]` data ... Copying the record
+  duplicates its shared loan carriers, not its referents"*. This rule is about
+  copying, not proof use.
+
+Neither text says whether reading through a shared loan into a record whose
+fields are themselves shared references gives an argument that is
+"unchanged" and free of observations for a specification call.
+
+**Question.**
+
+- **(a)** Are readable reference fields inside a shared referent admissible
+  denotational content, as the checker has held since #2184? Then the
+  fixture is a valid program and moves to `pass/` or is retired.
+- **(b)** Or does any reference field in a denotational argument carry
+  forbidden content? Then the shared-observation rule stops following
+  reference fields, and the customer #2184 served needs another form.
+
+Until answered the row stays as recorded and the checker is unchanged.
+
+### Q11 - Which in-memory filesystem does a test group select, and what does it implement?
+
+Decision name: `test-group-virtual-filesystem`.
+
+**Customer.** [Requirement-based test groups](wiki/spec/build/testing.md)
+require a group that selects a private in-memory filesystem
+(`memory.service<Filesystem, MemoryFilesystem>()`) to run on both engines
+under its implementation acceptance, and `TASKS.md` item `BUILD-TEST-GROUPS`
+carries that acceptance. Registration, discovery, both-engine execution and
+the roster report are implemented; no provider exists for such a group to
+select.
+
+**Gap.** These contracts were checked and do not define the provider:
+
+- [Testing](wiki/spec/build/testing.md#group-configuration-and-authority):
+  *"Benign captured output and a private in-memory filesystem require no
+  approval ceremony, but are explicitly selected"*, and *"Operations supported
+  by the delegated virtual interface use that backing; real-only or otherwise
+  unavailable operations reject without a host fallback."* It names neither
+  the virtual interface nor which operations it supports.
+- [Chapter 23](wiki/language_guide/chapter_23_testing.md#services-and-fixtures)
+  spells the selection `service<Filesystem, MemoryFilesystem>`, but std's
+  filesystem slot is the boundary trait `FilesystemService`
+  (`source/library/std/filesystem.omg`), `Filesystem` is an empty data type,
+  and no `MemoryFilesystem` exists anywhere in `source/library`.
+- [Platform services](wiki/spec/build/platform_services.md) and
+  [provider selection](wiki/spec/build/provider_selection.md) define real
+  filesystem providers and root-delegated replacement, not a virtual backing's
+  path model, initial contents or per-test state.
+
+**Question.**
+
+- **(a)** Is the virtual filesystem a std provider for the whole
+  `FilesystemService` slot, with every operation implemented over private
+  per-invocation state (directories, metadata, permissions and enumeration
+  included)?
+- **(b)** Or is it a narrower declared virtual interface (for example content
+  read/write/create/exists only), where the other `FilesystemService`
+  operations reject before execution as unsupported by the backing?
+- In either case: which library owns it (`std` or a separate test-support
+  package), what its initial contents are, and whether the selection operand
+  names the `FilesystemService` slot or the guide's `Filesystem` type.
+
+Until answered, test groups run only without services, and
+`BUILD-TEST-GROUPS` keeps only its virtual-filesystem acceptance.
+
+### Q12 - May `&mut` lend a binding declared without `mut`, and may the borrower replace its value?
+
+Decision name: `immutable-binding-exclusive-loan`.
+
+**Customer.** `tests/omega/fail/constraints/computed_local_value_invalidated`
+declares `let saved: u8 = 3 + 4;` without `mut`, calls
+`replace(&mut saved)` where `replace` writes `value = 8`, and returns
+`saved` under `ensures result == 7`. When the program runs the result is
+`8`. The fixture pins "ensures". The current checker accepts it
+(`mbx xtask corpus --filter` reports `rejected -> checked` at `a4dd6090e`),
+and it was already accepted at `5209eac45` (2026-11-03), the oldest commit in
+the fetched history. The same program with `let saved: u8 = 7;` is also
+accepted; with `let mut saved` both forms are rejected with the expected
+ensures diagnostic. The ledger row is recorded `checked` here, as main
+measures it at `11582c84f`.
+
+**Cause.** The checker holds two incompatible readings at once:
+
+- Admission lends a non-`mut` binding exclusively. Assignment rejects a bare
+  reassignment `saved = 8` ("not mutable in this state",
+  `omega-rust/psi/compilation/validation/src/places.rs`), but it admits field
+  writes to a non-`mut` local and admits `&mut saved`. At least 190 `pass/`,
+  `run/`, sample and library files lend a non-`mut` local with `&mut`
+  (for example `pass/facts/nominal_loan_backing_cleanup_through_local_exit`,
+  whose callee writes `room.count = 99`).
+- Value tracking treats a non-`mut` binding as never written.
+  `checks_current_scalar_values.rs` documents the flag as *"A by-value
+  binding declared without `mut`. No store or call can reach it: a write
+  needs a mutable place, and so does a `&mut` loan."* Exit-contract scalar
+  rosters (`is_scalar_roster_local` in `checks_contracts_exits.rs`) and about
+  fifty other sites rely on the same premise.
+
+Under either reading the customer is invalid, but the two readings reject it
+in different places, and the second reading is unsound while the first is
+admitted. Repairing only the value tracker flips this row and leaves the
+literal-initializer variant accepted through the other sites.
+
+**Gap.** These contracts were checked and are silent on whether `mut`
+governs exclusive lending:
+
+- [Ownership](wiki/spec/language/ownership.md): the access table gives
+  `&mut T` *"Exclusive observation and mutation"* and says nothing about the
+  binding the loan is formed from.
+- [Expressions](wiki/spec/language/expressions.md): *"mutable and write-only
+  lending require explicit `&mut` and `&write` expressions"*, and a mutable
+  subrange *"source must already permit exclusive access"*, without saying
+  whether a non-`mut` local permits it.
+- [Machines](wiki/spec/language/machines.md) shows `let mut counter` lent as
+  `&mut counter` but states no rule for a non-`mut` binding.
+
+**Question.**
+
+- **(a)** Does `mut` govern only bare reassignment, so `&mut` may lend any
+  owned local and the borrower may replace its whole value? Then every site
+  that treats a non-`mut` binding as unwritable must consult the binding's
+  exclusive loans, and the fixture is rejected by its ensures.
+- **(b)** Or does an exclusive loan require a `mut` binding? Then admission
+  rejects `&mut saved`, the fixture's pinned fragment changes to that
+  refusal, and the lending files above add `mut`.
+
+Until answered the row stays as recorded and the checker is unchanged.
+
+### Q13 - Does a cyclic `invokes` graph between unselected providers reject a program with no Build?
+
+Decision name: `unselected-synchronous-invocation-cycle`.
+
+**Customer.** `tests/omega/fail/capabilities/cyclic_synchronous_invocation`
+declares boundary traits `Alpha` and `Beta` whose requirements invoke each
+other, and providers `AlphaProvider::alpha_checked` and
+`BetaProvider::beta_checked` whose bodies call the other trait. It has no
+`build.omg`: no Build selects either provider and no program entry exists.
+Its header still says *"Both selected checked providers realize one direct
+synchronous edge"*. The fixture pins "cyclic synchronous `invokes` graph".
+The current checker accepts it (`rejected -> checked` at `a4dd6090e`), and
+`omega --check` already accepted it at `5209eac45` (2026-11-03). The ledger
+row read `rejected` from the unreachable stamp `@ccdb99ca2214`. It is recorded
+`checked` here, as main measures it at `11582c84f`.
+
+The selected case is already pinned with Builds that select both providers
+and bind an entry: `fail/capabilities/selected_synchronous_cycle`,
+`selected_synchronous_helper_cycle` and `selected_applied_synchronous_cycle`
+all reject with the same fragment on main.
+
+**Gap.** [Direct synchronous invocation](wiki/spec/language/effects.md#direct-synchronous-invocation)
+says *"Composition makes two checks ... The complete realized graph of
+possible edges, inventory included, is acyclic"* and *"A row that no
+selected provider uses is a broader ceiling, not an error."*
+[Callback registration](wiki/spec/build/private_callbacks.md#registration-and-lifetime)
+says *"The direct synchronous invocation graph must be acyclic"* without
+naming whether the graph is the selected realization or every declared
+`satisfies` implementation. Build-owned selection means a program without a
+Build realizes no provider.
+
+**Question.**
+
+- **(a)** Is acyclicity a composition check on the selected realization
+  only? Then this program is valid, the fixture is stale (it predates
+  Build-owned selection), and it is retired or moved to `pass/`, since the
+  selected siblings keep the rejection pinned.
+- **(b)** Or must the checked bodies of every declared provider form an
+  acyclic `invokes` graph whether or not a Build selects them? Then the check
+  leaves backend provider planning and runs at source checking.
+
+Until answered the row stays as recorded and the checker is unchanged.
+
+### Q14 - Does a caller's local loan passed into a terminal machine call end at its last use inside the callee?
+
+Decision name: `terminal-call-carried-loan-lifetime`.
+
+**Customer.** `tests/omega/pass/recast/runtime_aggregate_slice_representation_recast_exit`
+forms `let read: &[Wide] = &main.source as &[Wide];` in `Main::main`, then
+transitions to its nested machine `inspect(main, read)`. `inspect` reads only
+`read`, then transitions to its sibling `mutate(main)`, which forms a mutable
+view of `main.source` and writes through it. `read` is never used after
+`inspect`. The ledger records the row `rejected`: "statement 6 mutates
+`main.source` while local borrow `read` is still active (borrowed at statement
+4; its last use is at statement 6)".
+
+**Gap.** The current checker keeps a caller-local loan live until a
+machine-entry call completes, including that callee's terminal-transition
+chain. Its comment says *"Machine-entry calls keep their caller's live loans
+through completion; nesting and recursive graph fusion do not change that
+lifetime boundary."* These contracts were checked:
+
+- [Ownership](wiki/spec/language/ownership.md#borrows-and-aliases): *"A loan
+  held by a local closes after the last use of that local and of every loan
+  derived from it, not at the end of the enclosing block."* Read alone, the
+  loan of `read` closes inside `inspect`, so `mutate`'s write is valid.
+- [Terminal calls](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms):
+  *"No return, cleanup or storage reclamation occurs merely because the call
+  is syntactically final"*, and tail lowering must preserve *"all live
+  backing, loans, custody and completion obligations"*. This keeps storage
+  alive across the chain but does not say whether a loan whose last derived use
+  has passed is still live.
+- [Machines](wiki/spec/language/machines.md#nested-machines-and-identity):
+  nesting *"does not ... retain an enclosing activation"*, which does not decide
+  whether the caller's loan is retained.
+
+The checker is also inconsistent today. A later *read* of the lent storage is
+judged by the receiver's held-run footprint, which ends where the loan stops
+being forwarded. So `runtime_interior_slice_view_mutable_write_exit`, which
+reads `main.pair_bytes` in a successor after its mutable view's last use, is
+accepted once #2489 lets an owner arrive beside a view of its own inline array
+range. A later *write* is judged by the whole-run live-loan check, which is
+why this row rejects.
+
+**Question.**
+
+- **(a)** Does a caller-local loan carried into a terminal machine call close
+  at the last use of every loan derived from it, even inside the callee's tail
+  chain? Then the row is a valid program, and the live-loan write check should
+  use the same held-run footprint that reads already use.
+- **(b)** Or does it stay live until that machine call completes? Then the row
+  must be rewritten, and the read path should be tightened to match, rejecting
+  programs such as `runtime_interior_slice_view_mutable_write_exit` that it
+  currently accepts.
+
+Until answered the row is left as recorded and the checker is unchanged.
+
+### Q15 - Who supplies TaskRuntime and interrupt masking once authored compiler intrinsics are refused?
+
+Decision name: `sealed-runtime-providers`.
+
+**Customer.** BUILD-OWNED-NATIVE-BINDINGS in `TASKS.md` retires `via`, and the
+[foreign binding](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)
+contract says compiler intrinsics come only from the sealed intrinsic catalog
+with toolchain custody. Authored source still claims compiler custody with
+`via ForeignBinding::CompilerIntrinsic` at these sites:
+
+- `TaskRuntime::start`/`try_start` providers in
+  `tests/omega/pass/tasks/task_runtime_machine_selection_compile` and
+  `tests/omega/fail/tasks/task_runtime_provider_contract_narrowing`;
+- `InterruptMaskControl::save_and_mask` in
+  `tests/omega/pass/memory/interrupt_table_canary` (`cathedral/interrupt_roots.omg`);
+- a user `WorkerProvider::execute` in `tests/omega/pass/host/intrinsic_machine_param`;
+- user numeric members in `tests/omega/{pass,fail}/packages/rootless_numeric_provider_*`;
+- nine `DeviceLoanProvider` members in `samples/cli/probes/device_extent_access`.
+
+Refusing that spelling leaves the task and interrupt-mask sites with no
+provider at all.
+
+**Gap.** These contracts were checked:
+
+- [Task activation](wiki/spec/build/task_runtime.md): *"Root profiles may
+  select default providers and owners may override their slots, but
+  starting/controlling a task still requires a held runtime capability."* It
+  does not say whether a toolchain-sealed provider exists or which package
+  ships it. Core `task.omg` declares only the `TaskRuntime` trait, and nothing
+  in `source/library` provides it.
+- `source/library/core/interrupt.omg` declares `InterruptMaskControl` with no
+  provider. The compiler has no execution identity for `save_and_mask`, so the
+  canary's authored intrinsic only type-checks.
+- The sealed intrinsic catalog (`language_core::sealed_intrinsics`) covers core
+  float, static-interrupt, layout, hosted console/exit and UEFI declarations.
+  It has no runtime-provider rows because no bundled provider declaration
+  exists to point them at.
+
+**Question.**
+
+- **(a)** Does core (or std per target) ship sealed `TaskRuntime` and
+  `InterruptMaskControl` providers that the compiler realizes, recorded as
+  catalog rows and selected by the root profile by default?
+- **(b)** Or are these providers ordinary checked code, outside the compiler:
+  a runtime package for tasks, and target `asm` for interrupt masking, which
+  each program or root profile selects?
+- In either case: what replaces the user-authored compiler intrinsics in
+  `intrinsic_machine_param`, `rootless_numeric_provider_*` and
+  `device_extent_access`? Each could become a rejecting pin for the refused
+  spelling, a checked body, or a Build-bound foreign symbol.
+
+Until answered, `via ForeignBinding::CompilerIntrinsic` stays accepted at
+these sites, and BUILD-OWNED-NATIVE-BINDINGS keeps its `CompilerIntrinsic`
+retirement.

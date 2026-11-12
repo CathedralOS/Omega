@@ -6,7 +6,7 @@ Every place copies this fact and consumes both obligations directly.
 
 Owner: **CANONICALIZE-SCALAR-RANGE-CONTRACTS** in [TASKS.md](../../../../TASKS.md),
 remaining guarded `CompactBinary::frame_fields` / private `parse` admission in
-[Std wire](../../../../source/library/std/wire.omg). This is the invocation-entry
+[Core wire](../../../../source/library/core/wire.omg). This is the invocation-entry
 boundary: future callee writes cannot erase already evaluated entry subjects.
 It differs from the [copied argument snapshot](../copied_call_argument_snapshot/README.md)
 row, which retains an earlier scalar across effects of a later argument.

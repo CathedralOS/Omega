@@ -40,7 +40,9 @@ pub(super) fn inspect(
             expected_subject: product.selection().provider(),
             accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V3]),
             // These fixtures use ordinary checked providers without assumptions.
-            accepted_assumptions: BTreeSet::new(),
+            accepted_assumptions: component_description::AcceptedComponentAssumptions::Exact(
+                BTreeSet::new(),
+            ),
         };
         let verified = verify_component(product.description(), &request)
             .map_err(|error| format!("native component description consumer: {error}"))?;

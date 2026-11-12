@@ -1034,6 +1034,7 @@ pub(crate) mod bodies {
                             initial_value,
                             is_mutable: false,
                             relevance: language_core::BindingRelevance::Relevant,
+                            pattern_fields: Default::default(),
                         }));
                     let handle = items(syntax_trees).append_statement_handle(capture);
                     statements.push(handle);

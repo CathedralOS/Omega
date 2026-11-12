@@ -353,12 +353,37 @@ that cannot fail cannot hold work back, and work went ahead
    - The parameter is an implementation parameter. A type or value parameter
      is not served, and the check tables have no row for a value of an
      abstract type
-     ([what the lowered form does not carry](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#what-the-lowered-form-does-not-carry)).
+     ([what the lowered form does not carry](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#what-the-lowered-form-does-not-carry)); [lowered type generics](lowered_type_generics.md) proposes how it
+     could be.
    - The route is not the compile path. `omega run --both` runs the program
      through the current pipeline; the generic check and the carried
      certificates run in the `generic_certificate_carry` example on the same
      typed trees.
    - Whether this meets the condition is the owner's reading.
+
+   <a id="condition-3-value-parameters"></a>
+   **Second result, 2026-11-12: value parameters.** A machine over `const
+   Units: u64` is lowered once with `Units` a formal that no caller passes,
+   and proved from its own `requires`. The machine stage 04 generates for
+   `<7>` then has each certificate decided again by `proof/admission` with
+   the literal in the formal's place, against its own goals and hypotheses
+   and with no search. The witness is
+   `pass/facts/lexical_generic_bound_through_local_exit`, the first in
+   [lowered type generics](lowered_type_generics.md#recommendation-and-order):
+   both of its generic bodies, `Selected::value<const Units: u64>` and
+   `selected<Implementation satisfies Bounded>`, are checked once and
+   carried, and its fail twin, which differs only in the trait member's
+   `requires`, is refused at the member's refinement proof while a search
+   over the generated caller alone accepts it. The compiler test
+   `lowered_route_generics` pins both, with `#2378`'s pair. The program
+   passes `omega run --both` on the current pipeline (native exit 0, Psi
+   exit 0, Linux x86_64, `omega` built at `b741666a1`). Limits, each stated with its reason in the
+   [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#value-parameters):
+   a body that reads the parameter as an operand is not carried; a member's
+   refinement of a requirement with value parameters is proved per argument
+   in use, not for every value; a value parameter in a type waits for
+   arrays. A type parameter is still not served, and the route is still not
+   the compile path.
 
 4. **For one fully supported scope, old code is retired and the result is
    measured.** A scope is fully supported when every program in it is governed
@@ -582,9 +607,9 @@ code and are not yet confirmed by a run:
   (`flow_expression.rs` `invoke`).
 - Index segments compare by expression structure, so a fact on `a[i]` can
   outlive a change to `i` (`validation/src/places.rs`).
-- Omega 00 turns every operation obligation reference in a unit into an
+- Omega 01 turns every operation obligation reference in a unit into an
   accepted fact, with no evidence attached
-  (`00_terminal-psi-to-abstract-operations/src/optimization.rs`
+  (`01_abstract-operations-to-abstract-operations/src/verified_unit.rs`
   `source_checked_obligation_facts`); the interpreter still checks. A wrongly
   kept fact therefore makes native code and the interpreter disagree. An
   earlier wording said the back end read a list of source-checked obligations
@@ -592,18 +617,21 @@ code and are not yet confirmed by a run:
 
 The full read added seven places that accept on missing or mismatched input.
 Each was traced on 2026-11-10 at `c118c914794`, and the probes were run on the
-Mac mini. One accepts an invalid program; the other six are closed or not
+Mac mini. One accepted an invalid program and has since been closed; the other
+six are closed or not
 reached:
 
-- **Accepts an invalid program.** The default-domain driver skips its
-  end-of-state window check when the state contains any crash statement, even
-  one that cannot run (`domains_and_predicates.rs:13606`, `:13689`). A write
+- **Accepted an invalid program; closed.** The default-domain driver skipped
+  its end-of-state window check when the state contained any crash statement,
+  even one that cannot run (`domains_and_predicates.rs` `walk_state`). A write
   that breaks a data `requires`, then a complete dispatch whose arms all
-  return, then a dead `crash Trap;` is accepted. Without the crash, the same
-  program is rejected. Witness: `pending/dependent/data_requires_return_beside_dead_crash`,
-  accepted by `omega --check`. A crash beside a normal exit on another path cannot be
-  written: the parser makes `crash` an unguarded statement that ends the
-  dispatch.
+  return, then a dead `crash Trap;` was accepted. Without the crash, the same
+  program was rejected. The driver now checks open windows at each returning
+  row of the dispatch and lets only a crash row that ends the dispatch abandon
+  one. Witness: `fail/dependent/data_requires_return_beside_dead_crash`, now
+  rejected with a recorded ledger row. A crash beside a normal exit on another
+  path cannot be written: the parser makes `crash` an unguarded statement that
+  ends the dispatch.
 - A linear carry fact crosses a call when its place label text equals the
   argument's spelling (`flow_calls.rs:419`). This adds nothing beyond
   `places_match`, which already compares labels made from bare symbol names
@@ -726,7 +754,11 @@ overwrites; a rank premise across a pause.
   covers call occurrences only and depends on `checked-trees`, so `#2286`
   carries per-machine `MachineSources` over dense identities with explicit
   `Unpositioned` reasons; whether that suffices for every diagnostic across the
-  remaining families is checked as each lane lands.
+  remaining families is checked as each lane lands. Measured on every
+  `fail/` fixture: [route one diagnostics](route_one_diagnostics.md). Where
+  the route rejects, 288 of 293 rejections name the defect's obligation at
+  its construct, but no message states the failing condition; the missing
+  part is mapping, not information the lowered form lacks.
 - **Size.** That the replacement is far smaller than 792,000 lines is the
   premise of this record and is unmeasured. Condition 4 of
   [the gate](#the-gate) is the first measurement of it, on one scope.

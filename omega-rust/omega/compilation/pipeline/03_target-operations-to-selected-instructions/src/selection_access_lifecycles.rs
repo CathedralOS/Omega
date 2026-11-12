@@ -2989,6 +2989,7 @@ pub(crate) mod resource_profile {
             fn add(&mut self, shape: StructuralTypeShape) -> StructuralTypeId {
                 let id = StructuralTypeId::new((self.0.len() + 1).try_into().unwrap()).unwrap();
                 self.0.push(StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     id,
                     identity: TerminalIdentityIndex(id.get().try_into().unwrap()),
@@ -4673,6 +4674,7 @@ pub(crate) mod tests {
 
     fn declaration(id: StructuralTypeId, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
         StructuralTypeDeclaration {
+            requires: Vec::new(),
             quotient_carrier: None,
             id,
             identity: terminal_psi::TerminalIdentityIndex(0),

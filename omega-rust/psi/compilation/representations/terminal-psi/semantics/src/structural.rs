@@ -164,6 +164,7 @@ pub(crate) mod inline_carriers {
 
         fn scalar(raw: u64) -> StructuralTypeDeclaration {
             StructuralTypeDeclaration {
+                requires: Vec::new(),
                 id: StructuralTypeId::new(raw).unwrap(),
                 identity: TerminalIdentityIndex(raw as u32),
                 owns_linear_claim: false,

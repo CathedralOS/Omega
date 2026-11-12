@@ -642,14 +642,42 @@ mod conflicts {
                             .lineage
                             .iter()
                             .all(|loan| child.lineage.contains(loan))
-                        && validation::owned_projection_type_reference(
+                        && owned_child_storage(
                             program,
                             reference.referee,
                             &child.place.segments[prefix..],
                         )
-                        .is_some()
                 })
             })
+    }
+
+    /*
+        Whether `segments` select storage the parent owns inline, crossing no
+        stored reference. A trailing range over an owned fixed array still selects
+        the parent's own elements (`&mut main.bytes[4] as &mut [Pair]` lends
+        `main.bytes[4..12]`), so it is as much a child as one element. A range is
+        accepted only as the last segment and only over a non-reference collection:
+        storage reached through a view or pointer never becomes an owned child.
+    */
+    fn owned_child_storage(
+        program: &dyn validation::CheckingInput,
+        parent: typed_trees::types::TypeReferenceHandle,
+        segments: &[facts::PlaceSegment],
+    ) -> bool {
+        let (prefix, range) = match segments.split_last() {
+            Some((
+                facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange,
+                prefix,
+            )) => (prefix, true),
+            _ => (segments, false),
+        };
+        let Some(collection) = validation::owned_projection_type_reference(program, parent, prefix)
+        else {
+            return false;
+        };
+        !range
+            || validation::reference_shell(program, collection).is_none()
+                && validation::collection_element_type_reference(program, collection).is_some()
     }
 }
 mod held_places {
@@ -1602,7 +1630,10 @@ fn check_build_selection_receiver<'p>(
     let Some(operation) = expressions(program).call_node(commit.authored_expression) else {
         return;
     };
-    if !operation.build_selection.is_valid() || operation.target.as_str() == "prepare" {
+    // `prepare_tests` prepares a test-group registration on the Build's
+    // `tests` facet, the same exclusive-use preparation as `prepare`.
+    let is_preparation = |target: &str| matches!(target, "prepare" | "prepare_tests");
+    if !operation.build_selection.is_valid() || is_preparation(operation.target.as_str()) {
         return;
     }
     let request = expressions(program).build_selection_request(operation.build_selection);
@@ -1610,7 +1641,7 @@ fn check_build_selection_receiver<'p>(
     let receiver_preparation = arguments.first().and_then(|expression| {
         let preparation = program.expression_table.call_node(*expression)?;
         let retained = expressions(program).build_selection_request(preparation.build_selection)?;
-        if preparation.target.as_str() != "prepare" || Some(retained) != request {
+        if !is_preparation(preparation.target.as_str()) || Some(retained) != request {
             return None;
         }
         let receiver = expressions(program)

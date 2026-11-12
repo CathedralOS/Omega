@@ -492,6 +492,22 @@ impl PackageCompilationInputs {
         }
     }
 
+    /*
+        Whether a source belongs to a validation subject of this compilation
+        (wiki/spec/build/validation_subjects.md#subjects). The subject is the
+        package the request names, which is this graph's root; a dependency
+        from the graph is checked only through what the subject reaches, and
+        keeps that answer when its own Build or product is compiled for the
+        root. A source admitted without a package identity is the request's
+        own authored source when the user, not the toolchain, supplied it.
+    */
+    pub fn is_validation_subject(inputs: Option<&Self>, file: &source::SourceFile) -> bool {
+        match (inputs, file.package_identity) {
+            (Some(inputs), Some(identity)) => identity == inputs.source.root,
+            _ => file.origin == source::SourceOrigin::User,
+        }
+    }
+
     #[doc(hidden)]
     pub fn package_for_source(&self, source: &Path) -> Option<PackageKeyIdentity> {
         self.source

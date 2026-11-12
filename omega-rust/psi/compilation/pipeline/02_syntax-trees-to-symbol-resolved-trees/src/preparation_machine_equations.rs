@@ -185,7 +185,7 @@ mod argument_types {
                     let equations = type_equations::classify_type_equations(
                         syntax,
                         &parameters,
-                        syntax.items.proof_facts(declaration.where_facts),
+                        syntax.items.proof_facts(declaration.requires_facts),
                     );
                     let name = declaration.name.as_str(syntax).to_owned();
                     let template = EquationTemplate {
@@ -1125,8 +1125,9 @@ pub(crate) fn complete(
     for (original, resolved) in &sources.expressions {
         match trees.tables.bodies.expressions.expression(*resolved) {
             ExpressionNode::Call(call) => {
-                reject_machine_arguments(trees, &call.machine_arguments)?;
-                let Some(index) = selected_machine(trees, call.target_symbol) else {
+                let callee = selected_machine(trees, call.target_symbol);
+                reject_machine_arguments(trees, callee, &call.machine_arguments)?;
+                let Some(index) = callee else {
                     continue;
                 };
                 if !completes_call(
@@ -1181,8 +1182,9 @@ pub(crate) fn complete(
         else {
             continue;
         };
-        reject_machine_arguments(trees, &call.machine_arguments)?;
-        let Some(index) = selected_machine(trees, call.target_symbol) else {
+        let callee = selected_machine(trees, call.target_symbol);
+        reject_machine_arguments(trees, callee, &call.machine_arguments)?;
+        let Some(index) = callee else {
             continue;
         };
         if !completes_call(
@@ -1314,20 +1316,43 @@ fn supplies_complete_tuple(
     arguments.len() == machine.type_parameters.count() as usize + machine.conformance_bounds.len()
 }
 
+/*
+    A machine with structural equations can be selected without a call only
+    where a callee's `machine` requirement parameter receives it. That callee
+    invokes it through the requirement, and each invocation is an ordinary call
+    whose selection must recover the remaining binders from its actual argument
+    types and then prove the equation as the callee's type predicate; a binder
+    it cannot recover leaves the call incomplete and rejects. Reflection visitors
+    take this route: `visit_runtime_fields<T, CompactBinary::packed_field>`
+    supplies only `Kind` per field, and `Element`/`N` come from the field loan.
+    Any other noncall position, including a nested application argument, would
+    keep the equation unsolved and still rejects here.
+*/
 fn reject_machine_arguments(
     trees: &SymbolResolvedTrees,
+    callee: Option<usize>,
     arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
 ) -> Result<(), Vec<Diagnostic>> {
-    for argument in arguments {
-        if selected_machine(trees, argument.symbol)
-            .is_some_and(|index| trees.machines[index].has_structural_type_equations)
+    let parameters = callee.map(|index| trees.machine_type_parameters(&trees.machines[index]));
+    for (position, argument) in arguments.iter().enumerate() {
+        let fills_requirement = parameters
+            .and_then(|parameters| parameters.get(position))
+            .is_some_and(|parameter| {
+                matches!(
+                    parameter.kind,
+                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
+                )
+            });
+        if !fills_requirement
+            && selected_machine(trees, argument.symbol)
+                .is_some_and(|index| trees.machines[index].has_structural_type_equations)
         {
             return Err(vec![Diagnostic::error(
                 "machine structural equation remains unsolved in a noncall static argument",
             )]);
         }
         if let Some(application) = &argument.application {
-            reject_machine_arguments(trees, &application.arguments)?;
+            reject_machine_arguments(trees, None, &application.arguments)?;
         }
     }
     Ok(())

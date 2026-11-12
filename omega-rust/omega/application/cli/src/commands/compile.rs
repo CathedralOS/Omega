@@ -251,6 +251,11 @@ fn print_elapsed(started: Instant) {
 }
 
 fn print_outcome(outcome: &BuildReport) {
+    // The executed test roster goes to stderr so the publication lines on
+    // stdout keep their format.
+    for entry in outcome.report.test_roster() {
+        eprintln!("{entry}");
+    }
     if outcome.executable_path.is_none() {
         println!("{}", outcome.report.summary());
     }

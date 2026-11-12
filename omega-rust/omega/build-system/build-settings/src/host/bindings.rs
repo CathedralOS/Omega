@@ -40,6 +40,7 @@ pub struct TerminalBuildBindingHost {
     calls: Arc<[TerminalBuildBindingCall]>,
     queries: Arc<[psi_compiler::TerminalBuildQueryCall]>,
     product_facet: Option<TerminalStructuralValue>,
+    tests_facet: Option<TerminalStructuralValue>, // The original Build's `tests` facet, when a test group is registered.
     account: Option<evaluation_accounting::EvaluationInvocationAccount>,
     declarations: Arc<[Arc<ProductDeclarationRequest>]>,
     native_formations: Arc<[NativeBindingFormation]>,
@@ -123,10 +124,16 @@ impl TerminalBuildBindingHost {
         } else {
             Some(build_facet(artifact, &original, "product")?)
         };
+        let tests_facet = calls
+            .iter()
+            .any(|call| call.action == TerminalBuildBindingOperation::PrepareTests)
+            .then(|| build_facet(artifact, &original, "tests"))
+            .transpose()?;
         Ok(Arc::new(Self {
             calls: Arc::clone(calls),
             queries: Arc::clone(queries),
             product_facet,
+            tests_facet,
             account: account.cloned(),
             declarations: Arc::clone(declarations),
             native_formations: bindings
@@ -389,9 +396,21 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             .find(|call| call.operation == *operation && call.boundary == *boundary)
             .ok_or_else(|| refuse("Build binding call has no source-issued designated operands"))?;
         let mut state = lock_state(&self.host.state).map_err(refuse)?;
-        if call.action == TerminalBuildBindingOperation::Prepare {
+        // Every selection is prepared on the original Build receiver; a test
+        // group on that same Build's `tests` facet, never a copied value.
+        let prepared_receiver = match call.action {
+            TerminalBuildBindingOperation::Prepare => Some(&self.host.original),
+            TerminalBuildBindingOperation::PrepareTests => self.host.tests_facet.as_ref(),
+            _ => None,
+        };
+        if matches!(
+            call.action,
+            TerminalBuildBindingOperation::Prepare | TerminalBuildBindingOperation::PrepareTests
+        ) {
             if !arguments.is_empty()
-                || structural_arguments.as_slice() != std::slice::from_ref(&self.host.original)
+                || prepared_receiver.is_none_or(|receiver| {
+                    structural_arguments.as_slice() != std::slice::from_ref(receiver)
+                })
             {
                 return Err(refuse(
                     "root binding requires the original compiler-issued Build receiver",

@@ -142,6 +142,27 @@ proof application, not treating the ordinary runtime result of a resultless
 call as a function. Evidence projected from a bundle follows its declared type
 and subject bindings; no search among visible declarations supplies it implicitly.
 
+This expected-evidence rule also applies to ordinary typed field initializers,
+including [trait schemas](../language/conformances.md#implementations-are-operation-records).
+An initializer explicitly citing a checked machine in a mathematical-evidence
+position supplies evidence for the declared type, not a machine-selection
+field. For a dependent function type, introduce every input under its exact
+binder, establish the cited contract's premises, and check its guarantee against
+the expected codomain. A theorem restricted to positive inputs cannot supply
+unconditional evidence for all integers. Sibling operation selections are
+substituted exactly before checking; matching signatures are insufficient.
+The same elaboration must work outside traits, with no trait-proof-field
+conversion or automatic search. It neither runs the machine nor assumes the
+unfinished record's own constraint.
+
+Identity follows the evidence's actual sort under the
+[foundation](foundation.md#logical-proofs-and-mathematical-witnesses).
+Strict evidence does not retain a cited machine's selection identity; relevant
+witnesses do not collapse merely because the same proposition is established.
+The citation retains its derivation and assumption dependencies in either case.
+An expected callable type instead selects a machine under ordinary callable
+construction and refinement; erasure or resultlessness does not change that type.
+
 The checked application records logical evidence versus executable declaration
 supply explicitly. Logical evidence must establish the contract's implication
 over fixed mathematical subjects and all its admitted parameters. Premises are

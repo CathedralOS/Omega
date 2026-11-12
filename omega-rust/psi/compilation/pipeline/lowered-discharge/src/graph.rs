@@ -144,6 +144,11 @@ impl Graph {
         self.predecessors.len()
     }
 
+    /// One past the largest operation identity the machine holds.
+    pub(crate) fn operation_count(&self) -> usize {
+        self.operations.len()
+    }
+
     /// The source block of every edge that enters `block`.
     pub(crate) fn predecessors(&self, block: BlockId) -> Checked<&[BlockId]> {
         self.predecessors

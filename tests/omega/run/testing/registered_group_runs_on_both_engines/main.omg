@@ -1,0 +1,43 @@
+// Expected exit: 0.
+// A test group is an ordinary trait requirement. Both satisfiers are found by
+// their checked `satisfies` edge, run as separate test roots on the Psi
+// interpreter and natively, and pass by returning. The application entry is
+// a different root: neither test becomes part of the published program.
+trait Tests {
+    machine arithmetic()
+        crashes Trap;
+}
+
+machine addition_is_correct()
+satisfies Tests::arithmetic
+crashes Trap
+{
+    transition 2u32 + 3u32 != 5u32 {
+        true -> failed()
+        _ -> passed()
+    }
+
+    machine failed() crashes Trap {
+        crash Trap;
+    }
+
+    machine passed() { }
+}
+
+machine subtraction_is_correct()
+satisfies Tests::arithmetic
+crashes Trap
+{
+    transition 5u32 - 3u32 != 2u32 {
+        true -> failed()
+        _ -> passed()
+    }
+
+    machine failed() crashes Trap {
+        crash Trap;
+    }
+
+    machine passed() { }
+}
+
+machine main() { }

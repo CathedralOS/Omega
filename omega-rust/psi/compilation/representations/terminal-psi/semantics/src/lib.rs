@@ -557,16 +557,16 @@ pub use calls::call_composition::{
     stored_view_field_presentation, validate_call_composition_semantic_rows,
 };
 pub use references::reference_views::{
-    descriptor_geometry_matches, descriptor_reborrow_matches, descriptor_reborrow_shapes_match,
-    descriptor_source_projection_accessible, descriptor_value_transfer_matches,
-    is_copyable_carrier, is_shared_reference_carrier, reference_byte_field_compatible,
-    reference_source_compatible, reference_source_projection_accessible,
-    reference_source_projection_compatible, reference_source_storage_path,
-    reference_storage_byte_width, reference_storage_export_byte_width,
-    reference_storage_region_source_compatible, reference_storage_source_compatible,
-    reference_storage_view_is_compatible, representation_view_declaration,
-    scalar_reference_view_is_total, scalar_reference_view_value, shared_descriptor_copy_matches,
-    stored_reference_access,
+    borrowed_field_presentation, descriptor_geometry_matches, descriptor_reborrow_matches,
+    descriptor_reborrow_shapes_match, descriptor_source_projection_accessible,
+    descriptor_value_transfer_matches, is_copyable_carrier, is_shared_reference_carrier,
+    reference_byte_field_compatible, reference_source_compatible,
+    reference_source_projection_accessible, reference_source_projection_compatible,
+    reference_source_storage_path, reference_storage_byte_width,
+    reference_storage_export_byte_width, reference_storage_region_source_compatible,
+    reference_storage_source_compatible, reference_storage_view_is_compatible,
+    representation_view_declaration, scalar_reference_view_admits, scalar_reference_view_is_total,
+    scalar_reference_view_value, shared_descriptor_copy_matches, stored_reference_access,
 };
 pub use scalars::proof_bearing_scalar::{
     CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafElision,

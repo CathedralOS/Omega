@@ -59,7 +59,7 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason, UnprovedCause};
 use terminal_codec::ObligationEvidenceSeal;
 
-use crate::{Discharge, discharge, refusal};
+use crate::{Discharge, describe, discharge, refusal};
 
 /// What the route decided for one closure.
 #[derive(Debug)]
@@ -106,30 +106,75 @@ pub struct UnprovedObligation {
     pub cause: UnprovedCause,
     /// The prover's or kernel's own account. Diagnostic text only.
     pub detail: String,
+    /// What was not proved, in the current checker's words for the same
+    /// obligation (`describe`): for example "cannot prove requires contract
+    /// for call halve from run: count > 1". Diagnostic text only.
+    pub statement: String,
+    /// For a data type's clause that was not proved again where an open
+    /// invariant window is consumed: that consumption point. `site` is then
+    /// the write that opened the window.
+    /// `wiki/spec/language/dependent_values.md`: "An unclosed window rejects
+    /// with both the opening write or storage cast and the failing
+    /// consumption point."
+    pub consumed: Option<ConsumptionSite>,
+}
+
+/// Where an open invariant window is consumed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConsumptionSite {
+    /// The operation, edge or block that consumes the value.
+    pub at: Construct,
+    /// Where that construct arises in the source.
+    pub site: SourceOrigin,
 }
 
 impl UnprovedObligation {
-    /// The message. It opens with a stable part (the obligation kind and the
-    /// cause) that corpus expectations can match, followed by the prover's
-    /// detail.
+    /// The message: what was not proved, then why, in parentheses: the
+    /// cause and the prover's own note. For an unclosed window it says so,
+    /// and that the clause was left unproved by a prior write, never that it
+    /// is false.
     pub fn message(&self) -> String {
-        format!(
-            "unproved obligation: {}: {} ({})",
-            describe_kind(self.kind),
-            self.cause.describe(),
-            self.detail
-        )
+        match self.consumed {
+            None => format!(
+                "{} ({}: {})",
+                self.statement,
+                self.cause.describe(),
+                self.detail
+            ),
+            Some(_) => format!(
+                "{} inside an open default-domain invariant window: a prior write left the clause \
+                 unproved and this use consumes the value before it is proved again ({}: {})",
+                self.statement,
+                self.cause.describe(),
+                self.detail
+            ),
+        }
     }
 
     /// The `Reject` diagnostic, for an entry of `RouteVerdict::Rejected`.
     /// An entry of `Incomplete` must not be published through it: see the
-    /// module comment.
+    /// module comment. For an unclosed window it is placed at the failing
+    /// consumption point, and `opening_diagnostic` names the write.
     pub fn reject_diagnostic(&self) -> Diagnostic {
         let diagnostic = Diagnostic::error(self.message());
-        match self.site {
+        match self.consumed.map_or(self.site, |consumed| consumed.site) {
             SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
             SourceOrigin::Unpositioned(_) => diagnostic,
         }
+    }
+
+    /// For an unclosed window, the second diagnostic of the rejection: the
+    /// write that opened it, at that write.
+    pub fn opening_diagnostic(&self) -> Option<Diagnostic> {
+        self.consumed?;
+        let diagnostic = Diagnostic::error(format!(
+            "this write opens the invariant window: it is not shown to keep {}",
+            describe_kind(self.kind)
+        ));
+        Some(match self.site {
+            SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
+            SourceOrigin::Unpositioned(_) => diagnostic,
+        })
     }
 }
 
@@ -150,6 +195,9 @@ pub struct UnestablishedUse {
     pub site: Option<SourceOrigin>,
     /// The judgment's own account. Diagnostic text only.
     pub detail: String,
+    /// When the use observes the zeroed storage of a gated type: where that
+    /// storage was declared, the write that opened its establishment debt.
+    pub declared: Option<SourceOrigin>,
 }
 
 impl UnestablishedUse {
@@ -260,6 +308,58 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
                 site,
                 cause,
                 detail: refused.detail.clone(),
+                statement: describe::unproved(&elaboration, machine, tables, row.kind, site),
+                consumed: None,
+            });
+        }
+        // An open window that a consumption point does not close, reported
+        // once, at the first consumption point in program order where the
+        // clause is not proved again: the specification's "the failing
+        // consumption point". Every later one has its own verdict in
+        // `MachineDischarge::windows` all the same. One a zero
+        // establishment opened is reported with its use, below.
+        let mut reported: Vec<ObligationId> = Vec::new();
+        for consumed in &result.windows {
+            let Err(refused) = &consumed.verdict else {
+                continue;
+            };
+            let cause = match refused.reason {
+                RefusalReason::Unproved(_) if reported.contains(&consumed.opened_by) => continue,
+                RefusalReason::Unproved(cause) => {
+                    reported.push(consumed.opened_by);
+                    cause
+                }
+                RefusalReason::Unestablished => continue,
+                RefusalReason::Unsupported
+                | RefusalReason::NotConserved
+                | RefusalReason::Conflict
+                | RefusalReason::ForeignIdentity => return fall_back_or_defect(refused.clone()),
+            };
+            let concerns = Construct::Obligation(consumed.opened_by);
+            let row = terminal_check_tables::row(
+                &tables.obligations,
+                consumed.opened_by,
+                machine,
+                concerns,
+            )?;
+            let site = *terminal_check_tables::row(
+                &sources.obligations,
+                consumed.opened_by,
+                machine,
+                concerns,
+            )?;
+            unproved.push(UnprovedObligation {
+                machine,
+                obligation: consumed.opened_by,
+                kind: row.kind,
+                site,
+                cause,
+                detail: refused.detail.clone(),
+                statement: describe::unproved(&elaboration, machine, tables, row.kind, site),
+                consumed: Some(ConsumptionSite {
+                    at: consumed.at,
+                    site: source_of(sources, machine, consumed.at)?,
+                }),
             });
         }
         for used in &result.uses {
@@ -269,29 +369,26 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
             if refused.reason != RefusalReason::Unestablished {
                 return fall_back_or_defect(refused.clone());
             }
-            let site = match used.at {
-                Construct::Operation(operation) => sources.operations.get(operation),
-                Construct::Edge(edge) => sources.edges.get(edge),
-                Construct::Block(block) => sources.blocks.get(block),
-                Construct::Machine
-                | Construct::Value(_)
-                | Construct::Place(_)
-                | Construct::Obligation(_)
-                | Construct::Invocation(_) => None,
-            };
-            let site = site.copied().ok_or_else(|| {
-                refusal(
-                    RefusalReason::ForeignIdentity,
-                    machine,
-                    used.at,
-                    "a use of storage has no source correspondence",
-                )
-            })?;
+            let mut declared = None;
+            for consumed in &result.windows {
+                if consumed.at == used.at
+                    && matches!(&consumed.verdict, Err(open) if open.reason == RefusalReason::Unestablished)
+                {
+                    declared = Some(*terminal_check_tables::row(
+                        &sources.obligations,
+                        consumed.opened_by,
+                        machine,
+                        Construct::Obligation(consumed.opened_by),
+                    )?);
+                    break;
+                }
+            }
             unestablished.push(UnestablishedUse {
                 machine,
                 at: used.at,
-                site: Some(site),
+                site: Some(source_of(sources, machine, used.at)?),
                 detail: refused.detail.clone(),
+                declared,
             });
         }
     }
@@ -328,6 +425,33 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
     })))
 }
 
+/// Where an operation, edge or block arises in the source, from
+/// elaboration's own correspondence; a position is never guessed.
+fn source_of(
+    sources: &structure_elaboration::MachineSources,
+    machine: MachineId,
+    at: Construct,
+) -> Checked<SourceOrigin> {
+    let site = match at {
+        Construct::Operation(operation) => sources.operations.get(operation),
+        Construct::Edge(edge) => sources.edges.get(edge),
+        Construct::Block(block) => sources.blocks.get(block),
+        Construct::Machine
+        | Construct::Value(_)
+        | Construct::Place(_)
+        | Construct::Obligation(_)
+        | Construct::Invocation(_) => None,
+    };
+    site.copied().ok_or_else(|| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            machine,
+            at,
+            "a use of storage has no source correspondence",
+        )
+    })
+}
+
 fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
     match refused.reason {
         RefusalReason::Unsupported => Ok(RouteVerdict::FallBack(refused)),
@@ -341,6 +465,7 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
                 at: refused.concerns,
                 site: None,
                 detail: refused.detail,
+                declared: None,
             }],
         }),
         RefusalReason::Unproved(_)

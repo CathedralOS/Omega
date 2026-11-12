@@ -18,13 +18,18 @@ use super::places::Member;
 use super::{Program, Slot};
 use crate::body::ValueType;
 use crate::canonical::{self, Repeated};
-use crate::{Unserved, refuse};
+use crate::{ClauseText, Piece, Unserved, refuse};
 
 /// What a contract clause may name: the formals, and the result pseudo-value
 /// only in a normal-return guarantee of a scalar machine.
 #[derive(Clone, Copy)]
 pub(super) struct ClauseScope<'s> {
     pub(super) slots: &'s [Slot],
+    /// The value parameters this reading of the clause has bound, each to
+    /// its literal: a requirement read at the static arguments of one call
+    /// (`requirement_signature`). A name that resolves to one is that
+    /// literal.
+    pub(super) bound: &'s [(SymbolHandle, ScalarTerm)],
     /// The callable whose reserved `result` this clause may name (the
     /// machine's one state; see `TableNamePath::reserved_result_of`).
     pub(super) owner: SymbolHandle,
@@ -154,8 +159,8 @@ impl Program<'_> {
             | BinaryOperator::Less
             | BinaryOperator::LessOrEqual
             | BinaryOperator::Greater
-            | BinaryOperator::GreaterOrEqual => operator,
-            BinaryOperator::NotEqual => return unserved("inequality (no negated proposition)"),
+            | BinaryOperator::GreaterOrEqual
+            | BinaryOperator::NotEqual => operator,
             BinaryOperator::Or => return unserved("disjunction"),
             BinaryOperator::Add
             | BinaryOperator::Subtract
@@ -169,8 +174,8 @@ impl Program<'_> {
             | BinaryOperator::BitwiseXor => return unserved("arithmetic clause"),
             BinaryOperator::CaseMembership => return unserved("case membership"),
         };
-        // An anonymous literal lands in its partner's type.
-        let ((left, left_type), (right, right_type)) = if self.anonymous_literal(binary.left) {
+        // A wholly anonymous operand lands in its partner's type.
+        let ((left, left_type), (right, right_type)) = if self.wholly_anonymous(binary.left) {
             let right = self.term(id, scope, binary.right, None)?;
             (self.term(id, scope, binary.left, Some(right.1))?, right)
         } else {
@@ -194,7 +199,70 @@ impl Program<'_> {
             BinaryOperator::LessOrEqual => Ok(Proposition::LessOrEqual(left, right)),
             BinaryOperator::Greater => Ok(Proposition::LessThan(right, left)),
             BinaryOperator::GreaterOrEqual => Ok(Proposition::LessOrEqual(right, left)),
+            // There is no negated proposition. An integer `a != b` is the
+            // disjunction the kernel denotes a false integer equality by
+            // (`predicate_denotation`: `a < b or b < a`), so a requirement
+            // and a guard of the same disequality state the same fact.
+            BinaryOperator::NotEqual => canonical::clauses(
+                vec![
+                    Proposition::LessThan(left.clone(), right.clone()),
+                    Proposition::LessThan(right, left),
+                ],
+                Repeated::Refuse,
+                id,
+            )
+            .map(Proposition::Disjunction),
             _ => unserved("comparison"),
+        }
+    }
+
+    /// A clause's authored text, each formal left open by position, for
+    /// diagnostics (`names`). Rendered as `ExpressionTable::display_name`
+    /// renders the clause, so a message reads as the current checker's.
+    pub(super) fn clause_text(&self, slots: &[Slot], expression: ExpressionHandle) -> ClauseText {
+        let mut text = ClauseText::default();
+        self.write_clause_text(slots, expression, &mut text);
+        text
+    }
+
+    fn write_clause_text(
+        &self,
+        slots: &[Slot],
+        expression: ExpressionHandle,
+        text: &mut ClauseText,
+    ) {
+        let table = &self.typed.expression_table;
+        if !expression.is_valid() {
+            return;
+        }
+        match table.expression(expression) {
+            ExpressionNode::Binary(binary) => {
+                self.write_clause_text(slots, binary.left, text);
+                text.push_text(" ");
+                text.push_text(binary.operator.display_name());
+                text.push_text(" ");
+                self.write_clause_text(slots, binary.right, text);
+            }
+            ExpressionNode::Unary(unary) => {
+                text.push_text(unary.operator.display_name());
+                self.write_clause_text(slots, unary.operand, text);
+            }
+            ExpressionNode::Member(member) => {
+                self.write_clause_text(slots, member.receiver, text);
+                text.push_text(&language_core::PLACE_MEMBER_SEPARATOR.to_string());
+                text.push_text(member.member.as_str());
+            }
+            ExpressionNode::Name(path)
+                if path.symbol.is_valid()
+                    && !path.reserved_result_of.is_valid()
+                    && table.name_path_members(path.members).len() == 1 =>
+            {
+                match slots.iter().position(|slot| slot.symbol == path.symbol) {
+                    Some(position) => text.0.push(Piece::Formal(position)),
+                    None => text.push_text(&table.display_name(expression)),
+                }
+            }
+            _ => text.push_text(&table.display_name(expression)),
         }
     }
 
@@ -234,6 +302,28 @@ impl Program<'_> {
             }
             ExpressionNode::Name(_) if scope.subject.is_some() => {
                 self.field_term(id, scope, expression)
+            }
+            ExpressionNode::Name(path)
+                if path.symbol.is_valid()
+                    && scope.bound.iter().any(|(symbol, _)| *symbol == path.symbol) =>
+            {
+                if typed.expression_table.name_path_members(path.members).len() != 1 {
+                    return unserved("projected value parameter");
+                }
+                let literal = scope
+                    .bound
+                    .iter()
+                    .find(|(symbol, _)| *symbol == path.symbol)
+                    .map(|(_, literal)| literal.clone())
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("value parameter binding"),
+                        )
+                    })?;
+                let scalar_type = literal.scalar_type();
+                Ok((literal, scalar_type))
             }
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, scope.slots, path)?;
@@ -279,6 +369,16 @@ impl Program<'_> {
             ExpressionNode::Member(_) => unserved("clause that projects a formal or result"),
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected)?;
+                Ok((
+                    ScalarTerm::Integer {
+                        scalar_type: integer,
+                        value,
+                    },
+                    ScalarType::Integer(integer),
+                ))
+            }
+            ExpressionNode::Binary(_) if self.wholly_anonymous(expression) => {
+                let (value, integer) = self.anonymous_value(id, expression, expected)?;
                 Ok((
                     ScalarTerm::Integer {
                         scalar_type: integer,

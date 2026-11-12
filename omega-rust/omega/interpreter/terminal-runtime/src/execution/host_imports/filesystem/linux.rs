@@ -1,9 +1,13 @@
-// We admit and execute exact Linux kernel filesystem syscalls (openat, close,
-// lseek, unlinkat, mkdirat, newfstatat, fstat, and getdents64) under explicit
-// host delegation. Raw OS statuses and descriptor ownership belong to the
-// matching Linux host while authenticated captures provide path and stat bytes.
+// We admit and execute exact Linux kernel filesystem system calls under explicit
+// host delegation. One table (`KERNEL_CALLS`) names every call std's POSIX
+// providers bind, by number on each Linux target, with the declared parameters
+// in kernel order; admission matches the declaration and ABI against that row
+// and execution presents each operand through the same classification. Raw OS
+// statuses and descriptor ownership belong to the matching Linux host, while
+// authenticated captures provide path, input and stat bytes.
 
 use calling_conventions::{CallSignature, ValueShape};
+use native_provider_runtime::{KernelOperand, KernelResult};
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{IntegerValue, ScalarType};
 use target::TargetProfile;
@@ -20,11 +24,12 @@ use super::{FilesystemContext, Formal, TerminalRuntimeError, matches_parameters,
 
 fn terminated_path(
     buffers: &[TerminalBoundaryStorageBuffer],
+    argument: usize,
     layout: &NativeBorrowedStorageLayout,
     invalid: impl Fn() -> TerminalEffectRejection,
 ) -> Result<std::ffi::CString, TerminalEffectRejection> {
     let captured = CapturedStorage::capture(
-        0,
+        argument,
         buffers,
         StructuralAccess::SharedBorrow,
         Some(layout),
@@ -54,7 +59,11 @@ fn authority(
     declaration: &BoundaryMachineDeclaration,
 ) -> Result<(), &'static str> {
     if !context.supplied {
-        return Err("no explicit host filesystem namespace was supplied");
+        return Err(if context.rooted {
+            "the filesystem namespace root could not be opened"
+        } else {
+            "no explicit host filesystem namespace was supplied"
+        });
     }
     context.admit_services(program, declaration)
 }
@@ -91,6 +100,13 @@ impl LinuxFilesystemWrite {
             .map_err(|error| rejection(format!("host Linux write: {error}")))
     }
 
+    /// Whether `descriptor` still names a modeled standard stream; once the
+    /// program closes one, its number belongs to the host descriptor table.
+    pub(in super::super) fn models_standard(&self, descriptor: i128) -> bool {
+        i32::try_from(descriptor)
+            .is_ok_and(|descriptor| self.context.linux.borrow().models_standard(descriptor))
+    }
+
     pub(in super::super) fn read(
         &self,
         descriptor: i32,
@@ -106,35 +122,159 @@ impl LinuxFilesystemWrite {
     }
 }
 
-enum OperationKind {
-    Open,
-    Close,
-    Lseek,
-    UnlinkAt,
-    MkdirAt,
-    StatAt,
-    Stat,
-    DirectoryEntries,
+/// How the adapter presents one declared parameter to the kernel.
+#[derive(Clone, Copy)]
+enum Operand {
+    /// `i32` directory operand; `AT_FDCWD` names the namespace root.
+    Directory,
+    /// `i32` guest descriptor.
+    Descriptor,
+    /// Integer passed through unchanged.
+    Value(Formal),
+    /// `u64` address the provider always passes as null (`utimensat`'s path).
+    NullAddress,
+    /// Shared fixed byte array holding a NUL-terminated path.
+    Path,
+    /// Shared fixed byte array of at least this many bytes, read by the kernel.
+    Input(u64),
+    /// Mutable fixed byte array the kernel fills with one `stat` record.
+    Metadata,
+    /// Shared byte view: address and length.
+    InputView,
+    /// Mutable byte view: address and length.
+    OutputView,
 }
 
-enum Operation {
-    OpenAt(NativeBorrowedStorageLayout),
-    UnlinkAt(NativeBorrowedStorageLayout),
-    MkdirAt(NativeBorrowedStorageLayout),
-    StatAt {
-        path: NativeBorrowedStorageLayout,
-        metadata: NativeBorrowedStorageLayout,
-    },
-    Stat(NativeBorrowedStorageLayout),
-    DirectoryEntries,
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Effect {
+    Status,
+    Acquire,
     Close,
-    Lseek,
+}
+
+/// One admitted kernel operation: its numbers on both Linux targets, its
+/// declared parameters in kernel order, its result width and descriptor effect.
+struct KernelCall {
+    numbers: (i64, i64),
+    operands: &'static [Operand],
+    result: Formal,
+    effect: Effect,
+}
+
+const fn call(
+    x86_64: i64,
+    arm64: i64,
+    operands: &'static [Operand],
+    result: Formal,
+    effect: Effect,
+) -> KernelCall {
+    KernelCall {
+        numbers: (x86_64, arm64),
+        operands,
+        result,
+        effect,
+    }
+}
+
+const I32: Operand = Operand::Value(Formal::Signed(32));
+const U32: Operand = Operand::Value(Formal::Unsigned(32));
+const I64: Operand = Operand::Value(Formal::Signed(64));
+const STATUS: Formal = Formal::Signed(32);
+const COUNT: Formal = Formal::Signed(64);
+
+// Every filesystem system call std's POSIX providers bind on Linux. A binding
+// whose number is absent here is not a filesystem operation this host supplies.
+const KERNEL_CALLS: &[KernelCall] = {
+    use Effect::{Acquire, Close, Status};
+    use Operand::{
+        Descriptor as Fd, Directory as Dir, InputView, Metadata, NullAddress, OutputView, Path,
+    };
+    &[
+        call(257, 56, &[Dir, Path, I32, I32], STATUS, Acquire), // openat
+        call(3, 57, &[Fd], STATUS, Close),                      // close
+        call(32, 23, &[Fd], STATUS, Acquire),                   // dup
+        call(8, 62, &[Fd, I64, I32], COUNT, Status),            // lseek
+        call(258, 34, &[Dir, Path, I32], STATUS, Status),       // mkdirat
+        call(263, 35, &[Dir, Path, I32], STATUS, Status),       // unlinkat
+        call(262, 79, &[Dir, Path, Metadata, I32], STATUS, Status), // newfstatat
+        call(5, 80, &[Fd, Metadata], STATUS, Status),           // fstat
+        call(217, 61, &[Fd, OutputView], COUNT, Status),        // getdents64
+        call(17, 67, &[Fd, OutputView, I64], COUNT, Status),    // pread64
+        call(18, 68, &[Fd, InputView, I64], COUNT, Status),     // pwrite64
+        call(267, 78, &[Dir, Path, OutputView], COUNT, Status), // readlinkat
+        call(268, 53, &[Dir, Path, U32], STATUS, Status),       // fchmodat
+        call(91, 52, &[Fd, U32], STATUS, Status),               // fchmod
+        call(264, 38, &[Dir, Path, Dir, Path], STATUS, Status), // renameat
+        call(265, 37, &[Dir, Path, Dir, Path, I32], STATUS, Status), // linkat
+        call(266, 36, &[Path, Dir, Path], STATUS, Status),      // symlinkat
+        call(77, 46, &[Fd, I64], STATUS, Status),               // ftruncate
+        // `utimensat(fd, NULL, times, flags)` sets the descriptor's own times.
+        call(
+            280,
+            88,
+            &[Fd, NullAddress, Operand::Input(32), I32],
+            STATUS,
+            Status,
+        ), // utimensat
+        call(74, 82, &[Fd], STATUS, Status),      // fsync
+        call(75, 83, &[Fd], STATUS, Status),      // fdatasync
+        call(73, 32, &[Fd, I32], STATUS, Status), // flock
+        call(260, 54, &[Dir, Path, I32, I32, I32], STATUS, Status), // fchownat
+        call(93, 55, &[Fd, I32, I32], STATUS, Status), // fchown
+    ]
+};
+
+impl Operand {
+    fn formal(self) -> Formal {
+        let window = |minimum, access| Formal::UnsignedWindow {
+            bits: 8,
+            minimum,
+            access,
+        };
+        match self {
+            Self::Directory | Self::Descriptor => Formal::Signed(32),
+            Self::Value(formal) => formal,
+            Self::NullAddress => Formal::Unsigned(64),
+            Self::Path => window(1, StructuralAccess::SharedBorrow),
+            Self::Input(minimum) => window(minimum, StructuralAccess::SharedBorrow),
+            Self::Metadata => window(metadata_extent() as u64, StructuralAccess::MutableBorrow),
+            Self::InputView => Formal::ByteView(StructuralAccess::SharedBorrow),
+            Self::OutputView => Formal::ByteView(StructuralAccess::MutableBorrow),
+        }
+    }
+
+    fn native(self) -> ValueShape {
+        match self {
+            Self::Directory | Self::Descriptor => ValueShape::integer(4, 4),
+            Self::Value(Formal::Signed(bits) | Formal::Unsigned(bits)) if bits <= 32 => {
+                ValueShape::integer(4, 4)
+            }
+            Self::InputView | Self::OutputView => ValueShape::integer(16, 8),
+            _ => ValueShape::integer(8, 8),
+        }
+    }
+
+    const fn structural(self) -> bool {
+        matches!(
+            self,
+            Self::Path | Self::Input(_) | Self::Metadata | Self::InputView | Self::OutputView
+        )
+    }
+
+    /// Fixed arrays reach the adapter as captured storage; views as bytes.
+    const fn captured(self) -> bool {
+        matches!(self, Self::Path | Self::Input(_) | Self::Metadata)
+    }
 }
 
 pub(in super::super) struct LinuxFilesystemImport {
     signature: TerminalImportSignature,
     boundary: semantic_vocabulary::BoundaryMachineId,
-    operation: Operation,
+    number: i64,
+    call: &'static KernelCall,
+    /// Each captured structural argument's index and exact produced layout.
+    captured: Vec<(usize, NativeBorrowedStorageLayout)>,
+    captured_arguments: Vec<usize>,
     context: FilesystemContext,
     authority: Result<(), &'static str>,
 }
@@ -150,178 +290,84 @@ impl LinuxFilesystemImport {
         if !matching_host(binding) {
             return Ok(None);
         }
-        let call = binding.system_call().expect("matching kernel host");
-        let operation = match (call.target, call.number) {
-            (TargetProfile::LinuxX64, 257) | (TargetProfile::LinuxArm64, 56) => OperationKind::Open,
-            (TargetProfile::LinuxX64, 3) | (TargetProfile::LinuxArm64, 57) => OperationKind::Close,
-            (TargetProfile::LinuxX64, 8) | (TargetProfile::LinuxArm64, 62) => OperationKind::Lseek,
-            (TargetProfile::LinuxX64, 263) | (TargetProfile::LinuxArm64, 35) => {
-                OperationKind::UnlinkAt
-            }
-            (TargetProfile::LinuxX64, 258) | (TargetProfile::LinuxArm64, 34) => {
-                OperationKind::MkdirAt
-            }
-            (TargetProfile::LinuxX64, 262) | (TargetProfile::LinuxArm64, 79) => {
-                OperationKind::StatAt
-            }
-            (TargetProfile::LinuxX64, 5) | (TargetProfile::LinuxArm64, 80) => OperationKind::Stat,
-            (TargetProfile::LinuxX64, 217) | (TargetProfile::LinuxArm64, 61) => {
-                OperationKind::DirectoryEntries
-            }
-            _ => return Ok(None),
+        let system_call = binding.system_call().expect("matching kernel host");
+        let arm64 = matches!(system_call.target, TargetProfile::LinuxArm64);
+        let Some(call) = KERNEL_CALLS.iter().find(|call| {
+            system_call.number
+                == if arm64 {
+                    call.numbers.1
+                } else {
+                    call.numbers.0
+                }
+        }) else {
+            return Ok(None);
         };
         let invalid = super::super::unprovisioned(
             "Linux filesystem entry differs from its exact declaration/ABI",
         );
-        let (expected, result_formal): (&[Formal], Formal) = match operation {
-            OperationKind::Open => (
-                &[
-                    Formal::Signed(32),
-                    Formal::UnsignedWindow {
-                        bits: 8,
-                        minimum: 1,
-                        access: StructuralAccess::SharedBorrow,
-                    },
-                    Formal::Signed(32),
-                    Formal::Signed(32),
-                ],
-                Formal::Signed(32),
-            ),
-            OperationKind::Close => (&[Formal::Signed(32)], Formal::Signed(32)),
-            OperationKind::Lseek => (
-                &[Formal::Signed(32), Formal::Signed(64), Formal::Signed(32)],
-                Formal::Signed(64),
-            ),
-            OperationKind::UnlinkAt | OperationKind::MkdirAt => (
-                &[
-                    Formal::Signed(32),
-                    Formal::UnsignedWindow {
-                        bits: 8,
-                        minimum: 1,
-                        access: StructuralAccess::SharedBorrow,
-                    },
-                    Formal::Signed(32),
-                ],
-                Formal::Signed(32),
-            ),
-            OperationKind::StatAt => (
-                &[
-                    Formal::Signed(32),
-                    Formal::UnsignedWindow {
-                        bits: 8,
-                        minimum: 1,
-                        access: StructuralAccess::SharedBorrow,
-                    },
-                    Formal::UnsignedWindow {
-                        bits: 8,
-                        minimum: metadata_extent() as u64,
-                        access: StructuralAccess::MutableBorrow,
-                    },
-                    Formal::Signed(32),
-                ],
-                Formal::Signed(32),
-            ),
-            OperationKind::Stat => (
-                &[
-                    Formal::Signed(32),
-                    Formal::UnsignedWindow {
-                        bits: 8,
-                        minimum: metadata_extent() as u64,
-                        access: StructuralAccess::MutableBorrow,
-                    },
-                ],
-                Formal::Signed(32),
-            ),
-            OperationKind::DirectoryEntries => (
-                &[
-                    Formal::Signed(32),
-                    Formal::ByteView(StructuralAccess::MutableBorrow),
-                ],
-                Formal::Signed(64),
-            ),
-        };
-        let shape_matches = match operation {
-            OperationKind::Lseek | OperationKind::DirectoryEntries => {
-                super::matches_signature(program, declaration, expected, result_formal, layouts)
-            }
-            _ => {
-                matches_parameters(program, declaration, expected, layouts)
-                    && (declaration.result.is_unit()
-                        || matches!(declaration.result, BoundaryMachineResult::Scalar(result)
-                            if super::scalar_matches(result.scalar_type, result_formal)))
-            }
-        };
+        let expected: Vec<Formal> = call
+            .operands
+            .iter()
+            .map(|operand| operand.formal())
+            .collect();
+        // A status-only call may discard its result; a count or offset may not.
+        let shape_matches = matches_parameters(program, declaration, &expected, layouts)
+            && match declaration.result {
+                BoundaryMachineResult::Scalar(result) => {
+                    super::scalar_matches(result.scalar_type, call.result)
+                }
+                _ => declaration.result.is_unit() && matches!(call.result, Formal::Signed(32)),
+            };
         if !shape_matches {
             return Err(invalid());
         }
         let signature = TerminalImportSignature::from(declaration);
         let native = CallSignature {
-            parameters: match operation {
-                OperationKind::Open => vec![
-                    ValueShape::integer(4, 4),
-                    ValueShape::integer(8, 8),
-                    ValueShape::integer(4, 4),
-                    ValueShape::integer(4, 4),
-                ],
-                OperationKind::Close => vec![ValueShape::integer(4, 4)],
-                OperationKind::Lseek => vec![
-                    ValueShape::integer(4, 4),
-                    ValueShape::integer(8, 8),
-                    ValueShape::integer(4, 4),
-                ],
-                OperationKind::UnlinkAt | OperationKind::MkdirAt => vec![
-                    ValueShape::integer(4, 4),
-                    ValueShape::integer(8, 8),
-                    ValueShape::integer(4, 4),
-                ],
-                OperationKind::StatAt => vec![
-                    ValueShape::integer(4, 4),
-                    ValueShape::integer(8, 8),
-                    ValueShape::integer(8, 8),
-                    ValueShape::integer(4, 4),
-                ],
-                OperationKind::Stat => vec![ValueShape::integer(4, 4), ValueShape::integer(8, 8)],
-                OperationKind::DirectoryEntries => {
-                    vec![ValueShape::integer(4, 4), ValueShape::integer(16, 8)]
-                }
-            },
-            result: (!signature.result.is_unit()).then(|| match operation {
-                OperationKind::Lseek | OperationKind::DirectoryEntries => ValueShape::integer(8, 8),
+            parameters: call
+                .operands
+                .iter()
+                .map(|operand| operand.native())
+                .collect(),
+            result: (!signature.result.is_unit()).then(|| match call.result {
+                Formal::Signed(64) => ValueShape::integer(8, 8),
                 _ => ValueShape::integer(4, 4),
             }),
         };
         super::super::admit_exact_foreign_call(&signature, declaration, binding, &native)?;
-        let layout = |argument: usize, byte_size: u64| {
-            let formal = &signature.structural_parameters[argument];
-            layouts
+        let mut captured = Vec::new();
+        for (index, operand) in call
+            .operands
+            .iter()
+            .filter(|operand| operand.structural())
+            .enumerate()
+        {
+            if !operand.captured() {
+                continue;
+            }
+            let Formal::UnsignedWindow { minimum, .. } = operand.formal() else {
+                unreachable!("captured operands are fixed byte windows");
+            };
+            let formal = &signature.structural_parameters[index];
+            let layout = layouts
                 .iter()
                 .find(|layout| layout.structural_type == formal.structural_type)
-                .filter(|layout| u64::from(layout.byte_size) >= byte_size)
+                .filter(|layout| u64::from(layout.byte_size) >= minimum)
                 .ok_or_else(|| {
                     TerminalRuntimeError::missing(
                         "runtime-filesystem",
                         "Linux filesystem buffer lost its exact produced byte-array layout",
                     )
-                })
-                .cloned()
-        };
-        let operation = match operation {
-            OperationKind::Open => Operation::OpenAt(layout(0, 1)?),
-            OperationKind::UnlinkAt => Operation::UnlinkAt(layout(0, 1)?),
-            OperationKind::MkdirAt => Operation::MkdirAt(layout(0, 1)?),
-            OperationKind::StatAt => Operation::StatAt {
-                path: layout(0, 1)?,
-                metadata: layout(1, metadata_extent() as u64)?,
-            },
-            OperationKind::Stat => Operation::Stat(layout(0, metadata_extent() as u64)?),
-            OperationKind::DirectoryEntries => Operation::DirectoryEntries,
-            OperationKind::Close => Operation::Close,
-            OperationKind::Lseek => Operation::Lseek,
-        };
+                })?
+                .clone();
+            captured.push((index, layout));
+        }
         Ok(Some(Self {
             signature,
             boundary: declaration.id,
-            operation,
+            number: system_call.number,
+            call,
+            captured_arguments: captured.iter().map(|(index, _)| *index).collect(),
+            captured,
             context: context.clone(),
             authority: authority(context, program, declaration),
         }))
@@ -349,6 +395,16 @@ impl LinuxFilesystemImport {
 
 import_signature_via_clone!(LinuxFilesystemImport);
 
+/// One operand's interpreter-side storage while the kernel call runs.
+enum Staged<'layout> {
+    Scalar(i64),
+    Path(std::ffi::CString),
+    Input(CapturedStorage<'layout>),
+    Metadata(usize, CapturedStorage<'layout>, Vec<u8>),
+    InputView(Vec<u8>),
+    OutputView(usize),
+}
+
 impl TerminalEffectHandler for LinuxFilesystemImport {
     handle_effect_requires_dispatch!(
         "Linux filesystem entry requires authenticated buffer dispatch"
@@ -361,14 +417,7 @@ impl TerminalEffectHandler for LinuxFilesystemImport {
     ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
         terminal_interpreter::TerminalCallStorageRequirements {
             original: false,
-            arguments: match self.operation {
-                Operation::OpenAt(_)
-                | Operation::UnlinkAt(_)
-                | Operation::MkdirAt(_)
-                | Operation::Stat(_) => &[0],
-                Operation::StatAt { .. } => &[0, 1],
-                Operation::Close | Operation::Lseek | Operation::DirectoryEntries => &[],
-            },
+            arguments: &self.captured_arguments,
         }
     }
 
@@ -386,134 +435,163 @@ impl TerminalEffectHandler for LinuxFilesystemImport {
             || *call.result != self.signature.result
             || call.arguments.len() != self.signature.scalar_parameters.len()
             || call.structural_arguments.len() != self.signature.structural_parameters.len()
+            || call.byte_sequence_arguments.len() != call.structural_arguments.len()
+            || buffers.len() != self.captured.len()
             || call
                 .structural_arguments
                 .iter()
                 .zip(&self.signature.structural_parameters)
                 .any(|(actual, formal)| actual.structural_type != formal.structural_type)
-            || (!matches!(self.operation, Operation::DirectoryEntries) && !bytes.is_empty())
         {
             return Err(invalid());
         }
-        let scalars = call
-            .arguments
-            .iter()
-            .zip(&self.signature.scalar_parameters)
-            .map(|(value, expected)| match value {
-                TerminalScalarValue::Integer {
-                    scalar_type,
-                    value: IntegerValue::Signed(value),
-                } if ScalarType::Integer(*scalar_type) == *expected => Ok(*value),
-                _ => Err(invalid()),
-            })
-            .collect::<Result<Vec<i128>, _>>()?;
-        let narrow = |value: i128| i32::try_from(value).map_err(|_| invalid());
-        let status = match (&self.operation, scalars.as_slice()) {
-            (Operation::OpenAt(layout), [directory, flags, mode]) => {
-                if call.structural_arguments[0].structural_type != layout.structural_type {
-                    return Err(invalid());
+        let mut scalars = call.arguments.iter().zip(&self.signature.scalar_parameters);
+        let mut structural = 0usize;
+        let mut captured = self.captured.iter().enumerate();
+        let mut outputs = 0usize;
+        let mut staged = Vec::with_capacity(self.call.operands.len());
+        for operand in self.call.operands {
+            let piece = if operand.structural() {
+                let index = structural;
+                structural += 1;
+                let presented = &call.byte_sequence_arguments[index];
+                match operand {
+                    Operand::InputView => Staged::InputView(presented.clone().ok_or_else(invalid)?),
+                    Operand::OutputView => {
+                        let Some(presented) = presented else {
+                            return Err(invalid());
+                        };
+                        let output = bytes
+                            .iter()
+                            .position(|buffer| buffer.argument_index() == index)
+                            .ok_or_else(invalid)?;
+                        let buffer = &bytes[output];
+                        if buffer.bytes() != presented.as_slice()
+                            || u128::from(buffer.capacity()) != presented.len() as u128
+                        {
+                            return Err(invalid());
+                        }
+                        outputs += 1;
+                        Staged::OutputView(output)
+                    }
+                    _ => {
+                        let (slot, (argument, layout)) = captured.next().ok_or_else(invalid)?;
+                        if *argument != index || presented.is_some() {
+                            return Err(invalid());
+                        }
+                        let buffer = &buffers[slot..=slot];
+                        match operand {
+                            Operand::Path => {
+                                Staged::Path(terminated_path(buffer, index, layout, invalid)?)
+                            }
+                            Operand::Input(extent) => {
+                                let extent = usize::try_from(*extent).map_err(|_| invalid())?;
+                                Staged::Input(CapturedStorage::capture(
+                                    index,
+                                    buffer,
+                                    StructuralAccess::SharedBorrow,
+                                    Some(layout),
+                                    extent,
+                                    StorageTransfer::Observe,
+                                )?)
+                            }
+                            _ => Staged::Metadata(
+                                slot,
+                                CapturedStorage::capture(
+                                    index,
+                                    buffer,
+                                    StructuralAccess::MutableBorrow,
+                                    Some(layout),
+                                    metadata_extent(),
+                                    StorageTransfer::ReplacePrefix,
+                                )?,
+                                vec![0; 144],
+                            ),
+                        }
+                    }
                 }
-                let path = terminated_path(buffers, layout, invalid)?;
-                self.context.linux.borrow_mut().open_at(
-                    narrow(*directory)?,
-                    &path,
-                    narrow(*flags)?,
-                    narrow(*mode)?,
-                )
-            }
-            (Operation::UnlinkAt(layout), [directory, flags]) => {
-                if call.structural_arguments[0].structural_type != layout.structural_type {
-                    return Err(invalid());
-                }
-                let path = terminated_path(buffers, layout, invalid)?;
-                self.context.linux.borrow_mut().unlinkat(
-                    narrow(*directory)?,
-                    &path,
-                    narrow(*flags)?,
-                )
-            }
-            (Operation::MkdirAt(layout), [directory, mode]) => {
-                let path = terminated_path(buffers, layout, invalid)?;
-                self.context
-                    .linux
-                    .borrow()
-                    .mkdirat(narrow(*directory)?, &path, narrow(*mode)?)
-            }
-            (Operation::StatAt { path, metadata }, [directory, flags]) => {
-                if buffers.len() != 2 {
-                    return Err(invalid());
-                }
-                let path = terminated_path(&buffers[..1], path, invalid)?;
-                let mut output = CapturedStorage::capture(
-                    1,
-                    &buffers[1..],
-                    StructuralAccess::MutableBorrow,
-                    Some(metadata),
-                    metadata_extent(),
-                    StorageTransfer::ReplacePrefix,
-                )?;
-                let mut window = [0u8; 144];
-                let status = self.context.linux.borrow().stat_at(
-                    narrow(*directory)?,
-                    &path,
-                    &mut window,
-                    narrow(*flags)?,
-                );
-                if matches!(status, Ok(0)) {
-                    output.bytes[..metadata_extent()].copy_from_slice(&window[..metadata_extent()]);
-                    output.stage(&mut buffers[1..], metadata_extent())?;
-                }
-                status
-            }
-            (Operation::Stat(metadata), [descriptor]) => {
-                let mut output = CapturedStorage::capture(
-                    0,
-                    buffers,
-                    StructuralAccess::MutableBorrow,
-                    Some(metadata),
-                    metadata_extent(),
-                    StorageTransfer::ReplacePrefix,
-                )?;
-                let mut window = [0u8; 144];
-                let status = self
-                    .context
-                    .linux
-                    .borrow()
-                    .stat(narrow(*descriptor)?, &mut window);
-                if matches!(status, Ok(0)) {
-                    output.bytes[..metadata_extent()].copy_from_slice(&window[..metadata_extent()]);
-                    output.stage(buffers, metadata_extent())?;
-                }
-                status
-            }
-            (Operation::DirectoryEntries, [descriptor]) if buffers.is_empty() => {
-                let ([Some(presented)], [output]) = (call.byte_sequence_arguments, bytes) else {
-                    return Err(invalid());
+            } else {
+                let (value, expected) = scalars.next().ok_or_else(invalid)?;
+                let value = match value {
+                    TerminalScalarValue::Integer {
+                        scalar_type,
+                        value: IntegerValue::Signed(value),
+                    } if ScalarType::Integer(*scalar_type) == *expected => {
+                        i64::try_from(*value).map_err(|_| invalid())?
+                    }
+                    TerminalScalarValue::Integer {
+                        scalar_type,
+                        value: IntegerValue::Unsigned(value),
+                    } if ScalarType::Integer(*scalar_type) == *expected => {
+                        i64::try_from(*value).map_err(|_| invalid())?
+                    }
+                    _ => return Err(invalid()),
                 };
-                if output.argument_index() != 0
-                    || output.bytes() != presented.as_slice()
-                    || u128::from(output.capacity()) != presented.len() as u128
-                {
-                    return Err(invalid());
+                match operand {
+                    Operand::Directory | Operand::Descriptor => {
+                        i32::try_from(value).map_err(|_| invalid())?;
+                    }
+                    // The provider passes no path; a nonzero address would
+                    // name interpreter memory the guest never lent.
+                    Operand::NullAddress if value != 0 => return Err(invalid()),
+                    _ => {}
                 }
-                self.context
-                    .linux
-                    .borrow()
-                    .directory_entries(narrow(*descriptor)?, output.bytes_mut())
-            }
-            (Operation::Close, [descriptor]) if buffers.is_empty() => {
-                self.context.linux.borrow_mut().close(narrow(*descriptor)?)
-            }
-            (Operation::Lseek, [descriptor, offset, whence]) if buffers.is_empty() => {
-                let offset = i64::try_from(*offset).map_err(|_| invalid())?;
-                self.context
-                    .linux
-                    .borrow()
-                    .lseek(narrow(*descriptor)?, offset, narrow(*whence)?)
-            }
-            _ => return Err(invalid()),
+                Staged::Scalar(value)
+            };
+            staged.push(piece);
+        }
+        if outputs != bytes.len() {
+            return Err(invalid());
+        }
+        let mut views: Vec<Option<&mut TerminalBoundaryByteBuffer>> =
+            bytes.iter_mut().map(Some).collect();
+        let mut kernel = Vec::with_capacity(staged.len());
+        for (operand, piece) in self.call.operands.iter().zip(&mut staged) {
+            kernel.push(match (operand, piece) {
+                (Operand::Directory, Staged::Scalar(value)) => {
+                    KernelOperand::Directory(*value as i32)
+                }
+                (Operand::Descriptor, Staged::Scalar(value)) => {
+                    KernelOperand::Descriptor(*value as i32)
+                }
+                (_, Staged::Scalar(value)) => KernelOperand::Value(*value),
+                (_, Staged::Path(path)) => KernelOperand::Path(path),
+                (Operand::Input(extent), Staged::Input(storage)) => {
+                    KernelOperand::Input(&storage.bytes[..*extent as usize])
+                }
+                (_, Staged::Metadata(_, _, window)) => KernelOperand::Output(window),
+                (_, Staged::InputView(view)) => KernelOperand::InputView(view),
+                (_, Staged::OutputView(output)) => KernelOperand::OutputView(
+                    views[*output].take().ok_or_else(invalid)?.bytes_mut(),
+                ),
+                _ => return Err(invalid()),
+            });
+        }
+        let result = match self.call.effect {
+            Effect::Acquire => KernelResult::Descriptor,
+            Effect::Status | Effect::Close => KernelResult::Status,
+        };
+        let status = if self.call.effect == Effect::Close {
+            let [KernelOperand::Descriptor(descriptor)] = kernel.as_slice() else {
+                return Err(invalid());
+            };
+            self.context.linux.borrow_mut().close(*descriptor)
+        } else {
+            self.context
+                .linux
+                .borrow_mut()
+                .call(self.number, &mut kernel, result)
         }
         .map_err(|error| rejection(format!("host Linux filesystem: {error}")))?;
+        drop(kernel);
+        if status == 0 {
+            for piece in staged {
+                if let Staged::Metadata(slot, mut output, window) = piece {
+                    output.bytes[..metadata_extent()].copy_from_slice(&window[..metadata_extent()]);
+                    output.stage(&mut buffers[slot..=slot], metadata_extent())?;
+                }
+            }
+        }
         self.result(status)
     }
 }

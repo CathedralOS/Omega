@@ -148,7 +148,9 @@ mod data {
                         }
                     }
                 }
-                data_definition.predicate_subject_symbol = if data_definition.where_facts.is_empty()
+                data_definition.predicate_subject_symbol = if data_definition
+                    .requires_facts
+                    .is_empty()
                 {
                     SymbolHandle::invalid()
                 } else if let Some(TypeReference::Generic(origin)) =

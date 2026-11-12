@@ -445,6 +445,19 @@ because the runner ignores a shard it cannot use and would run every fixture.
 count -- cap it when several sessions measure at once, since N concurrent runs
 otherwise request N times the machine.
 
+### The corpus in CI
+
+Every pull request that is not a draft, and every merge-queue entry, runs the
+corpus rows its diff can affect against this ledger, and the job fails when a
+row gets worse: a pass/run row that stops checking, a fail row that is
+accepted, or a fail row that loses its pinned reason. A row main already lost
+is not charged to the pull request. Each night a sweep measures the whole
+corpus on main and opens one ledger-only pull request recording every row that
+moved, with accepted fail rows listed first as soundness alerts. Both are
+described in [tools/ci/README.md](ci/README.md#corpus-gate) and implemented by
+`cargo xtask corpus-gate`; the gate's own plan and shard run locally with the
+commands there.
+
 ### Re-recording the whole ledger
 
 A whole-ledger re-record measures every fixture at one commit, so that the
@@ -867,6 +880,44 @@ ls -l target/debug/omega                # inspect age; verify the producer recei
 OMEGA_LIBRARY_ROOT=$PWD/source/library ./target/debug/omega --check <root.omg>
 ```
 
+When the compiler cannot prove a call's precondition, this trace reports which
+check stopped it and the values available then. `Requires` clauses declare those
+preconditions. Each checked alternative has an `observation` ID that connects its
+arguments, the values used in place of the callee's parameters, the check's
+result, and the same alternative's stored values and known equalities (called
+retained equations). Join records by these IDs rather than adjacent lines.
+
+Select the call with the existing structural trace switch:
+`OMEGA_STRUCT_TRACE='caller::path->callee::path@root_index:root_generation'`.
+Use the machine names and retained Symbol-root handle from that compiler's own
+trace; these identities can change between compilations. Ordinary values such
+as `1` keep the existing structural trace without selecting these additional
+`STRUCT call-consumer` records.
+
+A `phase=begin` record precedes the attempt to obtain the call's argument values.
+The `stage` records distinguish an early failure, a precondition proved from
+static types, and a reached precondition judgment. If no call entry was formed,
+its stored-value snapshot is labeled `source=pre-entry entry=none`. When there
+are several entries to check, each additional entry has a fresh ID linked by
+`parent_observation` and `entry_index`; its arguments, result and stored values
+use that ID. Selection covers complete authored `Requires` clauses for a
+specific callee state. Checks that stop before `CallRequirement::observe`,
+alternatives already marked unproven before `observe`, and unmatched or inherited
+preconditions remain outside this trace.
+
+The additional records are limited to 16 observations, 32 stored-value or
+equation rows per collection, and 4096 characters per record. Truncation is
+explicit, and `root_present=false` means the selected stored root was absent.
+Only equations that directly contain an observed argument or a retained value
+of the selected root are included. This is a subset of the known equalities;
+it does not follow indirect chains of equalities. Missing or clipped rows do
+not establish a missing fact.
+
+The trace reuses the original results without repeating a judgment, projection
+or preservation query, and it does not change the program's proof outcome.
+Retain the compiler and input identities and use the existing bounded runner;
+the ordinary structural trace is emitted alongside these records.
+
 An unbound or different producer cannot establish the current baseline. Earlier
 verified results retain their original producer and may remain applicable under
 main-change validation; binary age alone neither validates nor invalidates them. One wave
@@ -982,19 +1033,6 @@ new runtime facts visible as moves, and uses the exact reviewed
 `tests/omega/interpreter_migration.json` designation. Unimplemented interpreter
 debt stays nonzero and never exempts a wrong native result. The bounded replay
 command is in [the corpus tests guide](../omega-rust/omega/compilation/compiler/tests/README.md#reviewed-interpreter-migration-debt).
-
-`--checked-interpreter` explicitly selects the independent checked-tree source
-oracle instead of Terminal. It compiles the same reviewed fixture inputs and
-executes the exact selected entry with its admitted installed arguments; it never serves
-as a fallback for a Terminal refusal. Legacy automatic context construction is
-migration debt under `EXPLICIT-ENTRY-STORAGE`, not permission to fabricate test
-storage or authority. Records include
-`interpreter-engine:checked-tree`, and the separate default goldens are
-`corpus_checked_interpreted.txt` and `corpus_checked_both_<target>.txt` when
-combined with `--both`. An absent golden still requires an explicit `--golden`.
-The [corpus tests guide](../omega-rust/omega/compilation/compiler/tests/README.md)
-documents the bounded source/Trap replay. Checked-engine declines cannot satisfy
-the same unchanged authored exit or stdout promises.
 
 It realizes for the target the fixture declares, preferring the host when the
 fixture binds it so the product can also run; a fixture binding only foreign
@@ -1665,8 +1703,11 @@ published for commit `fd5aef2f7`: 14 s to restore both, then
 That holds only while the checkout's compiler sources match the published
 commit. A change to a foundation crate recompiles every workspace crate above
 it: the same restored build, three commits away with `language-core` changed,
-took 673 s. The hook prints the published commit and says whether the sources
-match; basing new work on that commit keeps the first build short.
+took 673 s. So the hook creates `.agents/worktree/worker-1` at the published
+commit, `cargo xtask worktree acquire` hands it out there while it is untouched
+(it prints how many commits behind `origin/main` that is), and the work keeps
+that commit as its base; the merge queue integrates it with main. A slot that
+has been released or moved resets to `origin/main` as before.
 
 `mbx` does not provide this reuse in this workspace. `.cargo/config.toml` turns
 on Cargo's checksum freshness, Cargo then passes

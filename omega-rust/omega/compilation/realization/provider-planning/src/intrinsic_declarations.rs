@@ -7,7 +7,10 @@ matches.
 
 We classify sealed scalar accessors (`IntrinsicDeclarationKind::Access`),
 UEFI fixed-image intrinsics (`ProgramStorageEntry` and `ProgramImage`), and
-hosted console/process-exit rows (`HOSTED_INTRINSIC_ROWS`). Hosted byte-input
+hosted console/process-exit rows (`HOSTED_INTRINSIC_ROWS`). Whether a
+declaration is the bundled one comes only from the sealed intrinsic catalog
+(`language_core::sealed_intrinsics`); this file keeps the signature shapes and
+execution identities each catalog operation must satisfy. Hosted byte-input
 (`read_byte`) requires `blocks;` plus a single unconditional `crashes Trap`
 contract on both requirement and realization, whereas byte-output and
 process-exit retain nonblocking, crash-free envelopes.
@@ -20,6 +23,7 @@ use checked_trees::typed_trees::types::TypeReferenceNode;
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use language_core::sealed_intrinsics::{FixedImageOperation, HostedOperation, SealedIntrinsic};
 use language_semantics::MachineSupplyMode;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::{BuiltinTypeAtom, SymbolHandle};
@@ -187,10 +191,9 @@ impl IntrinsicDeclaration {
             return IntrinsicDeclarationKind::Unsupported;
         };
         if plan.target == "uefi_x86_64" {
-            for (file, bytes, name, method, implementation, shape, execution) in [
+            for (operation, name, method, implementation, shape, execution) in [
                 (
-                    "extent.omg",
-                    BUNDLED_EXTENT,
+                    FixedImageOperation::ProgramStorageEntry,
                     "ProgramStorageEntry",
                     "enter",
                     "ProgramStorageEntryNativeProvider::enter",
@@ -198,8 +201,7 @@ impl IntrinsicDeclaration {
                     CompilerIntrinsicExecutionIdentity::ProgramStorageEntry,
                 ),
                 (
-                    "program_image.omg",
-                    BUNDLED_PROGRAM_IMAGE,
+                    FixedImageOperation::ProgramImageRetainedSuffixStart,
                     "ProgramImage",
                     "retained_suffix_start",
                     "ProgramImageNativeProvider::retained_suffix_start",
@@ -207,13 +209,10 @@ impl IntrinsicDeclaration {
                     CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart,
                 ),
             ] {
-                if [service, requirement, realization]
-                    .into_iter()
-                    .all(|symbol| {
-                        typed.symbols.symbol_source_origin(symbol)
-                            == Some(source::SourceOrigin::Toolchain)
-                            && exact_bundled_standalone_source(typed, symbol, file, bytes)
-                    })
+                if typed.symbols.sealed_member_intrinsic(service, method)
+                    == Some(SealedIntrinsic::FixedImageRequirement(operation))
+                    && sealed_realization(typed, realization)
+                        == Some(SealedIntrinsic::FixedImageRealization(operation))
                 {
                     return IntrinsicDeclarationKind::Fixed(
                         boundary_row_shape(
@@ -241,13 +240,7 @@ impl IntrinsicDeclaration {
             .iter()
             .map(|hosted| HostedDeclarationRow {
                 service: hosted.service,
-                bundled: hosted.service.bundled_binding(
-                    typed,
-                    service,
-                    requirement,
-                    realization,
-                    bundle,
-                ),
+                bundled: hosted.bundled_binding(typed, service, realization, bundle),
                 shape: boundary_row_shape(
                     typed,
                     plan,
@@ -353,43 +346,6 @@ impl HostedService {
             Self::ProcessExit => "ProcessExit",
         }
     }
-
-    fn bundled_binding(
-        self,
-        typed: &checked_trees::typed_trees::TypedTrees,
-        trait_symbol: SymbolHandle,
-        requirement_symbol: SymbolHandle,
-        realization_symbol: SymbolHandle,
-        bundle: HostedIntrinsicBundle,
-    ) -> bool {
-        let (service_file, service_source, realization_file, realization_source) = match self {
-            Self::Console => (
-                "console.omg",
-                BUNDLED_CONSOLE,
-                bundle.console_source(),
-                bundled_console_source(bundle),
-            ),
-            Self::ProcessExit => (
-                "process_exit.omg",
-                BUNDLED_PROCESS_EXIT,
-                bundle.process_exit_source(),
-                bundled_process_exit_source(bundle),
-            ),
-        };
-        exact_bundled_standalone_source(typed, trait_symbol, service_file, service_source)
-            && exact_bundled_standalone_source(
-                typed,
-                requirement_symbol,
-                service_file,
-                service_source,
-            )
-            && exact_bundled_standalone_source(
-                typed,
-                realization_symbol,
-                realization_file,
-                realization_source,
-            )
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -402,15 +358,54 @@ pub(crate) enum BoundaryIntrinsicShape {
 
 struct HostedIntrinsicRow {
     service: HostedService,
+    operation: HostedOperation,
     requirement: &'static str,
     realization: &'static str,
     shape: BoundaryIntrinsicShape,
     identity: CompilerIntrinsicExecutionIdentity,
 }
 
+impl HostedIntrinsicRow {
+    /*
+        Whether this row's requirement and the selected target's realization
+        are the bundled declarations the sealed intrinsic catalog names. The
+        realization row carries its target, so another target's bundled file
+        never supplies custody here.
+    */
+    fn bundled_binding(
+        &self,
+        typed: &TypedTrees,
+        service: SymbolHandle,
+        realization: SymbolHandle,
+        bundle: HostedIntrinsicBundle,
+    ) -> bool {
+        typed
+            .symbols
+            .sealed_member_intrinsic(service, self.requirement)
+            == Some(SealedIntrinsic::HostedRequirement(self.operation))
+            && sealed_realization(typed, realization)
+                == Some(SealedIntrinsic::HostedRealization {
+                    operation: self.operation,
+                    target: bundle.target_name(),
+                })
+    }
+}
+
+/*
+    The catalog row of a realization machine, read under the machine's
+    declared name so target-selected realizations keep their source spelling.
+*/
+fn sealed_realization(typed: &TypedTrees, realization: SymbolHandle) -> Option<SealedIntrinsic> {
+    let machine = typed.machine(realization)?;
+    typed
+        .symbols
+        .sealed_declaration(realization, machine.name.as_str())
+}
+
 const HOSTED_INTRINSIC_ROWS: [HostedIntrinsicRow; 4] = [
     HostedIntrinsicRow {
         service: HostedService::Console,
+        operation: HostedOperation::ConsoleExitProcess,
         requirement: "exit_process",
         realization: "ConsoleNativeProvider::exit_process",
         shape: BoundaryIntrinsicShape::I32ToUnit,
@@ -418,6 +413,7 @@ const HOSTED_INTRINSIC_ROWS: [HostedIntrinsicRow; 4] = [
     },
     HostedIntrinsicRow {
         service: HostedService::ProcessExit,
+        operation: HostedOperation::ProcessExit,
         requirement: "exit_process",
         realization: "ProcessExitNativeProvider::exit_process",
         shape: BoundaryIntrinsicShape::I32ToUnit,
@@ -425,6 +421,7 @@ const HOSTED_INTRINSIC_ROWS: [HostedIntrinsicRow; 4] = [
     },
     HostedIntrinsicRow {
         service: HostedService::Console,
+        operation: HostedOperation::ConsoleWriteByte,
         requirement: "write_byte",
         realization: "ConsoleNativeProvider::write_byte",
         shape: BoundaryIntrinsicShape::I32ToUnit,
@@ -432,85 +429,13 @@ const HOSTED_INTRINSIC_ROWS: [HostedIntrinsicRow; 4] = [
     },
     HostedIntrinsicRow {
         service: HostedService::Console,
+        operation: HostedOperation::ConsoleReadByte,
         requirement: "read_byte",
         realization: "ConsoleNativeProvider::read_byte",
         shape: BoundaryIntrinsicShape::UnitToByteRead,
         identity: CompilerIntrinsicExecutionIdentity::HostedReadByte,
     },
 ];
-
-const BUNDLED_PROGRAM_IMAGE: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../source/library/core/program_image.omg"
-));
-
-const BUNDLED_EXTENT: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../source/library/core/extent.omg"
-));
-
-const BUNDLED_CONSOLE: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../source/library/std/console.omg"
-));
-
-const BUNDLED_PROCESS_EXIT: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../source/library/core/process_exit.omg"
-));
-
-macro_rules! bundled_intrinsic_source {
-    ($name:ident, $($variant:ident => $file:literal),+ $(,)?) => {
-        fn $name(bundle: HostedIntrinsicBundle) -> &'static [u8] {
-            match bundle {
-                $(
-                    HostedIntrinsicBundle::$variant => {
-                        const BYTES: &[u8] = include_bytes!(concat!(
-                            env!("CARGO_MANIFEST_DIR"),
-                            "/../../../../../source/library/std/targets/",
-                            $file
-                        ));
-                        BYTES
-                    }
-                )+
-            }
-        }
-    };
-}
-
-bundled_intrinsic_source!(
-    bundled_console_source,
-    LinuxArm64 => "linux_arm64/console_impl.omg",
-    LinuxX64 => "linux_x86_64/console_impl.omg",
-    MacosArm64 => "macos_arm64/console_impl.omg",
-    MacosX64 => "macos_x86_64/console_impl.omg",
-);
-
-bundled_intrinsic_source!(
-    bundled_process_exit_source,
-    LinuxArm64 => "linux_arm64/process_exit_impl.omg",
-    LinuxX64 => "linux_x86_64/process_exit_impl.omg",
-    MacosArm64 => "macos_arm64/process_exit_impl.omg",
-    MacosX64 => "macos_x86_64/process_exit_impl.omg",
-);
-
-fn exact_bundled_standalone_source(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    symbol: SymbolHandle,
-    expected_relative_path: &str,
-    expected_source: &[u8],
-) -> bool {
-    typed
-        .symbols
-        .symbol_source_span(symbol)
-        .and_then(|span| typed.symbols.source_file(span))
-        .is_some_and(|source| {
-            source.package_identity.is_none()
-                && source.path.strip_prefix(&source.package_root).ok()
-                    == Some(std::path::Path::new(expected_relative_path))
-                && source.source.as_bytes() == expected_source
-        })
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExitProcessDeclaration {
@@ -940,15 +865,9 @@ pub(crate) fn exact_byte_read_type(
     name.as_str() == "ByteRead"
         && match typed.symbols.symbol_package_identity(trait_symbol) {
             Some(package) => typed.symbols.symbol_package_identity(*symbol) == Some(package),
-            None => exact_bundled_standalone_source(
-                typed,
-                *symbol,
-                "console.omg",
-                include_bytes!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/../../../../../source/library/std/console.omg"
-                )),
-            ),
+            None => {
+                typed.symbols.sealed_intrinsic(*symbol) == Some(SealedIntrinsic::HostedByteRead)
+            }
         }
 }
 

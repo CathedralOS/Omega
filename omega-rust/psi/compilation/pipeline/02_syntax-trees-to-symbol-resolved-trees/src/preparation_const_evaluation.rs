@@ -2426,8 +2426,8 @@ mod facts {
                     _ => None,
                 })
         });
-        if definition.where_facts.is_empty()
-            && variant.is_none_or(|variant| variant.where_facts.is_empty())
+        if definition.requires_facts.is_empty()
+            && variant.is_none_or(|variant| variant.requires_facts.is_empty())
         {
             return Ok(());
         }
@@ -2479,12 +2479,12 @@ mod facts {
             .collect::<Vec<_>>();
         for (facts, fields, label) in [
             (
-                definition.where_facts,
+                definition.requires_facts,
                 common_fields.as_slice(),
                 "default-domain",
             ),
             (
-                variant.map_or(HandleSpan::empty(), |variant| variant.where_facts),
+                variant.map_or(HandleSpan::empty(), |variant| variant.requires_facts),
                 active_fields.as_slice(),
                 "case",
             ),
@@ -3443,7 +3443,7 @@ mod facts {
             }
             visiting.push(data.name.source_span());
             let value_facts = super::super::template_type_equation_offsets(syntax, data, selection)
-                .map_or(true, |offsets| offsets.len() != data.where_facts.len());
+                .map_or(true, |offsets| offsets.len() != data.requires_facts.len());
             let requires_proof = value_facts
                 || syntax.tables.items.data_members(data.members).iter().any(
                     |member| match member {
@@ -3454,7 +3454,7 @@ mod facts {
                             selection,
                         ),
                         DataMember::Variant(variant) => {
-                            !variant.where_facts.is_empty()
+                            !variant.requires_facts.is_empty()
                                 || syntax_items(syntax)
                                     .data_payload_fields(variant.payload)
                                     .iter()

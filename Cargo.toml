@@ -93,6 +93,7 @@ members = [
     "omega-rust/omega/compilation/backend/plans/effects",
     "omega-rust/omega/compilation/representations/abstract-operations",
     "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit",
+    "omega-rust/omega/compilation/representations/abstract-operations/verified-input",
     "omega-rust/omega/compilation/backend/register-model",
     "omega-rust/omega/compilation/representations/register-homes",
     "omega-rust/omega/compilation/representations/post-allocation-machine",

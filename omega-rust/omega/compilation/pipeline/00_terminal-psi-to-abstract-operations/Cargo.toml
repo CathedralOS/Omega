@@ -30,6 +30,7 @@ boundary-applications = { path = "../../backend/artifacts/boundary-applications"
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
 abstract-operations = { path = "../../representations/abstract-operations" }
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-input" }
 installation-evidence = { path = "../../backend/runtime/installation-evidence" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 proof-admission = { path = "../../../../psi/compilation/proof/admission" }

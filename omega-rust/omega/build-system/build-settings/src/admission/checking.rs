@@ -45,6 +45,7 @@ pub(crate) fn prepare_checked_build(
     pre_checks: &mut Vec<build_time_evaluation::PreCheckEvaluation>,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
+    dependency_activation: bool,
     toolchain_defaults: Option<&package_compilation::CompletedProviderDefaults>,
     execution_profile: Option<target::TargetProfile>,
     timings: &mut artifacts::compile_timings::CompileTimings,
@@ -79,10 +80,18 @@ pub(crate) fn prepare_checked_build(
             }
         }
     }
+    // Validation subjects are the request's root package, as on the product
+    // side: the core Build that settles provider defaults, or a dependency's
+    // own Build executed for its consumer, checks only what its entry and
+    // selections reach.
+    let is_subject = |file: &source::SourceFile| {
+        !dependency_activation && PackageCompilationInputs::is_validation_subject(packages, file)
+    };
     let projection = validation::execution_projection::project_build_program(
         typed,
         entry,
         &selected_declarations,
+        is_subject,
     )?;
     build_time_evaluation::admit_toolchain_build_activation(&projection)?;
     let mut pending = Vec::new();
@@ -99,6 +108,7 @@ pub(crate) fn prepare_checked_build(
             typed,
             entry,
             &selected_declarations,
+            is_subject,
         )?
     };
     let context = ProviderPlanningContext::new(&provisional, DependencyScope::Build);
@@ -177,6 +187,7 @@ pub(crate) fn prepare_checked_build(
                 typed,
                 entry,
                 &selected_declarations,
+                is_subject,
             )?
         } else {
             provisional

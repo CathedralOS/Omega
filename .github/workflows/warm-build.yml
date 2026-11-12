@@ -79,3 +79,6 @@ jobs:
             while read -r old; do
               gh release delete-asset "$TAG" "$old" --yes --repo "${{ github.repository }}"
             done
+          # The description is written here so it never names a retired tool.
+          gh release edit "$TAG" --repo "${{ github.repository }}" --notes \
+            "Prebuilt omega target directories for cloud sessions, replaced on every push to main by .github/workflows/warm-build.yml. A session restores one with tools/warm_build.sh; the warm-build-<slot>.txt manifests name the commit each archive was built from."

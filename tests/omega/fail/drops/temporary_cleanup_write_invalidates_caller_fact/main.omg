@@ -1,0 +1,14 @@
+// The initializer builds an unnamed value that is only projected; it dies inside
+// the let statement and its automatic cleanup writes counter.drops.
+data Counter { drops: u64 in Wrapping; }
+data AffineLeaf<'storage> dropped by drop_affine_leaf<'storage> { counter: &'storage mut Counter; }
+machine drop_affine_leaf<'storage>(leaf: &mut AffineLeaf<'storage>) {
+    leaf.counter.drops = leaf.counter.drops + 1;
+}
+machine demand_zero(counter: &mut Counter) requires counter.drops == 0 {}
+data Pair<'storage> { first: AffineLeaf<'storage>; second: u64; }
+machine main() {
+    let mut counter: Counter = Counter { drops: 0 };
+    let second: &u64 = &Pair { first: AffineLeaf { counter: &mut counter }, second: 7 }.second;
+    demand_zero(&mut counter);
+}

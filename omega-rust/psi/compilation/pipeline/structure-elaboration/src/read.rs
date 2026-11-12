@@ -47,6 +47,9 @@ pub(crate) struct Program<'t> {
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
+    /// What diagnostics call each machine's constructs, pushed with its
+    /// signature and completed as its body is read.
+    pub names: IdTable<MachineId, crate::MachineNames>,
     /// Every direct call read so far, as (caller, callee).
     calls: Vec<(MachineId, MachineId)>,
     /// Whether this is a generic check form: the entry's implementation
@@ -56,6 +59,10 @@ pub(crate) struct Program<'t> {
     pub requirements: Vec<MachineId>,
     /// Every call through an implementation parameter read so far.
     pub selections: Vec<crate::Selected>,
+    /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
+    /// pushed with each machine's signature.
+    pub value_parameters: IdTable<MachineId, usize>,
+    pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
@@ -112,10 +119,13 @@ impl<'t> Program<'t> {
             typed,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
+            names: IdTable::default(),
             calls: Vec::new(),
             rigid,
             requirements: Vec::new(),
             selections: Vec::new(),
+            value_parameters: IdTable::default(),
+            value_arguments: IdTable::default(),
             records: IdTable::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
@@ -167,9 +177,12 @@ fn symbol_kind(kind: SymbolKind) -> &'static str {
 mod tests {
     use super::contracts::{ClauseScope, ResultTerm};
     use super::*;
+    use crate::body::ExpressionKind;
     use language_core::ReferenceAccess;
     use numerics::literals::{FloatFormat, IntegerLiteral};
-    use semantic_vocabulary::{IntegerSign, IntegerType, ScalarTerm, ScalarType, ValueId};
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
+    };
     use symbols::{SymbolNameRef, SymbolTableBuilder, builtin_type_symbols};
     use typed_trees::expression::{
         BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath,
@@ -289,6 +302,81 @@ mod tests {
         assert_eq!(refused(&typed, node), "expression case membership");
     }
 
+    /// Wholly anonymous arithmetic is exact (numeric_values.md: anonymous
+    /// integer-literal division "is rational division, not truncation"). An
+    /// `i32` context gets `(2147483647 + 1) - 1` as the literal 2147483647,
+    /// where `i32` operations would overflow. `7 / 2` is `7/2`, which no
+    /// `i32` holds, so it is refused rather than truncated to 3; `(10 / 4) *
+    /// 2` is 5 but lands only through an `as`; and a value outside the
+    /// context's type and a remainder, which has no anonymous meaning, are
+    /// refused too.
+    #[test]
+    fn wholly_anonymous_arithmetic_lands_exactly_or_is_refused() {
+        let i32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+        let mut typed = TypedTrees::default();
+        let literal = |typed: &mut TypedTrees, value| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Integer(IntegerLiteral::from_value(value)))
+        };
+        let binary = |typed: &mut TypedTrees, left, operator, right| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    left,
+                    operator,
+                    right,
+                }))
+        };
+        let (maximum, one) = (
+            literal(&mut typed, i64::from(i32::MAX)),
+            literal(&mut typed, 1),
+        );
+        let past = binary(&mut typed, maximum, BinaryOperator::Add, one);
+        let exact = binary(&mut typed, past, BinaryOperator::Subtract, one);
+        let (ten, four, two, seven) = (
+            literal(&mut typed, 10),
+            literal(&mut typed, 4),
+            literal(&mut typed, 2),
+            literal(&mut typed, 7),
+        );
+        let quarter = binary(&mut typed, ten, BinaryOperator::Divide, four);
+        let cancelled = binary(&mut typed, quarter, BinaryOperator::Multiply, two);
+        let half = binary(&mut typed, seven, BinaryOperator::Divide, two);
+        let outside = binary(&mut typed, maximum, BinaryOperator::Add, seven);
+        let remainder = binary(&mut typed, seven, BinaryOperator::Modulo, two);
+        let mut program = Program::new(&typed, false);
+        let read = |program: &mut Program<'_>, handle| {
+            program.expression(machine(), &[], handle, Some(i32_type))
+        };
+        let landed = read(&mut program, exact).unwrap();
+        assert!(matches!(
+            landed.kind,
+            ExpressionKind::Integer(IntegerValue::Signed(value)) if value == i128::from(i32::MAX)
+        ));
+        assert_eq!(landed.result, Some(ValueType::Scalar(i32_type)));
+        for (handle, expected) in [
+            (half, "expression fractional anonymous value"),
+            (
+                cancelled,
+                "expression anonymous value with a fractional intermediate",
+            ),
+            (outside, "expression anonymous value outside its type"),
+            (
+                remainder,
+                "expression anonymous operation without an exact meaning",
+            ),
+        ] {
+            let refusal = read(&mut program, handle).unwrap_err();
+            assert_eq!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Unsupported
+            );
+            assert_eq!(refusal.detail, expected);
+        }
+    }
+
     /// `result` in a contract is taken by the owner identity stage 02
     /// recorded, never by its spelling: a name spelled `result` with no
     /// identity is refused as a spelling, the result of another callable and
@@ -322,6 +410,7 @@ mod tests {
             subject: None,
             formal_fields: false,
             slots: &[],
+            bound: &[],
             owner,
             result: ResultTerm::Named(result, u32_type),
         };
@@ -573,6 +662,7 @@ mod tests {
                         is_operand_capture: false,
                         relevance: language_core::BindingRelevance::Relevant,
                         reflected_query_origin: None,
+                        ..Default::default()
                     },
                 )
                 .map(drop)
@@ -607,6 +697,7 @@ mod tests {
             subject: None,
             formal_fields: false,
             slots: &slots,
+            bound: &[],
             owner: SymbolHandle::invalid(),
             result: ResultTerm::Absent("result in an entry clause"),
         };
@@ -623,6 +714,134 @@ mod tests {
         assert_eq!(
             term(whole),
             "contract record formal named whole in a clause"
+        );
+    }
+
+    /// `let { a, b as _ } = p;`: the marker is served when its roster names
+    /// every field of the subject's record by symbol, bound or waived alike.
+    /// A roster that omits a field, a row without a field symbol, and a roster
+    /// resolved against no record or another one are each refused, whatever
+    /// the rows are spelled.
+    #[test]
+    fn a_record_pattern_is_covered_by_field_symbols_never_by_spellings() {
+        use semantic_vocabulary::StructuralTypeId;
+        use typed_trees::expression::{MatchFieldAction, TableMatchField};
+        use typed_trees::name::Identifier;
+        use typed_trees::statement::TableLocalData;
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            [
+                (SymbolKind::Local, SymbolNameRef::Static("p")),
+                (SymbolKind::Data, SymbolNameRef::Static("Point")),
+                (SymbolKind::Data, SymbolNameRef::Static("Other")),
+            ],
+        );
+        let local = children.handles().next().unwrap();
+        let point = children.handles().nth(1).unwrap();
+        let other = children.handles().nth(2).unwrap();
+        let fields = builder.insert_children(
+            point,
+            [
+                (SymbolKind::Field, SymbolNameRef::Static("a")),
+                (SymbolKind::Field, SymbolNameRef::Static("b")),
+            ],
+        );
+        let (a, b) = (fields.handle_at(0), fields.handle_at(1));
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let mut members = arena::HandleSpan::empty();
+        typed
+            .expression_table
+            .push_name_path_member(&mut members, Identifier::generated("p"));
+        let subject = typed
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members,
+                symbol: local,
+                ..TableNamePath::default()
+            }));
+        let literal = typed.expression_table.insert(ExpressionNode::Boolean(true));
+        let row = |field_symbol, member: &str, bound: bool| TableMatchField {
+            component: language_core::PatternComponent::Fields,
+            member: Identifier::generated(member),
+            field_symbol,
+            action: if bound {
+                MatchFieldAction::Bind(Identifier::generated(member))
+            } else {
+                MatchFieldAction::Waive
+            },
+        };
+        let mut roster =
+            |rows: Vec<TableMatchField>| typed.expression_table.insert_match_fields(rows);
+        let full = roster(vec![row(b, "b", false), row(a, "a", true)]);
+        let partial = roster(vec![row(a, "a", true)]);
+        let spelled = roster(vec![
+            row(a, "a", true),
+            row(SymbolHandle::invalid(), "b", true),
+        ]);
+        let foreign = roster(vec![
+            row(a, "a", true),
+            row(b, "b", true),
+            row(other, "c", false),
+        ]);
+        let slots = [Slot {
+            symbol: local,
+            value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
+            assignable: false,
+            homed: false,
+        }];
+        let mut program = Program::new(&typed, false);
+        program.record_sources.push(places::RecordSource {
+            declaration: point,
+            fields: vec![a, b],
+            cases: Vec::new(),
+        });
+        let mut read = |pattern_subject, pattern_fields, initial_value| {
+            program.record_pattern(
+                machine(),
+                &slots,
+                &TableLocalData {
+                    role: language_core::LocalBindingRole::RecordPattern,
+                    initial_value,
+                    pattern_fields,
+                    pattern_subject,
+                    ..Default::default()
+                },
+            )
+        };
+        assert_eq!(read(point, full, subject), Ok(()));
+        let mut detail = |pattern_subject, pattern_fields, initial_value| {
+            read(pattern_subject, pattern_fields, initial_value)
+                .unwrap_err()
+                .detail
+        };
+        assert_eq!(
+            detail(point, partial, subject),
+            "statement record pattern that omits a field"
+        );
+        assert_eq!(
+            detail(point, spelled, subject),
+            "spelling record pattern field without a symbol"
+        );
+        assert_eq!(
+            detail(point, foreign, subject),
+            "spelling record pattern field without a symbol"
+        );
+        assert_eq!(
+            detail(SymbolHandle::invalid(), full, subject),
+            "spelling record pattern without a resolved subject"
+        );
+        assert_eq!(
+            detail(other, full, subject),
+            "typing record pattern resolved against another record"
+        );
+        assert_eq!(
+            detail(point, full, literal),
+            "statement record pattern over a value that is not a place"
         );
     }
 

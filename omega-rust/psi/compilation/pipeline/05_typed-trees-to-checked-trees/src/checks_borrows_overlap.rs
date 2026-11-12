@@ -3310,7 +3310,7 @@ fn place_segments_share_dependent_fact(
 
     program
         .proof_facts
-        .span_or_empty(definition.where_facts)
+        .span_or_empty(definition.requires_facts)
         .iter()
         .any(|fact| match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {

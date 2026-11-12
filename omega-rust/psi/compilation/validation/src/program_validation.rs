@@ -1932,7 +1932,7 @@ pub(crate) mod statements {
                 outputs.stored_integer_writes.extend(writes);
                 if atomic.is_some()
                     && let Some(stated) = current_state.and_then(|state| {
-                        crate::proof_contracts::default_domains::stored_field_where_interval(
+                        crate::proof_contracts::default_domains::stored_field_requires_interval(
                             program,
                             machine,
                             state,
@@ -1940,7 +1940,7 @@ pub(crate) mod statements {
                         )
                     })
                 {
-                    let contained = arithmetic_domains::check_where_interval_containment(
+                    let contained = arithmetic_domains::check_requires_interval_containment(
                         program,
                         stated,
                         observation,
@@ -2036,7 +2036,7 @@ pub(crate) mod statements {
                 if atomic.is_some() {
                     current_state
                         .and_then(|state| {
-                            crate::proof_contracts::default_domains::stored_field_where_interval(
+                            crate::proof_contracts::default_domains::stored_field_requires_interval(
                                 program,
                                 machine,
                                 state,
@@ -2160,12 +2160,14 @@ pub(crate) mod statements {
             let Some(state) = scope.current_state else {
                 return;
             };
-            let Some(stated) = crate::proof_contracts::default_domains::stored_field_where_interval(
-                program,
-                scope.machine,
-                state,
-                event.place,
-            ) else {
+            let Some(stated) =
+                crate::proof_contracts::default_domains::stored_field_requires_interval(
+                    program,
+                    scope.machine,
+                    state,
+                    event.place,
+                )
+            else {
                 return;
             };
             let Some(target_type) =
@@ -2236,7 +2238,7 @@ pub(crate) mod statements {
                 diagnostics,
             );
             let contained = if anonymous.is_some() {
-                arithmetic_domains::check_where_interval_containment(
+                arithmetic_domains::check_requires_interval_containment(
                     program,
                     stated,
                     arithmetic_domains::IntegerValueObservation {
@@ -4703,7 +4705,7 @@ fn validate_machine_scalar_loan_handbacks(
         let statements = program.statement_table.statements(state.statement_nodes);
         for (statement_index, statement) in statements.iter().enumerate() {
             let mark = diagnostics.len();
-            crate::proof_contracts::contract_entailment::validate_scalar_loan_handbacks(
+            crate::proof_contracts::contract_entailment::validate_loan_handbacks(
                 program,
                 machine,
                 state,

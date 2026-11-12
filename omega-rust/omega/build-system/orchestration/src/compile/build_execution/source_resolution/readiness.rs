@@ -71,6 +71,15 @@ struct PendingProduct {
     generated: Vec<package_compilation::PackageBuildHandoff>,
 }
 
+// A dependency's Build runs for the consumer that requested it, which stays the
+// validation subject.
+fn dependency_execution() -> package_compilation::BuildExecutionInputs {
+    package_compilation::BuildExecutionInputs {
+        dependency_activation: true,
+        ..Default::default()
+    }
+}
+
 pub(super) struct ReadinessScheduler<'session, 'operation> {
     session: &'session mut BuildSession,
     acquisitions: &'session mut BuildSourceAcquisitions<'operation>,
@@ -595,7 +604,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                     pending.push(Work::Source {
                         acquired,
                         entry,
-                        execution: Default::default(),
+                        execution: dependency_execution(),
                     });
                 }
                 Work::WorkspaceRoot(workspace) => {
@@ -690,7 +699,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                         pending.push(Work::Source {
                             acquired,
                             entry,
-                            execution: Default::default(),
+                            execution: dependency_execution(),
                         });
                     }
                     BuildSourceAcquisition::Reused(next) => pending.push(Work::Graph(next)),

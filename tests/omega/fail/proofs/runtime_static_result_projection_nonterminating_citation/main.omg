@@ -16,7 +16,7 @@ machine literal(index: Nat) -> Observation terminates {
 
 machine nonterminating_projection(index: Nat)
 ensures
-    project<literal>(index) == index
+    core::Identity<Nat>(project<literal>(index), index)
 {
     transition { _ -> nonterminating_projection(index) }
 }

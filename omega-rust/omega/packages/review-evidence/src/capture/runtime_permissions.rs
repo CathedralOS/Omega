@@ -219,7 +219,14 @@ impl PreparedRuntimePolicy {
             input.sources,
             input.execution.selected_target_profile,
         )?;
-        crate::encoding::runtime_permission_rows(package, target, &permissions, &assumed)
-            .map_err(|error| vec![Diagnostic::error(error.to_string())])
+        let components = crate::record::PackagePolicyComponentAssumption::project(input.providers);
+        crate::encoding::runtime_permission_rows(
+            package,
+            target,
+            &permissions,
+            &assumed,
+            &components,
+        )
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])
     }
 }

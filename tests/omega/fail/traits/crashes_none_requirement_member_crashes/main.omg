@@ -1,0 +1,33 @@
+// A trait requirement that writes `crashes none` admits only crash-free
+// members (wiki/spec/language/generics.md). `advance` is checked once against
+// `Step::apply` and promises `crashes none` on that strength, so a member
+// that can trap must be refused where it satisfies the requirement: here
+// `Trapping::apply` traps on zero, and `advance<Trapping>(0)` would trap.
+// Before stages 01-03 carried the requirement's `crashes none`, this program
+// was accepted and trapped on both engines.
+// Twin: `pass/traits/crashes_none_requirement_member_exit`, whose member
+// writes `crashes none` and cannot trap.
+// Expected: reject `Trapping::apply` as a member of a `crashes none` requirement
+trait Step {
+    machine apply(value: u32) -> u32
+    crashes none;
+}
+Trapping satisfies Step {
+    machine apply(value: u32) -> u32
+    crashes Trap
+    {
+        transition value == 0 { true -> bad() false -> value }
+        machine bad() -> u32 crashes Trap { crash Trap; }
+    }
+}
+machine advance<Selected satisfies Step>(start: u32) -> u32
+crashes none
+{
+    Selected::apply(start)
+}
+machine main() crashes Trap {
+    let value: u32 = advance<Trapping>(0);
+    transition value == 0 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

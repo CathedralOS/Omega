@@ -38,7 +38,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: two factories into one container, wrong-pool return, captured borrow, restricted crossing, pending-settlement repack and bare-`S` result rejection pass `--both`.
 
 - **OPERATION-RECORD-IMPLEMENTATIONS.** Make implementations ordinary checked records of callable selections and evidence ([design](wiki/drafts/designs/operation_record_implementations.md)).
-  - Static callable-selection atom, selection rows, structural identity, open/closed field contracts, one schema for static and runtime use.
+  - Finish callable selections, typed/erased fields, constraints, open/closed contracts and static/runtime materialization.
+  - Unify empty/generic record identity; migrate marker customers. Complete general evidence citation, explicit inherited fields and computed Build providers.
   Acceptance: the design's cases pass `--both`; reusing a machine needs no forwarding member.
 
 - **OWNED-ACTIVATIONS.** Expose activation execution custody with typed replies ([design](wiki/drafts/designs/owned_activations.md)), after the record model.
@@ -55,15 +56,16 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions.
 
 - **BUILD-OWNED-NATIVE-BINDINGS.** Implement `Build::bind<Requirement>(builder, target, locator)` ([foreign_bindings.md](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)) and retire `via`.
-  - Resolve product requirements, infer `ForeignBinding` const lengths, migrate all `via` sites, and delete `via` parsing.
+  - First **SEALED-INTRINSIC-CATALOG**: supply task/interrupt-mask providers per decision `sealed-runtime-providers`, then migrate table/vtable, user-intrinsic, generic-trait, Windows `ProcessExit` `via` sites; delete `via` parsing.
   Acceptance: PlaySoundW, ALSA, and AudioQueue bindings pass `omega run --both` on matching hosts, and `via` is removed.
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish retiring standalone `boundary requirement` declarations ([machines.md](wiki/spec/language/machines.md#supply)).
-  - Run migrated POSIX (`pass/filesystem/`, `runtime_posix_*`) and Windows GUI (`runtime_{gui,windows}_*`, `window_demo`) customers via `omega run --both`.
-  Acceptance: POSIX and Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
+  - Run the Windows GUI customers (`runtime_{gui,windows}_*`, `window_demo`) via `omega run --both` on a Windows host.
+  Acceptance: Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
 
-- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md); settle [landing](wiki/drafts/designs/explicit_integer_landing.md) proof-`Int` peers ([Q2](OWNER_QUESTIONS.md#q2---does-explicit-landing-apply-at-a-proof-level-int-peer)).
+- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md) and [integer arithmetic](wiki/drafts/designs/computational_and_mathematical_integers.md).
   - Separate fixed identity from budgeted algebra proofs; carry generic evidence through specialization.
+  - Implement `i`/`u`, exact math `/`, quotient/remainder and checked bridges; migrate existing integer-proof fixtures under the design's controls.
   - Retire `operator` ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)); lower `f64 in D` / `i32 in D`.
   Acceptance: `declared_operator_match_result`, `body_bearing_comparison`, `generic_comparison_body`, `open_index_distributivity` and landing controls pass `--both`.
 
@@ -80,7 +82,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (covers **OPERATOR-BOUNDARY-CALLS**, **TARGET-SEMANTIC-APPLICATIONS**) Settle providers over Terminal Psi in `execution_settlement.rs`.
   - Move `execution_settlement.rs`, `provider_binding.rs`, `operators.rs`, opaque/const/review paths, float/FMA/GUI calls, and target capsules to Terminal Psi.
-  Acceptance: two-target builds share one Terminal artifact, and `pass/float/float_computation_route_exit` passes `--both`.
+  Acceptance: `FIREWALL_ALLOWANCES` in `tools/xtask/src/boundary.rs` has no `provider-planning` or `selected-dispatch` rows, and `mbx xtask check-boundary` passes.
 
 ## Lowering, checker, and data-flow
 
@@ -123,8 +125,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Retire Psi 06 shape gates (`tools/stage06_shape_gates.txt`) and source-context reads (`tools/stage06_source_context.txt`) using Psi 05 plans.
   Acceptance: retired gates have checking reject twins in `tests/omega/fail/facts/`, and `linux_x86_64` native corpus passes.
 
-- **WIRE-CODEC-LIBRARY.** (covers **SEMANTIC-REFLECTION**) Complete [semantic reflection](wiki/spec/language/reflection.md) and `compact_binary` in `source/library/std/wire.omg`.
-  Acceptance: `source/library/std/wire.omg`, the 40-field record, `tests/omega/{pass,fail}/wire/*`, and `wire_protocol` pass `omega run --both`.
+- **WIRE-CODEC-LIBRARY.** (covers **SEMANTIC-REFLECTION**) Complete [semantic reflection](wiki/spec/language/reflection.md) and `compact_binary` in `source/library/core/wire.omg`.
+  Acceptance: `source/library/core/wire.omg`, the 40-field record, `tests/omega/{pass,fail}/wire/*`, and `wire_protocol` pass `omega run --both`.
 
 ## Universal interpreter cutover
 
@@ -137,8 +139,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## Immediate product closure
 
-- **REQUIRES-UNIFICATION.** Implement [unified `requires` clauses](wiki/spec/language/state_contracts.md#requirement-clauses), migrate all sources, and delete `where` (`ClauseKind::Where`) in both compilers.
-  Acceptance: both compilers accept data/generic/callable/assembly `requires` forms, migrated sources pass `--both`, and `where` rejects.
+- **REQUIRES-UNIFICATION.** Run `tests/psi/*/test-*.sh` over the `where` deletion; each gate's `omega update` peaks near 14 GB single-threaded.
+  Acceptance: the parser, resolver, typing and checking gates pass.
 
 - **STAGED-BUILD-CAPABILITIES.** Implement [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages) and attenuated filesystem delegation, retiring `depend*` and `BuildInputs`/`BuildSource`/`BuildOutput`.
   Acceptance: root/dependency Builds, generators, and attenuated filesystem providers pass `omega run --both` with legacy Build paths deleted.
@@ -201,8 +203,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## Requirement-based tests
 
-- **BUILD-TEST-GROUPS.** Implement the [testing contract](wiki/spec/build/testing.md) and [chapter 23](wiki/language_guide/chapter_23_testing.md) in `prelude.rs`, `configuration.rs`, `program.rs`, and `restricted_build_grants.rs`.
-  Acceptance: pure and virtual-filesystem test groups execute on both engines while application outputs exclude test-only roots.
+- **BUILD-TEST-GROUPS.** Add [virtual-filesystem test groups](wiki/spec/build/testing.md#group-configuration-and-authority): a group-scoped `service<>` selection and the in-memory filesystem it selects, once owner question `test-group-virtual-filesystem` names that provider's interface and owning library.
+  Acceptance: a virtual-filesystem test group executes on both engines with fresh per-test state, and a child cannot widen it to the real filesystem.
 
 ## Checked boundary topology
 
@@ -218,11 +220,6 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **COMPONENT-SUBSTRATE.** (covers **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**, **RUNTIME-SIZED-ACTIVATION-CONTRACT**, **FILESYSTEM-PLATFORM-SERVICES**, **TR3-TR8**, **CHECKED-REPRESENTATION-REUSE**) Complete [authority review](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission), [bounded activation](wiki/spec/resources/activation_storage.md), [filesystem services](wiki/spec/build/platform_services.md), [component installation](wiki/spec/build/component_publication.md), [task runtime](wiki/spec/build/task_runtime.md) (`blocking-executor`), and [checked reuse](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse).
   Acceptance: `console_exit_process_exit` (warm `< 50%` cold), `bounded_activation`, Windows filesystem fixtures, `Independent` builds, and `blocking-executor` pass `--both`.
-
-## Connected scientific library
-
-- **W100-CONNECTED.** Complete `source/library/core/{matrix_layout,float_accuracy,complex,linear_algebra}.omg` and `samples/cli/scientific/w100/` through `omega run --both`.
-  Acceptance: those core modules and `samples/cli/scientific/w100/` execute via `omega run --both` against frozen mathematical oracles.
 
 ## P5 - Cathedral over general Omega primitives
 

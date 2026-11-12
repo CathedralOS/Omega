@@ -65,6 +65,7 @@ const AGENT_NAMES: &[&str] = &[
     "Antigravity",
     "Dot",
     "Human",
+    "Corpus sweep",
 ];
 
 fn git(root: &Path, args: &[&str]) -> Result<String, String> {
@@ -1649,6 +1650,15 @@ fn recorded_pin_migration(
         })
 }
 
+// `tests/omega/pending/` holds a witness the checker accepts wrongly until a
+// fix lands; the fix then moves it to the same place under `fail/`. The pin is
+// kept, not removed, when that move carries identical fragments and the moved
+// fixture has a freshly recorded intended rejection containing every one.
+fn pending_promotion_path(path: &str) -> Option<String> {
+    let rest = path.strip_prefix("tests/omega/pending/")?;
+    Some(format!("tests/omega/fail/{rest}"))
+}
+
 fn expected_pin_violations(
     root: &Path,
     base_rev: &str,
@@ -1696,6 +1706,30 @@ fn expected_pin_violations(
             )
         {
             continue;
+        }
+        if *status == 'D'
+            && let Some(promoted) = pending_promotion_path(path)
+            && changes.contains(&('A', promoted.clone()))
+            && let Some(fixture) = promoted
+                .strip_prefix("tests/omega/")
+                .and_then(|path| path.strip_suffix("/expected.txt"))
+            && let (Some(base), Some(head)) = (&base_records, &head_records)
+        {
+            let promoted_pins: BTreeSet<String> = show_git_file(root, "HEAD", &promoted)
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .map(str::to_owned)
+                .collect();
+            if canonical_work_pins(&old) == canonical_work_pins(&promoted_pins)
+                && recorded_pin_migration(
+                    &promoted_pins,
+                    head.get(fixture).map(Vec::as_slice).unwrap_or_default(),
+                    base.get(fixture).map(Vec::as_slice).unwrap_or_default(),
+                )
+            {
+                continue;
+            }
         }
         let detail = if *status == 'D' {
             "removed the file and its pinned diagnostic".to_owned()
@@ -2187,6 +2221,18 @@ struct Ledger;
                 "{text}"
             );
         }
+    }
+
+    #[test]
+    fn pending_pin_promotes_only_to_the_same_fail_place() {
+        assert_eq!(
+            pending_promotion_path("tests/omega/pending/dependent/example/expected.txt").as_deref(),
+            Some("tests/omega/fail/dependent/example/expected.txt")
+        );
+        assert_eq!(
+            pending_promotion_path("tests/omega/fail/dependent/example/expected.txt"),
+            None
+        );
     }
 
     #[test]

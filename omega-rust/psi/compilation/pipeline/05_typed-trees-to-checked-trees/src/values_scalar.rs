@@ -3176,13 +3176,70 @@ pub(crate) mod contract_entry {
                 logical_captures: Vec::new(),
             }
             .boolean(expression, 0)?;
-            validation::has_builtin_bound_expression_meaning(
+            entry_predicate_has_meaning(program, machine, state, expression, 0).then_some(predicate)
+        }
+
+        /*
+            Every node of a captured entry guard needs its builtin meaning, except an
+            IEEE comparison: that selects the sealed Float operator, so it needs the
+            sealed declaration for its operands instead, and its operands still need
+            their own builtin meaning. `x.value < 0.0 && ready` is therefore read, while
+            a user-supplied comparison stays unread.
+        */
+        fn entry_predicate_has_meaning(
+            program: &dyn ::validation::CheckingInput,
+            machine: &Machine,
+            state: &typed_trees::state::State,
+            expression: ExpressionHandle,
+            depth: usize,
+        ) -> bool {
+            if validation::has_builtin_bound_expression_meaning(
                 program,
                 machine,
                 Some(state),
                 expression,
-            )
-            .then_some(predicate)
+            ) {
+                return true;
+            }
+            if depth >= 64 {
+                return false;
+            }
+            match program.expression_table.expression(expression) {
+                ExpressionNode::Binary(binary)
+                    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
+                {
+                    validation::has_builtin_binary_expression_meaning(
+                        program,
+                        machine,
+                        Some(state),
+                        expression,
+                    ) && [binary.left, binary.right].into_iter().all(|operand| {
+                        entry_predicate_has_meaning(program, machine, state, operand, depth + 1)
+                    })
+                }
+                ExpressionNode::Binary(binary) => {
+                    validation::sealed_float_comparison_declaration(
+                        program,
+                        machine,
+                        Some(state),
+                        expression,
+                        binary,
+                    )
+                    .is_some()
+                        && [binary.left, binary.right].into_iter().all(|operand| {
+                            validation::has_builtin_bound_expression_meaning(
+                                program,
+                                machine,
+                                Some(state),
+                                operand,
+                            )
+                        })
+                }
+                ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+                    entry_predicate_has_meaning(program, machine, state, unary.operand, depth + 1)
+                }
+                _ => false,
+            }
         }
 
         /*
@@ -3523,7 +3580,15 @@ pub(crate) mod contract_entry {
                                 | BinaryOperator::LessOrEqual
                                 | BinaryOperator::Greater
                                 | BinaryOperator::GreaterOrEqual
-                        ) && operator_is_builtin(self.operators, expression)
+                        ) =>
+                    {
+                        /*
+                            An IEEE comparison selects the sealed Float operator, which
+                            is not a builtin one; `float_comparison` authenticates that
+                            builtin-or-sealed meaning itself. Every other form still
+                            needs the builtin operator and its builtin meaning here.
+                        */
+                        let builtin = operator_is_builtin(self.operators, expression)
                             && self.machine.is_none_or(|machine| {
                                 validation::has_builtin_binary_expression_meaning(
                                     self.program,
@@ -3532,14 +3597,16 @@ pub(crate) mod contract_entry {
                                         .or_else(|| self.program.machine_states(machine).first()),
                                     expression,
                                 )
-                            }) =>
-                    {
+                            });
                         if !matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
                             let operands = [
                                 self.comparison_operand(binary.left, depth + 1)?,
                                 self.comparison_operand(binary.right, depth + 1)?,
                             ];
                             let ieee = operands.iter().any(ComparisonOperand::is_ieee);
+                            if !ieee && !builtin {
+                                return None;
+                            }
                             if ieee
                                 || operands.iter().any(ComparisonOperand::is_integer)
                                 || matches!(
@@ -3557,6 +3624,9 @@ pub(crate) mod contract_entry {
                                     self.integer_comparison(expression, operands)
                                 };
                             }
+                        }
+                        if !builtin {
+                            return None;
                         }
                         let left = Box::new(self.boolean(binary.left, depth + 1)?);
                         let right = Box::new(self.boolean(binary.right, depth + 1)?);
