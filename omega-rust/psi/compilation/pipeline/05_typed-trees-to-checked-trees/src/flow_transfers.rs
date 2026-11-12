@@ -2082,15 +2082,7 @@ mod scalar_values {
                     machine,
                     visiting: Vec::new(),
                 };
-                let traced = std::env::var("OMEGA_DBG_RET").is_ok();
-                if traced {
-                    eprintln!("RETDBG capture machine={} state={}", machine.name, state.name);
-                }
-                let outcome = capture.state(state, symbols, values);
-                if traced {
-                    eprintln!("RETDBG capture result some={}", outcome.is_some());
-                }
-                match outcome? {
+                match capture.state(state, symbols, values)? {
                     CapturedReturns::Value(value) => Some(value),
                     CapturedReturns::NoNormalValue => None,
                 }
@@ -2104,7 +2096,7 @@ mod scalar_values {
                 visiting: Vec<SymbolHandle>,
             }
 
-            impl<'capture> NormalReturnCapture<'capture, '_> {
+            impl NormalReturnCapture<'_, '_> {
                 fn state<Value: CapturedValue>(
                     &mut self,
                     state: &State,
@@ -2117,9 +2109,6 @@ mod scalar_values {
                     self.visiting.push(state.symbol);
                     let result = self.statements(state, &mut symbols, &mut values);
                     self.visiting.pop();
-                    if std::env::var("OMEGA_DBG_RET").is_ok() {
-                        eprintln!("RETDBG state {}::{} some={}", self.machine.name, state.name, result.is_some());
-                    }
                     result
                 }
 
@@ -2257,11 +2246,7 @@ mod scalar_values {
                             source,
                             destination,
                             symbols,
-                        );
-                        if std::env::var("OMEGA_DBG_RET").is_ok() {
-                            eprintln!("RETDBG stmt {}::{}#{} role={:?} selected={}", self.machine.name, state.name, statement_index, role, expression.is_some());
-                        }
-                        let expression = expression?;
+                        )?;
                         let value = Value::evaluate_local(expression, values);
                         match role {
                             ExpressionRole::Return => {
@@ -2303,6 +2288,11 @@ mod scalar_values {
                     }
                     match self.program.statement_table.transition_target(target) {
                         TransitionTargetNode::Value(source) => {
+                            if let Some(returned) =
+                                self.returned_machine_call(*source, symbols, values)
+                            {
+                                return returned;
+                            }
                             let role = if continuation {
                                 ExpressionRole::ContinuationReturn
                             } else {
@@ -2332,7 +2322,15 @@ mod scalar_values {
                             {
                                 return None;
                             }
-                            let (target_machine, target_state) = self.transfer_target(path.symbol)?;
+                            let target_index = activation_target_state_index(
+                                self.program,
+                                self.machine,
+                                path.symbol,
+                            )?;
+                            let target_state = self
+                                .program
+                                .machine_states(self.machine)
+                                .get(target_index)?;
                             let arguments =
                                 self.program.statement_table.expression_handles(*arguments);
                             let parameters = self.program.state_parameters(target_state);
@@ -2387,51 +2385,101 @@ mod scalar_values {
                                     delivered.bindings.push(value);
                                 }
                             }
-                            let caller = std::mem::replace(&mut self.machine, target_machine);
-                            let returned = self.state(target_state, target_symbols, delivered);
-                            self.machine = caller;
-                            returned
+                            self.state(target_state, target_symbols, delivered)
                         }
                         TransitionTargetNode::Terminal => None,
                     }
                 }
+            }
 
+            impl<'capture> NormalReturnCapture<'capture, '_> {
                 /*
-                    The state a transfer enters. A state of the current machine is
-                    found among its states; a transfer such as `true -> outside()`
-                    to a nested machine instead enters that machine's entry state,
-                    and the nested machine's normal result is this machine's
-                    result on that path. Only a checked body is followed.
+                    An arm that returns a call to another checked machine, as
+                    `true -> outside()` or `_ -> inside(value)` returning a
+                    nested machine's result, returns that machine's normal
+                    value. Its scalar arguments are literals or values already
+                    bound on this path, so the callee is captured under them.
+                    `None` means the arm is not such a call; `Some(None)`
+                    withholds the capture, as an unlowered return does.
                 */
-                fn transfer_target(
-                    &self,
-                    target: SymbolHandle,
-                ) -> Option<(&'capture Machine, &'capture State)> {
+                fn returned_machine_call<Value: CapturedValue>(
+                    &mut self,
+                    source: ExpressionHandle,
+                    symbols: &[SymbolHandle],
+                    values: &CallValues<Value>,
+                ) -> Option<Option<CapturedReturns<Value>>> {
                     let program = self.program;
-                    if let Some(index) =
-                        activation_target_state_index(program, self.machine, target)
-                    {
-                        return Some((self.machine, program.machine_states(self.machine).get(index)?));
-                    }
-                    let entry = validation::call_target_entry_symbol(program, target);
-                    if std::env::var("OMEGA_DBG_RET").is_ok() {
-                        eprintln!(
-                            "RETDBG transfer from={} target={} kind={:?} holder={:?}",
-                            self.machine.name,
-                            program.symbols.name(target),
-                            program.symbols.get(target).kind,
-                            program.machine_holding_state(entry).map(|machine| machine.name.to_string()),
-                        );
-                    }
-                    let machine = program.machine_holding_state(entry)?;
-                    if !machine.body_is_present
-                        || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-                        || !machine.owned_data.is_empty()
-                    {
+                    let typed_trees::expression::ExpressionNode::Call(call) =
+                        program.expression_table.expression(source)
+                    else {
                         return None;
-                    }
-                    let state = program.machine_states(machine).first()?;
-                    (state.symbol == entry).then_some((machine, state))
+                    };
+                    Some((|| {
+                        if call.receiver.is_valid()
+                            || !call.machine_arguments.is_empty()
+                            || !call.selects_only_nominal_route()
+                        {
+                            return None;
+                        }
+                        let entry = validation::call_target_entry_symbol(
+                            program,
+                            validation::call_target_symbol(program, call),
+                        );
+                        let machine = program.machine_holding_state(entry)?;
+                        if !machine.body_is_present
+                            || machine.supply_mode
+                                != language_semantics::MachineSupplyMode::CheckedBody
+                            || !machine.owned_data.is_empty()
+                        {
+                            return None;
+                        }
+                        let state = program.machine_states(machine).first()?;
+                        if state.symbol != entry {
+                            return None;
+                        }
+                        let parameters = program.state_parameters(state);
+                        let arguments = program.expression_table.expression_handles(call.arguments);
+                        if parameters.len() != arguments.len() {
+                            return None;
+                        }
+                        let mut target_symbols = Vec::with_capacity(parameters.len());
+                        let mut delivered = CallValues {
+                            bindings: Vec::with_capacity(parameters.len()),
+                            storage: Vec::new(),
+                            fields: Vec::new(),
+                        };
+                        for (parameter, argument) in parameters.iter().zip(arguments) {
+                            if parameter.relevance.is_erased()
+                                || parameter.is_const
+                                || parameter.is_mutable
+                                || !parameter.symbol.is_valid()
+                                || program.primitive_type_reference(parameter.type_reference).is_none()
+                                || target_symbols.contains(&parameter.symbol)
+                            {
+                                return None;
+                            }
+                            let node = program.expression_table.expression(*argument);
+                            let value = match Value::literal(node) {
+                                Some(value) => Some(value),
+                                None => {
+                                    let typed_trees::expression::ExpressionNode::Name(path) = node
+                                    else {
+                                        return None;
+                                    };
+                                    let position = symbols
+                                        .iter()
+                                        .position(|symbol| *symbol == path.symbol)?;
+                                    values.bindings.get(position)?.clone()
+                                }
+                            };
+                            target_symbols.push(parameter.symbol);
+                            delivered.bindings.push(value);
+                        }
+                        let caller = std::mem::replace(&mut self.machine, machine);
+                        let returned = self.state(state, target_symbols, delivered);
+                        self.machine = caller;
+                        returned
+                    })())
                 }
             }
 
@@ -2444,33 +2492,19 @@ mod scalar_values {
                 destination: SymbolHandle,
                 symbols: &[SymbolHandle],
             ) -> Option<&'plans CheckedScalarExpression> {
-                let found = context
+                let (binding, expression) = context
                     .selected_scalar_at(state, ordinal, |binding| {
                         binding.role == role
                             && binding.expression == source
                             && binding.destination == destination
                     })
-                    .flatten();
-                if std::env::var("OMEGA_DBG_RET").is_ok() {
-                    eprintln!(
-                        "RETDBG selected role={role:?} ordinal={ordinal} found={} any_role={}",
-                        found.is_some(),
-                        context
-                            .selected_scalar_at(state, ordinal, |binding| binding.role == role)
-                            .flatten()
-                            .is_some()
-                    );
-                }
-                let (binding, expression) = found?;
+                    .flatten()?;
                 if context
                     .scalar_expressions
                     .binding_symbols
                     .span_or_empty(binding.symbols)
                     != symbols
                 {
-                    if std::env::var("OMEGA_DBG_RET").is_ok() {
-                        eprintln!("RETDBG selected role={role:?} symbols differ");
-                    }
                     return None;
                 }
                 Some(expression)
@@ -2493,13 +2527,6 @@ mod scalar_values {
             call: &typed_trees::expression::TableCallExpression,
             active: HandleSpan<FlowSemanticContextRef>,
         ) -> Option<Value> {
-            if std::env::var("OMEGA_DBG_RET").is_ok() {
-                eprintln!(
-                    "RETDBG capture_call target={} nominal={}",
-                    program.symbols.name(validation::call_target_symbol(program, call)),
-                    call.selects_only_nominal_route()
-                );
-            }
             if !call.machine_arguments.is_empty() || !call.selects_only_nominal_route() {
                 return None;
             }
@@ -2801,7 +2828,7 @@ mod scalar_values {
             }
         }
 
-        pub(super) trait CapturedValue: Sized {
+        pub(super) trait CapturedValue: Sized + Clone {
             const REQUIRES_SELECTED_ARGUMENTS: bool;
             fn literal(expression: &ExpressionNode) -> Option<Self>;
             fn at_place(place: &CanonicalPlace, live: &LiveValues<'_, '_>) -> Option<Self>;
