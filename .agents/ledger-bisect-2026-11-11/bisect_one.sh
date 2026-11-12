@@ -74,10 +74,18 @@ git checkout --detach "$START_SHA" >/dev/null 2>&1
 }
 
 set +e
-run_test_at "$PIN"
-pin_rc=$?
-run_test_at "$GOOD"
-good_rc=$?
+pin_rc=125
+for _ in 1 2 3; do
+  run_test_at "$PIN"
+  pin_rc=$?
+  [[ "$pin_rc" -ne 125 ]] && break
+done
+good_rc=125
+for _ in 1 2 3; do
+  run_test_at "$GOOD"
+  good_rc=$?
+  [[ "$good_rc" -ne 125 ]] && break
+done
 set -e
 git checkout work/ledger-bisect-part-2 >/dev/null 2>&1
 [[ "$good_rc" -eq 0 && "$pin_rc" -eq 1 ]] || {
