@@ -54057,10 +54057,6 @@ pub(crate) mod structural_judgment {
         }
 
         impl<'program> StructuralJudge<'program> {
-            fn trace_contract(&self) -> bool {
-                super::struct_trace_owner(self.program, self.machine_symbol)
-            }
-
             pub(crate) fn integer_premise_revision(&self) -> usize {
                 self.rewrites.integer_premise_revision()
             }
@@ -82180,6 +82176,10 @@ pub(crate) mod structural_judgment {
     }
 
     impl<'program> StructuralJudge<'program> {
+        pub(crate) fn trace_contract(&self) -> bool {
+            super::struct_trace_owner(self.program, self.machine_symbol)
+        }
+
         pub(crate) fn from_case_requires(
             program: &'program dyn crate::CheckingInput,
             judged_machine: &Machine,
