@@ -336,6 +336,7 @@ mod byte_sequences {
         };
         let ascii_stored = stored_in(validation::field_domains::ByteSequencePredicate::AsciiOnly);
         let mut carrier_facts = None;
+        let mut carrier_memberships = None;
         for predicate in validation::field_domains::ByteSequencePredicate::ALL {
             let byte_in_class = if predicate.is_subslice_preserving() {
                 stored_in(predicate)
@@ -368,7 +369,64 @@ mod byte_sequences {
                 FactPayload::BytePredicate { predicate },
             );
             semantic.append_ref(references, fact);
+            /*
+                The store just re-proved `predicate` for the whole carrier, so a
+                domain that is exactly that predicate still holds. Keep the
+                carrier's own membership fact live instead of leaving only the
+                class: call restoration and the lender check accept nothing but
+                the membership's exact instance. This reactivates the fact the
+                carrier already had; a carrier without one gains none, and a store
+                that reaches no class above retires it as every other write does.
+            */
+            let memberships = carrier_memberships.get_or_insert_with(|| {
+                memberships_about_place(program, semantic, contexts, active, carrier)
+            });
+            for (membership, domain_symbol) in memberships.iter() {
+                if validation::field_domains::domain_byte_predicate(program, *domain_symbol)
+                    == Some(predicate)
+                {
+                    semantic.append_ref(references, *membership);
+                }
+            }
         }
+    }
+
+    /*
+        The live index-free memberships recorded on `carrier`'s own storage, with
+        their fact identities so a store can keep one without issuing another.
+    */
+    fn memberships_about_place(
+        program: &dyn ::validation::CheckingInput,
+        semantic: &FactPlan,
+        contexts: &FlowBuildContext,
+        active: HandleSpan<FlowSemanticContextRef>,
+        carrier: PlaceHandle,
+    ) -> Vec<(facts::FactHandle, symbols::SymbolHandle)> {
+        let canonical = |place| {
+            canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
+        };
+        let Some(carrier) = canonical(carrier) else {
+            return Vec::new();
+        };
+        let active = crate::flow::active_context_handles(&contexts.contexts, active);
+        semantic
+            .unique_context_facts(active)
+            .into_iter()
+            .filter_map(|handle| {
+                let fact = semantic.facts.get(handle);
+                let facts::domain_membership_pattern!(domain_symbol, semantic_domain) =
+                    fact.payload
+                else {
+                    return None;
+                };
+                let FactPlace::Place(place) = fact.place else {
+                    return None;
+                };
+                (index_free_membership(program, domain_symbol, semantic_domain)
+                    && canonical(place).as_ref() == Some(&carrier))
+                .then_some((handle, domain_symbol))
+            })
+            .collect()
     }
 
     /* Read captured scalar values without replaying mutable operand expressions. */
