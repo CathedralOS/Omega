@@ -114,3 +114,40 @@ pub use table::{
 
 #[cfg(test)]
 mod tests;
+
+// TEMPORARY stage-repeat measurement (PIPELINE-ARCHITECTURE-ENFORCEMENT); not for landing.
+pub fn stage_trace(tag: &str, symbols: &SymbolTable, elapsed: std::time::Duration) {
+    if std::env::var_os("OMEGA_STAGE_REPEAT_TRACE").is_none() {
+        return;
+    }
+    let files: Vec<_> = symbols.source_files().map(|file| file.path.display().to_string()).collect();
+    let library = files.iter().filter(|path| path.contains("source/library")).count();
+    let local: Vec<_> = files.iter().filter(|path| !path.contains("source/library")).take(3).cloned().collect();
+    let trace = std::backtrace::Backtrace::force_capture().to_string();
+    let mut frames = Vec::new();
+    let mut last_name = String::new();
+    for line in trace.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix("at ") {
+            if rest.contains("omega-rust/") && !rest.contains("foundation/symbols") {
+                let short = rest.rsplit("omega-rust/").next().unwrap_or(rest);
+                frames.push(format!("{last_name} @ {short}"));
+            }
+        } else if let Some((_, name)) = line.split_once(": ") {
+            last_name = name.rsplit("::").nth(1).map(|s| format!("{s}::{}", name.rsplit("::").next().unwrap_or(""))).unwrap_or_else(|| name.to_string());
+        }
+    }
+    let mut out = format!(
+        "STAGE_TRACE {tag} ms={} files={} library={} local={:?}\n",
+        elapsed.as_millis(),
+        files.len(),
+        library,
+        local
+    );
+    for frame in frames.iter().take(18) {
+        out.push_str("    ");
+        out.push_str(frame);
+        out.push('\n');
+    }
+    eprint!("{out}");
+}

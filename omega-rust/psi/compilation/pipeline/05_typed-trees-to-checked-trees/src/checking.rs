@@ -922,6 +922,7 @@ pub fn reuse_retained_check(
     request: &CheckingRequest<'_>,
     retain: bool,
 ) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
+    symbols::stage_trace("psi05.reuse", &prior.checked.symbols, std::time::Duration::ZERO);
     if prior.external_roots != request.external_roots {
         return Err(vec![diagnostics::Diagnostic::error(
             "retained source judgment has a different external invocation roster",
@@ -945,6 +946,34 @@ pub fn reuse_retained_check(
     admission key is needed.
 */
 pub fn lower_typed_trees_reusing(
+    program: typed_trees::FrozenTypedTrees,
+    preparation: TypedPreparation,
+    retained_input: Option<(
+        std::sync::Arc<typed_trees::TypedTrees>,
+        typed_trees_to_typed_trees::PreparationAdmission,
+    )>,
+    request: &CheckingRequest<'_>,
+    prior_dependency_bodies: &[validation::DependencyBodyJudgment],
+    prior_frozen_bodies: &[validation::FrozenDependencyBody],
+    retain: bool,
+) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
+    let started = std::time::Instant::now();
+    let symbols_for_trace = program.symbols.clone();
+    let result = lower_typed_trees_reusing_untraced(
+        program,
+        preparation,
+        retained_input,
+        request,
+        prior_dependency_bodies,
+        prior_frozen_bodies,
+        retain,
+    );
+    symbols::stage_trace("psi05.check", &symbols_for_trace, started.elapsed());
+    result
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_typed_trees_reusing_untraced(
     program: typed_trees::FrozenTypedTrees,
     preparation: TypedPreparation,
     retained_input: Option<(

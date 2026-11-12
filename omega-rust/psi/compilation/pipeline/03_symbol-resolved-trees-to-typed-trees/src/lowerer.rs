@@ -759,6 +759,18 @@ pub(crate) mod seeded_continuation {
         source: syntax_trees_to_symbol_resolved_trees::RebasedSeededSymbolResolvedTrees,
         retained: SeededTypingBase,
     ) -> Result<SeededTypingBase, SeededContinuationError> {
+        let started = std::time::Instant::now();
+        let result = lower_seeded_extension_untraced(source, retained);
+        if let Ok(base) = &result {
+            symbols::stage_trace("psi03.extension", &base.typed.symbols, started.elapsed());
+        }
+        result
+    }
+
+    fn lower_seeded_extension_untraced(
+        source: syntax_trees_to_symbol_resolved_trees::RebasedSeededSymbolResolvedTrees,
+        retained: SeededTypingBase,
+    ) -> Result<SeededTypingBase, SeededContinuationError> {
         let (source, resolved_base) = source.into_typing_continuation_parts();
         if resolved_base != retained.resolved {
             return Err(SeededContinuationError::CrossPairedResolvedBase);
@@ -819,6 +831,18 @@ pub(crate) mod seeded_continuation {
     }
 
     fn lower_body_completion(
+        source: syntax_trees_to_symbol_resolved_trees::RebasedResolvedBodyCompletion,
+        retained: SeededTypingBase,
+    ) -> Result<(SeededTypingBase, DeferredResolvedFrontier), Diagnostic> {
+        let started = std::time::Instant::now();
+        let result = lower_body_completion_untraced(source, retained);
+        if let Ok((base, _)) = &result {
+            symbols::stage_trace("psi03.completion", &base.typed.symbols, started.elapsed());
+        }
+        result
+    }
+
+    fn lower_body_completion_untraced(
         source: syntax_trees_to_symbol_resolved_trees::RebasedResolvedBodyCompletion,
         retained: SeededTypingBase,
     ) -> Result<(SeededTypingBase, DeferredResolvedFrontier), Diagnostic> {
@@ -1625,6 +1649,15 @@ pub(crate) fn validate_resolved_semantics_in(
 }
 
 pub fn lower_symbol_resolved_trees(
+    symbol_resolved_trees: &SymbolResolvedTrees,
+) -> Result<TypedTrees, Diagnostic> {
+    let started = std::time::Instant::now();
+    let result = lower_symbol_resolved_trees_untraced(symbol_resolved_trees);
+    symbols::stage_trace("psi03.full", &symbol_resolved_trees.symbols, started.elapsed());
+    result
+}
+
+fn lower_symbol_resolved_trees_untraced(
     symbol_resolved_trees: &SymbolResolvedTrees,
 ) -> Result<TypedTrees, Diagnostic> {
     validate_resolved_semantics(symbol_resolved_trees)?;
