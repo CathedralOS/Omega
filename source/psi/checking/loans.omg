@@ -695,17 +695,28 @@ crashes Trap
     machine written(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, role: UseRole) -> Hold {
         transition expression.kind {
             ExpressionKind::Unary -> borrowed(typing, handle, expression, role)
-            ExpressionKind::Cast -> recast(syntax, typing, expression, role)
+            ExpressionKind::Cast -> recast(syntax, typing, handle, expression, role)
             _ -> passed(typing, handle, expression, role)
         }
     }
 
-    // A recast `operand as &T` lends what its operand lends, as a value.
-    machine recast(syntax: &SyntaxTrees, typing: &Typing, expression: Expression, role: UseRole) -> Hold {
-        let operand: Expression = syntax_trees_expression(syntax, expression.left);
+    // Chained reference views retain the original borrow's loan. A cast
+    // whose result is a scalar captures a value and retains no reference.
+    machine recast(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, role: UseRole) -> Hold {
+        let result_type: u64 in Trapping = typing_expression_type(typing, handle);
+        let row: TypeRow = type_table_row(&typing.types, result_type);
+        transition row.kind == TypeKind::Reference {
+            true -> reference_cast(syntax, typing, handle, role)
+            _ -> answer(Hold::Released)
+        }
+    }
+
+    machine reference_cast(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, role: UseRole) -> Hold {
+        let origin: u64 in Trapping = reference_cast_source(syntax, typing, handle);
+        let operand: Expression = syntax_trees_expression(syntax, origin);
         transition operand.kind == ExpressionKind::Unary {
-            true -> borrowed(typing, expression.left, operand, role)
-            _ -> passed(typing, expression.left, operand, UseRole::Value)
+            true -> borrowed(typing, origin, operand, role)
+            _ -> passed(typing, origin, operand, UseRole::Value)
         }
     }
 

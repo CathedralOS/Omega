@@ -386,6 +386,10 @@ machine write_parse_observation(
             ParseDiagnosticCode::RetiredWhereClause -> parse_diagnostic(parser_harness, output, 201)
             ParseDiagnosticCode::RetiredDomainSubject -> parse_diagnostic(parser_harness, output, 202)
             ParseDiagnosticCode::RetiredCasePredicate -> parse_diagnostic(parser_harness, output, 203)
+            ParseDiagnosticCode::RetiredCastQualifier -> parse_diagnostic(parser_harness, output, 204)
+            ParseDiagnosticCode::InvalidCarrierCastEntry -> parse_diagnostic(parser_harness, output, 205)
+            ParseDiagnosticCode::ExpectedCastDomain -> parse_diagnostic(parser_harness, output, 206)
+            ParseDiagnosticCode::UnsupportedCastEntries -> parse_diagnostic(parser_harness, output, 207)
         }
     }
 

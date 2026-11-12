@@ -930,3 +930,30 @@ public machine carrier_width(row: TypeRow) -> u64 in Trapping {
         bytes
     }
 }
+
+// Reference casts keep the same backing. Trace their authored operand chain
+// once so every loan consumer names the original borrow or reference value,
+// including a cast applied to another cast. Syntax children precede parents;
+// an impossible nondecreasing edge fails rather than erasing a loan.
+public machine reference_cast_source(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> next(syntax, typing, handle) }
+    machine next(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping {
+        let expression: Expression = syntax_trees_expression(syntax, handle);
+        let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
+        let row: TypeRow = type_table_row(&typing.types, type_handle);
+        transition expression.kind == ExpressionKind::Cast && row.kind == TypeKind::Reference {
+            true -> child(syntax, typing, handle, expression.left)
+            _ -> result(handle)
+        }
+    }
+    machine child(syntax: &SyntaxTrees, typing: &Typing, parent: u64 in Trapping, operand: u64 in Trapping) -> u64 in Trapping {
+        transition operand < parent {
+            true -> next(syntax, typing, operand)
+            _ -> invalid()
+        }
+    }
+    machine result(handle: u64 in Trapping) -> u64 in Trapping { handle }
+    machine invalid() -> u64 in Trapping { crash Trap; }
+}

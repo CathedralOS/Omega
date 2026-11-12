@@ -31,6 +31,6 @@ lines += ['}']
 (package / 'build.omg').write_text('\n'.join(lines) + '\n')
 PY
 status=0
-sh "$here/../gate.sh" alpha "$package" "$here/test.py" </dev/null || status=$?
+sh "$here/../gate.sh" alpha "$package" "$here/test.py" "$@" </dev/null || status=$?
 printf 'Alpha product gate retained at %s\n' "$package" >&2
 exit "$status"

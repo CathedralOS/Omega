@@ -163,6 +163,19 @@ crashes Trap
     machine no() -> bool { false }
 }
 
+// A checked policy cast preserves the u8 payload. This predicate permits
+// storage and identity casts only; arithmetic and callable boundaries keep
+// scalar_byte_type's unqualified requirement.
+machine scalar_byte_storage(typing: &Typing, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let row: TypeRow = type_table_row(&typing.types, handle);
+    let policy: bool = row.domain == DomainBinding::Unqualified
+        || row.domain == DomainBinding::Wrapping || row.domain == DomainBinding::Saturating
+        || row.domain == DomainBinding::Trapping;
+    row.kind == TypeKind::Builtin && row.builtin == BuiltinType::U8 && policy
+}
+
 public machine scalar_lower(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, checks: &Checks, entry: u64 in Trapping)
 crashes Trap
 {
@@ -255,7 +268,7 @@ crashes Trap
     }
     machine local_type(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, first: u64 in Trapping, statement: Statement) {
         let handle: u64 in Trapping = reference_type(typing, statement.type_reference);
-        let valid: bool = scalar_byte_type(typing, handle);
+        let valid: bool = scalar_byte_storage(typing, handle);
         transition valid {
             true -> initialize(lowerer, syntax, resolution, typing, index, item, offset, first, statement)
             _ -> unsupported(lowerer)
@@ -353,7 +366,7 @@ crashes Trap
     machine cast(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
         let target: u64 in Trapping = typing_expression_type(typing, handle);
         let operand: u64 in Trapping = typing_expression_type(typing, expression.left);
-        let supported: bool = scalar_byte_type(typing, target) && scalar_byte_type(typing, operand);
+        let supported: bool = scalar_byte_storage(typing, target) && scalar_byte_storage(typing, operand);
         transition supported {
             true -> cast_room(lowerer, syntax, resolution, typing, expression)
             _ -> unsupported(lowerer)

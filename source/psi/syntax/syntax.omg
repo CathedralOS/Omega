@@ -204,7 +204,10 @@ public data Parameter [copy] {
 // (`a..b`, `a..=b` with `flag`, and the open `a..`, `..b`, `..`) stands only
 // as an index's operand, a range slice: its start is `left` when `first` is
 // 1 and its end `right` when `count` is 1. Unused fields
-// of a kind are zero.
+// of a kind are zero. A Cast with `flag` false names its carrier in
+// `type_reference`. With `flag` true it keeps the operand carrier: `operator`
+// is Add, Subtract or Equal, and `first` names its single domain NamePath.
+// Multiple simultaneous entries remain an explicit coverage refusal.
 public data ExpressionKind [copy] {
     case Name;
     case Path;
@@ -898,6 +901,10 @@ public data ParseDiagnosticCode [copy] {
     case RetiredWhereClause;
     case RetiredDomainSubject;
     case RetiredCasePredicate;
+    case RetiredCastQualifier;
+    case InvalidCarrierCastEntry;
+    case ExpectedCastDomain;
+    case UnsupportedCastEntries;
 }
 
 public data ParseDiagnostic [copy] {

@@ -56,6 +56,102 @@ def refused(name, source, status, entry=0):
     COUNT += 1
 
 
+def domain_cast_cases():
+    """Canonical explicit accounting, through real checking and Alpha output."""
+    for policy in (b'Trapping', b'Wrapping', b'Saturating'):
+        source = (b'machine chosen() -> u8 { let x: u8 in ' + policy
+                  + b' = 42 as u8 +' + policy + b'; (x as =' + policy
+                  + b') as -' + policy + b' }')
+        accepted('explicit-policy-' + policy.decode(), source, 42)
+    accepted('policy-change-keeps-value',
+             b'machine chosen()->u8 { ((42 as u8 +Trapping) as -Trapping as u8 +Wrapping) as -Wrapping }', 42)
+    accepted('cast-does-not-wrap',
+             b'machine chosen()->u8 { (255 as u8 +Wrapping) as -Wrapping }', 255)
+    refused('cast-out-of-range-before-policy',
+            b'machine chosen()->u8 { (256 as u8 +Wrapping) as -Wrapping }', 249)
+    for name, source in (
+        ('implicit-local', b'machine chosen()->u8 { let x:u8 in Trapping=42; x as -Trapping }'),
+        ('implicit-field', b'data Box { value:u8 in Trapping; } machine chosen()->u8 { let x:Box=Box{value:42}; x.value as -Trapping }'),
+        ('implicit-argument', b'machine take(x:u8 in Trapping)->u8{x as -Trapping} machine chosen()->u8{take(42)}'),
+        ('implicit-result', b'machine result()->u8 in Trapping{42} machine chosen()->u8{result() as -Trapping}'),
+        ('implicit-array-element', b'machine chosen()->u8 { let x:[u8 in Trapping;1]=[42]; x[0] as -Trapping }'),
+        ('implicit-match-arm', b'machine chosen()->u8 { let x:u8 in Trapping=match true {true->42 false->43}; x as -Trapping }'),
+        ('implicit-policy-removal', b'machine chosen()->u8 { let x:u8 in Trapping=42 as u8 +Trapping; x }'),
+        ('carrier-cast-cannot-drop-policy', b'machine chosen()->u8 { let x:u8 in Trapping=42 as u8 +Trapping; x as u8 }'),
+        ('duplicate-addition', b'machine chosen()->u8 { ((42 as u8 +Trapping) as +Trapping) as -Trapping }'),
+        ('missing-removal-domain', b'machine chosen()->u8 { 42 as u8 as -Trapping }'),
+        ('missing-retention-domain', b'machine chosen()->u8 { 42 as u8 as =Trapping }'),
+        ('wrong-retention-domain', b'machine chosen()->u8 { ((42 as u8 +Trapping) as =Wrapping) as -Wrapping }'),
+        ('anonymous-policy-needs-carrier', b'machine chosen()->u8 { (42 as +Trapping) as -Trapping }'),
+        ('unsupported-declared-domain', b'domain u8::Small requires self<100; machine chosen()->u8{(42 as u8 +Small) as -Small}'),
+        ('implicit-declared-erasure', b'domain u8::Small requires self<100; machine chosen(x:u8 in Small)->u8{x}'),
+        ('qualified-collection-needs-selected-operator', b'machine chosen()->u8 { let mut x:[u8;1] in Trapping; x[0]=42; 0 }'),
+        ('qualified-index-needs-selected-operator', b'machine chosen()->u8 { let mut x:[u8;1]; let i:u8 in Trapping=0 as u8 +Trapping; x[i]=42; 0 }'),
+    ):
+        refused(name, source, 249)
+    for name, source in (
+        ('retired-whole-type-cast', b'machine chosen()->u8{42 as u8 in Trapping}'),
+        ('carrier-removal-entry', b'machine chosen()->u8{42 as u8 -Trapping}'),
+        ('carrier-retention-entry', b'machine chosen()->u8{42 as u8 =Trapping}'),
+        ('simultaneous-entries-not-sequential-casts', b'machine chosen()->u8{42 as u8 +Trapping -Trapping}'),
+    ):
+        refused(name, source, 250)
+    # Pack the actual source declarations unchanged. The wrapper supplies a
+    # canonical caller; Python implements no part of their behavior. Accepted
+    # checking must reach the scalar lowerer's explicit storage refusal, which
+    # does not claim that this backend emitted a SourceUnit program.
+    owned = (ROOT / 'source/psi/source/source.omg').read_bytes()
+    source_id = owned[owned.index(b'public data SourceId [copy]'):
+                      owned.index(b'public data Span [copy]')]
+    source_unit = owned[owned.index(b'public data SourceUnit'):
+                        owned.index(b'machine source_unit_append(')]
+    source_unit = source_id + source_unit + b"""machine chosen()->u8 {
+ let mut unit:SourceUnit;
+ let id:SourceId=SourceId{value:77 as u32 +Trapping};
+ unit.length=19; unit.last_retained=false;
+ (&mut unit.bytes as -Trapping)[0]=42;
+ source_unit_clear(&mut unit,id);
+ transition (unit.id.value as -Trapping)==(id.value as -Trapping)
+  && unit.length==0 && unit.last_retained
+  && (&unit.bytes as -Trapping)[0]==42 { true->42 false->1 }
+}"""
+    refused('actual-SourceUnit-checked-before-storage-frontier', source_unit, 246)
+    refused('SourceUnit-selector-still-owes-bounds',
+            source_unit.replace(b'[0]=42', b'[131072]=42'), 247)
+    refused('SourceUnit-view-keeps-shared-access',
+            source_unit.replace(b'(&mut unit.bytes as -Trapping)[0]=42',
+                                b'(&unit.bytes as -Trapping)[0]=42'), 249)
+    refused('shared-reference-binding-does-not-make-referent-mutable',
+            b'machine chosen()->u8{let mut bytes:[u8;1];let mut view:&[u8;1]=&bytes;view[0]=42;0}', 249)
+    refused('chained-view-keeps-call-argument-loan', b"""
+machine write(a:&mut [u8;1],b:&mut [u8;1]) { a[0]=1; b[0]=2; }
+machine chosen()->u8 {
+ let mut bytes:[u8;1] in Trapping;
+ write(((&mut bytes as -Trapping) as +Trapping) as -Trapping, &mut bytes as -Trapping);
+ 0
+}""", 247)
+    refused('chained-view-keeps-held-local-loan', b"""
+machine chosen()->u8 {
+ let mut bytes:[u8;1] in Trapping;
+ let view:&mut [u8;1]=((&mut bytes as -Trapping) as +Trapping) as -Trapping;
+ (&mut bytes as -Trapping)[0]=1;
+ view[0]=2;
+ 0
+}""", 247)
+    refused('chained-view-cannot-escape-owned-local', b"""
+machine escaped()->&[u8;1] {
+ let bytes:[u8;1] in Trapping;
+ ((&bytes as -Trapping) as +Trapping) as -Trapping
+}
+machine chosen()->u8 { 42 }
+""", 247)
+    # Domain-only nodes have no type-reference row. They must not rebind
+    # the unrelated first row (the data's generic T) under this machine.
+    refused('domain-cast-keeps-unrelated-type-scope',
+            b'data Box<T>{value:T;} machine chosen()->u8{(42 as u8 +Trapping) as -Trapping}', 246)
+    print(f'Omega-written canonical casts: {COUNT} actual source/output cases passed')
+
+
 def main():
     # Keep the exact host-built compiler for additional inputs without repeating
     # its expensive native construction. This cache is outside captured source.
@@ -94,10 +190,10 @@ def main():
     refused('trait-default-entry', b'trait T { machine f() -> u8 { 42 } }', 246)
     refused('typed-underflow-before-cast', b'machine f() -> u8 { let a: u8 = 1; ((a - 2) + 43) as u8 }', 247)
     refused('peer-landing-before-cast', b'machine f() -> u8 { ((5 / 2) * 2 as u8) as u8 }', 249)
-    # The source frontend still refuses canonical domain-cast syntax. This is
-    # coverage evidence, not validation of destination qualification checking.
+    # Named-domain accounting is still outside this bounded policy slice.
+    # Parsing accepts canonical syntax; typing explicitly refuses its coverage.
     refused('unsupported-domain-cast', b'domain u8::Small requires self < 4; '
-            b'machine f() -> u8 { let x: u8 in Small = (((5 / 2) * 2) as u8) as +Small; 0 }', 250)
+            b'machine f() -> u8 { let x: u8 in Small = (((5 / 2) * 2) as u8) as +Small; 0 }', 249)
     # Accepted checking reaches the explicit contract-coverage refusal; the
     # matched false guarantee must fail before lowering. This exercises the
     # fact-expression evaluator without claiming contract backend support.
@@ -112,11 +208,14 @@ def main():
     refused('invalid-source', b'machine f( {', 250)
     refused('unsupported-unused-constant', b'const X: u8 = 1; machine f() -> u8 { 42 }', 246)
     refused('unsupported-domain-root', b'domain u8::Small requires self < 4; '
-            b'const X: u8 in Small = 2; machine f() -> u8 { 42 }', 246)
+            b'machine f() -> u8 { 42 }', 246)
     refused('erased-runtime-local', b'machine f() -> u8 { let x [erased]: u8 = 42; x }', 246)
     refused('nested-selected-entry', b'machine outer() -> u8 { 42 machine hidden() -> u8 { 7 } }', 246, 1)
     print(f'Omega-written Alpha compiler: {COUNT} actual source/output cases passed')
 
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) == 3 and sys.argv[2] == '--domain-casts':
+        domain_cast_cases()
+    else:
+        main()

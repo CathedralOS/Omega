@@ -1,22 +1,7 @@
-// How a value meets a destination of a known type: a declared local, a
-// parameter, a field, a typed operand or a result. The types are equal; an
-// anonymous integer lands at a fixed-integer destination it fits; a value of
-// type `Never` meets anything; a shared-reference parameter lends a value of
-// its referent implicitly and accepts an exclusive loan as a shared one
-// (wiki/spec/language/expressions.md#calls-places-and-temporaries); and a
-// payload-free case of generic data, which spells no arguments, meets any
-// application of its data; a reference to a builtin scalar meets the scalar
-// by reading its referent (`typer_read_type`); a reference to a whole array
-// views it as a slice of its elements; and an exclusive-reference
-// destination lends a range slice reached through an exclusive reference. A quoted literal copies its bytes into an
-// fixed byte array of exactly its length, independently of qualification
-// (wiki/spec/language/data_and_literals.md#quoted-bytes), and a range
-// slice is a view a shared-reference destination lends from wherever it
-// stands (wiki/spec/language/expressions.md#indexing-and-ranges). Of two types qualifying one carrier
-// (wiki/spec/language/domains.md#exact-coercion-and-erasure), a value meets
-// a destination its declared domain qualifies by a membership checking
-// proves, and a predicate-only declared domain disappears implicitly; a
-// routed one, an arithmetic policy or a case's domain does not.
+// Admission preserves the exact declared domain set. Expected types choose
+// carriers for anonymous values; adding, retaining or removing a domain is an
+// explicit cast. Ordinary borrowing and array-to-slice views retain their
+// independent access and storage rules.
 // An unlanded match or array literal (landing.omg) lands where each
 // anonymous number among its values would, at a destination of its shape.
 public data Admission [copy] {
@@ -88,15 +73,6 @@ crashes Trap
         let exact: bool = extent.kind == TypeKind::StaticInteger && extent.length == (length.magnitude as u64 in Trapping);
         transition bytes && wanted.domain == DomainBinding::Unqualified && exact {
             true -> landed()
-            _ -> qualified_copy(bytes && exact, wanted.domain == DomainBinding::Declared)
-        }
-    }
-
-    // Named qualification proves predicates of the same exact-width bytes;
-    // it never grants padding, capacity or a replacement live length.
-    machine qualified_copy(exact: bool, declared: bool) -> Admission {
-        transition exact && declared {
-            true -> qualified()
             _ -> rejected()
         }
     }
@@ -121,50 +97,9 @@ crashes Trap
     machine carried(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
         let same: bool = same_carrier(&typer.output.types, wanted, given);
         transition same {
-            true -> requalified(typer, syntax, wanted, given, expression)
+            true -> rejected()
             _ -> lending(typer, syntax, wanted, given, actual, expression)
         }
-    }
-
-    machine requalified(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, expression: u64 in Trapping) -> Admission {
-        let wanted_qualified: TypeRow = qualified_row(&typer.output.types, wanted);
-        let given_qualified: TypeRow = qualified_row(&typer.output.types, given);
-        let written: Expression = syntax_trees_expression(syntax, expression);
-        transition wanted_qualified.domain == DomainBinding::Declared {
-            true -> qualified()
-            _ -> forgotten(syntax, wanted_qualified, given_qualified, written.kind == ExpressionKind::Integer)
-        }
-    }
-
-    // A suffixed literal chose its carrier, not an arithmetic policy: at a
-    // policy-qualified destination of that carrier it lands there
-    // (wiki/spec/language/numeric_values.md). Any other typed value keeps
-    // its policy and does not convert implicitly.
-    machine forgotten(syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, suffixed: bool) -> Admission {
-        let predicate: bool = wanted.domain == DomainBinding::Unqualified && given.domain == DomainBinding::Declared;
-        transition suffixed && given.domain == DomainBinding::Unqualified && wanted.domain != DomainBinding::Declared {
-            true -> landed()
-            _ -> declared_only(syntax, given, predicate)
-        }
-    }
-
-    machine declared_only(syntax: &SyntaxTrees, given: TypeRow, predicate: bool) -> Admission {
-        transition predicate {
-            true -> predicate_only(syntax, given)
-            _ -> rejected()
-        }
-    }
-
-    machine predicate_only(syntax: &SyntaxTrees, given: TypeRow) -> Admission {
-        let item: DomainItem = syntax_trees_domain_item(syntax, given.domain_item);
-        transition item.route_count == 0 {
-            true -> exact()
-            _ -> rejected()
-        }
-    }
-
-    machine qualified() -> Admission {
-        Admission::Qualified
     }
 
     machine lending(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
@@ -299,9 +234,16 @@ crashes Trap
     let actual: u64 in Trapping = typing_expression_type(&typer.output, expression);
     let float_destination: bool = wanted.kind == TypeKind::Builtin
         && (wanted.builtin == BuiltinType::F32 || wanted.builtin == BuiltinType::F64);
-    transition float_destination {
-        true -> landed()
-        _ -> integer_literal(typer, expression, wanted, actual)
+    transition wanted.domain == DomainBinding::Unqualified {
+        true -> unqualified(typer, expression, wanted, actual, float_destination)
+        _ -> rejected()
+    }
+
+    machine unqualified(typer: &Typer, expression: u64 in Trapping, wanted: TypeRow, actual: u64 in Trapping, float_destination: bool) -> Admission {
+        transition float_destination {
+            true -> landed()
+            _ -> integer_literal(typer, expression, wanted, actual)
+        }
     }
 
     machine integer_literal(typer: &Typer, expression: u64 in Trapping, wanted: TypeRow, actual: u64 in Trapping) -> Admission {

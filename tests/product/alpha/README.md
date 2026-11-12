@@ -34,8 +34,10 @@ declarations and imports are unsupported even when unused. Erased bindings
 are also unsupported, so they cannot silently become runtime data.
 
 The initial lowering supports immutable initialized `u8` locals, exact integer
-constant trees, checked ordinary `u8` identity casts, ordinary `u8` arithmetic
-and resolved nullary calls. The machine
+constant trees, checked `u8` identity casts, ordinary `u8` arithmetic and resolved
+nullary calls. Explicit singleton `Wrapping`, `Saturating` and `Trapping` casts
+retain the same byte payload through locals and casts. Arithmetic, signatures
+and the selected entry still require ordinary unqualified `u8`. The machine
 ends with its scalar result. Every machine must fit this subset, including
 uncalled declarations; unsupported facilities produce no tape. Recursive call
 cycles are explicitly unsupported until constant-space tail transfer is
@@ -46,9 +48,13 @@ cancellation makes its final value integral; typed integer division uses the
 language's truncating quotient. Unary negation preserves the exact denominator.
 Checking and lowering share the typed annotation for a completed anonymous
 integer root; earlier typed operations remain ordinary obligations. The
-lowerer admits only unqualified `u8`. Canonical domain casts currently fail
-explicitly in the source parser, so this gate makes no domain-qualification
-conformance claim. Mathematical `Int`/`Nat` and decimal landing remain
+lowerer keeps policy storage separate from its unqualified arithmetic guard.
+Canonical single-policy `+`, `=` and `-` casts preserve exact carrier and access.
+Anonymous domain-only casts without an explicit carrier, named domains and
+simultaneous multi-entry accounting remain explicit coverage refusals; no carrier
+is guessed and no expected destination inserts a domain. Qualified builtin
+indexing likewise requires an explicitly unqualified view until the source
+compiler selects declared indexing operators. Mathematical `Int`/`Nat` and decimal landing remain
 outside this bounded numeric frontier.
 
 [`source/psi/lowering/scalar.omg`](../../../source/psi/lowering/scalar.omg) is the
@@ -91,3 +97,18 @@ explicit gate buffer exhaustion 252, and malformed diagnostic framing 253. These
 observations, not new OCOUT code assignments. The tests execute changed source,
 selected-entry, call-frame and arithmetic cases, and retain explicit refusal
 controls for malformed, unchecked and unsupported inputs.
+
+The focused cast construction path runs with the same artifact and driver:
+
+```sh
+OMEGA_CLI=/absolute/path/to/fresh/omega OMEGA_TARGET=linux_x86_64 \
+  sh tests/product/alpha/run.sh --domain-casts
+```
+
+Its executable cases exercise policy accounting and actual Alpha execution.
+The same invocation also packs the retained `SourceId`, `SourceUnit` and
+`source_unit_clear` declarations directly from their source owner, with a
+caller that removes the collection's policy through an explicit borrowed view.
+That customer must pass parsing, typing and checking before the existing
+storage-backend coverage refusal; it is not claimed as emitted by this scalar
+backend. Bound, shared-access and live-loan negatives must fail earlier.
