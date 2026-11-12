@@ -72,7 +72,7 @@ pub use product_execution::{
     CompilationOutput, CompilationProduct, CompilationProductError, TargetProductOutcome,
 };
 pub use psi_compiler::{
-    LibrarySliceTotals, ProducedTerminalProgram, checked_slice_totals, typed_slice_totals,
+    LibrarySliceTotals, ProducedTerminalProgram, checked_slice_totals,
     declaration_page_fork_totals, dependency_body_read_totals, dependency_entailment_totals,
     library_slice_totals, retained_layout_match_hits, whole_program_reuse_hits,
 };

@@ -583,15 +583,6 @@ pub(super) fn lower_typed_frontier(
         selection_authority: package_inputs.map(|inputs| {
             Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
         }),
-        // Only a source set without the root package's own files is stored.
-        stored_typing: crate::checked::checked_slice_store::shared().map(|store| {
-            psi_compiler::StoredTyping {
-                store,
-                owner: psi_compiler::CheckedSliceOwner::Consumer(
-                    package_inputs.map(PackageCompilationInputs::root),
-                ),
-            }
-        }),
     };
     let source = request.prepare(&mut crate::observations::PsiStageTimings::new(timings))?;
     Ok(TypedCompilationFrontier {

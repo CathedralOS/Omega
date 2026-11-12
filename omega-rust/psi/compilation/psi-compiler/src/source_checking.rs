@@ -476,8 +476,8 @@ pub(crate) mod checked_slice {
         that a dependency's Build carries without judging. The key covers the
         map's selection view instead: every selected file's identity, path and
         text, the selection, rejoins and dependency routing. Only unselected
-        files' paths and text are left out. Typing and checking judge selected
-        declarations and read no unselected text, so those cannot change the
+        files' paths and text are left out. Checking judges selected
+        declarations and reads no unselected text, so those cannot change the
         result; a loaded record is joined to the loading compile's own map.
     */
     pub(crate) fn slice_key(

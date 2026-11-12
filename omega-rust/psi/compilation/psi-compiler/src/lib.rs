@@ -552,7 +552,6 @@ pub use validation::{dependency_body_read_totals, dependency_entailment_totals};
 pub use source_compilation::{
     AdmittedProductPolicy, BuildSourceInput, CompletedSource, PreparedSource, ProductPolicyRequest,
     SourceCompilationRequest, SourceContinuation, SourceExtensionRequest, SourceFrontends,
-    StoredTyping, typed_slice_totals,
 };
 
 pub use psi_terminal_production::{
