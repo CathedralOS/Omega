@@ -23,7 +23,8 @@ on:
         description: Matching executor, or all four hosted targets
         type: choice
         options: [all, linux_x86_64, windows_x86_64, macos_arm64, linux_arm64]
-        default: all
+        # One target by default; `all` takes four runners, two of them scarce.
+        default: linux_x86_64
       qualification_controls:
         description: Optional reviewed wrong-branch plan; include its three good runtime fixtures
         type: string
@@ -38,8 +39,12 @@ permissions:
 
 # Finish the active observation. GitHub keeps only the newest pending run, so
 # a busy main does not start one cold executable build for every queued PR.
+# Qualification dispatches share one group per dispatching account: each
+# account runs one at a time and the newest pending request replaces older
+# ones. A per-run group let bots start one four-target run every few minutes,
+# which took every runner from the merge queue on 2026-11-12.
 concurrency:
-  group: compiler-regression-${{ github.ref }}-${{ (inputs.qualification_corpus != '' || inputs.qualification_runtime != '' || inputs.qualification_samples != '' || inputs.qualification_controls != '') && github.run_id || 'ordinary' }}-${{ inputs.provider_tests || false }}
+  group: compiler-regression-${{ (inputs.qualification_corpus != '' || inputs.qualification_runtime != '' || inputs.qualification_samples != '' || inputs.qualification_controls != '') && format('qualification-{0}', github.actor) || format('{0}-ordinary', github.ref) }}-${{ inputs.provider_tests || false }}
   cancel-in-progress: false
 
 jobs:
