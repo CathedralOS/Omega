@@ -4,3 +4,4 @@ call to `private_wide` may suspend
 kept
 suspension: forbidden
 generic_kept
+claimed_receipt

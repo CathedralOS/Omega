@@ -2559,6 +2559,78 @@ pub(crate) mod reach_application_wire {
             .map_err(|_| CodecError::CollectionTooLong("carry coordinate"))
     }
 
+    fn encode_acquisition(
+        writer: &mut Writer,
+        machine: &str,
+        state: &str,
+        source: &language_semantics::ScopedPermissionEventSource<String>,
+    ) -> Result<(), CodecError> {
+        use language_semantics::ScopedPermissionEventSource as Source;
+        writer.string("carry acquisition machine", machine)?;
+        writer.string("carry acquisition state", state)?;
+        match source {
+            Source::StateEntry => writer.u8(0),
+            Source::Statement { statement_index } => {
+                writer.u8(1);
+                encode_coordinate(writer, *statement_index)?;
+            }
+            Source::Call {
+                statement_index,
+                call_ordinal,
+                target_symbol,
+            } => {
+                writer.u8(2);
+                encode_coordinate(writer, *statement_index)?;
+                encode_coordinate(writer, *call_ordinal)?;
+                writer.string("carry acquisition target", target_symbol)?;
+            }
+            Source::InstructionDisposition { statement_index } => {
+                writer.u8(3);
+                encode_coordinate(writer, *statement_index)?;
+            }
+            Source::InstructionExitDisposition { statement_index } => {
+                writer.u8(4);
+                encode_coordinate(writer, *statement_index)?;
+            }
+            Source::StateExit => writer.u8(5),
+        }
+        Ok(())
+    }
+    fn decode_acquisition(
+        reader: &mut Reader<'_>,
+    ) -> Result<
+        (
+            String,
+            String,
+            language_semantics::ScopedPermissionEventSource<String>,
+        ),
+        CodecError,
+    > {
+        use language_semantics::ScopedPermissionEventSource as Source;
+        let machine = reader.string("carry acquisition machine")?;
+        let state = reader.string("carry acquisition state")?;
+        let source = match reader.u8()? {
+            0 => Source::StateEntry,
+            1 => Source::Statement {
+                statement_index: decode_coordinate(reader)?,
+            },
+            2 => Source::Call {
+                statement_index: decode_coordinate(reader)?,
+                call_ordinal: decode_coordinate(reader)?,
+                target_symbol: reader.string("carry acquisition target")?,
+            },
+            3 => Source::InstructionDisposition {
+                statement_index: decode_coordinate(reader)?,
+            },
+            4 => Source::InstructionExitDisposition {
+                statement_index: decode_coordinate(reader)?,
+            },
+            5 => Source::StateExit,
+            tag => return Err(CodecError::InvalidTag("carry acquisition", tag)),
+        };
+        Ok((machine, state, source))
+    }
+
     fn encode_operational(
         writer: &mut Writer,
         base: [u8; 32],
@@ -2566,9 +2638,7 @@ pub(crate) mod reach_application_wire {
         blocking: &Dependency,
         carry: &[Carry],
     ) -> Result<(), CodecError> {
-        use language_semantics::{
-            ScopedPermissionClaimIdentity, ScopedPermissionEventSource, SuspensionValueOrigin,
-        };
+        use language_semantics::SuspensionValueOrigin;
         writer.bytes(&base);
         encode_term(writer, suspension)?;
         encode_term(writer, blocking)?;
@@ -2600,47 +2670,45 @@ pub(crate) mod reach_application_wire {
             }
             writer.string("carry type", &row.value_type)?;
             writer.len("carry acquisitions", row.claims.len())?;
-            for claim in &row.claims {
-                let ScopedPermissionClaimIdentity::Established {
+            for arrival in &row.claims {
+                let language_semantics::ScopedPermissionClaimIdentity::Established {
                     machine_symbol,
                     state_symbol,
                     source,
                     ordinal,
-                } = claim
+                } = &arrival.claim_identity
                 else {
                     return Err(CodecError::MalformedStructuralFoundation(
-                        "conditional carry acquisition is unknown",
+                        "conditional carry receiving claim is unknown",
                     ));
                 };
-                writer.string("carry acquisition machine", machine_symbol)?;
-                writer.string("carry acquisition state", state_symbol)?;
-                match source {
-                    ScopedPermissionEventSource::StateEntry => writer.u8(0),
-                    ScopedPermissionEventSource::Statement { statement_index } => {
-                        writer.u8(1);
-                        encode_coordinate(writer, *statement_index)?;
+                encode_acquisition(writer, machine_symbol, state_symbol, source)?;
+                writer.u32(*ordinal);
+                match &arrival.provenance {
+                    language_semantics::ScopedPermissionProvenance::Unknown => {
+                        return Err(CodecError::MalformedStructuralFoundation(
+                            "conditional carry acquisition join is unknown",
+                        ));
                     }
-                    ScopedPermissionEventSource::Call {
-                        statement_index,
-                        call_ordinal,
-                        target_symbol,
+                    language_semantics::ScopedPermissionProvenance::Established {
+                        machine_symbol,
+                        state_symbol,
+                        source,
+                    } => {
+                        writer.u8(1);
+                        encode_acquisition(writer, machine_symbol, state_symbol, source)?;
+                    }
+                    language_semantics::ScopedPermissionProvenance::Joined {
+                        machine_symbol,
+                        state_symbol,
+                        source,
+                        ordinal,
                     } => {
                         writer.u8(2);
-                        encode_coordinate(writer, *statement_index)?;
-                        encode_coordinate(writer, *call_ordinal)?;
-                        writer.string("carry acquisition target", target_symbol)?;
+                        encode_acquisition(writer, machine_symbol, state_symbol, source)?;
+                        writer.u32(*ordinal);
                     }
-                    ScopedPermissionEventSource::InstructionDisposition { statement_index } => {
-                        writer.u8(3);
-                        encode_coordinate(writer, *statement_index)?;
-                    }
-                    ScopedPermissionEventSource::InstructionExitDisposition { statement_index } => {
-                        writer.u8(4);
-                        encode_coordinate(writer, *statement_index)?;
-                    }
-                    ScopedPermissionEventSource::StateExit => writer.u8(5),
                 }
-                writer.u32(*ordinal);
             }
             encode_term(writer, &row.condition)?;
         }
@@ -2650,9 +2718,7 @@ pub(crate) mod reach_application_wire {
     fn decode_operational(
         reader: &mut Reader<'_>,
     ) -> Result<([u8; 32], Dependency, Dependency, Vec<Carry>), CodecError> {
-        use language_semantics::{
-            ScopedPermissionClaimIdentity, ScopedPermissionEventSource, SuspensionValueOrigin,
-        };
+        use language_semantics::SuspensionValueOrigin;
         let base = reader.array()?;
         let suspension = decode_term(reader)?;
         let blocking = decode_term(reader)?;
@@ -2677,32 +2743,33 @@ pub(crate) mod reach_application_wire {
             };
             let value_type = reader.string("carry type")?;
             let claims = decode_counted(reader, |reader| {
-                let machine_symbol = reader.string("carry acquisition machine")?;
-                let state_symbol = reader.string("carry acquisition state")?;
-                let source = match reader.u8()? {
-                    0 => ScopedPermissionEventSource::StateEntry,
-                    1 => ScopedPermissionEventSource::Statement {
-                        statement_index: decode_coordinate(reader)?,
+                let (machine_symbol, state_symbol, source) = decode_acquisition(reader)?;
+                let claim_identity =
+                    language_semantics::ScopedPermissionClaimIdentity::Established {
+                        machine_symbol,
+                        state_symbol,
+                        source,
+                        ordinal: reader.u32()?,
+                    };
+                let tag = reader.u8()?;
+                let (machine_symbol, state_symbol, source) = decode_acquisition(reader)?;
+                let provenance = match tag {
+                    1 => language_semantics::ScopedPermissionProvenance::Established {
+                        machine_symbol,
+                        state_symbol,
+                        source,
                     },
-                    2 => ScopedPermissionEventSource::Call {
-                        statement_index: decode_coordinate(reader)?,
-                        call_ordinal: decode_coordinate(reader)?,
-                        target_symbol: reader.string("carry acquisition target")?,
+                    2 => language_semantics::ScopedPermissionProvenance::Joined {
+                        machine_symbol,
+                        state_symbol,
+                        source,
+                        ordinal: reader.u32()?,
                     },
-                    3 => ScopedPermissionEventSource::InstructionDisposition {
-                        statement_index: decode_coordinate(reader)?,
-                    },
-                    4 => ScopedPermissionEventSource::InstructionExitDisposition {
-                        statement_index: decode_coordinate(reader)?,
-                    },
-                    5 => ScopedPermissionEventSource::StateExit,
-                    tag => return Err(CodecError::InvalidTag("carry acquisition", tag)),
+                    tag => return Err(CodecError::InvalidTag("carry acquisition join", tag)),
                 };
-                Ok(ScopedPermissionClaimIdentity::Established {
-                    machine_symbol,
-                    state_symbol,
-                    source,
-                    ordinal: reader.u32()?,
+                Ok(language_semantics::PermissionArrival {
+                    claim_identity,
+                    provenance,
                 })
             })?;
             Ok(Carry {
@@ -3945,15 +4012,23 @@ mod routed_scalar_tests {
                     environment_position: 0,
                 },
                 value_type: "Kept".into(),
-                claims: vec![ScopedPermissionClaimIdentity::Established {
-                    machine_symbol: "helper".into(),
-                    state_symbol: "helper::entry".into(),
-                    source: ScopedPermissionEventSource::Call {
-                        statement_index: 0,
-                        call_ordinal: 0,
-                        target_symbol: "acquire".into(),
+                claims: vec![language_semantics::PermissionArrival {
+                    claim_identity: ScopedPermissionClaimIdentity::Established {
+                        machine_symbol: "helper".into(),
+                        state_symbol: "helper::entry".into(),
+                        source: ScopedPermissionEventSource::Statement { statement_index: 0 },
+                        ordinal: 0,
                     },
-                    ordinal: 0,
+                    provenance: language_semantics::ScopedPermissionProvenance::Joined {
+                        machine_symbol: "helper".into(),
+                        state_symbol: "helper::entry".into(),
+                        source: ScopedPermissionEventSource::Call {
+                            statement_index: 0,
+                            call_ordinal: 0,
+                            target_symbol: "acquire".into(),
+                        },
+                        ordinal: 0,
+                    },
                 }],
                 condition: application.suspension_dependency.clone(),
             }];

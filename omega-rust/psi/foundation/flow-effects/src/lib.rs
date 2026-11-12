@@ -225,7 +225,7 @@ pub mod flow_effects {
             pub call_ordinal: u64,
             pub subject: language_semantics::SuspensionValueOrigin<String>,
             pub value_type: String,
-            pub claims: Vec<language_semantics::ScopedPermissionClaimIdentity<String>>,
+            pub claims: Vec<language_semantics::PermissionArrival<String>>,
             pub condition: ContractDependency<bool, Vec<u32>>,
         }
 
@@ -301,7 +301,7 @@ pub mod flow_effects {
                 digest.bytes(row.value_type.as_bytes());
                 digest.len(row.claims.len());
                 for claim in &row.claims {
-                    acquisition(&mut digest, claim)?;
+                    arrival(&mut digest, claim)?;
                 }
                 term(&mut digest, &row.condition);
             }
@@ -348,22 +348,11 @@ pub mod flow_effects {
             Ok(())
         }
 
-        fn acquisition(
+        fn permission_source(
             digest: &mut optimization::digest_encoder::DomainDigestEncoder,
-            claim: &language_semantics::ScopedPermissionClaimIdentity<String>,
+            source: &language_semantics::ScopedPermissionEventSource<String>,
         ) -> Result<(), &'static str> {
-            use language_semantics::{ScopedPermissionClaimIdentity, ScopedPermissionEventSource};
-            let ScopedPermissionClaimIdentity::Established {
-                machine_symbol,
-                state_symbol,
-                source,
-                ordinal,
-            } = claim
-            else {
-                return Err("conditional carry requires an exact acquisition provenance");
-            };
-            identity(digest, machine_symbol)?;
-            identity(digest, state_symbol)?;
+            use language_semantics::ScopedPermissionEventSource;
             match source {
                 ScopedPermissionEventSource::StateEntry => digest.byte(0),
                 ScopedPermissionEventSource::Statement { statement_index } => {
@@ -390,7 +379,54 @@ pub mod flow_effects {
                 }
                 ScopedPermissionEventSource::StateExit => digest.byte(5),
             }
+            Ok(())
+        }
+
+        fn arrival(
+            digest: &mut optimization::digest_encoder::DomainDigestEncoder,
+            arrival: &language_semantics::PermissionArrival<String>,
+        ) -> Result<(), &'static str> {
+            use language_semantics::{ScopedPermissionClaimIdentity, ScopedPermissionProvenance};
+            let ScopedPermissionClaimIdentity::Established {
+                machine_symbol,
+                state_symbol,
+                source,
+                ordinal,
+            } = &arrival.claim_identity
+            else {
+                return Err("conditional carry requires an exact receiving claim identity");
+            };
+            identity(digest, machine_symbol)?;
+            identity(digest, state_symbol)?;
+            permission_source(digest, source)?;
             digest.u64(u64::from(*ordinal));
+            match &arrival.provenance {
+                ScopedPermissionProvenance::Unknown => {
+                    return Err("conditional carry requires its exact acquisition join");
+                }
+                ScopedPermissionProvenance::Established {
+                    machine_symbol,
+                    state_symbol,
+                    source,
+                } => {
+                    digest.byte(1);
+                    identity(digest, machine_symbol)?;
+                    identity(digest, state_symbol)?;
+                    permission_source(digest, source)?;
+                }
+                ScopedPermissionProvenance::Joined {
+                    machine_symbol,
+                    state_symbol,
+                    source,
+                    ordinal,
+                } => {
+                    digest.byte(2);
+                    identity(digest, machine_symbol)?;
+                    identity(digest, state_symbol)?;
+                    permission_source(digest, source)?;
+                    digest.u64(u64::from(*ordinal));
+                }
+            }
             Ok(())
         }
 
@@ -468,8 +504,8 @@ pub mod flow_effects {
             fn published_carry_commits_exact_guard_subject_and_acquisition() {
                 use super::{ConditionalCarryRequirement, template_contract_commitment};
                 use language_semantics::{
-                    ScopedPermissionClaimIdentity, ScopedPermissionEventSource,
-                    SuspensionValueOrigin,
+                    PermissionArrival, ScopedPermissionClaimIdentity, ScopedPermissionEventSource,
+                    ScopedPermissionProvenance, SuspensionValueOrigin,
                 };
                 let condition = super::ContractDependency {
                     concrete: false,
@@ -485,15 +521,23 @@ pub mod flow_effects {
                         environment_position: 1,
                     },
                     value_type: "Kept".into(),
-                    claims: vec![ScopedPermissionClaimIdentity::Established {
-                        machine_symbol: "helper".into(),
-                        state_symbol: "helper::entry".into(),
-                        source: ScopedPermissionEventSource::Call {
-                            statement_index: 0,
-                            call_ordinal: 0,
-                            target_symbol: "acquire".into(),
+                    claims: vec![PermissionArrival {
+                        claim_identity: ScopedPermissionClaimIdentity::Established {
+                            machine_symbol: "helper".into(),
+                            state_symbol: "helper::entry".into(),
+                            source: ScopedPermissionEventSource::Statement { statement_index: 0 },
+                            ordinal: 3,
                         },
-                        ordinal: 3,
+                        provenance: ScopedPermissionProvenance::Joined {
+                            machine_symbol: "helper".into(),
+                            state_symbol: "helper::entry".into(),
+                            source: ScopedPermissionEventSource::Call {
+                                statement_index: 0,
+                                call_ordinal: 0,
+                                target_symbol: "acquire".into(),
+                            },
+                            ordinal: 3,
+                        },
                     }],
                     condition: condition.clone(),
                 };
@@ -510,7 +554,7 @@ pub mod flow_effects {
                 assert_ne!(expected, commit(&[changed]).unwrap());
                 let mut changed = row.clone();
                 let ScopedPermissionClaimIdentity::Established { ordinal, .. } =
-                    &mut changed.claims[0]
+                    &mut changed.claims[0].claim_identity
                 else {
                     unreachable!()
                 };
@@ -520,8 +564,32 @@ pub mod flow_effects {
                 changed.condition.parameters = vec![2];
                 assert!(commit(&[changed]).is_err());
                 let mut changed = row.clone();
-                changed.claims[0] = ScopedPermissionClaimIdentity::Unknown;
+                changed.claims[0].claim_identity = ScopedPermissionClaimIdentity::Unknown;
                 assert!(commit(&[changed]).is_err());
+                let mut changed = row.clone();
+                changed.claims[0].provenance = ScopedPermissionProvenance::Unknown;
+                assert!(commit(&[changed]).is_err());
+                for change_target in [false, true] {
+                    let mut changed = row.clone();
+                    let ScopedPermissionProvenance::Joined {
+                        source:
+                            ScopedPermissionEventSource::Call {
+                                target_symbol,
+                                call_ordinal,
+                                ..
+                            },
+                        ..
+                    } = &mut changed.claims[0].provenance
+                    else {
+                        unreachable!()
+                    };
+                    if change_target {
+                        *target_symbol = "other_acquire".into();
+                    } else {
+                        *call_ordinal += 1;
+                    }
+                    assert_ne!(expected, commit(&[changed]).unwrap());
+                }
                 assert!(commit(&[row.clone(), row]).is_err());
             }
 

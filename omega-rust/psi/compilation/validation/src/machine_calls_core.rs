@@ -3020,12 +3020,18 @@ pub mod contract_identities {
 
     fn canonical_claim(
         program: &dyn crate::CheckingInput,
-        claim: language_semantics::PermissionClaimIdentity,
+        claim: language_semantics::PermissionArrival<SymbolHandle>,
         binders: &[(SymbolHandle, String)],
-    ) -> Result<language_semantics::ScopedPermissionClaimIdentity<String>, Diagnostic> {
-        if matches!(claim, language_semantics::PermissionClaimIdentity::Unknown) {
+    ) -> Result<language_semantics::PermissionArrival<String>, Diagnostic> {
+        if matches!(
+            claim.claim_identity,
+            language_semantics::PermissionClaimIdentity::Unknown
+        ) || matches!(
+            claim.provenance,
+            language_semantics::PermissionProvenance::Unknown
+        ) {
             return Err(Diagnostic::error(
-                "conditional carry requires an exact acquisition provenance",
+                "conditional carry requires the receiving claim and its exact acquisition join",
             ));
         }
         claim.map_declarations(|symbol| scoped_symbol(program, symbol, binders))

@@ -7308,15 +7308,18 @@ mod carry {
             }
         }
 
-        fn live_claim_identities(
+        // A call result receives a statement claim while its provenance records
+        // the acquisition call. Publication needs both; the receiving identity
+        // alone cannot reconstruct the callee or invocation ordinal.
+        fn live_claims(
             &self,
             program: &dyn ::validation::CheckingInput,
             value_name: &str,
-        ) -> Vec<language_semantics::PermissionClaimIdentity> {
+        ) -> Vec<language_semantics::PermissionArrival<SymbolHandle>> {
             let mut latest_by_path = Vec::<(
                 String,
                 (usize, usize, usize),
-                language_semantics::PermissionClaimIdentity,
+                language_semantics::PermissionArrival<SymbolHandle>,
             )>::new();
 
             for (event_index, event) in self
@@ -7360,10 +7363,20 @@ mod carry {
                 {
                     if order >= *previous_order {
                         *previous_order = order;
-                        *identity = event.claim_identity;
+                        *identity = language_semantics::PermissionArrival {
+                            claim_identity: event.claim_identity,
+                            provenance: event.provenance,
+                        };
                     }
                 } else {
-                    latest_by_path.push((label, order, event.claim_identity));
+                    latest_by_path.push((
+                        label,
+                        order,
+                        language_semantics::PermissionArrival {
+                            claim_identity: event.claim_identity,
+                            provenance: event.provenance,
+                        },
+                    ));
                 }
             }
 
@@ -7930,9 +7943,17 @@ mod carry {
     ) {
         let requirements =
             validation::effective_type_carry_requirements(program, type_parameters, type_reference);
-        let claims = claim_carry.live_claim_identities(program, value_name);
-        let policy =
-            claim_carry.effective_policy(program, value_name, requirements.structural, &claims);
+        let claims = claim_carry.live_claims(program, value_name);
+        let claim_identities = claims
+            .iter()
+            .map(|arrival| arrival.claim_identity)
+            .collect::<Vec<_>>();
+        let policy = claim_carry.effective_policy(
+            program,
+            value_name,
+            requirements.structural,
+            &claim_identities,
+        );
         crossing.obligations.push(PendingCarryObligation {
             name: value_name.to_owned(),
             ordinary: policy,
@@ -7940,7 +7961,7 @@ mod carry {
                 program,
                 value_name,
                 requirements.borrow_independent,
-                &claims,
+                &claim_identities,
             ),
             requires_borrow_preservation: requirements.requires_borrow_preservation,
         });

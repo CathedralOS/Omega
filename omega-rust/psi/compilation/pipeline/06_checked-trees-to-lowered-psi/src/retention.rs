@@ -5006,10 +5006,14 @@ pub(crate) mod suspension_call_plan {
                     .claims
                     .iter()
                     .map(|identity| {
-                        lookup_claim_id(&occurrence.frontier_before_call.claims, *identity)
+                        lookup_claim_id(
+                            &occurrence.frontier_before_call.claims,
+                            identity.claim_identity,
+                        )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 claims.sort();
+                claims.dedup();
                 live_values.push((
                     live,
                     terminal_psi::TerminalSuspensionLiveValue {

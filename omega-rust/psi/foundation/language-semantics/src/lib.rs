@@ -1459,19 +1459,21 @@ mod permissions {
         StateExit,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, compiler_storage::Record)]
-    pub enum PermissionProvenance {
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, compiler_storage::Record,
+    )]
+    pub enum PermissionProvenance<Identity = symbols::SymbolHandle> {
         #[default]
         Unknown,
         Established {
-            machine_symbol: symbols::SymbolHandle,
-            state_symbol: symbols::SymbolHandle,
-            source: PermissionEventSource,
+            machine_symbol: Identity,
+            state_symbol: Identity,
+            source: PermissionEventSource<Identity>,
         },
         Joined {
-            machine_symbol: symbols::SymbolHandle,
-            state_symbol: symbols::SymbolHandle,
-            source: PermissionEventSource,
+            machine_symbol: Identity,
+            state_symbol: Identity,
+            source: PermissionEventSource<Identity>,
             ordinal: u32,
         },
     }
@@ -1488,6 +1490,57 @@ mod permissions {
             source: PermissionEventSource<Identity>,
             ordinal: u32,
         },
+    }
+
+    #[derive(
+        Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record,
+    )]
+    pub struct PermissionArrival<Identity> {
+        pub claim_identity: PermissionClaimIdentity<Identity>,
+        pub provenance: PermissionProvenance<Identity>,
+    }
+
+    impl<Identity> PermissionProvenance<Identity> {
+        pub fn map_declarations<Output, Error>(
+            self,
+            mut map: impl FnMut(Identity) -> Result<Output, Error>,
+        ) -> Result<PermissionProvenance<Output>, Error> {
+            Ok(match self {
+                Self::Unknown => PermissionProvenance::Unknown,
+                Self::Established {
+                    machine_symbol,
+                    state_symbol,
+                    source,
+                } => PermissionProvenance::Established {
+                    machine_symbol: map(machine_symbol)?,
+                    state_symbol: map(state_symbol)?,
+                    source: source.map_declarations(map)?,
+                },
+                Self::Joined {
+                    machine_symbol,
+                    state_symbol,
+                    source,
+                    ordinal,
+                } => PermissionProvenance::Joined {
+                    machine_symbol: map(machine_symbol)?,
+                    state_symbol: map(state_symbol)?,
+                    source: source.map_declarations(map)?,
+                    ordinal,
+                },
+            })
+        }
+    }
+
+    impl<Identity> PermissionArrival<Identity> {
+        pub fn map_declarations<Output, Error>(
+            self,
+            mut map: impl FnMut(Identity) -> Result<Output, Error>,
+        ) -> Result<PermissionArrival<Output>, Error> {
+            Ok(PermissionArrival {
+                claim_identity: self.claim_identity.map_declarations(&mut map)?,
+                provenance: self.provenance.map_declarations(map)?,
+            })
+        }
     }
 
     impl<Identity> PermissionEventSource<Identity> {
@@ -2446,10 +2499,11 @@ pub use machine_termination::{
     TerminationGuarantee, TerminationInterface,
 };
 pub use permissions::{
-    PermissionAccess, PermissionClaimIdentity as ScopedPermissionClaimIdentity,
+    PermissionAccess, PermissionArrival, PermissionClaimIdentity as ScopedPermissionClaimIdentity,
     PermissionEventKind, PermissionEventSource as ScopedPermissionEventSource,
-    PermissionProvenance,
+    PermissionProvenance as ScopedPermissionProvenance,
 };
+pub type PermissionProvenance = ScopedPermissionProvenance<symbols::SymbolHandle>;
 pub type PermissionClaimIdentity = ScopedPermissionClaimIdentity<symbols::SymbolHandle>;
 pub type PermissionEventSource = ScopedPermissionEventSource<symbols::SymbolHandle>;
 pub use semantic_domains::{

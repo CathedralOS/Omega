@@ -1578,11 +1578,14 @@ capture-then-invocation telescope. Marker 253 and older modules reject.
 | --- | --- |
 | contract | 32-byte base template commitment + suspension dependency + blocking dependency + counted conditional carry rows |
 | dependency | `bool` fixed contribution + counted strictly increasing `u32` machine-binder positions; a true fixed contribution has no positions |
-| conditional carry | `u32` declaration-state position + `u64` statement position + `u64` call ordinal + subject + canonical value-type string + counted acquisition claims + dependency |
+| conditional carry | `u32` declaration-state position + `u64` statement position + `u64` call ordinal + subject + canonical value-type string + counted claim arrivals + dependency |
 | parameter subject | `u8` 0 + scoped declaration identity string + `u64` parameter position |
 | local subject | `u8` 1 + scoped declaration identity string + `u64` declaration statement position + `u64` environment position |
 | call argument subject | `u8` 2 + `u64` argument position |
-| acquisition claim | scoped machine identity string + scoped state identity string + acquisition event + `u32` claim ordinal |
+| claim arrival | receiving claim + acquisition provenance |
+| receiving claim | scoped machine identity string + scoped state identity string + acquisition event + `u32` claim ordinal |
+| established provenance | `u8` 1 + scoped machine identity string + scoped state identity string + acquisition event |
+| joined provenance | `u8` 2 + scoped machine identity string + scoped state identity string + acquisition event + `u32` claim ordinal |
 | entry acquisition | `u8` 0 |
 | statement acquisition | `u8` 1 + `u64` statement position |
 | call acquisition | `u8` 2 + `u64` statement position + `u64` call ordinal + scoped target identity string |
@@ -1590,8 +1593,10 @@ capture-then-invocation telescope. Marker 253 and older modules reject.
 | instruction-exit acquisition | `u8` 4 + `u64` statement position |
 | exit acquisition | `u8` 5 |
 
-Unknown subject or acquisition tags reject. Claims cannot encode unknown
-provenance. Carry rows and each row's claims are strictly ordered and unique;
+The receiving claim and its acquisition provenance are distinct: a local call
+result receives a statement claim whose joined provenance identifies the exact
+acquisition call and target. Both survive publication. Unknown subject, acquisition
+or provenance tags reject. Claims cannot encode unknown identity or provenance. Carry rows and each row's claims are strictly ordered and unique;
 a carry guard has at least one exact projection and no true fixed contribution.
 The `omega.machine-template.v4` commitment binds the base template identity,
 complete telescope size, both dependencies, and every scoped subject, acquisition
@@ -1605,9 +1610,9 @@ These rows participate in canonical interface identity and dependency checking.
 A decoder cannot interpret a missing row as permission. Closed applications
 discharge or satisfy their obligations before lowering, while ordinary call and
 outcome obligations remain enforced. Runtime callable types and installation-bound
-service rows gain no new form. The [implementation plan](../../drafts/designs/conditional_callback_carry.md#implementation)
-owns the coordinated schema, wire-table and codec update; it must verify that
-closed suspension call plans preserve the specialized live frontier and policies.
+service rows gain no new form. Closed suspension call plans preserve the
+specialized live frontier and policies under the governing
+[carry requirements](../language/effects.md#conditional-suspension-carry).
 
 ## Module declaration tables
 

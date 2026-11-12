@@ -2818,7 +2818,7 @@ pub(crate) mod carry {
         pub type_reference: typed_trees::types::TypeReferenceHandle,
         pub storage: SuspensionCrossingStorage,
         pub origin: SuspensionCrossingValueOrigin,
-        pub claims: Vec<language_semantics::PermissionClaimIdentity>,
+        pub claims: Vec<language_semantics::PermissionArrival<SymbolHandle>>,
         pub effective: CarryPolicy,
         pub borrow_frontier: SuspensionValueBorrowFrontier,
     }
