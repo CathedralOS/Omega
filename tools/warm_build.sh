@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start Claude Code cloud sessions with the compiler already built.
+# Start managed cloud sessions with the compiler already built.
 #
 # A cloud session is a fresh 4-CPU container, and building the compiler from
 # nothing there takes about 11 minutes. CI on main builds the same compiler in
@@ -230,7 +230,9 @@ restore() (
 
 session_start() {
   # Other hosts keep their builds between sessions and have nothing to restore.
-  [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || return 0
+  # CODEX_ENVIRONMENT_ID identifies a managed environment; ordinary local Codex
+  # sessions must not restore a cloud build or change their cache settings.
+  [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || [ -n "${CODEX_ENVIRONMENT_ID:-}" ] || return 0
   # mbx deletes build directories, mid-build included, when free space falls
   # under 10% of the disk's size. The container's disk reports 252 GB while the
   # session may use about 30 GB of it, so that floor is 25 GiB and one compiler
