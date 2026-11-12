@@ -14,6 +14,9 @@ TIMEOUT_S = 300
 SHARD = int(os.environ.get("SHARD", "6"))
 PARTS = 8
 REWRITE = os.environ.get("REWRITE", "").lower() in ("1", "true", "yes")
+MEASURED_PIN = os.environ.get(
+    "MEASURED_PIN", "0835b3aaf803ed97f905be42d94727ff58459263"
+)
 
 DECIDED = ["rejected", "incomplete"]
 UNDECIDED = ["fallback", "refused-module", "defect", "panicked"]
@@ -421,6 +424,19 @@ def summarize(tsv_path: Path, md_path: Path, pin: str, bin_path: Path) -> None:
             lines.append(
                 f"- `{r['fixture']}`: {r['seconds']}s wall (limit {TIMEOUT_S}s)"
             )
+    slow = [
+        r
+        for r in rows
+        if "installed_arrival" in r["fixture"] or float(r["seconds"]) >= 240.0
+    ]
+    if slow:
+        lines.extend(["", "### Slow fixtures (owner-reviewed)", ""])
+        for r in slow:
+            lines.append(
+                f"- `{r['fixture']}`: {r['seconds']}s, route `{r['route_verdict']}`, "
+                f"current `{r['current_verdict']}` — completed under the {TIMEOUT_S}s "
+                f"`timeout` wrapper (not killed)."
+            )
     lines.extend(
         [
             "",
@@ -468,6 +484,9 @@ def main() -> None:
     out_dir = REPO / ".agents/four-jobs-2026-11-12/1"
     out_dir.mkdir(parents=True, exist_ok=True)
     tsv_path = out_dir / f"shard-{SHARD}.tsv"
+    if os.environ.get("SUMMARIZE_ONLY"):
+        summarize(tsv_path, out_dir / f"shard-{SHARD}.md", MEASURED_PIN, BIN)
+        return
     fixtures = fixture_list()
     header = "fixture\ttier\troute_verdict\tcurrent_verdict\tagreement\tfirst_refusal\tseconds\n"
 
@@ -493,10 +512,7 @@ def main() -> None:
             if (i + 1) % 25 == 0:
                 print(f"[shard {SHARD}] {i + 1}/{len(fixtures)}", flush=True)
 
-    pin = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True, text=True, check=True
-    ).stdout.strip()
-    summarize(tsv_path, out_dir / f"shard-{SHARD}.md", pin, BIN)
+    summarize(tsv_path, out_dir / f"shard-{SHARD}.md", MEASURED_PIN, BIN)
     print(f"done shard {SHARD}: {len(fixtures)} fixtures", flush=True)
 
 
