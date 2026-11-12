@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
+import os
 import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path(
-    subprocess.check_output(
-        ["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "--show-toplevel"],
-        text=True,
-    ).strip()
-)
+
+def repo_root() -> Path:
+    if "BISECT_REPO_ROOT" in os.environ:
+        return Path(os.environ["BISECT_REPO_ROOT"])
+    return Path(
+        subprocess.check_output(
+            ["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "--show-toplevel"],
+            text=True,
+        ).strip()
+    )
+
+REPO = repo_root()
 
 
 def parse_header(line: str) -> tuple[str, str] | None:

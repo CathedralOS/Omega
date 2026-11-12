@@ -3,7 +3,7 @@ set -euo pipefail
 WITNESS="${1:?witness}"
 OUT_JSON="${2:?out.json}"
 PIN="${3:-51e8c45c793007f211d0d9baee7de16767172444}"
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${BISECT_REPO_ROOT:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}"
 SCRIPT="$ROOT/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh"
 FIND_GOOD="$ROOT/.agents/ledger-bisect-2026-11-11/find_good_commit.sh"
 cd "$ROOT"
@@ -20,14 +20,14 @@ open(sys.argv[1], "w").write(json.dumps({
 }, indent=2))
 print("propagated no-good", sys.argv[2])
 PY
-  git checkout -q "$START_SHA"
+  git checkout -f "$START_SHA" >/dev/null 2>&1
   exit 0
 fi
 
 echo "witness=$WITNESS good=$GOOD bad=$PIN" >&2
 export BISECT_WITNESS="$WITNESS"
 export GIT_PAGER=cat
-git checkout -q "$START_SHA"
+git checkout -f "$START_SHA" >/dev/null 2>&1
 git bisect reset >/dev/null 2>&1 || true
 BSTART=$(git bisect start --first-parent "$PIN" "$GOOD" 2>&1)
 echo "$BSTART" >&2
@@ -49,13 +49,13 @@ git checkout -q "$GOOD"
 g1=$("$SCRIPT"; echo $?)
 git checkout -q "$PIN"
 b1=$("$SCRIPT"; echo $?)
-git checkout -q "$START_SHA"
+git checkout -f "$START_SHA" >/dev/null 2>&1
 echo "sanity good=$g1 bad=$b1" >&2
 STABILITY="deterministic"
 if [[ "$g1" != "0" || "$b1" != "1" ]]; then
   git checkout -q "$GOOD"; g2=$("$SCRIPT"; echo $?); g3=$("$SCRIPT"; echo $?)
   git checkout -q "$PIN"; b2=$("$SCRIPT"; echo $?); b3=$("$SCRIPT"; echo $?)
-  git checkout -q "$START_SHA"
+  git checkout -f "$START_SHA" >/dev/null 2>&1
   if [[ "$g1" != "$g2" || "$g2" != "$g3" || "$b1" != "$b2" || "$b2" != "$b3" ]]; then
     STABILITY="flaky"
   fi
@@ -80,7 +80,7 @@ RC=$?
 set -e
 BREAK=$(git rev-parse HEAD^{commit} 2>/dev/null || true)
 git bisect reset >/dev/null 2>&1 || true
-git checkout -q "$START_SHA"
+git checkout -f "$START_SHA" >/dev/null 2>&1
 PR=""
 MECH=""
 STATUS=propagated

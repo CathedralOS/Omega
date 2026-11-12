@@ -1,12 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 WITNESS="${BISECT_WITNESS:?}"
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${BISECT_REPO_ROOT:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}"
 cd "$ROOT"
 export OMEGA_CORPUS_JOBS=1 CARGO_BUILD_JOBS=4 MBX_SCHEDULER_CPUS=4
-if [[ "${BISECT_FRESH:-1}" == "1" ]]; then
-  rm -rf "$ROOT/target/debug/build/compiler"
-fi
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$ROOT/target" nice -n 19 mbx build -p compiler --bins --tests < /dev/null >/dev/null 2>&1 || exit 125
 RUNNER=$(ls -t "$ROOT"/target/debug/build/compiler/*/out/corpus_runner-* 2>/dev/null | head -1)
 [[ -x "$RUNNER" ]] || exit 125

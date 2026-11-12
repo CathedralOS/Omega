@@ -1,0 +1,8 @@
+{
+  "witness": "fail/generics/grouped_decimal_const_zero_division_rejected",
+  "breaking_commit": "",
+  "pr": "2505",
+  "mechanism": "bisect endpoint collapsed to PIN only (no strict good at ledger stamp); use sweep good 759c80404428 for manual bisect",
+  "status": "propagated",
+  "bisect_exit": 1
+}
