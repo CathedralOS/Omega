@@ -12,7 +12,7 @@ use crate::{
     BuildAdmission, CompileOutputKind, CompileReport, ComputedBuildConfig, NativeProductRequest,
     RequestedCompileProduct, RetainedBuildOutputs, RetainedTerminalArtifact,
 };
-use artifacts::compile_timings::PhaseTiming;
+use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
 use optimization_core::{
     OptimizationRollback, OptimizationRollbackReceipt, OptimizationRollbackSettlement,
@@ -102,7 +102,7 @@ pub struct CompileReportSettlement {
     application: NativeApplicationMetadata,
     build_outputs: Option<RetainedBuildOutputs>,
     build_observation: Option<BuildObservationIdentity>,
-    timings: Vec<PhaseTiming>,
+    timings: CompileTimings, // Keeps its enabled flag so native realization adds rows only when timing.
 }
 
 impl ProductReportPlan {
@@ -171,7 +171,7 @@ impl ProductReportPlan {
             ),
             build_outputs,
             build_observation: checked.build().observation_identity(),
-            timings,
+            timings: checked.timings().clone(),
         };
         match product {
             ProductReportRequest::Terminal(_) => Ok(CheckedProductReport::Terminal {
@@ -197,9 +197,13 @@ impl CompileReportSettlement {
         &mut self.source_completion_accounting
     }
 
-    pub fn with_timings(mut self, timings: Vec<PhaseTiming>) -> Self {
+    pub fn with_timings(mut self, timings: CompileTimings) -> Self {
         self.timings = timings;
         self
+    }
+
+    pub fn timings_mut(&mut self) -> &mut CompileTimings {
+        &mut self.timings
     }
 
     pub fn finish_terminal(
@@ -266,7 +270,7 @@ impl CompileReportSettlement {
             .with_build_outputs(self.build_outputs, self.build_observation)
             .map(|report| {
                 let timings = if report.timings().is_empty() {
-                    self.timings
+                    self.timings.phases().to_vec()
                 } else {
                     report.timings().to_vec()
                 };

@@ -360,7 +360,6 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         edge: EdgeId,
     },
-    ContextIdentity(terminal_codec::CodecError),
     VerifiedOptimizationUnitProjectionMismatch,
     CandidateInputMismatch,
     CandidateAnalysisContractMismatch,

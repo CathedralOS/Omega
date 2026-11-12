@@ -812,13 +812,17 @@ pub(crate) mod replay {
     use super::{
         OptimizationUnitValidationError, OptimizerCycleComponentSnapshot, PsiOptimizationUnit,
     };
+    /*
+        `terminal_psi` is the context module's identity as the verified input
+        already holds it (`plan.psi`, set when Omega 00 lowered this exact
+        module); re-hashing the module on every validation recomputed it.
+    */
     pub(crate) fn rederive_exact_components(
         module: &terminal_psi::TerminalModule,
+        terminal_psi: terminal_psi::TerminalPsiIdentity,
         seed_functions: &[abstract_operations::AbstractFunction],
         unit: &PsiOptimizationUnit,
     ) -> Result<OptimizerCycleComponentSnapshot, OptimizationUnitValidationError> {
-        let terminal_psi = terminal_codec::terminal_psi_identity(module)
-            .map_err(OptimizationUnitValidationError::ContextIdentity)?;
         super::ordinary::rederive_components(module, seed_functions, unit, terminal_psi)
     }
 }
@@ -908,7 +912,12 @@ pub(crate) fn validate_exact_ranked_cycles(
     unit: &PsiOptimizationUnit,
 ) -> Result<RankedCycleAdmission, OptimizationUnitValidationError> {
     let snapshot =
-        replay::rederive_exact_components(input.context().module(), &input.plan().functions, unit)?;
+        replay::rederive_exact_components(
+            input.context().module(),
+            input.plan().psi,
+            &input.plan().functions,
+            unit,
+        )?;
     let rankings =
         countdown_ranking::rederive_exact_certificates(input.context().module(), unit, &snapshot)?;
     Ok(RankedCycleAdmission { snapshot, rankings })

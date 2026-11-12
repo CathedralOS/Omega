@@ -479,7 +479,6 @@ mod model {
         CallingPlanPairingDrift,
         SourceSignatureSubstitution,
         SourceMachineSubstitution,
-        CanonicalArtifactReplay(String),
         TerminalPsiSubstitution,
         TerminalEntrySubstitution,
         TerminalEntryMultiplicity(usize),
@@ -750,11 +749,11 @@ pub fn validate_native_program_entry_settlement(
     {
         return Err(NativeProgramEntrySettlementError::SourceMachineSubstitution);
     }
-    let psi = terminal_codec::terminal_psi_identity(module).map_err(|error| {
-        NativeProgramEntrySettlementError::CanonicalArtifactReplay(error.to_string())
-    })?;
+    // The canonical artifact derives its manifest identity from its own module
+    // bytes when it is built or decoded, so re-hashing that module here would
+    // only recompute the same value per target.
+    let psi = artifact.manifest().semantic();
     if psi != checked_entry.terminal_psi_identity()
-        || artifact.manifest().semantic() != checked_entry.terminal_psi_identity()
         || program_entry
             .physical_adapter
             .is_some_and(|adapter| adapter.terminal() != psi)

@@ -397,7 +397,7 @@ impl RequestedTerminalCompilation {
                     checked.terminal_native_proposal_request(rollback.effective(), &[])?;
                 let terminal = produced.prepare(request)?;
                 settlement
-                    .with_timings(checked.timings().phases().to_vec())
+                    .with_timings(checked.timings().clone())
                     .finish_terminal(terminal, rollback.into_receipt())?
             }
             CheckedProductReport::Native {
@@ -434,7 +434,7 @@ impl RequestedTerminalCompilation {
                         accounting: std::mem::take(settlement.source_completion_accounting_mut()),
                     })?;
                 let subsystem = checked.build().config.settings.subsystem;
-                let settlement = settlement.with_timings(checked.timings().phases().to_vec());
+                let settlement = settlement.with_timings(checked.timings().clone());
                 return Ok(CompilationOutput::Native(Box::new(
                     compilation_products::PendingNativeProduct {
                         terminal,

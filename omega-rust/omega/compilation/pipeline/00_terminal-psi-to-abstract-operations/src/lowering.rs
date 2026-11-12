@@ -1784,6 +1784,7 @@ pub(crate) fn lower_decoded_module(
 ) -> Result<AbstractOperationPlan, LoweringError> {
     lower_selected_module(
         module,
+        terminal_psi_identity(module).map_err(LoweringError::SemanticIdentity)?,
         entry,
         module.structural_types.clone(),
         None,
@@ -1792,8 +1793,14 @@ pub(crate) fn lower_decoded_module(
     )
 }
 
+/*
+    `psi` is the identity of `module` as its owner already derived it: the
+    canonical artifact's manifest, or one fresh derivation for a decoded module.
+    Lowering carries it into the plan instead of re-hashing the module per target.
+*/
 pub(crate) fn lower_selected_module(
     module: &TerminalModule,
+    psi: terminal_psi::TerminalPsiIdentity,
     entry: semantic_vocabulary::MachineId,
     structural_types: Vec<terminal_psi::StructuralTypeDeclaration>,
     scope: Option<&crate::native_execution_scope::NativeExecutionScope>,
@@ -1847,7 +1854,7 @@ pub(crate) fn lower_selected_module(
         .map(|machine| lower_machine(module, machine, &structural_types, scalar_applications))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(AbstractOperationPlan {
-        psi: terminal_psi_identity(module).map_err(LoweringError::SemanticIdentity)?,
+        psi,
         entry,
         structural_types: abstract_operations::StructuralTypeCatalog::new(
             structural_types,

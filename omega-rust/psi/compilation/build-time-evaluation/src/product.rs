@@ -104,6 +104,7 @@ pub mod native_bindings {
             })?;
         let _ = root;
         let mut selections: Vec<NativeBindingSelection> = Vec::new();
+        let mut digests = typed_trees::product_operand::NativeSourceOccurrenceDigests::default();
         for event in executed {
             let span = event.request.source_span;
             let refuse = |reason| vec![Diagnostic::error(reason).with_source_span(span)];
@@ -133,7 +134,13 @@ pub mod native_bindings {
                     "conflicting native bindings for the same requirement, target and supplier precedence",
                 ));
             }
-            let scope = native_binding_formation(typed, author, Some(root), event.request.clone())
+            let scope = native_binding_formation(
+                typed,
+                &mut digests,
+                author,
+                Some(root),
+                event.request.clone(),
+            )
                 .and_then(|formation| formation.seal(supplier_package))
                 .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(span)])?;
             selections.push(NativeBindingSelection {

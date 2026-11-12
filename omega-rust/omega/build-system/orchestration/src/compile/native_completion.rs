@@ -88,6 +88,7 @@ pub(crate) fn complete_native(
     // incomplete test refuses the application with its exact identity.
     let roster = super::test_execution::run_tests(tests, test_notes)?;
     let image = request.image;
+    let realization_started = std::time::Instant::now();
     let produced = {
         let selected = components
             .as_ref()
@@ -141,6 +142,10 @@ pub(crate) fn complete_native(
             }
         }
     };
+    settlement.timings_mut().add_completed(
+        artifacts::compile_timings::NATIVE_REALIZATION,
+        realization_started.elapsed().as_micros(),
+    );
     let produced = match produced {
         Ok(produced) => produced,
         Err(diagnostics) => {

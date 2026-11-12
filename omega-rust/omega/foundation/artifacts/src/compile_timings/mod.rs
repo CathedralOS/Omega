@@ -56,6 +56,11 @@ pub const SOURCE_ASSEMBLY: StageMeta =
 pub const EXECUTION_SETTLEMENT: StageMeta =
     StageMeta::new("Step: settle", "CheckedTrees", "SelectedExecution");
 
+// One target's realization from the published Terminal artifact: native
+// preparation (Omega 00-09), Build-time scalar completion and image emission.
+pub const NATIVE_REALIZATION: StageMeta =
+    StageMeta::new("Step: realize", "CanonicalTerminalArtifact", "NativeImage");
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PhaseTiming {
     pub phase: String,

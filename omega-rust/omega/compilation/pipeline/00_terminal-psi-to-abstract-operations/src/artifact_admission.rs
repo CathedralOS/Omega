@@ -276,6 +276,7 @@ mod native {
             }
             let plan = crate::lowering::lower_selected_module(
                 module,
+                artifact.manifest().semantic(),
                 entry,
                 structural_types,
                 Some(&scope),

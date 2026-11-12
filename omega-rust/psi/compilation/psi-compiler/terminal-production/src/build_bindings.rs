@@ -41,6 +41,7 @@ mod native_formations {
             }
         };
         let mut scopes: Vec<NativeBindingFormation> = Vec::new();
+        let mut digests = typed_trees::product_operand::NativeSourceOccurrenceDigests::default();
         for machine in checked.machines() {
             for state in checked.machine_states(machine) {
                 for statement in checked.statement_table.statements(state.statement_nodes) {
@@ -63,6 +64,7 @@ mod native_formations {
                         }
                         let scope = typed_trees::product_operand::native_binding_formation(
                             &checked.typed,
+                            &mut digests,
                             machine.symbol,
                             root,
                             request.clone(),

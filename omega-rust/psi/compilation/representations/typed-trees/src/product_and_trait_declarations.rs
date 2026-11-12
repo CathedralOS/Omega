@@ -1483,15 +1483,50 @@ pub mod product_operand {
         Ok(machine.symbol)
     }
 
+    /*
+        The source-occurrence digest of a native formation begins with its whole
+        source file's text, and one Build loop forms many bindings per file. This
+        keeps each file's hashed prefix (domain, relative path, file text) so later
+        formations from that file clone it instead of re-hashing the file; the
+        digest bytes are exactly those of hashing the full sequence afresh.
+        Indexed densely by `SourceId`; scoped to one caller's loop.
+    */
+    #[derive(Default)]
+    pub struct NativeSourceOccurrenceDigests {
+        prefixes: Vec<Option<sha2::Sha256>>,
+    }
+
+    impl NativeSourceOccurrenceDigests {
+        fn prefix(&mut self, source: &source::SourceFile, relative: &str) -> sha2::Sha256 {
+            use sha2::Digest;
+            let index = source.source_id.0;
+            if self.prefixes.len() <= index {
+                self.prefixes.resize(index + 1, None);
+            }
+            self.prefixes[index]
+                .get_or_insert_with(|| {
+                    let mut digest = sha2::Sha256::new();
+                    digest.update(b"omega.native-source-occurrence.v1\0");
+                    for bytes in [relative.as_bytes(), source.source.as_bytes()] {
+                        digest.update((bytes.len() as u64).to_le_bytes());
+                        digest.update(bytes);
+                    }
+                    digest
+                })
+                .clone()
+        }
+    }
+
     pub fn native_binding_formation(
         typed: &TypedTrees,
+        digests: &mut NativeSourceOccurrenceDigests,
         author: SymbolHandle,
         root: Option<SymbolHandle>,
         request: std::sync::Arc<
             language_semantics::declaration_selection::ProductDeclarationRequest,
         >,
     ) -> Result<language_semantics::declaration_selection::NativeBindingFormation, String> {
-        use sha2::{Digest, Sha256};
+        use sha2::Digest;
         let machine = typed
             .machine_by_symbol(author)
             .ok_or("native source author has no exact checked machine")?;
@@ -1514,14 +1549,8 @@ pub mod product_operand {
             .strip_prefix(&source.package_root)
             .map_err(|_| "native source is outside its checked package")?
             .to_string_lossy();
-        let mut digest = Sha256::new();
-        digest.update(b"omega.native-source-occurrence.v1\0");
-        for bytes in [
-            relative.as_bytes(),
-            source.source.as_bytes(),
-            callable_identity.as_bytes(),
-            operand.path.as_bytes(),
-        ] {
+        let mut digest = digests.prefix(source, &relative);
+        for bytes in [callable_identity.as_bytes(), operand.path.as_bytes()] {
             digest.update((bytes.len() as u64).to_le_bytes());
             digest.update(bytes);
         }
