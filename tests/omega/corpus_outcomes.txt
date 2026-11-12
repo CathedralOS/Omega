@@ -6700,31 +6700,31 @@ fail/facts/captured_window_slot_retirement_through_target_body_rejected rejected
 	statement 7 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
 	statement 7 borrows `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7) in machine `ArmProbe::exercise`, state `exercise`, statement 7
 	statement 7 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/case_dependent_default_domain_through_call_result_rejected rejected 7450ms expected @ff6d0a18a03d
+fail/facts/case_dependent_default_domain_through_call_result_rejected rejected 5737ms expected @496931497f92
 	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_const_name_rejected rejected 5137ms expected @ff6d0a18a03d
+fail/facts/case_dependent_default_domain_through_const_name_rejected rejected 6021ms expected @496931497f92
 	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_field_rejected rejected 7388ms expected @ff6d0a18a03d
+fail/facts/case_dependent_default_domain_through_field_rejected rejected 5687ms expected @496931497f92
 	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_local_rejected rejected 9113ms expected @ff6d0a18a03d
+fail/facts/case_dependent_default_domain_through_local_rejected rejected 5255ms expected @496931497f92
 	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_match_join_rejected rejected 10511ms expected @ff6d0a18a03d
+fail/facts/case_dependent_default_domain_through_match_join_rejected rejected 5942ms expected @496931497f92
 	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_other_machine_rejected rejected 8830ms expected @ff6d0a18a03d
+fail/facts/case_dependent_default_domain_through_other_machine_rejected rejected 5460ms expected @496931497f92
 	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_other_state_rejected rejected 8692ms expected @ff6d0a18a03d
+fail/facts/case_dependent_default_domain_through_other_state_rejected rejected 5818ms expected @496931497f92
 	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_parameter_rejected rejected 9478ms expected @ff6d0a18a03d
+fail/facts/case_dependent_default_domain_through_parameter_rejected rejected 5289ms expected @496931497f92
 	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_target_body_rejected rejected 7115ms expected @ff6d0a18a03d
+fail/facts/case_dependent_default_domain_through_target_body_rejected rejected 5407ms expected @496931497f92
 	cannot prove requires contract for call width_range from upper_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/case_match_payload_loan_through_call_result_rejected rejected 1187ms expected @ccdb99ca2214
@@ -22720,16 +22720,15 @@ pass/facts/captured_window_slot_retirement_through_other_machine_exit checked 10
 pass/facts/captured_window_slot_retirement_through_other_state_exit checked 1072ms check-target:macos_arm64 @04f5793fae62
 pass/facts/captured_window_slot_retirement_through_parameter_exit checked 1104ms check-target:macos_arm64 @04f5793fae62
 pass/facts/captured_window_slot_retirement_through_target_body_exit checked 1387ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @04f5793fae62
-pass/facts/case_dependent_default_domain_through_call_result_exit checked 12845ms check-target:macos_arm64 @ff6d0a18a03d
-pass/facts/case_dependent_default_domain_through_const_name_exit checked 13525ms check-target:macos_arm64 @ff6d0a18a03d
-pass/facts/case_dependent_default_domain_through_field_exit checked 12848ms check-target:macos_arm64 @ff6d0a18a03d
-pass/facts/case_dependent_default_domain_through_local_exit checked 13494ms check-target:macos_arm64 @ff6d0a18a03d
-pass/facts/case_dependent_default_domain_through_match_join_exit checked 12853ms check-target:macos_arm64 @ff6d0a18a03d
-pass/facts/case_dependent_default_domain_through_other_machine_exit checked 15809ms check-target:macos_arm64 @ff6d0a18a03d
-pass/facts/case_dependent_default_domain_through_other_state_exit checked 15405ms check-target:macos_arm64 @ff6d0a18a03d
-pass/facts/case_dependent_default_domain_through_parameter_exit checked 15490ms check-target:macos_arm64 @ff6d0a18a03d
-pass/facts/case_dependent_default_domain_through_target_body_exit incomplete 8747ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @dbd0af26d678
-	`pick_named$specialized$4497254f4b4724b8$1$4780` has no executable body: this compiler does not lower a state of it yet (normal result selection omits a completed source arm); in state `pick_named$specialized$4497254f4b4724b8$1$4780::entry`
+pass/facts/case_dependent_default_domain_through_call_result_exit checked 13521ms check-target:macos_arm64 @496931497f92
+pass/facts/case_dependent_default_domain_through_const_name_exit checked 13875ms check-target:macos_arm64 @496931497f92
+pass/facts/case_dependent_default_domain_through_field_exit checked 13039ms check-target:macos_arm64 @496931497f92
+pass/facts/case_dependent_default_domain_through_local_exit checked 13124ms check-target:macos_arm64 @496931497f92
+pass/facts/case_dependent_default_domain_through_match_join_exit checked 13223ms check-target:macos_arm64 @496931497f92
+pass/facts/case_dependent_default_domain_through_other_machine_exit checked 12837ms check-target:macos_arm64 @496931497f92
+pass/facts/case_dependent_default_domain_through_other_state_exit checked 13029ms check-target:macos_arm64 @496931497f92
+pass/facts/case_dependent_default_domain_through_parameter_exit checked 12642ms check-target:macos_arm64 @496931497f92
+pass/facts/case_dependent_default_domain_through_target_body_exit checked 13916ms check-target:macos_arm64 @496931497f92
 pass/facts/case_match_payload_loan_through_call_result_exit checked 3702ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_match_payload_loan_through_const_name_exit checked 4210ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_match_payload_loan_through_field_exit checked 2597ms check-target:macos_arm64 @ccdb99ca2214
