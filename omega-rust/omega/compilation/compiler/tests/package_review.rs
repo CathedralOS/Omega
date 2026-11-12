@@ -1107,6 +1107,22 @@ fn native_binding_keeps_applied_boundary_scopes_through_package_reload() {
             .zip(&candidate.provenance.row_realizations)
             .map(|(row, realization)| {
                 let origin = realization.native().expect("actual native row");
+                let application = checked
+                    .typed
+                    .product_operand_applications
+                    .get(origin.application.expect("prepared native application"));
+                let scope = application.scope.scope(&checked.typed).unwrap();
+                let outer = scope
+                    .portable_application_identity(&checked.typed)
+                    .and_then(|identity| checked.typed.type_identity_text(identity))
+                    .expect("exact portable outer application");
+                assert_eq!(
+                    candidate.plan.schema.root_application_identity(),
+                    Some(outer.as_str()),
+                    "native schema must retain its checked boundary application; selected application: {}; receivers: {:?}",
+                    candidate.plan.identities.text(candidate.plan.provider_application),
+                    candidate.plan.schema.declaration.receiver_applications,
+                );
                 ProviderDeclarationRow {
                     requirement: origin.requirement,
                     origin: ProviderDeclarationOrigin::BuildNative {
