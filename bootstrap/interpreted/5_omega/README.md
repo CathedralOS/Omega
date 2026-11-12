@@ -43,10 +43,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 21,758 lines / 802,399 bytes with SHA-256
-`2053a19e7de2930b37bba7ff474ddfb876330ffd56769786520e7c8ad5743826`.
+manifest materializes 21,760 lines / 802,467 bytes with SHA-256
+`b822576f03fb8e9ea8868b350fe45cc50c0484e4f6cee590be4ef89d95a5eaa4`.
 The manifest itself is 1,674 bytes, SHA-256
-`61bc043c92d7fa2560ce3c6a98938e5bd0ee7f5c56c07f426283439b985aaea7`;
+`29a5cabc70989102dcfcaf492266b1d1d5e675a330ddc9bd6ed7077f4a460f24`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
