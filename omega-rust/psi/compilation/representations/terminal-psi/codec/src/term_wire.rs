@@ -11,7 +11,7 @@ pub(crate) mod content_wire {
     use semantic_vocabulary::{
         ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
         ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
-        ContentStructuralPlace, ContentTerm, StructuralPlaceKind,
+        ContentStructuralPlace, ContentTerm, PropositionError, StructuralPlaceKind,
     };
     use terminal_psi::{
         ClaimContentProjection, ContentBackingAddressTransport, ContentBodyProjectionSubstitution,
@@ -21,12 +21,12 @@ pub(crate) mod content_wire {
         ContentTransformationCustody, ContentTransformationDerivation, StructuralPlaceDeclaration,
     };
 
+    use super::CodecError;
     use super::wire::{Reader, Writer};
     use super::wire_fields::{
         ContentAlgebra as Algebra, Field, Id, Ids, List, ProjectionIdentity, Text, U64, wire_enum,
         wire_record,
     };
-    use super::{CodecError, MAX_CONTENT_TERM_DEPTH};
     use crate::sections::semantic_module::structural_place_wire::{
         decode_structural_place_kind, encode_structural_place_kind,
     };
@@ -129,14 +129,14 @@ pub(crate) mod content_wire {
     impl Field<ContentConservation> for Conservation {
         fn write(writer: &mut Writer, value: &ContentConservation) -> Result<(), CodecError> {
             encode_content_algebra(writer, value.algebra())?;
-            encode_content_term(writer, value.left(), 0)?;
-            encode_content_term(writer, value.right(), 0)
+            encode_content_term(writer, value.left())?;
+            encode_content_term(writer, value.right())
         }
         fn read(reader: &mut Reader<'_>) -> Result<ContentConservation, CodecError> {
             Ok(ContentConservation::new(
                 decode_content_algebra(reader)?,
-                decode_content_term(reader, 0)?,
-                decode_content_term(reader, 0)?,
+                decode_content_term(reader)?,
+                decode_content_term(reader)?,
             ))
         }
     }
@@ -144,10 +144,10 @@ pub(crate) mod content_wire {
     struct Term;
     impl Field<ContentTerm> for Term {
         fn write(writer: &mut Writer, value: &ContentTerm) -> Result<(), CodecError> {
-            encode_content_term(writer, value, 0)
+            encode_content_term(writer, value)
         }
         fn read(reader: &mut Reader<'_>) -> Result<ContentTerm, CodecError> {
-            decode_content_term(reader, 0)
+            decode_content_term(reader)
         }
     }
 
@@ -179,33 +179,42 @@ pub(crate) mod content_wire {
         writer.string("content algebra parameter", &algebra.parameter)
     }
 
+    /// A separation's members are projections, never separations, so this
+    /// encoding nests at most once and needs no table.
     pub(crate) fn encode_content_term(
         writer: &mut Writer,
         term: &ContentTerm,
-        depth: usize,
     ) -> Result<(), CodecError> {
-        if depth > MAX_CONTENT_TERM_DEPTH {
-            return Err(CodecError::ContentTermNestingTooDeep);
-        }
         match term {
-            ContentTerm::Projection {
-                projection,
-                subject,
-            } => {
-                writer.u8(1);
-                writer.id(projection.domain);
-                writer.u64(projection.projection_report_fingerprint);
-                ContentPlace::write(writer, subject)?;
-            }
+            ContentTerm::Projection { .. } => encode_content_projection(writer, term),
             ContentTerm::Separate(terms) => {
                 writer.u8(2);
                 writer.len("separated content terms", terms.len())?;
                 for term in terms {
-                    encode_content_term(writer, term, depth + 1)?;
+                    encode_content_projection(writer, term)?;
                 }
+                Ok(())
             }
         }
-        Ok(())
+    }
+
+    fn encode_content_projection(
+        writer: &mut Writer,
+        term: &ContentTerm,
+    ) -> Result<(), CodecError> {
+        let ContentTerm::Projection {
+            projection,
+            subject,
+        } = term
+        else {
+            return Err(CodecError::MalformedProposition(
+                PropositionError::NestedContentSeparation,
+            ));
+        };
+        writer.u8(1);
+        writer.id(projection.domain);
+        writer.u64(projection.projection_report_fingerprint);
+        ContentPlace::write(writer, subject)
     }
 
     pub(crate) fn decode_content_algebra(
@@ -222,30 +231,31 @@ pub(crate) mod content_wire {
         })
     }
 
-    pub(crate) fn decode_content_term(
-        reader: &mut Reader<'_>,
-        depth: usize,
-    ) -> Result<ContentTerm, CodecError> {
-        if depth > MAX_CONTENT_TERM_DEPTH {
-            return Err(CodecError::ContentTermNestingTooDeep);
-        }
-        Ok(match reader.u8()? {
-            1 => {
-                let projection = ContentProjectionIdentity {
-                    domain: reader.id::<ContentDomainId>("ContentDomainId")?,
-                    projection_report_fingerprint: reader.u64()?,
-                };
-                ContentTerm::Projection {
-                    projection,
-                    subject: ContentPlace::read(reader)?,
-                }
-            }
+    pub(crate) fn decode_content_term(reader: &mut Reader<'_>) -> Result<ContentTerm, CodecError> {
+        match reader.u8()? {
+            1 => decode_content_projection(reader),
             2 => {
-                let terms =
-                    decode_counted(reader, |reader| decode_content_term(reader, depth + 1))?;
-                ContentTerm::separate(terms).map_err(CodecError::MalformedProposition)?
+                let terms = decode_counted(reader, |reader| match reader.u8()? {
+                    1 => decode_content_projection(reader),
+                    2 => Err(CodecError::MalformedProposition(
+                        PropositionError::NestedContentSeparation,
+                    )),
+                    tag => Err(CodecError::InvalidTag("ContentTerm", tag)),
+                })?;
+                ContentTerm::separate(terms).map_err(CodecError::MalformedProposition)
             }
-            tag => return Err(CodecError::InvalidTag("ContentTerm", tag)),
+            tag => Err(CodecError::InvalidTag("ContentTerm", tag)),
+        }
+    }
+
+    fn decode_content_projection(reader: &mut Reader<'_>) -> Result<ContentTerm, CodecError> {
+        let projection = ContentProjectionIdentity {
+            domain: reader.id::<ContentDomainId>("ContentDomainId")?,
+            projection_report_fingerprint: reader.u64()?,
+        };
+        Ok(ContentTerm::Projection {
+            projection,
+            subject: ContentPlace::read(reader)?,
         })
     }
 }
@@ -321,10 +331,10 @@ pub(crate) mod contract_wire {
     pub(crate) struct CrashPredicate;
     impl Field<CrashPredicateTerm> for CrashPredicate {
         fn write(writer: &mut Writer, value: &CrashPredicateTerm) -> Result<(), CodecError> {
-            encode_proposition(writer, value.proposition(), 0)
+            encode_proposition(writer, value.proposition())
         }
         fn read(reader: &mut Reader<'_>) -> Result<CrashPredicateTerm, CodecError> {
-            Ok(CrashPredicateTerm::new(decode_proposition(reader, 0)?))
+            Ok(CrashPredicateTerm::new(decode_proposition(reader)?))
         }
     }
 }
@@ -333,97 +343,116 @@ pub(crate) mod integer_math_term_wire {
 
     use semantic_vocabulary::{IntegerMathLiteral, IntegerMathTerm};
 
+    use super::CodecError;
     use super::scalar_term_wire::{decode_scalar_term, encode_scalar_term};
     use super::scalar_wire::{decode_integer_type, encode_integer_type};
     use super::wire::{Reader, Writer};
-    use super::{CodecError, MAX_SCALAR_TERM_DEPTH};
+    use crate::term_table::{TableChildren, TableTerm, decode_term_table, encode_term_table};
 
+    /// Encodes one integer math term as a postorder table; an embedded scalar
+    /// term is its own scalar table inside the embedding row.
     pub(crate) fn encode_integer_math_term(
         writer: &mut Writer,
         term: &IntegerMathTerm,
-        depth: usize,
     ) -> Result<(), CodecError> {
-        if depth > MAX_SCALAR_TERM_DEPTH {
-            return Err(CodecError::ScalarTermNestingTooDeep);
-        }
-        match term {
-            IntegerMathTerm::Embed(term) => {
-                writer.u8(7);
-                encode_scalar_term(writer, term, depth + 1)?;
-            }
-            IntegerMathTerm::IntegerLiteral(literal) => {
-                writer.u8(1);
-                writer.boolean(literal.negative());
-                writer.bytes(&literal.magnitude().to_le_bytes());
-            }
-            IntegerMathTerm::MathValue { source_type, value } => {
-                writer.u8(2);
-                encode_integer_type(writer, *source_type);
-                writer.id(*value);
-            }
-            IntegerMathTerm::Add(left, right)
-            | IntegerMathTerm::Subtract(left, right)
-            | IntegerMathTerm::Multiply(left, right) => {
-                writer.u8(match term {
-                    IntegerMathTerm::Add(_, _) => 3,
-                    IntegerMathTerm::Subtract(_, _) => 4,
-                    IntegerMathTerm::Multiply(_, _) => 5,
-                    _ => unreachable!(),
-                });
-                encode_integer_math_term(writer, left, depth + 1)?;
-                encode_integer_math_term(writer, right, depth + 1)?;
-            }
-            IntegerMathTerm::ShiftLeft { value, count } => {
-                writer.u8(6);
-                encode_integer_math_term(writer, value, depth + 1)?;
-                encode_integer_math_term(writer, count, depth + 1)?;
-            }
-        }
-        Ok(())
+        encode_term_table(writer, term)
     }
 
     pub(crate) fn decode_integer_math_term(
         reader: &mut Reader<'_>,
-        depth: usize,
     ) -> Result<IntegerMathTerm, CodecError> {
-        if depth > MAX_SCALAR_TERM_DEPTH {
-            return Err(CodecError::ScalarTermNestingTooDeep);
+        decode_term_table(reader)
+    }
+
+    impl TableTerm for IntegerMathTerm {
+        const LABEL: &'static str = "integer math term";
+
+        fn children<'term>(&'term self, children: &mut Vec<&'term Self>) {
+            match self {
+                IntegerMathTerm::Add(left, right)
+                | IntegerMathTerm::Subtract(left, right)
+                | IntegerMathTerm::Multiply(left, right)
+                | IntegerMathTerm::ShiftLeft {
+                    value: left,
+                    count: right,
+                } => children.extend([left.as_ref(), right.as_ref()]),
+                IntegerMathTerm::Embed(_)
+                | IntegerMathTerm::IntegerLiteral(_)
+                | IntegerMathTerm::MathValue { .. } => {}
+            }
         }
-        Ok(match reader.u8()? {
-            7 => IntegerMathTerm::Embed(Box::new(decode_scalar_term(reader, depth + 1)?)),
-            1 => IntegerMathTerm::IntegerLiteral(
-                IntegerMathLiteral::new(
-                    match reader.u8()? {
-                        0 => false,
-                        1 => true,
-                        tag => return Err(CodecError::InvalidTag("Boolean", tag)),
-                    },
-                    u128::from_le_bytes(reader.array()?),
-                )
-                .map_err(CodecError::MalformedProposition)?,
-            ),
-            2 => IntegerMathTerm::MathValue {
-                source_type: decode_integer_type(reader)?,
-                value: reader.id("ValueId")?,
-            },
-            3 => IntegerMathTerm::Add(
-                Box::new(decode_integer_math_term(reader, depth + 1)?),
-                Box::new(decode_integer_math_term(reader, depth + 1)?),
-            ),
-            4 => IntegerMathTerm::Subtract(
-                Box::new(decode_integer_math_term(reader, depth + 1)?),
-                Box::new(decode_integer_math_term(reader, depth + 1)?),
-            ),
-            5 => IntegerMathTerm::Multiply(
-                Box::new(decode_integer_math_term(reader, depth + 1)?),
-                Box::new(decode_integer_math_term(reader, depth + 1)?),
-            ),
-            6 => IntegerMathTerm::ShiftLeft {
-                value: Box::new(decode_integer_math_term(reader, depth + 1)?),
-                count: Box::new(decode_integer_math_term(reader, depth + 1)?),
-            },
-            tag => return Err(CodecError::InvalidTag("IntegerMathTerm", tag)),
-        })
+
+        fn write_row(&self, writer: &mut Writer) -> Result<(), CodecError> {
+            match self {
+                IntegerMathTerm::Embed(term) => {
+                    writer.u8(7);
+                    encode_scalar_term(writer, term)?;
+                }
+                IntegerMathTerm::IntegerLiteral(literal) => {
+                    writer.u8(1);
+                    writer.boolean(literal.negative());
+                    writer.bytes(&literal.magnitude().to_le_bytes());
+                }
+                IntegerMathTerm::MathValue { source_type, value } => {
+                    writer.u8(2);
+                    encode_integer_type(writer, *source_type);
+                    writer.id(*value);
+                }
+                IntegerMathTerm::Add(_, _) => writer.u8(3),
+                IntegerMathTerm::Subtract(_, _) => writer.u8(4),
+                IntegerMathTerm::Multiply(_, _) => writer.u8(5),
+                IntegerMathTerm::ShiftLeft { .. } => writer.u8(6),
+            }
+            Ok(())
+        }
+
+        fn read_row(
+            reader: &mut Reader<'_>,
+            children: &mut TableChildren<'_, Self>,
+        ) -> Result<Self, CodecError> {
+            let mut pair = |reader: &mut Reader<'_>| {
+                let mut operands = children.take(reader, 2)?.into_iter();
+                match (operands.next(), operands.next()) {
+                    (Some(left), Some(right)) => Ok((Box::new(left), Box::new(right))),
+                    _ => Err(CodecError::NonCanonicalTermTable(Self::LABEL)),
+                }
+            };
+            Ok(match reader.u8()? {
+                7 => IntegerMathTerm::Embed(Box::new(decode_scalar_term(reader)?)),
+                1 => IntegerMathTerm::IntegerLiteral(
+                    IntegerMathLiteral::new(
+                        match reader.u8()? {
+                            0 => false,
+                            1 => true,
+                            tag => return Err(CodecError::InvalidTag("Boolean", tag)),
+                        },
+                        u128::from_le_bytes(reader.array()?),
+                    )
+                    .map_err(CodecError::MalformedProposition)?,
+                ),
+                2 => IntegerMathTerm::MathValue {
+                    source_type: decode_integer_type(reader)?,
+                    value: reader.id("ValueId")?,
+                },
+                3 => {
+                    let (left, right) = pair(reader)?;
+                    IntegerMathTerm::Add(left, right)
+                }
+                4 => {
+                    let (left, right) = pair(reader)?;
+                    IntegerMathTerm::Subtract(left, right)
+                }
+                5 => {
+                    let (left, right) = pair(reader)?;
+                    IntegerMathTerm::Multiply(left, right)
+                }
+                6 => {
+                    let (value, count) = pair(reader)?;
+                    IntegerMathTerm::ShiftLeft { value, count }
+                }
+                tag => return Err(CodecError::InvalidTag("IntegerMathTerm", tag)),
+            })
+        }
     }
 }
 
@@ -440,8 +469,6 @@ pub(crate) mod mathematical_certificate_wire {
 
     const MAGIC: &[u8; 8] = b"PSICORE\0";
     const FORMAT_MARKER: u16 = 3;
-    const MAX_MATHEMATICAL_TERM_DEPTH: u32 = 256;
-    const MAX_MATHEMATICAL_LEVEL_DEPTH: u32 = 256;
 
     pub struct DecodedMathematicalCertificate {
         pub arena: TermArena,
@@ -454,16 +481,16 @@ pub(crate) mod mathematical_certificate_wire {
     ) -> Result<Vec<u8>, CodecError> {
         let mut term_writer = MathematicalTermWriter::new(arena);
         for declaration in &certificate.signature {
-            term_writer.encode_term(declaration.ty, 0)?;
+            term_writer.encode_term(declaration.ty)?;
             if let Some(body) = declaration.body {
-                term_writer.encode_term(body, 0)?;
+                term_writer.encode_term(body)?;
             }
         }
         for &binding in &certificate.context {
-            term_writer.encode_term(binding, 0)?;
+            term_writer.encode_term(binding)?;
         }
-        term_writer.encode_term(certificate.term, 0)?;
-        term_writer.encode_term(certificate.expected, 0)?;
+        term_writer.encode_term(certificate.term)?;
+        term_writer.encode_term(certificate.expected)?;
 
         let MathematicalTermWriter {
             nodes,
@@ -523,15 +550,8 @@ pub(crate) mod mathematical_certificate_wire {
                 let node_count = bounded_count(reader, 1)?;
                 let mut arena = TermArena::new();
                 let mut handles = Vec::with_capacity(node_count);
-                let mut depths = Vec::with_capacity(node_count);
                 for _ in 0..node_count {
-                    let (term, depth) = decode_term(reader, &handles, &depths)?;
-                    if depth > MAX_MATHEMATICAL_TERM_DEPTH {
-                        return Err(CodecError::MalformedMathematicalCertificate(
-                            "mathematical term nesting too deep",
-                        ));
-                    }
-                    depths.push(depth);
+                    let term = decode_term(reader, &handles)?;
                     handles.push(arena.insert(term));
                 }
                 let signature_count = bounded_count(reader, 1)?;
@@ -589,15 +609,92 @@ pub(crate) mod mathematical_certificate_wire {
             }
         }
 
-        fn encode_term(&mut self, handle: TermHandle, depth: u32) -> Result<u32, CodecError> {
-            if let Some(&index) = self.by_handle.get(&handle) {
-                return Ok(index);
+        /// The term's children in the order its row names them.
+        fn children(term: &Term) -> Vec<TermHandle> {
+            match *term {
+                Term::Pi { domain, codomain } => vec![domain, codomain],
+                Term::Lambda { domain, body } => vec![domain, body],
+                Term::Apply { function, argument } => vec![function, argument],
+                Term::Sigma { domain, codomain } => vec![domain, codomain],
+                Term::Pair { first, second } => vec![first, second],
+                Term::Fst { pair } => vec![pair],
+                Term::Snd { pair } => vec![pair],
+                Term::CaseTwo {
+                    motive,
+                    zero_branch,
+                    one_branch,
+                    scrutinee,
+                } => vec![motive, zero_branch, one_branch, scrutinee],
+                Term::Id { ty, left, right } => vec![ty, left, right],
+                Term::Refl { ty, value } => vec![ty, value],
+                Term::IdElim {
+                    motive,
+                    base,
+                    endpoint,
+                    proof,
+                } => vec![motive, base, endpoint, proof],
+                Term::W { carrier, children } => vec![carrier, children],
+                Term::Sup {
+                    carrier,
+                    children,
+                    label,
+                    function,
+                } => vec![carrier, children, label, function],
+                Term::IndW { motive, step, tree } => vec![motive, step, tree],
+                Term::EmptyElim { ty, scrutinee } => vec![ty, scrutinee],
+                Term::Squash { ty } => vec![ty],
+                Term::SquashIntro { ty, value } => vec![ty, value],
+                Term::SquashElim {
+                    proposition,
+                    function,
+                    scrutinee,
+                } => vec![proposition, function, scrutinee],
+                Term::Box { ty } => vec![ty],
+                Term::BoxIntro { ty, value } => vec![ty, value],
+                Term::BoxElim {
+                    motive,
+                    body,
+                    scrutinee,
+                } => vec![motive, body, scrutinee],
+                _ => Vec::new(),
             }
-            if depth >= MAX_MATHEMATICAL_TERM_DEPTH {
-                return Err(CodecError::MalformedMathematicalCertificate(
-                    "mathematical term nesting too deep",
-                ));
+        }
+
+        /// Appends `handle` and every term it reaches, children before parents,
+        /// with an explicit stack; returns `handle`'s row index.
+        fn encode_term(&mut self, handle: TermHandle) -> Result<u32, CodecError> {
+            enum Step {
+                Visit(TermHandle),
+                Emit(TermHandle),
             }
+            let mut pending = vec![Step::Visit(handle)];
+            while let Some(step) = pending.pop() {
+                match step {
+                    Step::Visit(handle) => {
+                        if self.by_handle.contains_key(&handle) {
+                            continue;
+                        }
+                        let term = self.arena.get(handle);
+                        if matches!(term, Term::Dummy) {
+                            return Err(CodecError::MalformedMathematicalCertificate(
+                                "dummy term cannot be certified",
+                            ));
+                        }
+                        pending.push(Step::Emit(handle));
+                        pending.extend(Self::children(&term).into_iter().rev().map(Step::Visit));
+                    }
+                    Step::Emit(handle) => {
+                        if !self.by_handle.contains_key(&handle) {
+                            self.emit(handle)?;
+                        }
+                    }
+                }
+            }
+            Ok(self.by_handle[&handle])
+        }
+
+        /// Writes one row whose children already have rows.
+        fn emit(&mut self, handle: TermHandle) -> Result<(), CodecError> {
             let mut node = Writer::default();
             match self.arena.get(handle) {
                 Term::Dummy => {
@@ -614,47 +711,47 @@ pub(crate) mod mathematical_certificate_wire {
                     encode_sort(&mut node, sort)?;
                 }
                 Term::Pi { domain, codomain } => {
-                    let domain = self.encode_term(domain, depth + 1)?;
-                    let codomain = self.encode_term(codomain, depth + 1)?;
+                    let domain = self.by_handle[&domain];
+                    let codomain = self.by_handle[&codomain];
                     node.u8(3);
                     node.u32(domain);
                     node.u32(codomain);
                 }
                 Term::Lambda { domain, body } => {
-                    let domain = self.encode_term(domain, depth + 1)?;
-                    let body = self.encode_term(body, depth + 1)?;
+                    let domain = self.by_handle[&domain];
+                    let body = self.by_handle[&body];
                     node.u8(4);
                     node.u32(domain);
                     node.u32(body);
                 }
                 Term::Apply { function, argument } => {
-                    let function = self.encode_term(function, depth + 1)?;
-                    let argument = self.encode_term(argument, depth + 1)?;
+                    let function = self.by_handle[&function];
+                    let argument = self.by_handle[&argument];
                     node.u8(5);
                     node.u32(function);
                     node.u32(argument);
                 }
                 Term::Sigma { domain, codomain } => {
-                    let domain = self.encode_term(domain, depth + 1)?;
-                    let codomain = self.encode_term(codomain, depth + 1)?;
+                    let domain = self.by_handle[&domain];
+                    let codomain = self.by_handle[&codomain];
                     node.u8(6);
                     node.u32(domain);
                     node.u32(codomain);
                 }
                 Term::Pair { first, second } => {
-                    let first = self.encode_term(first, depth + 1)?;
-                    let second = self.encode_term(second, depth + 1)?;
+                    let first = self.by_handle[&first];
+                    let second = self.by_handle[&second];
                     node.u8(7);
                     node.u32(first);
                     node.u32(second);
                 }
                 Term::Fst { pair } => {
-                    let pair = self.encode_term(pair, depth + 1)?;
+                    let pair = self.by_handle[&pair];
                     node.u8(8);
                     node.u32(pair);
                 }
                 Term::Snd { pair } => {
-                    let pair = self.encode_term(pair, depth + 1)?;
+                    let pair = self.by_handle[&pair];
                     node.u8(9);
                     node.u32(pair);
                 }
@@ -673,10 +770,10 @@ pub(crate) mod mathematical_certificate_wire {
                     one_branch,
                     scrutinee,
                 } => {
-                    let motive = self.encode_term(motive, depth + 1)?;
-                    let zero_branch = self.encode_term(zero_branch, depth + 1)?;
-                    let one_branch = self.encode_term(one_branch, depth + 1)?;
-                    let scrutinee = self.encode_term(scrutinee, depth + 1)?;
+                    let motive = self.by_handle[&motive];
+                    let zero_branch = self.by_handle[&zero_branch];
+                    let one_branch = self.by_handle[&one_branch];
+                    let scrutinee = self.by_handle[&scrutinee];
                     node.u8(13);
                     node.u32(motive);
                     node.u32(zero_branch);
@@ -684,17 +781,17 @@ pub(crate) mod mathematical_certificate_wire {
                     node.u32(scrutinee);
                 }
                 Term::Id { ty, left, right } => {
-                    let ty = self.encode_term(ty, depth + 1)?;
-                    let left = self.encode_term(left, depth + 1)?;
-                    let right = self.encode_term(right, depth + 1)?;
+                    let ty = self.by_handle[&ty];
+                    let left = self.by_handle[&left];
+                    let right = self.by_handle[&right];
                     node.u8(14);
                     node.u32(ty);
                     node.u32(left);
                     node.u32(right);
                 }
                 Term::Refl { ty, value } => {
-                    let ty = self.encode_term(ty, depth + 1)?;
-                    let value = self.encode_term(value, depth + 1)?;
+                    let ty = self.by_handle[&ty];
+                    let value = self.by_handle[&value];
                     node.u8(15);
                     node.u32(ty);
                     node.u32(value);
@@ -705,10 +802,10 @@ pub(crate) mod mathematical_certificate_wire {
                     endpoint,
                     proof,
                 } => {
-                    let motive = self.encode_term(motive, depth + 1)?;
-                    let base = self.encode_term(base, depth + 1)?;
-                    let endpoint = self.encode_term(endpoint, depth + 1)?;
-                    let proof = self.encode_term(proof, depth + 1)?;
+                    let motive = self.by_handle[&motive];
+                    let base = self.by_handle[&base];
+                    let endpoint = self.by_handle[&endpoint];
+                    let proof = self.by_handle[&proof];
                     node.u8(16);
                     node.u32(motive);
                     node.u32(base);
@@ -716,8 +813,8 @@ pub(crate) mod mathematical_certificate_wire {
                     node.u32(proof);
                 }
                 Term::W { carrier, children } => {
-                    let carrier = self.encode_term(carrier, depth + 1)?;
-                    let children = self.encode_term(children, depth + 1)?;
+                    let carrier = self.by_handle[&carrier];
+                    let children = self.by_handle[&children];
                     node.u8(17);
                     node.u32(carrier);
                     node.u32(children);
@@ -728,10 +825,10 @@ pub(crate) mod mathematical_certificate_wire {
                     label,
                     function,
                 } => {
-                    let carrier = self.encode_term(carrier, depth + 1)?;
-                    let children = self.encode_term(children, depth + 1)?;
-                    let label = self.encode_term(label, depth + 1)?;
-                    let function = self.encode_term(function, depth + 1)?;
+                    let carrier = self.by_handle[&carrier];
+                    let children = self.by_handle[&children];
+                    let label = self.by_handle[&label];
+                    let function = self.by_handle[&function];
                     node.u8(18);
                     node.u32(carrier);
                     node.u32(children);
@@ -739,9 +836,9 @@ pub(crate) mod mathematical_certificate_wire {
                     node.u32(function);
                 }
                 Term::IndW { motive, step, tree } => {
-                    let motive = self.encode_term(motive, depth + 1)?;
-                    let step = self.encode_term(step, depth + 1)?;
-                    let tree = self.encode_term(tree, depth + 1)?;
+                    let motive = self.by_handle[&motive];
+                    let step = self.by_handle[&step];
+                    let tree = self.by_handle[&tree];
                     node.u8(19);
                     node.u32(motive);
                     node.u32(step);
@@ -755,27 +852,27 @@ pub(crate) mod mathematical_certificate_wire {
                     node.u32(declaration);
                     node.len("constant level arguments", levels.len())?;
                     for level in levels {
-                        encode_level(&mut node, level, 0)?;
+                        encode_level(&mut node, level)?;
                     }
                 }
                 Term::Empty => {
                     node.u8(21);
                 }
                 Term::EmptyElim { ty, scrutinee } => {
-                    let ty = self.encode_term(ty, depth + 1)?;
-                    let scrutinee = self.encode_term(scrutinee, depth + 1)?;
+                    let ty = self.by_handle[&ty];
+                    let scrutinee = self.by_handle[&scrutinee];
                     node.u8(22);
                     node.u32(ty);
                     node.u32(scrutinee);
                 }
                 Term::Squash { ty } => {
-                    let ty = self.encode_term(ty, depth + 1)?;
+                    let ty = self.by_handle[&ty];
                     node.u8(23);
                     node.u32(ty);
                 }
                 Term::SquashIntro { ty, value } => {
-                    let ty = self.encode_term(ty, depth + 1)?;
-                    let value = self.encode_term(value, depth + 1)?;
+                    let ty = self.by_handle[&ty];
+                    let value = self.by_handle[&value];
                     node.u8(24);
                     node.u32(ty);
                     node.u32(value);
@@ -785,22 +882,22 @@ pub(crate) mod mathematical_certificate_wire {
                     function,
                     scrutinee,
                 } => {
-                    let proposition = self.encode_term(proposition, depth + 1)?;
-                    let function = self.encode_term(function, depth + 1)?;
-                    let scrutinee = self.encode_term(scrutinee, depth + 1)?;
+                    let proposition = self.by_handle[&proposition];
+                    let function = self.by_handle[&function];
+                    let scrutinee = self.by_handle[&scrutinee];
                     node.u8(25);
                     node.u32(proposition);
                     node.u32(function);
                     node.u32(scrutinee);
                 }
                 Term::Box { ty } => {
-                    let ty = self.encode_term(ty, depth + 1)?;
+                    let ty = self.by_handle[&ty];
                     node.u8(26);
                     node.u32(ty);
                 }
                 Term::BoxIntro { ty, value } => {
-                    let ty = self.encode_term(ty, depth + 1)?;
-                    let value = self.encode_term(value, depth + 1)?;
+                    let ty = self.by_handle[&ty];
+                    let value = self.by_handle[&value];
                     node.u8(27);
                     node.u32(ty);
                     node.u32(value);
@@ -810,9 +907,9 @@ pub(crate) mod mathematical_certificate_wire {
                     body,
                     scrutinee,
                 } => {
-                    let motive = self.encode_term(motive, depth + 1)?;
-                    let body = self.encode_term(body, depth + 1)?;
-                    let scrutinee = self.encode_term(scrutinee, depth + 1)?;
+                    let motive = self.by_handle[&motive];
+                    let body = self.by_handle[&body];
+                    let scrutinee = self.by_handle[&scrutinee];
                     node.u8(28);
                     node.u32(motive);
                     node.u32(body);
@@ -822,14 +919,14 @@ pub(crate) mod mathematical_certificate_wire {
             let bytes = node.finish();
             if let Some(&index) = self.by_bytes.get(&bytes) {
                 self.by_handle.insert(handle, index);
-                return Ok(index);
+                return Ok(());
             }
             let index = self.count;
             self.nodes.bytes(&bytes);
             self.by_bytes.insert(bytes, index);
             self.by_handle.insert(handle, index);
             self.count += 1;
-            Ok(index)
+            Ok(())
         }
     }
 
@@ -839,17 +936,13 @@ pub(crate) mod mathematical_certificate_wire {
             Sort::Strict(_) => 2,
         };
         writer.u8(tag);
-        encode_level(writer, sort.level(), 0)
+        encode_level(writer, sort.level())
     }
 
-    fn encode_level(writer: &mut Writer, level: Level, depth: u32) -> Result<(), CodecError> {
-        let mut pending = vec![(&level, depth)];
-        while let Some((level, depth)) = pending.pop() {
-            if depth >= MAX_MATHEMATICAL_LEVEL_DEPTH {
-                return Err(CodecError::MalformedMathematicalCertificate(
-                    "level nesting too deep",
-                ));
-            }
+    /// Levels stay inline in prefix order: constructor tag, then operands.
+    fn encode_level(writer: &mut Writer, level: Level) -> Result<(), CodecError> {
+        let mut pending = vec![&level];
+        while let Some(level) = pending.pop() {
             match level {
                 Level::Constant(value) => {
                     writer.u8(1);
@@ -861,24 +954,20 @@ pub(crate) mod mathematical_certificate_wire {
                 }
                 Level::Successor(inner) => {
                     writer.u8(3);
-                    pending.push((inner, depth + 1));
+                    pending.push(inner);
                 }
                 Level::Maximum(left, right) => {
                     writer.u8(4);
-                    pending.push((right, depth + 1));
-                    pending.push((left, depth + 1));
+                    pending.push(right);
+                    pending.push(left);
                 }
             }
         }
         Ok(())
     }
 
-    fn decode_term(
-        reader: &mut Reader<'_>,
-        handles: &[TermHandle],
-        depths: &[u32],
-    ) -> Result<(Term, u32), CodecError> {
-        let child = |reader: &mut Reader<'_>| -> Result<(TermHandle, u32), CodecError> {
+    fn decode_term(reader: &mut Reader<'_>, handles: &[TermHandle]) -> Result<Term, CodecError> {
+        let child = |reader: &mut Reader<'_>| -> Result<TermHandle, CodecError> {
             let index = usize::try_from(reader.u32()?).map_err(|_| {
                 CodecError::MalformedMathematicalCertificate("term child index too large")
             })?;
@@ -887,213 +976,156 @@ pub(crate) mod mathematical_certificate_wire {
                     "term child does not precede its parent",
                 ));
             }
-            Ok((handles[index], depths[index]))
+            Ok(handles[index])
         };
         Ok(match reader.u8()? {
-            1 => (Term::Variable(reader.u32()?), 1),
-            2 => (Term::Sort(decode_sort(reader)?), 1),
+            1 => Term::Variable(reader.u32()?),
+            2 => Term::Sort(decode_sort(reader)?),
             3 => {
-                let (domain, domain_depth) = child(reader)?;
-                let (codomain, codomain_depth) = child(reader)?;
-                (
-                    Term::Pi { domain, codomain },
-                    1 + domain_depth.max(codomain_depth),
-                )
+                let domain = child(reader)?;
+                let codomain = child(reader)?;
+                Term::Pi { domain, codomain }
             }
             4 => {
-                let (domain, domain_depth) = child(reader)?;
-                let (body, body_depth) = child(reader)?;
-                (
-                    Term::Lambda { domain, body },
-                    1 + domain_depth.max(body_depth),
-                )
+                let domain = child(reader)?;
+                let body = child(reader)?;
+                Term::Lambda { domain, body }
             }
             5 => {
-                let (function, function_depth) = child(reader)?;
-                let (argument, argument_depth) = child(reader)?;
-                (
-                    Term::Apply { function, argument },
-                    1 + function_depth.max(argument_depth),
-                )
+                let function = child(reader)?;
+                let argument = child(reader)?;
+                Term::Apply { function, argument }
             }
             6 => {
-                let (domain, domain_depth) = child(reader)?;
-                let (codomain, codomain_depth) = child(reader)?;
-                (
-                    Term::Sigma { domain, codomain },
-                    1 + domain_depth.max(codomain_depth),
-                )
+                let domain = child(reader)?;
+                let codomain = child(reader)?;
+                Term::Sigma { domain, codomain }
             }
             7 => {
-                let (first, first_depth) = child(reader)?;
-                let (second, second_depth) = child(reader)?;
-                (
-                    Term::Pair { first, second },
-                    1 + first_depth.max(second_depth),
-                )
+                let first = child(reader)?;
+                let second = child(reader)?;
+                Term::Pair { first, second }
             }
             8 => {
-                let (pair, pair_depth) = child(reader)?;
-                (Term::Fst { pair }, 1 + pair_depth)
+                let pair = child(reader)?;
+                Term::Fst { pair }
             }
             9 => {
-                let (pair, pair_depth) = child(reader)?;
-                (Term::Snd { pair }, 1 + pair_depth)
+                let pair = child(reader)?;
+                Term::Snd { pair }
             }
-            10 => (Term::Two, 1),
-            11 => (Term::TwoZero, 1),
-            12 => (Term::TwoOne, 1),
+            10 => Term::Two,
+            11 => Term::TwoZero,
+            12 => Term::TwoOne,
             13 => {
-                let (motive, motive_depth) = child(reader)?;
-                let (zero_branch, zero_depth) = child(reader)?;
-                let (one_branch, one_depth) = child(reader)?;
-                let (scrutinee, scrutinee_depth) = child(reader)?;
-                (
-                    Term::CaseTwo {
-                        motive,
-                        zero_branch,
-                        one_branch,
-                        scrutinee,
-                    },
-                    1 + motive_depth
-                        .max(zero_depth)
-                        .max(one_depth)
-                        .max(scrutinee_depth),
-                )
+                let motive = child(reader)?;
+                let zero_branch = child(reader)?;
+                let one_branch = child(reader)?;
+                let scrutinee = child(reader)?;
+                Term::CaseTwo {
+                    motive,
+                    zero_branch,
+                    one_branch,
+                    scrutinee,
+                }
             }
             14 => {
-                let (ty, ty_depth) = child(reader)?;
-                let (left, left_depth) = child(reader)?;
-                let (right, right_depth) = child(reader)?;
-                (
-                    Term::Id { ty, left, right },
-                    1 + ty_depth.max(left_depth).max(right_depth),
-                )
+                let ty = child(reader)?;
+                let left = child(reader)?;
+                let right = child(reader)?;
+                Term::Id { ty, left, right }
             }
             15 => {
-                let (ty, ty_depth) = child(reader)?;
-                let (value, value_depth) = child(reader)?;
-                (Term::Refl { ty, value }, 1 + ty_depth.max(value_depth))
+                let ty = child(reader)?;
+                let value = child(reader)?;
+                Term::Refl { ty, value }
             }
             16 => {
-                let (motive, motive_depth) = child(reader)?;
-                let (base, base_depth) = child(reader)?;
-                let (endpoint, endpoint_depth) = child(reader)?;
-                let (proof, proof_depth) = child(reader)?;
-                (
-                    Term::IdElim {
-                        motive,
-                        base,
-                        endpoint,
-                        proof,
-                    },
-                    1 + motive_depth
-                        .max(base_depth)
-                        .max(endpoint_depth)
-                        .max(proof_depth),
-                )
+                let motive = child(reader)?;
+                let base = child(reader)?;
+                let endpoint = child(reader)?;
+                let proof = child(reader)?;
+                Term::IdElim {
+                    motive,
+                    base,
+                    endpoint,
+                    proof,
+                }
             }
             17 => {
-                let (carrier, carrier_depth) = child(reader)?;
-                let (children, children_depth) = child(reader)?;
-                (
-                    Term::W { carrier, children },
-                    1 + carrier_depth.max(children_depth),
-                )
+                let carrier = child(reader)?;
+                let children = child(reader)?;
+                Term::W { carrier, children }
             }
             18 => {
-                let (carrier, carrier_depth) = child(reader)?;
-                let (children, children_depth) = child(reader)?;
-                let (label, label_depth) = child(reader)?;
-                let (function, function_depth) = child(reader)?;
-                (
-                    Term::Sup {
-                        carrier,
-                        children,
-                        label,
-                        function,
-                    },
-                    1 + carrier_depth
-                        .max(children_depth)
-                        .max(label_depth)
-                        .max(function_depth),
-                )
+                let carrier = child(reader)?;
+                let children = child(reader)?;
+                let label = child(reader)?;
+                let function = child(reader)?;
+                Term::Sup {
+                    carrier,
+                    children,
+                    label,
+                    function,
+                }
             }
             19 => {
-                let (motive, motive_depth) = child(reader)?;
-                let (step, step_depth) = child(reader)?;
-                let (tree, tree_depth) = child(reader)?;
-                (
-                    Term::IndW { motive, step, tree },
-                    1 + motive_depth.max(step_depth).max(tree_depth),
-                )
+                let motive = child(reader)?;
+                let step = child(reader)?;
+                let tree = child(reader)?;
+                Term::IndW { motive, step, tree }
             }
             20 => {
                 let declaration = reader.u32()?;
-                let levels = decode_counted(reader, |reader| decode_level(reader, 0))?;
-                (
-                    Term::Constant {
-                        declaration,
-                        levels,
-                    },
-                    1,
-                )
+                let levels = decode_counted(reader, decode_level)?;
+                Term::Constant {
+                    declaration,
+                    levels,
+                }
             }
-            21 => (Term::Empty, 1),
+            21 => Term::Empty,
             22 => {
-                let (ty, ty_depth) = child(reader)?;
-                let (scrutinee, scrutinee_depth) = child(reader)?;
-                (
-                    Term::EmptyElim { ty, scrutinee },
-                    1 + ty_depth.max(scrutinee_depth),
-                )
+                let ty = child(reader)?;
+                let scrutinee = child(reader)?;
+                Term::EmptyElim { ty, scrutinee }
             }
             23 => {
-                let (ty, ty_depth) = child(reader)?;
-                (Term::Squash { ty }, 1 + ty_depth)
+                let ty = child(reader)?;
+                Term::Squash { ty }
             }
             24 => {
-                let (ty, ty_depth) = child(reader)?;
-                let (value, value_depth) = child(reader)?;
-                (
-                    Term::SquashIntro { ty, value },
-                    1 + ty_depth.max(value_depth),
-                )
+                let ty = child(reader)?;
+                let value = child(reader)?;
+                Term::SquashIntro { ty, value }
             }
             25 => {
-                let (proposition, proposition_depth) = child(reader)?;
-                let (function, function_depth) = child(reader)?;
-                let (scrutinee, scrutinee_depth) = child(reader)?;
-                (
-                    Term::SquashElim {
-                        proposition,
-                        function,
-                        scrutinee,
-                    },
-                    1 + proposition_depth.max(function_depth).max(scrutinee_depth),
-                )
+                let proposition = child(reader)?;
+                let function = child(reader)?;
+                let scrutinee = child(reader)?;
+                Term::SquashElim {
+                    proposition,
+                    function,
+                    scrutinee,
+                }
             }
             26 => {
-                let (ty, ty_depth) = child(reader)?;
-                (Term::Box { ty }, 1 + ty_depth)
+                let ty = child(reader)?;
+                Term::Box { ty }
             }
             27 => {
-                let (ty, ty_depth) = child(reader)?;
-                let (value, value_depth) = child(reader)?;
-                (Term::BoxIntro { ty, value }, 1 + ty_depth.max(value_depth))
+                let ty = child(reader)?;
+                let value = child(reader)?;
+                Term::BoxIntro { ty, value }
             }
             28 => {
-                let (motive, motive_depth) = child(reader)?;
-                let (body, body_depth) = child(reader)?;
-                let (scrutinee, scrutinee_depth) = child(reader)?;
-                (
-                    Term::BoxElim {
-                        motive,
-                        body,
-                        scrutinee,
-                    },
-                    1 + motive_depth.max(body_depth).max(scrutinee_depth),
-                )
+                let motive = child(reader)?;
+                let body = child(reader)?;
+                let scrutinee = child(reader)?;
+                Term::BoxElim {
+                    motive,
+                    body,
+                    scrutinee,
+                }
             }
             tag => return Err(CodecError::InvalidTag("MathematicalTerm", tag)),
         })
@@ -1101,28 +1133,49 @@ pub(crate) mod mathematical_certificate_wire {
 
     fn decode_sort(reader: &mut Reader<'_>) -> Result<Sort, CodecError> {
         Ok(match reader.u8()? {
-            1 => Sort::Type(decode_level(reader, 0)?),
-            2 => Sort::Strict(decode_level(reader, 0)?),
+            1 => Sort::Type(decode_level(reader)?),
+            2 => Sort::Strict(decode_level(reader)?),
             tag => return Err(CodecError::InvalidTag("MathematicalSort", tag)),
         })
     }
 
-    fn decode_level(reader: &mut Reader<'_>, depth: u32) -> Result<Level, CodecError> {
-        if depth >= MAX_MATHEMATICAL_LEVEL_DEPTH {
-            return Err(CodecError::MalformedMathematicalCertificate(
-                "level nesting too deep",
-            ));
+    /// Reads a prefix-order level with an explicit stack of unfinished
+    /// constructors, so nesting is bounded only by the bytes present.
+    fn decode_level(reader: &mut Reader<'_>) -> Result<Level, CodecError> {
+        enum Frame {
+            Successor,
+            MaximumLeft,
+            MaximumRight(Level),
         }
-        Ok(match reader.u8()? {
-            1 => Level::Constant(reader.u32()?),
-            2 => Level::Parameter(reader.u32()?),
-            3 => Level::Successor(Box::new(decode_level(reader, depth + 1)?)),
-            4 => Level::Maximum(
-                Box::new(decode_level(reader, depth + 1)?),
-                Box::new(decode_level(reader, depth + 1)?),
-            ),
-            tag => return Err(CodecError::InvalidTag("MathematicalLevel", tag)),
-        })
+        let mut frames = Vec::new();
+        loop {
+            let mut value = match reader.u8()? {
+                1 => Level::Constant(reader.u32()?),
+                2 => Level::Parameter(reader.u32()?),
+                3 => {
+                    frames.push(Frame::Successor);
+                    continue;
+                }
+                4 => {
+                    frames.push(Frame::MaximumLeft);
+                    continue;
+                }
+                tag => return Err(CodecError::InvalidTag("MathematicalLevel", tag)),
+            };
+            loop {
+                match frames.pop() {
+                    None => return Ok(value),
+                    Some(Frame::Successor) => value = Level::Successor(Box::new(value)),
+                    Some(Frame::MaximumLeft) => {
+                        frames.push(Frame::MaximumRight(value));
+                        break;
+                    }
+                    Some(Frame::MaximumRight(left)) => {
+                        value = Level::Maximum(Box::new(left), Box::new(value));
+                    }
+                }
+            }
+        }
     }
 
     fn decode_root(
@@ -1147,43 +1200,32 @@ pub(crate) mod mathematical_certificate_wire {
                 Box::new(Level::Successor(Box::new(Level::Parameter(3)))),
             );
             let mut writer = Writer::default();
-            encode_level(&mut writer, level, 0).unwrap();
+            encode_level(&mut writer, level).unwrap();
             assert_eq!(writer.finish(), vec![4, 1, 17, 0, 0, 0, 3, 2, 3, 0, 0, 0]);
         }
 
         #[test]
-        fn level_depth_boundary_and_refusal_cleanup_use_default_stack() {
+        fn deep_levels_round_trip_on_the_default_stack() {
             std::thread::spawn(|| {
-                let mut admitted = Level::Parameter(0);
-                for _ in 1..MAX_MATHEMATICAL_LEVEL_DEPTH {
-                    admitted = Level::Successor(Box::new(admitted));
+                let mut deep = Level::Parameter(0);
+                for _ in 0..131_072 {
+                    deep = Level::Successor(Box::new(deep));
                 }
+                deep = Level::Maximum(Box::new(deep), Box::new(Level::Constant(1)));
                 let mut writer = Writer::default();
-                encode_level(&mut writer, admitted.clone(), 0).unwrap();
+                encode_level(&mut writer, deep.clone()).unwrap();
                 let bytes = writer.finish();
                 let mut reader = Reader::new(&bytes);
-                assert_eq!(decode_level(&mut reader, 0).unwrap(), admitted);
-                let mut refused = Level::Parameter(0);
-                for _ in 0..131_072 {
-                    refused = Level::Successor(Box::new(refused));
-                }
+                assert_eq!(decode_level(&mut reader).unwrap(), deep);
+                assert_eq!(reader.remaining(), 0);
+                let truncated = vec![3; 131_072];
                 assert!(matches!(
-                    encode_level(&mut Writer::default(), refused, 0),
-                    Err(CodecError::MalformedMathematicalCertificate(
-                        "level nesting too deep"
-                    ))
-                ));
-                let mut too_deep_bytes = vec![3; MAX_MATHEMATICAL_LEVEL_DEPTH as usize];
-                too_deep_bytes.extend([2, 0, 0, 0, 0]);
-                assert!(matches!(
-                    decode_level(&mut Reader::new(&too_deep_bytes), 0),
-                    Err(CodecError::MalformedMathematicalCertificate(
-                        "level nesting too deep"
-                    ))
+                    decode_level(&mut Reader::new(&truncated)),
+                    Err(CodecError::UnexpectedEnd)
                 ));
             })
             .join()
-            .expect("wire depth guard and cleanup use the default stack");
+            .expect("level codec and cleanup use the default stack");
         }
     }
 }
@@ -1296,9 +1338,10 @@ pub(crate) mod proof_term_wire {
     use terminal_psi::ErasedProofFormal;
     use terminal_psi::TerminalIdentityIndex;
 
+    use super::CodecError;
     use super::scalar_term_wire::{decode_scalar_term, encode_scalar_term};
     use super::wire::{Reader, Writer, bounded_count, decode_bytes, decode_counted};
-    use super::{CodecError, MAX_SCALAR_TERM_DEPTH};
+    use crate::term_table::{TableChildren, TableTerm, decode_term_table, encode_term_table};
 
     const PROOF_TERM_CONSTRUCTION: u8 = 1;
     const PROOF_TERM_FORMAL: u8 = 2;
@@ -1316,19 +1359,42 @@ pub(crate) mod proof_term_wire {
     ) -> Result<(), CodecError> {
         writer.len("proof terms", terms.len())?;
         for term in terms {
-            encode_proof_term(writer, term, 0)?;
+            encode_term_table(writer, term)?;
         }
         Ok(())
     }
 
-    fn encode_proof_term(
-        writer: &mut Writer,
-        term: &ProofTerm,
-        depth: usize,
-    ) -> Result<(), CodecError> {
-        if depth > MAX_SCALAR_TERM_DEPTH {
-            return Err(CodecError::ScalarTermNestingTooDeep);
+    impl TableTerm for ProofTerm {
+        const LABEL: &'static str = "proof term";
+
+        fn children<'term>(&'term self, children: &mut Vec<&'term Self>) {
+            match self {
+                ProofTerm::Construction { fields, .. } => {
+                    children.extend(fields.iter().map(|field| &field.term))
+                }
+                ProofTerm::Array { elements, .. } => children.extend(elements),
+                _ => {}
+            }
         }
+
+        fn write_row(&self, writer: &mut Writer) -> Result<(), CodecError> {
+            write_proof_row(writer, self)
+        }
+
+        fn read_row(
+            reader: &mut Reader<'_>,
+            children: &mut TableChildren<'_, Self>,
+        ) -> Result<Self, CodecError> {
+            let term = read_proof_row(reader, children)?;
+            term.validate_node()
+                .map_err(CodecError::MalformedProposition)?;
+            Ok(term)
+        }
+    }
+
+    /// One row; a construction's field names and an array's length precede
+    /// the member handles.
+    fn write_proof_row(writer: &mut Writer, term: &ProofTerm) -> Result<(), CodecError> {
         match term {
             ProofTerm::Mathematical {
                 type_identity,
@@ -1375,7 +1441,7 @@ pub(crate) mod proof_term_wire {
                         } => {
                             writer.u8(1);
                             writer.string("mathematical scalar source carrier", type_identity)?;
-                            encode_scalar_term(writer, term, depth + 1)?;
+                            encode_scalar_term(writer, term)?;
                         }
                     }
                 }
@@ -1394,7 +1460,6 @@ pub(crate) mod proof_term_wire {
                 writer.len("proof term fields", fields.len())?;
                 for field in fields {
                     writer.string("proof term field identity", &field.field_identity)?;
-                    encode_proof_term(writer, &field.term, depth + 1)?;
                 }
             }
             ProofTerm::Array {
@@ -1404,9 +1469,6 @@ pub(crate) mod proof_term_wire {
                 writer.u8(PROOF_TERM_ARRAY);
                 writer.string("proof term type identity", type_identity)?;
                 writer.len("proof array elements", elements.len())?;
-                for element in elements {
-                    encode_proof_term(writer, element, depth + 1)?;
-                }
             }
             ProofTerm::Formal { position } => {
                 writer.u8(PROOF_TERM_FORMAL);
@@ -1418,7 +1480,7 @@ pub(crate) mod proof_term_wire {
             }
             ProofTerm::Scalar(scalar) => {
                 writer.u8(PROOF_TERM_SCALAR);
-                encode_scalar_term(writer, scalar, depth)?;
+                encode_scalar_term(writer, scalar)?;
             }
             ProofTerm::Projection {
                 type_identity,
@@ -1440,13 +1502,13 @@ pub(crate) mod proof_term_wire {
     pub(crate) fn decode_proof_terms(
         reader: &mut Reader<'_>,
     ) -> Result<Vec<ProofTerm>, CodecError> {
-        decode_counted(reader, |reader| decode_proof_term(reader, 0))
+        decode_counted(reader, decode_term_table)
     }
 
-    fn decode_proof_term(reader: &mut Reader<'_>, depth: usize) -> Result<ProofTerm, CodecError> {
-        if depth > MAX_SCALAR_TERM_DEPTH {
-            return Err(CodecError::ScalarTermNestingTooDeep);
-        }
+    fn read_proof_row(
+        reader: &mut Reader<'_>,
+        children: &mut TableChildren<'_, ProofTerm>,
+    ) -> Result<ProofTerm, CodecError> {
         match reader.u8()? {
             PROOF_TERM_MATHEMATICAL => {
                 let type_identity = reader.string("proof term type identity")?;
@@ -1458,7 +1520,6 @@ pub(crate) mod proof_term_wire {
                     type_identity,
                     certificate,
                 };
-                term.validate().map_err(CodecError::MalformedProposition)?;
                 Ok(term)
             }
             tag @ (PROOF_TERM_MATHEMATICAL_APPLICATION
@@ -1492,7 +1553,7 @@ pub(crate) mod proof_term_wire {
                         },
                         1 => MathematicalArgument::Scalar {
                             type_identity: reader.string("mathematical scalar source carrier")?,
-                            term: decode_scalar_term(reader, depth + 1)?,
+                            term: decode_scalar_term(reader)?,
                         },
                         tag => {
                             return Err(CodecError::InvalidTag("mathematical argument kind", tag));
@@ -1505,7 +1566,6 @@ pub(crate) mod proof_term_wire {
                     arguments,
                     formal_scope,
                 };
-                term.validate().map_err(CodecError::MalformedProposition)?;
                 Ok(term)
             }
             PROOF_TERM_CONSTRUCTION => {
@@ -1515,29 +1575,32 @@ pub(crate) mod proof_term_wire {
                 } else {
                     None
                 };
-                let fields = decode_counted(reader, |reader| {
-                    Ok(ProofTermField {
-                        field_identity: reader.string("proof term field identity")?,
-                        term: decode_proof_term(reader, depth + 1)?,
+                let identities =
+                    decode_counted(reader, |reader| reader.string("proof term field identity"))?;
+                let terms = children.take(reader, identities.len())?;
+                let fields = identities
+                    .into_iter()
+                    .zip(terms)
+                    .map(|(field_identity, term)| ProofTermField {
+                        field_identity,
+                        term,
                     })
-                })?;
+                    .collect();
                 let term = ProofTerm::Construction {
                     type_identity,
                     case_identity,
                     fields,
                 };
-                term.validate().map_err(CodecError::MalformedProposition)?;
                 Ok(term)
             }
             PROOF_TERM_ARRAY => {
                 let type_identity = reader.string("proof term type identity")?;
-                let elements =
-                    decode_counted(reader, |reader| decode_proof_term(reader, depth + 1))?;
+                let count = bounded_count(reader, 4)?;
+                let elements = children.take(reader, count)?;
                 let term = ProofTerm::Array {
                     type_identity,
                     elements,
                 };
-                term.validate().map_err(CodecError::MalformedProposition)?;
                 Ok(term)
             }
             PROOF_TERM_FORMAL => Ok(ProofTerm::Formal {
@@ -1547,8 +1610,7 @@ pub(crate) mod proof_term_wire {
                 position: reader.u32()?,
             }),
             PROOF_TERM_SCALAR => {
-                let term = ProofTerm::Scalar(decode_scalar_term(reader, depth)?);
-                term.validate().map_err(CodecError::MalformedProposition)?;
+                let term = ProofTerm::Scalar(decode_scalar_term(reader)?);
                 Ok(term)
             }
             PROOF_TERM_PROJECTION => {
@@ -1561,7 +1623,6 @@ pub(crate) mod proof_term_wire {
                     formal_position,
                     fields,
                 };
-                term.validate().map_err(CodecError::MalformedProposition)?;
                 Ok(term)
             }
             tag => Err(CodecError::InvalidTag("proof term", tag)),
@@ -1639,13 +1700,14 @@ pub(crate) mod proof_term_wire {
             let mut writer = Writer::default();
             encode_proof_terms(&mut writer, std::slice::from_ref(&term)).unwrap();
             let encoded = writer.finish();
-            assert_eq!(encoded[4], PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION);
+            assert_eq!(encoded[8], PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION);
             assert_eq!(
                 decode_proof_terms(&mut Reader::new(&encoded)).unwrap(),
                 vec![term]
             );
             let mut prefix = Reader::new(&encoded);
             assert_eq!(prefix.count().unwrap(), 1);
+            assert_eq!(prefix.count().unwrap(), 1, "a one-row proof-term table");
             prefix.u8().unwrap();
             prefix.string("identity").unwrap();
             let bytes = prefix.count().unwrap() as usize;
@@ -1670,9 +1732,9 @@ pub(crate) mod proof_term_wire {
             let mut writer = Writer::default();
             encode_proof_terms(&mut writer, &erased_only).unwrap();
             let erased_bytes = writer.finish();
-            assert_eq!(erased_bytes[4], PROOF_TERM_MATHEMATICAL_APPLICATION);
+            assert_eq!(erased_bytes[8], PROOF_TERM_MATHEMATICAL_APPLICATION);
             let mut alternative = erased_bytes.clone();
-            alternative[4] = PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION;
+            alternative[8] = PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION;
             alternative.insert(argument_offset, 0);
             let decoded = decode_proof_terms(&mut Reader::new(&alternative)).unwrap();
             let mut writer = Writer::default();
@@ -1756,17 +1818,56 @@ pub(crate) mod proposition_wire {
         encode_byte_sequence_field, encode_canonical_structural_field,
         encode_ieee_float_comparison_kind, encode_ieee_float_field, encode_ieee_float_format,
     };
-    use super::wire::{Reader, Writer, decode_counted};
-    use super::{CodecError, MAX_PROPOSITION_DEPTH, decode_scalar_term, encode_scalar_term};
+    use super::wire::{Reader, Writer, bounded_count};
+    use super::{CodecError, decode_scalar_term, encode_scalar_term};
+    use crate::term_table::{TableChildren, TableTerm, decode_term_table, encode_term_table};
 
+    /// Encodes one proposition as a postorder table (`crate::term_table`);
+    /// its scalar, integer math and content operands are their own encodings
+    /// inside the row.
     pub(crate) fn encode_proposition(
         writer: &mut Writer,
         proposition: &Proposition,
-        depth: usize,
     ) -> Result<(), CodecError> {
-        if depth > MAX_PROPOSITION_DEPTH {
-            return Err(CodecError::PropositionNestingTooDeep);
+        encode_term_table(writer, proposition)
+    }
+
+    pub(crate) fn decode_proposition(reader: &mut Reader<'_>) -> Result<Proposition, CodecError> {
+        decode_term_table(reader)
+    }
+
+    impl TableTerm for Proposition {
+        const LABEL: &'static str = "proposition";
+
+        fn children<'term>(&'term self, children: &mut Vec<&'term Self>) {
+            match self {
+                Proposition::Conjunction(members) | Proposition::Disjunction(members) => {
+                    children.extend(members)
+                }
+                Proposition::Implication {
+                    premise,
+                    conclusion,
+                } => children.extend([premise.as_ref(), conclusion.as_ref()]),
+                _ => {}
+            }
         }
+
+        fn write_row(&self, writer: &mut Writer) -> Result<(), CodecError> {
+            write_proposition_row(writer, self)
+        }
+
+        fn read_row(
+            reader: &mut Reader<'_>,
+            children: &mut TableChildren<'_, Self>,
+        ) -> Result<Self, CodecError> {
+            read_proposition_row(reader, children)
+        }
+    }
+
+    fn write_proposition_row(
+        writer: &mut Writer,
+        proposition: &Proposition,
+    ) -> Result<(), CodecError> {
         match proposition {
             Proposition::Truth => writer.u8(1),
             Proposition::Falsehood => writer.u8(2),
@@ -1776,18 +1877,18 @@ pub(crate) mod proposition_wire {
             }
             Proposition::Equal(left, right) => {
                 writer.u8(4);
-                encode_scalar_term(writer, left, 0)?;
-                encode_scalar_term(writer, right, 0)?;
+                encode_scalar_term(writer, left)?;
+                encode_scalar_term(writer, right)?;
             }
             Proposition::LessThan(left, right) => {
                 writer.u8(5);
-                encode_scalar_term(writer, left, 0)?;
-                encode_scalar_term(writer, right, 0)?;
+                encode_scalar_term(writer, left)?;
+                encode_scalar_term(writer, right)?;
             }
             Proposition::LessOrEqual(left, right) => {
                 writer.u8(6);
-                encode_scalar_term(writer, left, 0)?;
-                encode_scalar_term(writer, right, 0)?;
+                encode_scalar_term(writer, left)?;
+                encode_scalar_term(writer, right)?;
             }
             semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
                 writer.u8(match proposition {
@@ -1796,36 +1897,23 @@ pub(crate) mod proposition_wire {
                     Proposition::IntegerMathLessOrEqual(_, _) => 16,
                     _ => unreachable!(),
                 });
-                encode_integer_math_term(writer, left, 0)?;
-                encode_integer_math_term(writer, right, 0)?;
+                encode_integer_math_term(writer, left)?;
+                encode_integer_math_term(writer, right)?;
             }
             Proposition::Conjunction(conjuncts) => {
                 writer.u8(7);
                 writer.len("conjuncts", conjuncts.len())?;
-                for conjunct in conjuncts {
-                    encode_proposition(writer, conjunct, depth + 1)?;
-                }
             }
-            Proposition::Implication {
-                premise,
-                conclusion,
-            } => {
-                writer.u8(8);
-                encode_proposition(writer, premise, depth + 1)?;
-                encode_proposition(writer, conclusion, depth + 1)?;
-            }
+            Proposition::Implication { .. } => writer.u8(8),
             Proposition::ContentConservation(conservation) => {
                 writer.u8(9);
                 encode_content_algebra(writer, conservation.algebra())?;
-                encode_content_term(writer, conservation.left(), 0)?;
-                encode_content_term(writer, conservation.right(), 0)?;
+                encode_content_term(writer, conservation.left())?;
+                encode_content_term(writer, conservation.right())?;
             }
             Proposition::Disjunction(disjuncts) => {
                 writer.u8(10);
                 writer.len("disjuncts", disjuncts.len())?;
-                for disjunct in disjuncts {
-                    encode_proposition(writer, disjunct, depth + 1)?;
-                }
             }
             Proposition::IeeeFloatComparison {
                 kind,
@@ -1848,8 +1936,8 @@ pub(crate) mod proposition_wire {
                 writer.u8(17);
                 encode_ieee_float_comparison_kind(writer, *kind);
                 encode_ieee_float_format(writer, *format);
-                encode_scalar_term(writer, left, 0)?;
-                encode_scalar_term(writer, right, 0)?;
+                encode_scalar_term(writer, left)?;
+                encode_scalar_term(writer, right)?;
             }
             Proposition::ByteSequenceEqual { left, right } => {
                 writer.u8(12);
@@ -1882,48 +1970,40 @@ pub(crate) mod proposition_wire {
         Ok(())
     }
 
-    pub(crate) fn decode_proposition(
+    fn read_proposition_row(
         reader: &mut Reader<'_>,
-        depth: usize,
+        children: &mut TableChildren<'_, Proposition>,
     ) -> Result<Proposition, CodecError> {
-        if depth > MAX_PROPOSITION_DEPTH {
-            return Err(CodecError::PropositionNestingTooDeep);
-        }
         Ok(match reader.u8()? {
             1 => Proposition::Truth,
             2 => Proposition::Falsehood,
             3 => Proposition::Atom(reader.id::<PropositionId>("PropositionId")?),
-            4 => Proposition::Equal(
-                decode_scalar_term(reader, 0)?,
-                decode_scalar_term(reader, 0)?,
-            ),
-            5 => Proposition::LessThan(
-                decode_scalar_term(reader, 0)?,
-                decode_scalar_term(reader, 0)?,
-            ),
-            6 => Proposition::LessOrEqual(
-                decode_scalar_term(reader, 0)?,
-                decode_scalar_term(reader, 0)?,
-            ),
+            4 => Proposition::Equal(decode_scalar_term(reader)?, decode_scalar_term(reader)?),
+            5 => Proposition::LessThan(decode_scalar_term(reader)?, decode_scalar_term(reader)?),
+            6 => Proposition::LessOrEqual(decode_scalar_term(reader)?, decode_scalar_term(reader)?),
             7 => {
-                let conjuncts =
-                    decode_counted(reader, |reader| decode_proposition(reader, depth + 1))?;
-                Proposition::Conjunction(conjuncts)
+                let count = bounded_count(reader, 4)?;
+                Proposition::Conjunction(children.take(reader, count)?)
             }
-            8 => Proposition::Implication {
-                premise: Box::new(decode_proposition(reader, depth + 1)?),
-                conclusion: Box::new(decode_proposition(reader, depth + 1)?),
-            },
+            8 => {
+                let mut operands = children.take(reader, 2)?.into_iter();
+                match (operands.next(), operands.next()) {
+                    (Some(premise), Some(conclusion)) => Proposition::Implication {
+                        premise: Box::new(premise),
+                        conclusion: Box::new(conclusion),
+                    },
+                    _ => return Err(CodecError::NonCanonicalTermTable("proposition")),
+                }
+            }
             9 => {
                 let algebra = decode_content_algebra(reader)?;
-                let left = decode_content_term(reader, 0)?;
-                let right = decode_content_term(reader, 0)?;
+                let left = decode_content_term(reader)?;
+                let right = decode_content_term(reader)?;
                 Proposition::ContentConservation(ContentConservation::new(algebra, left, right))
             }
             10 => {
-                let disjuncts =
-                    decode_counted(reader, |reader| decode_proposition(reader, depth + 1))?;
-                Proposition::Disjunction(disjuncts)
+                let count = bounded_count(reader, 4)?;
+                Proposition::Disjunction(children.take(reader, count)?)
             }
             11 => Proposition::IeeeFloatComparison {
                 kind: decode_ieee_float_comparison_kind(reader)?,
@@ -1943,22 +2023,22 @@ pub(crate) mod proposition_wire {
                 }
             }
             14 => Proposition::IntegerMathEqual(
-                decode_integer_math_term(reader, 0)?,
-                decode_integer_math_term(reader, 0)?,
+                decode_integer_math_term(reader)?,
+                decode_integer_math_term(reader)?,
             ),
             15 => Proposition::IntegerMathLessThan(
-                decode_integer_math_term(reader, 0)?,
-                decode_integer_math_term(reader, 0)?,
+                decode_integer_math_term(reader)?,
+                decode_integer_math_term(reader)?,
             ),
             16 => Proposition::IntegerMathLessOrEqual(
-                decode_integer_math_term(reader, 0)?,
-                decode_integer_math_term(reader, 0)?,
+                decode_integer_math_term(reader)?,
+                decode_integer_math_term(reader)?,
             ),
             17 => Proposition::ScalarIeeeFloatComparison {
                 kind: decode_ieee_float_comparison_kind(reader)?,
                 format: decode_ieee_float_format(reader)?,
-                left: decode_scalar_term(reader, 0)?,
-                right: decode_scalar_term(reader, 0)?,
+                left: decode_scalar_term(reader)?,
+                right: decode_scalar_term(reader)?,
             },
             18 => {
                 let mut subject = || {
@@ -2011,7 +2091,7 @@ pub(crate) mod scalar_qualification_wire {
             writer.boolean(domain.predicate.is_some());
             if let Some(predicate) = &domain.predicate {
                 writer.id(predicate.subject);
-                super::encode_proposition(writer, &predicate.proposition, 0)?;
+                super::encode_proposition(writer, &predicate.proposition)?;
             }
             encode_establishment_routes(writer, &domain.establishment_routes)?;
         }
@@ -2102,7 +2182,7 @@ pub(crate) mod scalar_qualification_wire {
                     predicate: if reader.boolean()? {
                         Some(ScalarDomainPredicate {
                             subject: reader.id("ValueId")?,
-                            proposition: super::decode_proposition(reader, 0)?,
+                            proposition: super::decode_proposition(reader)?,
                         })
                     } else {
                         None
@@ -2275,6 +2355,7 @@ pub(crate) mod scalar_term_wire {
         ScalarTerm,
     };
 
+    use super::CodecError;
     use super::scalar_wire::{
         decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
         encode_integer_value, encode_scalar_type,
@@ -2284,7 +2365,7 @@ pub(crate) mod scalar_term_wire {
         encode_canonical_structural_field, encode_ieee_float_format,
     };
     use super::wire::{Reader, Writer, decode_counted};
-    use super::{CodecError, MAX_SCALAR_TERM_DEPTH};
+    use crate::term_table::{TableChildren, TableTerm, decode_term_table, encode_term_table};
 
     pub(crate) fn encode_scalar_terms(
         writer: &mut Writer,
@@ -2292,19 +2373,53 @@ pub(crate) mod scalar_term_wire {
     ) -> Result<(), CodecError> {
         writer.len("scalar terms", terms.len())?;
         for term in terms {
-            encode_scalar_term(writer, term, 0)?;
+            encode_scalar_term(writer, term)?;
         }
         Ok(())
     }
 
+    /// Encodes one scalar term as a postorder table (`crate::term_table`).
     pub(crate) fn encode_scalar_term(
         writer: &mut Writer,
         term: &ScalarTerm,
-        depth: usize,
     ) -> Result<(), CodecError> {
-        if depth > MAX_SCALAR_TERM_DEPTH {
-            return Err(CodecError::ScalarTermNestingTooDeep);
+        encode_term_table(writer, term)
+    }
+
+    pub(crate) fn decode_scalar_terms(
+        reader: &mut Reader<'_>,
+    ) -> Result<Vec<ScalarTerm>, CodecError> {
+        decode_counted(reader, decode_scalar_term)
+    }
+
+    pub(crate) fn decode_scalar_term(reader: &mut Reader<'_>) -> Result<ScalarTerm, CodecError> {
+        decode_term_table(reader)
+    }
+
+    impl TableTerm for ScalarTerm {
+        const LABEL: &'static str = "scalar term";
+
+        fn children<'term>(&'term self, children: &mut Vec<&'term Self>) {
+            children.extend(self.operands());
         }
+
+        fn write_row(&self, writer: &mut Writer) -> Result<(), CodecError> {
+            write_scalar_row(writer, self)
+        }
+
+        fn read_row(
+            reader: &mut Reader<'_>,
+            children: &mut TableChildren<'_, Self>,
+        ) -> Result<Self, CodecError> {
+            read_scalar_row(reader, children)
+        }
+    }
+
+    /// One row: the form tag and fields; operand handles follow in the table.
+    /// Every node passes its local check, as the decoder's constructors require.
+    fn write_scalar_row(writer: &mut Writer, term: &ScalarTerm) -> Result<(), CodecError> {
+        term.validate_after_operands()
+            .map_err(CodecError::MalformedProposition)?;
         match term {
             ScalarTerm::Application {
                 application,
@@ -2319,7 +2434,6 @@ pub(crate) mod scalar_term_wire {
                 path,
                 scalar_type,
             } => {
-                term.validate().map_err(CodecError::MalformedProposition)?;
                 writer.u8(40);
                 writer.id(*root);
                 encode_scalar_type(writer, *scalar_type);
@@ -2351,15 +2465,11 @@ pub(crate) mod scalar_term_wire {
                                 semantic_vocabulary::PropositionError::NonCanonicalScalarReadProjection,
                             ));
                         }
-                        ScalarReadProjection::Index(index) => {
-                            writer.u8(4);
-                            encode_scalar_term(writer, index, depth + 1)?;
-                        }
+                        ScalarReadProjection::Index(_) => writer.u8(4),
                     }
                 }
             }
             ScalarTerm::IeeeFloatField { root, path, format } => {
-                term.validate().map_err(CodecError::MalformedProposition)?;
                 writer.u8(38);
                 encode_canonical_structural_field(writer, *root, path, "IEEE float field path")?;
                 encode_ieee_float_format(writer, *format);
@@ -2417,275 +2527,184 @@ pub(crate) mod scalar_term_wire {
                 writer.u8(2);
                 writer.u8(u8::from(*value));
             }
-            ScalarTerm::BooleanNot { operand } => {
-                writer.u8(10);
-                encode_scalar_term(writer, operand, depth + 1)?;
-            }
-            ScalarTerm::BooleanEqual { left, right } => {
-                writer.u8(11);
-                encode_scalar_term(writer, left, depth + 1)?;
-                encode_scalar_term(writer, right, depth + 1)?;
-            }
-            ScalarTerm::IntegerEqual {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 12, *scalar_type, left, right, depth)?,
-            ScalarTerm::IntegerLessThan {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 13, *scalar_type, left, right, depth)?,
-            ScalarTerm::IntegerLessOrEqual {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 14, *scalar_type, left, right, depth)?,
-            ScalarTerm::IntegerBitwiseNot {
-                scalar_type,
-                operand,
-            } => {
+            ScalarTerm::BooleanNot { .. } => writer.u8(10),
+            ScalarTerm::BooleanEqual { .. } => writer.u8(11),
+            ScalarTerm::IntegerBitwiseNot { scalar_type, .. } => {
                 writer.u8(20);
                 encode_integer_type(writer, *scalar_type);
-                encode_scalar_term(writer, operand, depth + 1)?;
             }
             ScalarTerm::IntegerWiden {
                 source_type,
                 target_type,
-                operand,
-            } => encode_cast_term(writer, 21, *source_type, *target_type, operand, depth)?,
+                ..
+            } => typed_pair_row(writer, 21, *source_type, *target_type),
             ScalarTerm::IntegerExactCast {
                 source_type,
                 target_type,
-                operand,
-            } => encode_cast_term(writer, 22, *source_type, *target_type, operand, depth)?,
-            ScalarTerm::IntegerBitwiseAnd {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 15, *scalar_type, left, right, depth)?,
-            ScalarTerm::IntegerBitwiseOr {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 16, *scalar_type, left, right, depth)?,
-            ScalarTerm::IntegerBitwiseXor {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 17, *scalar_type, left, right, depth)?,
+                ..
+            } => typed_pair_row(writer, 22, *source_type, *target_type),
             ScalarTerm::WrappingIntegerShiftLeft {
                 value_type,
                 count_type,
-                value,
-                count,
-            } => encode_shift_term(writer, 18, *value_type, *count_type, value, count, depth)?,
+                ..
+            } => typed_pair_row(writer, 18, *value_type, *count_type),
             ScalarTerm::WrappingIntegerShiftRight {
                 value_type,
                 count_type,
-                value,
-                count,
-            } => encode_shift_term(writer, 19, *value_type, *count_type, value, count, depth)?,
+                ..
+            } => typed_pair_row(writer, 19, *value_type, *count_type),
             ScalarTerm::ExactIntegerShiftRight {
                 value_type,
                 count_type,
-                value,
-                count,
-            } => encode_shift_term(writer, 23, *value_type, *count_type, value, count, depth)?,
+                ..
+            } => typed_pair_row(writer, 23, *value_type, *count_type),
             ScalarTerm::ExactIntegerShiftLeft {
                 value_type,
                 count_type,
-                value,
-                count,
-            } => encode_shift_term(writer, 24, *value_type, *count_type, value, count, depth)?,
-            ScalarTerm::ExactIntegerAdd {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 25, *scalar_type, left, right, depth)?,
-            ScalarTerm::ExactIntegerSubtract {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 26, *scalar_type, left, right, depth)?,
-            ScalarTerm::ExactIntegerMultiply {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 27, *scalar_type, left, right, depth)?,
-            ScalarTerm::ExactIntegerDivide {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 28, *scalar_type, left, right, depth)?,
-            ScalarTerm::ExactIntegerRemainder {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 29, *scalar_type, left, right, depth)?,
-            ScalarTerm::WrappingIntegerDivide {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 30, *scalar_type, left, right, depth)?,
-            ScalarTerm::WrappingIntegerRemainder {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 31, *scalar_type, left, right, depth)?,
-            ScalarTerm::SaturatingIntegerDivide {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 32, *scalar_type, left, right, depth)?,
-            ScalarTerm::SaturatingIntegerRemainder {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 33, *scalar_type, left, right, depth)?,
+                ..
+            } => typed_pair_row(writer, 24, *value_type, *count_type),
             ScalarTerm::Integer { scalar_type, value } => {
                 writer.u8(3);
                 encode_integer_type(writer, *scalar_type);
                 encode_integer_value(writer, *value);
             }
-            ScalarTerm::WrappingIntegerAdd {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 4, *scalar_type, left, right, depth)?,
-            ScalarTerm::SaturatingIntegerAdd {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 5, *scalar_type, left, right, depth)?,
-            ScalarTerm::WrappingIntegerSubtract {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 6, *scalar_type, left, right, depth)?,
-            ScalarTerm::SaturatingIntegerSubtract {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 7, *scalar_type, left, right, depth)?,
-            ScalarTerm::WrappingIntegerMultiply {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 8, *scalar_type, left, right, depth)?,
-            ScalarTerm::SaturatingIntegerMultiply {
-                scalar_type,
-                left,
-                right,
-            } => encode_typed_binary_term(writer, 9, *scalar_type, left, right, depth)?,
+            ScalarTerm::IntegerEqual { scalar_type, .. } => typed_row(writer, 12, *scalar_type),
+            ScalarTerm::IntegerLessThan { scalar_type, .. } => typed_row(writer, 13, *scalar_type),
+            ScalarTerm::IntegerLessOrEqual { scalar_type, .. } => {
+                typed_row(writer, 14, *scalar_type)
+            }
+            ScalarTerm::IntegerBitwiseAnd { scalar_type, .. } => {
+                typed_row(writer, 15, *scalar_type)
+            }
+            ScalarTerm::IntegerBitwiseOr { scalar_type, .. } => typed_row(writer, 16, *scalar_type),
+            ScalarTerm::IntegerBitwiseXor { scalar_type, .. } => {
+                typed_row(writer, 17, *scalar_type)
+            }
+            ScalarTerm::ExactIntegerAdd { scalar_type, .. } => typed_row(writer, 25, *scalar_type),
+            ScalarTerm::ExactIntegerSubtract { scalar_type, .. } => {
+                typed_row(writer, 26, *scalar_type)
+            }
+            ScalarTerm::ExactIntegerMultiply { scalar_type, .. } => {
+                typed_row(writer, 27, *scalar_type)
+            }
+            ScalarTerm::ExactIntegerDivide { scalar_type, .. } => {
+                typed_row(writer, 28, *scalar_type)
+            }
+            ScalarTerm::ExactIntegerRemainder { scalar_type, .. } => {
+                typed_row(writer, 29, *scalar_type)
+            }
+            ScalarTerm::WrappingIntegerDivide { scalar_type, .. } => {
+                typed_row(writer, 30, *scalar_type)
+            }
+            ScalarTerm::WrappingIntegerRemainder { scalar_type, .. } => {
+                typed_row(writer, 31, *scalar_type)
+            }
+            ScalarTerm::SaturatingIntegerDivide { scalar_type, .. } => {
+                typed_row(writer, 32, *scalar_type)
+            }
+            ScalarTerm::SaturatingIntegerRemainder { scalar_type, .. } => {
+                typed_row(writer, 33, *scalar_type)
+            }
+            ScalarTerm::WrappingIntegerAdd { scalar_type, .. } => {
+                typed_row(writer, 4, *scalar_type)
+            }
+            ScalarTerm::SaturatingIntegerAdd { scalar_type, .. } => {
+                typed_row(writer, 5, *scalar_type)
+            }
+            ScalarTerm::WrappingIntegerSubtract { scalar_type, .. } => {
+                typed_row(writer, 6, *scalar_type)
+            }
+            ScalarTerm::SaturatingIntegerSubtract { scalar_type, .. } => {
+                typed_row(writer, 7, *scalar_type)
+            }
+            ScalarTerm::WrappingIntegerMultiply { scalar_type, .. } => {
+                typed_row(writer, 8, *scalar_type)
+            }
+            ScalarTerm::SaturatingIntegerMultiply { scalar_type, .. } => {
+                typed_row(writer, 9, *scalar_type)
+            }
         }
         Ok(())
     }
 
-    pub(crate) fn decode_scalar_terms(
-        reader: &mut Reader<'_>,
-    ) -> Result<Vec<ScalarTerm>, CodecError> {
-        decode_counted(reader, |reader| decode_scalar_term(reader, 0))
-    }
-
-    fn encode_typed_binary_term(
-        writer: &mut Writer,
-        tag: u8,
-        scalar_type: IntegerType,
-        left: &ScalarTerm,
-        right: &ScalarTerm,
-        depth: usize,
-    ) -> Result<(), CodecError> {
+    fn typed_row(writer: &mut Writer, tag: u8, scalar_type: IntegerType) {
         writer.u8(tag);
         encode_integer_type(writer, scalar_type);
-        encode_scalar_term(writer, left, depth + 1)?;
-        encode_scalar_term(writer, right, depth + 1)
     }
 
-    fn encode_shift_term(
-        writer: &mut Writer,
-        tag: u8,
-        value_type: IntegerType,
-        count_type: IntegerType,
-        value: &ScalarTerm,
-        count: &ScalarTerm,
-        depth: usize,
-    ) -> Result<(), CodecError> {
+    fn typed_pair_row(writer: &mut Writer, tag: u8, first: IntegerType, second: IntegerType) {
         writer.u8(tag);
-        encode_integer_type(writer, value_type);
-        encode_integer_type(writer, count_type);
-        encode_scalar_term(writer, value, depth + 1)?;
-        encode_scalar_term(writer, count, depth + 1)
+        encode_integer_type(writer, first);
+        encode_integer_type(writer, second);
     }
 
-    fn encode_cast_term(
-        writer: &mut Writer,
-        tag: u8,
-        source_type: IntegerType,
-        target_type: IntegerType,
-        operand: &ScalarTerm,
-        depth: usize,
-    ) -> Result<(), CodecError> {
-        writer.u8(tag);
-        encode_integer_type(writer, source_type);
-        encode_integer_type(writer, target_type);
-        encode_scalar_term(writer, operand, depth + 1)
-    }
+    type Binary = fn(IntegerType, ScalarTerm, ScalarTerm) -> Result<ScalarTerm, PropositionError>;
+    type TypedPairBinary = fn(
+        IntegerType,
+        IntegerType,
+        ScalarTerm,
+        ScalarTerm,
+    ) -> Result<ScalarTerm, PropositionError>;
+    type TypedPairUnary =
+        fn(IntegerType, IntegerType, ScalarTerm) -> Result<ScalarTerm, PropositionError>;
 
-    fn decode_typed_binary_term(
+    fn two(
         reader: &mut Reader<'_>,
-        depth: usize,
-        constructor: fn(
-            IntegerType,
-            ScalarTerm,
-            ScalarTerm,
-        ) -> Result<ScalarTerm, PropositionError>,
+        children: &mut TableChildren<'_, ScalarTerm>,
+    ) -> Result<(ScalarTerm, ScalarTerm), CodecError> {
+        let mut operands = children.take(reader, 2)?.into_iter();
+        match (operands.next(), operands.next()) {
+            (Some(left), Some(right)) => Ok((left, right)),
+            _ => Err(CodecError::NonCanonicalTermTable("scalar term")),
+        }
+    }
+
+    fn one(
+        reader: &mut Reader<'_>,
+        children: &mut TableChildren<'_, ScalarTerm>,
+    ) -> Result<ScalarTerm, CodecError> {
+        children
+            .take(reader, 1)?
+            .pop()
+            .ok_or(CodecError::NonCanonicalTermTable("scalar term"))
+    }
+
+    fn binary_row(
+        reader: &mut Reader<'_>,
+        children: &mut TableChildren<'_, ScalarTerm>,
+        constructor: Binary,
     ) -> Result<ScalarTerm, CodecError> {
         let scalar_type = decode_integer_type(reader)?;
-        let left = decode_scalar_term(reader, depth + 1)?;
-        let right = decode_scalar_term(reader, depth + 1)?;
+        let (left, right) = two(reader, children)?;
         constructor(scalar_type, left, right).map_err(CodecError::MalformedProposition)
     }
 
-    fn decode_shift_term(
+    fn typed_pair_binary_row(
         reader: &mut Reader<'_>,
-        depth: usize,
-        constructor: fn(
-            IntegerType,
-            IntegerType,
-            ScalarTerm,
-            ScalarTerm,
-        ) -> Result<ScalarTerm, PropositionError>,
+        children: &mut TableChildren<'_, ScalarTerm>,
+        constructor: TypedPairBinary,
     ) -> Result<ScalarTerm, CodecError> {
-        let value_type = decode_integer_type(reader)?;
-        let count_type = decode_integer_type(reader)?;
-        let value = decode_scalar_term(reader, depth + 1)?;
-        let count = decode_scalar_term(reader, depth + 1)?;
-        constructor(value_type, count_type, value, count).map_err(CodecError::MalformedProposition)
+        let first = decode_integer_type(reader)?;
+        let second = decode_integer_type(reader)?;
+        let (value, count) = two(reader, children)?;
+        constructor(first, second, value, count).map_err(CodecError::MalformedProposition)
     }
 
-    fn decode_cast_term(
+    fn typed_pair_unary_row(
         reader: &mut Reader<'_>,
-        depth: usize,
-        constructor: fn(
-            IntegerType,
-            IntegerType,
-            ScalarTerm,
-        ) -> Result<ScalarTerm, PropositionError>,
+        children: &mut TableChildren<'_, ScalarTerm>,
+        constructor: TypedPairUnary,
     ) -> Result<ScalarTerm, CodecError> {
-        let source_type = decode_integer_type(reader)?;
-        let target_type = decode_integer_type(reader)?;
-        let operand = decode_scalar_term(reader, depth + 1)?;
-        constructor(source_type, target_type, operand).map_err(CodecError::MalformedProposition)
+        let source = decode_integer_type(reader)?;
+        let target = decode_integer_type(reader)?;
+        let operand = one(reader, children)?;
+        constructor(source, target, operand).map_err(CodecError::MalformedProposition)
     }
 
-    pub(crate) fn decode_scalar_term(
+    fn read_scalar_row(
         reader: &mut Reader<'_>,
-        depth: usize,
+        children: &mut TableChildren<'_, ScalarTerm>,
     ) -> Result<ScalarTerm, CodecError> {
-        if depth > MAX_SCALAR_TERM_DEPTH {
-            return Err(CodecError::ScalarTermNestingTooDeep);
-        }
         Ok(match reader.u8()? {
             41 => ScalarTerm::Application {
                 application: reader.id("ScalarApplicationId")?,
@@ -2698,48 +2717,47 @@ pub(crate) mod scalar_term_wire {
                 let value = decode_integer_value(reader)?;
                 ScalarTerm::integer(scalar_type, value).map_err(CodecError::MalformedProposition)?
             }
-            4 => decode_typed_binary_term(reader, depth, ScalarTerm::wrapping_integer_add)?,
-            5 => decode_typed_binary_term(reader, depth, ScalarTerm::saturating_integer_add)?,
-            6 => decode_typed_binary_term(reader, depth, ScalarTerm::wrapping_integer_subtract)?,
-            7 => decode_typed_binary_term(reader, depth, ScalarTerm::saturating_integer_subtract)?,
-            8 => decode_typed_binary_term(reader, depth, ScalarTerm::wrapping_integer_multiply)?,
-            9 => decode_typed_binary_term(reader, depth, ScalarTerm::saturating_integer_multiply)?,
-            10 => ScalarTerm::boolean_not(decode_scalar_term(reader, depth + 1)?)
+            4 => binary_row(reader, children, ScalarTerm::wrapping_integer_add)?,
+            5 => binary_row(reader, children, ScalarTerm::saturating_integer_add)?,
+            6 => binary_row(reader, children, ScalarTerm::wrapping_integer_subtract)?,
+            7 => binary_row(reader, children, ScalarTerm::saturating_integer_subtract)?,
+            8 => binary_row(reader, children, ScalarTerm::wrapping_integer_multiply)?,
+            9 => binary_row(reader, children, ScalarTerm::saturating_integer_multiply)?,
+            10 => ScalarTerm::boolean_not(one(reader, children)?)
                 .map_err(CodecError::MalformedProposition)?,
             11 => {
-                let left = decode_scalar_term(reader, depth + 1)?;
-                let right = decode_scalar_term(reader, depth + 1)?;
+                let (left, right) = two(reader, children)?;
                 ScalarTerm::boolean_equal(left, right).map_err(CodecError::MalformedProposition)?
             }
-            12 => decode_typed_binary_term(reader, depth, ScalarTerm::integer_equal)?,
-            13 => decode_typed_binary_term(reader, depth, ScalarTerm::integer_less_than)?,
-            14 => decode_typed_binary_term(reader, depth, ScalarTerm::integer_less_or_equal)?,
-            15 => decode_typed_binary_term(reader, depth, ScalarTerm::integer_bitwise_and)?,
-            16 => decode_typed_binary_term(reader, depth, ScalarTerm::integer_bitwise_or)?,
-            17 => decode_typed_binary_term(reader, depth, ScalarTerm::integer_bitwise_xor)?,
-            18 => decode_shift_term(reader, depth, ScalarTerm::wrapping_integer_shift_left)?,
-            19 => decode_shift_term(reader, depth, ScalarTerm::wrapping_integer_shift_right)?,
+            12 => binary_row(reader, children, ScalarTerm::integer_equal)?,
+            13 => binary_row(reader, children, ScalarTerm::integer_less_than)?,
+            14 => binary_row(reader, children, ScalarTerm::integer_less_or_equal)?,
+            15 => binary_row(reader, children, ScalarTerm::integer_bitwise_and)?,
+            16 => binary_row(reader, children, ScalarTerm::integer_bitwise_or)?,
+            17 => binary_row(reader, children, ScalarTerm::integer_bitwise_xor)?,
+            18 => typed_pair_binary_row(reader, children, ScalarTerm::wrapping_integer_shift_left)?,
+            19 => {
+                typed_pair_binary_row(reader, children, ScalarTerm::wrapping_integer_shift_right)?
+            }
             20 => {
                 let scalar_type = decode_integer_type(reader)?;
-                let operand = decode_scalar_term(reader, depth + 1)?;
+                let operand = one(reader, children)?;
                 ScalarTerm::integer_bitwise_not(scalar_type, operand)
                     .map_err(CodecError::MalformedProposition)?
             }
-            21 => decode_cast_term(reader, depth, ScalarTerm::integer_widen)?,
-            22 => decode_cast_term(reader, depth, ScalarTerm::integer_exact_cast)?,
-            23 => decode_shift_term(reader, depth, ScalarTerm::exact_integer_shift_right)?,
-            24 => decode_shift_term(reader, depth, ScalarTerm::exact_integer_shift_left)?,
-            25 => decode_typed_binary_term(reader, depth, ScalarTerm::exact_integer_add)?,
-            26 => decode_typed_binary_term(reader, depth, ScalarTerm::exact_integer_subtract)?,
-            27 => decode_typed_binary_term(reader, depth, ScalarTerm::exact_integer_multiply)?,
-            28 => decode_typed_binary_term(reader, depth, ScalarTerm::exact_integer_divide)?,
-            29 => decode_typed_binary_term(reader, depth, ScalarTerm::exact_integer_remainder)?,
-            30 => decode_typed_binary_term(reader, depth, ScalarTerm::wrapping_integer_divide)?,
-            31 => decode_typed_binary_term(reader, depth, ScalarTerm::wrapping_integer_remainder)?,
-            32 => decode_typed_binary_term(reader, depth, ScalarTerm::saturating_integer_divide)?,
-            33 => {
-                decode_typed_binary_term(reader, depth, ScalarTerm::saturating_integer_remainder)?
-            }
+            21 => typed_pair_unary_row(reader, children, ScalarTerm::integer_widen)?,
+            22 => typed_pair_unary_row(reader, children, ScalarTerm::integer_exact_cast)?,
+            23 => typed_pair_binary_row(reader, children, ScalarTerm::exact_integer_shift_right)?,
+            24 => typed_pair_binary_row(reader, children, ScalarTerm::exact_integer_shift_left)?,
+            25 => binary_row(reader, children, ScalarTerm::exact_integer_add)?,
+            26 => binary_row(reader, children, ScalarTerm::exact_integer_subtract)?,
+            27 => binary_row(reader, children, ScalarTerm::exact_integer_multiply)?,
+            28 => binary_row(reader, children, ScalarTerm::exact_integer_divide)?,
+            29 => binary_row(reader, children, ScalarTerm::exact_integer_remainder)?,
+            30 => binary_row(reader, children, ScalarTerm::wrapping_integer_divide)?,
+            31 => binary_row(reader, children, ScalarTerm::wrapping_integer_remainder)?,
+            32 => binary_row(reader, children, ScalarTerm::saturating_integer_divide)?,
+            33 => binary_row(reader, children, ScalarTerm::saturating_integer_remainder)?,
             34 => {
                 let (root, path) = decode_canonical_structural_field(reader)?;
                 ScalarTerm::boolean_field_path(root, path)
@@ -2764,7 +2782,8 @@ pub(crate) mod scalar_term_wire {
                     path,
                     decode_ieee_float_format(reader)?,
                 );
-                term.validate().map_err(CodecError::MalformedProposition)?;
+                term.validate_after_operands()
+                    .map_err(CodecError::MalformedProposition)?;
                 term
             }
             39 => {
@@ -2781,28 +2800,45 @@ pub(crate) mod scalar_term_wire {
             40 => {
                 let root = reader.id("PlaceId")?;
                 let scalar_type = decode_scalar_type(reader)?;
-                let path = decode_counted(reader, |reader| {
+                // `None` marks a dynamic index whose operand handle follows the path.
+                let segments = decode_counted(reader, |reader| {
                     Ok(match reader.u8()? {
-                        1 => ScalarReadProjection::Static(CanonicalStructuralPathSegment::Field(
-                            reader.id("StructuralFieldId")?,
+                        1 => Some(ScalarReadProjection::Static(
+                            CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
                         )),
-                        2 => ScalarReadProjection::Static(
+                        2 => Some(ScalarReadProjection::Static(
                             CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
-                        ),
-                        3 => ScalarReadProjection::Static(CanonicalStructuralPathSegment::Case(
-                            reader.id("StructuralCaseId")?,
                         )),
-                        4 => ScalarReadProjection::Index(Box::new(decode_scalar_term(
-                            reader,
-                            depth + 1,
-                        )?)),
-                        5 => ScalarReadProjection::Referent,
-                        6 => ScalarReadProjection::Extent,
+                        3 => Some(ScalarReadProjection::Static(
+                            CanonicalStructuralPathSegment::Case(reader.id("StructuralCaseId")?),
+                        )),
+                        4 => None,
+                        5 => Some(ScalarReadProjection::Referent),
+                        6 => Some(ScalarReadProjection::Extent),
                         tag => return Err(CodecError::InvalidTag("ScalarReadProjection", tag)),
                     })
                 })?;
-                ScalarTerm::structural_read(root, path, scalar_type)
-                    .map_err(CodecError::MalformedProposition)?
+                let index_count = segments.iter().filter(|segment| segment.is_none()).count();
+                let mut indices = children.take(reader, index_count)?.into_iter();
+                let mut path = Vec::with_capacity(segments.len());
+                for segment in segments {
+                    path.push(match segment {
+                        Some(segment) => segment,
+                        None => ScalarReadProjection::Index(Box::new(
+                            indices
+                                .next()
+                                .ok_or(CodecError::NonCanonicalTermTable("scalar term"))?,
+                        )),
+                    });
+                }
+                let term = ScalarTerm::StructuralRead {
+                    root,
+                    path,
+                    scalar_type,
+                };
+                term.validate_after_operands()
+                    .map_err(CodecError::MalformedProposition)?;
+                term
             }
             tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),
         })
@@ -2822,14 +2858,14 @@ pub(crate) mod scalar_term_wire {
             )
             .unwrap();
             let mut writer = Writer::default();
-            encode_scalar_term(&mut writer, &term, 0).unwrap();
+            encode_scalar_term(&mut writer, &term).unwrap();
             let bytes = writer.finish();
             let mut reader = Reader::new(&bytes);
-            let decoded = decode_scalar_term(&mut reader, 0).unwrap();
+            let decoded = decode_scalar_term(&mut reader).unwrap();
             assert_eq!(decoded, term);
             assert_eq!(reader.remaining(), 0);
             let mut repeated = Writer::default();
-            encode_scalar_term(&mut repeated, &decoded, 0).unwrap();
+            encode_scalar_term(&mut repeated, &decoded).unwrap();
             assert_eq!(repeated.finish(), bytes);
         }
 
@@ -2843,7 +2879,7 @@ pub(crate) mod scalar_term_wire {
                 scalar_type: ScalarType::Boolean,
             };
             assert!(matches!(
-                encode_scalar_term(&mut Writer::default(), &term, 0),
+                encode_scalar_term(&mut Writer::default(), &term),
                 Err(CodecError::MalformedProposition(
                     PropositionError::NonCanonicalScalarReadProjection
                 ))

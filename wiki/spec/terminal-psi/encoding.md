@@ -20,6 +20,32 @@ their declared order. Recursive terms are encoded as flat tables whose entries
 refer only to earlier entries, so nesting depth is unbounded: only the encoded
 size and count limits stated for each section bound a term.
 
+### Term tables
+
+Scalar terms, integer math terms, propositions, proof terms, capacity scalars
+and static bindings each encode as one term table: a `u32` entry count followed
+by the entries in postorder. An entry is the node's row, its form tag and
+non-recursive fields as the form's table lists them, followed by one `u32`
+handle per recursive operand, in declared operand order. A handle is the
+zero-based position of an earlier entry in the same table. Operands of another
+term family (a scalar term inside a proposition, say) are that family's own
+table inside the row, not handles.
+
+A term table is a tree. Each entry is consumed by exactly one later entry, and a
+row with `k` operand handles names exactly the `k` most recent entries not yet
+consumed, in order; the entries left unconsumed after the last row are the
+table's roots. A single term has exactly one root; a static binding list's
+roots are its bindings. Decoding rejects a handle to the current or a later
+entry (`TermTableForwardReference`), any other handle (`NonCanonicalTermTable`),
+and a single-term table with other than one root, so a term has exactly one
+table spelling. An entry count larger than the remaining bytes rejects as
+truncation before any entry is read. Encoding and decoding walk a table with an
+explicit stack; nesting depth never consumes host stack.
+
+Content terms do not nest: a separation's members are projections, so a
+separated member that is itself a separation rejects, and content terms keep
+their inline encoding.
+
 Decode rejects stale markers, unknown tags, invalid identities/values,
 noncanonical order/forms, structurally invalid modules, truncation, and trailing
 bytes. Successful decoding re-encodes byte-for-byte; it never normalizes an
@@ -61,7 +87,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 253 even when every table
+order below. This layout uses semantic format marker 254 even when every table
 is empty, and retains the Id formation catalog below; older markers reject
 rather than selecting an optional dialect:
 
@@ -245,7 +271,10 @@ provider candidates; and operational call summaries. Each summary retains calls,
 recursive static argument bindings, and cleanup dependencies. Every repeated
 collection is counted; spans encode their contents, never arena generations.
 Machine summaries may be absent, which differs from a present empty summary.
-Static binding nesting has no depth bound.
+A call's static bindings are one [term table](#term-tables) whose roots are the
+call's bindings; each row is the `u32` parameter declaration, the `u32` selected
+declaration and a `u32` argument count, followed by one handle per argument
+binding. Static binding nesting has no depth bound.
 
 Each emitted callable association contains a proof-declaration coordinate and
 the ordinary tagged machine/boundary callable coordinate. Both directions are
@@ -464,7 +493,8 @@ classes:
 
 ## Scalar terms
 
-A scalar term is a `u8` form tag followed by its fields.
+A scalar term is a [term table](#term-tables) of scalar rows. Each row is a
+`u8` form tag followed by its fields; `scalar term` below is an operand handle.
 
 <!-- scalar-term-tags -->
 | Tag | Scalar term | Fields after the tag |
@@ -517,8 +547,9 @@ exact byte field. The term has Boolean type and supplies no assertion that its
 predicate holds.
 
 A scalar-read projection is a tag followed by its payload: `1` selects a field
-id, `2` a fixed `u64` index, `3` a case id, and `4` a recursively encoded scalar
-index term. Tag `5` is `Referent`, has no payload, and crosses one readable
+id, `2` a fixed `u64` index, `3` a case id, and `4` a dynamic index whose
+scalar index term is an operand handle; the row lists one handle per tag-4
+projection, in path order, after the whole path. Tag `5` is `Referent`, has no payload, and crosses one readable
 first-class reference; it does not select inline storage in the carrier.
 Canonical predicate paths retain their separate `Referent` segment; conversion
 into a scalar read produces this explicit tag. A nested static-reference
@@ -534,7 +565,9 @@ substitution. A term supplies no bounds, access or truth evidence.
 
 ## Integer math terms
 
-The proof-only unbounded integer syntax.
+The proof-only unbounded integer syntax. An integer math term is a
+[term table](#term-tables); `integer math term` below is an operand handle, and
+an embedded scalar term (tag 7) is a scalar term table inside the row.
 
 <!-- integer-math-term-tags -->
 | Tag | Integer math term | Fields after the tag |
@@ -545,23 +578,26 @@ The proof-only unbounded integer syntax.
 | 4 | Subtract | integer math term + integer math term |
 | 5 | Multiply | integer math term + integer math term |
 | 6 | ShiftLeft | integer math term + integer math term |
+| 7 | Embed | scalar term table |
 
 ## Proof terms
 
-A proof term is a `u8` form tag followed by its fields. Proof terms are
+A proof term is a [term table](#term-tables) of rows, each a `u8` form tag
+followed by its fields; `proof term` below is an operand handle written after
+the row's other fields. Proof terms are
 proof-only erased actuals — they carry semantic identities for the erased
 proof-formal lane, not runtime values. They appear only inside a proof term
 list in the semantic module, and like scalar terms their nesting has no depth
-bound. A Scalar leaf embeds a scalar term; it records one scalar field of a
+bound. A Scalar leaf embeds a scalar term table; it records one scalar field of a
 record/enum carrier construction and never stands in for a runtime operand.
 
 <!-- proof-term-tags -->
 | Tag | Proof term | Fields after the tag |
 | --- | --- | --- |
-| 1 | Construction | type identity string + `bool` case-identity flag (+ case identity string when set) + counted fields (field identity string + proof term) |
+| 1 | Construction | type identity string + `bool` case-identity flag (+ case identity string when set) + counted field identity strings + one proof term per field |
 | 2 | Formal (block scope) | `u32` position |
-| 3 | Scalar | scalar term |
-| 4 | Array | type identity string + counted proof terms |
+| 3 | Scalar | scalar term table |
+| 4 | Array | type identity string + `u32` element count + one proof term per element |
 | 5 | Mathematical | type identity string + counted canonical mathematical-certificate bytes |
 | 6 | MathematicalApplication | result type identity string + counted canonical mathematical-function certificate bytes + `u8` formal namespace (0 block, 1 invocation) + counted `u32` caller proof-formal positions |
 | 7 | InvocationFormal | `u32` position in the machine contract proof roster |
@@ -595,11 +631,13 @@ by itself.
 | Tag | Content term | Fields after the tag |
 | --- | --- | --- |
 | 1 | Projection | domain id + `u64` projection report fingerprint + content structural place |
-| 2 | Separate | counted content terms |
+| 2 | Separate | counted projections (tag 1 rows); a nested separation rejects |
 
 ## Propositions
 
-A proposition is a `u8` form tag followed by its fields.
+A proposition is a [term table](#term-tables) of rows, each a `u8` form tag
+followed by its fields. `proposition` below is an operand handle; scalar,
+integer math and content operands are their own encodings inside the row.
 
 <!-- proposition-tags -->
 | Tag | Proposition | Fields after the tag |
@@ -610,10 +648,10 @@ A proposition is a `u8` form tag followed by its fields.
 | 4 | Equal | scalar term + scalar term |
 | 5 | LessThan | scalar term + scalar term |
 | 6 | LessOrEqual | scalar term + scalar term |
-| 7 | Conjunction | counted propositions |
+| 7 | Conjunction | `u32` conjunct count + one proposition per conjunct |
 | 8 | Implication | premise proposition + conclusion proposition |
 | 9 | ContentConservation | content algebra + content term + content term |
-| 10 | Disjunction | counted propositions |
+| 10 | Disjunction | `u32` disjunct count + one proposition per disjunct |
 | 11 | IeeeFloatComparison | IEEE float comparison kind + IEEE float format + canonical structural field + canonical structural field |
 | 12 | ByteSequenceEqual | canonical structural field + canonical structural field |
 | 13 | StructuralCaseMembership | canonical structural field + case id |
@@ -894,7 +932,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 253 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 254 + `u16` vocabulary
 marker 133 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -1731,7 +1769,9 @@ path segments.
 | 1 | IntervalSet | counted (start capacity scalar + end capacity scalar) bounds |
 | 2 | CountedQuantity | capacity scalar |
 
-A capacity scalar inside a domain declaration is a `u8` tag:
+A capacity scalar inside a domain declaration is a [term table](#term-tables)
+of rows, each a `u8` tag followed by its fields; `capacity scalar` below is an
+operand handle:
 
 <!-- content-projection-scalar-tags -->
 
@@ -2500,7 +2540,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 253 | yes |
+| semantic module | `PSITERM\0` | 254 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

@@ -257,7 +257,7 @@ pub(crate) mod structural_field_wire {
             StructuralFieldType::RefinedScalar(refinement) => {
                 writer.u8(9);
                 encode_scalar_type(writer, refinement.carrier());
-                encode_proposition(writer, refinement.predicate(), 0)?;
+                encode_proposition(writer, refinement.predicate())?;
             }
             StructuralFieldType::IeeeFloat(format) => {
                 writer.u8(4);
@@ -324,7 +324,7 @@ pub(crate) mod structural_field_wire {
                 .map_err(CodecError::MalformedProposition)?,
             ),
             9 => StructuralFieldType::RefinedScalar(
-                ScalarRefinement::new(decode_scalar_type(reader)?, decode_proposition(reader, 0)?)
+                ScalarRefinement::new(decode_scalar_type(reader)?, decode_proposition(reader)?)
                     .map_err(|_| {
                         CodecError::MalformedStructuralFoundation(
                             "scalar field predicate is not closed and carrier-typed",
@@ -393,10 +393,10 @@ pub(crate) mod structural_field_wire {
                 scalar_type: ScalarType::Boolean,
             };
             let mut writer = Writer::default();
-            encode_scalar_term(&mut writer, &term, 0).unwrap();
+            encode_scalar_term(&mut writer, &term).unwrap();
             let bytes = writer.finish();
             let mut reader = Reader::new(&bytes);
-            assert_eq!(decode_scalar_term(&mut reader, 0).unwrap(), term);
+            assert_eq!(decode_scalar_term(&mut reader).unwrap(), term);
             assert_eq!(reader.remaining(), 0);
         }
     }
@@ -1157,6 +1157,7 @@ pub(crate) mod structural_signature_wire {
         Scalar, Text, U32, U64, wire_enum, wire_record,
     };
     use crate::sections::semantic_module::wire::decode_counted;
+    use crate::term_table::{TableChildren, TableTerm, decode_term_table, encode_term_table};
 
     pub(crate) mod reference_outputs {
 
@@ -1546,106 +1547,106 @@ pub(crate) mod structural_signature_wire {
         Ok(())
     }
 
+    /// A capacity scalar is one postorder table (`crate::term_table`).
     fn encode_capacity_scalar(
         writer: &mut Writer,
         scalar: &ContentProjectionScalar,
     ) -> Result<(), CodecError> {
-        match scalar {
-            ContentProjectionScalar::SubjectField(path)
-            | ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
-                writer.u8(
-                    if matches!(scalar, ContentProjectionScalar::SubjectField(_)) {
-                        1
-                    } else {
-                        2
-                    },
-                );
-                writer.strings("program-local capacity field path", path)?;
-            }
-            ContentProjectionScalar::Natural(value) => {
-                writer.u8(3);
-                writer.string("program-local natural", value)?;
-            }
-            ContentProjectionScalar::Successor(inner) => {
-                writer.u8(4);
-                encode_capacity_scalar(writer, inner)?;
-            }
-            ContentProjectionScalar::Add(left, right)
-            | ContentProjectionScalar::Subtract(left, right)
-            | ContentProjectionScalar::Multiply(left, right) => {
-                writer.u8(match scalar {
-                    ContentProjectionScalar::Add(_, _) => 5,
-                    ContentProjectionScalar::Subtract(_, _) => 6,
-                    ContentProjectionScalar::Multiply(_, _) => 7,
-                    _ => unreachable!(),
-                });
-                encode_capacity_scalar(writer, left)?;
-                encode_capacity_scalar(writer, right)?;
+        encode_term_table(writer, scalar)
+    }
+
+    impl TableTerm for ContentProjectionScalar {
+        const LABEL: &'static str = "capacity scalar";
+
+        fn children<'term>(&'term self, children: &mut Vec<&'term Self>) {
+            match self {
+                ContentProjectionScalar::Successor(inner) => children.push(inner),
+                ContentProjectionScalar::Add(left, right)
+                | ContentProjectionScalar::Subtract(left, right)
+                | ContentProjectionScalar::Multiply(left, right) => {
+                    children.extend([left.as_ref(), right.as_ref()])
+                }
+                ContentProjectionScalar::SubjectField(_)
+                | ContentProjectionScalar::RuntimeScalarEmbedding(_)
+                | ContentProjectionScalar::Natural(_) => {}
             }
         }
-        Ok(())
+
+        fn write_row(&self, writer: &mut Writer) -> Result<(), CodecError> {
+            match self {
+                ContentProjectionScalar::SubjectField(path) => {
+                    writer.u8(1);
+                    writer.strings("program-local capacity field path", path)?;
+                }
+                ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
+                    writer.u8(2);
+                    writer.strings("program-local capacity field path", path)?;
+                }
+                ContentProjectionScalar::Natural(value) => {
+                    writer.u8(3);
+                    writer.string("program-local natural", value)?;
+                }
+                ContentProjectionScalar::Successor(_) => writer.u8(4),
+                ContentProjectionScalar::Add(_, _) => writer.u8(5),
+                ContentProjectionScalar::Subtract(_, _) => writer.u8(6),
+                ContentProjectionScalar::Multiply(_, _) => writer.u8(7),
+            }
+            Ok(())
+        }
+
+        fn read_row(
+            reader: &mut Reader<'_>,
+            children: &mut TableChildren<'_, Self>,
+        ) -> Result<Self, CodecError> {
+            let tag = reader.u8()?;
+            let arity = match tag {
+                1..=3 => 0,
+                4 => 1,
+                5..=7 => 2,
+                tag => return Err(CodecError::InvalidTag("ContentProjectionScalar", tag)),
+            };
+            let leaf = match tag {
+                1 => Some(ContentProjectionScalar::SubjectField(
+                    reader.strings("program-local capacity field path")?,
+                )),
+                2 => Some(ContentProjectionScalar::RuntimeScalarEmbedding(
+                    reader.strings("program-local capacity field path")?,
+                )),
+                3 => Some(ContentProjectionScalar::Natural(
+                    reader.string("program-local natural")?,
+                )),
+                _ => None,
+            };
+            if let Some(leaf) = leaf {
+                return Ok(leaf);
+            }
+            let mut operands = children.take(reader, arity)?.into_iter().map(Box::new);
+            let mut operand = || {
+                operands
+                    .next()
+                    .ok_or(CodecError::NonCanonicalTermTable(Self::LABEL))
+            };
+            Ok(match tag {
+                4 => ContentProjectionScalar::Successor(operand()?),
+                5 => ContentProjectionScalar::Add(operand()?, operand()?),
+                6 => ContentProjectionScalar::Subtract(operand()?, operand()?),
+                _ => ContentProjectionScalar::Multiply(operand()?, operand()?),
+            })
+        }
     }
 
     pub(crate) fn decode_content_projection_expression(
         reader: &mut Reader<'_>,
-        depth: usize,
     ) -> Result<ContentProjectionExpression, CodecError> {
-        if depth > 256 {
-            return Err(CodecError::InvalidTag(
-                "ContentProjectionExpressionDepth",
-                0,
-            ));
-        }
         match reader.u8()? {
             1 => Ok(ContentProjectionExpression::IntervalSet(decode_counted(
                 reader,
-                |reader| {
-                    Ok((
-                        decode_capacity_scalar(reader, depth + 1)?,
-                        decode_capacity_scalar(reader, depth + 1)?,
-                    ))
-                },
+                |reader| Ok((decode_term_table(reader)?, decode_term_table(reader)?)),
             )?)),
             2 => Ok(ContentProjectionExpression::CountedQuantity(
-                decode_capacity_scalar(reader, depth + 1)?,
+                decode_term_table(reader)?,
             )),
             tag => Err(CodecError::InvalidTag("ContentProjectionExpression", tag)),
-        }
-    }
-
-    fn decode_capacity_scalar(
-        reader: &mut Reader<'_>,
-        depth: usize,
-    ) -> Result<ContentProjectionScalar, CodecError> {
-        if depth > 256 {
-            return Err(CodecError::InvalidTag("ContentProjectionScalarDepth", 0));
-        }
-        match reader.u8()? {
-            1 => Ok(ContentProjectionScalar::SubjectField(
-                reader.strings("program-local capacity field path")?,
-            )),
-            2 => Ok(ContentProjectionScalar::RuntimeScalarEmbedding(
-                reader.strings("program-local capacity field path")?,
-            )),
-            3 => Ok(ContentProjectionScalar::Natural(
-                reader.string("program-local natural")?,
-            )),
-            4 => Ok(ContentProjectionScalar::Successor(Box::new(
-                decode_capacity_scalar(reader, depth + 1)?,
-            ))),
-            5 => Ok(ContentProjectionScalar::Add(
-                Box::new(decode_capacity_scalar(reader, depth + 1)?),
-                Box::new(decode_capacity_scalar(reader, depth + 1)?),
-            )),
-            6 => Ok(ContentProjectionScalar::Subtract(
-                Box::new(decode_capacity_scalar(reader, depth + 1)?),
-                Box::new(decode_capacity_scalar(reader, depth + 1)?),
-            )),
-            7 => Ok(ContentProjectionScalar::Multiply(
-                Box::new(decode_capacity_scalar(reader, depth + 1)?),
-                Box::new(decode_capacity_scalar(reader, depth + 1)?),
-            )),
-            tag => Err(CodecError::InvalidTag("ContentProjectionScalar", tag)),
         }
     }
 
@@ -1895,7 +1896,7 @@ pub(crate) mod structural_type_wire {
             }
             writer.len("structural type requires", declaration.requires.len())?;
             for clause in &declaration.requires {
-                encode_proposition(writer, clause, 0)?;
+                encode_proposition(writer, clause)?;
             }
         }
         Ok(())
@@ -2016,7 +2017,7 @@ pub(crate) mod structural_type_wire {
             tag => return Err(CodecError::InvalidTag("StructuralTypeShape", tag)),
         };
         let requires = if declares_requires {
-            let requires = decode_counted(reader, |reader| decode_proposition(reader, 0))?;
+            let requires = decode_counted(reader, decode_proposition)?;
             if requires.is_empty() {
                 // The tags without clauses already say "none"; a second
                 // spelling of no clauses would give one declaration two
