@@ -18,7 +18,7 @@ git checkout -q work/ledger-bisect-part-5
 git bisect reset "$BAD" 2>/dev/null || true
 set +e
 git bisect start --first-parent "$BAD" "$GOOD"
-BLOG="${BISECT_LOG:-${OUT%.json}.log}"
+BLOG="${BISECT_LOG:-/tmp/$(basename "${OUT%.json}").log}"
 git bisect run "$STEP" 2>&1 | tee "$BLOG"
 BS=$?
 set -e

@@ -26,12 +26,10 @@ for w in "${WITNESSES[@]}"; do
     continue
   fi
   echo "=== bisect $w ===" | tee "$log"
-  "$DIR/tools/run_bisect_worktree.sh" "$w" "$GOOD" "$PIN" "$out" 2>&1 | tee -a "$log"
-  cp -f "$log" "$DIR/bisect_remain_${slug}.log"
+  BISECT_LOG="$log" "$DIR/tools/run_bisect_worktree.sh" "$w" "$GOOD" "$PIN" "$out" 2>&1 | tee -a "$log"
 done
 echo "=== pin diagnostic class (witness other_state) d26fa952..PIN ===" | tee "$LOGDIR/pin_class_other_state.log"
 W=pass/facts/selected_native_code_layout_through_other_state_exit
 out="$DIR/bisect_pin_class_other_state.json"
-"$DIR/tools/run_bisect_worktree.sh" "$W" "$GOOD" "$PIN" "$out" 2>&1 | tee -a "$LOGDIR/pin_class_other_state.log"
-cp -f "$LOGDIR/pin_class_other_state.log" "$DIR/pin_class_other_state.log"
+BISECT_LOG="$LOGDIR/pin_class_other_state.log" "$DIR/tools/run_bisect_worktree.sh" "$W" "$GOOD" "$PIN" "$out" 2>&1 | tee -a "$LOGDIR/pin_class_other_state.log"
 echo DONE >"$LOGDIR/cluster_a_remaining.done"
