@@ -1,1 +1,1 @@
-cannot prove ensures contract for exit from compute_prod at statement 0: result >= 80 && result <= 180
+machine `compute_prod` cannot prove ensures contract proof fact `result >= 80 && result <= 180`

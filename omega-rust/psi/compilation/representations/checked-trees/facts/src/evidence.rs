@@ -898,6 +898,21 @@ pub enum FactPayload {
         variant: SymbolHandle,
         value: bool,
     },
+    /*
+        Zero formation of an owned fixed array, stated once instead of once per
+        element. The fact's place names the array, and for every index in
+        `first..end` the place `array[index]` followed by `element` has `variant`
+        selected, exactly as a `CaseValue { variant, value: true }` there would say.
+        The zero representation keeps the first declared case, so one formation
+        covers every element alike; a write that can replace one element's tag
+        narrows the range around that element and leaves the others standing.
+    */
+    ZeroCaseElements {
+        first: usize,
+        end: usize,
+        element: HandleSpan<crate::PlaceSegment>,
+        variant: SymbolHandle,
+    },
     AssignedIntegerBounds {
         bounds: Handle<IntegerRange>,
     },

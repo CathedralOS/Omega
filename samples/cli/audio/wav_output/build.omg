@@ -3,9 +3,9 @@
 
 machine build(builder: &mut Build) {
     Build::package(builder, "wav_output");
-    Build::depend(builder, Source::Path {
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
         location: "../../../../source/library/std"
-    });
+    }));
 
     Build::select_provider<wav_output::WavOutput, wav_output::WindowsWavOutput>(builder, windows_x86_64);
     Build::select_provider<wav_output::WavOutput, wav_output::PosixWavOutput>(builder, linux_x86_64);

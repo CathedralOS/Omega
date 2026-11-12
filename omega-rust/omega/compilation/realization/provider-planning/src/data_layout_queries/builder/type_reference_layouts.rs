@@ -24,7 +24,6 @@ use crate::data_layout_queries::sizing::{
 use checked_trees::typed_trees::data::DataDefinition;
 use checked_trees::typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use diagnostics::Diagnostic;
-use representation_selections::selection_for_opaque;
 use symbols::SymbolHandle;
 
 impl<'program> LayoutBuilder<'program> {
@@ -267,10 +266,12 @@ impl<'program> LayoutBuilder<'program> {
 
         if let Ok(definition) = self.data_definition_by_symbol(symbol) {
             if definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
-                if let Some(selection) =
-                    selection_for_opaque(self.opaque_representation_selections, symbol)
+                if let Some(selection) = self
+                    .opaque_representation_selections
+                    .iter()
+                    .find(|selection| selection.opaque == symbol)
                 {
-                    return self.layout_type_reference_handle(selection.carrier_type(), &[]);
+                    return self.layout_type_reference_handle(selection.carrier_type, &[]);
                 }
                 if self.opaque_representation_demand == OpaqueRepresentationDemand::ByValue {
                     return Err(Diagnostic::error(format!(

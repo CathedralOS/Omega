@@ -16,8 +16,9 @@ replay selected opaque applications without depending on the build planner.
 /*
 `representation-selections` is produced by `representation-planning` during
 authoritative build evaluation and consumed by `typed-trees-to-typed-trees`
-(Stage 04), `validation`, `typed-trees-to-checked-trees` (Stage 05), and Omega
-layout planning.
+(Stage 04), `validation` and `typed-trees-to-checked-trees` (Stage 05). Omega
+provider planning does not read these records: the compiler and Build project
+the review rows and carrier pairings it needs.
 */
 
 #![forbid(unsafe_code)]

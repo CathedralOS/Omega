@@ -4,7 +4,11 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_alias_collision");
-    Build::depend_as(builder, "x", Source::Path { location: "dep" });
-    Build::depend_as(builder, "x", Source::Path { location: "dep2" });
+    let mut x_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dep" });
+    dependency::with_alias(&mut x_dependency, "x");
+    let x_registration: DependencyRegistration = Build::dependency(builder, x_dependency);
+    let mut x_dependency_2: DependencyDescription = dependency::from_source(Source::Path { location: "dep2" });
+    dependency::with_alias(&mut x_dependency_2, "x");
+    let x_registration_2: DependencyRegistration = Build::dependency(builder, x_dependency_2);
     builder.freestanding = true;
 }

@@ -5,8 +5,14 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_checked_divergence");
-    Build::depend_as(builder, "a", Source::Path { location: "../../sibling_a" });
-    Build::depend_as(builder, "bad2", Source::Path { location: "../../sibling_bad2" });
-    Build::depend_as(builder, "c", Source::Path { location: "../../sibling_c" });
+    let mut a_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../sibling_a" });
+    dependency::with_alias(&mut a_dependency, "a");
+    let a_registration: DependencyRegistration = Build::dependency(builder, a_dependency);
+    let mut bad2_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../sibling_bad2" });
+    dependency::with_alias(&mut bad2_dependency, "bad2");
+    let bad2_registration: DependencyRegistration = Build::dependency(builder, bad2_dependency);
+    let mut c_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../sibling_c" });
+    dependency::with_alias(&mut c_dependency, "c");
+    let c_registration: DependencyRegistration = Build::dependency(builder, c_dependency);
     builder.freestanding = true;
 }

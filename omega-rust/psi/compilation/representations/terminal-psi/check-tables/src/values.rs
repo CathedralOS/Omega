@@ -28,6 +28,28 @@ pub struct ValueRow {
     /// `Callee::Selected` names, `Unknown` when nothing narrower is known.
     /// `None` only for values that are not selectors.
     pub selects: Option<SelectionSetId>,
+    /// Set for a value whose type is a type parameter that a generic check
+    /// form leaves rigid (`machine same<T>(left: T, ..)`). The lowered form
+    /// can declare a value only with a `ScalarType`, so such a value is
+    /// declared there with `RigidType::DECLARED_AS`, which says nothing
+    /// about it: this field is what its type is. No proposition may name a
+    /// rigid value, because no proof rule holds at every type yet, and the
+    /// checker refuses knowledge or a goal that does. `None` for every
+    /// value of a concrete module.
+    pub rigid: Option<RigidType>,
+}
+
+/// A type parameter left rigid by a generic check form, by its position
+/// among the parameters of the machine being checked. generics.md, "Static
+/// type equality": "Type parameters remain static even when their
+/// admissible set has several alternatives."
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RigidType(pub u32);
+
+impl RigidType {
+    /// What the lowered form declares a rigid value with. It is a stand-in
+    /// for a missing sort, not a type: nothing may be concluded from it.
+    pub const DECLARED_AS: ScalarType = ScalarType::Boolean;
 }
 
 /// Where a value is evaluated. Exactly one origin per value.

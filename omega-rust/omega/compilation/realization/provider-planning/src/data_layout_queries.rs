@@ -43,17 +43,26 @@ use checked_trees::typed_trees::expression::DataLayoutQueryRequest;
 use diagnostics::Diagnostic;
 use language_core::data_layout_queries::DataLayoutQueryKind;
 
+// A boundary-opaque data type is laid out as the carrier the authoritative
+// build selected for it. Layout needs only that pairing, so callers project it
+// from their selection records here; the conformance application, lifecycle
+// and commitments of a selection stay with the source-side owners that check
+// them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OpaqueCarrierSelection {
+    pub opaque: symbols::SymbolHandle,
+    pub carrier_type: checked_trees::typed_trees::types::TypeReferenceHandle,
+}
+
 pub struct TargetLayoutQueries<'selection> {
     pub target: target::TargetProfile,
     pub applications: Option<&'selection [build_time_evaluation::LayoutApplicationTargetInput]>,
-    pub opaque_representations:
-        &'selection [representation_selections::OpaqueRepresentationSelection],
+    pub opaque_representations: &'selection [OpaqueCarrierSelection],
 }
 
 pub struct TargetLayoutMeasurements<'selection> {
     target: target::TargetProfile,
-    opaque_representations:
-        &'selection [representation_selections::OpaqueRepresentationSelection],
+    opaque_representations: &'selection [OpaqueCarrierSelection],
     layout_program: Option<TypedTrees>,
 }
 

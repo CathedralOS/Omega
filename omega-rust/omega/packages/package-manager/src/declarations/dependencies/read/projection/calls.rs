@@ -14,7 +14,7 @@ pub(super) struct ProjectedDirectDependencies {
     pub requests: Vec<(DependencyPurpose, DependencySourceRequest)>, // Authored-order rows tagged with the scope their call authorizes.
     pub accepted_statements: Vec<StatementHandle>,
     pub accepted_sources: Vec<ExpressionHandle>,
-    pub accepted_aliases: Vec<ExpressionHandle>,
+    pub accepted_calls: Vec<Vec<ExpressionHandle>>, // Argument rosters of projected vocabulary calls.
 }
 
 pub(super) fn project_direct_dependencies(
@@ -25,7 +25,7 @@ pub(super) fn project_direct_dependencies(
         requests: Vec::new(),
         accepted_statements: Vec::new(),
         accepted_sources: Vec::new(),
-        accepted_aliases: Vec::new(),
+        accepted_calls: Vec::new(),
     };
     for row in
         shared::project_dependency_rows(syntax_trees, build).map_err(map_dependency_row_error)?
@@ -34,14 +34,16 @@ pub(super) fn project_direct_dependencies(
             .alias()
             .map(|alias_handle| project_alias_literal(syntax_trees, alias_handle))
             .transpose()?;
-        if let Some(alias_handle) = row.alias() {
-            projected.accepted_aliases.push(alias_handle);
-        }
         projected.requests.push((
             row.purpose(),
             project_source_literal(syntax_trees, row.source(), explicit_alias)?,
         ));
-        projected.accepted_statements.push(row.statement());
+        projected
+            .accepted_statements
+            .extend_from_slice(row.statements());
+        projected
+            .accepted_calls
+            .extend_from_slice(row.accepted_call_arguments());
         projected.accepted_sources.push(row.source());
     }
     Ok(projected)
