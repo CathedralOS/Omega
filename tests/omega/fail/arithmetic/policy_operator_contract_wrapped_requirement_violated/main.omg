@@ -1,0 +1,31 @@
+// Twin of `small_sum` in run/arithmetic/policy_operator_contracts called with
+// operands whose wrapped sum is 12. The requirement is the wrapped sum the
+// operator names, so the caller cannot prove `< 10`.
+use omega_language_std::console;
+data Main { }
+
+machine small_sum(a: u32, b: u32) -> u32
+    requires a +% b < 10
+    ensures result == a +% b
+{
+    a +% b
+}
+
+machine subject() -> bool {
+    small_sum(3, 9) == 12
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    transition subject() {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

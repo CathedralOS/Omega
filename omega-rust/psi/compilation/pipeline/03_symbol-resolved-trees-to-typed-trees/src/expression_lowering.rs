@@ -853,12 +853,13 @@ pub(crate) mod expression {
                 /// Tracks proposition-only placement diagnostics. Calls and value
                 /// children leave this context explicitly; comparison meaning is unchanged.
                 pub(crate) fact_position: bool,
-                /// Whether this expression runs in a machine body. Preparation
-                /// types a suffixed policy operator against its operands'
-                /// carrier and reads only executable statements, so every
-                /// other position rejects the suffix here instead of letting
-                /// it be checked as the bare Exact operator.
-                executable: bool,
+                /// Whether a suffixed policy operator may appear here.
+                /// Preparation types one against its operands' carrier, and it
+                /// reads executable statements and the contracts of machines
+                /// and their states. Every other position rejects the suffix
+                /// here instead of letting it be checked as the bare Exact
+                /// operator.
+                admits_policy_operators: bool,
                 lowered_expressions: Vec<(
                     resolved::expression::ExpressionHandle,
                     bool,
@@ -888,7 +889,7 @@ pub(crate) mod expression {
                         symbol_substitution,
                         equality_scope,
                         fact_position: false,
-                        executable: false,
+                        admits_policy_operators: false,
                         lowered_expressions: Vec::new(),
                         match_captures: Vec::new(),
                     }
@@ -939,8 +940,8 @@ pub(crate) mod expression {
                     self
                 }
 
-                pub(crate) fn in_executable_code(mut self) -> Self {
-                    self.executable = true;
+                pub(crate) fn admitting_policy_operators(mut self, admitted: bool) -> Self {
+                    self.admits_policy_operators = admitted;
                     self
                 }
 
@@ -1085,10 +1086,10 @@ pub(crate) mod expression {
                         return self.lower_nonbinary_node(expression, node);
                     };
                     if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact
-                        && !self.executable
+                        && !self.admits_policy_operators
                     {
                         return Err(Diagnostic::error(format!(
-                            "the policy operator `{}{}` is supported only in executable machine code; contracts and constant expressions cannot use a suffixed operator yet",
+                            "the policy operator `{}{}` is supported only in executable machine code and in the contracts of a machine; this position cannot use a suffixed operator yet",
                             binary.operator.display_name(),
                             binary.policy.operator_suffix(),
                         ))
@@ -3829,7 +3830,7 @@ pub(crate) mod expression {
             scope: Option<&EqualityScope>,
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
             lowerer::ExpressionTableLowerer::new(Some(program), source, target, None, scope)
-                .in_executable_code()
+                .admitting_policy_operators(true)
                 .lower(expression)
         }
 
@@ -3850,9 +3851,11 @@ pub(crate) mod expression {
             target: &mut typed::TypedTrees,
             expression: resolved::expression::ExpressionHandle,
             scope: Option<&EqualityScope>,
+            admits_policy_operators: bool,
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
             lowerer::ExpressionTableLowerer::new(Some(program), source, target, None, scope)
                 .in_fact_position()
+                .admitting_policy_operators(admits_policy_operators)
                 .lower(expression)
         }
 
@@ -4079,6 +4082,7 @@ pub(crate) mod expression {
             &mut lowerer.typed_trees,
             expression,
             lowerer.equality_scope.as_ref(),
+            lowerer.admits_contract_policy_operators,
         )
     }
 }
