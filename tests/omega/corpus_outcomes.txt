@@ -5642,6 +5642,8 @@ fail/expressions/nested_i32_mul_overflow rejected 13807ms unexpected @ccdb99ca22
 	cannot determine the dispatch subject storage type in `not_three::entry`
 fail/expressions/owned_match_duplicated_projected_claim rejected 8970ms unexpected @ee4dbb4b2d56
 	selected claim disagrees with its evaluated source custody
+fail/expressions/owned_match_projected_claim_retained_on_one_arm rejected 10964ms expected @ae9de1c29777
+	cannot prove automatic cleanup requires at selected edge from select state entry after statement 1: original.first does not establish drop_token clause `token.code == 0`
 fail/expressions/owned_match_subject_consumed_source rejected 2519ms unexpected @ccdb99ca2214
 	selected descriptor has no live evaluated carrier custody
 fail/expressions/owned_match_unretired_projected_sibling rejected 10060ms expected @ee4dbb4b2d56
@@ -22315,9 +22317,7 @@ pass/expressions/runtime_numeric_cast_exit checked 426526ms check-target:macos_a
 pass/expressions/runtime_owned_match_borrowed_subject_exit checked 3398ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/runtime_owned_match_call_result_exit checked 16232ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/runtime_owned_match_effectful_subject_exit checked 3044ms check-target:macos_arm64 @ccdb99ca2214
-pass/expressions/runtime_owned_match_multiple_projected_claims_exit rejected 19098ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from select state entry after statement 1: original.second does not establish drop_token clause `token.code == 0`
-	cannot prove automatic cleanup requires at selected edge from select state entry after statement 1: original.first does not establish drop_token clause `token.code == 0`
+pass/expressions/runtime_owned_match_multiple_projected_claims_exit checked 15111ms check-target:macos_arm64 @ae9de1c29777
 pass/expressions/runtime_owned_match_parameter_claim_replacement_exit checked 20673ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/expressions/runtime_owned_match_pattern_claim_replacement_exit checked 16152ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/expressions/runtime_owned_match_pattern_replacement_exit checked 3244ms check-target:macos_arm64 @ccdb99ca2214
