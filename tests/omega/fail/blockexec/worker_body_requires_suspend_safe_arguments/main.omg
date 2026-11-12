@@ -1,4 +1,4 @@
-// Expected exit: 0. A selected worker provider invokes the supplied body.
+// A selected suspending callback cannot retain suspension-forbidden arguments.
 public boundary trait WorkerProvider {
     machine execute<T, Arguments, machine Target>(arguments: Arguments) -> T
     requires machine Target(arguments: Arguments) -> T suspends blocks;
@@ -14,12 +14,21 @@ suspends blocks
 {
     suspend block Target(arguments)
 }
-data Token { id: u64; }
+data Token [carry(suspension: forbidden, cpu: any, thread: any, address: movable)] { id: u64; }
 data Request { token: Token; salt: u64; }
-machine identity(arguments: Token) -> Token { arguments }
+public machine identity(arguments: Token) -> Token { arguments }
+public machine may_pause(arguments: Token) -> Token suspends { arguments }
 machine flip(arguments: Token) -> Token { Token { id: arguments.id ^ 1 } }
 machine mix(arguments: Request) -> Token {
     Token { id: arguments.token.id ^ arguments.salt }
 }
 
-machine main() {}
+machine main() suspends blocks crashes Trap {
+    let result: Token = suspend block CheckedWorkerProvider::execute<Token, Token, may_pause>(Token { id: 7 });
+    transition result.id == 7 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
