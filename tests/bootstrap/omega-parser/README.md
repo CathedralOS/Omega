@@ -62,13 +62,13 @@ returning `000000000041` with status 0 and empty stderr — now that
 Bash execution; the PE artifact is proven byte-exact under wine but the
 MINGW/MSYS shell route itself has not run on Windows hardware.
 
-The current customer reuses one parser across thirty-six invocations. Direct
+The current customer reuses one parser across thirty-seven invocations. Direct
 Boolean transition results retain ordinary expression rows; parameterized
 nested-machine transfers retain their argument rows. The retired `state`
 declaration spelling refuses, while `state` remains a usable identifier. A
 subsequent machine-target arm checks that result-target rows do not leak across
 invocations. Calls preserve surrounding operators, groups and prefixes across
-argument parsing; static call arguments remain distinguishable from `<`
+argument parsing, including transition subjects; static call arguments remain distinguishable from `<`
 comparisons. Statement-leading unary prefixes use that same expression frame.
 Explicit carrier casts and single `+Domain` / `-Domain` entries
 retain distinct tags. Retired whole-type domain casts and unsupported multi-entry

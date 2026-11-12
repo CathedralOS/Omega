@@ -137,6 +137,9 @@ machine Main::main(&mut self) {
     assert self.parser.expression_group_count == 0;
     self.check_call_stacks_empty();
 
+    self.parser.parse_view("machine p() -> bool { transition !f(1) && g(h(2)) { true -> true _ -> false } } machine q() -> bool { transition compare(47) { true -> true _ -> false } }");
+    self.check_subject_call_rows();
+
     self.console.write_byte(65);
 }
 
@@ -473,5 +476,26 @@ machine Main::check_lexical_failure(&mut self) {
     transition self.parser.status {
         OmegaParserStatus::LexicalFailure -> return
         _ -> self.console.exit_process(1)
+    }
+}
+
+machine Main::check_subject_call_rows(&mut self) {
+    self.check_complete();
+    self.check_call_stacks_empty();
+    assert self.parser.call_expression_count == 4;
+    assert self.parser.binary_expression_count == 1;
+    assert self.parser.unary_expression_count == 1;
+    assert self.parser.transition_statement_count == 4;
+    assert self.parser.transition_statements[0].subject == self.parser.transition_statements[1].subject;
+    assert self.parser.transition_statements[2].subject == self.parser.transition_statements[3].subject;
+    transition self.parser.expressions[self.parser.transition_statements[0].subject].kind {
+        OmegaExpressionKind::Binary -> direct()
+        _ -> self.console.exit_process(1)
+    }
+    state direct() {
+        transition self.parser.expressions[self.parser.transition_statements[2].subject].kind {
+            OmegaExpressionKind::Call -> return
+            _ -> self.console.exit_process(1)
+        }
     }
 }

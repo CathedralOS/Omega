@@ -5740,9 +5740,11 @@ machine OmegaParser::parse_view(
     state begin_call_expression_from_path() {
         transition self.expression_consumer {
             OmegaExpressionConsumer::LocalDataInitialValue ->
-                check_call_expression_outer_frame()
+                retain_call_expression_path()
             OmegaExpressionConsumer::ExpressionStatement ->
-                check_call_expression_statement_frame()
+                retain_call_expression_path()
+            OmegaExpressionConsumer::TransitionSubject ->
+                retain_call_expression_path()
             OmegaExpressionConsumer::CallArgument ->
                 check_nested_call_frame()
             _ -> incomplete_root()
@@ -5783,14 +5785,6 @@ machine OmegaParser::parse_view(
         self.call_parse_frames[frame].pending_head = self.call_pending_head;
         self.call_parse_frames[frame].pending_tail = self.call_pending_tail;
         self.call_parse_frame_count = frame + 1;
-        transition true { true -> retain_call_expression_path() }
-    }
-
-    state check_call_expression_outer_frame() {
-        transition true { true -> retain_call_expression_path() }
-    }
-
-    state check_call_expression_statement_frame() {
         transition true { true -> retain_call_expression_path() }
     }
 
