@@ -22,9 +22,9 @@ python3 .agents/four-jobs-2026-11-12/soundness/run_shard_mutations.py
 | Originals skipped | 131 |
 | Fixtures checked (original accepted) | 999 |
 | Fixtures with zero generated mutants (no-mutation) | 55 |
-| Fixtures with ≥1 mutant row | 514 |
-| Mutant rows | 1213 |
-| Mean mutants per mutated fixture | 2.36 |
+| Fixtures with ≥1 mutant row | 539 |
+| Mutant rows | 1297 |
+| Mean mutants per mutated fixture | 2.41 |
 
 Reconcile: `fixtures in shard` = skipped + checked; `checked` = no-mutation + mutated fixtures; mutant row buckets sum to `mutant rows`.
 
@@ -32,20 +32,20 @@ Reconcile: `fixtures in shard` = skipped + checked; `checked` = no-mutation + mu
 
 | Bucket | Count |
 | --- | ---: |
-| `confirmed-hole` | 203 |
+| `confirmed-hole` | 215 |
 | `known-gap-q7-mut` | 0 |
-| `disagreement-valid` | 4 |
+| `disagreement-valid` | 5 |
 | `valid-route-outside` | 185 |
-| `discarded-valid` | 52 |
-| `rejected-both` | 769 |
+| `discarded-valid` | 64 |
+| `rejected-both` | 828 |
 | `timeout` | 0 |
 | `failed-run` | 0 |
 | `failed-run` | 0 |
-| **Total** | **1213** |
+| **Total** | **1297** |
 
 ## Fixtures with more than one mutant row
 
-Count: 394 fixtures.
+Count: 416 fixtures.
 - `tests/omega/pass/arithmetic/checked_flag_proof_signed_mask/main.omg`: 2 rows
 - `tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg`: 5 rows
 - `tests/omega/pass/arithmetic/runtime_boolean_field_shift_count_exit/main.omg`: 2 rows
@@ -86,22 +86,22 @@ Count: 394 fixtures.
 - `tests/omega/pass/borrows/runtime_reference_call_scalar_snapshot_exit/main.omg`: 2 rows
 - `tests/omega/pass/borrows/runtime_selected_stored_carrier_exit/main.omg`: 2 rows
 - `tests/omega/pass/borrows/runtime_static_callback_snapshot_exit/main.omg`: 3 rows
-- … and 354 more (see TSV)
+- … and 376 more (see TSV)
 
 ## Confirmed holes by mutation kind
 
 | Kind | Count |
 | --- | ---: |
-| `amp_to_ampmut` | 31 |
+| `amp_to_ampmut` | 42 |
 | `drop_requires` | 2 |
-| `remove_mut` | 170 |
+| `remove_mut` | 171 |
 
 ## Confirmed holes by accepted_by
 
 | accepted_by | Count |
 | --- | ---: |
-| `both` | 3 |
-| `current` | 200 |
+| `both` | 6 |
+| `current` | 209 |
 
 ## Kept rows
 
@@ -3150,6 +3150,186 @@ Count: 394 fixtures.
 - (b) Check-time vs runtime: accepting checker verdict `accepted` (route `rejected`); obligation must be proved at check, not deferred to crash.
 - (c) Minimal diff: see hand-verification section below.
 
+### tests/omega/pass/facts/signed_8bit_exact_arithmetic_bound_through_other_state_exit/main.omg — amp_to_ampmut
+
+- Bucket: `confirmed-hole`
+- Mutation: first shared & -> &mut
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_8bit_exact_arithmetic_bound_through_other_state_exit__main.omg__amp_to_ampmut__ccd7f55c52a4025d/main.omg`
+- Current: `accepted`; route: `rejected`; accepted_by: `current`
+- Route detail (hint only): diagnostic: reject main.omg:10 bytes 595..596 exact arithmetic in machine `step` state `entry` local `headroom` may overflow `i8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation) (no proof found from the facts available here: the operands' bounds exceed
+- Broken obligation: `1: // Fact: an 8-bit signed i8 exact addition of bounded inputs (lhs >= 20i8 &mut& lhs <= 45i8, rhs >= 15i8 && rhs <= 35i8) establishes sum >= 35i8 && sum <= 80i8 so exact 8-bit signed subtraction 80i8 - sum is proved overflow-free across all nine places.`
+- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
+
+> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+- Subtype: `n/a`
+- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `rejected`); obligation must be proved at check, not deferred to crash.
+- (c) Minimal diff: see hand-verification section below.
+
+### tests/omega/pass/facts/signed_8bit_exact_multiplication_bound_through_other_machine_exit/main.omg — amp_to_ampmut
+
+- Bucket: `confirmed-hole`
+- Mutation: first shared & -> &mut
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_8bit_exact_multiplication_bound_through_other_machine_exit__main.omg__amp_to_ampmut__3dbc1ca4419f9f0f/main.omg`
+- Current: `accepted`; route: `accepted`; accepted_by: `both`
+- Route detail (hint only): route=accepted
+- Broken obligation: `1: // Fact: an 8-bit signed i8 exact multiplication of bounded inputs (lhs >= 5i8 &mut& lhs <= 10i8, rhs >= 6i8 && rhs <= 10i8) establishes prod >= 30i8 && prod <= 100i8 so exact 8-bit signed subtraction 100i8 - prod is proved overflow-free across all nine places.`
+- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
+
+> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+- Subtype: `n/a`
+- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `accepted`); obligation must be proved at check, not deferred to crash.
+- (c) Minimal diff: see hand-verification section below.
+
+### tests/omega/pass/facts/signed_8bit_shift_left_bound_through_field_exit/main.omg — amp_to_ampmut
+
+- Bucket: `confirmed-hole`
+- Mutation: first shared & -> &mut
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_8bit_shift_left_bound_through_field_exit__main.omg__amp_to_ampmut__3a19208f2f9c29c7/main.omg`
+- Current: `accepted`; route: `outside`; accepted_by: `current`
+- Route detail (hint only): route=outside
+- Broken obligation: `1: // Fact: an 8-bit signed i8 left shift of a bounded input (val >= 25i8 &mut& val <= 25i8) by 2u32 bits establishes shifted >= 100i8 && shifted <= 100i8 so exact 8-bit signed subtraction shifted - 100i8 is proved overflow-free across all nine places.`
+- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
+
+> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+- Subtype: `n/a`
+- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
+- (c) Minimal diff: see hand-verification section below.
+
+### tests/omega/pass/facts/signed_8bit_shift_right_bound_through_const_name_exit/main.omg — amp_to_ampmut
+
+- Bucket: `confirmed-hole`
+- Mutation: first shared & -> &mut
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_8bit_shift_right_bound_through_const_name_exit__main.omg__amp_to_ampmut__e7c48a17a5d42dd5/main.omg`
+- Current: `accepted`; route: `outside`; accepted_by: `current`
+- Route detail (hint only): route=outside
+- Broken obligation: `1: // Fact: an 8-bit signed i8 arithmetic right shift of a bounded input (val >= 100i8 &mut& val <= 100i8) by 2u32 bits establishes shifted >= 25i8 && shifted <= 25i8 so exact 8-bit signed subtraction shifted - 25i8 is proved overflow-free across all nine places.`
+- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
+
+> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+- Subtype: `n/a`
+- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
+- (c) Minimal diff: see hand-verification section below.
+
+### tests/omega/pass/facts/signed_arithmetic_shift_right_through_parameter_exit/main.omg — amp_to_ampmut
+
+- Bucket: `confirmed-hole`
+- Mutation: first shared & -> &mut
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_arithmetic_shift_right_through_parameter_exit__main.omg__amp_to_ampmut__59f4ca0c06df41ec/main.omg`
+- Current: `accepted`; route: `rejected`; accepted_by: `current`
+- Route detail (hint only): diagnostic: reject main.omg:15 bytes 719..720 exact arithmetic in machine `shift_right` state `entry` local `diff` may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation) (no proof found from the facts available here: the operands' bounds ex
+- Broken obligation: `1: // An arithmetic right shift (`>>`) on a bounded signed `i64` value (`value >= 400i64 &mut& value <= 400i64`) by a bounded shift count (`shift >= 2u32 && shift <= 2u32`) preserves sign and establishes the exact post-shift interval (`shifted >= 100i64 && shifted <= 100i64`), discharging exact subtraction `shifted - 100i64` with exit code `0`.`
+- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
+
+> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+- Subtype: `n/a`
+- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `rejected`); obligation must be proved at check, not deferred to crash.
+- (c) Minimal diff: see hand-verification section below.
+
+### tests/omega/pass/facts/signed_exact_addition_bound_through_match_join_exit/main.omg — amp_to_ampmut
+
+- Bucket: `confirmed-hole`
+- Mutation: first shared & -> &mut
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_exact_addition_bound_through_match_join_exit__main.omg__amp_to_ampmut__89378172ca7c3321/main.omg`
+- Current: `accepted`; route: `accepted`; accepted_by: `both`
+- Route detail (hint only): route=accepted
+- Broken obligation: `1: // Adding two bounded signed i64 values (base >= 20i64 &mut& base <= 40i64 and delta >= 10i64 && delta <= 30i64) establishes the exact post-addition interval (sum >= 30i64 && sum <= 70i64), discharging exact subtraction 70i64 - sum across all nine places.`
+- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
+
+> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+- Subtype: `n/a`
+- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `accepted`); obligation must be proved at check, not deferred to crash.
+- (c) Minimal diff: see hand-verification section below.
+
+### tests/omega/pass/facts/signed_exact_multiplication_bound_through_local_exit/main.omg — amp_to_ampmut
+
+- Bucket: `confirmed-hole`
+- Mutation: first shared & -> &mut
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_exact_multiplication_bound_through_local_exit__main.omg__amp_to_ampmut__b26eb75fb7e459fe/main.omg`
+- Current: `accepted`; route: `accepted`; accepted_by: `both`
+- Route detail (hint only): route=accepted
+- Broken obligation: `1: // Fact: multiplying two bounded signed i64 values (factor >= 10i64 &mut& factor <= 15i64 and scale >= 4i64 && scale <= 6i64) establishes product >= 40i64 && product <= 90i64, discharging a downstream contract requiring product >= 40i64 && product <= 90i64 across all nine places.`
+- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
+
+> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+- Subtype: `n/a`
+- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `accepted`); obligation must be proved at check, not deferred to crash.
+- (c) Minimal diff: see hand-verification section below.
+
+### tests/omega/pass/facts/signed_exact_subtraction_bound_through_field_exit/main.omg — amp_to_ampmut
+
+- Bucket: `confirmed-hole`
+- Mutation: first shared & -> &mut
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_exact_subtraction_bound_through_field_exit__main.omg__amp_to_ampmut__4f7ec0508877208d/main.omg`
+- Current: `accepted`; route: `outside`; accepted_by: `current`
+- Route detail (hint only): route=outside
+- Broken obligation: `1: // Fact: subtracting two bounded signed i64 values establishes the exact post-subtraction interval, discharging a downstream contract requiring diff >= 50i64 &mut& diff <= 80i64 across all nine places.`
+- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
+
+> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+- Subtype: `n/a`
+- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
+- (c) Minimal diff: see hand-verification section below.
+
+### tests/omega/pass/facts/signed_shift_left_bound_through_const_name_exit/main.omg — amp_to_ampmut
+
+- Bucket: `confirmed-hole`
+- Mutation: first shared & -> &mut
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_shift_left_bound_through_const_name_exit__main.omg__amp_to_ampmut__8fb082a6dfbb96e6/main.omg`
+- Current: `accepted`; route: `outside`; accepted_by: `current`
+- Route detail (hint only): route=outside
+- Broken obligation: `1: // Fact: left shift on a bounded signed i64 value value >= 25i64 &mut& value <= 25i64 by 2 establishes shifted >= 100i64 && shifted <= 100i64 for exact subtraction shifted - 100i64.`
+- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
+
+> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+- Subtype: `n/a`
+- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
+- (c) Minimal diff: see hand-verification section below.
+
+### tests/omega/pass/facts/skipped_short_circuit_call_through_other_machine_exit/main.omg — remove_mut
+
+- Bucket: `confirmed-hole`
+- Mutation: remove mut from `counter`
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__skipped_short_circuit_call_through_other_machine_exit__main.omg__remove_mut__5500d44b9b2fd78c/main.omg`
+- Current: `accepted`; route: `outside`; accepted_by: `current`
+- Route detail (hint only): route=outside
+- Broken obligation: `8:     counter = counter + 1u64;`
+- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
+
+> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+- Subtype: `n/a`
+- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
+- (c) Minimal diff: see hand-verification section below.
+
+### tests/omega/pass/facts/slice_view_element_read_bound_through_match_join_exit/main.omg — amp_to_ampmut
+
+- Bucket: `confirmed-hole`
+- Mutation: first shared & -> &mut
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__slice_view_element_read_bound_through_match_join_exit__main.omg__amp_to_ampmut__5ba090422dc41ab7/main.omg`
+- Current: `accepted`; route: `outside`; accepted_by: `current`
+- Route detail (hint only): route=outside
+- Broken obligation: `1: // Fact: a slice view (&mut[u64]) whose length is guarded (view.len >= 3u64) proves safe indexed element read at view[2u64] and preserves the length lower bound to discharge exact subtraction view.len - 3u64 across all nine places.`
+- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
+
+> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+- Subtype: `n/a`
+- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
+- (c) Minimal diff: see hand-verification section below.
+
+### tests/omega/pass/facts/slice_view_layout_geometry_through_local_exit/main.omg — amp_to_ampmut
+
+- Bucket: `confirmed-hole`
+- Mutation: first shared & -> &mut
+- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__slice_view_layout_geometry_through_local_exit__main.omg__amp_to_ampmut__243efeb8da80bd2c/main.omg`
+- Current: `accepted`; route: `outside`; accepted_by: `current`
+- Route detail (hint only): route=outside
+- Broken obligation: `1: // Fact: querying size_of and align_of on a 64-bit slice view (&mut[u64]) establishes its exact two-word (ptr, len) descriptor geometry (size == 16u64 and align == 8u64), discharging exact subtraction size - (align * 2u64) across all nine places.`
+- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
+
+> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+- Subtype: `n/a`
+- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
+- (c) Minimal diff: see hand-verification section below.
+
 
 ## Hand verification (5 confirmed-hole)
 
@@ -3173,7 +3353,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **`route_one_comparison`** route=`no-entry`
 - Route detail: route=no-entry
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__remove_mut__221870285650b17a/main.omg	current=accepted	current_us=1389050	root=compilation	route=no-entry
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__remove_mut__221870285650b17a/main.omg	current=accepted	current_us=1393593	root=compilation	route=no-entry
 
 ```
 
@@ -3197,7 +3377,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **`route_one_comparison`** route=`outside`
 - Route detail: route=outside
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_boolean_field_shift_count_exit__main.omg__remove_mut__f309fcc21272105d/main.omg	current=accepted	current_us=3021523	root=compilation	route=outside	Unsupported: type data with custody
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_boolean_field_shift_count_exit__main.omg__remove_mut__f309fcc21272105d/main.omg	current=accepted	current_us=2974903	root=compilation	route=outside	Unsupported: type data with custody
 
 ```
 
@@ -3221,7 +3401,7 @@ compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **`route_one_comparison`** route=`outside`
 - Route detail: route=outside
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__sparse_captured_utf_path_exit__main.omg__remove_mut__a1bf5fc91e003f1e/main.omg	current=accepted	current_us=3724741	root=compilation	route=outside	Unsupported: type reference
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__sparse_captured_utf_path_exit__main.omg__remove_mut__a1bf5fc91e003f1e/main.omg	current=accepted	current_us=3533259	root=compilation	route=outside	Unsupported: type reference
 
 ```
 
@@ -3245,7 +3425,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **`route_one_comparison`** route=`outside`
 - Route detail: route=outside
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_asm_nominal_symbolic_conjunction_exit__main.omg__remove_mut__dd1ae77a62b9561c/main.omg	current=accepted	current_us=2934302	root=compilation	route=outside	Unsupported: contract term other than a formal or literal
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_asm_nominal_symbolic_conjunction_exit__main.omg__remove_mut__dd1ae77a62b9561c/main.omg	current=accepted	current_us=2973995	root=compilation	route=outside	Unsupported: contract term other than a formal or literal
 
 ```
 
@@ -3269,7 +3449,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **`route_one_comparison`** route=`outside`
 - Route detail: route=outside
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_label_borrow_last_use_exit__main.omg__remove_mut__5ef632b5dd793d32/main.omg	current=accepted	current_us=3058063	root=compilation	route=outside	Unsupported: type reference
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_label_borrow_last_use_exit__main.omg__remove_mut__5ef632b5dd793d32/main.omg	current=accepted	current_us=3002786	root=compilation	route=outside	Unsupported: type reference
 
 ```
 
@@ -3465,7 +3645,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **`route_one_comparison`** route=`outside`
 - Route detail: route=outside
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_captured_boolean_recurrence__main.omg__drop_requires__3a6e19b82553794b/main.omg	current=accepted	current_us=2960939	root=compilation	route=outside	Unsupported: type constrained
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_captured_boolean_recurrence__main.omg__drop_requires__3a6e19b82553794b/main.omg	current=accepted	current_us=2928341	root=compilation	route=outside	Unsupported: type constrained
 
 ```
 
@@ -3489,7 +3669,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **`route_one_comparison`** route=`outside`
 - Route detail: route=outside
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__local_subslice_parent_lent_after_last_use_exit__main.omg__weaken_requires__1f65f214778af6b4/main.omg	current=accepted	current_us=2960661	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__local_subslice_parent_lent_after_last_use_exit__main.omg__weaken_requires__1f65f214778af6b4/main.omg	current=accepted	current_us=2938139	root=compilation	route=outside	Unsupported: parameter mutable parameter
 
 ```
 
@@ -3548,7 +3728,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **`route_one_comparison`** route=`outside`
 - Route detail: route=outside
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__opaque_incoming_nested_projected_array_result_exit__main.omg__drop_requires__69dc4db1d8501575/main.omg	current=accepted	current_us=2910312	root=compilation	route=outside	Unsupported: type reference
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__opaque_incoming_nested_projected_array_result_exit__main.omg__drop_requires__69dc4db1d8501575/main.omg	current=accepted	current_us=2899447	root=compilation	route=outside	Unsupported: type reference
 
 ```
 
@@ -3572,7 +3752,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **`route_one_comparison`** route=`outside`
 - Route detail: route=outside
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__plain_read_after_exclusive_loan_last_use_exit__main.omg__weaken_requires__3398e68f2ec52a15/main.omg	current=accepted	current_us=2928018	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__plain_read_after_exclusive_loan_last_use_exit__main.omg__weaken_requires__3398e68f2ec52a15/main.omg	current=accepted	current_us=2918550	root=compilation	route=outside	Unsupported: parameter mutable parameter
 
 ```
 
@@ -3743,7 +3923,7 @@ compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **`route_one_comparison`** route=`outside`
 - Route detail: route=outside
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_projected_record_region_loop_exit__main.omg__drop_requires__885ac42f221b8727/main.omg	current=accepted	current_us=3055657	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_projected_record_region_loop_exit__main.omg__drop_requires__885ac42f221b8727/main.omg	current=accepted	current_us=2983606	root=compilation	route=outside	Unsupported: parameter mutable parameter
 
 ```
 
