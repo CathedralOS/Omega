@@ -482,14 +482,20 @@ jobs:
           CHANGED: ${{ steps.record.outputs.changed }}
         run: |
           notes="Corpus ledger as the post-merge check last measured it: the rows the batch ending at $GITHUB_SHA reaches, spliced into the previously published ledger (${CHANGED:-0} rows differed). Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          # The ledger is test data, not a product release: it must never be the
+          # repository's latest release, which installers and package managers
+          # such as WinGet resolve. `--latest=false` alone does not keep it out
+          # while no full release is published, so it is always a prerelease,
+          # and the edit below re-asserts both on every run.
           if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "Corpus ledger" --notes "$notes" --latest=false
+              --title "Corpus ledger" --notes "$notes" --prerelease --latest=false
           fi
           gh release upload "$TAG" "$LEDGER" --clobber --repo "$GITHUB_REPOSITORY"
           # The notes change after the asset, so they never name a commit
           # whose ledger is not there yet.
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes "$notes"
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes "$notes" \
+            --prerelease --latest=false
           echo "Published the ledger to release \`$TAG\` (${CHANGED:-0} rows differed)." >> "$GITHUB_STEP_SUMMARY"
 
   report:
