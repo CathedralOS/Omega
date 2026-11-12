@@ -254,7 +254,7 @@ crashes Trap
 {
     transition { _ -> referenced(typer, handle, handle, typer.output.types.row_count) }
 
-    machine referenced(typer: &Typer, original: u64 in Trapping, handle: u64 in Trapping, remaining: u64 in Trapping) -> u64 in Trapping {
+    machine referenced(typer: &Typer, original: u64 in Trapping, handle: u64 in Trapping, remaining: u64) -> u64 in Trapping {
         let row: TypeRow = type_table_row(&typer.output.types, handle);
         transition row.kind == TypeKind::Reference {
             true -> layer(typer, original, row, remaining)
@@ -262,7 +262,7 @@ crashes Trap
         }
     }
 
-    machine layer(typer: &Typer, original: u64 in Trapping, row: TypeRow, remaining: u64 in Trapping) -> u64 in Trapping {
+    machine layer(typer: &Typer, original: u64 in Trapping, row: TypeRow, remaining: u64) -> u64 in Trapping {
         transition row.access != ReferenceAccess::WriteOnly && remaining > 0 {
             true -> referenced(typer, original, row.inner, remaining - 1)
             _ -> result(original)
