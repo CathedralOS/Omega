@@ -12,7 +12,11 @@ name: Corpus gate
 #
 # Required status: `corpus-gate` (the last job). It reports success when the
 # plan skips (a pull request that changes only ledgers and Markdown) and fails
-# when any shard fails or does not finish.
+# when the build or any shard fails or does not finish.
+#
+# The corpus runner is compiled once per run, in `build`, and every shard
+# downloads it; a shard that cannot get it, or gets one built from another
+# commit, fails. Shards compile no compiler.
 
 on:
   pull_request:
@@ -40,6 +44,8 @@ jobs:
     outputs:
       skip: ${{ steps.plan.outputs.skip }}
       shards: ${{ steps.plan.outputs.shards }}
+      needs_base: ${{ steps.plan.outputs.needs_base }}
+      base: ${{ steps.plan.outputs.base }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -60,8 +66,84 @@ jobs:
           path: build/corpus-gate/plan.json
           retention-days: 7
 
-  shard:
+  # Compile the candidate's corpus runner once for every shard. Each shard
+  # used to compile it itself (about 27 minutes of build and first pass in one
+  # logged shard) and, when a row needed excusing, the base commit's as well.
+  build:
     needs: plan
+    if: needs.plan.outputs.skip == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      # 'true' once the base commit's runner is uploaded as well.
+      base: ${{ steps.base-ready.outputs.built }}
+    # The same container, user and path as the shards, so the runner built
+    # here runs there and main's warm build is reused (tools/warm_build.sh).
+    container:
+      image: ubuntu:24.04
+      options: --user root
+    env:
+      HOME: /root
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
+          echo "/root/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Check out the candidate at the session path
+        run: |
+          git config --global --add safe.directory '*'
+          git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /home/user/Omega
+          git -C /home/user/Omega fetch -q origin "${{ github.sha }}"
+          git -C /home/user/Omega checkout -q --detach "${{ github.sha }}"
+      - name: Set up the host and restore main's warm build
+        run: cd /home/user/Omega && bash tools/ci/corpus_host.sh
+      - name: Build the candidate's corpus runner
+        run: |
+          cd /home/user/Omega
+          # A session is not a CI job: Cargo and mbx change their defaults when
+          # CI is set, and the warm build was made without it.
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx xtask corpus-gate build --out build/corpus-gate/runner < /dev/null
+          # An artifact upload drops file modes; the archive keeps the
+          # runner executable.
+          tar -C build/corpus-gate -cf build/corpus-gate/runner.tar runner
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: corpus-gate-runner
+          path: /home/user/Omega/build/corpus-gate/runner.tar
+          if-no-files-found: error
+          retention-days: 2
+      # The base commit's runner tells a row main already lost from one this
+      # change broke. Built here once when the change can move rows. If these
+      # steps fail, a shard that needs the base builds it itself as before.
+      - name: Build the base commit's corpus runner
+        id: base
+        if: needs.plan.outputs.needs_base == 'true'
+        continue-on-error: true
+        run: |
+          cd /home/user/Omega
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx xtask corpus-gate build --at "${{ needs.plan.outputs.base }}" \
+            --out build/corpus-gate/runner-base < /dev/null
+          tar -C build/corpus-gate -cf build/corpus-gate/runner-base.tar runner-base
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        id: base-upload
+        if: steps.base.outcome == 'success'
+        continue-on-error: true
+        with:
+          name: corpus-gate-runner-base
+          path: /home/user/Omega/build/corpus-gate/runner-base.tar
+          if-no-files-found: error
+          retention-days: 2
+      - name: Tell the shards the base runner is available
+        id: base-ready
+        if: steps.base-upload.outcome == 'success'
+        run: echo "built=true" >> "$GITHUB_OUTPUT"
+
+  shard:
+    needs: [plan, build]
     if: needs.plan.outputs.skip == 'false'
     name: shard ${{ matrix.shard }}
     runs-on: ubuntu-24.04
@@ -98,6 +180,25 @@ jobs:
         with:
           name: corpus-gate-plan
           path: /home/user/Omega/build/corpus-gate
+      # The runners the build job compiled. A failed download fails the shard:
+      # it never falls back to compiling or to checking nothing.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: corpus-gate-runner
+          path: /home/user/Omega/build/corpus-gate
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: needs.build.outputs.base == 'true'
+        with:
+          name: corpus-gate-runner-base
+          path: /home/user/Omega/build/corpus-gate
+      - name: Unpack the prebuilt runners
+        run: |
+          cd /home/user/Omega/build/corpus-gate
+          tar -xf runner.tar
+          if [ "${{ needs.build.outputs.base }}" = true ]; then
+            tar -xf runner-base.tar
+            echo "BASE_RUNNER=--base-runner build/corpus-gate/runner-base" >> "$GITHUB_ENV"
+          fi
       - name: Check this shard's rows against the ledger
         run: |
           cd /home/user/Omega
@@ -110,7 +211,8 @@ jobs:
           # CI is set, and the warm build was made without it.
           CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
             mbx xtask corpus-gate check --plan build/corpus-gate/plan.json --shard "${{ matrix.shard }}" \
-            --known build/corpus-gate/observed.txt --out build/corpus-gate/runs < /dev/null
+            --known build/corpus-gate/observed.txt --out build/corpus-gate/runs \
+            --runner build/corpus-gate/runner ${BASE_RUNNER:-} < /dev/null
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -121,7 +223,7 @@ jobs:
           retention-days: 7
 
   corpus-gate:
-    needs: [plan, shard]
+    needs: [plan, build, shard]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -130,6 +232,7 @@ jobs:
         env:
           PLAN: ${{ needs.plan.result }}
           SKIP: ${{ needs.plan.outputs.skip }}
+          BUILD: ${{ needs.build.result }}
           SHARDS: ${{ needs.shard.result }}
           DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
         run: |
@@ -142,6 +245,9 @@ jobs:
           fi
           if [ "$SKIP" = true ]; then
             echo "Nothing the corpus reads changed; no rows to check."; exit 0
+          fi
+          if [ "$BUILD" != success ]; then
+            echo "The corpus runner build failed or did not finish ($BUILD); no row was checked."; exit 1
           fi
           if [ "$SHARDS" != success ]; then
             echo "A shard failed or did not finish ($SHARDS); its summary names the rows."; exit 1

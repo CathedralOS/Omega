@@ -51,8 +51,49 @@ jobs:
           # Every shard measures the same commit even if main moves meanwhile.
           echo "commit=${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
-  shard:
+  # Compile main's corpus runner once for all 64 shards; each used to compile
+  # it itself. A shard that cannot download it, or gets one built from another
+  # commit, fails and leaves its rows unmeasured.
+  build:
     needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    container:
+      image: ubuntu:24.04
+      options: --user root
+    env:
+      HOME: /root
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
+          echo "/root/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Check out main at the session path
+        run: |
+          git config --global --add safe.directory '*'
+          git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /home/user/Omega
+          git -C /home/user/Omega checkout -q --detach "${{ needs.plan.outputs.commit }}"
+      - name: Set up the host and restore main's warm build
+        run: cd /home/user/Omega && bash tools/ci/corpus_host.sh
+      - name: Build the corpus runner at the measured commit
+        run: |
+          cd /home/user/Omega
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx xtask corpus-gate build --out build/corpus-sweep/runner < /dev/null
+          # An artifact upload drops file modes; the archive keeps the
+          # runner executable.
+          tar -C build/corpus-sweep -cf build/corpus-sweep/runner.tar runner
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: corpus-sweep-runner
+          path: /home/user/Omega/build/corpus-sweep/runner.tar
+          if-no-files-found: error
+          retention-days: 2
+
+  shard:
+    needs: [plan, build]
     name: shard ${{ matrix.shard }}
     runs-on: ubuntu-24.04
     # A shard holds about 270 fixtures, about 14 minutes on 4 CPUs.
@@ -81,13 +122,19 @@ jobs:
           git -C /home/user/Omega checkout -q --detach "${{ needs.plan.outputs.commit }}"
       - name: Set up the host and restore main's warm build
         run: cd /home/user/Omega && bash tools/ci/corpus_host.sh
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: corpus-sweep-runner
+          path: /home/user/Omega/build/corpus-sweep
       - name: Observe this shard
         run: |
           cd /home/user/Omega
           mkdir -p build/corpus-sweep
+          tar -C build/corpus-sweep -xf build/corpus-sweep/runner.tar
           CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
             mbx xtask corpus-gate sweep-shard --shard "${{ matrix.shard }}/$SHARDS" \
-            --out "build/corpus-sweep/records-${{ matrix.shard }}.txt" < /dev/null
+            --out "build/corpus-sweep/records-${{ matrix.shard }}.txt" \
+            --runner build/corpus-sweep/runner < /dev/null
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: corpus-sweep-records-${{ matrix.shard }}
@@ -95,11 +142,12 @@ jobs:
           retention-days: 14
 
   report:
-    needs: [plan, shard]
+    needs: [plan, build, shard]
     # A failed shard leaves its rows unmeasured; the rows the other shards
     # measured are still true of this commit, and the description says which
-    # shards are missing.
-    if: always() && needs.plan.result == 'success'
+    # shards are missing. With no runner built, no shard ran and there is
+    # nothing to report.
+    if: always() && needs.plan.result == 'success' && needs.build.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:

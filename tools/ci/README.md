@@ -128,18 +128,52 @@ the candidate; a row that recovers is reported as flaky and not counted. A
 confirmed row whose ledger line the pull request did not change is then
 excused when main already shows the same loss: in the nightly sweep's
 observations (the `observed.txt` asset of the `corpus-sweep-main` release) or
-in a run of that row at the base commit, which the shard builds only when it
-needs it. Whatever remains fails the shard. Each shard's summary tables every
+in a run of that row at the base commit, with the base's fixtures and library
+sources checked out. Whatever remains fails the shard. Each shard's summary tables every
 row by class, with the ledger and observed outcome and the first diagnostic,
 and uploads its evidence as `corpus-gate-shard-N-attempt`.
 
-**Build.** Shards run in `ubuntu:24.04` as root at `/home/user/Omega`, the
-container and path the warm-build job builds main in, and restore that build
-with `tools/ci/corpus_host.sh`; only the crates the candidate changed compile.
+**Build.** The corpus runner is compiled once per run. Each shard used to
+compile it itself, and the base commit's too when a row needed excusing; with
+about four jobs running at a time, eight shards doing the same build took most
+of a run. Now the `build` job, after `plan`, restores main's warm build with
+`tools/ci/corpus_host.sh` (so only the crates the candidate changed compile),
+runs `cargo xtask corpus-gate build --out build/corpus-gate/runner`, and
+uploads the result as the `corpus-gate-runner` artifact. The directory holds
+two things a shard needs: `corpus_runner`, the executable, and
+`producer.json`, the receipt the build already wrote, which names the commit
+and tree it was built from and the executable's SHA-256. (`build-inputs.json`
+beside them records the build's environment.) The runner is self-contained:
+it compiles fixtures in-process and reads fixtures and `source/library` from
+the shard's checkout, so nothing else from `target/` travels. The directory is
+uploaded as a tar archive because an artifact upload drops the executable bit.
+
+Each shard downloads it and runs `corpus-gate check --runner <dir>`, which
+compiles nothing. It uses the runner only when the receipt names the exact
+commit and tree the shard has checked out, both trees are clean, the host kind
+matches, and the file's bytes are the ones the receipt records; the bytes are
+checked again after the run. **A missing, unreadable or mismatched runner
+fails the shard.** It never falls back to compiling one or to checking no
+rows, and the `corpus-gate` job is red when `build` fails. The receipt is
+trusted because it comes from the same workflow run; do not point `--runner`
+at a directory from anywhere else.
+
+When the plan says the change can move rows (`needs_base`: some changed path
+can reach the compiler or touches a fixture), `build` also builds the base
+commit's runner (`corpus-gate build --at <base> --out ...`) and uploads it as
+`corpus-gate-runner-base`; shards pass it as `--base-runner`. A shard still
+checks the base commit out to run rows there, because fixtures and library
+sources are read from the checkout, but it no longer compiles. If the base
+runner was not built (a neutral diff, or the base build failed), a shard that
+needs the base builds it itself, as every shard did before.
+
+Jobs run in `ubuntu:24.04` as root at `/home/user/Omega`, the container and
+path the warm-build job builds main in; a runner built in `build` runs in a
+shard because both are that same container.
 
 **Required status.** The last job, `corpus-gate`, is the one to require: it is
-green when the plan skips or every shard passes, and red when the plan or any
-shard fails or does not finish. Requiring it is an owner change to the main
+green when the plan skips or every shard passes, and red when the plan, the
+build or any shard fails or does not finish. Requiring it is an owner change to the main
 ruleset (`main-ruleset.json`), not something this workflow does.
 
 Run a shard locally with the same code:
@@ -149,10 +183,17 @@ mbx xtask corpus-gate plan --base origin/main --out build/corpus-gate/plan.json
 mbx xtask corpus-gate check --plan build/corpus-gate/plan.json --shard 0 < /dev/null
 ```
 
+Without `--runner`, `check` builds the runner itself, so a local run needs no
+artifact.
+
 ### Nightly sweep
 
 `.github/workflows/corpus-sweep.yml` runs every fixture on main's head at 02:41
-UTC in 64 shards (`cargo xtask corpus-gate sweep-shard`), then
+UTC in 64 shards (`cargo xtask corpus-gate sweep-shard`). As in the gate, a
+`build` job compiles the runner once at the measured commit and uploads it as
+`corpus-sweep-runner`; each shard runs it with `--runner` after the same
+identity check, and a shard without a matching runner fails and leaves its
+rows unmeasured rather than compiling its own. Then
 `cargo xtask corpus-gate sweep-report` splices every row whose outcome differs
 from the ledger with `--record`'s rules (the measured commit as the stamp, and
 `regressed-from:` on a pass/run row that lost a success) and opens or replaces
