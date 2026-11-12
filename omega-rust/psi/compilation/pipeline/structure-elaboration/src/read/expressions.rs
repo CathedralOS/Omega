@@ -409,7 +409,8 @@ pub(super) fn names_storage(expression: &Expression) -> bool {
         ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
             names_storage(base)
         }
-        ExpressionKind::Integer(_)
+        ExpressionKind::Borrow { .. }
+        | ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Record { .. }
         | ExpressionKind::Case { .. }
@@ -700,7 +701,9 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::BitwiseNot(_)
                 | ExpressionKind::Cast(_)
                 | ExpressionKind::ShortCircuit { .. }
-                | ExpressionKind::Call { .. },
+                | ExpressionKind::Call { .. }
+                // A loan is formed afresh each time; two are never one.
+                | ExpressionKind::Borrow { .. },
                 _,
             ) => false,
         }

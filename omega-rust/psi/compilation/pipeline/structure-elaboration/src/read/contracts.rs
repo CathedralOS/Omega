@@ -70,6 +70,26 @@ pub(super) enum ResultTerm {
     Absent(&'static str),
 }
 
+/// The place of the formal in `slot`: lowering mints the formals that are
+/// places first, in position order (a record formal, and a borrowed formal
+/// of any referent), so the `k`-th of them is place `k + 1`
+/// (`Signature::is_place`).
+fn formal_place(id: MachineId, slots: &[Slot], slot: usize) -> Checked<PlaceId> {
+    let earlier = slots[..slot]
+        .iter()
+        .filter(|formal| {
+            formal.borrowed.is_some() || matches!(formal.value_type, ValueType::Record(_))
+        })
+        .count();
+    PlaceId::new(earlier as u64 + 1).ok_or_else(|| {
+        refuse(
+            id,
+            Construct::Machine,
+            Unserved::Contract("formal place identity"),
+        )
+    })
+}
+
 impl Program<'_> {
     // Contract clauses: a comparison of formals, literals and Booleans, or a
     // conjunction of those. Terms name formal `i` as value `i + 1`.
@@ -378,6 +398,37 @@ impl Program<'_> {
             }
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, scope.slots, path)?;
+                // A borrowed scalar formal is a place too: an entry clause
+                // names what its referent holds at entry, as it names a
+                // field of a record formal. A guarantee would name what it
+                // holds at the return, a version no slice serves yet.
+                if scope.slots[slot].borrowed.is_some() {
+                    if !scope.formal_fields {
+                        return unserved("clause that names a borrowed formal outside requires");
+                    }
+                    let ValueType::Scalar(scalar_type) = scope.slots[slot].value_type else {
+                        return unserved("record formal named whole in a clause");
+                    };
+                    let root = formal_place(id, scope.slots, slot)?;
+                    return match scalar_type {
+                        ScalarType::Integer(integer) => Ok((
+                            ScalarTerm::IntegerField {
+                                root,
+                                path: Vec::new(),
+                                scalar_type: integer,
+                            },
+                            scalar_type,
+                        )),
+                        ScalarType::Boolean => Ok((
+                            ScalarTerm::BooleanField {
+                                root,
+                                path: Vec::new(),
+                            },
+                            scalar_type,
+                        )),
+                        ScalarType::IeeeFloat(_) => unserved("float field in a clause"),
+                    };
+                }
                 // A record formal is a place, not a value: a clause can only
                 // project it, which the member arm below refuses.
                 let ValueType::Scalar(scalar_type) = scope.slots[slot].value_type else {
@@ -506,17 +557,7 @@ impl Program<'_> {
                     let ValueType::Record(record) = scope.slots[slot].value_type else {
                         return Ok(None);
                     };
-                    let earlier = scope.slots[..slot]
-                        .iter()
-                        .filter(|formal| matches!(formal.value_type, ValueType::Record(_)))
-                        .count();
-                    let root = PlaceId::new(earlier as u64 + 1).ok_or_else(|| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Contract("formal place identity"),
-                        )
-                    })?;
+                    let root = formal_place(id, scope.slots, slot)?;
                     return Ok(Some((root, Vec::new(), ValueType::Record(record))));
                 };
                 if subject.symbol.is_valid() && path.symbol == subject.symbol {

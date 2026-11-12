@@ -119,6 +119,10 @@ struct Slot {
     /// An `[erased]` formal or local. A contract clause and an erased
     /// position may name it; a runtime expression may not.
     erased: bool,
+    /// A formal passed by reference, and its access. Its `value_type` is
+    /// the referent's: the slot names the caller's storage, read and (for
+    /// `&mut`) written in place, never an SSA value or a root of its own.
+    borrowed: Option<language_core::ReferenceAccess>,
 }
 /// The closed crash cause of a `crashes` clause or `crash` statement.
 fn crash_cause(cause: typed_trees::signature::CrashCause) -> CrashCause {
@@ -637,6 +641,7 @@ mod tests {
             assignable: true,
             homed: false,
             erased: false,
+            borrowed: None,
         }];
         let mut program = Program::new(&typed, false);
         let mut assigned = |target| {
@@ -666,6 +671,7 @@ mod tests {
             assignable: false,
             homed: false,
             erased: false,
+            borrowed: None,
         }];
         assert_eq!(
             program
@@ -730,7 +736,9 @@ mod tests {
         // A contract clause can neither name a record formal whole nor
         // project it: clauses over places belong to a later slice.
         let values = crate::body::formal_values(
-            slots.iter().map(|slot| (slot.value_type, slot.erased)),
+            slots
+                .iter()
+                .map(|slot| (slot.value_type, slot.erased, slot.borrowed.is_some())),
             None,
         );
         let scope = ClauseScope {
@@ -835,6 +843,7 @@ mod tests {
             assignable: false,
             homed: false,
             erased: false,
+            borrowed: None,
         }];
         let mut program = Program::new(&typed, false);
         program.record_sources.push(places::RecordSource {

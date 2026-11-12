@@ -50,6 +50,11 @@ unproved obligation, but it is a structural judgment with no obligation row,
 so a rejection carries the two lists side by side. One such use makes the
 verdict `Rejected` even when every unproved obligation is merely incomplete:
 the program fails a checking rule whatever the prover could or could not do.
+
+A loan that may not be formed (`RefusalReason::Conflict`: two loans of one
+call that may share storage with one of them exclusive, or an exclusive
+reborrow of storage held shared) has the same standing, and is listed beside
+the other two as a `ConflictingUse`.
 */
 
 use diagnostics::Diagnostic;
@@ -71,10 +76,13 @@ pub enum RouteVerdict {
     /// The program is rejected. `unproved` has one entry per obligation the
     /// prover could not discharge, in machine and obligation order;
     /// `unestablished` one per use of storage that some path reaches with
-    /// nothing established in it. At least one of the two is not empty.
+    /// nothing established in it; `conflicts` one per loan that may not be
+    /// formed. At least one of the three is not empty.
     Rejected {
         unproved: Vec<UnprovedObligation>,
         unestablished: Vec<UnestablishedUse>,
+        /// One per loan that may not be formed where it is.
+        conflicts: Vec<ConflictingUse>,
     },
     /// No obligation is unproved for want of a derivation, but the prover has
     /// no rule for the form of at least one goal, so the route can judge the
@@ -280,6 +288,83 @@ impl UnestablishedUse {
     }
 }
 
+/// One loan that may not be formed where it is: a call that lends storage
+/// another of its arguments lends with an incompatible access, or an
+/// exclusive reborrow of storage held shared. A compile error of the program
+/// of the same standing as an unproved obligation; it is a resource judgment
+/// with no certificate (`places::loans`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConflictingUse {
+    pub machine: MachineId,
+    /// The `Loan` row that may not be formed.
+    pub loan: ObligationId,
+    pub conflict: crate::LoanConflict,
+    /// Where the call that forms it arises in the source.
+    pub site: SourceOrigin,
+    /// What the conflict is, in the current checker's words where it has
+    /// them. Diagnostic text only.
+    pub statement: String,
+}
+
+impl ConflictingUse {
+    pub fn message(&self) -> String {
+        format!("{} (conflicting loans)", self.statement)
+    }
+
+    /// The `Reject` diagnostic.
+    pub fn reject_diagnostic(&self) -> Diagnostic {
+        let diagnostic = Diagnostic::error(self.message());
+        match self.site {
+            SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
+            SourceOrigin::Unpositioned(_) => diagnostic,
+        }
+    }
+}
+
+/// The statement of one conflict, in the current checker's words: "state
+/// `two` receives `y` as mutable more than once", where `two` is the
+/// callee as declared. The callee's name and the lent binding come from the
+/// reader's names; without them the statement names no binding.
+fn conflict_statement(
+    elaboration: &Elaboration,
+    machine: MachineId,
+    tables: &terminal_check_tables::MachineTables,
+    site: SourceOrigin,
+    conflict: &crate::ConflictingLoan,
+) -> String {
+    let callee = tables
+        .invocations
+        .get(conflict.invocation)
+        .and_then(|row| match row.callee {
+            terminal_check_tables::edges::Callee::Machine(callee) => Some(callee),
+            terminal_check_tables::edges::Callee::Selected { .. } => None,
+        })
+        .and_then(|callee| elaboration.names.get(callee))
+        .map(|names| names.machine.clone())
+        .filter(|state| !state.is_empty());
+    let lender = match site {
+        SourceOrigin::Authored(span) => elaboration
+            .names
+            .get(machine)
+            .and_then(|names| names.lender(span, conflict.position))
+            .map(str::to_owned),
+        SourceOrigin::Unpositioned(_) => None,
+    };
+    let how = match conflict.conflict {
+        crate::LoanConflict::TwiceExclusive => "as mutable more than once",
+        crate::LoanConflict::ExclusiveAndShared => "as both mutable and read-only",
+        crate::LoanConflict::ExclusiveOfShared => {
+            "as mutable through a shared reference, which grants no mutation"
+        }
+    };
+    match (callee, lender) {
+        (Some(state), Some(lender)) => format!("state `{state}` receives `{lender}` {how}"),
+        (Some(state), None) => format!("state `{state}` receives one place {how}"),
+        (None, Some(lender)) => format!("a call receives `{lender}` {how}"),
+        (None, None) => format!("a call receives one place {how}"),
+    }
+}
+
 /// The obligation kind as a diagnostic names it. Clause positions count from
 /// one, as the source does.
 fn describe_kind(kind: ObligationKind) -> String {
@@ -342,6 +427,7 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
     };
     let mut unproved = Vec::new();
     let mut unestablished = Vec::new();
+    let mut conflicts = Vec::new();
     for (machine, result) in discharged.machines.iter() {
         let tables = terminal_check_tables::row(
             &elaboration.tables.machines,
@@ -369,6 +455,15 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
             let Err(refused) = verdict else {
                 continue;
             };
+            // A loan's conflict is listed with what it conflicts with, below.
+            if refused.reason == RefusalReason::Conflict
+                && result
+                    .conflicts
+                    .iter()
+                    .any(|conflict| conflict.loan == obligation)
+            {
+                continue;
+            }
             let RefusalReason::Unproved(cause) = refused.reason else {
                 return fall_back_or_defect(refused.clone());
             };
@@ -438,6 +533,22 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
                 }),
             });
         }
+        for conflict in &result.conflicts {
+            let concerns = Construct::Obligation(conflict.loan);
+            let site = *terminal_check_tables::row(
+                &sources.obligations,
+                conflict.loan,
+                machine,
+                concerns,
+            )?;
+            conflicts.push(ConflictingUse {
+                machine,
+                loan: conflict.loan,
+                conflict: conflict.conflict,
+                site,
+                statement: conflict_statement(&elaboration, machine, tables, site, conflict),
+            });
+        }
         for used in &result.uses {
             let Err(refused) = &used.verdict else {
                 continue;
@@ -468,10 +579,11 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
             });
         }
     }
-    if !unestablished.is_empty() {
+    if !unestablished.is_empty() || !conflicts.is_empty() {
         return Ok(RouteVerdict::Rejected {
             unproved: without_restated_clauses(unproved),
             unestablished,
+            conflicts,
         });
     }
     if !unproved.is_empty() {
@@ -486,6 +598,7 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
                 RouteVerdict::Rejected {
                     unproved,
                     unestablished: Vec::new(),
+                    conflicts: Vec::new(),
                 }
             },
         );
@@ -574,6 +687,7 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
                 detail: refused.detail,
                 declared: None,
             }],
+            conflicts: Vec::new(),
         }),
         RefusalReason::Unproved(_)
         | RefusalReason::NotConserved

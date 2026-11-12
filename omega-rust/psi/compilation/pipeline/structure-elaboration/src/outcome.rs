@@ -228,7 +228,8 @@ impl Walk<'_> {
             | ExpressionKind::Cast(operand) => self.expression(machine, operand),
             ExpressionKind::Field { base, .. }
             | ExpressionKind::Payload { base, .. }
-            | ExpressionKind::IsCase { subject: base, .. } => self.expression(machine, base),
+            | ExpressionKind::IsCase { subject: base, .. }
+            | ExpressionKind::Borrow { place: base, .. } => self.expression(machine, base),
             // One arm runs: the match completes when its subject does and
             // some arm does, and every arm's causes are reachable.
             ExpressionKind::Match {

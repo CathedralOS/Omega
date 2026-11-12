@@ -13,6 +13,7 @@ use typed_trees::machine::{Machine, MachineBodyStatus, MachinePurpose};
 use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
+use typed_trees::types::TypeReferenceNode;
 
 use super::contracts::{ClauseScope, ResultTerm};
 use super::{Program, Slot, crash_cause, span};
@@ -558,12 +559,27 @@ impl<'t> Program<'t> {
         let formals = span(&typed.state_parameters, formals, id, "parameter span")?;
         let mut parameters = Vec::with_capacity(formals.len());
         let mut erased = Vec::new();
+        let mut borrowed = Vec::new();
         let mut slots = Vec::with_capacity(formals.len());
         for (position, formal) in formals.iter().enumerate() {
-            let (value_type, is_erased) = self.formal(id, formal)?;
+            let (value_type, is_erased, reference) = self.formal(id, formal)?;
             parameters.push(value_type);
             if is_erased {
                 erased.push(position);
+            }
+            let access = reference.as_ref().map(|reference| reference.access);
+            if let Some(reference) = reference {
+                if matches!(declared, Declarer::Requirement { .. }) {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Parameter("reference parameter of a requirement"),
+                    ));
+                }
+                borrowed.push(crate::body::Borrowed {
+                    position,
+                    ..reference
+                });
             }
             slots.push(Slot {
                 symbol: formal.symbol,
@@ -571,6 +587,7 @@ impl<'t> Program<'t> {
                 assignable: false,
                 homed: false,
                 erased: is_erased,
+                borrowed: access,
             });
         }
         for binder in binders {
@@ -582,11 +599,14 @@ impl<'t> Program<'t> {
                 assignable: false,
                 homed: false,
                 erased: false,
+                borrowed: None,
             });
         }
         let result = self.result_type(id, return_type)?;
         let values = crate::body::formal_values(
-            slots.iter().map(|slot| (slot.value_type, slot.erased)),
+            slots
+                .iter()
+                .map(|slot| (slot.value_type, slot.erased, slot.borrowed.is_some())),
             result,
         );
         // The result pseudo-value is the value right after the scalar
@@ -595,7 +615,9 @@ impl<'t> Program<'t> {
         // contract's reserved `result`.
         let scalar_formals = slots
             .iter()
-            .filter(|slot| slot.value_type.declared().is_some() && !slot.erased)
+            .filter(|slot| {
+                slot.value_type.declared().is_some() && !slot.erased && slot.borrowed.is_none()
+            })
             .count();
         let result_value = ValueId::new(scalar_formals as u64 + 1).ok_or_else(|| {
             refuse(
@@ -771,6 +793,7 @@ impl<'t> Program<'t> {
             Signature {
                 parameters,
                 erased,
+                borrowed,
                 result,
                 requires,
                 ensures,
@@ -850,10 +873,23 @@ impl<'t> Program<'t> {
         }
     }
 
-    /// A formal's type and whether it is `[erased]`. An erased formal is
-    /// scalar: an erased record travels in Terminal Psi's proof-term lane
-    /// (`erased_proof_formals`), which a later slice serves.
-    fn formal(&mut self, id: MachineId, formal: &StateParameter) -> Checked<(ValueType, bool)> {
+    /// A formal's type, whether it is `[erased]`, and the reference it is
+    /// passed by. An erased formal is scalar: an erased record travels in
+    /// Terminal Psi's proof-term lane (`erased_proof_formals`), which a later
+    /// slice serves.
+    ///
+    /// A formal of type `&T` or `&mut T` is read as its referent type `T`
+    /// with the reference beside it (`Borrowed`), for a builtin scalar or a
+    /// plain record `T`. Stage 01 marks `x: &mut T` mutable for the
+    /// reference's exclusivity; that is the reference's access, not a `mut`
+    /// binding. A `mut` formal that holds its own value, a `&write T`
+    /// formal, a reference with a named lifetime and a reference to
+    /// anything else stay refused.
+    fn formal(
+        &mut self,
+        id: MachineId,
+        formal: &StateParameter,
+    ) -> Checked<(ValueType, bool, Option<crate::body::Borrowed>)> {
         if !formal.symbol.is_valid() {
             return Err(refuse(
                 id,
@@ -868,26 +904,115 @@ impl<'t> Program<'t> {
                 Unserved::Parameter("const parameter"),
             ));
         }
-        if formal.is_mutable {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Parameter("mutable parameter"),
-            ));
-        }
-        let value_type = self.value_type(id, formal.type_reference)?;
+        let reference = match formal.type_reference.is_valid().then(|| {
+            self.typed
+                .type_reference_table
+                .type_reference(formal.type_reference)
+        }) {
+            Some(TypeReferenceNode::Reference {
+                referee,
+                access,
+                lifetime,
+            }) => Some((*referee, *access, lifetime.is_some())),
+            _ => None,
+        };
         let erased = match formal.relevance {
             language_core::BindingRelevance::Relevant => false,
             language_core::BindingRelevance::Erased => true,
         };
-        if erased && value_type.scalar().is_none() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Parameter("erased parameter of a data type"),
-            ));
+        let Some((referee, access, named_lifetime)) = reference else {
+            if formal.is_mutable {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Parameter("mutable parameter"),
+                ));
+            }
+            let value_type = self.value_type(id, formal.type_reference)?;
+            if erased && value_type.scalar().is_none() {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Parameter("erased parameter of a data type"),
+                ));
+            }
+            return Ok((value_type, erased, None));
+        };
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Parameter(what)));
+        if erased {
+            return unserved("erased reference parameter");
         }
-        Ok((value_type, erased))
+        if named_lifetime {
+            return unserved("reference parameter with a named lifetime");
+        }
+        // Stage 01 sets `is_mutable` for an exclusive reference; a shared
+        // one marked mutable would be a `mut` binding of the carrier.
+        match access {
+            language_core::ReferenceAccess::Shared if !formal.is_mutable => {}
+            language_core::ReferenceAccess::Mutable => {}
+            language_core::ReferenceAccess::Shared => {
+                return unserved("mutable binding of a shared reference");
+            }
+            language_core::ReferenceAccess::WriteOnly => {
+                return unserved("write-only reference parameter");
+            }
+        }
+        let value_type = self.value_type(id, referee)?;
+        // A data type with `requires` may be stored into by the callee, so
+        // its domain is owed again where the loan returns; no slice follows
+        // a domain across a call yet.
+        if let ValueType::Record(record) = value_type
+            && self.restricted(record)
+        {
+            return unserved("reference to data with requires");
+        }
+        let home = match value_type {
+            ValueType::Rigid(_) => return unserved("reference to a value of a type parameter"),
+            ValueType::Record(_) => None,
+            ValueType::Scalar(_) => Some(
+                Some(self.typed.normalized_type_identity_text(referee))
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Spelling("referent type without an identity"),
+                        )
+                    })?,
+            ),
+        };
+        Ok((
+            value_type,
+            false,
+            Some(crate::body::Borrowed {
+                position: 0,
+                access,
+                home,
+            }),
+        ))
+    }
+
+    /// Whether a data type or any data type inside it states `requires`.
+    fn restricted(&self, record: semantic_vocabulary::StructuralTypeId) -> bool {
+        let mut pending = vec![record];
+        while let Some(next) = pending.pop() {
+            let Some(data) = self.records.get(next) else {
+                return true;
+            };
+            if !data.requires.is_empty() {
+                return true;
+            }
+            for field in data
+                .fields
+                .iter()
+                .chain(data.cases.iter().flat_map(|case| &case.fields))
+            {
+                if let ValueType::Record(nested) = field.value_type {
+                    pending.push(nested);
+                }
+            }
+        }
+        false
     }
 
     pub fn body(&mut self, id: MachineId) -> Checked<Body> {
@@ -934,12 +1059,22 @@ impl<'t> Program<'t> {
             .chain(binders.iter().map(|binder| binder.symbol))
             .zip(&signature.parameters)
             .enumerate()
-            .map(|(position, (symbol, value_type))| Slot {
-                symbol,
-                value_type: *value_type,
-                assignable: false,
-                homed: false,
-                erased: signature.is_erased(position),
+            .map(|(position, (symbol, value_type))| {
+                // A borrowed formal names the caller's storage: a scalar
+                // referent is read and stored in place like a home, a record
+                // referent like a record formal's root; `&mut` lets the body
+                // store into it, `&` does not.
+                let borrowed = signature
+                    .borrowed(position)
+                    .map(|reference| reference.access);
+                Slot {
+                    symbol,
+                    value_type: *value_type,
+                    assignable: borrowed == Some(language_core::ReferenceAccess::Mutable),
+                    homed: borrowed.is_some() && value_type.scalar().is_some(),
+                    erased: signature.is_erased(position),
+                    borrowed,
+                }
             })
             .collect();
         let statements = typed.statement_table.statements(state.statement_nodes);
@@ -1220,6 +1355,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
             spans(base, binder, out);
         }
         ExpressionKind::IsCase { subject, .. } => spans(subject, binder, out),
+        ExpressionKind::Borrow { place, .. } => spans(place, binder, out),
         ExpressionKind::Match {
             subject,
             arms,
@@ -1342,6 +1478,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
             expression_slot_uses(base, uses);
         }
         ExpressionKind::IsCase { subject, .. } => expression_slot_uses(subject, uses),
+        ExpressionKind::Borrow { place, .. } => expression_slot_uses(place, uses),
         ExpressionKind::Match {
             subject,
             arms,

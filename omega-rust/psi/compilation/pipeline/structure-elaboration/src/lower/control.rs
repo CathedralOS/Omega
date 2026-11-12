@@ -253,17 +253,22 @@ impl Lowering<'_> {
             } => {
                 let cases: Vec<usize> = arms.iter().map(|(case, _, _)| *case).collect();
                 let (blocks, rest) = self.select(subject, &cases, default.is_some(), *source)?;
+                // Each arm completes the machine, so what one binds (the home
+                // a loan gives a local) is no other arm's.
+                let bound = self.slots.clone();
                 for ((_, target, source), (block, chosen)) in arms.iter().zip(blocks) {
                     self.enter(block);
                     self.selected.push(chosen);
                     self.complete(target, *source)?;
                     self.selected.pop();
+                    self.slots.clone_from(&bound);
                 }
                 if let (Some((target, source)), Some((block, chosen))) = (default, rest) {
                     self.enter(block);
                     self.selected.push(chosen);
                     self.complete(target, *source)?;
                     self.selected.pop();
+                    self.slots.clone_from(&bound);
                 }
                 Ok(())
             }
@@ -291,10 +296,14 @@ impl Lowering<'_> {
                 )?;
                 let taken = self.decision(condition, true)?;
                 let not_taken = self.decision(condition, false)?;
+                // The arm completes the machine, so what it binds (the home a
+                // loan gives a local) is not the continuation's.
+                let bound = self.slots.clone();
                 self.enter(arm);
                 self.path.push(taken);
                 self.complete(target, *source)?;
                 self.path.pop();
+                self.slots = bound;
                 self.enter(rest);
                 self.path.push(not_taken);
                 Ok(())
@@ -350,9 +359,13 @@ impl Lowering<'_> {
     /// successor. A crash abandons them (effects.md: "Crashes have explicit
     /// no-successor abandonment, not a missing cleanup list"; `Fate::Abandoned`),
     /// and a no-normal invocation consumes or transfers them. The subset
-    /// mints no conserved obligation, and this lowering does not track which
-    /// are live, so one existing here is refused rather than given a guessed
-    /// fate; with none, the edge has no dispositions.
+    /// mints no conserved obligation live across an edge, and this lowering
+    /// does not track which are live, so one existing here is refused rather
+    /// than given a guessed fate; with none, the edge has no dispositions.
+    ///
+    /// A `Loan` is the one conserved kind the subset mints, and none is live
+    /// here: each is formed for one call that returns, and ends when it does
+    /// (`calls`; a call that never returns may not lend).
     fn no_successor_dispositions(&self) -> Checked<Vec<Disposition>> {
         for raw in 1..=self.tables.obligations.len() as u64 {
             let obligation = ObligationId::new(raw).ok_or_else(|| self.internal("obligation"))?;
@@ -362,7 +375,7 @@ impl Lowering<'_> {
                 self.id,
                 Construct::Obligation(obligation),
             )?;
-            if row.kind.is_conserved() {
+            if row.kind.is_conserved() && !matches!(row.kind, ObligationKind::Loan { .. }) {
                 return Err(refuse(
                     self.id,
                     Construct::Obligation(obligation),
@@ -456,7 +469,10 @@ impl Lowering<'_> {
         for (value, (block, chosen)) in bodies {
             self.enter(block);
             self.selected.push(chosen);
-            let value = self.scalar(value)?;
+            self.joining += 1;
+            let value = self.scalar(value);
+            self.joining -= 1;
+            let value = value?;
             self.selected.pop();
             self.jump(
                 join,
@@ -518,7 +534,10 @@ impl Lowering<'_> {
         };
         self.branch(decided, when_true, when_false, left.source)?;
         self.enter(evaluate_right);
-        let right_value = self.scalar(right)?;
+        self.joining += 1;
+        let right_value = self.scalar(right);
+        self.joining -= 1;
+        let right_value = right_value?;
         self.jump(
             join,
             vec![right_value],

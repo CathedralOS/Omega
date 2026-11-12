@@ -93,10 +93,12 @@ fn route_messages(fixture: &str, root: &str) -> Vec<String> {
         Ok(RouteVerdict::Rejected {
             unproved,
             unestablished,
+            conflicts,
         }) => unproved
             .iter()
             .map(|entry| entry.message())
             .chain(unestablished.iter().map(|entry| entry.message()))
+            .chain(conflicts.iter().map(|entry| entry.message()))
             .collect(),
         verdict => panic!("{fixture}: the route must reject `{root}`: {verdict:?}"),
     }

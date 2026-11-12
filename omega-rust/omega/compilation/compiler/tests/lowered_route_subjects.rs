@@ -356,6 +356,7 @@ fn an_uncalled_machine_is_lowered_and_judged_like_a_called_one() {
     let Ok(RouteVerdict::Rejected {
         unproved,
         unestablished,
+        ..
     }) = verdict
     else {
         panic!("the route must reject this program: {verdict:?}");

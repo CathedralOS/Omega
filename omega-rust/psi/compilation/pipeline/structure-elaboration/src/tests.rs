@@ -91,6 +91,7 @@ fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signatu
     Signature {
         parameters: scalars(parameters),
         erased: Vec::new(),
+        borrowed: Vec::new(),
         result: result.map(ValueType::Scalar),
         requires: Vec::new(),
         ensures: Vec::new(),
@@ -155,7 +156,7 @@ fn lower_records(
 ) -> terminal_check_tables::Checked<crate::lower::Lowered> {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     bodies.push(body);
-    let declared = crate::lower::places::declare(id(1), records, &bodies)?;
+    let declared = crate::lower::places::declare(id(1), records, &bodies, signatures)?;
     crate::lower::machine(
         id(1),
         &bodies,

@@ -62,10 +62,11 @@ mod prove;
 mod reuse;
 mod verdict;
 
+pub use places::{ConflictingLoan, LoanConflict};
 pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
 pub use verdict::{
-    AcceptedClosure, ConsumptionSite, PublicationError, RoutePublication, RouteVerdict,
-    UnestablishedUse, UnprovedObligation, judge, judge_compilation,
+    AcceptedClosure, ConflictingUse, ConsumptionSite, PublicationError, RoutePublication,
+    RouteVerdict, UnestablishedUse, UnprovedObligation, judge, judge_compilation,
 };
 
 #[cfg(test)]
@@ -149,13 +150,22 @@ pub enum Discharged {
     /// over the clause's names and the stored place (`Storage::untouched`),
     /// with no certificate.
     Preserved,
+    /// A `Loan` that may be formed where it is: no other loan of the same
+    /// call overlaps it incompatibly, and a reborrow asks no more access
+    /// than its parent holds (`places::loans`). loans.md: "Loan descent,
+    /// access attenuation, temporal containment and restoration are
+    /// resource judgments. Logical facts cannot create, amplify, transfer,
+    /// extend, return, consume or duplicate authority." It is a structural
+    /// judgment with no certificate, and the loan ends when its call
+    /// returns, so it owes nothing after it.
+    Lent,
 }
 
 impl Discharged {
     pub const fn certificate(&self) -> Option<&Evidence> {
         match self {
             Self::Certificate(evidence) => Some(evidence),
-            Self::EveryExit(_) | Self::Window(_) | Self::Preserved => None,
+            Self::EveryExit(_) | Self::Window(_) | Self::Preserved | Self::Lent => None,
         }
     }
 }
@@ -210,6 +220,9 @@ pub struct MachineDischarge {
     /// predicate was replaced by `Truth`, which every arrival establishes,
     /// so the join contributes nothing downstream (`joins`).
     pub weakened_joins: Vec<BlockId>,
+    /// Each loan that may not be formed, with what it conflicts with. Its
+    /// row's verdict is the `Conflict` refusal.
+    pub conflicts: Vec<places::ConflictingLoan>,
 }
 
 impl MachineDischarge {
@@ -341,6 +354,7 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
                 uses: Vec::new(),
                 windows: Vec::new(),
                 weakened_joins: Vec::new(),
+                conflicts: Vec::new(),
             });
             continue;
         }
@@ -424,6 +438,21 @@ fn machine(
     )?;
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
+    // Loans are judged by structure, not proved (`places::loans`).
+    let (lent, conflicts) = storage.loans(machines, tables)?;
+    for (obligation, verdict) in lent {
+        let slot = decided
+            .get_mut(usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX))
+            .ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    id,
+                    Construct::Obligation(obligation),
+                    "a loan row past the end of this machine",
+                )
+            })?;
+        *slot = Some(verdict.map(|()| Discharged::Lent));
+    }
     // Declared block invariants (a loop head's, the `requires` of the
     // machine lowered beneath it) and inferred join predicates are one kind
     // of row: each is known from its block's entry on and is proved on every
@@ -648,6 +677,7 @@ fn machine(
         uses,
         windows: closures,
         weakened_joins,
+        conflicts,
     })
 }
 
