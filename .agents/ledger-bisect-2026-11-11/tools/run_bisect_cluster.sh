@@ -118,11 +118,11 @@ git checkout -qf "$ANCHOR"
 ANCHOR_EP=$(trial_expect 1)
 git checkout -qf "$BRANCH"
 
-export GIT_PAGER=cat
+export GIT_PAGER=cat GIT_TERMINAL_PROMPT=0
 git bisect reset 2>/dev/null || true
 set +e
-git bisect start --first-parent "$PIN" "$GOOD"
-git bisect run "$SCRIPT"
+git bisect start --first-parent "$PIN" "$GOOD" </dev/null
+git bisect run "$SCRIPT" </dev/null
 BEXIT=$?
 set -e
 BREAK=""

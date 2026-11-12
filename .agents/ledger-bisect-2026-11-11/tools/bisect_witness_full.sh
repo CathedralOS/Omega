@@ -22,13 +22,13 @@ if git rev-parse -q --verify HEAD^1 >/dev/null 2>&1; then
   fi
 fi
 export OMEGA_CORPUS_JOBS=1 CARGO_BUILD_JOBS=4 MBX_SCHEDULER_CPUS=4
-if [[ -d "$ROOT/target" ]]; then
-  find "$ROOT/target" \( -type f -o -type d \) ! -perm -u=w -exec chmod u+w {} + 2>/dev/null || true
-  chmod -R u+w "$ROOT/target" 2>/dev/null || true
-fi
-CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$ROOT/target" nice -n 19 mbx build -p omega < /dev/null >/dev/null 2>&1 || exit 125
-CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$ROOT/target" nice -n 19 mbx test --no-run -p compiler --test corpus_runner < /dev/null >/dev/null 2>&1 || exit 125
-RUNNER=$(ls -t "$ROOT"/target/debug/build/compiler/*/out/corpus_runner-* 2>/dev/null | head -1)
+SHA="$(git rev-parse HEAD)"
+TD="$ROOT/target/verify-$SHA"
+export CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$TD"
+mkdir -p "$TD"
+nice -n 19 mbx build -p omega < /dev/null >/dev/null 2>&1 || exit 125
+nice -n 19 mbx test --no-run -p compiler --test corpus_runner < /dev/null >/dev/null 2>&1 || exit 125
+RUNNER=$(ls -t "$TD"/debug/build/compiler/*/out/corpus_runner-* 2>/dev/null | head -1)
 [[ -x "$RUNNER" ]] || exit 125
 export OMEGA_CORPUS_ROOT="$ROOT" OMEGA_LIBRARY_ROOT="$ROOT/source/library"
 export OMEGA_CORPUS_FIXTURE_FILTER="$WITNESS" OMEGA_CORPUS_RECORDS=/tmp/bisect_one_record.txt
