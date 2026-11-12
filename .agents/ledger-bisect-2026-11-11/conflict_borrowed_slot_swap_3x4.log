@@ -1,0 +1,24 @@
+=== f2c75870ebaf890328b787fa6d8ed50e868edbb8 ===
+commit=f2c75870ebaf890328b787fa6d8ed50e868edbb8
+subject=psi: keep helper-returned views usable across calls that may pause (#1672)
+run1 rc=125 status=rejected diag=statement 12 mutates `second_buffer.value` while local borrow `second` is still active (borrowed at statement 5; its last use is at statement 13)
+run2 rc=125 status=rejected diag=statement 12 mutates `second_buffer.value` while local borrow `second` is still active (borrowed at statement 5; its last use is at statement 13)
+run3 rc=125 status=rejected diag=statement 12 mutates `second_buffer.value` while local borrow `second` is still active (borrowed at statement 5; its last use is at statement 13)
+=== 4faf6413467dd7a7f6cf7e62ba77d1c607591f18 ===
+commit=4faf6413467dd7a7f6cf7e62ba77d1c607591f18
+subject=psi: check each write once when replaying a state's current values (#1718)
+run1 rc=125 status=rejected diag=statement 12 mutates `second_buffer.value` while local borrow `second` is still active (borrowed at statement 5; its last use is at statement 13)
+run2 rc=125 status=rejected diag=statement 12 mutates `second_buffer.value` while local borrow `second` is still active (borrowed at statement 5; its last use is at statement 13)
+run3 rc=125 status=rejected diag=statement 12 mutates `second_buffer.value` while local borrow `second` is still active (borrowed at statement 5; its last use is at statement 13)
+=== 2ab64136c02d7879635a92e3e078d7374bec7590 ===
+commit=2ab64136c02d7879635a92e3e078d7374bec7590
+subject=build: choose default float implementations through Build (#1811)
+run1 rc=1 status=rejected diag=machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation
+run2 rc=1 status=rejected diag=machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation
+run3 rc=1 status=rejected diag=machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation
+=== 0aeed1114ae3d056f78113e377f10b7126b1e75e ===
+commit=0aeed1114ae3d056f78113e377f10b7126b1e75e
+subject=psi: admit sealed placed-field accessor calls in scalar computations (#1896)
+run1 rc=1 status=rejected diag=machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation
+run2 rc=1 status=rejected diag=machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation
+run3 rc=1 status=rejected diag=machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation

@@ -1,0 +1,334 @@
+===== 2e3a14463a8255c4e25ef4e3a60edc2d4c3ba3a9 =====
+2e3a14463a8 psi: retain scoped lifetimes through selected callbacks (#1007)
+diff --git a/omega-rust/psi/compilation/checking/src/borrow_contracts.rs b/omega-rust/psi/compilation/checking/src/borrow_contracts.rs
+index 0c19ba5113a..aa0faafb152 100644
+--- a/omega-rust/psi/compilation/checking/src/borrow_contracts.rs
++++ b/omega-rust/psi/compilation/checking/src/borrow_contracts.rs
+@@ -155,6 +155,7 @@ pub fn substituted_returns_borrow(
+ mod callable_refinement;
+ mod callable_regions;
+ mod carried_lifetimes;
++mod lifetime_applications;
+ mod provider_outputs;
+ mod region_correspondence;
+ mod region_inference;
+@@ -167,6 +168,12 @@ pub use provider_outputs::{
+ pub(crate) use callable_refinement::lexical_region_owner;
+ pub use callable_refinement::{CallableBorrowContract, validate_callable_borrow_refinement};
+ 
++pub(crate) use callable_refinement::PreparedCallableBorrowRefinement;
++pub(crate) use lifetime_applications::CallableLifetimeFrame;
++pub use lifetime_applications::{
++    CallableLifetimeApplication, CallableLifetimeBinding, resolve_callable_lifetime_bindings,
++};
++
+ /// Call admission and caller-side loans consume one applied requirement
+ /// relation. Invocation binders retain their declaration identity independently
+ /// of captured Type operands; ordinary requirements still need a full frontier.
+@@ -223,9 +230,8 @@ pub fn resolve_applied_signature_view_return_source(
+             substitution_scope_starts: scope_starts,
+             application_scopes: &[],
+             binders: &[],
+-            lifetime_bindings: &[],
++            lifetime_applications: &[],
+             argument_owner,
+-            supplied_telescope: false,
+         },
+         scope_starts,
+
+===== 643ff5441c15ea62815109514a8047194d7397a0 =====
+643ff5441c1 psi: judge invariant windows on data requires on the lowered form (#2397)
+diff --git a/omega-rust/omega/compilation/compiler/examples/route_one_comparison.rs b/omega-rust/omega/compilation/compiler/examples/route_one_comparison.rs
+index f033538ee9c..73f17ff72e1 100644
+--- a/omega-rust/omega/compilation/compiler/examples/route_one_comparison.rs
++++ b/omega-rust/omega/compilation/compiler/examples/route_one_comparison.rs
+@@ -13,6 +13,10 @@
+ //!     obligation <path> <machine> <obligation> <kind> <verdict> <values from> <detail>
+ //!     diagnostic <path> <machine> <obligation> <reject|incomplete> <site> <message>
+ //!     use <path> <machine> <operation or edge> unestablished <detail>
++//!     window <path> <machine> <opening obligation> <consumption point> <closed-..|open:..>
++//!
++//! A `diagnostic` for a value consumed inside an open invariant window
++//! carries `consumed at <site>` after the opening write's site.
+ //!
+ //! `route=` is `lowered_discharge::judge`'s verdict: `accepted`, `rejected`
+ //! (one `diagnostic` line per unproved obligation and one `use` line per use
+@@ -247,9 +251,38 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
+     // rejection of the program, not a construct outside the subset.
+     let mut uses = 0_usize;
+     let mut unestablished = 0_usize;
+-    let mut gated = 0_usize;
++    let mut opened = 0_usize;
++    let mut consumed = 0_usize;
++    let mut closed = 0_usize;
+     for (machine, result) in discharged.machines.iter() {
+         uses += result.uses.len();
++        for window in &result.windows {
++            consumed += 1;
++            let outcome = match &window.verdict {
++                Ok(evidence) => {
++                    closed += 1;
++                    match &evidence.fact.route {
++                        AcceptedFactRoute::CertificateDerived { acceptance, .. } => {
++                            match &acceptance.mathematical_core {
++                                MathematicalCoreDecision::Judged(_) => "closed-judged".to_owned(),
++                                MathematicalCoreDecision::Refused(family) => {
+
+===== ade0aabb979920eea0ab13135fa2a86ca116acaa =====
+ade0aabb979 psi: key retained custody by closed instance, free case-exclusive call-result loans (#2442)
+diff --git a/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_borrows.rs b/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_borrows.rs
+index 46e52233c96..eb846dc793b 100644
+--- a/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_borrows.rs
++++ b/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_borrows.rs
+@@ -5718,6 +5718,13 @@ mod statements {
+                         bound_lookup,
+                     );
+                     if retained_debt == Some(true)
++                        || super::aliases::exclusive_carrier_cases(
++                            program,
++                            &facts.borrow,
++                            borrow_state,
++                            loan_handle,
++                            active_loan_handle,
++                        )
+                         || (retained_debt.is_none()
+                             && (compatibility.non_interfering
+                                 || supplier_preserves_loan(
+@@ -8406,7 +8413,13 @@ mod aliases {
+         })
+     }
+ 
+-    fn exclusive_carrier_cases(
++    /*
++        Two loans saved in one carrier generation at payloads of different
++        cases of the same sum cannot be held together: the carrier holds one
++        case. The carrier is a named local or parameter, or the temporary home
++        of the expression that formed it, such as a call result.
++    */
++    pub(in crate::checks::borrows) fn exclusive_carrier_cases(
+         program: &dyn validation::CheckingInput,
+         borrow: &BorrowFacts,
+         state: &StateBorrowFact,
+@@ -8422,23 +8435,29 @@ mod aliases {
+             if !same_carrier_generation(left, right) {
+
+===== 4faf6413467dd7a7f6cf7e62ba77d1c607591f18 =====
+4faf6413467 psi: check each write once when replaying a state's current values (#1718)
+diff --git a/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/current_scalar_values.rs b/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/current_scalar_values.rs
+index b104bbe2498..5da145b59a6 100644
+--- a/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/current_scalar_values.rs
++++ b/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/current_scalar_values.rs
+@@ -766,14 +766,22 @@ impl<'program> CurrentScalarValues<'program> {
+             {
+                 continue;
+             }
+-            match self
+-                .anchors
+-                .iter_mut()
+-                .find(|(anchored, _)| *anchored == place)
+-            {
+-                Some((_, anchor)) => *anchor = snapshot,
+-                None => self.anchors.push((place, snapshot)),
+-            }
++            self.anchor_at(place, snapshot);
++        }
++    }
++
++    fn anchor_at(
++        &mut self,
++        place: validation::CanonicalPlace,
++        snapshot: validation::completed_storage::versions::Snapshot,
++    ) {
++        match self
++            .anchors
++            .iter_mut()
++            .find(|(anchored, _)| *anchored == place)
++        {
++            Some((_, anchor)) => *anchor = snapshot,
++            None => self.anchors.push((place, snapshot)),
+         }
+     }
+ 
+
+===== f2c75870ebaf890328b787fa6d8ed50e868edbb8 =====
+f2c75870eba psi: keep helper-returned views usable across calls that may pause (#1672)
+diff --git a/omega-rust/omega/interpreter/terminal-runtime/src/execution.rs b/omega-rust/omega/interpreter/terminal-runtime/src/execution.rs
+index dad1b0779d6..8cd7b7b5be3 100644
+--- a/omega-rust/omega/interpreter/terminal-runtime/src/execution.rs
++++ b/omega-rust/omega/interpreter/terminal-runtime/src/execution.rs
+@@ -164,7 +164,7 @@ impl TerminalRuntimeError {
+             TerminalInterpretError::UnsupportedCapability(_)
+                 | TerminalInterpretError::UnsupportedSemanticVariant(_)
+                 | TerminalInterpretError::ScalarEntryQualificationUnsupported
+-                | TerminalInterpretError::AffineProjectionNotRepresentable
++                | TerminalInterpretError::AffineProjectionNotRepresentable { .. }
+         )
+     }
+ 
+diff --git a/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow/loans.rs b/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow/loans.rs
+index 45d8ecc7237..06841363cbe 100644
+--- a/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow/loans.rs
++++ b/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow/loans.rs
+@@ -91,6 +91,8 @@ pub(super) struct PendingIncomingReference {
+     pub(super) owner_path: Vec<checked_trees::BorrowLoanOwnerSegment>,
+ }
+ 
++pub(super) use checked_trees::BorrowLoanFormation as BorrowFormation;
++
+ #[derive(Clone)]
+ pub(super) struct StatementBorrowLoan {
+     pub(super) incoming_origin: Option<PendingIncomingReference>,
+@@ -107,10 +109,7 @@ pub(super) struct StatementBorrowLoan {
+     pub(super) supplying_loans: Vec<Handle<checked_trees::BorrowLoanFact>>,
+     pub(super) lineage: checked_trees::BorrowLoanLineage,
+     pub(super) kind: checked_trees::BorrowAccessKind,
+-    /// A call result may forward an established descriptor. Its captured root
+-    /// is not itself a new borrowing authority; only the retained source
+-    /// association can supply a later view's real parent.
+-    pub(super) call_result: bool,
++    pub(super) formation: BorrowFormation,
+
+===== 1bb9690b80851e6b149c9a414b3317439183a882 =====
+1bb9690b808 compiler: preserve values and storage in buffered conversions (#1819)
+commit 1bb9690b80851e6b149c9a414b3317439183a882
+Author: AsclepiusBot <asclepiusbot@proton.me>
+Date:   Thu Nov 5 03:12:11 2026 +0000
+
+    compiler: preserve values and storage in buffered conversions (#1819)
+    
+    * psi: define buffered conversion preservation witnesses
+    
+    A caller should recover every field after encoding into its supplied buffer and decoding once. Freeze an ordinary selected round-trip contract with explicit resources and a one-load decoder corruption twin. Separate the static law consumer from weak-view runtime observations so the law cannot justify its own verdict.
+    
+    Source and oracle review found no blocker. Compiler behavior is still unobserved; no repair or completed place is claimed. Continue through baseline diagnosis, necessary repairs, all nine places and normal main landing.
+    
+    * psi: group buffered witness arm values explicitly
+    
+    The initial check stopped before proof because two value expressions after transition arrows lacked their required grouping. Add parentheses in both sample/control pairs and mirrors. The preservation law, three-byte resource bound, runtime oracle and one-load decoder twin are unchanged; no compiler defect is claimed from that parse refusal.
+    
+    * psi: name both regions in the weak decoder selection
+    
+    The weak conversion named the buffer region but left the temporary Frame borrow unspecified, so it could not select one complete ReadFrame application. Give the ordinary helper independent frame and buffer lifetime parameters and select both explicitly. The helper publishes no value guarantee; preservation law, resource bound, runtime verdict and one-load twin remain unchanged.
+    
+    * psi: retain guarded cases and borrowed public calls
+    
+    A buffered decoder can promise what its returned value contains, but the
+    compiler rejected that promise before it could check it. A result with only
+    success and failure cases can expose its success payload after ruling out
+    failure. Preserve that scoped exclusion without selecting a payload when
+    several cases remain.
+    
+    Borrowed methods also keep their complete public call: lifetime arguments
+    need actual invocation rows even when no type arguments exist, and saved
+    public arguments are checked against that contract after execution selects
+    an implementation. Existing map and lifetime admission remains required.
+    
+    Frozen source 3cfc757f135a4c93fd3bdd4c356c2b55aba10a6d demonstrates both
+    refusals in optimized hosted run 41546898552. Candidate validation pending.
+    
+    * psi: reject payload access when several cases remain
+    
+    * psi: exercise buffered preservation across nine places
+    
+    Each place runs the same buffered conversion with the same capacity and value promise. Distinct match paths and selected-provider markers make transport mistakes observable. Every reject twin changes only the last decoded byte. Validation is pending; the PR remains a draft.
+    
+    * psi: observe the complete returned buffered value
+    
+    Runtime checks now read both fields from the final returned request through a weak conversion interface. This catches errors while packing or returning that request as well as decoder mistakes, without using the equality promise to justify the verdict. Static contracts and the one-load corruption twins stay unchanged.
+
+===== f2c75870ebaf890328b787fa6d8ed50e868edbb8 =====
+f2c75870eba psi: keep helper-returned views usable across calls that may pause (#1672)
+commit f2c75870ebaf890328b787fa6d8ed50e868edbb8
+Author: aquinas-bot <aquinasbot@proton.me>
+Date:   Tue Nov 3 13:44:29 2026 +0000
+
+    psi: keep helper-returned views usable across calls that may pause (#1672)
+    
+    * psi: retain evaluated sources of returned field views
+    
+    A helper returning a field view must keep the reference that supplied that field. Record its exact descriptor capture, descriptor path and new referent suffix separately from pointer-forwarding associations. Crossing a stored reference uses the invocation-entry snapshot; inline actuals keep their own completion.
+    
+    Intermediate checkpoint only: resource authentication and formation wiring are next, with no repaired execution claim. Exact optimized e461 baseline accepts and runs the direct probe but rejects helper-returned, no-recast and inline-source probes for missing retained lifetime. Nine-place inputs and policy twins are frozen; the constant-place authoring correction is recorded separately before compiler edits.
+    
+    * psi: authenticate borrowing parents of helper field views
+    
+    Distinguish forwarding a returned descriptor from forming a new returned projection. The latter keeps the completed actual, its presented access, nearest real borrowing parent and original whole-input debt. Every body-selected source must have a matching checked formation; explicit argument borrows use their real call access rather than a named-local requirement.
+    
+    Resource authentication consumes the new evaluated-source relation without treating pointer geometry or lifetime signatures as authority. This is an unqualified implementation checkpoint before the first optimized repair producer and focused source/runtime checks.
+    
+    * psi: compare complete returned-view source identities
+    
+    Use the same full captured-place equality for represented alternatives and the selected formation, including incoming reference identity and its owner path. Preserve the first candidate as unqualified diagnostic evidence; add focused refusal context to resolve its selected-source correspondence gap.
+    
+    * psi: keep lending sources distinct from call input debt
+    
+    Follow each formed argument to its exact evaluated reference boundary before finding its lending loan. Stored-source failure stays unavailable; only a genuine argument formation or captured incoming association can request the checked CallAccess grant. Complete call input debt remains separate. Share address-capture queries with ordinary view formation.
+    
+    Classify readable mutable reference slots by their current declared view. Existing lowering rebinds that home on assignment, so the replacement read and a surviving saved view can retain different pointers. Read/write authority and frozen-content checks remain separate.
+    
+    * psi: report exact projected-source lookup refusals
+    
+    Retain a diagnostic checkpoint distinguishing unavailable frozen inventories, missing binding predecessors, source type disagreement and unmatched formation occurrences. Compare projected source prototypes to the actual published call operands. No permission or fallback change; this trace is temporary investigation evidence.
+    
+    * psi: preserve checked sources of projected call views
+    
+    * psi: use canonical captures for output lifetime inputs
+    
+    * psi: follow every saved descriptor to its actual borrow
+    
+    * psi: pin returned-view carry through all nine places
+    
+    * psi: retain projected sources without inventing absolute addresses
+    
+    * psi: authenticate returned roots in their invocation namespace
+    
+    * psi: bind independent identity to its returned formation path
+
+===== 4faf6413467dd7a7f6cf7e62ba77d1c607591f18 =====
+4faf6413467 psi: check each write once when replaying a state's current values (#1718)
+commit 4faf6413467dd7a7f6cf7e62ba77d1c607591f18
+Author: Jarod Castillo <43973221+Smotto@users.noreply.github.com>
+Date:   Tue Nov 3 15:46:15 2026 +0000
+
+    psi: check each write once when replaying a state's current values (#1718)
+    
+    Checking a std program spent about 4 s re-walking the same storage
+    history while proving index bounds and call requirements. Each value now
+    walks only the writes it has not been checked against yet. On
+    samples/cli/basics/print_number, runtime index checking drops from about
+    4.8 s to 2.3 s, call-contract checking from about 4.6 s to 2.8 s, and a
+    cold compile from 87.7 s to 84.1 s, with a byte-identical image.
+    
+    To prove a call's requirements or an index's bound, the checker replays
+    the state's statements up to the call and tracks what it knows about
+    each scalar: a parameter's value, a field, a condition, a length. At
+    every statement that can write, it asks whether a write reached each
+    tracked place since the value was recorded there (the place's anchor),
+    and forgets the value if one did. Answering means walking the storage
+    graph back from the current statement to the anchor. Parameters are
+    anchored at the start of the state, so every write point walked the
+    whole prefix again, for every tracked place, in every replay. A replay
+    cost grew with the square of the state's length, and the checker
+    replays once per call it examines.
+    
+    A value that survives at a write point is now re-anchored there, so the
+    next write point only walks the writes after it. When the earlier point
+    lies on every path to the later one, which is how a state's statements
+    follow each other, the answer is unchanged. When it does not, the shorter
+    walk runs past the anchor to the state's start and the value is
+    forgotten: less precise, never unsound. An entry that already holds no
+    value is also skipped, since there is nothing left to forget.
+    
+    Validation: five interleaved cold compiles each of main 18fc751d0 and
+    this change (release build, 4-core Linux, fresh cache per run). Wall
+    times were 84.4/91.0/85.1/90.2/87.6 s before and
+    83.5/81.1/88.0/86.2/81.8 s after; Psi 05 averaged 65.2 s before and
+    60.2 s after. All ten native images had the same SHA-256 (2aa504cb…).
+    A corpus compare against the base over the 185 fixtures in
+    pass/contracts and pass/dependent lost none; one fixture
+    (data_where_ranged_param_constructs) that timed out at the base now
+    checks.
+    
+    
+    Claude-Session: https://claude.ai/code/session_01AAaT4hrWw2W8QFYmZvxpvJ
+

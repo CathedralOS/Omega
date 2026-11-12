@@ -1,0 +1,12 @@
+=== 96ecfb7c12877f0a60fe20c62334f4a1fd973d4a ===
+commit=96ecfb7c12877f0a60fe20c62334f4a1fd973d4a
+subject=omega: read pointer fields through borrowed records (#1873)
+run1 rc=125 status=rejected diag=terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "linear local lost its exact call result custody", gap: None })
+run2 rc=125 status=rejected diag=terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "linear local lost its exact call result custody", gap: None })
+run3 rc=125 status=rejected diag=terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "linear local lost its exact call result custody", gap: None })
+=== 1bb9690b80851e6b149c9a414b3317439183a882 ===
+commit=1bb9690b80851e6b149c9a414b3317439183a882
+subject=compiler: preserve values and storage in buffered conversions (#1819)
+run1 rc=1 status=rejected diag=machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation
+run2 rc=1 status=rejected diag=machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation
+run3 rc=1 status=rejected diag=machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation

@@ -1,0 +1,50 @@
+=== cluster witness bad=2e3a14463a8255c4e25ef4e3a60edc2d4c3ba3a9 ===
+commit=2e3a14463a8255c4e25ef4e3a60edc2d4c3ba3a9
+subject=psi: retain scoped lifetimes through selected callbacks (#1007)
+build failed
+=== cluster witness bad=1bb9690b80851e6b149c9a414b3317439183a882 ===
+commit=1bb9690b80851e6b149c9a414b3317439183a882
+subject=compiler: preserve values and storage in buffered conversions (#1819)
+run1 rc=1 status=rejected diag=machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation
+run2 rc=1 status=rejected diag=machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation
+run3 rc=1 status=rejected diag=machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation
+=== cluster witness parent=96ecfb7c12877f0a60fe20c62334f4a1fd973d4a ===
+commit=96ecfb7c12877f0a60fe20c62334f4a1fd973d4a
+subject=omega: read pointer fields through borrowed records (#1873)
+run1 rc=125 status=rejected diag=terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "linear local lost its exact call result custody", gap: None })
+run2 rc=125 status=rejected diag=terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "linear local lost its exact call result custody", gap: None })
+run3 rc=125 status=rejected diag=terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "linear local lost its exact call result custody", gap: None })
+=== cluster witness bad=643ff5441c15ea62815109514a8047194d7397a0 ===
+commit=643ff5441c15ea62815109514a8047194d7397a0
+subject=psi: judge invariant windows on data requires on the lowered form (#2397)
+run1 rc=1 status=rejected diag=cannot prove requires contract for call require_cell_value from Main::main: observed >= 0 && observed <= 100 (needs fact `value >= 0 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+run2 rc=1 status=rejected diag=cannot prove requires contract for call require_cell_value from Main::main: observed >= 0 && observed <= 100 (needs fact `value >= 0 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+run3 rc=1 status=rejected diag=cannot prove requires contract for call require_cell_value from Main::main: observed >= 0 && observed <= 100 (needs fact `value >= 0 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+=== cluster witness parent=8e7394363d14aca7dae993adeb86fc348c0d2c7e ===
+commit=8e7394363d14aca7dae993adeb86fc348c0d2c7e
+subject=psi: count automatic cleanup writes in what a call may write (#2288)
+run1 rc=1 status=rejected diag=cannot prove requires contract for call require_cell_value from Main::main: observed >= 0 && observed <= 100 (needs fact `value >= 0 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+run2 rc=1 status=rejected diag=cannot prove requires contract for call require_cell_value from Main::main: observed >= 0 && observed <= 100 (needs fact `value >= 0 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+run3 rc=1 status=rejected diag=cannot prove requires contract for call require_cell_value from Main::main: observed >= 0 && observed <= 100 (needs fact `value >= 0 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+=== cluster witness bad=ade0aabb979920eea0ab13135fa2a86ca116acaa ===
+commit=ade0aabb979920eea0ab13135fa2a86ca116acaa
+subject=psi: key retained custody by closed instance, free case-exclusive call-result loans (#2442)
+run1 rc=1 status=rejected diag=statement 8 mutates `first_buffer.value` while local borrow `first` is still active (borrowed at statement 4; its last use is at statement 11)
+run2 rc=1 status=rejected diag=statement 8 mutates `first_buffer.value` while local borrow `first` is still active (borrowed at statement 4; its last use is at statement 11)
+run3 rc=1 status=rejected diag=statement 8 mutates `first_buffer.value` while local borrow `first` is still active (borrowed at statement 4; its last use is at statement 11)
+=== cluster witness parent=028f2b1a70750c30a23802aece64c370b9bd7ace ===
+commit=028f2b1a70750c30a23802aece64c370b9bd7ace
+subject=packages: say what the accepted-project route actually checks for each occurrence (#2445)
+run1 rc=125 status=rejected diag=terminal-artifact production failed: Lowering(Unsupported("retained-borrow callable lost its schema owner"))
+run2 rc=125 status=rejected diag=terminal-artifact production failed: Lowering(Unsupported("retained-borrow callable lost its schema owner"))
+run3 rc=125 status=rejected diag=terminal-artifact production failed: Lowering(Unsupported("retained-borrow callable lost its schema owner"))
+commit=2e3a14463a8255c4e25ef4e3a60edc2d4c3ba3a9
+subject=psi: retain scoped lifetimes through selected callbacks (#1007)
+/tmp/ledger-bisect-tools-pinned/bisect_witness.sh: line 41: 2762358 Segmentation fault      nice -n 19 "$RUNNER" < /dev/null > /dev/null 2>&1
+run1 rc=125 status=none diag=none
+/tmp/ledger-bisect-tools-pinned/bisect_witness.sh: line 41: 2762385 Segmentation fault      nice -n 19 "$RUNNER" < /dev/null > /dev/null 2>&1
+run2 rc=125 status=none diag=none
+/tmp/ledger-bisect-tools-pinned/bisect_witness.sh: line 41: 2762412 Segmentation fault      nice -n 19 "$RUNNER" < /dev/null > /dev/null 2>&1
+run3 rc=125 status=none diag=none
+commit=2be2bd0442046813713c68acbdf6da8b35b8b85e
+subject=checking: env/judge fingerprint diagnostics for transition-path dedup (#1036)
