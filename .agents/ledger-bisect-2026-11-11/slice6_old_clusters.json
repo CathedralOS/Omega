@@ -1,0 +1,104 @@
+[
+  {
+    "rows": 22,
+    "kind": "pass/run rejected",
+    "diag": "no provider is selected for boundary requirement `Sink::write`, which the program entry reaches",
+    "witness": "pass/borrow/runtime_write_only_boundary_satisfier_exit",
+    "breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members": [
+      "fail/build/native_table_non_address_field",
+      "fail/calls/callback_shared_program_excluded_trap",
+      "fail/calls/foreign_applied_callback_requires_selected_entry_plan"
+    ],
+    "index": 6,
+    "diag_norm": "no provider is selected for boundary requirement `_`, which the program entry reaches",
+    "members_full": [
+      "fail/build/native_table_non_address_field",
+      "fail/calls/callback_shared_program_excluded_trap",
+      "fail/calls/foreign_applied_callback_requires_selected_entry_plan"
+    ]
+  },
+  {
+    "rows": 4,
+    "kind": "fail wrong reason",
+    "diag": "terminal-artifact production failed: Lowering(CompilerEvaluationAdmission(\"machine `@constant-UN",
+    "witness": "fail/layouts/declaration_only_initializer_formation",
+    "breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members": [
+      "fail/layouts/declaration_only_initializer_formation",
+      "fail/terminal_psi/inspection_scalar_library",
+      "pass/layouts/declaration_only_initializer_formation",
+      "pass/terminal_psi/inspection_scalar_library"
+    ],
+    "index": 46,
+    "diag_norm": "terminal-artifact production failed: Lowering(CompilerEvaluationAdmission(\"machine `@constant-UN",
+    "members_full": [
+      "fail/layouts/declaration_only_initializer_formation",
+      "fail/terminal_psi/inspection_scalar_library",
+      "pass/layouts/declaration_only_initializer_formation",
+      "pass/terminal_psi/inspection_scalar_library"
+    ]
+  },
+  {
+    "rows": 2,
+    "kind": "fail wrong reason",
+    "diag": "constructor obligations have no exact prepared application for `Pair`; unresolved generic member",
+    "witness": "fail/generics/native_locator_inconsistent_byte_extents",
+    "breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members": [
+      "fail/generics/native_locator_inconsistent_byte_extents",
+      "fail/generics/native_locator_undefined_user_coordinate"
+    ],
+    "index": 86,
+    "diag_norm": "constructor obligations have no exact prepared application for `_`; unresolved generic member",
+    "members_full": [
+      "fail/generics/native_locator_inconsistent_byte_extents",
+      "fail/generics/native_locator_undefined_user_coordinate"
+    ]
+  },
+  {
+    "rows": 1,
+    "kind": "pass/run rejected",
+    "diag": "authored Operator declaration selection occurrence 9690 (`*` in tests/omega/pass/expressions/mat",
+    "witness": "pass/expressions/match_operand_anonymous_operation_exit",
+    "breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members": [
+      "pass/expressions/match_operand_anonymous_operation_exit"
+    ],
+    "index": 126,
+    "diag_norm": "authored Operator declaration selection occurrence N (`_` in tests/omega/pass/expressions/mat",
+    "members_full": [
+      "pass/expressions/match_operand_anonymous_operation_exit"
+    ]
+  },
+  {
+    "rows": 1,
+    "kind": "pass/run rejected",
+    "diag": "checked machine `related_reflexive` cannot establish proposition ensure `boolean:value == value`",
+    "witness": "pass/proofs/proposition_relation_hierarchy_compile",
+    "breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members": [
+      "pass/proofs/proposition_relation_hierarchy_compile"
+    ],
+    "index": 166,
+    "diag_norm": "checked machine `_` cannot establish proposition ensure `_`",
+    "members_full": [
+      "pass/proofs/proposition_relation_hierarchy_compile"
+    ]
+  },
+  {
+    "rows": 1,
+    "kind": "fail wrong reason",
+    "diag": "store in machine `Main::main` state `main` assignment implicitly converts `i32` to `i32 in Wrapp",
+    "witness": "fail/arithmetic/exact_overflow_value_call_hint",
+    "breaking": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members": [
+      "fail/arithmetic/exact_overflow_value_call_hint"
+    ],
+    "index": 206,
+    "diag_norm": "store in machine `_` state `_` assignment implicitly converts `_` to `i32 in Wrapp",
+    "members_full": [
+      "fail/arithmetic/exact_overflow_value_call_hint"
+    ]
+  }
+]

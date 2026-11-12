@@ -1,0 +1,59 @@
+[
+  [
+    6,
+    {
+      "diag_norm": "source constructor predicate derivation failed: Kernel(UnboundLevelParameter { index: N, arity: N })",
+      "diag_sample": "source constructor predicate derivation failed: Kernel(UnboundLevelParameter { index: 0, arity: 0 })",
+      "count": 9,
+      "members": [
+        "pass/facts/source_indexed_type_parameter_through_call_result_exit",
+        "pass/facts/source_indexed_type_parameter_through_const_name_exit",
+        "pass/facts/source_indexed_type_parameter_through_field_exit",
+        "pass/facts/source_indexed_type_parameter_through_local_exit",
+        "pass/facts/source_indexed_type_parameter_through_match_join_exit",
+        "pass/facts/source_indexed_type_parameter_through_other_machine_exit",
+        "pass/facts/source_indexed_type_parameter_through_other_state_exit",
+        "pass/facts/source_indexed_type_parameter_through_parameter_exit",
+        "pass/facts/source_indexed_type_parameter_through_target_body_exit"
+      ],
+      "witness": "pass/facts/source_indexed_type_parameter_through_other_machine_exit"
+    }
+  ],
+  [
+    46,
+    {
+      "diag_norm": "machine `_` state `_` expression type application uses undeclared lifetime argument `_`Carrier`; declare it in the owner's generic parameter list",
+      "diag_sample": "machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`; declare it in the owner's generic parameter list",
+      "count": 2,
+      "members": [
+        "pass/borrows/carried_loan_replacement",
+        "pass/ownership/runtime_carried_loan_field_replacement_exit"
+      ],
+      "witness": "pass/ownership/runtime_carried_loan_field_replacement_exit"
+    }
+  ],
+  [
+    86,
+    {
+      "diag_norm": "cannot prove ensures contract for exit from Selected::read at statement N: result == Value",
+      "diag_sample": "cannot prove ensures contract for exit from Selected::read at statement 0: result == Value",
+      "count": 1,
+      "members": [
+        "pass/facts/open_const_implementation_private_record_package_exit"
+      ],
+      "witness": "pass/facts/open_const_implementation_private_record_package_exit"
+    }
+  ],
+  [
+    126,
+    {
+      "diag_norm": "native artifact component entry ABI failed: native entry transport: native entry bridge failed: complete entry code uses machine state outside its declared ceil",
+      "diag_sample": "native artifact component entry ABI failed: native entry transport: native entry bridge failed: complete entry code uses machine state outside its declared ceiling: used MachineStateSet(95), permitted",
+      "count": 1,
+      "members": [
+        "pass/providers/runtime_foreign_allocation_across_component_exit"
+      ],
+      "witness": "pass/providers/runtime_foreign_allocation_across_component_exit"
+    }
+  ]
+]

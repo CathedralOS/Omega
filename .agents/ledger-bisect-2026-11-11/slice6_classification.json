@@ -1,0 +1,275 @@
+{
+  "pin": "51e8c45c793007f211d0d9baee7de16767172444",
+  "old_assign": [
+    {
+      "rows": 22,
+      "kind": "pass/run rejected",
+      "diag": "no provider is selected for boundary requirement `Sink::write`, which the program entry reaches",
+      "witness": "pass/borrow/runtime_write_only_boundary_satisfier_exit",
+      "explicit": [
+        "fail/build/native_table_non_address_field",
+        "fail/calls/callback_shared_program_excluded_trap",
+        "fail/calls/foreign_applied_callback_requires_selected_entry_plan"
+      ],
+      "old_index": 6,
+      "members": [
+        "fail/build/native_table_non_address_field",
+        "fail/calls/callback_shared_program_excluded_trap",
+        "fail/calls/foreign_applied_callback_requires_selected_entry_plan",
+        "pass/borrow/runtime_write_only_boundary_satisfier_exit",
+        "pass/borrows/runtime_boundary_range_view_exit",
+        "pass/borrows/runtime_computed_shared_view_reborrow_exit",
+        "pass/build/native_component_reuse_foreign",
+        "pass/calls/callback_future_registration_cycle",
+        "pass/calls/private_callback_call_closure",
+        "pass/calls/resultless_native_callback_compile",
+        "pass/providers/boundary_declaration_structural_result_return_exit",
+        "pass/providers/lifetime_boundary_requirement_dispatch_exit",
+        "pass/providers/specialized_boundary_operator_physical_custody",
+        "pass/providers/specialized_mixed_structural_fixed_operator_hosted_native",
+        "pass/providers/specialized_mixed_structural_result_operator_hosted_native",
+        "pass/providers/specialized_structural_fixed_operator_hosted_native",
+        "pass/providers/specialized_structural_fixed_operator_terminal_custody",
+        "pass/providers/table_leaf_dispatch_parameter_exit",
+        "pass/providers/target_contract_adjacency_exit"
+      ]
+    },
+    {
+      "rows": 4,
+      "kind": "fail wrong reason",
+      "diag": "terminal-artifact production failed: Lowering(CompilerEvaluationAdmission(\"machine `@constant-UN",
+      "witness": "fail/layouts/declaration_only_initializer_formation",
+      "explicit": [
+        "fail/layouts/declaration_only_initializer_formation",
+        "fail/terminal_psi/inspection_scalar_library",
+        "pass/layouts/declaration_only_initializer_formation",
+        "pass/terminal_psi/inspection_scalar_library"
+      ],
+      "old_index": 46,
+      "members": [
+        "fail/layouts/declaration_only_initializer_formation",
+        "fail/terminal_psi/inspection_scalar_library",
+        "pass/layouts/declaration_only_initializer_formation",
+        "pass/terminal_psi/inspection_scalar_library"
+      ]
+    },
+    {
+      "rows": 2,
+      "kind": "fail wrong reason",
+      "diag": "constructor obligations have no exact prepared application for `Pair`; unresolved generic member",
+      "witness": "fail/generics/native_locator_inconsistent_byte_extents",
+      "explicit": [
+        "fail/generics/native_locator_inconsistent_byte_extents",
+        "fail/generics/native_locator_undefined_user_coordinate"
+      ],
+      "old_index": 86,
+      "members": [
+        "fail/generics/native_locator_inconsistent_byte_extents",
+        "fail/generics/native_locator_undefined_user_coordinate"
+      ]
+    },
+    {
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "diag": "authored Operator declaration selection occurrence 9690 (`*` in tests/omega/pass/expressions/mat",
+      "witness": "pass/expressions/match_operand_anonymous_operation_exit",
+      "explicit": [
+        "pass/expressions/match_operand_anonymous_operation_exit"
+      ],
+      "old_index": 126,
+      "members": [
+        "pass/expressions/match_operand_anonymous_operation_exit"
+      ]
+    },
+    {
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "diag": "checked machine `related_reflexive` cannot establish proposition ensure `boolean:value == value`",
+      "witness": "pass/proofs/proposition_relation_hierarchy_compile",
+      "explicit": [
+        "pass/proofs/proposition_relation_hierarchy_compile"
+      ],
+      "old_index": 166,
+      "members": [
+        "pass/proofs/proposition_relation_hierarchy_compile"
+      ]
+    },
+    {
+      "rows": 1,
+      "kind": "fail wrong reason",
+      "diag": "store in machine `Main::main` state `main` assignment implicitly converts `i32` to `i32 in Wrapp",
+      "witness": "fail/arithmetic/exact_overflow_value_call_hint",
+      "explicit": [
+        "fail/arithmetic/exact_overflow_value_call_hint"
+      ],
+      "old_index": 206,
+      "members": [
+        "fail/arithmetic/exact_overflow_value_call_hint"
+      ]
+    }
+  ],
+  "fixed": [
+    "fail/arithmetic/exact_overflow_value_call_hint",
+    "fail/build/native_table_non_address_field",
+    "fail/calls/callback_shared_program_excluded_trap",
+    "fail/calls/foreign_applied_callback_requires_selected_entry_plan",
+    "fail/generics/native_locator_inconsistent_byte_extents",
+    "fail/generics/native_locator_undefined_user_coordinate",
+    "fail/layouts/declaration_only_initializer_formation",
+    "fail/terminal_psi/inspection_scalar_library",
+    "pass/borrow/runtime_write_only_boundary_satisfier_exit",
+    "pass/build/native_component_reuse_foreign",
+    "pass/calls/callback_future_registration_cycle",
+    "pass/calls/private_callback_call_closure",
+    "pass/calls/resultless_native_callback_compile"
+  ],
+  "broken": [
+    {
+      "fixture": "pass/borrows/runtime_boundary_range_view_exit",
+      "diag": "no provider is selected for boundary requirement `Window::middle`, which the program entry reaches on target `macos_arm64`",
+      "diag_norm": "no provider is selected for boundary requirement `_`, which the program entry reaches on target `_`",
+      "status": "rejected"
+    },
+    {
+      "fixture": "pass/borrows/runtime_computed_shared_view_reborrow_exit",
+      "diag": "no provider is selected for boundary requirement `Window::middle`, which the program entry reaches on target `macos_arm64`",
+      "diag_norm": "no provider is selected for boundary requirement `_`, which the program entry reaches on target `_`",
+      "status": "rejected"
+    },
+    {
+      "fixture": "pass/expressions/match_operand_anonymous_operation_exit",
+      "diag": "authored Operator declaration selection occurrence 9690 (`*` in tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg) remained unresolved after successful checking (CheckedOperator)",
+      "diag_norm": "authored Operator declaration selection occurrence N (`_` in tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg) remained unresolved a",
+      "status": "rejected"
+    },
+    {
+      "fixture": "pass/layouts/declaration_only_initializer_formation",
+      "diag": "terminal-artifact production failed: Lowering(CompilerEvaluationAdmission(\"machine `@constant-UNUSED` is not build-time admissible: a checked crash route remains possible (Trap); calls: [extent]; constant evaluation requires proof that no crash route can occur before execution\"))",
+      "diag_norm": "terminal-artifact production failed: Lowering(CompilerEvaluationAdmission(\"machine `_` is not build-time admissible: a checked crash route remains possible (Tra",
+      "status": "rejected"
+    },
+    {
+      "fixture": "pass/proofs/proposition_relation_hierarchy_compile",
+      "diag": "checked machine `related_reflexive` cannot establish proposition ensure `boolean:value == value` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence",
+      "diag_norm": "checked machine `_` cannot establish proposition ensure `_` in state `_`; require it, cite a checked/accepted proof that ensures it, or supply its declared evid",
+      "status": "rejected"
+    },
+    {
+      "fixture": "pass/providers/boundary_declaration_structural_result_return_exit",
+      "diag": "no provider is selected for boundary requirement `Indexing::index$specialized$089023feb447f889$0$4649`, which the program entry reaches on target `macos_arm64`",
+      "diag_norm": "no provider is selected for boundary requirement `_`, which the program entry reaches on target `_`",
+      "status": "rejected"
+    },
+    {
+      "fixture": "pass/providers/lifetime_boundary_requirement_dispatch_exit",
+      "diag": "no provider is selected for boundary requirement `CellSource::read`, which the program entry reaches on target `macos_arm64`",
+      "diag_norm": "no provider is selected for boundary requirement `_`, which the program entry reaches on target `_`",
+      "status": "rejected"
+    },
+    {
+      "fixture": "pass/providers/specialized_boundary_operator_physical_custody",
+      "diag": "no provider is selected for boundary requirement `Math::identity$specialized$9742feac469a828f$0$5565`, which the program entry reaches on target `macos_arm64`",
+      "diag_norm": "no provider is selected for boundary requirement `_`, which the program entry reaches on target `_`",
+      "status": "rejected"
+    },
+    {
+      "fixture": "pass/providers/specialized_mixed_structural_fixed_operator_hosted_native",
+      "diag": "no provider is selected for boundary requirement `Indexing::index$specialized$089023feb447f889$0$5569`, which the program entry reaches on target `macos_arm64`",
+      "diag_norm": "no provider is selected for boundary requirement `_`, which the program entry reaches on target `_`",
+      "status": "rejected"
+    },
+    {
+      "fixture": "pass/providers/specialized_mixed_structural_result_operator_hosted_native",
+      "diag": "no provider is selected for boundary requirement `Indexing::index$specialized$089023feb447f889$0$4643`, which the program entry reaches on target `macos_arm64`",
+      "diag_norm": "no provider is selected for boundary requirement `_`, which the program entry reaches on target `_`",
+      "status": "rejected"
+    },
+    {
+      "fixture": "pass/providers/specialized_structural_fixed_operator_hosted_native",
+      "diag": "no provider is selected for boundary requirement `Indexing::index$specialized$089023feb447f889$0$5570`, which the program entry reaches on target `macos_arm64`",
+      "diag_norm": "no provider is selected for boundary requirement `_`, which the program entry reaches on target `_`",
+      "status": "rejected"
+    },
+    {
+      "fixture": "pass/providers/specialized_structural_fixed_operator_terminal_custody",
+      "diag": "no provider is selected for boundary requirement `Indexing::index$specialized$089023feb447f889$0$4644`, which the program entry reaches on target `macos_arm64`",
+      "diag_norm": "no provider is selected for boundary requirement `_`, which the program entry reaches on target `_`",
+      "status": "rejected"
+    },
+    {
+      "fixture": "pass/providers/table_leaf_dispatch_parameter_exit",
+      "diag": "no provider is selected for boundary requirement `Measure::length`, which the program entry reaches on target `macos_arm64`",
+      "diag_norm": "no provider is selected for boundary requirement `_`, which the program entry reaches on target `_`",
+      "status": "rejected"
+    },
+    {
+      "fixture": "pass/providers/target_contract_adjacency_exit",
+      "diag": "no provider is selected for boundary requirement `Magnitude::absolute`, which the program entry reaches on target `macos_arm64`",
+      "diag_norm": "no provider is selected for boundary requirement `_`, which the program entry reaches on target `_`",
+      "status": "rejected"
+    },
+    {
+      "fixture": "pass/terminal_psi/inspection_scalar_library",
+      "diag": "terminal-artifact production failed: Lowering(CompilerEvaluationAdmission(\"machine `@constant-UNUSED` is not build-time admissible: a checked crash route remains possible (Trap); calls: [extent]; constant evaluation requires proof that no crash route can occur before execution\"))",
+      "diag_norm": "terminal-artifact production failed: Lowering(CompilerEvaluationAdmission(\"machine `_` is not build-time admissible: a checked crash route remains possible (Tra",
+      "status": "rejected"
+    }
+  ],
+  "clusters": [
+    {
+      "cluster_id": 0,
+      "count": 11,
+      "diag_norm": "no provider is selected for boundary requirement `_`, which the program entry reaches on target `_`",
+      "diag_sample": "no provider is selected for boundary requirement `Window::middle`, which the program entry reaches on target `macos_arm64`",
+      "witness": "pass/providers/specialized_mixed_structural_result_operator_hosted_native",
+      "members": [
+        "pass/borrows/runtime_boundary_range_view_exit",
+        "pass/borrows/runtime_computed_shared_view_reborrow_exit",
+        "pass/providers/boundary_declaration_structural_result_return_exit",
+        "pass/providers/lifetime_boundary_requirement_dispatch_exit",
+        "pass/providers/specialized_boundary_operator_physical_custody",
+        "pass/providers/specialized_mixed_structural_fixed_operator_hosted_native",
+        "pass/providers/specialized_mixed_structural_result_operator_hosted_native",
+        "pass/providers/specialized_structural_fixed_operator_hosted_native",
+        "pass/providers/specialized_structural_fixed_operator_terminal_custody",
+        "pass/providers/table_leaf_dispatch_parameter_exit",
+        "pass/providers/target_contract_adjacency_exit"
+      ],
+      "kind": "pass/run regression"
+    },
+    {
+      "cluster_id": 1,
+      "count": 2,
+      "diag_norm": "terminal-artifact production failed: Lowering(CompilerEvaluationAdmission(\"machine `_` is not build-time admissible: a checked crash route remains possible (Tra",
+      "diag_sample": "terminal-artifact production failed: Lowering(CompilerEvaluationAdmission(\"machine `@constant-UNUSED` is not build-time admissible: a checked crash route remains possible (Trap); calls: [extent]; constant evaluation requires proof that no crash route can occur before execution\"))",
+      "witness": "pass/layouts/declaration_only_initializer_formation",
+      "members": [
+        "pass/layouts/declaration_only_initializer_formation",
+        "pass/terminal_psi/inspection_scalar_library"
+      ],
+      "kind": "pass/run regression"
+    },
+    {
+      "cluster_id": 2,
+      "count": 1,
+      "diag_norm": "authored Operator declaration selection occurrence N (`_` in tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg) remained unresolved a",
+      "diag_sample": "authored Operator declaration selection occurrence 9690 (`*` in tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg) remained unresolved after successful checking (CheckedOperator)",
+      "witness": "pass/expressions/match_operand_anonymous_operation_exit",
+      "members": [
+        "pass/expressions/match_operand_anonymous_operation_exit"
+      ],
+      "kind": "pass/run regression"
+    },
+    {
+      "cluster_id": 3,
+      "count": 1,
+      "diag_norm": "checked machine `_` cannot establish proposition ensure `_` in state `_`; require it, cite a checked/accepted proof that ensures it, or supply its declared evid",
+      "diag_sample": "checked machine `related_reflexive` cannot establish proposition ensure `boolean:value == value` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence",
+      "witness": "pass/proofs/proposition_relation_hierarchy_compile",
+      "members": [
+        "pass/proofs/proposition_relation_hierarchy_compile"
+      ],
+      "kind": "pass/run regression"
+    }
+  ]
+}

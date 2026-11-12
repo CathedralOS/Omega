@@ -1,0 +1,108 @@
+[
+  {
+    "rows": 22,
+    "kind": "pass/run rejected",
+    "diag": "no provider is selected for boundary requirement `Sink::write`, which the program entry reaches",
+    "witness": "pass/borrow/runtime_write_only_boundary_satisfier_exit",
+    "explicit": [
+      "fail/build/native_table_non_address_field",
+      "fail/calls/callback_shared_program_excluded_trap",
+      "fail/calls/foreign_applied_callback_requires_selected_entry_plan"
+    ],
+    "old_index": 6,
+    "members": [
+      "fail/build/native_table_non_address_field",
+      "fail/calls/callback_shared_program_excluded_trap",
+      "fail/calls/foreign_applied_callback_requires_selected_entry_plan",
+      "pass/borrow/runtime_write_only_boundary_satisfier_exit",
+      "pass/borrows/runtime_boundary_range_view_exit",
+      "pass/borrows/runtime_computed_shared_view_reborrow_exit",
+      "pass/build/native_component_reuse_foreign",
+      "pass/calls/callback_future_registration_cycle",
+      "pass/calls/private_callback_call_closure",
+      "pass/calls/resultless_native_callback_compile",
+      "pass/providers/boundary_declaration_structural_result_return_exit",
+      "pass/providers/lifetime_boundary_requirement_dispatch_exit",
+      "pass/providers/specialized_boundary_operator_physical_custody",
+      "pass/providers/specialized_mixed_structural_fixed_operator_hosted_native",
+      "pass/providers/specialized_mixed_structural_result_operator_hosted_native",
+      "pass/providers/specialized_structural_fixed_operator_hosted_native",
+      "pass/providers/specialized_structural_fixed_operator_terminal_custody",
+      "pass/providers/table_leaf_dispatch_parameter_exit",
+      "pass/providers/target_contract_adjacency_exit"
+    ]
+  },
+  {
+    "rows": 4,
+    "kind": "fail wrong reason",
+    "diag": "terminal-artifact production failed: Lowering(CompilerEvaluationAdmission(\"machine `@constant-UN",
+    "witness": "fail/layouts/declaration_only_initializer_formation",
+    "explicit": [
+      "fail/layouts/declaration_only_initializer_formation",
+      "fail/terminal_psi/inspection_scalar_library",
+      "pass/layouts/declaration_only_initializer_formation",
+      "pass/terminal_psi/inspection_scalar_library"
+    ],
+    "old_index": 46,
+    "members": [
+      "fail/layouts/declaration_only_initializer_formation",
+      "fail/terminal_psi/inspection_scalar_library",
+      "pass/layouts/declaration_only_initializer_formation",
+      "pass/terminal_psi/inspection_scalar_library"
+    ]
+  },
+  {
+    "rows": 2,
+    "kind": "fail wrong reason",
+    "diag": "constructor obligations have no exact prepared application for `Pair`; unresolved generic member",
+    "witness": "fail/generics/native_locator_inconsistent_byte_extents",
+    "explicit": [
+      "fail/generics/native_locator_inconsistent_byte_extents",
+      "fail/generics/native_locator_undefined_user_coordinate"
+    ],
+    "old_index": 86,
+    "members": [
+      "fail/generics/native_locator_inconsistent_byte_extents",
+      "fail/generics/native_locator_undefined_user_coordinate"
+    ]
+  },
+  {
+    "rows": 1,
+    "kind": "pass/run rejected",
+    "diag": "authored Operator declaration selection occurrence 9690 (`*` in tests/omega/pass/expressions/mat",
+    "witness": "pass/expressions/match_operand_anonymous_operation_exit",
+    "explicit": [
+      "pass/expressions/match_operand_anonymous_operation_exit"
+    ],
+    "old_index": 126,
+    "members": [
+      "pass/expressions/match_operand_anonymous_operation_exit"
+    ]
+  },
+  {
+    "rows": 1,
+    "kind": "pass/run rejected",
+    "diag": "checked machine `related_reflexive` cannot establish proposition ensure `boolean:value == value`",
+    "witness": "pass/proofs/proposition_relation_hierarchy_compile",
+    "explicit": [
+      "pass/proofs/proposition_relation_hierarchy_compile"
+    ],
+    "old_index": 166,
+    "members": [
+      "pass/proofs/proposition_relation_hierarchy_compile"
+    ]
+  },
+  {
+    "rows": 1,
+    "kind": "fail wrong reason",
+    "diag": "store in machine `Main::main` state `main` assignment implicitly converts `i32` to `i32 in Wrapp",
+    "witness": "fail/arithmetic/exact_overflow_value_call_hint",
+    "explicit": [
+      "fail/arithmetic/exact_overflow_value_call_hint"
+    ],
+    "old_index": 206,
+    "members": [
+      "fail/arithmetic/exact_overflow_value_call_hint"
+    ]
+  }
+]

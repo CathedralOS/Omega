@@ -1,0 +1,69 @@
+pass/borrow/runtime_write_only_boundary_satisfier_exit rejected 2960ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Sink::write`, which the program entry reaches on target `macos_arm64`
+pass/borrows/runtime_boundary_range_view_exit rejected 2743ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Window::middle`, which the program entry reaches on target `macos_arm64`
+pass/borrows/runtime_computed_shared_view_reborrow_exit rejected 2784ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Window::middle`, which the program entry reaches on target `macos_arm64`
+pass/build/native_component_reuse_foreign rejected 5803ms check-target:macos_arm64
+	no provider is selected for boundary requirement `NativeAbsolute::absolute`, which the program entry reaches on target `macos_arm64`
+pass/calls/callback_future_registration_cycle rejected 13365ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Registration::register`, which the program entry reaches on target `macos_arm64`
+pass/calls/private_callback_call_closure rejected 11682ms check-target:macos_arm64
+	no provider is selected for boundary requirement `OnceRegistrar::execute`, which the program entry reaches on target `macos_arm64`
+pass/calls/resultless_native_callback_compile rejected 10975ms check-target:linux_x86_64
+	no provider is selected for boundary requirement `OnceRegistrar::execute`, which the program entry reaches on target `linux_x86_64`
+pass/expressions/match_operand_anonymous_operation_exit rejected 7872ms check-target:macos_arm64
+	authored Operator declaration selection occurrence 9690 (`*` in tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg) remained unresolved after successful checking (CheckedOperator)
+pass/layouts/declaration_only_initializer_formation rejected 1357ms
+	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-UNUSED` is not build-time admissible: a checked crash route remains possible (Trap); calls: [extent]; constant evaluation requires proof that no crash route can occur before execution"))
+pass/proofs/proposition_relation_hierarchy_compile rejected 1153ms
+	checked machine `related_reflexive` cannot establish proposition ensure `boolean:value == value` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
+	checked machine `related_symmetric` cannot establish proposition ensure `boolean:right == left` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
+	checked machine `related_transitive` cannot establish proposition ensure `boolean:left == right` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
+	checked machine `related_reflexive_named` cannot establish proposition ensure `boolean:item == item` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
+	checked machine `related_symmetric_flipped` cannot establish proposition ensure `boolean:left == right` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
+	machine `related_antisymmetric` cannot prove ensures contract proof fact `left == right` from the requires contract
+pass/providers/boundary_declaration_structural_result_return_exit rejected 3294ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Indexing::index$specialized$089023feb447f889$0$4649`, which the program entry reaches on target `macos_arm64`
+pass/providers/lifetime_boundary_requirement_dispatch_exit rejected 10247ms check-target:macos_arm64
+	no provider is selected for boundary requirement `CellSource::read`, which the program entry reaches on target `macos_arm64`
+pass/providers/specialized_boundary_operator_physical_custody rejected 10507ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Math::identity$specialized$9742feac469a828f$0$5565`, which the program entry reaches on target `macos_arm64`
+	no provider is selected for boundary requirement `Math::identity$specialized$b8e34aed3539522a$1$5569`, which the program entry reaches on target `macos_arm64`
+pass/providers/specialized_mixed_structural_fixed_operator_hosted_native rejected 10861ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Indexing::index$specialized$089023feb447f889$0$5569`, which the program entry reaches on target `macos_arm64`
+pass/providers/specialized_mixed_structural_result_operator_hosted_native rejected 3392ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Indexing::index$specialized$089023feb447f889$0$4643`, which the program entry reaches on target `macos_arm64`
+pass/providers/specialized_structural_fixed_operator_hosted_native rejected 10627ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Indexing::index$specialized$089023feb447f889$0$5570`, which the program entry reaches on target `macos_arm64`
+pass/providers/specialized_structural_fixed_operator_terminal_custody rejected 3165ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Indexing::index$specialized$089023feb447f889$0$4644`, which the program entry reaches on target `macos_arm64`
+pass/providers/table_leaf_dispatch_parameter_exit rejected 2837ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Measure::length`, which the program entry reaches on target `macos_arm64`
+	no provider is selected for boundary requirement `Absolute::value`, which the program entry reaches on target `macos_arm64`
+pass/providers/target_contract_adjacency_exit rejected 2913ms check-target:macos_arm64
+	no provider is selected for boundary requirement `Magnitude::absolute`, which the program entry reaches on target `macos_arm64`
+	no provider is selected for boundary requirement `Magnitude::alternate`, which the program entry reaches on target `macos_arm64`
+pass/terminal_psi/inspection_scalar_library rejected 2668ms terminal-inspections:failed
+	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-UNUSED` is not build-time admissible: a checked crash route remains possible (Trap); calls: [extent]; constant evaluation requires proof that no crash route can occur before execution"))
+	inspection extent admission: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Lowering(CompilerEvaluationAdmission(\\"machine `@constant-UNUSED` is not build-time admissible: a checked crash route remains possible (Trap); calls: [extent]; constant evaluation requires proof that no crash route can occur before execution\\"))", exceeded_provision: None, source_span: None, resolved_location: None }]
+fail/arithmetic/exact_overflow_value_call_hint rejected 6652ms unexpected
+	store in machine `Main::main` state `main` assignment implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
+fail/build/native_table_non_address_field rejected 2591ms unexpected
+	no provider is selected for boundary requirement `Query::run`, which the program entry reaches on target `windows_x86_64`
+fail/calls/callback_shared_program_excluded_trap rejected 12819ms expected
+	1 authored behavior exclusion(s) could not be satisfied
+	behavior exclusion violated: crash cause Trap is reachable in machine `PointHandler::visit` (Terminal machine 5) at crash terminator in block 10
+	the selected composition retains crash cause Trap through machine `PointHandler::visit` (Terminal machine 5) declared here
+fail/calls/foreign_applied_callback_requires_selected_entry_plan rejected 2950ms unexpected
+	no provider is selected for boundary requirement `Registrar::install`, which the program entry reaches on target `linux_x86_64`
+fail/generics/native_locator_inconsistent_byte_extents rejected 1167ms unexpected
+	constructor obligations have no exact prepared application for `Pair`; unresolved generic members cannot waive field or case checking
+	a value call to generic machine `consume` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
+fail/generics/native_locator_undefined_user_coordinate rejected 1182ms unexpected
+	constructor obligations have no exact prepared application for `Envelope`; unresolved generic members cannot waive field or case checking
+	a value call to generic machine `consume` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
+fail/layouts/declaration_only_initializer_formation rejected 1286ms unexpected
+	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-UNUSED` is not build-time admissible: a checked crash route remains possible (Trap); calls: [extent]; constant evaluation requires proof that no crash route can occur before execution"))
+fail/terminal_psi/inspection_scalar_library rejected 1277ms unexpected
+	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-UNUSED` is not build-time admissible: a checked crash route remains possible (Trap); calls: [extent]; constant evaluation requires proof that no crash route can occur before execution"))
