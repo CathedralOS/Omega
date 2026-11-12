@@ -79,14 +79,18 @@ find_good() {
 export BISECT_WITNESS="$WITNESS"
 git checkout "$BRANCH" -q 2>/dev/null || git checkout "$PIN" -q
 
-GOOD=$(find_good) || {
+if [[ -n "${BISECT_GOOD:-}" ]]; then
+  GOOD="$BISECT_GOOD"
+else
+  GOOD=$(find_good) || {
   git checkout "$BRANCH" -q 2>/dev/null || git checkout "$PIN" -q
   python3 - "$OUT" <<PY
 import json
 json.dump({"cluster_id":"$CLUSTER_ID","witness":"$WITNESS","status":"propagated","reason":"no_good_on_first_parent"}, open("$OUT","w"), indent=2)
 PY
   exit 0
-}
+  }
+fi
 
 git bisect reset 2>/dev/null || true
 if ! git bisect start --first-parent "$PIN" "$GOOD" 2>&1 | tee /tmp/bisect_${CLUSTER_ID}.log; then
