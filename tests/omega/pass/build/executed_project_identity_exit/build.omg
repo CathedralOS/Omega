@@ -17,5 +17,7 @@ machine declare_project(builder: &mut Build) {
 
 machine unselected(builder: &mut Build) {
     Build::application(builder, "wrong_branch");
-    Build::depend_as(builder, "missing", Source::Path { location: "never_acquired" });
+    let mut missing_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "never_acquired" });
+    dependency::with_alias(&mut missing_dependency, "missing");
+    let missing_registration: DependencyRegistration = Build::dependency(builder, missing_dependency);
 }

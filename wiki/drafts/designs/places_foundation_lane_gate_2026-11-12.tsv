@@ -1,0 +1,795 @@
+program	tests/omega/pass/cases/arm_field_placement/main.omg	current=accepted	current_us=2840814	root=compilation	route=no-entry
+program	tests/omega/pass/cases/arm_rename_waive/main.omg	current=accepted	current_us=3182295	root=compilation	route=no-entry
+program	tests/omega/pass/cases/arm_returns_mut_ref/main.omg	current=accepted	current_us=3747014	root=compilation	route=no-entry
+program	tests/omega/pass/cases/case_arm_pattern_names/main.omg	current=accepted	current_us=3622811	root=compilation	route=no-entry
+program	tests/omega/pass/cases/case_call_premises/main.omg	current=rejected	current_us=2576189	root=compilation	route=no-entry
+current-diagnostic	tests/omega/pass/cases/case_call_premises/main.omg	main.omg:20 bytes 633..641	machine `concrete` ensures contract proof fact `empty_only(Tree) == empty_only(Tree)` speaks about proof-only `Tree`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/
+current-diagnostic	tests/omega/pass/cases/case_call_premises/main.omg	main.omg:20 bytes 633..641	machine `concrete` ensures contract proof fact `node_only(Tree) == node_only(Tree)` speaks about proof-only `Tree`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/sp
+current-diagnostic	tests/omega/pass/cases/case_call_premises/main.omg	main.omg:25 bytes 881..889	machine `symbolic` ensures contract proof fact `empty_only(value) == empty_only(value)` speaks about proof-only `Tree`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wik
+program	tests/omega/pass/cases/case_payload_member/main.omg	current=accepted	current_us=3115379	root=compilation	route=no-entry
+program	tests/omega/pass/cases/case_requires_payload/main.omg	current=accepted	current_us=2815066	root=compilation	route=no-entry
+program	tests/omega/pass/cases/case_union_exhaustive/main.omg	current=accepted	current_us=2652318	root=compilation	route=no-entry
+program	tests/omega/pass/cases/case_where_common/main.omg	current=accepted	current_us=2457375	root=compilation	route=no-entry
+program	tests/omega/pass/cases/case_where_match/main.omg	current=accepted	current_us=2299024	root=compilation	route=no-entry
+program	tests/omega/pass/cases/dup_match_order/main.omg	current=accepted	current_us=2279996	root=compilation	route=no-entry
+program	tests/omega/pass/cases/field_subject_arm_chain/main.omg	current=accepted	current_us=2230829	root=compilation	route=no-entry
+program	tests/omega/pass/cases/later_arm_requires/main.omg	current=accepted	current_us=2195701	root=compilation	route=no-entry
+program	tests/omega/pass/cases/match_call_patterns/main.omg	current=accepted	current_us=2299477	root=compilation	route=no-entry
+program	tests/omega/pass/cases/match_guard_slice_index/main.omg	current=accepted	current_us=2829977	root=compilation	route=no-entry
+program	tests/omega/pass/cases/match_record_field/main.omg	current=accepted	current_us=2719719	root=compilation	route=no-entry
+program	tests/omega/pass/cases/match_reference_local/main.omg	current=accepted	current_us=3038834	root=compilation	route=no-entry
+program	tests/omega/pass/cases/mid_arm_value_return/main.omg	current=accepted	current_us=3165764	root=compilation	route=no-entry
+program	tests/omega/pass/cases/mixed_record_cases/main.omg	current=accepted	current_us=3478299	root=compilation	route=no-entry
+program	tests/omega/pass/cases/ordered_underscore_arms/main.omg	current=accepted	current_us=3331234	root=compilation	route=no-entry
+program	tests/omega/pass/cases/param_case_payload_return/main.omg	current=accepted	current_us=3105383	root=compilation	route=no-entry
+program	tests/omega/pass/cases/runtime_borrowed_case_subject_exit/main.omg	current=accepted	current_us=7659996	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/pass/cases/runtime_call_result_case_membership_exit/main.omg	current=accepted	current_us=7751224	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/cases/runtime_case_component_borrow_identity_exit/main.omg	current=accepted	current_us=7141239	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/pass/cases/runtime_case_payload_policy_cast_exit/main.omg	current=accepted	current_us=7601098	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/cases/runtime_constructor_subject_range_exit/main.omg	current=accepted	current_us=9265133	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/pass/cases/runtime_nested_payload_scalar_projection_exit/main.omg	current=accepted	current_us=10440302	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/pass/cases/runtime_owned_case_payload_after_guard_exit/main.omg	current=accepted	current_us=8327076	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/pass/cases/runtime_refuted_generic_case_dispatch_exit/main.omg	current=accepted	current_us=28410791	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/cases/runtime_stored_case_reference_subject_exit/main.omg	current=accepted	current_us=6995706	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/cases/self_payload_return/main.omg	current=accepted	current_us=2454254	root=compilation	route=no-entry
+program	tests/omega/pass/cases/union_guard_paren/main.omg	current=accepted	current_us=2351792	root=compilation	route=no-entry
+program	tests/omega/pass/cases/unit_empty_arm/main.omg	current=accepted	current_us=2465221	root=compilation	route=no-entry
+program	tests/omega/pass/cases/write_only_case_postcondition_exit/main.omg	current=accepted	current_us=8553360	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/constants/closed_generic_predicate_constant/main.omg	current=accepted	current_us=4098515	root=compilation	route=no-entry
+program	tests/omega/pass/constants/computed_unsigned_max_exit/main.omg	current=accepted	current_us=8244785	root=compilation	route=outside	Unsupported: declaration const
+program	tests/omega/pass/constants/const_alias_identity/main.omg	current=accepted	current_us=3525170	root=compilation	route=no-entry
+program	tests/omega/pass/constants/const_data_param/main.omg	current=accepted	current_us=3059708	root=compilation	route=no-entry
+program	tests/omega/pass/constants/constant_bound_distance/main.omg	current=accepted	current_us=2658675	root=compilation	route=no-entry
+program	tests/omega/pass/constants/direct_named_implementation_initializer_exit/main.omg	current=accepted	current_us=7656352	root=compilation	route=outside	Unsupported: declaration const
+program	tests/omega/pass/constants/lexical_const_shadow/main.omg	current=accepted	current_us=2454670	root=compilation	route=no-entry
+program	tests/omega/pass/constants/machine_const_indices/main.omg	current=accepted	current_us=3689491	root=compilation	route=no-entry
+program	tests/omega/pass/constants/mathematical_constant_domain_selection/main.omg	current=accepted	current_us=3999812	root=compilation	route=no-entry
+program	tests/omega/pass/constants/nested_const_projection/main.omg	current=accepted	current_us=4375752	root=compilation	route=no-entry
+program	tests/omega/pass/constants/owned_record_argument_snapshot_exit/main.omg	current=accepted	current_us=9599172	root=compilation	route=outside	Unsupported: declaration const
+program	tests/omega/pass/constants/predicate_constant_static_index/main.omg	current=accepted	current_us=3031415	root=compilation	route=no-entry
+program	tests/omega/pass/constants/qualified_variant_constant/main.omg	current=accepted	current_us=3973320	root=compilation	route=no-entry
+program	tests/omega/pass/constants/runtime_predicate_constant_materialization_exit/main.omg	current=accepted	current_us=8859512	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/pass/constants/runtime_scoped_const_exit/main.omg	current=accepted	current_us=35321667	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/constants/static_namespace_constant/main.omg	current=accepted	current_us=3506077	root=compilation	route=no-entry
+program	tests/omega/pass/constants/target_layout_derived_alignment_exit/main.omg	current=accepted	current_us=11364639	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/constants/target_layout_derived_ground_guarantee_exit/main.omg	current=accepted	current_us=8631208	root=compilation	route=accepted	route_us=889	discharge_us=576	reverify_us=242	reverified=1	obligations=2	judged=1	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=1	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/constants/target_layout_derived_ground_guarantee_exit/main.omg	2	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/constants/target_layout_derived_ground_guarantee_exit/main.omg	2	2	guarantee	discharged-judged+interval	IntegerConstant	-
+program	tests/omega/pass/constants/target_layout_derived_helper_alias_exit/main.omg	current=accepted	current_us=11298850	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/constants/target_layout_derived_helper_exit/main.omg	current=accepted	current_us=11614228	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/constants/target_layout_derived_helper_generic_exit/main.omg	current=accepted	current_us=12532505	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/constants/target_layout_derived_public_alias_exit/main.omg	current=accepted	current_us=11758369	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/constants/target_layout_derived_shadow_exit/main.omg	current=accepted	current_us=9910277	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/constants/target_layout_derived_skipped_crashing_helper_exit/main.omg	current=accepted	current_us=12799559	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/data/case_first_payload_zero_established/main.omg	current=accepted	current_us=4999168	root=compilation	route=no-entry
+program	tests/omega/pass/data/case_membership_union_guard_exit/main.omg	current=accepted	current_us=36509055	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/data/closed_literal_nested_predicates/main.omg	current=accepted	current_us=3196055	root=compilation	route=no-entry
+program	tests/omega/pass/data/indexed_element_invariant_local/main.omg	current=accepted	current_us=2968770	root=compilation	route=no-entry
+program	tests/omega/pass/data/match_exhaustive_by_case_union_domain/main.omg	current=accepted	current_us=37036339	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/data/mixed_record_common_field_and_payload_dispatch_exit/main.omg	current=accepted	current_us=42544726	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/data/opaque_copy_selected/main.omg	current=accepted	current_us=10162989	root=compilation	route=outside	Unsupported: type data without a checked shape
+program	tests/omega/pass/data/opaque_nested_field_selected/main.omg	current=accepted	current_us=9300386	root=compilation	route=outside	Unsupported: type data without a checked shape
+program	tests/omega/pass/data/payload_less_case_equality/main.omg	current=accepted	current_us=4943753	root=compilation	route=no-entry
+program	tests/omega/pass/data/prefix_case_contextual_case_field/main.omg	current=accepted	current_us=13061238	root=compilation	route=accepted	route_us=2248	discharge_us=1350	reverify_us=525	reverified=4	obligations=4	judged=4	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=2	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/data/prefix_case_contextual_case_field/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/data/prefix_case_contextual_case_field/main.omg	1	2	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/data/prefix_case_contextual_case_field/main.omg	1	3	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/data/prefix_case_contextual_case_field/main.omg	3	1	crash	discharged-judged+interval	-	-
+program	tests/omega/pass/data/prefix_case_empty_reference_array/main.omg	current=accepted	current_us=10754511	root=compilation	route=outside	Unsupported: type mixed data
+program	tests/omega/pass/data/prefix_case_pure_sum_retirement/main.omg	current=accepted	current_us=10674532	root=compilation	route=outside	Unsupported: type data with retired field identities
+program	tests/omega/pass/data/property_carry_declared/main.omg	current=accepted	current_us=3447365	root=compilation	route=no-entry
+program	tests/omega/pass/data/qualified_record_pattern_exit/main.omg	current=accepted	current_us=7696071	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/pass/data/record_pattern_let_exit/main.omg	current=accepted	current_us=33296865	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/data/record_snapshot_finish/main.omg	current=accepted	current_us=3075904	root=compilation	route=no-entry
+program	tests/omega/pass/data/runtime_case_payload_call_result_window_exit/main.omg	current=accepted	current_us=8927262	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/data/runtime_case_reassignment_exit/main.omg	current=accepted	current_us=32391700	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/data/runtime_constructor_observation_exit/main.omg	current=accepted	current_us=32858294	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/data/runtime_data_properties_exit/main.omg	current=accepted	current_us=32644164	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/data/runtime_mixed_case_common_fields_exit/main.omg	current=accepted	current_us=30480021	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/data/runtime_mixed_case_nested_common_fields_exit/main.omg	current=rejected	current_us=6224886	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/pass/data/runtime_mixed_case_nested_common_fields_exit/main.omg	no-span	state `observe` receives `count` without an exact retained backing for its loan: the access has no unique completed operand
+current-diagnostic	tests/omega/pass/data/runtime_mixed_case_nested_common_fields_exit/main.omg	no-span	state `observe` receives `count` without an exact retained backing for its loan: the access has no unique completed operand
+current-diagnostic	tests/omega/pass/data/runtime_mixed_case_nested_common_fields_exit/main.omg	no-span	state `observe` receives `count` without an exact retained backing for its loan: the access has no unique completed operand
+program	tests/omega/pass/data/runtime_mixed_case_payload_dispatch_exit/main.omg	current=accepted	current_us=26716262	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/data/runtime_mixed_shape_exit/main.omg	current=accepted	current_us=25352911	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/data/runtime_proof_only_data_declared_exit/main.omg	current=accepted	current_us=22395054	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/data/runtime_record_field_value_pattern_exit/main.omg	current=accepted	current_us=22584436	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/data/runtime_zeroed_first_case_enum_payload_exit/main.omg	current=accepted	current_us=22963507	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/data/runtime_zeroed_first_case_float_payload_exit/main.omg	current=accepted	current_us=23156853	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/acquires_helper_return/main.omg	current=accepted	current_us=2612811	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/anonymous_numeric_match_subject/main.omg	current=accepted	current_us=2356600	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/anonymous_structural_match_results_exit/main.omg	current=accepted	current_us=4975389	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/expressions/arithmetic_domain_cast_exit/main.omg	current=accepted	current_us=24780905	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/arithmetic_domain_range_proven_exact_exit/main.omg	current=accepted	current_us=24664984	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/arithmetic_domain_requires_proven_exact_exit/main.omg	current=accepted	current_us=27855882	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/arithmetic_domain_saturating_signed_exit/main.omg	current=accepted	current_us=29529723	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/arithmetic_domain_trapping_overflow/main.omg	current=accepted	current_us=29772119	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/arithmetic_domain_wrapping_exit/main.omg	current=accepted	current_us=28574625	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/borrow_carrying_data_field_exit/main.omg	current=accepted	current_us=30569512	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/borrowed_field_store_call_product/main.omg	current=accepted	current_us=30355175	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/borrowed_field_store_direct_value/main.omg	current=accepted	current_us=28741940	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/borrowed_field_store_match_product/main.omg	current=accepted	current_us=28774458	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/borrowed_join_match_dynamic_index/main.omg	current=accepted	current_us=29083420	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/borrowed_join_match_exclusive_read/main.omg	current=accepted	current_us=29886210	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/borrowed_join_match_exclusive_store/main.omg	current=accepted	current_us=30004784	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/borrowed_join_match_local_origin/main.omg	current=accepted	current_us=29911134	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/borrowed_join_match_whole_store/main.omg	current=accepted	current_us=23358374	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/call_result_comparison_operands_exit/main.omg	current=accepted	current_us=22226320	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/comparison_result_integer_conversion_exit/main.omg	current=accepted	current_us=21457508	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/dead_trapping_let_traps/main.omg	current=accepted	current_us=21182242	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/declared_operator_match_result/main.omg	current=accepted	current_us=18236522	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/declared_operator_private_helper_exit/main.omg	current=accepted	current_us=6743677	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/pass/expressions/declared_operator_result_loan_exit/main.omg	current=accepted	current_us=5476523	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/pass/expressions/declared_operator_result_qualification_exit/main.omg	current=accepted	current_us=5227165	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/pass/expressions/declared_operator_stateful_body_exit/main.omg	current=accepted	current_us=5491066	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/pass/expressions/deep_paren_nesting/main.omg	current=accepted	current_us=2426034	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/derives_helper_return/main.omg	current=accepted	current_us=2537803	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/entry_mut_scalar_param/main.omg	current=accepted	current_us=2381745	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/explicit_scalar_tag_erasure/main.omg	current=accepted	current_us=2425055	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/giant_literal_subject/main.omg	current=accepted	current_us=2511358	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/indexed_qualified_call_argument/main.omg	current=accepted	current_us=2409209	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/match_anonymous_result_landing/main.omg	current=accepted	current_us=23840915	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/match_domain_results/main.omg	current=accepted	current_us=2244683	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/match_float_interpretation/main.omg	current=accepted	current_us=2726224	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/match_float_patterns/main.omg	current=accepted	current_us=22855177	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/match_float_results/main.omg	current=accepted	current_us=2306393	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/match_float_subjects/main.omg	current=accepted	current_us=5218136	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/pass/expressions/match_fresh_owned/main.omg	current=accepted	current_us=2255110	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg	current=rejected	current_us=17134265	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg	main.omg:16 bytes 604..605	authored Operator declaration selection occurrence 9690 (`*` in /home/user/Omega/.agents/worktree/worker-1/tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg) remained unresolved after successful checking (CheckedOperator)
+program	tests/omega/pass/expressions/match_ordered_duplicate_patterns/main.omg	current=accepted	current_us=1981423	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/match_owned_authored_state_subject/main.omg	current=accepted	current_us=21062604	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/match_owned_call_product_arms/main.omg	current=accepted	current_us=21659503	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/match_owned_call_return_values/main.omg	current=accepted	current_us=22069142	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/match_owned_computed_arm_arguments/main.omg	current=rejected	current_us=15977375	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/pass/expressions/match_owned_computed_arm_arguments/main.omg	main.omg:51 bytes 1663..1665	Exact integer cast in machine `exit` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+program	tests/omega/pass/expressions/match_owned_construction_and_call_arms/main.omg	current=accepted	current_us=22235846	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/match_owned_interleaved_call_results/main.omg	current=accepted	current_us=21717353	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/match_owned_mixed_projection_reads/main.omg	current=rejected	current_us=15934704	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/pass/expressions/match_owned_mixed_projection_reads/main.omg	main.omg:69 bytes 2116..2118	Exact integer cast in machine `exit` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+program	tests/omega/pass/expressions/match_owned_mixed_result_kinds/main.omg	current=accepted	current_us=21583313	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/match_owned_parameter_field_subject/main.omg	current=rejected	current_us=15831621	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/pass/expressions/match_owned_parameter_field_subject/main.omg	main.omg:54 bytes 1672..1674	Exact integer cast in machine `exit` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+program	tests/omega/pass/expressions/match_owned_projected_field_arm/main.omg	current=accepted	current_us=21674514	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/match_owned_projected_local_roots/main.omg	current=accepted	current_us=22038634	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/match_owned_projected_parameter_roots/main.omg	current=accepted	current_us=23655253	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/match_owned_projection_no_match_control/main.omg	current=accepted	current_us=24085929	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/match_owned_record_results/main.omg	current=accepted	current_us=22899702	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/match_owned_result_field_reads/main.omg	current=accepted	current_us=22747389	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/match_owned_same_root_projections/main.omg	current=accepted	current_us=27282959	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/mixed_integer_comparison_places/main.omg	current=accepted	current_us=28380120	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/mixed_integer_comparison_widths/main.omg	current=accepted	current_us=31568009	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/mixed_integer_guard_comparison/main.omg	current=accepted	current_us=30487493	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/numeric_operand_destinations/main.omg	current=accepted	current_us=29527188	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/owned_match_authored_state/main.omg	current=accepted	current_us=2629924	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/owned_match_call_values/main.omg	current=accepted	current_us=2807689	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/owned_match_interleaved_values/main.omg	current=accepted	current_us=3413310	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/owned_match_mixed_values/main.omg	current=accepted	current_us=3123850	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/owned_match_parameter_values/main.omg	current=accepted	current_us=2601001	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/owned_match_projected_field/main.omg	current=accepted	current_us=2877608	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/owned_match_record_values/main.omg	current=accepted	current_us=3353603	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/owned_match_values/main.omg	current=accepted	current_us=3438905	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/qualified_call_result_argument/main.omg	current=accepted	current_us=3129218	root=compilation	route=no-entry
+program	tests/omega/pass/expressions/runtime_comparison_store_integer_exit/main.omg	current=accepted	current_us=31837626	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/runtime_enum_comparison_left_value_before_right_mutation_exit/main.omg	current=accepted	current_us=7334209	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/expressions/runtime_enum_comparison_operands_once_exit/main.omg	current=accepted	current_us=8416178	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/expressions/runtime_flat_boolean_logic_exit/main.omg	current=accepted	current_us=32427123	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/runtime_float_record_field_reads_exit/main.omg	current=accepted	current_us=31716967	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/runtime_indexed_float_record_fields_exit/main.omg	current=accepted	current_us=34375435	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/runtime_match_borrowed_call_subject_once_exit/main.omg	current=accepted	current_us=7377597	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/expressions/runtime_match_copy_descriptor_call_exit/main.omg	current=rejected	current_us=8583359	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/pass/expressions/runtime_match_copy_descriptor_call_exit/main.omg	no-span	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "exercise", reason: "computed owned structural operand changes its source custody", gap: None })
+program	tests/omega/pass/expressions/runtime_match_copy_descriptor_snapshot_exit/main.omg	current=accepted	current_us=9459343	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/expressions/runtime_match_copy_subject_snapshot_exit/main.omg	current=accepted	current_us=8247594	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/expressions/runtime_match_nested_saved_tag_exit/main.omg	current=accepted	current_us=8646506	root=compilation	route=outside	Unsupported: transition case arm with a guard
+program	tests/omega/pass/expressions/runtime_match_projected_equatable_exit/main.omg	current=accepted	current_us=8643353	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/pass/expressions/runtime_match_structural_predicate_effect_order_exit/main.omg	current=accepted	current_us=9110637	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/expressions/runtime_match_structural_result_subject_once_exit/main.omg	current=accepted	current_us=8917891	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/expressions/runtime_nested_record_field_call_exit/main.omg	current=accepted	current_us=8450955	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/expressions/runtime_nested_record_field_reads_exit/main.omg	current=accepted	current_us=31655833	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/runtime_numeric_cast_exit/main.omg	current=accepted	current_us=33144202	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/runtime_owned_match_borrowed_subject_exit/main.omg	current=accepted	current_us=9494224	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/pass/expressions/runtime_owned_match_call_result_exit/main.omg	current=accepted	current_us=34548115	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/runtime_owned_match_effectful_subject_exit/main.omg	current=accepted	current_us=8072519	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/expressions/runtime_owned_match_multiple_projected_claims_exit/main.omg	current=rejected	current_us=7852787	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/pass/expressions/runtime_owned_match_multiple_projected_claims_exit/main.omg	no-span	cannot prove automatic cleanup requires at selected edge from select state entry after statement 1: original.second does not establish drop_token clause `token.code == 0`
+current-diagnostic	tests/omega/pass/expressions/runtime_owned_match_multiple_projected_claims_exit/main.omg	no-span	cannot prove automatic cleanup requires at selected edge from select state entry after statement 1: original.first does not establish drop_token clause `token.code == 0`
+program	tests/omega/pass/expressions/runtime_owned_match_parameter_claim_replacement_exit/main.omg	current=accepted	current_us=8523805	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/expressions/runtime_owned_match_pattern_claim_replacement_exit/main.omg	current=accepted	current_us=9324731	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/expressions/runtime_owned_match_pattern_replacement_exit/main.omg	current=accepted	current_us=10536318	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/expressions/runtime_owned_match_skipped_pattern_residual_cleanup_exit/main.omg	current=accepted	current_us=10712494	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/expressions/runtime_temporary_record_field_call_exit/main.omg	current=accepted	current_us=8217808	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/expressions/runtime_widened_comparison_exit/main.omg	current=accepted	current_us=34040315	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/scalar_match_boundary_composition_exit/main.omg	current=accepted	current_us=34336352	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/expressions/seq_consuming_combinators/main.omg	current=stopped	current_us=2765863	root=compilation	route=unreached	Some("generic machine `map` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `map$specialized$168f7f0591239da4$0$4664` state `map$specialized$168f7f0591239da4$0$4664::entry`: Type slot `U` conflicts: T [identity named(name(nomi
+program	tests/omega/pass/expressions/sequential_fresh_linear_selection/main.omg	current=accepted	current_us=9240990	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/expressions/unit_case_return_call_product/main.omg	current=accepted	current_us=35609927	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	current=accepted	current_us=7688403	root=compilation	route=accepted	route_us=140920	discharge_us=140154	reverify_us=269287	reverified=16	obligations=19	judged=16	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=3	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	2	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	2	2	guarantee	discharged-judged+interval	formal	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	3	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	3	2	safety	discharged-judged+interval	formal	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	3	3	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	3	4	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	3	5	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	3	6	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	3	7	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	3	8	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	3	9	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	3	10	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	3	11	guarantee	discharged-judged+interval	ExactIntegerAdd	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	4	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	4	2	requirement	discharged-judged+interval	Call	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	4	3	safety	discharged-judged+interval	Call,IntegerConstant	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	4	4	guarantee	discharged-judged+interval	ExactIntegerSubtract	-
+obligation	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	6	1	crash	discharged-judged+interval	-	-
+program	tests/omega/pass/facts/abstract_signature_call_constant_initializer_through_local_exit/main.omg	current=accepted	current_us=9244965	root=compilation	route=outside	Unsupported: contract clause that is not a comparison or conjunction
+program	tests/omega/pass/facts/address_count_partition_through_match_join_exit/main.omg	current=accepted	current_us=10014593	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/alias_fact_transfer_through_other_state_exit/main.omg	current=accepted	current_us=7957062	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/pass/facts/as_slice_views_generic_through_match_join_exit/main.omg	current=rejected	current_us=7192866	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/pass/facts/as_slice_views_generic_through_match_join_exit/main.omg	no-span	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+program	tests/omega/pass/facts/atomic_boolean_store/other_state/main.omg	current=accepted	current_us=7852443	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/pass/facts/atomic_try_exchange_once/controls/discarded_result/main.omg	current=accepted	current_us=8745232	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/borrowed_content_partition_through_other_state_exit/main.omg	current=accepted	current_us=12044429	root=compilation	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/pass/facts/boundary_provider_call_through_target_body_exit/main.omg	current=accepted	current_us=8621569	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/facts/bounded_activation_through_match_join_exit/main.omg	current=accepted	current_us=7608353	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/build_target_provider_through_const_name_exit/reading_provider/main.omg	current=accepted	current_us=6276677	root=compilation	route=no-entry
+program	tests/omega/pass/facts/call_result_bound_discharge_through_target_body_exit/main.omg	current=accepted	current_us=8348751	root=compilation	route=outside	Unsupported: machine target selection
+program	tests/omega/pass/facts/case_match_payload_loan_through_const_name_exit/main.omg	current=accepted	current_us=8138455	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/case_payload_transport_through_local_exit/main.omg	current=accepted	current_us=8879147	root=compilation	route=accepted	route_us=13232	discharge_us=12720	reverify_us=12330	reverified=9	obligations=10	judged=9	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=2	published_held=1	uses=7	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/facts/case_payload_transport_through_local_exit/main.omg	1	1	domain	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/case_payload_transport_through_local_exit/main.omg	1	2	domain	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/case_payload_transport_through_local_exit/main.omg	1	3	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/case_payload_transport_through_local_exit/main.omg	1	4	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/case_payload_transport_through_local_exit/main.omg	1	5	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/case_payload_transport_through_local_exit/main.omg	2	1	published	every-exit:2	-	-
+obligation	tests/omega/pass/facts/case_payload_transport_through_local_exit/main.omg	2	2	safety	discharged-judged+branch	IntegerConstant,join	-
+obligation	tests/omega/pass/facts/case_payload_transport_through_local_exit/main.omg	2	3	guarantee	discharged-judged+branch	ExactIntegerAdd	-
+obligation	tests/omega/pass/facts/case_payload_transport_through_local_exit/main.omg	2	4	guarantee	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/case_payload_transport_through_local_exit/main.omg	4	1	crash	discharged-judged+interval	-	-
+program	tests/omega/pass/facts/case_where_equality_root_exit/main.omg	current=accepted	current_us=8527178	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/checked_asm_countdown_through_const_name_exit/main.omg	current=accepted	current_us=9493149	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/facts/checked_asm_nominal_predicate_through_field_exit/main.omg	current=accepted	current_us=9333909	root=compilation	route=outside	Unsupported: contract term other than a formal or literal
+program	tests/omega/pass/facts/checked_predicate_disjoint_loans_through_match_join_exit/main.omg	current=accepted	current_us=9357033	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/component_scalar_lending_through_parameter_exit/producer/main.omg	current=accepted	current_us=9330155	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/facts/computed_record_window_through_parameter_exit/main.omg	current=accepted	current_us=8740858	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/facts/contract_excluded_case_through_target_body_exit/main.omg	current=accepted	current_us=9441364	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/facts/correlated_invariant_store_through_const_name_exit/main.omg	current=accepted	current_us=9179975	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/crash_entry_representation_view_through_local_exit/main.omg	current=accepted	current_us=9614063	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/pass/facts/data_where_standing_borrowed_field_through_local_exit/main.omg	current=accepted	current_us=9254606	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/pass/facts/data_where_standing_predicate_helper_through_field_exit/main.omg	current=accepted	current_us=8675022	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/default_domain_field_write_through_field_exit/main.omg	current=accepted	current_us=8509865	root=compilation	route=outside	Unsupported: statement store into a case payload
+program	tests/omega/pass/facts/descriptor_range_exclusive_loan_through_local_exit/main.omg	current=accepted	current_us=8175679	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/domain_carrier_identity_through_other_machine_exit/main.omg	current=accepted	current_us=8574279	root=compilation	route=outside	Unsupported: contract domain membership
+program	tests/omega/pass/facts/domain_selected_cleanup_computed_parameter_exit/main.omg	current=accepted	current_us=8378464	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/facts/dyn_returned_view_membership_through_field_exit/main.omg	current=accepted	current_us=9211806	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/facts/dynamic_trait_dispatch_through_match_join_exit/main.omg	current=accepted	current_us=8915909	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/exclusive_match_arm_through_other_state_exit/main.omg	current=rejected	current_us=5795765	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/pass/facts/exclusive_match_arm_through_other_state_exit/main.omg	main.omg:14 bytes 564..570	cannot prove requires contract for call choose from write: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+program	tests/omega/pass/facts/finite_family_exclusive_result/target_body/main.omg	current=accepted	current_us=9103910	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/facts/five_variant_enum_payload_bound_through_const_name_exit/main.omg	current=accepted	current_us=11564000	root=compilation	route=outside	Unsupported: declaration const
+program	tests/omega/pass/facts/fixed_array_twofiftysix_elem_index_bound_through_local_exit/main.omg	current=accepted	current_us=8399216	root=compilation	route=outside	Unsupported: type fixed array
+program	tests/omega/pass/facts/fixed_layout_reference_readback_through_match_join_exit/main.omg	current=accepted	current_us=16122807	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/pass/facts/float_meaning_result_through_match_join_exit/main.omg	current=accepted	current_us=7577488	root=compilation	route=outside	Unsupported: type float
+program	tests/omega/pass/facts/foreign_indirect_float_record_result_through_other_state_exit/main.omg	current=accepted	current_us=8692559	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/facts/foreign_retained_mutable_borrow_other_state/main.omg	current=accepted	current_us=9482884	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/facts/foreign_scalar_record_result_through_target_body_exit/main.omg	current=accepted	current_us=9390204	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/facts/generic_case_subject_through_other_machine_exit/main.omg	current=accepted	current_us=8211722	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/facts/generic_terminated_array_through_parameter_exit/main.omg	current=accepted	current_us=8576092	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/facts/ieee_float_ordered_comparison_through_call_result_exit/main.omg	current=accepted	current_us=9036760	root=compilation	route=outside	Unsupported: type float
+program	tests/omega/pass/facts/independent_content_partition_through_const_name_exit/main.omg	current=accepted	current_us=8871708	root=compilation	route=outside	Unsupported: machine type equations, owned data or conformances
+program	tests/omega/pass/facts/indexed_recoverable_replacement_window_through_local_exit/main.omg	current=accepted	current_us=9926046	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/inferred_array_equation_call_through_match_join_exit/main.omg	current=accepted	current_us=9496422	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/facts/integer_multiple_remainder_through_other_machine_exit/main.omg	current=accepted	current_us=8239573	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/pass/facts/lexical_generic_bound_through_parameter_exit/main.omg	current=accepted	current_us=9688008	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	current=accepted	current_us=8382537	root=compilation	route=accepted	route_us=22280	discharge_us=21434	reverify_us=19854	reverified=14	obligations=17	judged=14	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=3	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	2	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	2	2	guarantee	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	3	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	3	2	guarantee	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	4	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	4	2	guarantee	discharged-judged+interval	formal	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	5	1	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	5	2	requirement	discharged-judged+interval	Call	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	5	3	requirement	discharged-judged+interval	formal	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	5	4	safety	discharged-judged+interval	Call,IntegerConstant	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	5	5	safety	discharged-judged+interval	Call,IntegerConstant	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	5	6	safety	discharged-judged+interval	ExactIntegerSubtract	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	5	7	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	5	8	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	8	1	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	10	1	crash	discharged-judged+interval	-	-
+program	tests/omega/pass/facts/match_effectful_subject_custody_through_field_exit/main.omg	current=accepted	current_us=10099258	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/facts/match_primitive_local_origin_through_match_join_exit/main.omg	current=accepted	current_us=9052235	root=compilation	route=outside	Unsupported: expression match on a scalar subject
+program	tests/omega/pass/facts/matched_field_windows_through_other_state_exit/main.omg	current=rejected	current_us=7856518	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/pass/facts/matched_field_windows_through_other_state_exit/main.omg	main.omg:9 bytes 386..388	`main` calls `from_state`; `from_state` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `from_state::entry`, statement 0
+program	tests/omega/pass/facts/may_write_computed_receiver_through_target_body_exit/main.omg	current=accepted	current_us=17218207	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/facts/mixed_width_record_padding_geometry_through_const_name_exit/main.omg	current=accepted	current_us=7446973	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/pass/facts/named_conformance_dispatch_through_local_exit/main.omg	current=accepted	current_us=9234827	root=compilation	route=outside	Unsupported: machine suspends or blocks
+program	tests/omega/pass/facts/narrow_to_wide_signed_16to64_extension_through_other_machine_exit/main.omg	current=accepted	current_us=8381365	root=compilation	route=outside	Unsupported: expression cast
+program	tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_parameter_exit/main.omg	current=accepted	current_us=9366226	root=compilation	route=outside	Unsupported: expression cast
+program	tests/omega/pass/facts/nested_borrow_qualification_through_call_result_exit/main.omg	current=accepted	current_us=8563427	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/facts/nested_record_field_borrow_bound_through_const_name_exit/main.omg	current=accepted	current_us=8162706	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/pass/facts/nested_three_level_record_field_bound_through_local_exit/main.omg	current=accepted	current_us=8594261	root=compilation	route=accepted	route_us=30657	discharge_us=29904	reverify_us=40830	reverified=6	obligations=6	judged=6	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=6	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/facts/nested_three_level_record_field_bound_through_local_exit/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/nested_three_level_record_field_bound_through_local_exit/main.omg	2	1	safety	discharged-judged+interval	IntegerConstant,ScalarStructuralField	-
+obligation	tests/omega/pass/facts/nested_three_level_record_field_bound_through_local_exit/main.omg	2	2	safety	discharged-judged+interval	IntegerConstant,ScalarStructuralField	-
+obligation	tests/omega/pass/facts/nested_three_level_record_field_bound_through_local_exit/main.omg	2	3	safety	discharged-judged+interval	ExactIntegerSubtract	-
+obligation	tests/omega/pass/facts/nested_three_level_record_field_bound_through_local_exit/main.omg	3	1	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/nested_three_level_record_field_bound_through_local_exit/main.omg	5	1	crash	discharged-judged+interval	-	-
+program	tests/omega/pass/facts/nominal_declaration_owner_through_match_join/main.omg	current=accepted	current_us=10200880	root=compilation	route=outside	Unsupported: expression match on a scalar subject
+program	tests/omega/pass/facts/non_owning_reference_erasure_through_other_state_exit/main.omg	current=rejected	current_us=6280702	root=compilation	route=outside	Unsupported: type constrained
+current-diagnostic	tests/omega/pass/facts/non_owning_reference_erasure_through_other_state_exit/main.omg	no-span	cannot prove default-domain field requirement for return from write at statement 0: storage requires Storage::Issued
+current-diagnostic	tests/omega/pass/facts/non_owning_reference_erasure_through_other_state_exit/main.omg	main.omg:14 bytes 777..782	cannot prove default-domain field requirement for call write from main::entry: parameter storage requires Storage::Issued
+program	tests/omega/pass/facts/open_const_implementation_through_match_join_exit/main.omg	current=accepted	current_us=8921338	root=compilation	route=outside	Unsupported: expression type parameter
+program	tests/omega/pass/facts/placed_stable_write_through_other_machine_exit/main.omg	current=accepted	current_us=16210970	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/pass/facts/progress_selector_nested_arrival_through_parameter_exit/main.omg	current=accepted	current_us=8321735	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/facts/provider_contract_endpoint_closed_owner_through_call_result_exit/main.omg	current=accepted	current_us=10273264	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/facts/provider_contract_endpoint_through_const_name_exit/main.omg	current=accepted	current_us=9408985	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/facts/readonly_byte_literal_subslice_through_local_exit/main.omg	current=accepted	current_us=7640555	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/pass/facts/recorded_build_role/other_machine/main.omg	current=accepted	current_us=10562701	root=compilation	route=accepted	route_us=1060	discharge_us=327	reverify_us=138	reverified=2	obligations=2	judged=2	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/facts/recorded_build_role/other_machine/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/recorded_build_role/other_machine/main.omg	3	1	crash	discharged-judged+interval	-	-
+program	tests/omega/pass/facts/reflection_capacity_through_parameter_exit/main.omg	current=accepted	current_us=34998010	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/representation_agreement_through_call_result_exit/main.omg	current=accepted	current_us=20024350	root=compilation	route=outside	Unsupported: type generic data
+program	tests/omega/pass/facts/resident_backing_plain_ram_exit/main.omg	current=rejected	current_us=7486349	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/pass/facts/resident_backing_plain_ram_exit/main.omg	main.omg:17 bytes 539..544	cannot prove default-domain field requirement for call check from main::entry: parameter pair requires Pair::Label
+program	tests/omega/pass/facts/returned_write_destination_through_match_join_exit/main.omg	current=accepted	current_us=8757889	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/runtime_index_application_computed_through_other_state_exit/main.omg	current=accepted	current_us=9102820	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/runtime_index_application_mutating_operator_through_target_body_exit/main.omg	current=accepted	current_us=9465691	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/facts/runtime_index_application_through_const_name_exit/main.omg	current=accepted	current_us=8573312	root=compilation	route=outside	Unsupported: type generic data
+program	tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit/main.omg	current=rejected	current_us=5912604	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit/main.omg	main.omg:35 bytes 1534..1539	cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+program	tests/omega/pass/facts/scalar_array_row_construction_through_call_result_exit/main.omg	current=accepted	current_us=7945872	root=compilation	route=outside	Unsupported: type fixed array
+program	tests/omega/pass/facts/scalar_tag_field_loan_through_field_exit/main.omg	current=accepted	current_us=8075009	root=compilation	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/pass/facts/selected_crash_formal_through_match_join_exit/main.omg	current=accepted	current_us=8415936	root=compilation	route=outside	Unsupported: machine type equations, owned data or conformances
+program	tests/omega/pass/facts/selected_value_application_through_other_state_exit/main.omg	current=accepted	current_us=8349909	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/facts/signed_64bit_bitwise_and_mask_bound_through_target_body_exit/main.omg	current=accepted	current_us=8771998	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/facts/signed_64bit_wrapping_multiplication_bound_through_const_name_exit/main.omg	current=accepted	current_us=8567221	root=compilation	route=outside	Unsupported: declaration const
+program	tests/omega/pass/facts/signed_8bit_exact_arithmetic_bound_through_local_exit/main.omg	current=accepted	current_us=8391143	root=compilation	route=outside	Unsupported: expression cast
+program	tests/omega/pass/facts/signed_8bit_shift_left_bound_through_other_machine_exit/main.omg	current=accepted	current_us=8575257	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/pass/facts/signed_division_quotient_through_parameter_exit/main.omg	current=accepted	current_us=8375794	root=compilation	route=outside	Unsupported: expression cast
+program	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	current=accepted	current_us=8619810	root=compilation	route=rejected	route_us=20670	discharge_us=19624	reverify_us=17291	reverified=11	obligations=15	judged=11	core_refused=0	unproved=2	refused_other=0	needed_relation=0	needed_branch=0	published_held=2	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	1	2	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	1	3	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	1	4	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	2	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	2	2	safety	discharged-judged+interval	IntegerConstant,formal	-
+obligation	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	2	3	guarantee	discharged-judged+interval	ExactIntegerShiftLeft	-
+obligation	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	3	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	3	2	guarantee	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	4	1	requirement	unproved	-	the bounds do not decide the comparison
+obligation	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	4	2	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	4	3	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	4	4	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	5	1	safety:ExactIntegerSubtract	unproved	IntegerConstant,formal	the operands' bounds exceed the carrier
+obligation	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	6	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	4	1	reject	main.omg:25 bytes 754..764	cannot prove requires contract for call shift_left from shift_step: v >= 25 && v <= 25 (no proof found from the facts available here: the bounds do not decide the comparison)	site=different
+diagnostic	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	5	1	reject	main.omg:32 bytes 955..956	exact arithmetic in machine `done` state `entry` local `diff` may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation) (no proof found from the facts available here: the operands' bounds exceed the carrier)	site=different
+program	tests/omega/pass/facts/slice_view_layout_geometry_through_call_result_exit/main.omg	current=accepted	current_us=7901587	root=compilation	route=outside	Unsupported: call compiler operation call
+program	tests/omega/pass/facts/source_indexed_type_parameter_through_const_name_exit/main.omg	current=accepted	current_us=12551573	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/facts/static_callable_type_requirements_through_field_exit/main.omg	current=accepted	current_us=9067090	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/stored_exclusive_byte_view_through_call_result_exit/main.omg	current=accepted	current_us=8932242	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/facts/target_family_contract_operand/field/main.omg	current=accepted	current_us=9164418	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/facts/target_recursive_bound_through_match_join_exit/main.omg	current=accepted	current_us=8880354	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/pass/facts/typed_reflection_mutation_through_other_state_exit/main.omg	current=accepted	current_us=9123369	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_machine_exit/main.omg	current=accepted	current_us=8886642	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/pass/facts/unsigned_64bit_saturating_subtraction_bound_through_parameter_exit/main.omg	current=accepted	current_us=9111373	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_call_result_exit/main.omg	current=accepted	current_us=8585826	root=compilation	route=outside	Unsupported: expression match on a scalar subject
+program	tests/omega/pass/facts/unsigned_8bit_shift_right_bound_through_field_exit/main.omg	current=accepted	current_us=8679360	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/pass/facts/unsigned_division_remainder_through_match_join_exit/main.omg	current=accepted	current_us=8160148	root=compilation	route=outside	Unsupported: expression match on a scalar subject
+program	tests/omega/pass/facts/unsigned_shift_left_bound_through_other_state_exit/main.omg	current=accepted	current_us=9040009	root=compilation	route=rejected	route_us=13569	discharge_us=13090	reverify_us=16066	reverified=5	obligations=6	judged=5	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/facts/unsigned_shift_left_bound_through_other_state_exit/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/unsigned_shift_left_bound_through_other_state_exit/main.omg	2	1	requirement	discharged-judged+interval	formal	-
+obligation	tests/omega/pass/facts/unsigned_shift_left_bound_through_other_state_exit/main.omg	3	1	safety	discharged-judged+interval	formal	-
+obligation	tests/omega/pass/facts/unsigned_shift_left_bound_through_other_state_exit/main.omg	3	2	safety:ExactIntegerSubtract	unproved	ExactIntegerShiftLeft,IntegerConstant	the operands' bounds exceed the carrier
+obligation	tests/omega/pass/facts/unsigned_shift_left_bound_through_other_state_exit/main.omg	4	1	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/unsigned_shift_left_bound_through_other_state_exit/main.omg	6	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/pass/facts/unsigned_shift_left_bound_through_other_state_exit/main.omg	3	2	reject	main.omg:15 bytes 631..632	exact arithmetic in machine `step` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation) (no proof found from the facts available here: the operands' bounds exceed the carrier)	site=different
+program	tests/omega/pass/facts/wildcard_structural_return_through_other_machine_exit/main.omg	current=accepted	current_us=9146908	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/write_only_ieee_store_readback_through_parameter_exit/main.omg	current=accepted	current_us=8670925	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/facts/zero_byte_erased_carrier_through_call_result_exit/main.omg	current=accepted	current_us=8432911	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/pass/locals/mutable_local_call_initializer_exit/main.omg	current=accepted	current_us=31918397	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/locals/mutable_local_call_multistate_reassignment_exit/main.omg	current=accepted	current_us=33053889	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/locals/mutable_local_call_reassignment_exit/main.omg	current=accepted	current_us=31854941	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/locals/runtime_deferred_scalar_initialization_exit/main.omg	current=accepted	current_us=31935780	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/locals/runtime_erased_parameter_mutable_local_exit/main.omg	current=accepted	current_us=8546601	root=compilation	route=outside	Unsupported: parameter erased parameter
+program	tests/omega/pass/locals/runtime_local_array_member_stores_without_mut_exit/main.omg	current=accepted	current_us=29691471	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/locals/runtime_local_qualified_view_member_read_exit/main.omg	current=rejected	current_us=24535470	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/pass/locals/runtime_local_qualified_view_member_read_exit/main.omg	main.omg:51 bytes 1752..1758	`entry_start` calls `Main::main`; `Main::main` has no executable body: this compiler does not lower a call of it yet (statement sequence: call: missing exact flow occurrence); in state `Main::main::main`, statement 3
+program	tests/omega/pass/locals/runtime_local_record_array_element_field_reads_exit/main.omg	current=accepted	current_us=31433186	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/locals/runtime_local_view_member_element_read_exit/main.omg	current=accepted	current_us=31017853	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/locals/runtime_unrestricted_record_rebinding_exit/main.omg	current=accepted	current_us=8230500	root=compilation	route=accepted	route_us=1717	discharge_us=781	reverify_us=316	reverified=2	obligations=2	judged=2	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=4	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/locals/runtime_unrestricted_record_rebinding_exit/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/locals/runtime_unrestricted_record_rebinding_exit/main.omg	5	1	crash	discharged-judged+interval	-	-
+program	tests/omega/pass/locals/static_local_field_names_exit/main.omg	current=accepted	current_us=8611152	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/pass/patterns/named_value_before_negative_integer_pattern_exit/main.omg	current=accepted	current_us=7985740	root=compilation	route=accepted	route_us=655	discharge_us=269	reverify_us=56	reverified=2	obligations=2	judged=2	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=5	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/patterns/named_value_before_negative_integer_pattern_exit/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/patterns/named_value_before_negative_integer_pattern_exit/main.omg	4	1	crash	discharged-judged+interval	-	-
+program	tests/omega/pass/structs/affine_record_state_clone/main.omg	current=accepted	current_us=31315008	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/affine_result_constructor/main.omg	current=accepted	current_us=31516858	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/case_field_type_store_shapes/main.omg	current=accepted	current_us=30361392	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/copied_array_field_shared_record/main.omg	current=accepted	current_us=29921618	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/deep_nested_write_paths_exit/main.omg	current=accepted	current_us=29194597	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/pass/structs/mutable_array_record_state_transfer/main.omg	current=accepted	current_us=29498379	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/mutable_record_state_transfer/main.omg	current=accepted	current_us=32188465	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/nested_unused_provider_fields/main.omg	current=accepted	current_us=30498289	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/qualified_record_element_assignment_exit/main.omg	current=accepted	current_us=31256491	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/record_literal_array_field/main.omg	current=accepted	current_us=31863136	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/runtime_array_member_snapshot_exit/main.omg	current=accepted	current_us=24648028	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/runtime_case_array_payload_exit/main.omg	current=accepted	current_us=23859891	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/runtime_completed_array_elements_exit/main.omg	current=accepted	current_us=22711408	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/runtime_composed_case_payload_reads_exit/main.omg	current=accepted	current_us=23329090	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/runtime_declared_record_member_fill_exit/main.omg	current=accepted	current_us=21944617	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/runtime_local_array_snapshot_exit/main.omg	current=accepted	current_us=20981527	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/runtime_local_record_policy_exit/main.omg	current=accepted	current_us=21854373	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/runtime_mixed_common_field_store_exit/main.omg	current=accepted	current_us=5030430	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/structs/runtime_named_array_record_member_exit/main.omg	current=accepted	current_us=22483402	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/runtime_nested_struct_construction_exit/main.omg	current=accepted	current_us=22893007	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/runtime_nonzero_array_elements_exit/main.omg	current=accepted	current_us=23081330	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/runtime_owned_float_selection_store_exit/main.omg	current=accepted	current_us=5774076	root=compilation	route=outside	Unsupported: type float
+program	tests/omega/pass/structs/runtime_qualified_record_call_composition_exit/main.omg	current=accepted	current_us=21565204	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/runtime_state_record_array_element_read_exit/main.omg	current=accepted	current_us=22054250	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/runtime_struct_array_literal_exit/main.omg	current=accepted	current_us=21534924	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/runtime_view_array_elements_exit/main.omg	current=accepted	current_us=21940668	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/uninit_record_local_exit/main.omg	current=accepted	current_us=21810284	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/uninit_record_member_read/main.omg	current=accepted	current_us=21939489	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/uninit_record_member_store/main.omg	current=accepted	current_us=22358603	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/zeroed_record_member_wide_array_exit/main.omg	current=accepted	current_us=22781688	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structs/zeroed_record_members_exit/main.omg	current=accepted	current_us=23945032	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/borrowed_array_state_carry/main.omg	current=accepted	current_us=2954486	root=compilation	route=no-entry
+program	tests/omega/pass/structural/case_field_local_store/main.omg	current=accepted	current_us=22082932	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/case_field_member_store/main.omg	current=accepted	current_us=23076107	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/case_payload_record_member_read/main.omg	current=accepted	current_us=23136485	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/pass/structural/composed_case_field_store_exit/main.omg	current=accepted	current_us=22141789	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/computed_enum_case_guard_effects_exit/main.omg	current=accepted	current_us=5618102	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/structural/computed_enum_equality_guard_exit/main.omg	current=accepted	current_us=4760803	root=compilation	route=outside	Unsupported: expression operator on a record
+program	tests/omega/pass/structural/element_store/main.omg	current=accepted	current_us=21922217	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/indexed_scalar_call_result_store/main.omg	current=accepted	current_us=21667847	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/local_record_receivers/main.omg	current=accepted	current_us=2323992	root=compilation	route=no-entry
+program	tests/omega/pass/structural/primitive_array_snapshot_indexed_row_exit/main.omg	current=accepted	current_us=23535763	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/primitive_array_snapshot_swap_exit/main.omg	current=accepted	current_us=24387124	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/record_literal_moves_zeroed_local_array_exit/main.omg	current=accepted	current_us=22439600	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/runtime_affine_local_successor_loans_exit/main.omg	current=accepted	current_us=5733783	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/pass/structural/runtime_enum_equality_exit/main.omg	current=accepted	current_us=21752895	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/runtime_mutable_record_copy_exit/main.omg	current=accepted	current_us=22190713	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/runtime_nested_constructor_payload_exit/main.omg	current=accepted	current_us=4932568	root=compilation	route=outside	Unsupported: type fixed array
+program	tests/omega/pass/structural/runtime_provider_payload_array_exit/main.omg	current=accepted	current_us=25187320	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/runtime_scalar_record_reclamation_exit/main.omg	current=rejected	current_us=7938561	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/pass/structural/runtime_scalar_record_reclamation_exit/main.omg	no-span	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "churn::next", reason: "owned edge transfers an unavailable owner", gap: None })
+program	tests/omega/pass/structural/runtime_selected_case_record_member_exit/main.omg	current=accepted	current_us=22271227	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/runtime_state_local_whole_store_exit/main.omg	current=accepted	current_us=21707163	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/runtime_structural_operand_snapshot_exit/main.omg	current=accepted	current_us=23015275	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/runtime_structural_result_crash_branch_exit/main.omg	current=accepted	current_us=5771248	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/pass/structural/selected_record_payload_observations_exit/main.omg	current=accepted	current_us=24693752	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/structural/sum_attachment_receiver_compile/main.omg	current=accepted	current_us=2618138	root=compilation	route=no-entry
+program	tests/omega/pass/types/address_comparison_symbolic_bound_compile/main.omg	current=accepted	current_us=2511869	root=compilation	route=no-entry
+program	tests/omega/pass/types/address_model_conversion/main.omg	current=accepted	current_us=5883553	root=compilation	route=outside	Unsupported: expression projected name path
+program	tests/omega/pass/types/exact_address_conversion/main.omg	current=accepted	current_us=6937141	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/pass/types/runtime_addr_algebra_exit/main.omg	current=accepted	current_us=29988239	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/types/runtime_addr_conversion_trap_exit/main.omg	current=accepted	current_us=31446780	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/types/runtime_addr_field_exit/main.omg	current=accepted	current_us=35028979	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/types/runtime_address_literal_landing_exit/main.omg	current=accepted	current_us=8143073	root=compilation	route=outside	Unsupported: type addr
+program	tests/omega/pass/types/runtime_exact_address_subtraction_exit/main.omg	current=accepted	current_us=35474250	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/types/runtime_i16_signed_arith_exit/main.omg	current=accepted	current_us=37609501	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/pass/types/shared_borrow_retains_carrier_exit/main.omg	current=accepted	current_us=9509156	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/pass/types/storage_address_aggregate/main.omg	current=accepted	current_us=3476121	root=compilation	route=no-entry
+program	tests/omega/pass/types/storage_address_core_name_shadowed_exit/main.omg	current=accepted	current_us=10237353	root=compilation	route=accepted	route_us=1147	discharge_us=869	reverify_us=97	reverified=2	obligations=2	judged=2	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/types/storage_address_core_name_shadowed_exit/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/types/storage_address_core_name_shadowed_exit/main.omg	4	1	crash	discharged-judged+interval	-	-
+program	tests/omega/run/arithmetic/anonymous_comparison_with_typed_operators/main.omg	current=accepted	current_us=9801647	root=compilation	route=accepted	route_us=2023	discharge_us=1251	reverify_us=664	reverified=10	obligations=10	judged=10	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/run/arithmetic/anonymous_comparison_with_typed_operators/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/run/arithmetic/anonymous_comparison_with_typed_operators/main.omg	1	2	crash	discharged-judged+interval	-	-
+obligation	tests/omega/run/arithmetic/anonymous_comparison_with_typed_operators/main.omg	2	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/run/arithmetic/anonymous_comparison_with_typed_operators/main.omg	2	2	crash	discharged-judged+interval	-	-
+obligation	tests/omega/run/arithmetic/anonymous_comparison_with_typed_operators/main.omg	3	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/run/arithmetic/anonymous_comparison_with_typed_operators/main.omg	3	2	crash	discharged-judged+interval	-	-
+obligation	tests/omega/run/arithmetic/anonymous_comparison_with_typed_operators/main.omg	4	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/run/arithmetic/anonymous_comparison_with_typed_operators/main.omg	4	2	crash	discharged-judged+interval	-	-
+obligation	tests/omega/run/arithmetic/anonymous_comparison_with_typed_operators/main.omg	5	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/run/arithmetic/anonymous_comparison_with_typed_operators/main.omg	7	1	crash	discharged-judged+interval	-	-
+program	tests/omega/run/arithmetic/disjoint_pressure_regions/main.omg	current=accepted	current_us=91448462	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/arithmetic/fixed_input_reused_across_calls/main.omg	current=accepted	current_us=36707917	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/arithmetic/fixed_integer_operand_after_call/main.omg	current=accepted	current_us=38940667	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/arithmetic/fixed_integer_operand_after_pressure/main.omg	current=accepted	current_us=56888884	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/arithmetic/fixed_integer_operand_join/main.omg	current=accepted	current_us=32427586	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/arithmetic/float_structural_initializer_selection/main.omg	current=accepted	current_us=35236930	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/arithmetic/pinned_dividend_across_console_calls/main.omg	current=accepted	current_us=35071297	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/arithmetic/policy_operator_division_matches_policy_domains/main.omg	current=accepted	current_us=36093604	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/arithmetic/policy_operator_exact_result_fact/main.omg	current=accepted	current_us=30776652	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/arithmetic/policy_operator_minimum_quotient_traps/main.omg	current=accepted	current_us=25187322	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/arithmetic/policy_operator_minimum_remainder_traps/main.omg	current=accepted	current_us=24615497	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/arithmetic/policy_operator_zero_divisor_traps/main.omg	current=accepted	current_us=26422614	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/arithmetic/policy_operators_match_policy_domains/main.omg	current=accepted	current_us=28743107	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/affine_produced_membership_move/main.omg	current=accepted	current_us=6728965	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/borrows/call_result_mutable_window_field_exit/main.omg	current=accepted	current_us=24494919	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/computed_element_view_state_extent/main.omg	current=rejected	current_us=4471217	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/run/borrows/computed_element_view_state_extent/main.omg	no-span	returned projection exceeds its source presentation
+program	tests/omega/run/borrows/conditional_disjoint_field_loans_exit/main.omg	current=accepted	current_us=25851851	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/conditional_returned_descriptor_origins/main.omg	current=accepted	current_us=6948592	root=compilation	route=outside	Unsupported: type generic data
+program	tests/omega/run/borrows/direct_runtime_index_write/main.omg	current=accepted	current_us=31096981	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/dynamic_ancestor_static_byte_child_exit/main.omg	current=accepted	current_us=32020433	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/incoming_carrier_transport/main.omg	current=accepted	current_us=7161580	root=compilation	route=outside	Unsupported: type generic data
+program	tests/omega/run/borrows/independent_invocation_reference_results/main.omg	current=accepted	current_us=9103915	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/indexed_loan_element_write/main.omg	current=accepted	current_us=33222954	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/local_mut_borrow/main.omg	current=accepted	current_us=33904743	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/mut_record_loan_member_access/main.omg	current=accepted	current_us=29909542	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/owned_array_view_establishment/main.omg	current=accepted	current_us=7877985	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/borrows/probe_shared_len/main.omg	current=accepted	current_us=27600197	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/proved_window_index_replacement/main.omg	current=accepted	current_us=7050299	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/borrows/qualified_owner_views/main.omg	current=accepted	current_us=6766156	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/run/borrows/recast_mut_borrow/main.omg	current=accepted	current_us=24871768	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/reference_local_binding_routes/main.omg	current=accepted	current_us=25501826	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/reference_result_call_binding/main.omg	current=accepted	current_us=27201549	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/returned_descriptor_entry_snapshot/main.omg	current=rejected	current_us=5173926	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/run/borrows/returned_descriptor_entry_snapshot/main.omg	main.omg:25 bytes 829..853	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: call operation: structural result loan)); in state `main::entry`, statement 3
+program	tests/omega/run/borrows/returned_element_from_offset_view/main.omg	current=accepted	current_us=7064825	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/borrows/returned_image_nested_arrival/main.omg	current=accepted	current_us=6317337	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/borrows/returned_image_nested_field/main.omg	current=accepted	current_us=7347534	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/borrows/returned_indexed_case_descriptor_field/main.omg	current=accepted	current_us=6958416	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/borrows/returned_indexed_case/main.omg	current=accepted	current_us=7566261	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/borrows/runtime_index_bounded_borrow/main.omg	current=accepted	current_us=29056271	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/runtime_index_scalar_write_descriptor_result/main.omg	current=accepted	current_us=6518389	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/borrows/shared_field_borrow/main.omg	current=accepted	current_us=29116887	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/shared_indexed_read/main.omg	current=accepted	current_us=26234587	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/shared_local_borrow/main.omg	current=accepted	current_us=25965466	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/shared_recast_borrow/main.omg	current=accepted	current_us=25862830	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/shared_record_loan_member_read/main.omg	current=accepted	current_us=25640474	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/shared_runtime_index_borrow/main.omg	current=accepted	current_us=28029319	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/borrows/stored_case_reference_state/main.omg	current=accepted	current_us=7070215	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/borrows/stored_subview_identity/main.omg	current=accepted	current_us=6391082	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/borrows/stored_subview_nested_call_result/main.omg	current=accepted	current_us=7469280	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/borrows/stored_subview_repeated_updates/main.omg	current=accepted	current_us=7225364	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/borrows/terminal_case_completed_observation/main.omg	current=rejected	current_us=5129097	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/run/borrows/terminal_case_completed_observation/main.omg	no-span	state `finish` receives `pool` while local borrow `field` is still active (borrowed at statement 0; its last use is at statement 2)
+program	tests/omega/run/borrows/transition_guard_descriptor_fallthrough/main.omg	current=rejected	current_us=19377210	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/run/borrows/transition_guard_descriptor_fallthrough/main.omg	no-span	state `checked` receives `buffer.values[0]::Some.payload.target` without an exact retained backing for its loan: the access has no unique completed operand
+program	tests/omega/run/borrows/transition_shared_borrow/main.omg	current=accepted	current_us=25797478	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/calls/affine_call_local_field_exit/main.omg	current=accepted	current_us=7104186	root=compilation	route=outside	Unsupported: type float
+program	tests/omega/run/calls/anonymous_shared_borrow_operands/main.omg	current=rejected	current_us=7048807	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/run/calls/anonymous_shared_borrow_operands/main.omg	main.omg:13 bytes 538..555	`main` has no executable body: this compiler does not lower a statement of it yet (call operation: structural arguments: retained temporary); in state `main::entry`, statement 0
+program	tests/omega/run/calls/byte_literal_expression_values/main.omg	current=accepted	current_us=7757696	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/calls/call_result_ascii_prefix_literal_exit/main.omg	current=accepted	current_us=6584154	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/calls/call_result_ascii_prefix_literal_mismatch/main.omg	current=accepted	current_us=5980951	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/calls/fixed_dividend_across_console_calls/main.omg	current=accepted	current_us=25418962	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/calls/indexed_case_successor_exit/main.omg	current=accepted	current_us=4819569	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/calls/named_transition_f32_destination_single_rounding_exit/main.omg	current=accepted	current_us=6911999	root=compilation	route=outside	Unsupported: type float
+program	tests/omega/run/calls/named_transition_scalar_borrow_arguments_exit/main.omg	current=accepted	current_us=8411775	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/calls/named_transition_scalar_borrow_plain_guard_exit/main.omg	current=accepted	current_us=8467104	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/calls/named_transition_suffixed_float_arguments_exit/main.omg	current=accepted	current_us=8897469	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/calls/named_transition_zero_argument_guard_exit/main.omg	current=accepted	current_us=9203628	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/calls/nested_case_terminal_process_exit/main.omg	current=accepted	current_us=35752727	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/calls/nested_range_call_operands/main.omg	current=accepted	current_us=9278165	root=compilation	route=outside	Unsupported: type fixed array
+program	tests/omega/run/calls/nested_static_implementation_context/main.omg	current=accepted	current_us=8308936	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/calls/nested_static_implementation_shadow/main.omg	current=accepted	current_us=11390012	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/calls/ordered_literal_call_operands/main.omg	current=accepted	current_us=6228670	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/calls/outcome_specific_selected_guarantee_exit/main.omg	current=accepted	current_us=25462865	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/calls/outcome_specific_selected_guarantee_input_exit/main.omg	current=rejected	current_us=18685523	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/run/calls/outcome_specific_selected_guarantee_input_exit/main.omg	main.omg:36 bytes 1043..1048	machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+current-diagnostic	tests/omega/run/calls/outcome_specific_selected_guarantee_input_exit/main.omg	main.omg:36 bytes 1043..1048	machine `succeed` state `entry` assignment cannot write `selected` because it is not mutable in this state (if `selected` is undeclared -- a typo -- no such field or local exists)
+current-diagnostic	tests/omega/run/calls/outcome_specific_selected_guarantee_input_exit/main.omg	main.omg:37 bytes 1066..1071	machine `succeed` state `entry` uses `mixed`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+current-diagnostic	tests/omega/run/calls/outcome_specific_selected_guarantee_input_exit/main.omg	main.omg:37 bytes 1066..1071	machine `succeed` state `entry` assignment cannot write `mixed` because it is not mutable in this state (if `mixed` is undeclared -- a typo -- no such field or local exists)
+program	tests/omega/run/calls/outcome_specific_selected_guarantee_inputs_exit/main.omg	current=rejected	current_us=15674433	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/run/calls/outcome_specific_selected_guarantee_inputs_exit/main.omg	main.omg:34 bytes 897..902	machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+current-diagnostic	tests/omega/run/calls/outcome_specific_selected_guarantee_inputs_exit/main.omg	main.omg:34 bytes 897..902	machine `succeed` state `entry` assignment cannot write `selected` because it is not mutable in this state (if `selected` is undeclared -- a typo -- no such field or local exists)
+program	tests/omega/run/calls/outcome_specific_selected_guarantee_nested_exit/main.omg	current=accepted	current_us=22134296	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/calls/outcome_specific_selected_guarantee_result_exit/main.omg	current=rejected	current_us=16022042	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/run/calls/outcome_specific_selected_guarantee_result_exit/main.omg	main.omg:34 bytes 910..915	machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+current-diagnostic	tests/omega/run/calls/outcome_specific_selected_guarantee_result_exit/main.omg	main.omg:34 bytes 910..915	machine `succeed` state `entry` assignment cannot write `selected` because it is not mutable in this state (if `selected` is undeclared -- a typo -- no such field or local exists)
+program	tests/omega/run/calls/outcome_specific_selected_guarantee_variants_exit/main.omg	current=accepted	current_us=24062658	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/calls/owned_literal_call_operands/main.omg	current=accepted	current_us=7078234	root=compilation	route=outside	Unsupported: type fixed array
+program	tests/omega/run/calls/projected_call_domain_exit/main.omg	current=accepted	current_us=6126748	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/calls/projected_call_domain_plain_exit/main.omg	current=accepted	current_us=4858409	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/calls/qualified_ancestor_reference_forwarding_exit/main.omg	current=accepted	current_us=5109753	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/run/calls/qualified_atomic_operation_names/main.omg	current=accepted	current_us=5634887	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/run/calls/qualified_literal_return_exit/main.omg	current=accepted	current_us=5166254	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/calls/recursive_machine_transition_scalar_arguments_exit/main.omg	current=accepted	current_us=4910553	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/run/calls/resultless_scalar_parameters/main.omg	current=accepted	current_us=20641701	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/calls/retained_implicit_entry_selection/main.omg	current=accepted	current_us=4827885	root=compilation	route=outside	Unsupported: expression cast
+program	tests/omega/run/calls/returned_reference_case_write_then_view_exit/main.omg	current=accepted	current_us=4860411	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/calls/runtime_float_distinct_operand_calls_exit/main.omg	current=accepted	current_us=25400740	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/calls/runtime_float_normalized_operand_single_evaluation_exit/main.omg	current=accepted	current_us=33966284	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/calls/saved_scalar_dispatch_guard_arguments_exit/main.omg	current=accepted	current_us=8961214	root=compilation	route=outside	Unsupported: type float
+program	tests/omega/run/calls/scalar_contract_route_exit/main.omg	current=accepted	current_us=9677133	root=compilation	route=accepted	route_us=29711	discharge_us=28502	reverify_us=23028	reverified=8	obligations=14	judged=13	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=1	published_held=1	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	1	1	safety	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	1	2	requirement	discharged-judged+interval	ExactIntegerAdd,IntegerConstant	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	1	3	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	1	4	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	1	5	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	2	1	safety	discharged-judged+interval	formal	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	2	2	safety	discharged-judged+interval	ExactIntegerMultiply,IntegerConstant	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	3	1	published	every-exit:1	-	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	3	2	guarantee	discharged-judged+interval	formal	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	3	3	arrival	discharged-judged+interval	IntegerLessOrEqual,formal	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	3	4	arrival	discharged-judged+interval	IntegerLessOrEqual,formal	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	4	1	requirement	discharged-judged+branch	formal	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	4	2	arrival	discharged-judged+interval	IntegerLessThan,formal	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	4	3	arrival	discharged-judged+interval	IntegerLessThan,formal	-
+program	tests/omega/run/calls/scalar_guard_after_borrow_parameters_exit/main.omg	current=accepted	current_us=7752831	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/calls/selected_provider_range_arguments/main.omg	current=accepted	current_us=7673411	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/run/calls/static_boundary_terminal_arguments/main.omg	current=accepted	current_us=8849772	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/calls/table_report_call_survival/main.omg	current=accepted	current_us=26194279	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/contained_health_loop_command_branch/main.omg	current=accepted	current_us=27224499	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/contracts/captured_bound_unused_mutation/main.omg	current=accepted	current_us=6629256	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/contracts/cyclic_mixed_conjunction/main.omg	current=accepted	current_us=6021668	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/run/contracts/cyclic_record_writer/main.omg	current=accepted	current_us=7751792	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/contracts/cyclic_terminal_result_producers/main.omg	current=accepted	current_us=5369111	root=compilation	route=outside	Unsupported: call recursion
+program	tests/omega/run/contracts/nested_cyclic_copy_bound/main.omg	current=accepted	current_us=4971028	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/contracts/qualified_result_forwarding_exit/main.omg	current=accepted	current_us=21676408	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/contracts/scalar_crash_route_exit/main.omg	current=accepted	current_us=5905850	root=compilation	route=rejected	route_us=2322	discharge_us=2039	reverify_us=1442	reverified=4	obligations=6	judged=4	core_refused=0	unproved=2	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/run/contracts/scalar_crash_route_exit/main.omg	1	1	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/run/contracts/scalar_crash_route_exit/main.omg	1	2	crash	discharged-judged+interval	-	-
+obligation	tests/omega/run/contracts/scalar_crash_route_exit/main.omg	2	1	published	unproved	-	a normal return does not establish this clause
+obligation	tests/omega/run/contracts/scalar_crash_route_exit/main.omg	2	2	safety	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/run/contracts/scalar_crash_route_exit/main.omg	2	3	guarantee	unproved	-	the bounds do not decide the comparison
+obligation	tests/omega/run/contracts/scalar_crash_route_exit/main.omg	4	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/run/contracts/scalar_crash_route_exit/main.omg	2	3	reject	main.omg:9 bytes 594..595	cannot prove ensures contract for exit from halved at statement 0: result <= value (no proof found from the facts available here: the bounds do not decide the comparison)	site=different
+program	tests/omega/run/contracts/scalar_crash_route_trap/main.omg	current=accepted	current_us=5248203	root=compilation	route=rejected	route_us=2096	discharge_us=1819	reverify_us=1320	reverified=4	obligations=6	judged=4	core_refused=0	unproved=2	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/run/contracts/scalar_crash_route_trap/main.omg	1	1	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/run/contracts/scalar_crash_route_trap/main.omg	1	2	crash	discharged-judged+interval	-	-
+obligation	tests/omega/run/contracts/scalar_crash_route_trap/main.omg	2	1	published	unproved	-	a normal return does not establish this clause
+obligation	tests/omega/run/contracts/scalar_crash_route_trap/main.omg	2	2	safety	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/run/contracts/scalar_crash_route_trap/main.omg	2	3	guarantee	unproved	-	the bounds do not decide the comparison
+obligation	tests/omega/run/contracts/scalar_crash_route_trap/main.omg	4	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/run/contracts/scalar_crash_route_trap/main.omg	2	3	reject	main.omg:9 bytes 606..607	cannot prove ensures contract for exit from halved at statement 0: result <= value (no proof found from the facts available here: the bounds do not decide the comparison)	site=different
+program	tests/omega/run/contracts/target_family_forwarded_result/main.omg	current=accepted	current_us=4901791	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/core/content_reunion/main.omg	current=accepted	current_us=5499595	root=compilation	route=outside	Unsupported: machine type equations, owned data or conformances
+program	tests/omega/run/domains/byte_view_predicates_keep_selected_extent/main.omg	current=accepted	current_us=5082252	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/domains/checked_provider_issued_field/main.omg	current=accepted	current_us=4971531	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/domains/checked_provider_issued_root/main.omg	current=accepted	current_us=5222850	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/domains/completed_membership_after_earlier_guarantee/main.omg	current=rejected	current_us=3862051	root=compilation	route=outside	Unsupported: contract clause that projects a formal or result
+current-diagnostic	tests/omega/run/domains/completed_membership_after_earlier_guarantee/main.omg	main.omg:51 bytes 1679..1683	cannot prove requires contract for call join from argument: Amount in Amount::Positive in state `entry`
+program	tests/omega/run/domains/current_record_predicate_captures/main.omg	current=accepted	current_us=5496894	root=compilation	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/run/domains/fixed_byte_array_content_observations_exit/main.omg	current=accepted	current_us=5315375	root=compilation	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/run/domains/fixed_byte_array_empty_observations_exit/main.omg	current=accepted	current_us=5822668	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/domains/fixed_byte_array_runtime_predicate_exit/main.omg	current=accepted	current_us=5077269	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/domains/fixed_byte_array_selector_once_exit/main.omg	current=accepted	current_us=5090325	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/domains/fixed_byte_array_zero_geometry_exit/main.omg	current=accepted	current_us=5158010	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/run/domains/issued_case_owner_observation/main.omg	current=accepted	current_us=5048626	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/run/domains/issued_owned_case_parameter/main.omg	current=accepted	current_us=5008474	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/run/domains/issued_owned_case_residual/main.omg	current=accepted	current_us=5268598	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/run/domains/issued_owned_case_return/main.omg	current=accepted	current_us=5037303	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/run/domains/issued_owned_case_temporary/main.omg	current=accepted	current_us=5524034	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/run/domains/issued_owned_reinitialized_home/main.omg	current=accepted	current_us=5105934	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/run/domains/issued_owned_state_arrivals/main.omg	current=accepted	current_us=5291168	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/run/domains/issued_owned_temporary_observation/main.omg	current=accepted	current_us=5108549	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/run/domains/issued_record_domain_predicate_transport/main.omg	current=accepted	current_us=5110539	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/run/domains/issued_record_integer_bounds/main.omg	current=rejected	current_us=4084754	root=compilation	route=outside	Unsupported: type constrained
+current-diagnostic	tests/omega/run/domains/issued_record_integer_bounds/main.omg	no-span	construction value is not proven in domain `Handle::Open` in issue state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+current-diagnostic	tests/omega/run/domains/issued_record_integer_bounds/main.omg	no-span	cannot prove default-domain field requirement for return from issue at statement 0: Handle requires Handle::Open
+program	tests/omega/run/domains/module_qualified_cast_domain/main.omg	current=accepted	current_us=4981583	root=compilation	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/run/domains/predicate_interval_premises/main.omg	current=rejected	current_us=3928859	root=compilation	route=outside	Unsupported: contract domain membership
+current-diagnostic	tests/omega/run/domains/predicate_interval_premises/main.omg	main.omg:17 bytes 704..713	cannot prove requires contract for call use_small from relay: x in u64::Small in state `entry`
+current-diagnostic	tests/omega/run/domains/predicate_interval_premises/main.omg	main.omg:19 bytes 779..788	cannot prove requires contract for call use_small from relay_field: b.size in u64::Small in state `entry`
+current-diagnostic	tests/omega/run/domains/predicate_interval_premises/main.omg	main.omg:21 bytes 863..875	cannot prove requires contract for call use_centered from relay_signed: x in i32::Centered in state `entry`
+current-diagnostic	tests/omega/run/domains/predicate_interval_premises/main.omg	main.omg:28 bytes 1030..1039	cannot prove requires contract for call use_small from small: y in u64::Small in state `entry`
+program	tests/omega/run/domains/qualified_explicit_byte_buffer_append_exit/main.omg	current=accepted	current_us=6292756	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/domains/qualified_explicit_byte_buffer_exit/main.omg	current=accepted	current_us=5851454	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/domains/qualified_explicit_byte_buffer_field_source_exit/main.omg	current=accepted	current_us=9020402	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/domains/qualified_explicit_utf8_buffer_exit/main.omg	current=accepted	current_us=9022936	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/domains/qualified_fixed_byte_array_captured_destination_exit/main.omg	current=accepted	current_us=8764773	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/domains/qualified_fixed_byte_array_carrier_exit/main.omg	current=accepted	current_us=8956245	root=compilation	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/run/domains/qualified_fixed_byte_array_explicit_buffer_count_exit/main.omg	current=accepted	current_us=9116926	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/domains/qualified_fixed_byte_array_forwarding_exit/main.omg	current=accepted	current_us=9670901	root=compilation	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/run/domains/qualified_fixed_byte_array_generic_view_return_exit/main.omg	current=accepted	current_us=7913172	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/domains/qualified_fixed_byte_array_geometry_exit/main.omg	current=accepted	current_us=6701956	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/domains/qualified_fixed_byte_array_nested_zero_exit/main.omg	current=accepted	current_us=6452584	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/run/domains/qualified_fixed_byte_array_optimized_exit/main.omg	current=accepted	current_us=6312762	root=compilation	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/run/domains/qualified_fixed_byte_array_owned_parameter_exit/main.omg	current=accepted	current_us=4610320	root=compilation	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/run/domains/qualified_fixed_byte_array_plain_copy_exit/main.omg	current=accepted	current_us=25233824	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/domains/qualified_fixed_byte_array_record_loan_exit/main.omg	current=accepted	current_us=5002841	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/domains/qualified_fixed_byte_array_runtime_store_exit/main.omg	current=accepted	current_us=4751070	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/domains/qualified_fixed_byte_array_selected_view_return_exit/main.omg	current=accepted	current_us=8538711	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/domains/qualified_fixed_byte_array_utf8_mutation_exit/main.omg	current=accepted	current_us=9005131	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/run/domains/qualified_fixed_byte_array_utf8_optimized_exit/main.omg	current=accepted	current_us=8916516	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/run/domains/qualified_fixed_byte_array_utf8_parameter_exit/main.omg	current=accepted	current_us=8501885	root=compilation	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/run/domains/qualified_fixed_byte_array_view_element_copy_exit/main.omg	current=accepted	current_us=9045052	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/domains/qualified_fixed_byte_array_view_element_store_exit/main.omg	current=accepted	current_us=8142719	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/run/domains/qualified_fixed_byte_array_write_only_exit/main.omg	current=accepted	current_us=7189070	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/domains/qualified_fixed_vec_byte_view_exit/main.omg	current=accepted	current_us=18532827	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/domains/qualified_record_transfer/main.omg	current=accepted	current_us=6580614	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/run/domains/qualified_record_view_reference_erased_storage_exit/main.omg	current=accepted	current_us=4874428	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/domains/qualified_record_view_state_arrival_exit/main.omg	current=accepted	current_us=5160769	root=compilation	route=outside	Unsupported: type fixed array
+program	tests/omega/run/domains/semantic_predicate_domain_admission/main.omg	current=accepted	current_us=5195159	root=compilation	route=outside	Unsupported: machine operator spelling
+program	tests/omega/run/domains/structural_predicate_casts/main.omg	current=accepted	current_us=5387460	root=compilation	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/run/domains/structural_qualification_cast_transitions/main.omg	current=accepted	current_us=5212983	root=compilation	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/run/domains/structural_qualification_cast_values/main.omg	current=accepted	current_us=5108301	root=compilation	route=outside	Unsupported: type constrained
+program	tests/omega/run/domains/structural_qualification_nested_values/main.omg	current=accepted	current_us=4913150	root=compilation	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/run/domains/vacuous_tag_call_arguments/main.omg	current=accepted	current_us=4897758	root=compilation	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/run/domains/wide_array_literal_membership_exit/main.omg	current=accepted	current_us=5148434	root=compilation	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/run/domains/zero_case_default_domain/main.omg	current=accepted	current_us=5132102	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/domains/zero_case_default_payload/main.omg	current=accepted	current_us=5177761	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/domains/zero_field_call_formation_exit/main.omg	current=accepted	current_us=5324178	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/dyn_finite_family_correlated/main.omg	current=accepted	current_us=20797186	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/dyn_finite_family_owned_carrier/main.omg	current=accepted	current_us=20854219	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/dyn_finite_family_runtime_dispatch/main.omg	current=accepted	current_us=22823642	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/facts/double_indexed_rmw_through_call_result_traps/main.omg	current=accepted	current_us=4681510	root=compilation	route=outside	Unsupported: type fixed array
+program	tests/omega/run/facts/double_indexed_rmw_through_const_name_traps/main.omg	current=accepted	current_us=5056535	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/facts/double_indexed_rmw_through_field_traps/main.omg	current=accepted	current_us=4610835	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/facts/double_indexed_rmw_through_local_traps/main.omg	current=accepted	current_us=6721927	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/facts/double_indexed_rmw_through_match_join_traps/main.omg	current=accepted	current_us=4876175	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/facts/double_indexed_rmw_through_other_machine_traps/main.omg	current=accepted	current_us=4958221	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/facts/double_indexed_rmw_through_other_state_traps/main.omg	current=accepted	current_us=5376284	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/facts/double_indexed_rmw_through_parameter_traps/main.omg	current=accepted	current_us=5163370	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/facts/double_indexed_rmw_through_target_body_traps/main.omg	current=accepted	current_us=5138936	root=compilation	route=outside	Unsupported: machine target selection
+program	tests/omega/run/facts/float_comparison_route_through_call_result_traps/main.omg	current=accepted	current_us=5018731	root=compilation	route=outside	Unsupported: type float
+program	tests/omega/run/facts/float_comparison_route_through_const_name_traps/main.omg	current=accepted	current_us=4931937	root=compilation	route=outside	Unsupported: declaration const
+program	tests/omega/run/facts/float_comparison_route_through_field_traps/main.omg	current=accepted	current_us=4907507	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/run/facts/float_comparison_route_through_local_traps/main.omg	current=accepted	current_us=5066021	root=compilation	route=outside	Unsupported: type float
+program	tests/omega/run/facts/float_comparison_route_through_match_join_traps/main.omg	current=accepted	current_us=5634257	root=compilation	route=outside	Unsupported: type float
+program	tests/omega/run/facts/float_comparison_route_through_other_machine_traps/main.omg	current=accepted	current_us=8600561	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/facts/float_comparison_route_through_other_state_traps/main.omg	current=accepted	current_us=8633550	root=compilation	route=outside	Unsupported: type float
+program	tests/omega/run/facts/float_comparison_route_through_parameter_traps/main.omg	current=accepted	current_us=7961632	root=compilation	route=outside	Unsupported: type float
+program	tests/omega/run/facts/float_comparison_route_through_target_body_traps/main.omg	current=accepted	current_us=9213205	root=compilation	route=outside	Unsupported: machine target selection
+program	tests/omega/run/facts/signed_division_quotient_truncation_not_floor_traps/main.omg	current=accepted	current_us=7741560	root=compilation	route=outside	Unsupported: expression cast
+program	tests/omega/run/float/folded_anonymous_operator_custody_exit/main.omg	current=accepted	current_us=30170729	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/generics/runtime_value_index_operands/main.omg	current=accepted	current_us=8990697	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/layouts/placed_ram_capture_forwarding/main.omg	current=accepted	current_us=32622053	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/layouts/placed_ram_capture_helper/main.omg	current=accepted	current_us=30607699	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/layouts/placed_ram_capture_retirement/main.omg	current=accepted	current_us=31290529	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/layouts/placed_ram_capture_return/main.omg	current=accepted	current_us=29925235	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/layouts/placed_ram_original_backing/main.omg	current=accepted	current_us=28744615	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/layouts/placed_ram_scalar_types/main.omg	current=accepted	current_us=39268389	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/layouts/placed_ram_stored_field_return/main.omg	current=accepted	current_us=45805113	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/layouts/placed_stable_array/main.omg	current=accepted	current_us=15004989	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/run/layouts/placed_stable_distinct_fields/main.omg	current=accepted	current_us=18287806	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/run/layouts/placed_stable_nested_array/main.omg	current=accepted	current_us=17382366	root=compilation	route=outside	Unsupported: machine attached data
+program	tests/omega/run/nested_mut_alias_assignment_return/main.omg	current=accepted	current_us=29973146	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/ownership/claim_correspondence_all_returns/main.omg	current=accepted	current_us=9308158	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/ownership/content_transform_case_alias/main.omg	current=accepted	current_us=7003377	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/ownership/content_transform_case_parent/main.omg	current=accepted	current_us=7818632	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/ownership/content_transform_empty_array/main.omg	current=accepted	current_us=7247427	root=compilation	route=outside	Unsupported: machine type equations, owned data or conformances
+program	tests/omega/run/ownership/content_transform_ended_parent_loan/main.omg	current=accepted	current_us=7756266	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/ownership/content_transform_inactive_content/main.omg	current=accepted	current_us=7105198	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/ownership/content_transform_inactive_payload/main.omg	current=accepted	current_us=6792058	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/ownership/declared_record_selected_exit_disposal/main.omg	current=accepted	current_us=6373508	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/ownership/linear_result_crash_ceiling/main.omg	current=accepted	current_us=6867560	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/ownership/linear_result_guarded_terminal_call/main.omg	current=accepted	current_us=6680261	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/ownership/owned_parameter_member_moves_exit/main.omg	current=accepted	current_us=25038351	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/ownership/owned_parameter_narrow_member_moves_exit/main.omg	current=accepted	current_us=26161532	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/ownership/selected_owned_constructor_moves/main.omg	current=accepted	current_us=7177490	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/ownership/sequence_owned_local_cleanup/main.omg	current=rejected	current_us=4997364	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/run/ownership/sequence_owned_local_cleanup/main.omg	no-span	cannot prove published termination for machine `CleanupConsole::write_byte`: its checked body reaches an operation without a usable termination guarantee; state `CleanupConsole::write_byte::write_byte` statement 0 call 0 targets `ConsoleNativeProvider::write_byte::write_byte` through `ConsoleNativeP
+program	tests/omega/run/ownership/temporary_case_observation/main.omg	current=accepted	current_us=6646534	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/run/ownership/temporary_projected_copy_argument/main.omg	current=accepted	current_us=6899409	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/run/ownership/temporary_projected_value_residual/main.omg	current=accepted	current_us=7382804	root=compilation	route=outside	Unsupported: type data with custody
+program	tests/omega/run/proofs/embed_collection_length_exit/main.omg	current=accepted	current_us=6435877	root=compilation	route=outside	Unsupported: contract term other than a formal or literal
+program	tests/omega/run/proofs/quotient_copy_paths/main.omg	current=accepted	current_us=24792688	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/providers/module_named_float_conversion_family_exit/main.omg	current=accepted	current_us=24727855	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/providers/target_applicable_provider_closure/main.omg	current=accepted	current_us=25985450	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/providers/target_family_provider_boundary_identity_exit/main.omg	current=accepted	current_us=27930671	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/ranges/borrowed_case_payload_alias/main.omg	current=rejected	current_us=5368795	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/run/ranges/borrowed_case_payload_alias/main.omg	no-span	cannot prove every subslice range endpoint of `0..alias.length` is non-negative
+program	tests/omega/run/ranges/borrowed_case_payload_bound/main.omg	current=rejected	current_us=5206182	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/run/ranges/borrowed_case_payload_bound/main.omg	no-span	cannot prove every subslice range endpoint of `0..text.length` is non-negative
+program	tests/omega/run/ranges/guarded_case_payload_identity/main.omg	current=rejected	current_us=4998059	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/run/ranges/guarded_case_payload_identity/main.omg	no-span	cannot prove every subslice range endpoint of `0..text.length` is non-negative
+current-diagnostic	tests/omega/run/ranges/guarded_case_payload_identity/main.omg	no-span	cannot prove every subslice range endpoint of `0..text.length` is non-negative
+program	tests/omega/run/ranges/guarded_case_payload_types/main.omg	current=accepted	current_us=7230319	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/ranges/refuted_boolean_alias_dispatch/main.omg	current=accepted	current_us=7045361	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/ranges/refuted_boolean_alias_local/main.omg	current=accepted	current_us=7330649	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/slices/call_result_mutable_window_exit/main.omg	current=accepted	current_us=7219501	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/slices/computed_record_window/main.omg	current=accepted	current_us=6653683	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/slices/disjoint_local_state_windows/main.omg	current=accepted	current_us=27574400	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/slices/edge_window_owned_backing/main.omg	current=accepted	current_us=6996245	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/run/slices/folded_window_endpoint_effects/main.omg	current=accepted	current_us=7069718	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/run/slices/matched_computed_window_end/main.omg	current=accepted	current_us=7811518	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/slices/matched_record_window_lower_bound/main.omg	current=accepted	current_us=7240382	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/slices/mutable_window_call_argument/main.omg	current=accepted	current_us=6901755	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/slices/returned_record_fixed_array_window/main.omg	current=rejected	current_us=6013109	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/run/slices/returned_record_fixed_array_window/main.omg	main.omg:37 bytes 1174..1191	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 2
+program	tests/omega/run/slices/returned_record_parameter_length/main.omg	current=accepted	current_us=6685316	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/state_owned_nested_borrow/main.omg	current=accepted	current_us=6940073	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/state_shared_nested_backing/main.omg	current=accepted	current_us=7553142	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/stores/runtime_float_indexed_call_result_exit/main.omg	current=accepted	current_us=27140308	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/stores/runtime_float_store_selector_snapshot_exit/main.omg	current=accepted	current_us=27022760	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/traits/named_map_record_result_contract/main.omg	current=accepted	current_us=7303982	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/traits/selection_row_existing_machines/main.omg	current=accepted	current_us=6728391	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/traits/selection_row_law_selected_operation/main.omg	current=accepted	current_us=6916884	root=compilation	route=outside	Unsupported: type reference
+program	tests/omega/run/traits/static_implementation_method_arguments/main.omg	current=accepted	current_us=8176711	root=compilation	route=outside	Unsupported: machine generic parameters
+program	tests/omega/run/traits/target_scoped_map_method_arguments/main.omg	current=accepted	current_us=6981269	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	tests/omega/run/variant_decimal_runtime_division/main.omg	current=accepted	current_us=23536332	root=compilation	route=outside	Unsupported: machine service reach
+program	tests/omega/run/variant_record_normalization_repeats/main.omg	current=accepted	current_us=25156456	root=compilation	route=outside	Unsupported: machine service reach

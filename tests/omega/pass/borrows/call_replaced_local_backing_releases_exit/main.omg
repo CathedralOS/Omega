@@ -1,0 +1,20 @@
+// Expected exit: 0
+// A borrow held in a local and moved into a record field ends when a call
+// replaces that field: `x` is writable once `store` installs `&y`, even though
+// `state.stored` is read again afterwards. The twin writes `y` instead.
+data B { value: u64; }
+data Main<'a> { stored: &'a B; }
+machine store<'a>(main: &mut Main<'a>, source: &'a B) { main.stored = source; }
+machine main() crashes Trap {
+    let mut x: B = B { value: 1 };
+    let mut y: B = B { value: 2 };
+    let first: &B = &x;
+    let second: &B = &y;
+    let mut state: Main = Main { stored: first };
+    store(&mut state, second);
+    x.value = 5;
+    let v: u64 = state.stored.value;
+    transition v == 2 && x.value == 5 { true -> good() _ -> bad() }
+    machine good() {}
+    machine bad() { crash Trap; }
+}

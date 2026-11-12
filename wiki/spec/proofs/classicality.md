@@ -58,6 +58,7 @@ and trusted admissions require their own soundness justification.
 | `IntegerLessOrEqualTransitivity`, `IntegerStrictOrderTransitivity` | Constructive | Order composition with an exact shared middle; strict chains require at least one strict edge. |
 | `IntegerOrderSubstitution` | Constructive | Replaces exactly one endpoint through a proved equality; never changes strictness. |
 | `IntegerAffineBound`, `IntegerExactAddDefinitionBound`, `IntegerExactSubtractDefinitionBound`, `IntegerCastBound`, `IntegerCorrelatedForbiddenRoots` | Constructive-decidable | Checked witness conversion over the decidable fixed-integer fragment; each accepted use re-records the witness's cited semantic-axiom roster — they carry trusted admissions as premises, never as silent steps (`cites_semantic_axioms`). |
+| `IntegerRemainderWithinDividend` | Constructive-decidable, **provisional** | The `IntegerAffineBound` form for an exact remainder by a divisor that is not a literal: `min(a, 0) ≤ a % d ≤ max(a, 0)` once `0 < d` or `d < −1` is proved. The statement is trusted, not derived by the mathematical core; it was admitted under the `kernel-rule-admission` decision in the [foundation](foundation.md), is checked against computed arithmetic on every pair of `i8` and `u8` operands, and cites its result equation like the other bound rules. `AcceptedProofRule::is_provisional` marks it. |
 
 ## Structural boundary
 

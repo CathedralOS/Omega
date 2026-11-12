@@ -3,7 +3,9 @@ use omega::language::core::program_image;
 machine build(builder: &mut Build) suspends
 requires addr::Bound == 18446744073709551616 {
     Build::application(builder, "provider_readiness_namespaced");
-    Build::build_depend_as(builder, "chosen", Source::Path { location: "backing" });
+    let mut chosen_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "backing" });
+    dependency::with_alias(&mut chosen_dependency, "chosen");
+    let chosen_registration: DependencyRegistration = Build::build_dependency(builder, chosen_dependency);
     suspend Build::await_provider<ProgramImage, chosen::choices::Observations>(builder);
     let observed: addr = ProgramImage::retained_suffix_start();
     transition observed == 64 {

@@ -30,7 +30,7 @@ pub struct CallingProgram {
     pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
     pub source_records: std::sync::Arc<[checked_trees::typed_trees::SourceRecordCorrespondence]>,
     pub source_preparation: std::sync::Arc<super::CallingSourcePreparation>,
-    pub evaluator: CallingPolicyEvaluator, // Build evaluation's Terminal executor; omitted from catalog equality
+    pub evaluator: CallingPolicyEvaluator, // Build evaluation's executors; omitted from catalog equality
 }
 
 impl PartialEq for CallingProgram {
@@ -123,7 +123,7 @@ impl CallingProgram {
             },
             providers,
         )?;
-        let (plan, _) = (self.evaluator)(TerminalCallingPolicyInvocation {
+        let (plan, _) = (self.evaluator.policy)(TerminalCallingPolicyInvocation {
             artifact: &self.artifact,
             entry: policy,
             target,
@@ -257,6 +257,7 @@ impl CallingProgram {
                 target,
                 request,
                 providers,
+                self.evaluator.scalar_conditions,
                 &mut meter,
             )?;
             for &application in demand.applications() {

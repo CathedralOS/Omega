@@ -130,42 +130,6 @@ pub fn reject_reached_inert_sibling_calls(
     )
 }
 
-pub fn selected_constant_target_bodies(
-    context: crate::ProviderPlanningContext<'_>,
-    target: TargetProfile,
-) -> Result<Vec<build_time_evaluation::SelectedBuildTimeTargetBody>, Vec<Diagnostic>> {
-    if context.scope != source::DependencyScope::Product {
-        return Ok(Vec::new());
-    }
-    let mut selected = Vec::new();
-    for family in &context.typed.target_machine_families {
-        if !context.contains(family.canonical) {
-            continue;
-        }
-        let Some(member) = context
-            .typed
-            .target_family_member(family.canonical, target.target_name())
-        else {
-            continue;
-        };
-        if !member.supplies_checked_body()
-            || !realizes_machine(context, member, Some(target.target_name()))
-        {
-            continue;
-        }
-        selected.push(
-            build_time_evaluation::SelectedBuildTimeTargetBody::prepare(
-                context.typed,
-                family.canonical,
-                member.symbol,
-                target.target_name(),
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?,
-        );
-    }
-    Ok(selected)
-}
-
 pub(crate) fn realized_row_machine<'program>(
     context: crate::ProviderPlanningContext<'program>,
     named: symbols::SymbolHandle,
@@ -184,7 +148,10 @@ pub(crate) fn realized_row_machine<'program>(
     realizes_machine(context, realization, selected_target).then_some(realization)
 }
 
-pub(crate) fn realizes_machine(
+/// Whether `machine` is a body this scope and target actually realize: in
+/// scope, not a target-family interface, and authored for `target` (or for no
+/// target in a Build program).
+pub fn realizes_machine(
     context: crate::ProviderPlanningContext<'_>,
     machine: &checked_trees::typed_trees::machine::Machine,
     target: Option<&str>,

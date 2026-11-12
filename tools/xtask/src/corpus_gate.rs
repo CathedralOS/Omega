@@ -21,6 +21,13 @@
 //!   shows the same loss: in the nightly sweep's observations of main, or in
 //!   a run of the row at the base commit. Whatever remains is the pull
 //!   request's own and fails the job.
+//! - `build` compiles the corpus runner once and writes it, with the receipt
+//!   that names its commit and bytes, into a directory. A workflow run builds
+//!   it in one job and hands that directory to every shard (`--runner`,
+//!   `--base-runner`), which then compile nothing: before this, each of up to
+//!   8 gate shards and 64 sweep shards compiled the same runner itself. A
+//!   shard accepts the directory only for the exact clean commit it has
+//!   checked out, and fails when it is missing or does not match.
 //! - `sweep-shard` and `sweep-report` are the nightly whole-corpus run: each
 //!   shard keeps its raw records, and the report splices every row whose
 //!   outcome differs from the ledger, lists accepted `fail/` rows first as
@@ -138,6 +145,10 @@ pub struct Plan {
     pub reasons: BTreeMap<String, String>,
     pub budget_secs_per_shard: u64,
     pub recorded_secs: Vec<u64>,
+    /// Whether the run should build the base commit's runner ahead of the
+    /// shards ([`base_may_be_needed`]).
+    #[serde(default)]
+    pub needs_base: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -406,6 +417,29 @@ pub fn plan_selection(inputs: &PlanInputs) -> (Option<String>, BTreeMap<String, 
     (None, selector.chosen)
 }
 
+/// Whether a shard is likely to need the base commit's runner, so the run
+/// should build it once ahead of the shards.
+///
+/// A shard runs rows at the base only to excuse a row that is worse than the
+/// ledger. A diff that can reach the compiler or touches a fixture can make
+/// rows worse in every shard, so the base is built once for all of them. A
+/// diff of neutral paths runs only the smoke rows and cannot move them; the
+/// rare row that still needs the base (main itself lost it) is attributed by
+/// that shard building the base itself, as every shard did before.
+pub fn base_may_be_needed(
+    changes: &[(char, String)],
+    all: &BTreeSet<String>,
+    sample_dependents: &[(String, String)],
+) -> bool {
+    changes.iter().any(|(_, path)| {
+        classify(path) == PathClass::Compiler
+            || owning_fixture(path, all).is_some()
+            || sample_dependents
+                .iter()
+                .any(|(sample, _)| path.starts_with(&format!("{sample}/")))
+    })
+}
+
 /// The runner selects by substring, so `pass/a/b` also runs `pass/a/b_c`.
 /// Those extra fixtures are checked too, and named here so their cost and
 /// their verdicts are not a surprise.
@@ -586,6 +620,7 @@ fn run_plan(args: &[String]) -> Result<(), u8> {
     };
     let packed: Vec<Vec<String>> = packed.into_iter().filter(|s| !s.is_empty()).collect();
     let recorded_secs: Vec<u64> = recorded_secs.into_iter().filter(|s| *s > 0).collect();
+    let needs_base = skip.is_none() && base_may_be_needed(&changes, &all, &dependents);
     let plan = Plan {
         base,
         head,
@@ -594,6 +629,7 @@ fn run_plan(args: &[String]) -> Result<(), u8> {
         reasons: chosen,
         budget_secs_per_shard: budget,
         recorded_secs,
+        needs_base,
     };
     if let Some(parent) = out.parent() {
         fs::create_dir_all(parent).map_err(|e| infra(e.to_string()))?;
@@ -637,6 +673,8 @@ fn run_plan(args: &[String]) -> Result<(), u8> {
             "shards",
             serde_json::to_string(&matrix).unwrap_or_else(|_| "[]".to_owned()),
         ),
+        ("needs_base", plan.needs_base.to_string()),
+        ("base", plan.base.clone()),
     ]);
     Ok(())
 }
@@ -681,6 +719,84 @@ fn first_diagnostic(record: &CorpusRecord) -> String {
     cut
 }
 
+/// The corpus runner for the commit checked out at `root`: the one in
+/// `prebuilt`, refused unless its receipt names this exact clean commit and
+/// its bytes, or one compiled here. A prebuilt runner that is missing or does
+/// not match is an error, never a reason to compile or to skip the rows.
+fn runner_for(
+    root: &Path,
+    prebuilt: Option<&Path>,
+    receipts: &Path,
+) -> Result<producer::Producer, String> {
+    match prebuilt {
+        Some(directory) => producer::load_prebuilt(root, directory, receipts),
+        None => producer::prepare(root, receipts, true, false),
+    }
+}
+
+/// The value after each `--flag` in `flags`, in order; any other argument is
+/// a usage error. For the subcommands whose options all take one value.
+fn flag_values(args: &[String], flags: &[&str]) -> Result<Vec<Option<String>>, String> {
+    let mut values = vec![None; flags.len()];
+    let mut pairs = args.chunks(2);
+    for pair in &mut pairs {
+        match (flags.iter().position(|flag| *flag == pair[0]), pair.get(1)) {
+            (Some(index), Some(value)) => values[index] = Some(value.clone()),
+            _ => return Err(format!("unknown or incomplete option `{}`", pair[0])),
+        }
+    }
+    Ok(values)
+}
+
+/// Build the corpus runner once, for other jobs to run.
+///
+/// Writes the runner and its receipt into `--out`. With `--at <rev>` the
+/// runner is built from that commit instead: the checkout moves there for the
+/// build and back afterwards, which is how a run builds the base commit's
+/// runner for the shards that must tell main's losses from the change's.
+fn run_build(args: &[String]) -> Result<(), u8> {
+    let root = repo_root();
+    let values = flag_values(args, &["--out", "--at"]).map_err(|e| usage_error(&e))?;
+    let [Some(out), at] = values.as_slice() else {
+        return Err(usage_error("build needs --out <dir>"));
+    };
+    let out = PathBuf::from(out);
+    if out.exists() {
+        return Err(infra(format!(
+            "{} already exists; a runner directory is written once",
+            out.display()
+        )));
+    }
+    let head = git(&root, &["rev-parse", "HEAD"]).map_err(infra)?;
+    let evidence = execution::reserve_directory(&root.join("build/corpus-gate")).map_err(infra)?;
+    let receipts = evidence.join("producer");
+    let build = || {
+        let producer = producer::prepare(&root, &receipts, true, false)?;
+        producer::export_runner(&producer, &receipts, &out)
+    };
+    let result = match at {
+        Some(rev) => {
+            let commit = git(
+                &root,
+                &["rev-parse", "--verify", &format!("{rev}^{{commit}}")],
+            )
+            .map_err(infra)?;
+            git(&root, &["checkout", "-q", "--detach", &commit]).map_err(infra)?;
+            let result = build();
+            git(&root, &["checkout", "-q", "--detach", &head]).map_err(infra)?;
+            result
+        }
+        None => build(),
+    };
+    result.map_err(infra)?;
+    println!(
+        "corpus-gate: runner for {} written to {}",
+        producer::prebuilt_revision(&out).map_err(infra)?,
+        out.display()
+    );
+    Ok(())
+}
+
 struct Observer<'a> {
     root: &'a Path,
     out: &'a Path,
@@ -688,15 +804,18 @@ struct Observer<'a> {
 }
 
 impl Observer<'_> {
-    /// Build the runner at the checked-out commit and observe exactly `names`.
+    /// Observe exactly `names` at the checked-out commit, with the runner in
+    /// `prebuilt` when the run built one for this commit, and otherwise with
+    /// a runner built here.
     fn observe(
         &mut self,
         label: &str,
         names: &[String],
+        prebuilt: Option<&Path>,
     ) -> Result<BTreeMap<String, CorpusRecord>, String> {
         self.runs += 1;
         let evidence = self.out.join(format!("{}-{label}", self.runs));
-        let producer = producer::prepare(self.root, &evidence.join("producer"), true, false)?;
+        let producer = runner_for(self.root, prebuilt, &evidence.join("producer"))?;
         let binary = producer
             .runner
             .as_deref()
@@ -725,6 +844,8 @@ fn run_check(args: &[String]) -> Result<(), u8> {
     let mut known_path: Option<PathBuf> = None;
     let mut out = PathBuf::from("build/corpus-gate");
     let mut base_attribution = true;
+    let mut runner: Option<PathBuf> = None;
+    let mut base_runner: Option<PathBuf> = None;
     let mut i = 0;
     while i < args.len() {
         if args[i] == "--no-base" {
@@ -742,6 +863,8 @@ fn run_check(args: &[String]) -> Result<(), u8> {
                 )
             }
             ("--known", Some(v)) => known_path = Some(PathBuf::from(v)),
+            ("--runner", Some(v)) => runner = Some(PathBuf::from(v)),
+            ("--base-runner", Some(v)) => base_runner = Some(PathBuf::from(v)),
             ("--out", Some(v)) => out = PathBuf::from(v),
             (other, _) => {
                 return Err(usage_error(&format!(
@@ -766,6 +889,20 @@ fn run_check(args: &[String]) -> Result<(), u8> {
             "plan was made at {} but HEAD is {head}",
             plan.head
         )));
+    }
+    // A base runner is used only if a row needs excusing, so check now that
+    // the one handed over is the base's: a wrong or missing one fails the
+    // shard whether or not a row turns out to need it.
+    if let Some(directory) = &base_runner {
+        let built = producer::prebuilt_revision(directory)
+            .map_err(|e| infra(format!("base runner {}: {e}", directory.display())))?;
+        if built != plan.base {
+            return Err(infra(format!(
+                "base runner {} was built from {built}, but the plan's base is {}",
+                directory.display(),
+                plan.base
+            )));
+        }
     }
     fs::create_dir_all(&out).map_err(|e| infra(e.to_string()))?;
     let out = execution::reserve_directory(&out).map_err(infra)?;
@@ -795,8 +932,11 @@ fn run_check(args: &[String]) -> Result<(), u8> {
         out: &out,
         runs: 0,
     };
-    let observed = observer.observe("head", names).map_err(infra)?;
+    let observed = observer
+        .observe("head", names, runner.as_deref())
+        .map_err(infra)?;
     let mut verdicts: Vec<Verdict> = Vec::new();
+    let mut measured = observed.clone();
     let mut suspects: Vec<String> = observed
         .values()
         .filter(|row| worse(ledger.get(&row.fixture), row).is_some())
@@ -816,17 +956,28 @@ fn run_check(args: &[String]) -> Result<(), u8> {
         class: class.to_owned(),
     };
     if !suspects.is_empty() {
-        let again = observer.observe("head-confirm", &suspects).map_err(infra)?;
+        let again = observer
+            .observe("head-confirm", &suspects, runner.as_deref())
+            .map_err(infra)?;
         suspects.retain(|fixture| {
             let confirmed = again
                 .get(fixture)
                 .is_none_or(|row| worse(ledger.get(fixture), row).is_some());
             if !confirmed {
                 verdicts.push(verdict(&observed[fixture], "flaky"));
+                // The second run is the row's measurement; the first was noise.
+                if let Some(row) = again.get(fixture) {
+                    measured.insert(fixture.clone(), row.clone());
+                }
             }
             confirmed
         });
     }
+    // What this shard measured at the head, in the ledger's own format, so a
+    // post-merge run can splice it into the ledger (`sweep-report --records`).
+    let rows: Vec<CorpusRecord> = measured.into_values().collect();
+    fs::write(out.join("records.txt"), corpus::splice_records("", &rows))
+        .map_err(|e| infra(e.to_string()))?;
     // Excused when main already shows the same loss and the row is the base's.
     let mut remaining = Vec::new();
     for fixture in suspects {
@@ -850,8 +1001,11 @@ fn run_check(args: &[String]) -> Result<(), u8> {
             .collect();
         let mut at_base = BTreeMap::new();
         if !excusable.is_empty() {
+            // The base's fixtures and library sources are read from the
+            // checkout, so it moves to the base even when the base's runner
+            // was built ahead; only the compile is saved.
             git(&root, &["checkout", "-q", "--detach", &plan.base]).map_err(infra)?;
-            let result = observer.observe("base", &excusable);
+            let result = observer.observe("base", &excusable, base_runner.as_deref());
             git(&root, &["checkout", "-q", "--detach", &head]).map_err(infra)?;
             at_base = result.map_err(infra)?;
         }
@@ -933,19 +1087,18 @@ fn run_check(args: &[String]) -> Result<(), u8> {
 
 fn run_sweep_shard(args: &[String]) -> Result<(), u8> {
     let root = repo_root();
-    let (Some(shard), Some(out)) = (
-        args.iter()
-            .position(|a| a == "--shard")
-            .and_then(|i| args.get(i + 1)),
-        args.iter()
-            .position(|a| a == "--out")
-            .and_then(|i| args.get(i + 1)),
-    ) else {
+    let values =
+        flag_values(args, &["--shard", "--out", "--runner"]).map_err(|e| usage_error(&e))?;
+    let [Some(shard), Some(out), runner] = values.as_slice() else {
         return Err(usage_error("sweep-shard needs --shard <k/N> --out <file>"));
     };
     let evidence = execution::reserve_directory(&root.join("build/corpus-gate")).map_err(infra)?;
-    let producer =
-        producer::prepare(&root, &evidence.join("producer"), true, false).map_err(infra)?;
+    let producer = runner_for(
+        &root,
+        runner.as_deref().map(Path::new),
+        &evidence.join("producer"),
+    )
+    .map_err(infra)?;
     let binary = producer.runner.as_deref().ok_or(4u8)?;
     let text = corpus::observe(
         &root,
@@ -1194,13 +1347,16 @@ fn infra(message: impl std::fmt::Display) -> u8 {
 }
 
 const USAGE: &str = "usage: cargo xtask corpus-gate plan --base <rev> [--shards N] [--shard-secs S] [--out plan.json]
+       cargo xtask corpus-gate build --out <runner-dir> [--at <rev>]
        cargo xtask corpus-gate check --plan plan.json --shard K [--known observed.txt] [--no-base] [--out dir]
-       cargo xtask corpus-gate sweep-shard --shard k/N --out records.txt
+                                     [--runner <runner-dir>] [--base-runner <runner-dir>]
+       cargo xtask corpus-gate sweep-shard --shard k/N --out records.txt [--runner <runner-dir>]
        cargo xtask corpus-gate sweep-report --records <dir> [--shards N] [--body body.md] [--observed observed.txt]";
 
 pub fn run(args: &[String]) -> Result<(), u8> {
     match args.first().map(String::as_str) {
         Some("plan") => run_plan(&args[1..]),
+        Some("build") => run_build(&args[1..]),
         Some("check") => run_check(&args[1..]),
         Some("sweep-shard") => run_sweep_shard(&args[1..]),
         Some("sweep-report") => run_sweep_report(&args[1..]),
@@ -1209,7 +1365,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             Ok(())
         }
         _ => Err(usage_error(
-            "expected plan, check, sweep-shard or sweep-report",
+            "expected plan, build, check, sweep-shard or sweep-report",
         )),
     }
 }
@@ -1381,6 +1537,59 @@ mod tests {
         let alert = md.find("Soundness alerts").unwrap();
         let table = md.find("by first diagnostic").unwrap();
         assert!(alert < table && md.contains("`fail/a/x`") && md.contains("| 1 | broke |"));
+    }
+
+    #[test]
+    fn base_is_built_ahead_only_when_the_diff_can_move_rows() {
+        let all = names(&["pass/a/x", "run/d/w"]);
+        let dependents = [("samples/demo".to_owned(), "run/d/w".to_owned())];
+        let needs = |path: &str| base_may_be_needed(&[('M', path.to_owned())], &all, &dependents);
+        assert!(needs("omega-rust/psi/x/src/lib.rs"));
+        assert!(needs("source/library/std/filesystem.omg"));
+        assert!(needs("tests/omega/pass/a/x/main.omg"));
+        assert!(needs("samples/demo/main.omg"));
+        assert!(needs("brand-new-dir/x.rs"));
+        assert!(!needs(".github/workflows/corpus-gate.yml"));
+        assert!(!needs("tools/xtask/src/corpus_gate.rs"));
+        assert!(!needs("samples/other/main.omg"));
+        assert!(!base_may_be_needed(&[], &all, &dependents));
+    }
+
+    #[test]
+    fn single_value_options_parse_in_any_order_and_refuse_the_rest() {
+        let args = |list: &[&str]| list.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        let flags = ["--shard", "--out", "--runner"];
+        assert_eq!(
+            flag_values(&args(&["--out", "r.txt", "--shard", "3/64"]), &flags).unwrap(),
+            vec![Some("3/64".to_owned()), Some("r.txt".to_owned()), None]
+        );
+        assert_eq!(
+            flag_values(
+                &args(&["--runner", "d", "--shard", "0/1", "--out", "o"]),
+                &flags
+            )
+            .unwrap()[2]
+                .as_deref(),
+            Some("d")
+        );
+        assert!(flag_values(&args(&["--runner"]), &flags).is_err());
+        assert!(flag_values(&args(&["--rnner", "d"]), &flags).is_err());
+        assert!(flag_values(&args(&["--out", "o", "stray"]), &flags).is_err());
+    }
+
+    #[test]
+    fn a_missing_prebuilt_runner_is_an_error_not_a_local_build() {
+        let root = repo_root();
+        let scratch = std::env::temp_dir().join(format!("omega-gate-test-{}", std::process::id()));
+        let refusal = runner_for(
+            &root,
+            Some(&scratch.join("absent")),
+            &scratch.join("evidence"),
+        )
+        .err()
+        .unwrap();
+        assert!(refusal.contains("prebuilt runner"), "{refusal}");
+        assert!(!scratch.join("evidence").exists());
     }
 
     #[test]

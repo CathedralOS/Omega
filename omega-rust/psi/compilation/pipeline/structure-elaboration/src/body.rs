@@ -18,6 +18,7 @@ use semantic_vocabulary::{
     CrashCause, IntegerValue, MachineId, PlaceId, Proposition, ScalarType, StructuralCaseId,
     StructuralFieldId, StructuralTypeId,
 };
+use terminal_check_tables::values::RigidType;
 use terminal_psi::CrashRouteBucket;
 
 use crate::SourceOrigin;
@@ -30,6 +31,11 @@ use crate::SourceOrigin;
 pub enum ValueType {
     Scalar(ScalarType),
     Record(StructuralTypeId),
+    /// A value of a type parameter that a generic check form leaves rigid.
+    /// It is neither a scalar nor a record: no operator, field or literal
+    /// applies to it, so every typing rule that asks for one refuses it. It
+    /// can be named, passed to a call and returned.
+    Rigid(RigidType),
 }
 
 impl From<ScalarType> for ValueType {
@@ -42,6 +48,17 @@ impl ValueType {
     pub const fn scalar(self) -> Option<ScalarType> {
         match self {
             Self::Scalar(scalar_type) => Some(scalar_type),
+            Self::Record(_) | Self::Rigid(_) => None,
+        }
+    }
+
+    /// How a value of this type is declared on the lowered form, when it is
+    /// a value there and not a place: its declared type, and the rigid type
+    /// that declaration stands in for.
+    pub const fn declared(self) -> Option<(ScalarType, Option<RigidType>)> {
+        match self {
+            Self::Scalar(scalar_type) => Some((scalar_type, None)),
+            Self::Rigid(rigid) => Some((RigidType::DECLARED_AS, Some(rigid))),
             Self::Record(_) => None,
         }
     }

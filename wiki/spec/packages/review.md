@@ -288,8 +288,14 @@ Build-generated source belongs to the checked candidate and remains in custody
 through its use. Compiler transcripts, replay records, and certificate caches
 are not ordinary lock acceptance.
 
-Unproved source contracts reject in Psi checking, before any package review or
-policy decision. Every normal return, including a tail call to another
+Source contracts whose proof goals are supported but cannot be established
+from the program's stated premises reject in Psi checking, before any package
+review or policy decision. A required goal whose form the prover has no rule
+for reports `Incomplete`, identifying the obligation under
+[unproved goal form publication](../build/compiler_request.md#unproved-goal-form-publication);
+exhausting a named proof-search provision also reports `Incomplete` under
+that provision's code. Neither outcome permits a checked artifact to publish.
+Every normal return, including a tail call to another
 machine, owes the caller's guarantee. Accepted axioms remain disclosed
 assumptions; project policy cannot make an invalid proof valid.
 

@@ -59,7 +59,7 @@ pub struct ProductProviderPreparation<'program> {
     pub native_bindings: &'program crate::native_bindings::PreparedNativeBuildBindings,
     pub native_supplies: &'program [crate::native_bindings::NativeBuildSupply],
     pub assumed_bindings:
-        &'program [build_time_evaluation::assumed_bindings::AssumedBindingContract],
+        &'program [language_semantics::declaration_selection::AssumedBindingContract],
 }
 
 pub struct PreparedProductProviders {

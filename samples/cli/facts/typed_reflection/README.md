@@ -1,7 +1,5 @@
 # Typed field visitation
 
-Parent outcome: `WIRE-CODEC-LIBRARY` (semantic reflection prerequisite).
-
 Fact: authorized typed visitation borrows each non-erased field with its exact type and invokes the selected callback once in declaration order.
 
 The subject is explicitly copyable, as required to form its const-name place,
