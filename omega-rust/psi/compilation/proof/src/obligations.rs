@@ -745,7 +745,7 @@ mod collection {
     ) {
         let mut calls = Vec::new();
         let mut fields = Vec::new();
-        let mut visited = Vec::new();
+        let mut visited = validation::expression_traversal::EnteredExpressions::default();
         for (_, root) in program.tables.expression_roots(statement) {
             visit_post_order(program, root, &mut visited, |expression, node| {
                 if let ExpressionNode::Call(call) = node {

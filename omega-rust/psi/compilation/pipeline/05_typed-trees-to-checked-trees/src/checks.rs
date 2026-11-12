@@ -4236,7 +4236,8 @@ mod runtime_indices {
                 if has_runtime_indices {
                     let mut roots = Vec::new();
                     collect_statement_expression_trees(program, node, &mut roots);
-                    let mut visited = Vec::new();
+                    let mut visited =
+                        validation::expression_traversal::EnteredExpressions::default();
                     for root in roots {
                         visit_post_order(program, root, &mut visited, |expression, node| {
                             if let ExpressionNode::Borrow(borrow) = node
