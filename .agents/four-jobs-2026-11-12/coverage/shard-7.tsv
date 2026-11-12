@@ -1,0 +1,50 @@
+fixture	tier	route_verdict	current_verdict	agreement	first_refusal	seconds
+tests/omega/fail/arithmetic/anonymous_remainder_rejected/main.omg	fail	outside	rejected	n-a	Unsupported	1.47
+tests/omega/fail/arithmetic/boolean_bit_guard_different_subject/main.omg	fail	rejected	rejected	agree		1.41
+tests/omega/fail/arithmetic/bounded_store_consumed_before_repair/main.omg	fail	outside	rejected	n-a	Unsupported	1.42
+tests/omega/fail/arithmetic/checked_flag_proof_invalid_shift_count/main.omg	fail	outside	rejected	n-a	Unsupported	1.84
+tests/omega/fail/arithmetic/collection_result_endpoint_effect/main.omg	fail	outside	rejected	n-a	Unsupported	1.42
+tests/omega/fail/arithmetic/composite_bound_arrival_unbounded_predecessor/main.omg	fail	outside	rejected	n-a	Unsupported	1.39
+tests/omega/fail/arithmetic/erased_policy_store_into_qualified_element/main.omg	fail	outside	rejected	n-a	Unsupported	1.35
+tests/omega/fail/arithmetic/exact_left_shift_invalid_count_rejected/main.omg	fail	outside	rejected	n-a	Unsupported	1.30
+tests/omega/fail/arithmetic/fixed_input_copy_keeps_definedness/main.omg	fail	rejected	rejected	agree		1.30
+tests/omega/fail/arithmetic/guarded_read_count_stale_before_assignment/main.omg	fail	outside	rejected	n-a	Unsupported	1.43
+tests/omega/fail/arithmetic/implicit_fractional_const_landing/main.omg	fail	outside	stopped	n-a	unreached	0.88
+tests/omega/fail/arithmetic/indexed_divisor_selector_write/main.omg	fail	outside	rejected	n-a	Unsupported	1.50
+tests/omega/fail/arithmetic/integer_multiple_remainder_zero_divisor/main.omg	fail	outside	rejected	n-a	Unsupported	1.96
+tests/omega/fail/arithmetic/narrowing_literal_wider_than_target/main.omg	fail	outside	rejected	n-a	Unsupported	11.36
+tests/omega/fail/arithmetic/policy_operator_operand_types_rejected/main.omg	fail	outside	stopped	n-a	unreached	10.47
+tests/omega/fail/arithmetic/qualified_cast_decision_wrong_arm/main.omg	fail	outside	rejected	n-a	Unsupported	1.32
+tests/omega/fail/arithmetic/remainder_signed_minimum_underbound_rejected/main.omg	fail	rejected	rejected	agree		1.62
+tests/omega/fail/arithmetic/stale_named_state_operand_bound/main.omg	fail	rejected	rejected	agree		1.78
+tests/omega/fail/arithmetic/transitive_bit_guard_nonstrict_count/main.omg	fail	rejected	rejected	agree		1.57
+tests/omega/fail/arithmetic/unit_terminal_unguarded_cast/main.omg	fail	outside	rejected	n-a	Unsupported	2.30
+tests/omega/fail/arithmetic/widened_result_predicate_invalid_write/main.omg	fail	outside	rejected	n-a	Unsupported	1.78
+tests/omega/fail/arithmetic/zero_product_operand_overflow_rejected/main.omg	fail	rejected	rejected	agree		1.80
+tests/omega/fail/asm/arm_subs_mixed_registers/main.omg	fail	outside	stopped	n-a	unreached	0.86
+tests/omega/fail/asm/atomic_release_disposition_changed_value/main.omg	fail	outside	rejected	n-a	Unsupported	1.63
+tests/omega/fail/asm/atomic_release_disposition_wrong_width/main.omg	fail	outside	rejected	n-a	Unsupported	1.48
+tests/omega/fail/asm/checked_asm_compare_exit_goal_overwritten/main.omg	fail	outside	rejected	n-a	Unsupported	2.67
+tests/omega/fail/asm/checked_asm_nested_implicit_runtime_capture/main.omg	fail	outside	rejected	n-a	Unsupported	1.82
+tests/omega/fail/asm/checked_asm_saved_match_overwritten/main.omg	fail	outside	rejected	n-a	Unsupported	2.65
+tests/omega/fail/asm/checked_fence_false_ensures/main.omg	fail	outside	rejected	n-a	Unsupported	2.57
+tests/omega/fail/asm/instruction_disposition_helper_bypass/main.omg	fail	outside	rejected	n-a	Unsupported	1.62
+tests/omega/fail/asm/instruction_effect_helper_return_mutation/main.omg	fail	outside	rejected	n-a	Unsupported	1.57
+tests/omega/fail/asm/instruction_effect_user_model/main.omg	fail	outside	rejected	n-a	Unsupported	1.50
+tests/omega/fail/asm/proposition_transfer_invalidates_ensures/main.omg	fail	outside	rejected	n-a	Unsupported	1.41
+tests/omega/fail/asm/scratch_destination_indexed/main.omg	fail	outside	stopped	n-a	unreached	1.47
+tests/omega/fail/asm/scratch_invalid_backedge/main.omg	fail	outside	rejected	n-a	Unsupported	2.69
+tests/omega/fail/asm/scratch_uninitialized_flag/main.omg	fail	outside	stopped	n-a	unreached	1.43
+tests/omega/fail/asm/transition_argument_invalidates_exit_fact/main.omg	fail	outside	rejected	n-a	Unsupported	1.41
+tests/omega/fail/atomics/atomic_boolean_ordinary_bool_load/main.omg	fail	outside	rejected	n-a	Unsupported	1.89
+tests/omega/fail/atomics/atomic_operand_call_argument/main.omg	fail	outside	rejected	n-a	Unsupported	1.45
+tests/omega/fail/atomics/fence_false_result_case/main.omg	fail	outside	rejected	n-a	Unsupported	1.43
+tests/omega/fail/atomics/stored_reference_non_atomic_shared_store/main.omg	fail	outside	rejected	n-a	Unsupported	1.40
+tests/omega/fail/borrow/bounded_reference_store_preserves_range/main.omg	fail	outside	rejected	n-a	Unsupported	2.65
+tests/omega/fail/borrow/lifetime_argument_arity/main.omg	fail	accepted	rejected	disagree		1.35
+tests/omega/fail/borrow/nested_borrow_carrying_local_escape/main.omg	fail	outside	rejected	n-a	Unsupported	1.45
+tests/omega/fail/borrow/relational_handback_false_return_guarantee/main.omg	fail	outside	rejected	n-a	Unsupported	1.45
+tests/omega/fail/borrow/returned_write_destination_read/main.omg	fail	outside	rejected	n-a	Unsupported	1.35
+tests/omega/fail/borrow/selected_selector_relation_does_not_supply_equality/main.omg	fail	outside	rejected	n-a	Unsupported	1.51
+tests/omega/fail/borrow/state_reference_permutation_duplicate_exclusive/main.omg	fail	outside	rejected	n-a	Unsupported	1.43
+tests/omega/fail/borrow/vec_view_invalidated_by_push/main.omg	fail	outside	rejected	n-a	Unsupported	1.42
