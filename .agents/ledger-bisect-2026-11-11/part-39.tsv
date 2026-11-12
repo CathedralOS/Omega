@@ -1,8 +1,8 @@
 fixture	class	first_diagnostic	cluster_id
-pass/facts/opaque_independent_qualified_input_import_alias_exit	broken	opaque representation `renamed::AddressRepresentation` does not resolve to one visible named conformance	opaque-conformance-TBD
-pass/facts/opaque_independent_qualified_input_renumbered_catalog_exit	broken	opaque representation `producer::AddressRepresentation` does not resolve to one visible named conformance	opaque-conformance-TBD
+pass/facts/opaque_independent_qualified_input_import_alias_exit	broken	opaque representation `renamed::AddressRepresentation` does not resolve to one visible named conformance	opaque-named-conformance
+pass/facts/opaque_independent_qualified_input_renumbered_catalog_exit	broken	opaque representation `producer::AddressRepresentation` does not resolve to one visible named conformance	opaque-named-conformance
 pass/layouts/placed_reference_results/nested	fixed		
-pass/ownership/runtime_match_expression_moves_selected_payload_exit	broken	`main` calls `unwrap`; `unwrap` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural value: operand custody)); in state `unwrap::entry`, statement 1	ownership-unwrap-lowering-TBD
+pass/ownership/runtime_match_expression_moves_selected_payload_exit	broken	`main` calls `unwrap`; `unwrap` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural value: operand custody)); in state `unwrap::entry`, statement 1	ownership-unwrap-lowering
 pass/blockexec/blocking_executor_custody_claims_compile	broken	call to `execute` has operational envelope `suspend block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly	blockexec-suspend-ack
 pass/blockexec/runtime_selected_worker_body_exit	broken	call to `execute` has operational envelope `suspend block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly	blockexec-suspend-ack
 pass/facts/target_family_callback_guarantee/local	fixed		
