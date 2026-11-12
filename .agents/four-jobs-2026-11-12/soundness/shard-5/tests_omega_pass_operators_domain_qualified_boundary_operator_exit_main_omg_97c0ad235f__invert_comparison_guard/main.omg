@@ -1,0 +1,56 @@
+// Expected exit: 0
+// A fixed-token boundary operator whose operands are domain-qualified
+// (`i32 in Counted`) runs through a selected checked satisfier. `Counted` is
+// a predicate-free, route-free domain, so a bare literal operand needs no
+// proof and arrives qualified exactly as it would at an ordinary call's
+// `i32 in Counted` formal. The operator is applied both inside a larger
+// expression and as a statement, to parameters, literals and a call result.
+// The satisfier answers a real comparison, and `main` uses matching and
+// mismatching pairs, so a lowering that dropped the call, ignored the
+// selection or answered a constant would trap. The same program whose domain
+// requires an establishment route is
+// `fail/operators/domain_qualified_boundary_operator_unestablished_literal`.
+domain i32::Counted;
+
+boundary machine == Integer::equal(left: i32 in Counted, right: i32 in Counted) -> bool;
+
+data CheckedEquality {}
+
+machine CheckedEquality::equal(left: i32 in Counted, right: i32 in Counted) -> bool
+satisfies Integer::equal
+{
+    left <= right && left >= right
+}
+
+machine count(value: i32) -> i32 in Counted { value }
+
+machine echo(value: i32 in Counted) -> i32 in Counted { value }
+
+machine nested(value: i32 in Counted, other: i32 in Counted) -> bool {
+    value == 7 && !(echo(other) == value)
+}
+
+machine statement(value: i32 in Counted) -> bool {
+    let equal: bool = value == 7;
+    equal
+}
+
+machine main() crashes Trap {
+    let seven: i32 in Counted = count(7);
+    let eight: i32 in Counted = count(8);
+    let five: i32 in Counted = count(5);
+    let nine: i32 in Counted = count(9);
+    let matching: bool = nested(seven, nine);
+    let mismatched_literal: bool = nested(eight, nine);
+    let mismatched_call: bool = nested(seven, seven);
+    let statement_matching: bool = statement(seven);
+    let statement_above: bool = statement(nine);
+    let statement_below: bool = statement(five);
+    transition matching && !mismatched_literal && !mismatched_call
+        && statement_matching && !statement_above && !statement_below {
+        false -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

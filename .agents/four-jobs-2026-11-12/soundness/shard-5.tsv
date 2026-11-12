@@ -816,3 +816,39 @@ tests/omega/pass/generics/static_machine_borrowed_parameter_refines_after_substi
 tests/omega/pass/host/efi_vtable_entry/main.omg	pass	amp_to_ampmut		rejected	unreached	agree	discarded-both-reject			0.596	0.681
 tests/omega/pass/host/process_exit_i32_status_mapped/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.216	6.616
 tests/omega/pass/host/runtime_console_bounded_line_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			8.652	11.811
+tests/omega/pass/host/runtime_descriptor_exclusive_atomic_record_exit/main.omg	pass	remove_mut	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_host_runtime_descriptor_exclusive_atomic_record_exit_main_omg_adae41e441__remove_mut	accepted	outside	disagree	confirmed-invalid	wiki/spec/language/ownership.md	Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding.	2.700	3.107
+tests/omega/pass/host/runtime_descriptor_output_streams_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.219	6.638
+tests/omega/pass/host/runtime_foreign_scalar_loan_writeback_exit/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			8.594	11.249
+tests/omega/pass/host/runtime_semantic_gui_reach_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.142	6.751
+tests/omega/pass/host/std_clock_sleep_exit/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			8.738	11.417
+tests/omega/pass/inline_asm/asm_reach_inherit/main.omg	pass	amp_to_ampmut		rejected	unreached	agree	discarded-both-reject			0.603	0.675
+tests/omega/pass/inline_asm/asm_system_register_scalar_variants_compile/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			1.529	1.705
+tests/omega/pass/layouts/access_plan_inaccessible_seed/main.omg	pass	remove_mut	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_layouts_access_plan_inaccessible_seed_main_omg_07f76859ce__remove_mut	accepted	no-entry	disagree	confirmed-invalid	wiki/spec/language/ownership.md	Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding.	1.674	1.864
+tests/omega/pass/layouts/bool_member_layout_queries_compile/main.omg	pass	amp_to_ampmut		rejected	unreached	agree	discarded-both-reject			0.661	0.659
+tests/omega/pass/layouts/declaration_only_array_formation/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.617	0.647
+tests/omega/pass/layouts/five_element_array_layout_compile/main.omg	pass	amp_to_ampmut		rejected	unreached	agree	discarded-both-reject			0.654	0.659
+tests/omega/pass/layouts/fixed_layout_forwarded_fragmented_mutation_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.640	0.677
+tests/omega/pass/layouts/fixed_layout_unmentioned_valid_policy_exit/main.omg	pass	remove_mut	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_layouts_fixed_layout_unmentioned_valid_policy_exit_main_omg_b052df6849__remove_mut	accepted	outside	disagree	confirmed-invalid	wiki/spec/language/ownership.md	Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding.	3.472	4.079
+tests/omega/pass/layouts/mixed_alignment_layout_queries_compile/main.omg	pass	amp_to_ampmut		rejected	unreached	agree	discarded-both-reject			0.669	0.652
+tests/omega/pass/layouts/placed_policy_owner_selection/main.omg	pass	amp_to_ampmut		rejected	no-entry	agree	discarded-both-reject			3.966	4.492
+tests/omega/pass/layouts/placed_primitive_unused_valid/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.702	0.673
+tests/omega/pass/layouts/portable_data_layout_queries/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.601	0.677
+tests/omega/pass/layouts/reference_layout_carrier_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.682	0.674
+tests/omega/pass/layouts/resident_initialization_rejection/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.701	0.674
+tests/omega/pass/layouts/retained_constant_contract_parameters_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.668	3.058
+tests/omega/pass/layouts/runtime_encoded_physical_view_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.652	0.667
+tests/omega/pass/layouts/runtime_placed_accessor_writeback_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.674	0.674
+tests/omega/pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			9.214	13.499
+tests/omega/pass/layouts/runtime_returned_encoded_reference_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.609	0.677
+tests/omega/pass/layouts/runtime_target_layout_byte_offset_exit/main.omg	pass	remove_mut	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_layouts_runtime_target_layout_byte_offset_exit_main_omg_f36468e0d6__remove_mut	accepted	outside	disagree	confirmed-invalid	wiki/spec/language/ownership.md	Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding.	3.188	3.903
+tests/omega/pass/layouts/single_byte_member_layout_compile/main.omg	pass	amp_to_ampmut		rejected	unreached	agree	discarded-both-reject			0.678	0.641
+tests/omega/pass/layouts/three_member_padding_layout_compile/main.omg	pass	amp_to_ampmut		rejected	unreached	agree	discarded-both-reject			0.572	0.642
+tests/omega/pass/layouts/whered_record_in_sum_layout_compile/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.627	0.645
+tests/omega/pass/locals/runtime_deferred_scalar_initialization_exit/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			7.221	7.956
+tests/omega/pass/machines/composite_state_args/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.651	0.657
+tests/omega/pass/machines/private_completion_console_loop_exit/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			8.457	9.570
+tests/omega/pass/memory/indexed_resident_bodyless_handback/main.omg	pass	amp_to_ampmut		rejected	unreached	agree	discarded-both-reject			0.629	0.663
+tests/omega/pass/memory/runtime_linear_native_allocation_call_result_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.615	0.686
+tests/omega/pass/modules/runtime_named_extent_generic_copy_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.125	6.626
+tests/omega/pass/objc/objc_get_class/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			6.143	6.770
+tests/omega/pass/operators/domain_qualified_boundary_operator_exit/main.omg	pass	invert_comparison_guard	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_operators_domain_qualified_boundary_operator_exit_main_omg_97c0ad235f__invert_comparison_guard	accepted	outside	disagree	confirmed-invalid	wiki/spec/language/state_contracts.md	Only the selected arm executes, with ordinary once-only operand evaluation.	2.775	3.154
