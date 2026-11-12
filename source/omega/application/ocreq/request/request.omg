@@ -28,7 +28,9 @@ crashes Trap
         _ -> counted()
     }
 
-    machine store(request: &mut Request, byte: u8) {
+    machine store(request: &mut Request, byte: u8)
+    requires request.length < 65536
+    {
         request.bytes[request.length] = byte as u8 in Trapping;
         request.length = request.length + 1;
     }
