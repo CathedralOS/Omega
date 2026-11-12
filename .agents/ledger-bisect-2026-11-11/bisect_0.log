@@ -1,0 +1,21 @@
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 45 revisions left to test after this (roughly 6 steps)
+[3fbdcc7e9f716445a62aadbf19d8a5c8a4a4ed18] psi: let the result of a trapping operation count as its exact result (#2341)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 22 revisions left to test after this (roughly 5 steps)
+[146d382b9d17641c5def7c14522c482447d3a41a] psi: keep an implementation operand's source record in step when its consts close (#2330)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 11 revisions left to test after this (roughly 4 steps)
+[c27eaacc45d6a0b97390b9263d98bab5e5d80b81] docs: publish a checked body's inferred mutation frame as part of its contract (#2316)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 5 revisions left to test after this (roughly 3 steps)
+[937131af8d190a0e844c526a058cbbc70856269f] tests: re-record 24 provider and entry rows, moving six to parameterless entries (#2226)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 2 revisions left to test after this (roughly 1 step)
+[0fa0ba3cc942bcf6baa175d6d1b8ef0705d04aa6] psi: stop erased arguments and linear casts from failing ownership checks (#2224)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+You need to start by "git bisect start"
+
+Terminated
+.agents/ledger-bisect-2026-11-11/bisect_one.sh: line 79: syntax error near unexpected token `('
+.agents/ledger-bisect-2026-11-11/bisect_one.sh: line 79: `    "mechanism": f"sanity failed: good exit {sys.argv[5]} bad exit {sys.argv[6]} (expected 0/1); stability={sys.argv[4]}",'

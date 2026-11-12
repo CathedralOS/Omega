@@ -1,0 +1,24 @@
+=== bisect cluster 0 witness fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected
+status: waiting for good commit(s), bad commit known
+bisected 51e8c45c7930 pr 2505
+=== bisect cluster 1 witness fail/generics/const_data_argument_out_of_range
+status: waiting for good commit(s), bad commit known
+bisected 51e8c45c7930 pr 2505
+=== bisect cluster 2 witness pass/traits/structural_array_crash_identity_exit
+status: waiting for good commit(s), bad commit known
+bisected 51e8c45c7930 pr 2505
+=== bisect cluster 3 witness fail/float/state_constructor_ieee_reflexivity
+status: waiting for good commit(s), bad commit known
+bisected 51e8c45c7930 pr 2505
+=== bisect cluster 4 witness fail/borrows/owned_capture_weaker_formal_qualification
+status: waiting for good commit(s), bad commit known
+bisected 51e8c45c7930 pr 2505
+=== bisect cluster 5 witness fail/constants/predicate_constant_generic_static_index_fence
+status: waiting for good commit(s), bad commit known
+bisected 51e8c45c7930 pr 2505
+=== bisect cluster 6 witness fail/generics/grouped_decimal_const_zero_division_rejected
+status: waiting for good commit(s), bad commit known
+bisected 51e8c45c7930 pr 2505
+=== bisect cluster 7 witness pass/build/const_index_dependency_order_exit
+status: waiting for good commit(s), bad commit known
+bisected 51e8c45c7930 pr 2505

@@ -1,0 +1,363 @@
+From https://github.com/cathedralos/omega
+ * branch                    work/ledger-bisect-part-4 -> FETCH_HEAD
+Already on 'work/ledger-bisect-part-4'
+D	.agents/ledger-bisect-2026-11-11/bisects/cluster_0.json
+D	.agents/ledger-bisect-2026-11-11/bisects/cluster_1.json
+D	.agents/ledger-bisect-2026-11-11/bisects/cluster_10.json
+D	.agents/ledger-bisect-2026-11-11/bisects/cluster_11.json
+D	.agents/ledger-bisect-2026-11-11/bisects/cluster_2.json
+D	.agents/ledger-bisect-2026-11-11/bisects/cluster_3.json
+D	.agents/ledger-bisect-2026-11-11/bisects/cluster_4.json
+D	.agents/ledger-bisect-2026-11-11/bisects/cluster_5.json
+D	.agents/ledger-bisect-2026-11-11/bisects/cluster_6.json
+D	.agents/ledger-bisect-2026-11-11/bisects/cluster_7.json
+D	.agents/ledger-bisect-2026-11-11/bisects/cluster_8.json
+D	.agents/ledger-bisect-2026-11-11/bisects/cluster_9.json
+Your branch is up to date with 'origin/work/ledger-bisect-part-4'.
+HEAD is now at 7d1d519aee2 docs: ledger bisect part 4 run witness scripts from report branch
+HEAD is now at 51e8c45c793 psi: check a body over a const value parameter once and carry its proofs (#2505)
+=== cluster 0 rows=5 witness=pass/relevance/runtime_static_proof_namespace_exit
+From https://github.com/cathedralos/omega
+ * branch                    work/ledger-bisect-part-4 -> FETCH_HEAD
+Already on 'work/ledger-bisect-part-4'
+Your branch is up to date with 'origin/work/ledger-bisect-part-4'.
+Already up to date.
+Previous HEAD position was 759c8040442 psi: let a named implementation select existing machines with selection rows (#2315)
+HEAD is now at 51e8c45c793 psi: check a body over a const value parameter once and carry its proofs (#2505)
+=== cluster 0 rows=5 witness=pass/relevance/runtime_static_proof_namespace_exit
+=== methodology fix restart 2026-11-12T02:31:59Z ===
+From https://github.com/cathedralos/omega
+ * branch                    work/ledger-bisect-part-4 -> FETCH_HEAD
+Already on 'work/ledger-bisect-part-4'
+Your branch is up to date with 'origin/work/ledger-bisect-part-4'.
+Already up to date.
+HEAD is now at 51e8c45c793 psi: check a body over a const value parameter once and carry its proofs (#2505)
+=== cluster 0 rows=5 witness=pass/relevance/runtime_static_proof_namespace_exit
+=== binary search good finder 2026-11-12T02:32:09Z ===
+From https://github.com/cathedralos/omega
+ * branch                    work/ledger-bisect-part-4 -> FETCH_HEAD
+Already on 'work/ledger-bisect-part-4'
+Your branch is up to date with 'origin/work/ledger-bisect-part-4'.
+Already up to date.
+Previous HEAD position was e2e7876a03e repo: gate pull requests on the corpus rows they can affect, sweep the ledger nightly (#2463)
+HEAD is now at 51e8c45c793 psi: check a body over a const value parameter once and carry its proofs (#2505)
+=== cluster 0 rows=5 witness=pass/relevance/runtime_static_proof_namespace_exit
+witness=pass/relevance/runtime_static_proof_namespace_exit good=280530acad9f875e26a236925aaee34996d9766c bad=51e8c45c793007f211d0d9baee7de16767172444
+Bisecting: 156 revisions left to test after this (roughly 7 steps)
+[d1b01d262700dda81f282835656708130591283e] tests: declare the callback entry ceiling and bind 13 callback fixtures in Build (#2335)
+sanity good=0 bad=1
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[92e53180a0a5eb426a96dc4850d5bb15862b7741] omega: let the interpreter take a Windows path array of any declared length (#2344)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[2bb43682a8fa9674685325053e03a9ab1cbe5ff8] tools: lock the worktree pool so two sessions never get the same slot (#2208)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[4815ea579d91a2d11a502f1098e59bb96ffcefff] psi: let a cast name each domain it keeps, removes and adds (#2355)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[c4bb4cad84de87e29fda1620ea1134462a251f1d] psi: keep a call-stored loan at a runtime-selected element (#2447)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[937131af8d190a0e844c526a058cbbc70856269f] tests: re-record 24 provider and entry rows, moving six to parameterless entries (#2226)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[529ed128c34b5ecb62bec57553da3c68fcfc27f1] psi: land wholly anonymous arithmetic exactly in structure elaboration (#2441)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[0860b30403289f2be3e643a9ceb1ffbfd8b1589b] compiler: return the typed trees the checker judged even when it rejects them (#2312)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[f3d53919a95a57cc5ba6eebd91fc2b2adebd1d8d] repo: budget shared hosts by a capped total with headroom, not a quarter (#2243)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[db66b009e8b0799a9d5b3ba6df341af5740b0859] tools: let corpus runs reuse the runner and compiler builds (#2322)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[7ef82816e98d26189f4cd0c1b5887051d9537e1e] psi: keep a generic record's concrete references beside its type-parameter fields (#2432)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[2fcdb5e56351162b22ba107d4d81e2e064ef75e5] docs: say what the reach-ceiling diagnostic reports when a ceiling names the slot (#2354)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[1cfe6f1f41683e592b3e2737145cb979d2ab1b2c] backend: let Psi run cleanup for values with shared fields (#2253)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[41f4df7d762abfff562fe79cd3f06b589060f2be] docs: name the obligations every checker must prove without hints (#2333)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[a666cf4b30d023ee55b96f9ee3712f033c483832] psi: keep memory permissions after writes through an indexed view (#2260)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[2e698bc480df599a15b5c3ae75a04939a86cae68] docs: say how a domain gets its semantic role and what predicate-only means (#2350)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[7d1875c86eb4395e0112f428ae052b6db0862978] psi: check runtime-indexed constructions and operator calls like authored calls (#2256)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[f1a3ba54d016ab9ba6a32a0802e1ae7c0b5dbac2] docs: let a boundary trait serve as a static implementation of its ordinary parents (#2338)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[ce73dd8039bcfa4e01511f60590779f5c17849c9] psi: pin that an unranked call cycle closes its guarantee at its returns (#2408)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[b8674ac9ef7e947e4c2146ab5a544bf3cc5801fe] docs: make who may issue a domain a required part of every access plan (#2340)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[68155fa44f7a0389277a332f0df7260d031e7b41] tests: record eight regressions already on main and ask about applied provider cycles (#2405)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[9fcbd798b684bf1c6013fbd39ff0d4ab23f5640d] tests: bind the Windows raw fixture imports through Build rows (#2334)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[fafb9c584d98954cf99ba494f7de83f397fa27df] psi: publish the outgoing frontier of a transition arm that cannot return (#2400)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[18e651d7461646b3bae0ea3c842991d9c17fdbb3] psi: split structure elaboration into per-family modules (#2328)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[09968b4717a2ea6496fa5a4d1c555541727b56e4] tests: pin a return that a dead crash statement hides from the window check (#2283)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[189c63d654f82b3cd95e4aa173e25c75515a3b12] psi: avoid repeating work when checking large programs (#2164)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[a24aae8c0d708d76cd47894a5f0eaf9afe414899] psi: recognize core interrupt, segment and service declarations from one vocabulary (#2496)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[2696d261b0e95b0d14d56a6afff6dca2626d0a9c] psi: close Id components without rescanning rows already in them (#2195)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[fea4cddc5c14c4dce32588d7a17d72698cd69d7d] repo: make the agent provenance line automatic for every agent (#2313)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[5a9797fefa96f1194f6d18730fee560ab27a3f2f] samples: state the generic Accepted domain as core identity, not value equality (#2452)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[646636b4d695fd22f7703ccb41295be5d8d969e2] psi: name the called machine in call diagnostics instead of its entry state (#2230)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[890f17f96046a09d7c31f0d91c503630eda72f03] psi: preserve borrowed case views returned through calls (#2209)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[33cefbc6c241048ff6f6c583acc5aca9b0176ec5] compiler: realize canonical float operations from the target's declared table (#2238)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[f46671232f64e213941bc608f09e7dca6c755c7a] psi: carry const arguments and data invariants through field reads (#2214)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[dc45e4343df6cbeb1806a66fe022a44ec2fef235] docs: make invokes bound entry into callbacks, not the host calls a provider makes (#2360)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[2ad42b167126ed8c62f455689191969be8bac3c9] psi: reuse information about stored values when checking calls (#2219)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[741270df60f7eab218e879eb6771d2bc75e64c00] psi: lower sums, case dispatch and patterns by structure (#2343)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[0bde76a8511df9e5ad8deb3e043c2684cc0c12f5] compiler: measure whether the lowered route's rejections point at the defect (#2431)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[3b48c589b4d056775fb4a0f3471f20b7d0105fc1] psi: bound an exact multiply result with the rules the kernel already has (#2311)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[6e522e1aab2deddbfe0be194df77566c6ef7b9d9] psi: decide compiler custody from one sealed intrinsic catalog (#2424)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[9d7a2ca906f1f27cda12de63657d2567ba55a6ee] tests: declare the attached machines of 61 run fixtures as free machines (#2348)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[7f1316ed6fb1c7b564237d0d3e5e3ddb36d9c005] psi: give dispatched case payloads their data type's requires clauses (#2422)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[e9b6fd49d05a8a52d67e4358cecb692c415b0f65] psi: lower crash routes, crashing calls and contract result by structure (#2307)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[fca627657c010e60f711e5790b71a2bb6774ebd1] psi: evaluate call-argument slice endpoints once (#2229)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh: line 25: syntax error near unexpected token `then'
+Bisecting: 36 revisions left to test after this (roughly 5 steps)
+[5a71749f9eac660e38886e203e2085d203b7e8b2] repo: add an omega-language skill that looks Omega up instead of copying it (#2203)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh: line 14: /agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/.agents/ledger-bisect-2026-11-11/bisect_steps.tsv: No such file or directory
+Bisecting: 17 revisions left to test after this (roughly 4 steps)
+[22f215eb3e7d9814cb3e29f42856e56bb57e60ed] psi: preserve common fields when matching case values (#2078)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh: line 44: syntax error near unexpected token `)'
+Bisecting: 8 revisions left to test after this (roughly 3 steps)
+[efb45e729b6bb1a8a73cf6435620ba4f38ccc310] psi: thread captured-return memo and observations explicitly instead of RefCell (#2174)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh: line 69: exit: : numeric argument required
+Bisecting: 4 revisions left to test after this (roughly 2 steps)
+[225426a7aeeabfa4c945df67d3113dd27f46fb38] psi: support explicit identity in conversion laws (#2045)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh: line 69: exit: : numeric argument required
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[e580a2ef1990569f94b655938f495dfcd57454f7] docs: say where representation hiding lives (#2167)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[6326c6ae7aa971cc2f8eeb749f0e13385e3f85b5] psi: spell empty rows as reaches none and ratify binder contract dependencies (#2166)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 1 step)
+[ad3cf2407872ee6ed049f8d4c13ac744c00cf0b5] docs: say how hosts bound bulk data work under the logical schedule (#2168)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+There are only 'skip'ped commits left to test.
+The first bad commit could be any of:
+ad3cf2407872ee6ed049f8d4c13ac744c00cf0b5
+e580a2ef1990569f94b655938f495dfcd57454f7
+225426a7aeeabfa4c945df67d3113dd27f46fb38
+We cannot bisect more!
+error: bisect run cannot continue any more
+propagated ad3cf2407872 pr  good 280530acad9f
+[work/ledger-bisect-part-4 f9808bd9e8b] docs: ledger bisect part 4 cluster 0 witness runtime_static_proof_namespace_exit
+ 2 files changed, 5 insertions(+), 4 deletions(-)
+remote: This repository moved. Please use the new location:        
+remote:   https://github.com/CathedralOS/Omega.git        
+To https://github.com/cathedralos/omega
+   d2414c3e195..f9808bd9e8b  work/ledger-bisect-part-4 -> work/ledger-bisect-part-4
+branch 'work/ledger-bisect-part-4' set up to track 'origin/work/ledger-bisect-part-4'.
+=== cluster 1 rows=4 witness=fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected
+propagated no-good fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected
+[work/ledger-bisect-part-4 c28b9afae30] docs: ledger bisect part 4 cluster 1 witness unsigned_64bit_bitwise_xor_bound_through_call_result_rejected
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+remote: This repository moved. Please use the new location:        
+remote:   https://github.com/CathedralOS/Omega.git        
+To https://github.com/cathedralos/omega
+   8329f390f53..c28b9afae30  work/ledger-bisect-part-4 -> work/ledger-bisect-part-4
+branch 'work/ledger-bisect-part-4' set up to track 'origin/work/ledger-bisect-part-4'.
+=== cluster 2 rows=2 witness=pass/generics/runtime_computed_nested_const_call_exit
+propagated no-good pass/generics/runtime_computed_nested_const_call_exit
+[work/ledger-bisect-part-4 8cbb3516855] docs: ledger bisect part 4 cluster 2 witness runtime_computed_nested_const_call_exit
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+remote: This repository moved. Please use the new location:        
+remote:   https://github.com/CathedralOS/Omega.git        
+To https://github.com/cathedralos/omega
+   c28b9afae30..8cbb3516855  work/ledger-bisect-part-4 -> work/ledger-bisect-part-4
+branch 'work/ledger-bisect-part-4' set up to track 'origin/work/ledger-bisect-part-4'.
+=== cluster 3 rows=2 witness=fail/generics/const_data_argument_out_of_range
+propagated no-good fail/generics/const_data_argument_out_of_range
+[work/ledger-bisect-part-4 7b81b9fa8c9] docs: ledger bisect part 4 cluster 3 witness const_data_argument_out_of_range
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+remote: This repository moved. Please use the new location:        
+remote:   https://github.com/CathedralOS/Omega.git        
+To https://github.com/cathedralos/omega
+   8cbb3516855..7b81b9fa8c9  work/ledger-bisect-part-4 -> work/ledger-bisect-part-4
+branch 'work/ledger-bisect-part-4' set up to track 'origin/work/ledger-bisect-part-4'.
+=== cluster 4 rows=1 witness=fail/generics/grouped_decimal_const_fraction_rejected
+propagated no-good fail/generics/grouped_decimal_const_fraction_rejected
+[work/ledger-bisect-part-4 0c732345b7a] docs: ledger bisect part 4 cluster 4 witness grouped_decimal_const_fraction_rejected
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+remote: This repository moved. Please use the new location:        
+remote:   https://github.com/CathedralOS/Omega.git        
+To https://github.com/cathedralos/omega
+   7b81b9fa8c9..0c732345b7a  work/ledger-bisect-part-4 -> work/ledger-bisect-part-4
+branch 'work/ledger-bisect-part-4' set up to track 'origin/work/ledger-bisect-part-4'.
+=== cluster 5 rows=1 witness=fail/float/state_constructor_ieee_reflexivity
+/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_one.sh: line 119: syntax error near unexpected token `('
+=== cluster 6 rows=1 witness=fail/borrows/owned_capture_weaker_formal_qualification
+=== restart 2026-11-12T12:05:52Z
+=== restart cluster>=5 2026-11-12T12:05:59Z ===
+From https://github.com/cathedralos/omega
+ * branch                    work/ledger-bisect-part-4 -> FETCH_HEAD
+Already on 'work/ledger-bisect-part-4'
+Your branch is up to date with 'origin/work/ledger-bisect-part-4'.
+Already up to date.
+Previous HEAD position was d4a443fe647 psi: converge each hosted target's flow plan alone beside its shared helpers (#1990)
+HEAD is now at 51e8c45c793 psi: check a body over a const value parameter once and carry its proofs (#2505)
+=== cluster 5 rows=1 witness=fail/float/state_constructor_ieee_reflexivity
+witness=fail/float/state_constructor_ieee_reflexivity good=280530acad9f875e26a236925aaee34996d9766c bad=51e8c45c793007f211d0d9baee7de16767172444
+Bisecting: 156 revisions left to test after this (roughly 7 steps)
+[d1b01d262700dda81f282835656708130591283e] tests: declare the callback entry ceiling and bind 13 callback fixtures in Build (#2335)
+sanity good=0 bad=1
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[92e53180a0a5eb426a96dc4850d5bb15862b7741] omega: let the interpreter take a Windows path array of any declared length (#2344)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[2bb43682a8fa9674685325053e03a9ab1cbe5ff8] tools: lock the worktree pool so two sessions never get the same slot (#2208)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[4815ea579d91a2d11a502f1098e59bb96ffcefff] psi: let a cast name each domain it keeps, removes and adds (#2355)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[c4bb4cad84de87e29fda1620ea1134462a251f1d] psi: keep a call-stored loan at a runtime-selected element (#2447)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[937131af8d190a0e844c526a058cbbc70856269f] tests: re-record 24 provider and entry rows, moving six to parameterless entries (#2226)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[529ed128c34b5ecb62bec57553da3c68fcfc27f1] psi: land wholly anonymous arithmetic exactly in structure elaboration (#2441)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[0860b30403289f2be3e643a9ceb1ffbfd8b1589b] compiler: return the typed trees the checker judged even when it rejects them (#2312)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[f3d53919a95a57cc5ba6eebd91fc2b2adebd1d8d] repo: budget shared hosts by a capped total with headroom, not a quarter (#2243)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[db66b009e8b0799a9d5b3ba6df341af5740b0859] tools: let corpus runs reuse the runner and compiler builds (#2322)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[7ef82816e98d26189f4cd0c1b5887051d9537e1e] psi: keep a generic record's concrete references beside its type-parameter fields (#2432)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[2fcdb5e56351162b22ba107d4d81e2e064ef75e5] docs: say what the reach-ceiling diagnostic reports when a ceiling names the slot (#2354)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[1cfe6f1f41683e592b3e2737145cb979d2ab1b2c] backend: let Psi run cleanup for values with shared fields (#2253)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[41f4df7d762abfff562fe79cd3f06b589060f2be] docs: name the obligations every checker must prove without hints (#2333)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[a666cf4b30d023ee55b96f9ee3712f033c483832] psi: keep memory permissions after writes through an indexed view (#2260)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[2e698bc480df599a15b5c3ae75a04939a86cae68] docs: say how a domain gets its semantic role and what predicate-only means (#2350)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[7d1875c86eb4395e0112f428ae052b6db0862978] psi: check runtime-indexed constructions and operator calls like authored calls (#2256)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[f1a3ba54d016ab9ba6a32a0802e1ae7c0b5dbac2] docs: let a boundary trait serve as a static implementation of its ordinary parents (#2338)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[ce73dd8039bcfa4e01511f60590779f5c17849c9] psi: pin that an unranked call cycle closes its guarantee at its returns (#2408)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[b8674ac9ef7e947e4c2146ab5a544bf3cc5801fe] docs: make who may issue a domain a required part of every access plan (#2340)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[68155fa44f7a0389277a332f0df7260d031e7b41] tests: record eight regressions already on main and ask about applied provider cycles (#2405)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[9fcbd798b684bf1c6013fbd39ff0d4ab23f5640d] tests: bind the Windows raw fixture imports through Build rows (#2334)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[fafb9c584d98954cf99ba494f7de83f397fa27df] psi: publish the outgoing frontier of a transition arm that cannot return (#2400)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[18e651d7461646b3bae0ea3c842991d9c17fdbb3] psi: split structure elaboration into per-family modules (#2328)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[09968b4717a2ea6496fa5a4d1c555541727b56e4] tests: pin a return that a dead crash statement hides from the window check (#2283)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[189c63d654f82b3cd95e4aa173e25c75515a3b12] psi: avoid repeating work when checking large programs (#2164)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 155 revisions left to test after this (roughly 7 steps)
+[a24aae8c0d708d76cd47894a5f0eaf9afe414899] psi: recognize core interrupt, segment and service declarations from one vocabulary (#2496)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[2696d261b0e95b0d14d56a6afff6dca2626d0a9c] psi: close Id components without rescanning rows already in them (#2195)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[fea4cddc5c14c4dce32588d7a17d72698cd69d7d] repo: make the agent provenance line automatic for every agent (#2313)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[5a9797fefa96f1194f6d18730fee560ab27a3f2f] samples: state the generic Accepted domain as core identity, not value equality (#2452)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 150 revisions left to test after this (roughly 7 steps)
+[646636b4d695fd22f7703ccb41295be5d8d969e2] psi: name the called machine in call diagnostics instead of its entry state (#2230)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'

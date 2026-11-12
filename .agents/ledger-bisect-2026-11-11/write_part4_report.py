@@ -61,11 +61,16 @@ def main() -> None:
         if bp.exists():
             b = json.loads(bp.read_text())
         diag = c["diag"].replace("|", "\\|")[:110]
-        brk = (b.get("breaking_commit") or "")[:12]
+        brk = b.get("breaking_commit") or ""
         lines.append(
             f"| {c['rows']} | {c['kind']} | {diag} | `{c['witness']}` | `{brk}` | {b.get('pr') or ''} | "
             f"{(b.get('mechanism') or '')[:90].replace('|','/')} | {b.get('status','pending')} | {b.get('stability','')} |"
         )
+        if b.get("good_commit"):
+            lines.append(f"- good: `{b['good_commit']}` | find-good: {b.get('find_good_method','')}")
+        if b.get("skip_fallback"):
+            sf = b["skip_fallback"]
+            lines.append(f"- skip fallback: `{sf.get('range_first_parent','')}` counts={sf.get('skipped_reason_counts',{})}")
         m = ", ".join(f"`{x}`" for x in c["members"])
         lines.append(f"Members: {m}")
         lines.append("")

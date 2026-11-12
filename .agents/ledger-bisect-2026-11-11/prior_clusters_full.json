@@ -1,0 +1,1676 @@
+{
+  "counts": {
+    "fixed": 908,
+    "broken": 382,
+    "host_only": 6,
+    "missing": 0,
+    "total": 1296
+  },
+  "clusters": [
+    {
+      "diag_norm": "cannot establish assignment invariants: partial write enclosure has no declared type",
+      "diag_sample": "cannot establish assignment invariants: partial write enclosure has no declared type",
+      "count": 20,
+      "members": [
+        "pass/borrows/runtime_reassigned_view_return_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_call_result_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_const_name_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_field_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_local_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_match_join_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_other_machine_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_other_state_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_parameter_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_target_body_exit",
+        "pass/facts/match_loan_last_use_through_call_result_exit",
+        "pass/facts/match_loan_last_use_through_const_name_exit",
+        "pass/facts/match_loan_last_use_through_field_exit",
+        "pass/facts/match_loan_last_use_through_local_exit",
+        "pass/facts/match_loan_last_use_through_match_join_exit",
+        "pass/facts/match_loan_last_use_through_other_machine_exit",
+        "pass/facts/match_loan_last_use_through_other_state_exit",
+        "pass/facts/match_loan_last_use_through_parameter_exit",
+        "pass/facts/match_loan_last_use_through_target_body_exit",
+        "pass/slices/let_matched_mutable_window"
+      ],
+      "witness": "pass/facts/descriptor_range_exclusive_loan_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "machine `_` state `_` statement N: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "diag_sample": "machine `inspect` state `entry` statement 1: stored call has no complete statement-successor effects: an invocation relation is unavailable",
+      "count": 17,
+      "members": [
+        "pass/calls/generic_operator_guard_result",
+        "pass/calls/native_code_layout_discarded_exit",
+        "pass/calls/native_code_layout_frame_exit",
+        "pass/calls/native_code_layout_region_snapshot_exit",
+        "pass/calls/native_code_layout_uncalled_boundary_exit",
+        "pass/calls/native_code_layout_uncalled_cycle_exit",
+        "pass/facts/selected_native_code_layout_through_const_name_exit",
+        "pass/facts/selected_native_code_layout_through_field_exit",
+        "pass/facts/selected_native_code_layout_through_local_exit",
+        "pass/facts/selected_native_code_layout_through_match_join_exit",
+        "pass/facts/selected_native_code_layout_through_other_state_exit",
+        "pass/facts/selected_native_code_layout_through_target_body_exit",
+        "pass/facts/source_indexed_family",
+        "pass/facts/source_indexed_family_alpha_positive",
+        "pass/facts/source_indexed_family_capture_roster_positive",
+        "pass/facts/source_indexed_family_recursive_index_positive",
+        "pass/proofs/erased_mathematical_initializers"
+      ],
+      "witness": "pass/facts/selected_native_code_layout_through_other_state_exit"
+    },
+    {
+      "diag_norm": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(N) has no admitted mechanism",
+      "diag_sample": "native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(21) has no admitted mechanism",
+      "count": 15,
+      "members": [
+        "pass/build/default_component_abi_extents",
+        "pass/build/native_component_case_cycle",
+        "pass/build/native_component_case_loan_cycle",
+        "pass/build/native_component_reuse",
+        "pass/components/independent_same_spelling_packages",
+        "pass/facts/component_scalar_lending_through_call_result_exit",
+        "pass/facts/component_scalar_lending_through_const_name_exit",
+        "pass/facts/component_scalar_lending_through_field_exit",
+        "pass/facts/component_scalar_lending_through_local_exit",
+        "pass/facts/component_scalar_lending_through_match_join_exit",
+        "pass/facts/component_scalar_lending_through_other_machine_exit",
+        "pass/facts/component_scalar_lending_through_other_state_exit",
+        "pass/facts/component_scalar_lending_through_parameter_exit",
+        "pass/facts/component_scalar_lending_through_target_body_exit",
+        "pass/providers/independent_imported_data_exit"
+      ],
+      "witness": "pass/facts/component_scalar_lending_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "cannot prove ensures contract for exit from whole_view at statement N: result.len == Count",
+      "diag_sample": "cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count",
+      "count": 13,
+      "members": [
+        "pass/facts/as_slice_views_generic_offset_selector_exit",
+        "pass/facts/as_slice_views_generic_root_exit",
+        "pass/facts/as_slice_views_generic_shadowed_extent_exit",
+        "pass/facts/as_slice_views_generic_stored_reference_selectors_exit",
+        "pass/facts/as_slice_views_generic_through_call_result_exit",
+        "pass/facts/as_slice_views_generic_through_const_name_exit",
+        "pass/facts/as_slice_views_generic_through_field_exit",
+        "pass/facts/as_slice_views_generic_through_local_exit",
+        "pass/facts/as_slice_views_generic_through_match_join_exit",
+        "pass/facts/as_slice_views_generic_through_other_machine_exit",
+        "pass/facts/as_slice_views_generic_through_other_state_exit",
+        "pass/facts/as_slice_views_generic_through_parameter_exit",
+        "pass/facts/as_slice_views_generic_through_target_body_exit"
+      ],
+      "witness": "pass/facts/as_slice_views_generic_stored_reference_selectors_exit"
+    },
+    {
+      "diag_norm": "no provider is selected for boundary requirement `_`, which the program entry reaches on target `_`",
+      "diag_sample": "no provider is selected for boundary requirement `Window::middle`, which the program entry reaches on target `macos_arm64`",
+      "count": 11,
+      "members": [
+        "pass/borrows/runtime_boundary_range_view_exit",
+        "pass/borrows/runtime_computed_shared_view_reborrow_exit",
+        "pass/providers/boundary_declaration_structural_result_return_exit",
+        "pass/providers/lifetime_boundary_requirement_dispatch_exit",
+        "pass/providers/specialized_boundary_operator_physical_custody",
+        "pass/providers/specialized_mixed_structural_fixed_operator_hosted_native",
+        "pass/providers/specialized_mixed_structural_result_operator_hosted_native",
+        "pass/providers/specialized_structural_fixed_operator_hosted_native",
+        "pass/providers/specialized_structural_fixed_operator_terminal_custody",
+        "pass/providers/table_leaf_dispatch_parameter_exit",
+        "pass/providers/target_contract_adjacency_exit"
+      ],
+      "witness": "pass/providers/specialized_mixed_structural_result_operator_hosted_native"
+    },
+    {
+      "diag_norm": "authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: \"cannot compare `_` values with `_`: structura",
+      "diag_sample": "authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: \"cannot compare `Tree` values with `==`: structural equality is synthesized only throu",
+      "count": 9,
+      "members": [
+        "pass/proofs/case_call_premises",
+        "pass/proofs/cauchy_predicates_compile",
+        "pass/proofs/citation_requires_discharged",
+        "pass/proofs/defined_proposition_premises",
+        "pass/proofs/lemma_requires_citation",
+        "pass/proofs/nat_metric_triangle_compile",
+        "pass/proofs/static_machine_result_projection",
+        "pass/relevance/runtime_static_proof_namespace_exit",
+        "pass/traits/structural_array_crash_identity_exit"
+      ],
+      "witness": "pass/relevance/runtime_static_proof_namespace_exit"
+    },
+    {
+      "diag_norm": "machine-parameter requirement `_` requires contract constant expression call argument `_` does not form parameter `_` of `_`: actual T, required T",
+      "diag_sample": "machine-parameter requirement `Observe` requires contract constant expression call argument `kept` does not form parameter `kept` of `premise`: actual T, required T",
+      "count": 9,
+      "members": [
+        "pass/facts/abstract_signature_call_generic_actual_through_call_result_exit",
+        "pass/facts/abstract_signature_call_generic_actual_through_const_name_exit",
+        "pass/facts/abstract_signature_call_generic_actual_through_field_exit",
+        "pass/facts/abstract_signature_call_generic_actual_through_local_exit",
+        "pass/facts/abstract_signature_call_generic_actual_through_match_join_exit",
+        "pass/facts/abstract_signature_call_generic_actual_through_other_machine_exit",
+        "pass/facts/abstract_signature_call_generic_actual_through_other_state_exit",
+        "pass/facts/abstract_signature_call_generic_actual_through_parameter_exit",
+        "pass/facts/abstract_signature_call_generic_actual_through_target_body_exit"
+      ],
+      "witness": "pass/facts/abstract_signature_call_generic_actual_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(N))",
+      "diag_sample": "native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(73))",
+      "count": 9,
+      "members": [
+        "pass/facts/recast_parent_restoration_through_call_result_exit",
+        "pass/facts/recast_parent_restoration_through_const_name_exit",
+        "pass/facts/recast_parent_restoration_through_field_exit",
+        "pass/facts/recast_parent_restoration_through_local_exit",
+        "pass/facts/recast_parent_restoration_through_match_join_exit",
+        "pass/facts/recast_parent_restoration_through_other_machine_exit",
+        "pass/facts/recast_parent_restoration_through_other_state_exit",
+        "pass/facts/recast_parent_restoration_through_parameter_exit",
+        "pass/facts/recast_parent_restoration_through_target_body_exit"
+      ],
+      "witness": "pass/facts/recast_parent_restoration_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "source constructor predicate derivation failed: Kernel(UnboundLevelParameter { index: N, arity: N })",
+      "diag_sample": "source constructor predicate derivation failed: Kernel(UnboundLevelParameter { index: 0, arity: 0 })",
+      "count": 9,
+      "members": [
+        "pass/facts/source_indexed_type_parameter_through_call_result_exit",
+        "pass/facts/source_indexed_type_parameter_through_const_name_exit",
+        "pass/facts/source_indexed_type_parameter_through_field_exit",
+        "pass/facts/source_indexed_type_parameter_through_local_exit",
+        "pass/facts/source_indexed_type_parameter_through_match_join_exit",
+        "pass/facts/source_indexed_type_parameter_through_other_machine_exit",
+        "pass/facts/source_indexed_type_parameter_through_other_state_exit",
+        "pass/facts/source_indexed_type_parameter_through_parameter_exit",
+        "pass/facts/source_indexed_type_parameter_through_target_body_exit"
+      ],
+      "witness": "pass/facts/source_indexed_type_parameter_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "`_` has no executable body: this compiler does not lower a state of it yet (normal result selection omits a completed source arm); in state `_`",
+      "diag_sample": "`pick_named$specialized$4497254f4b4724b8$1$4758` has no executable body: this compiler does not lower a state of it yet (normal result selection omits a completed source arm); in state `pick_named$spe",
+      "count": 8,
+      "members": [
+        "pass/facts/case_dependent_default_domain_through_call_result_exit",
+        "pass/facts/case_dependent_default_domain_through_const_name_exit",
+        "pass/facts/case_dependent_default_domain_through_field_exit",
+        "pass/facts/case_dependent_default_domain_through_local_exit",
+        "pass/facts/case_dependent_default_domain_through_match_join_exit",
+        "pass/facts/case_dependent_default_domain_through_other_machine_exit",
+        "pass/facts/case_dependent_default_domain_through_other_state_exit",
+        "pass/facts/case_dependent_default_domain_through_parameter_exit"
+      ],
+      "witness": "pass/facts/case_dependent_default_domain_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "cannot prove default-domain field requirement for return from write at statement N: storage requires Storage::Issued",
+      "diag_sample": "cannot prove default-domain field requirement for return from write at statement 2: storage requires Storage::Issued",
+      "count": 7,
+      "members": [
+        "pass/facts/non_owning_reference_erasure_through_call_result_exit",
+        "pass/facts/non_owning_reference_erasure_through_const_name_exit",
+        "pass/facts/non_owning_reference_erasure_through_field_exit",
+        "pass/facts/non_owning_reference_erasure_through_local_exit",
+        "pass/facts/non_owning_reference_erasure_through_other_machine_exit",
+        "pass/facts/non_owning_reference_erasure_through_other_state_exit",
+        "pass/facts/non_owning_reference_erasure_through_parameter_exit"
+      ],
+      "witness": "pass/facts/non_owning_reference_erasure_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "`_` calls `_`; `_` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in s",
+      "diag_sample": "`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, state",
+      "count": 6,
+      "members": [
+        "pass/facts/recoverable_replacement_window_through_const_name_exit",
+        "pass/facts/recoverable_replacement_window_through_field_exit",
+        "pass/facts/recoverable_replacement_window_through_local_exit",
+        "pass/facts/recoverable_replacement_window_through_other_state_exit",
+        "pass/facts/recoverable_replacement_window_through_parameter_exit",
+        "pass/ownership/runtime_borrowed_match_repeated_repair_exit"
+      ],
+      "witness": "pass/facts/recoverable_replacement_window_through_other_state_exit"
+    },
+    {
+      "diag_norm": "state `_` receives `_` without an exact retained backing for its loan: the incoming descriptor has no retained loan occurrence",
+      "diag_sample": "state `read` receives `holder.counters[index].value` without an exact retained backing for its loan: the incoming descriptor has no retained loan occurrence",
+      "count": 6,
+      "members": [
+        "pass/facts/data_where_standing_borrowed_field_array_const_name",
+        "pass/facts/data_where_standing_borrowed_field_array_field",
+        "pass/facts/data_where_standing_borrowed_field_array_other_machine",
+        "pass/facts/data_where_standing_borrowed_field_array_other_state",
+        "pass/facts/data_where_standing_borrowed_field_array_parameter",
+        "pass/facts/data_where_standing_borrowed_field_array_target_body"
+      ],
+      "witness": "pass/facts/data_where_standing_borrowed_field_array_other_machine"
+    },
+    {
+      "diag_norm": "cannot form specification index in machine `_` requires contract: independent collection bounds are not established by preceding formed facts",
+      "diag_sample": "cannot form specification index in machine `Main::main` requires contract: independent collection bounds are not established by preceding formed facts",
+      "count": 5,
+      "members": [
+        "pass/modules/selected_constant_array_alias_computed_extent_exit",
+        "pass/modules/selected_constant_array_alias_match_qualification",
+        "pass/modules/selected_constant_array_alias_named_extent_exit",
+        "pass/modules/selected_constant_array_alias_qualification",
+        "pass/slices/state_projected_selector_bounds"
+      ],
+      "witness": "pass/modules/selected_constant_array_alias_computed_extent_exit"
+    },
+    {
+      "diag_norm": "returned view has no complete formation frontier",
+      "diag_sample": "returned view has no complete formation frontier",
+      "count": 5,
+      "members": [
+        "pass/slices/runtime_indexed_descriptor_replacement_call_exit",
+        "pass/slices/runtime_nested_stored_view_return_exit",
+        "pass/slices/runtime_nested_view_candidate_backings_exit",
+        "pass/slices/runtime_stored_view_direct_window_argument_exit",
+        "pass/slices/runtime_stored_view_dynamic_selection_exit"
+      ],
+      "witness": "pass/slices/runtime_indexed_descriptor_replacement_call_exit"
+    },
+    {
+      "diag_norm": "state `_` receives `_` while local borrow `_` is still active",
+      "diag_sample": "state `read_reference` receives `value.inner.value` while local borrow `entry` is still active",
+      "count": 5,
+      "members": [
+        "pass/borrows/nested_reference_call_checked_index_exit",
+        "pass/facts/case_match_payload_loan_through_other_machine_exit",
+        "pass/facts/case_match_payload_loan_through_other_state_exit",
+        "pass/facts/case_match_payload_loan_through_parameter_exit",
+        "pass/facts/case_match_payload_loan_through_target_body_exit"
+      ],
+      "witness": "pass/facts/case_match_payload_loan_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "`_` calls `_`, which calls `_`; `_` has no executable body: this compiler does not lower its declaration of it yet (state graph: natural ranks)",
+      "diag_sample": "`entry_start` calls `Main::main`, which calls `reverse`; `reverse` has no executable body: this compiler does not lower its declaration of it yet (state graph: natural ranks)",
+      "count": 4,
+      "members": [
+        "pass/borrows/runtime_mutable_byte_loan_read_exit",
+        "pass/borrows/runtime_recursive_mutable_array_store_exit",
+        "pass/termination/distance_constant_bound_exit",
+        "pass/termination/runtime_call_result_short_circuit_rank_exit"
+      ],
+      "witness": "pass/termination/runtime_call_result_short_circuit_rank_exit"
+    },
+    {
+      "diag_norm": "boundary operator `_` in package Some(PackageKeyIdentity([N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N])) reso",
+      "diag_sample": "boundary operator `operator::F32::qualify(named(name(f32)))->constrained(named(name(f32)),arithmetic-domain(name(Saturating)))` in package Some(PackageKeyIdentity([160, 16, 208, 218, 209, 103, 183, 15",
+      "count": 4,
+      "members": [
+        "pass/float/runtime_named_policy_result_exit",
+        "pass/operators/runtime_named_unit_statement_effects_exit",
+        "pass/providers/checked_boundary_operator_physical_custody",
+        "pass/providers/module_named_operator_result_domain_satisfaction"
+      ],
+      "witness": "pass/providers/module_named_operator_result_domain_satisfaction"
+    },
+    {
+      "diag_norm": "cannot establish assignment invariants: source parent type is unavailable",
+      "diag_sample": "cannot establish assignment invariants: source parent type is unavailable",
+      "count": 4,
+      "members": [
+        "pass/borrows/runtime_reassigned_view_capture_exit",
+        "pass/ownership/runtime_local_subslice_element_window_exit",
+        "pass/slices/narrowed_view_window",
+        "run/domains/qualified_record_view_reference_erased_storage_exit"
+      ],
+      "witness": "run/domains/qualified_record_view_reference_erased_storage_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call middle from Main::main: N <= N && N <= main.bytes.len (needs fact `_` here; establish it before the call via a prior con",
+      "diag_sample": "cannot prove requires contract for call middle from Main::main: 1 <= 3 && 3 <= main.bytes.len (needs fact `start <= end && end <= bytes.len` here; establish it before the call via a prior contract gua",
+      "count": 4,
+      "members": [
+        "pass/slices/runtime_indexed_store_captures_selector_before_rhs_exit",
+        "pass/slices/runtime_indexed_store_operand_effect_order_exit",
+        "pass/slices/runtime_namespace_range_contract_exit",
+        "pass/slices/runtime_returned_range_extent_contract_exit"
+      ],
+      "witness": "pass/slices/runtime_indexed_store_captures_selector_before_rhs_exit"
+    },
+    {
+      "diag_norm": "generic machine `_` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `_` state `_`: Typ",
+      "diag_sample": "generic machine `map` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `map$specialized$168f7f0591239da4$0$4657` state `map$spe",
+      "count": 4,
+      "members": [
+        "pass/generics/generic_seq_consuming_map_filter",
+        "pass/generics/generic_seq_map_filter",
+        "pass/generics/static_machine_borrowed_parameter_refines_after_substitution",
+        "pass/tasks/task_runtime_machine_selection_compile"
+      ],
+      "witness": "pass/generics/static_machine_borrowed_parameter_refines_after_substitution"
+    },
+    {
+      "diag_norm": "machine structural equation remains unsolved in a noncall static argument",
+      "diag_sample": "machine structural equation remains unsolved in a noncall static argument",
+      "count": 4,
+      "members": [
+        "pass/wire/library_compact_binary_packed_reflection_exit",
+        "pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit",
+        "pass/wire/runtime_wire_encode_interior_scalar_slice_exit",
+        "pass/wire/runtime_wire_exact_array_without_count_exit"
+      ],
+      "witness": "pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit"
+    },
+    {
+      "diag_norm": "returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source; source Handle { arena_index: N, generation:",
+      "diag_sample": "returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source; source Handle { arena_index: 115, generation: 47 } in main::entry statement 14: no ",
+      "count": 4,
+      "members": [
+        "pass/borrows/returned_slice_record_reference_custody_exit",
+        "pass/borrows/runtime_returned_stored_view_reborrow_exit",
+        "pass/slices/runtime_mutable_slice_result_whole_forward_exit",
+        "pass/wire/wire_preserving_decode_relay_exit"
+      ],
+      "witness": "pass/slices/runtime_mutable_slice_result_whole_forward_exit"
+    },
+    {
+      "diag_norm": "terminating machine iterate: cannot prove rank range `_` for the rank produced by the selected view",
+      "diag_sample": "terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view",
+      "count": 4,
+      "members": [
+        "pass/borrows/runtime_projected_fixed_byte_array_local_exit",
+        "pass/termination/nested_helper_record_measure_result_equation_exit",
+        "pass/termination/rank_arrival_unobserved_array_extent_compile",
+        "pass/termination/runtime_public_result_field_rank_arrivals_exit"
+      ],
+      "witness": "pass/termination/nested_helper_record_measure_result_equation_exit"
+    },
+    {
+      "diag_norm": "`_` calls `_`; `_` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `",
+      "diag_sample": "`main` calls `forward`; `forward` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `forward::entry`, statemen",
+      "count": 3,
+      "members": [
+        "pass/borrows/runtime_returned_nonzero_nested_window_exit",
+        "pass/facts/matched_field_windows_through_other_state_exit",
+        "pass/slices/runtime_returned_nested_array_window_home_exit"
+      ],
+      "witness": "pass/slices/runtime_returned_nested_array_window_home_exit"
+    },
+    {
+      "diag_norm": "`_` has no executable body: this compiler does not lower its declaration of it yet (signature: authored result domains)",
+      "diag_sample": "`AddressBridgeProvider::classified_make` has no executable body: this compiler does not lower its declaration of it yet (signature: authored result domains)",
+      "count": 3,
+      "members": [
+        "pass/facts/opaque_independent_qualified_result_import_alias_exit",
+        "pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit",
+        "pass/facts/opaque_independent_qualified_result_through_local_exit"
+      ],
+      "witness": "pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit"
+    },
+    {
+      "diag_norm": "boundary requirement `_` in package Some(PackageKeyIdentity([N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N])) r",
+      "diag_sample": "boundary requirement `Comparison::equal` in package Some(PackageKeyIdentity([81, 251, 88, 226, 158, 74, 61, 185, 196, 181, 224, 70, 135, 113, 253, 192, 246, 177, 252, 143, 135, 220, 221, 242, 141, 43,",
+      "count": 3,
+      "members": [
+        "pass/operators/crash_routes",
+        "pass/providers/checked_fixed_operator_dispatch_exit",
+        "pass/providers/checked_fixed_operator_physical_custody"
+      ],
+      "witness": "pass/providers/checked_fixed_operator_physical_custody"
+    },
+    {
+      "diag_norm": "call from `_` to `_` at statement N call N has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation",
+      "diag_sample": "call from `main` to `valid_utf8` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation",
+      "count": 3,
+      "members": [
+        "fail/domains/byte_predicate_declared_callee_crash",
+        "pass/contracts/float_guard_disjoint_operand_write",
+        "pass/contracts/runtime_float_fused_crash_guard_exit"
+      ],
+      "witness": "pass/contracts/runtime_float_fused_crash_guard_exit"
+    },
+    {
+      "diag_norm": "cannot establish assignment invariants: performed write has unknown destination origins in machine `_` state `_` at statement N: destination descriptor has no c",
+      "diag_sample": "cannot establish assignment invariants: performed write has unknown destination origins in machine `main` state `entry` at statement 4: destination descriptor has no complete captured suppliers",
+      "count": 3,
+      "members": [
+        "pass/borrows/runtime_selected_reference_mutation_complement_exit",
+        "pass/borrows/runtime_uniform_projected_reference_selection_exit",
+        "pass/write_only/returned_destination_transport_exit"
+      ],
+      "witness": "pass/borrows/runtime_selected_reference_mutation_complement_exit"
+    },
+    {
+      "diag_norm": "cannot prove every subslice range endpoint of `_` is non-negative",
+      "diag_sample": "cannot prove every subslice range endpoint of `0..alias.length` is non-negative",
+      "count": 3,
+      "members": [
+        "run/ranges/borrowed_case_payload_alias",
+        "run/ranges/borrowed_case_payload_bound",
+        "run/ranges/guarded_case_payload_identity"
+      ],
+      "witness": "run/ranges/guarded_case_payload_identity"
+    },
+    {
+      "diag_norm": "machine `_` cannot prove ensures contract proof fact `_` on the transition arm guarded by `_`",
+      "diag_sample": "machine `masked` cannot prove ensures contract proof fact `value & 16 >= 16` on the transition arm guarded by `<always>`",
+      "count": 3,
+      "members": [
+        "pass/arithmetic/runtime_immutable_unsigned_bitwise_bounds_exit",
+        "pass/arithmetic/runtime_remainder_result_cast_exit",
+        "pass/proofs/admitted_premises_long_equality_chain"
+      ],
+      "witness": "pass/arithmetic/runtime_immutable_unsigned_bitwise_bounds_exit"
+    },
+    {
+      "diag_norm": "machine `_` ensures contract proof fact `_` speaks about proof-only `_`, which no entailment tier judges yet -- accepting it would certify an unproven structura",
+      "diag_sample": "machine `minimum` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier ju",
+      "count": 3,
+      "members": [
+        "pass/float/runtime_meaning_contract_forwarding",
+        "pass/proofs/float_guarded_negated_result_contract",
+        "pass/proofs/float_named_contract_literal_landing"
+      ],
+      "witness": "pass/proofs/float_guarded_negated_result_contract"
+    },
+    {
+      "diag_norm": "native artifact callback entry ABI failed: native entry transport: native entry bridge failed: complete entry code uses machine state outside its declared ceili",
+      "diag_sample": "native artifact callback entry ABI failed: native entry transport: native entry bridge failed: complete entry code uses machine state outside its declared ceiling: used MachineStateSet(95), permitted ",
+      "count": 3,
+      "members": [
+        "pass/build/descriptor_table_round_trip",
+        "pass/build/segment_selector_reload",
+        "pass/build/task_register_activation"
+      ],
+      "witness": "pass/build/descriptor_table_round_trip"
+    },
+    {
+      "diag_norm": "opaque representation `_` does not resolve to one visible named conformance",
+      "diag_sample": "opaque representation `producer::AddressRepresentation` does not resolve to one visible named conformance",
+      "count": 3,
+      "members": [
+        "pass/facts/opaque_independent_closed_carrier_through_other_machine_exit",
+        "pass/facts/opaque_independent_qualified_input_import_alias_exit",
+        "pass/facts/opaque_independent_qualified_input_renumbered_catalog_exit"
+      ],
+      "witness": "pass/facts/opaque_independent_closed_carrier_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "state `_` receives `_` without an exact retained backing for its loan: the access has no unique completed operand",
+      "diag_sample": "state `read` receives `count` without an exact retained backing for its loan: the access has no unique completed operand",
+      "count": 3,
+      "members": [
+        "pass/calls/runtime_constructed_borrowed_payload_arguments_exit",
+        "pass/data/runtime_mixed_case_nested_common_fields_exit",
+        "run/borrows/transition_guard_descriptor_fallthrough"
+      ],
+      "witness": "pass/calls/runtime_constructed_borrowed_payload_arguments_exit"
+    },
+    {
+      "diag_norm": "terminating machine walk: cannot prove rank range `_` for the rank produced by the selected view",
+      "diag_sample": "terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the rank produced by the selected view",
+      "count": 3,
+      "members": [
+        "pass/proofs/kernel_integer_subtract_order",
+        "pass/termination/measure_computed_endpoint",
+        "pass/termination/measure_field_computed_limit"
+      ],
+      "witness": "pass/termination/measure_field_computed_limit"
+    },
+    {
+      "diag_norm": "unknown canonical target profile `_`",
+      "diag_sample": "unknown canonical target profile `reserved_target`",
+      "count": 3,
+      "members": [
+        "pass/targets/private_target_supplies_remain_disclosed",
+        "pass/targets/retained_target_family_bodies",
+        "pass/targets/retained_target_provider_family_exit"
+      ],
+      "witness": "pass/targets/private_target_supplies_remain_disclosed"
+    },
+    {
+      "diag_norm": "`_` calls `_`, which calls `_`; `_` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural opera",
+      "diag_sample": "`main` calls `prepare`, which calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state",
+      "count": 2,
+      "members": [
+        "pass/facts/recoverable_replacement_window_through_call_result_exit",
+        "pass/facts/recoverable_replacement_window_through_other_machine_exit"
+      ],
+      "witness": "pass/facts/recoverable_replacement_window_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "`_` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `_`",
+      "diag_sample": "`AddressBridgeProvider::classified_make` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `AddressBridg",
+      "count": 2,
+      "members": [
+        "pass/facts/opaque_independent_inherited_result_through_local_exit",
+        "pass/traits/runtime_qualified_owned_requirement_calls_exit"
+      ],
+      "witness": "pass/facts/opaque_independent_inherited_result_through_local_exit"
+    },
+    {
+      "diag_norm": "authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: \"generated generic application does not match ",
+      "diag_sample": "authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: \"generated generic application does not match its exact retained instance origin\", exc",
+      "count": 2,
+      "members": [
+        "pass/build/const_index_dependency_order_exit",
+        "pass/generics/runtime_computed_nested_const_call_exit"
+      ],
+      "witness": "pass/generics/runtime_computed_nested_const_call_exit"
+    },
+    {
+      "diag_norm": "call to `_` has operational envelope `_` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly",
+      "diag_sample": "call to `execute` has operational envelope `suspend block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly",
+      "count": 2,
+      "members": [
+        "pass/blockexec/blocking_executor_custody_claims_compile",
+        "pass/blockexec/runtime_selected_worker_body_exit"
+      ],
+      "witness": "pass/blockexec/blocking_executor_custody_claims_compile"
+    },
+    {
+      "diag_norm": "cannot prove ensures contract for exit from HeapProvider::allocate at statement N: result in Allocation::Held; the returned value does not establish this domain",
+      "diag_sample": "cannot prove ensures contract for exit from HeapProvider::allocate at statement 0: result in Allocation::Held; the returned value does not establish this domain",
+      "count": 2,
+      "members": [
+        "pass/memory/runtime_linear_native_allocation_call_result_exit",
+        "pass/memory/runtime_linear_native_allocation_exit"
+      ],
+      "witness": "pass/memory/runtime_linear_native_allocation_call_result_exit"
+    },
+    {
+      "diag_norm": "cannot prove ensures contract for exit from selected at statement N: result >= Minimum",
+      "diag_sample": "cannot prove ensures contract for exit from selected at statement 2: result >= Minimum",
+      "count": 2,
+      "members": [
+        "pass/facts/open_const_implementation_statement_const_result_exit",
+        "pass/facts/open_const_implementation_statement_saved_output_exit"
+      ],
+      "witness": "pass/facts/open_const_implementation_statement_const_result_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call choose from apply: visits == N (needs fact `_` here; establish it before the call via a prior contract guarantee, domain",
+      "diag_sample": "cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in sta",
+      "count": 2,
+      "members": [
+        "pass/facts/exclusive_match_arm_through_other_machine_exit",
+        "pass/facts/exclusive_match_arm_through_parameter_exit"
+      ],
+      "witness": "pass/facts/exclusive_match_arm_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call compute from apply: visits == N (needs fact `_` here; establish it before the call via a prior contract guarantee, domai",
+      "diag_sample": "cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in st",
+      "count": 2,
+      "members": [
+        "pass/facts/match_computed_root_through_other_machine_exit",
+        "pass/facts/match_computed_root_through_target_body_exit"
+      ],
+      "witness": "pass/facts/match_computed_root_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call read_field from apply: match choose() { true => chosen, false => spare }.kept == N (needs fact `_` here; establish it be",
+      "diag_sample": "cannot prove requires contract for call read_field from apply: match choose() { true => chosen, false => spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prio",
+      "count": 2,
+      "members": [
+        "pass/facts/match_join_place_read_through_other_machine_exit",
+        "pass/facts/match_join_place_read_through_parameter_exit"
+      ],
+      "witness": "pass/facts/match_join_place_read_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call read_origin from apply: joined == N (needs fact `_` here; establish it before the call via a prior contract guarantee, d",
+      "diag_sample": "cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) i",
+      "count": 2,
+      "members": [
+        "pass/facts/match_primitive_local_origin_through_other_machine_exit",
+        "pass/facts/match_primitive_local_origin_through_parameter_exit"
+      ],
+      "witness": "pass/facts/match_primitive_local_origin_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call read_through from apply: match choose() { true => chosen, false => spare } == N (needs fact `_` here; establish it befor",
+      "diag_sample": "cannot prove requires contract for call read_through from apply: match choose() { true => chosen, false => spare } == 17 (needs fact `place == 17` here; establish it before the call via a prior contra",
+      "count": 2,
+      "members": [
+        "pass/facts/match_reference_referent_through_other_machine_exit",
+        "pass/facts/match_reference_referent_through_parameter_exit"
+      ],
+      "witness": "pass/facts/match_reference_referent_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "constant checking: machine `_` is not build-time admissible: the checked Trap crash route can occur; constant evaluation requires proof that no crash route can ",
+      "diag_sample": "constant checking: machine `@array-extent-1-9` is not build-time admissible: the checked Trap crash route can occur; constant evaluation requires proof that no crash route can occur before execution",
+      "count": 2,
+      "members": [
+        "pass/build/component_declaration_scalar_conditions_exit",
+        "pass/layouts/declaration_only_array_formation"
+      ],
+      "witness": "pass/build/component_declaration_scalar_conditions_exit"
+    },
+    {
+      "diag_norm": "machine `_` state `_` expression type application uses undeclared lifetime argument `_`Carrier`; declare it in the owner's generic parameter list",
+      "diag_sample": "machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`; declare it in the owner's generic parameter list",
+      "count": 2,
+      "members": [
+        "pass/borrows/carried_loan_replacement",
+        "pass/ownership/runtime_carried_loan_field_replacement_exit"
+      ],
+      "witness": "pass/ownership/runtime_carried_loan_field_replacement_exit"
+    },
+    {
+      "diag_norm": "machine `_` state `_` statement N: cannot prove selected case for payload access `_`: no captured source place is available",
+      "diag_sample": "machine `probe` state `entry` statement 2: cannot prove selected case for payload access `choice.payload.target`: no captured source place is available",
+      "count": 2,
+      "members": [
+        "pass/borrows/runtime_copied_reference_conditional_nominal_backing_exit",
+        "pass/borrows/runtime_copied_reference_conditional_structural_result_exit"
+      ],
+      "witness": "pass/borrows/runtime_copied_reference_conditional_structural_result_exit"
+    },
+    {
+      "diag_norm": "machine `_` state `_` statement N: reading `_` crosses an open default-domain invariant window before its declared qualification is established: the zeroed repr",
+      "diag_sample": "machine `Main::main` state `main` statement 7: reading `main` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a v",
+      "count": 2,
+      "members": [
+        "pass/recast/runtime_mutable_equivalent_range_recast_exit",
+        "pass/recast/runtime_mutable_equivalent_record_recast_exit"
+      ],
+      "witness": "pass/recast/runtime_mutable_equivalent_record_recast_exit"
+    },
+    {
+      "diag_norm": "machine `_` stores a borrowed value without a complete normal-exit backing relation",
+      "diag_sample": "machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation",
+      "count": 2,
+      "members": [
+        "pass/facts/foreign_retained_shared_borrow_borrowed_slot_swap",
+        "pass/facts/foreign_retained_shared_borrow_persistent_restore"
+      ],
+      "witness": "pass/facts/foreign_retained_shared_borrow_borrowed_slot_swap"
+    },
+    {
+      "diag_norm": "native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(N), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }",
+      "diag_sample": "native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(9), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }",
+      "count": 2,
+      "members": [
+        "pass/borrows/incoming_reference_slot_replacement_exit",
+        "pass/borrows/runtime_owned_carrier_descriptor_replacement_exit"
+      ],
+      "witness": "pass/borrows/runtime_owned_carrier_descriptor_replacement_exit"
+    },
+    {
+      "diag_norm": "qualified call `_` has no resolved callable declaration",
+      "diag_sample": "qualified call `accept_component_assumption` has no resolved callable declaration",
+      "count": 2,
+      "members": [
+        "fail/build/component_assumption_malformed",
+        "fail/build/component_assumption_short"
+      ],
+      "witness": "fail/build/component_assumption_malformed"
+    },
+    {
+      "diag_norm": "returned projection does not match this invocation and result path",
+      "diag_sample": "returned projection does not match this invocation and result path",
+      "count": 2,
+      "members": [
+        "pass/borrows/dynamic_window_return_custody_exit",
+        "pass/borrows/runtime_slice_reference_result_exit"
+      ],
+      "witness": "pass/borrows/runtime_slice_reference_result_exit"
+    },
+    {
+      "diag_norm": "returned projection exceeds its source presentation",
+      "diag_sample": "returned projection exceeds its source presentation",
+      "count": 2,
+      "members": [
+        "pass/slices/runtime_stored_element_view_replacement_exit",
+        "run/borrows/computed_element_view_state_extent"
+      ],
+      "witness": "pass/slices/runtime_stored_element_view_replacement_exit"
+    },
+    {
+      "diag_norm": "returned projection has no matching explicit argument borrow",
+      "diag_sample": "returned projection has no matching explicit argument borrow",
+      "count": 2,
+      "members": [
+        "pass/borrows/runtime_computed_view_observation_composition_exit",
+        "pass/slices/runtime_mutable_slice_result_nested_reborrow_exit"
+      ],
+      "witness": "pass/borrows/runtime_computed_view_observation_composition_exit"
+    },
+    {
+      "diag_norm": "selected provider requirement `_` has no emitted exact declaration candidate",
+      "diag_sample": "selected provider requirement `named-callable(path(nominal\\\\(package-owner\\\\(32:1f0393f3a76baf55483264a3285fc5575f3576a942e8ac71a6991876e99f94dc\\\\)\\\\,path\\\\(ParentEntry::value\\\\)\\\\)),parameters(),resu",
+      "count": 2,
+      "members": [
+        "pass/facts/generic_calling_policy/ordinary_parent_fused_exit",
+        "pass/traits/public_method_const_prefix_inference_exit"
+      ],
+      "witness": "pass/facts/generic_calling_policy/ordinary_parent_fused_exit"
+    },
+    {
+      "diag_norm": "source induction case arithmetic is unsupported: Kernel(UnboundLevelParameter { index: N, arity: N })",
+      "diag_sample": "source induction case arithmetic is unsupported: Kernel(UnboundLevelParameter { index: 0, arity: 0 })",
+      "count": 2,
+      "members": [
+        "pass/facts/source_indexed_type_parameter_exit",
+        "pass/facts/source_indexed_type_parameter_u64_payload_exit"
+      ],
+      "witness": "pass/facts/source_indexed_type_parameter_u64_payload_exit"
+    },
+    {
+      "diag_norm": "state `_` receives `_` as both mutable and read-only",
+      "diag_sample": "state `write_pairs` receives `main` as both mutable and read-only",
+      "count": 2,
+      "members": [
+        "pass/recast/runtime_inline_shared_slice_record_read_exit",
+        "pass/text/runtime_owned_string_byte_view_exit"
+      ],
+      "witness": "pass/recast/runtime_inline_shared_slice_record_read_exit"
+    },
+    {
+      "diag_norm": "state `_` receives `_` as mutable more than once",
+      "diag_sample": "state `write_pairs` receives `main` as mutable more than once",
+      "count": 2,
+      "members": [
+        "pass/recast/runtime_inline_slice_view_mutable_write_exit",
+        "pass/recast/runtime_interior_slice_view_mutable_write_exit"
+      ],
+      "witness": "pass/recast/runtime_interior_slice_view_mutable_write_exit"
+    },
+    {
+      "diag_norm": "state `_` receives `_` while local borrow `_` is still active (borrowed at statement N; its last use is at statement N)",
+      "diag_sample": "state `selected` receives `main` while local borrow `pair` is still active (borrowed at statement 2; its last use is at statement 9)",
+      "count": 2,
+      "members": [
+        "pass/borrows/runtime_stored_reference_case_residual_retirement_exit",
+        "run/borrows/terminal_case_completed_observation"
+      ],
+      "witness": "pass/borrows/runtime_stored_reference_case_residual_retirement_exit"
+    },
+    {
+      "diag_norm": "statement N mutates `_` while local borrow `_` is still active (borrowed at statement N; its last use is at statement N)",
+      "diag_sample": "statement 8 mutates `first.value` while local borrow `first_input` is still active (borrowed at statement 4; its last use is at statement 9)",
+      "count": 2,
+      "members": [
+        "pass/borrows/runtime_selected_reference_record_helper_exit",
+        "pass/facts/foreign_retained_shared_borrow_persistent_retention"
+      ],
+      "witness": "pass/facts/foreign_retained_shared_borrow_persistent_retention"
+    },
+    {
+      "diag_norm": "terminal-artifact production failed: Lowering(CompilerEvaluationAdmission(\"machine `_` is not build-time admissible: a checked crash route remains possible (Tra",
+      "diag_sample": "terminal-artifact production failed: Lowering(CompilerEvaluationAdmission(\"machine `@constant-UNUSED` is not build-time admissible: a checked crash route remains possible (Trap); calls: [extent]; cons",
+      "count": 2,
+      "members": [
+        "pass/layouts/declaration_only_initializer_formation",
+        "pass/terminal_psi/inspection_scalar_library"
+      ],
+      "witness": "pass/layouts/declaration_only_initializer_formation"
+    },
+    {
+      "diag_norm": "Exact integer cast in machine `_` state `_` from `_` to `_` is not provably representable; constrain the source with a range or dominating guard, or use a named",
+      "diag_sample": "Exact integer cast in machine `exit` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Tra",
+      "count": 1,
+      "members": [
+        "pass/expressions/match_owned_computed_arm_arguments"
+      ],
+      "witness": "pass/expressions/match_owned_computed_arm_arguments"
+    },
+    {
+      "diag_norm": "IntegerAt store in machine `_` state `_` assignment requires a value proven to fit N-bit signed storage",
+      "diag_sample": "IntegerAt store in machine `guarded_write` state `entry` assignment requires a value proven to fit 8-bit signed storage",
+      "count": 1,
+      "members": [
+        "pass/layouts/runtime_plan_laid_integer_at_proved_write_exit"
+      ],
+      "witness": "pass/layouts/runtime_plan_laid_integer_at_proved_write_exit"
+    },
+    {
+      "diag_norm": "`_` calls `_`, which calls `_`, which calls `_`; `_` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment:",
+      "diag_sample": "`main` calls `choose`, which calls `prepare`, which calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural oper",
+      "count": 1,
+      "members": [
+        "pass/facts/recoverable_replacement_window_through_match_join_exit"
+      ],
+      "witness": "pass/facts/recoverable_replacement_window_through_match_join_exit"
+    },
+    {
+      "diag_norm": "`_` calls `_`; `_` has no executable body: this compiler does not lower a call of it yet (statement sequence: call: missing exact flow occurrence); in state `_`",
+      "diag_sample": "`entry_start` calls `Main::main`; `Main::main` has no executable body: this compiler does not lower a call of it yet (statement sequence: call: missing exact flow occurrence); in state `Main::main::ma",
+      "count": 1,
+      "members": [
+        "pass/locals/runtime_local_qualified_view_member_read_exit"
+      ],
+      "witness": "pass/locals/runtime_local_qualified_view_member_read_exit"
+    },
+    {
+      "diag_norm": "`_` calls `_`; `_` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement seq",
+      "diag_sample": "`main` calls `unwrap`; `unwrap` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structur",
+      "count": 1,
+      "members": [
+        "pass/ownership/runtime_match_expression_moves_selected_payload_exit"
+      ],
+      "witness": "pass/ownership/runtime_match_expression_moves_selected_payload_exit"
+    },
+    {
+      "diag_norm": "`_` calls `_`; `_` has no executable body: this compiler does not lower its declaration of it yet (statement sequence: completion stored reference dependencies)",
+      "diag_sample": "`main` calls `update`; `update` has no executable body: this compiler does not lower its declaration of it yet (statement sequence: completion stored reference dependencies)",
+      "count": 1,
+      "members": [
+        "pass/layouts/placed_primitive_returned_backing"
+      ],
+      "witness": "pass/layouts/placed_primitive_returned_backing"
+    },
+    {
+      "diag_norm": "`_` does not satisfy `_`: helper `_` requires `_`, but the implementation promises `_`",
+      "diag_sample": "`quiet` does not satisfy `StepContract::step`: helper `Requirement` requires `Anchor::anchor`, but the implementation promises `Anchor::anchor`",
+      "count": 1,
+      "members": [
+        "pass/facts/static_callback_reach_requirement_telescope"
+      ],
+      "witness": "pass/facts/static_callback_reach_requirement_telescope"
+    },
+    {
+      "diag_norm": "`_` has no executable body: this compiler does not lower a state of it yet (reference retirement: stored occurrences); in state `_`",
+      "diag_sample": "`main` has no executable body: this compiler does not lower a state of it yet (reference retirement: stored occurrences); in state `main::entry`",
+      "count": 1,
+      "members": [
+        "pass/borrows/copied_intermediate_descriptor_snapshot_exit"
+      ],
+      "witness": "pass/borrows/copied_intermediate_descriptor_snapshot_exit"
+    },
+    {
+      "diag_norm": "`_` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion stored reference dependencies); in state `_`",
+      "diag_sample": "`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion stored reference dependencies); in state `main::entry`",
+      "count": 1,
+      "members": [
+        "pass/traits/prepared_callable_nested_borrow_paths_exit"
+      ],
+      "witness": "pass/traits/prepared_callable_nested_borrow_paths_exit"
+    },
+    {
+      "diag_norm": "`_` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `_`, state",
+      "diag_sample": "`X86Repair::repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `X86Repair::repair::repair`, state",
+      "count": 1,
+      "members": [
+        "pass/facts/recoverable_replacement_window_through_target_body_exit"
+      ],
+      "witness": "pass/facts/recoverable_replacement_window_through_target_body_exit"
+    },
+    {
+      "diag_norm": "`_` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: call operation: structural r",
+      "diag_sample": "`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: call operation: structural result loan)); in state `main::entry`,",
+      "count": 1,
+      "members": [
+        "run/borrows/returned_descriptor_entry_snapshot"
+      ],
+      "witness": "run/borrows/returned_descriptor_entry_snapshot"
+    },
+    {
+      "diag_norm": "`_` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no comp",
+      "diag_sample": "`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in stat",
+      "count": 1,
+      "members": [
+        "run/slices/returned_record_fixed_array_window"
+      ],
+      "witness": "run/slices/returned_record_fixed_array_window"
+    },
+    {
+      "diag_norm": "`_` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local da",
+      "diag_sample": "`two_children` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural value: operand",
+      "count": 1,
+      "members": [
+        "pass/ownership/runtime_match_conditional_observation_cleanup_exit"
+      ],
+      "witness": "pass/ownership/runtime_match_conditional_observation_cleanup_exit"
+    },
+    {
+      "diag_norm": "`_` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `_`, st",
+      "diag_sample": "`chained::scan` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `chained::scan::entry`, statement 3",
+      "count": 1,
+      "members": [
+        "pass/slices/runtime_cut_byte_view_cycle_exit"
+      ],
+      "witness": "pass/slices/runtime_cut_byte_view_cycle_exit"
+    },
+    {
+      "diag_norm": "anonymous address value cannot prove fit in `_` in machine `_` state `_` return value",
+      "diag_sample": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "count": 1,
+      "members": [
+        "pass/build/explicit_provider_storage_extent_exit"
+      ],
+      "witness": "pass/build/explicit_provider_storage_extent_exit"
+    },
+    {
+      "diag_norm": "assumed compiler-evaluation control reached another refusal: machine `_` is not build-time admissible: the checked Trap crash route can occur; constant evaluati",
+      "diag_sample": "assumed compiler-evaluation control reached another refusal: machine `main` is not build-time admissible: the checked Trap crash route can occur; constant evaluation requires proof that no crash route",
+      "count": 1,
+      "members": [
+        "pass/facts/assumed_binding_result_bound_through_local_exit"
+      ],
+      "witness": "pass/facts/assumed_binding_result_bound_through_local_exit"
+    },
+    {
+      "diag_norm": "authored Operator declaration selection occurrence N (`_` in tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg) remained unresolved a",
+      "diag_sample": "authored Operator declaration selection occurrence 9692 (`*` in tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg) remained unresolved after successful checking (CheckedOper",
+      "count": 1,
+      "members": [
+        "pass/expressions/match_operand_anonymous_operation_exit"
+      ],
+      "witness": "pass/expressions/match_operand_anonymous_operation_exit"
+    },
+    {
+      "diag_norm": "authored Operator declaration selection occurrence N (`_` in tests/omega/pass/facts/indexed_crash_guard_through_target_body_exit/main.omg) remained unresolved a",
+      "diag_sample": "authored Operator declaration selection occurrence 573 (`==` in tests/omega/pass/facts/indexed_crash_guard_through_target_body_exit/main.omg) remained unresolved after successful checking (CheckedOper",
+      "count": 1,
+      "members": [
+        "pass/facts/indexed_crash_guard_through_target_body_exit"
+      ],
+      "witness": "pass/facts/indexed_crash_guard_through_target_body_exit"
+    },
+    {
+      "diag_norm": "authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: \"proposition `_` expects N proof-static binder",
+      "diag_sample": "authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: \"proposition `chained` expects 2 proof-static binder argument(s), received 0\", exceede",
+      "count": 1,
+      "members": [
+        "pass/proofs/family_carrier_relation_laws"
+      ],
+      "witness": "pass/proofs/family_carrier_relation_laws"
+    },
+    {
+      "diag_norm": "call from `_` to `_` at statement N call N has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation",
+      "diag_sample": "call from `inspect` to `failed` at statement 1 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation",
+      "count": 1,
+      "members": [
+        "fail/traits/structural_identity_executable_equality"
+      ],
+      "witness": "fail/traits/structural_identity_executable_equality"
+    },
+    {
+      "diag_norm": "cannot establish assignment invariants: partial write enclosure has no exact active-case frontier",
+      "diag_sample": "cannot establish assignment invariants: partial write enclosure has no exact active-case frontier",
+      "count": 1,
+      "members": [
+        "pass/borrows/returned_record_case_field_store_exit"
+      ],
+      "witness": "pass/borrows/returned_record_case_field_store_exit"
+    },
+    {
+      "diag_norm": "cannot establish assignment invariants: source storage interpretation is unavailable: physical reference view has no exact scalar storage translation (machine `",
+      "diag_sample": "cannot establish assignment invariants: source storage interpretation is unavailable: physical reference view has no exact scalar storage translation (machine `main` state `entry` statement 1, source ",
+      "count": 1,
+      "members": [
+        "fail/recast/borrowed_byte_collection_predicate"
+      ],
+      "witness": "fail/recast/borrowed_byte_collection_predicate"
+    },
+    {
+      "diag_norm": "cannot plan contextual call cleanup against the executable hook roster: machine `_`, state `_`, statement N, call N: completed operand `_` (Handle { arena_index",
+      "diag_sample": "cannot plan contextual call cleanup against the executable hook roster: machine `structural_result`, state `entry`, statement 1, call 1: completed operand `issue(&mut counter)` (Handle { arena_index: ",
+      "count": 1,
+      "members": [
+        "pass/ownership/runtime_match_observation_cleanup_exit"
+      ],
+      "witness": "pass/ownership/runtime_match_observation_cleanup_exit"
+    },
+    {
+      "diag_norm": "cannot prove asm `_` fact at block exit in compare$assembly$linux_x86_64$N$entry state `_` (statement N): match output { Holder { value } => <saved subject #N:N",
+      "diag_sample": "cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { Holder { value } => <saved subject #9:1>.value } == 37",
+      "count": 1,
+      "members": [
+        "pass/asm/checked_asm_saved_scalar_match_exit"
+      ],
+      "witness": "pass/asm/checked_asm_saved_scalar_match_exit"
+    },
+    {
+      "diag_norm": "cannot prove default-domain field requirement for call replace from snapshot_before_mutation::entry: parameter resource requires Resource::Open",
+      "diag_sample": "cannot prove default-domain field requirement for call replace from snapshot_before_mutation::entry: parameter resource requires Resource::Open",
+      "count": 1,
+      "members": [
+        "pass/borrows/qualified_owner_state_loan_exit"
+      ],
+      "witness": "pass/borrows/qualified_owner_state_loan_exit"
+    },
+    {
+      "diag_norm": "cannot prove default-domain field requirement for return from ErasedWriteCode::write at statement N: storage requires Storage::Issued",
+      "diag_sample": "cannot prove default-domain field requirement for return from ErasedWriteCode::write at statement 2: storage requires Storage::Issued",
+      "count": 1,
+      "members": [
+        "pass/facts/non_owning_reference_erasure_through_target_body_exit"
+      ],
+      "witness": "pass/facts/non_owning_reference_erasure_through_target_body_exit"
+    },
+    {
+      "diag_norm": "cannot prove default-domain field requirement for return from write at statement N: first requires Storage::Issued",
+      "diag_sample": "cannot prove default-domain field requirement for return from write at statement 2: first requires Storage::Issued",
+      "count": 1,
+      "members": [
+        "pass/facts/non_owning_reference_erasure_through_match_join_exit"
+      ],
+      "witness": "pass/facts/non_owning_reference_erasure_through_match_join_exit"
+    },
+    {
+      "diag_norm": "cannot prove ensures contract for exit from Selected::read at statement N: result == Value",
+      "diag_sample": "cannot prove ensures contract for exit from Selected::read at statement 0: result == Value",
+      "count": 1,
+      "members": [
+        "pass/facts/open_const_implementation_private_record_package_exit"
+      ],
+      "witness": "pass/facts/open_const_implementation_private_record_package_exit"
+    },
+    {
+      "diag_norm": "cannot prove ensures contract for exit from first at statement N: second(value) as i16  == result",
+      "diag_sample": "cannot prove ensures contract for exit from first at statement 0: second(value) as i16  == result",
+      "count": 1,
+      "members": [
+        "fail/core/scoped_integer_call_guarantees_cannot_form_cycle"
+      ],
+      "witness": "fail/core/scoped_integer_call_guarantees_cannot_form_cycle"
+    },
+    {
+      "diag_norm": "cannot prove ensures contract for exit from from_field at statement N: result >= reading.value - N && result <= reading.value + N",
+      "diag_sample": "cannot prove ensures contract for exit from from_field at statement 0: result >= reading.value - 2 && result <= reading.value + 2",
+      "count": 1,
+      "members": [
+        "pass/arithmetic/truncating_reconstruction_bound"
+      ],
+      "witness": "pass/arithmetic/truncating_reconstruction_bound"
+    },
+    {
+      "diag_norm": "cannot prove published termination for machine `_`: its checked body reaches an operation without a usable termination guarantee; state `_` statement N call N t",
+      "diag_sample": "cannot prove published termination for machine `CleanupConsole::write_byte`: its checked body reaches an operation without a usable termination guarantee; state `CleanupConsole::write_byte::write_byte",
+      "count": 1,
+      "members": [
+        "run/ownership/sequence_owned_local_cleanup"
+      ],
+      "witness": "run/ownership/sequence_owned_local_cleanup"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call agree from HostedObservationBody::observe: saved == holder.items[N] && saved == N (needs fact `_` here; establish it bef",
+      "diag_sample": "cannot prove requires contract for call agree from HostedObservationBody::observe: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before t",
+      "count": 1,
+      "members": [
+        "pass/facts/saved_observation_snapshot_indexed_handback_target_body_exit"
+      ],
+      "witness": "pass/facts/saved_observation_snapshot_indexed_handback_target_body_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call agree from main: saved == holder.items[N] && saved == N (needs fact `_` here; establish it before the call via a prior c",
+      "diag_sample": "cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contra",
+      "count": 1,
+      "members": [
+        "pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit"
+      ],
+      "witness": "pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call agree from read_kept: saved == holder.items[N] && saved == N (needs fact `_` here; establish it before the call via a pr",
+      "diag_sample": "cannot prove requires contract for call agree from read_kept: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior c",
+      "count": 1,
+      "members": [
+        "pass/facts/saved_observation_snapshot_indexed_handback_other_machine_exit"
+      ],
+      "witness": "pass/facts/saved_observation_snapshot_indexed_handback_other_machine_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call capacity from geometry: pages >= N && pages <= N && __transition_subject#N.indices.pt_index < N && target <= 0xfffffffff",
+      "diag_sample": "cannot prove requires contract for call capacity from geometry: pages >= 1 && pages <= 512 && __transition_subject#95.indices.pt_index < 512 && target <= 0xffffffffff000 (needs fact `pages >= 1 && pag",
+      "count": 1,
+      "members": [
+        "pass/proofs/reviewed_mathematical_data_contract_exit"
+      ],
+      "witness": "pass/proofs/reviewed_mathematical_data_contract_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call choose from X86Apply::apply: visits == N (needs fact `_` here; establish it before the call via a prior contract guarant",
+      "diag_sample": "cannot prove requires contract for call choose from X86Apply::apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or gua",
+      "count": 1,
+      "members": [
+        "pass/facts/exclusive_match_arm_through_target_body_exit"
+      ],
+      "witness": "pass/facts/exclusive_match_arm_through_target_body_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call choose from select: visits == N (needs fact `_` here; establish it before the call via a prior contract guarantee, domai",
+      "diag_sample": "cannot prove requires contract for call choose from select: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in st",
+      "count": 1,
+      "members": [
+        "pass/facts/exclusive_match_arm_through_call_result_exit"
+      ],
+      "witness": "pass/facts/exclusive_match_arm_through_call_result_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call choose from write: visits == N (needs fact `_` here; establish it before the call via a prior contract guarantee, domain",
+      "diag_sample": "cannot prove requires contract for call choose from write: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in sta",
+      "count": 1,
+      "members": [
+        "pass/facts/exclusive_match_arm_through_other_state_exit"
+      ],
+      "witness": "pass/facts/exclusive_match_arm_through_other_state_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call code from Primary::code: Width == N || Width == N || Width == N || Width == N (needs fact `_` here; establish it before ",
+      "diag_sample": "cannot prove requires contract for call code from Primary::code: Width == 64 || Width == 16 || Width == 16 || Width == 32 (needs fact `Width == 64 || Width == 16 || Width == 16 || Width == 32` here; e",
+      "count": 1,
+      "members": [
+        "pass/traits/runtime_dyn_family_nested_result"
+      ],
+      "witness": "pass/traits/runtime_dyn_family_nested_result"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call compute from write: visits == N (needs fact `_` here; establish it before the call via a prior contract guarantee, domai",
+      "diag_sample": "cannot prove requires contract for call compute from write: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in st",
+      "count": 1,
+      "members": [
+        "pass/facts/match_computed_root_through_other_state_exit"
+      ],
+      "witness": "pass/facts/match_computed_root_through_other_state_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call drop from main: retained in Capacity::Held in state `_`",
+      "diag_sample": "cannot prove requires contract for call drop from main: retained in Capacity::Held in state `entry`",
+      "count": 1,
+      "members": [
+        "pass/ownership/registration_owned_claim_retains_provenance_exit"
+      ],
+      "witness": "pass/ownership/registration_owned_claim_retains_provenance_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call nonnegative64 from main: wide >= N.N (needs fact `_` here; establish it before the call via a prior contract guarantee, ",
+      "diag_sample": "cannot prove requires contract for call nonnegative64 from main: wide >= 0.0 (needs fact `value >= 0.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) ",
+      "count": 1,
+      "members": [
+        "pass/float/primitive_storage_predicate_keeps_ieee_meaning"
+      ],
+      "witness": "pass/float/primitive_storage_predicate_keeps_ieee_meaning"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call observe from exercise: constructor:N:package:5ce443e42f0ddbd3651a39a334af85376600b1f13a1ff2737f25e33b24008c1a::Pair6:rec",
+      "diag_sample": "cannot prove requires contract for call observe from exercise: constructor:78:package:5ce443e42f0ddbd3651a39a334af85376600b1f13a1ff2737f25e33b24008c1a::Pair6:record17:common:name:first13:holder.amount",
+      "count": 1,
+      "members": [
+        "pass/calls/runtime_constructor_child_inherited_captures_exit"
+      ],
+      "witness": "pass/calls/runtime_constructor_child_inherited_captures_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call read_field from X86Apply::apply: match choose() { true => chosen, false => spare }.kept == N (needs fact `_` here; estab",
+      "diag_sample": "cannot prove requires contract for call read_field from X86Apply::apply: match choose() { true => chosen, false => spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call ",
+      "count": 1,
+      "members": [
+        "pass/facts/match_join_place_read_through_target_body_exit"
+      ],
+      "witness": "pass/facts/match_join_place_read_through_target_body_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call read_origin from X86Apply::apply: joined == N (needs fact `_` here; establish it before the call via a prior contract gu",
+      "diag_sample": "cannot prove requires contract for call read_origin from X86Apply::apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, o",
+      "count": 1,
+      "members": [
+        "pass/facts/match_primitive_local_origin_through_target_body_exit"
+      ],
+      "witness": "pass/facts/match_primitive_local_origin_through_target_body_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call require_cell_value from Main::main: first >= N && first <= N (needs fact `_` here; establish it before the call via a pr",
+      "diag_sample": "cannot prove requires contract for call require_cell_value from Main::main: first >= 0 && first <= 100 (needs fact `value >= 0 && value <= 100` here; establish it before the call via a prior contract ",
+      "count": 1,
+      "members": [
+        "pass/borrows/runtime_shared_reference_array_cohort_restoration_exit"
+      ],
+      "witness": "pass/borrows/runtime_shared_reference_array_cohort_restoration_exit"
+    },
+    {
+      "diag_norm": "cannot prove requires contract for call require_cell_value from Main::main: observed >= N && observed <= N (needs fact `_` here; establish it before the call vi",
+      "diag_sample": "cannot prove requires contract for call require_cell_value from Main::main: observed >= 0 && observed <= 100 (needs fact `value >= 0 && value <= 100` here; establish it before the call via a prior con",
+      "count": 1,
+      "members": [
+        "pass/borrows/runtime_forwarded_reference_array_bounded_read_exit"
+      ],
+      "witness": "pass/borrows/runtime_forwarded_reference_array_bounded_read_exit"
+    },
+    {
+      "diag_norm": "cannot prove subslice range end bound `_` is within unknown slice length of `_` in trial::entry",
+      "diag_sample": "cannot prove subslice range end bound `0..bound.end` is within unknown slice length of `buffer` in trial::entry",
+      "count": 1,
+      "members": [
+        "pass/facts/nested_result_extent_through_field_exit"
+      ],
+      "witness": "pass/facts/nested_result_extent_through_field_exit"
+    },
+    {
+      "diag_norm": "cannot realize table field `_` for `_`: no runtime field `_` in the dispatch table",
+      "diag_sample": "cannot realize table field `call` for `read`: no runtime field `call` in the dispatch table",
+      "count": 1,
+      "members": [
+        "fail/boundary/named_foreign_provider_wrong_table"
+      ],
+      "witness": "fail/boundary/named_foreign_provider_wrong_table"
+    },
+    {
+      "diag_norm": "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `_`, state `_` (statement N)",
+      "diag_sample": "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `capture`, state `entry` (statement 2)",
+      "count": 1,
+      "members": [
+        "pass/recast/returned_same_type_view_capture_exit"
+      ],
+      "witness": "pass/recast/returned_same_type_view_capture_exit"
+    },
+    {
+      "diag_norm": "checked direct-reborrow suspension requires exactly one parent entry constraint",
+      "diag_sample": "checked direct-reborrow suspension requires exactly one parent entry constraint",
+      "count": 1,
+      "members": [
+        "pass/slices/runtime_nested_view_descriptor_reseat_exit"
+      ],
+      "witness": "pass/slices/runtime_nested_view_descriptor_reseat_exit"
+    },
+    {
+      "diag_norm": "checked machine `_` cannot establish proposition ensure `_` in state `_`; require it, cite a checked/accepted proof that ensures it, or supply its declared evid",
+      "diag_sample": "checked machine `related_reflexive` cannot establish proposition ensure `boolean:value == value` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evi",
+      "count": 1,
+      "members": [
+        "pass/proofs/proposition_relation_hierarchy_compile"
+      ],
+      "witness": "pass/proofs/proposition_relation_hierarchy_compile"
+    },
+    {
+      "diag_norm": "const argument expression in generic data `_` is invalid: const operator application requires declaration selection",
+      "diag_sample": "const argument expression in generic data `ForwardedBuffer` is invalid: const operator application requires declaration selection",
+      "count": 1,
+      "members": [
+        "pass/generics/runtime_const_data_symbolic_expression_exit"
+      ],
+      "witness": "pass/generics/runtime_const_data_symbolic_expression_exit"
+    },
+    {
+      "diag_norm": "constant initializer normalization: materialized value is not canonical: materialized initializer exceeds canonical declaration encoding limits",
+      "diag_sample": "constant initializer normalization: materialized value is not canonical: materialized initializer exceeds canonical declaration encoding limits",
+      "count": 1,
+      "members": [
+        "pass/facts/core_float_representation_through_const_name_exit"
+      ],
+      "witness": "pass/facts/core_float_representation_through_const_name_exit"
+    },
+    {
+      "diag_norm": "constant initializer: machine `_` is not build-time admissible: build-time invocation of `_` selects package `_` (4130c3e7c0253165f024f9f58152677b6f9df07c91edbc",
+      "diag_sample": "constant initializer: machine `@const-invocation` is not build-time admissible: build-time invocation of `@const-invocation` selects package `open_const_private_package_projection` (4130c3e7c0253165f0",
+      "count": 1,
+      "members": [
+        "pass/modules/open_const_private_implementation_projection_exit"
+      ],
+      "witness": "pass/modules/open_const_private_implementation_projection_exit"
+    },
+    {
+      "diag_norm": "construction of `_` field `_` is not proven in domain `_` in consume state `_` at statement N; a construction value must establish the domain's predicates and a",
+      "diag_sample": "construction of `Selected` field `value` is not proven in domain `u64::AtLeast73` in consume state `entry` at statement 1; a construction value must establish the domain's predicates and any required ",
+      "count": 1,
+      "members": [
+        "pass/facts/domain_pattern_match_bound_through_field_exit"
+      ],
+      "witness": "pass/facts/domain_pattern_match_bound_through_field_exit"
+    },
+    {
+      "diag_norm": "copied call lost its ordinary and realized Value operand roster",
+      "diag_sample": "copied call lost its ordinary and realized Value operand roster",
+      "count": 1,
+      "members": [
+        "pass/calls/native_code_layout_forward_machine_exit"
+      ],
+      "witness": "pass/calls/native_code_layout_forward_machine_exit"
+    },
+    {
+      "diag_norm": "data `_` literal cannot prove the default domain: a `_` fact is not established by the values observed at this construction -- establish the required bounds bef",
+      "diag_sample": "data `Carrier` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value",
+      "count": 1,
+      "members": [
+        "pass/facts/static_callback_reach_through_field"
+      ],
+      "witness": "pass/facts/static_callback_reach_through_field"
+    },
+    {
+      "diag_norm": "exact arithmetic in machine `_` state `_` assignment may overflow `_`: the operands are not provably in range (decision N -- exact arithmetic is a proof obligat",
+      "diag_sample": "exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast ",
+      "count": 1,
+      "members": [
+        "pass/facts/case_where_equality_through_call_result_exit"
+      ],
+      "witness": "pass/facts/case_where_equality_through_call_result_exit"
+    },
+    {
+      "diag_norm": "exact arithmetic in machine `_` state `_` return value may overflow `_`: the operands are not provably in range (decision N -- exact arithmetic is a proof oblig",
+      "diag_sample": "exact arithmetic in machine `width` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` ca",
+      "count": 1,
+      "members": [
+        "pass/facts/case_where_equality_data_predicate_through_field_exit"
+      ],
+      "witness": "pass/facts/case_where_equality_data_predicate_through_field_exit"
+    },
+    {
+      "diag_norm": "index compatibility condition `_` is not established: actual `_` and expected `_` are distinct normalized instances; closed evaluation, licensed normalization, ",
+      "diag_sample": "index compatibility condition `index-equality:Indexed:forward_indexed::entry:call-1-0:Indexed<LeftIndex + RightIndex>==Indexed<X + Y>` is not established: actual `Indexed<LeftIndex + RightIndex>` and ",
+      "count": 1,
+      "members": [
+        "pass/generics/open_computed_quantity_result"
+      ],
+      "witness": "pass/generics/open_computed_quantity_result"
+    },
+    {
+      "diag_norm": "inspection constant omitted its expected debug companion",
+      "diag_sample": "inspection constant omitted its expected debug companion",
+      "count": 1,
+      "members": [
+        "pass/terminal_psi/debug_identity_complete_module"
+      ],
+      "witness": "pass/terminal_psi/debug_identity_complete_module"
+    },
+    {
+      "diag_norm": "machine `_` cannot lend restricted field `_` to `_`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate",
+      "diag_sample": "machine `clear_selected` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate",
+      "count": 1,
+      "members": [
+        "pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit"
+      ],
+      "witness": "pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit"
+    },
+    {
+      "diag_norm": "machine `_` omits `_` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])",
+      "diag_sample": "machine `pace` omits `invokes DarwinClock` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])",
+      "count": 1,
+      "members": [
+        "pass/effects/gui_semantic_services"
+      ],
+      "witness": "pass/effects/gui_semantic_services"
+    },
+    {
+      "diag_norm": "machine `_` state `_` cannot prove runtime index subject equality at statement N; an indexed value retains its captured index",
+      "diag_sample": "machine `IndexingProvider::index` state `index` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index",
+      "count": 1,
+      "members": [
+        "pass/providers/generic_provider_structural_result_composition_exit"
+      ],
+      "witness": "pass/providers/generic_provider_structural_result_composition_exit"
+    },
+    {
+      "diag_norm": "machine `_` state `_` does not satisfy trait `_` machine `_`: conformance borrow contract: callable input does not preserve its captured region identity [input-",
+      "diag_sample": "machine `Reader::read` state `read` does not satisfy trait `Reading` machine `read`: conformance borrow contract: callable input does not preserve its captured region identity [input-inference paramet",
+      "count": 1,
+      "members": [
+        "pass/traits/applied_conformance_captured_fresh_regions_exit"
+      ],
+      "witness": "pass/traits/applied_conformance_captured_fresh_regions_exit"
+    },
+    {
+      "diag_norm": "machine `_` state `_` expression type application uses undeclared lifetime argument `_`Note`; declare it in the owner's generic parameter list",
+      "diag_sample": "machine `replacement_epoch` state `entry` expression type application uses undeclared lifetime argument `'storage' in `Note`; declare it in the owner's generic parameter list",
+      "count": 1,
+      "members": [
+        "pass/calls/runtime_projected_type_operand_scopes_exit"
+      ],
+      "witness": "pass/calls/runtime_projected_type_operand_scopes_exit"
+    },
+    {
+      "diag_norm": "machine `_` state `_` statement N: cannot prove selected case for payload access `_`: captured source `_` has no live case evidence: the current source does not",
+      "diag_sample": "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence: the current source does not ",
+      "count": 1,
+      "members": [
+        "pass/facts/case_payload_exclusive_loan_through_other_machine_exit"
+      ],
+      "witness": "pass/facts/case_payload_exclusive_loan_through_other_machine_exit"
+    },
+    {
+      "diag_norm": "machine `_` state `_` statement N: operand has no complete completed call-slot relation",
+      "diag_sample": "machine `received` state `entry` statement 6: operand has no complete completed call-slot relation",
+      "count": 1,
+      "members": [
+        "pass/generics/generic_result_parameter_receipt"
+      ],
+      "witness": "pass/generics/generic_result_parameter_receipt"
+    },
+    {
+      "diag_norm": "machine `_` static type argument uses undeclared lifetime argument `_`Owner`; declare it in the owner's generic parameter list",
+      "diag_sample": "machine `Owner::inspect` static type argument uses undeclared lifetime argument `'storage' in `Owner`; declare it in the owner's generic parameter list",
+      "count": 1,
+      "members": [
+        "pass/packages/runtime_attached_owner_crash_guard_scope_exit"
+      ],
+      "witness": "pass/packages/runtime_attached_owner_crash_guard_scope_exit"
+    },
+    {
+      "diag_norm": "machine call cycle: `_` -- the arriving rank reference is missing its exact public subject; runtime calls must be tail; a termination promise additionally requi",
+      "diag_sample": "machine call cycle: `walk` -- the arriving rank reference is missing its exact public subject; runtime calls must be tail; a termination promise additionally requires strict descent on every complete ",
+      "count": 1,
+      "members": [
+        "pass/termination/measure_borrowed_projection_range"
+      ],
+      "witness": "pass/termination/measure_borrowed_projection_range"
+    },
+    {
+      "diag_norm": "native artifact component entry ABI failed: native entry transport: native entry bridge failed: complete entry code uses machine state outside its declared ceil",
+      "diag_sample": "native artifact component entry ABI failed: native entry transport: native entry bridge failed: complete entry code uses machine state outside its declared ceiling: used MachineStateSet(95), permitted",
+      "count": 1,
+      "members": [
+        "pass/providers/runtime_foreign_allocation_across_component_exit"
+      ],
+      "witness": "pass/providers/runtime_foreign_allocation_across_component_exit"
+    },
+    {
+      "diag_norm": "native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(N), result:",
+      "diag_sample": "native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(92), reason: \"descriptor result",
+      "count": 1,
+      "members": [
+        "pass/borrows/runtime_shared_view_record_presentation_exit"
+      ],
+      "witness": "pass/borrows/runtime_shared_view_record_presentation_exit"
+    },
+    {
+      "diag_norm": "normal call `_` (Handle { arena_index: N, generation: N }) in machine `_` state `_` statement N: completed call result has no checked value type",
+      "diag_sample": "normal call `from_u8` (Handle { arena_index: 13439, generation: 1 }) in machine `converted_wrapping` state `entry` statement 0: completed call result has no checked value type",
+      "count": 1,
+      "members": [
+        "pass/float/symbolic_integer_conversion_finite_requires_exit"
+      ],
+      "witness": "pass/float/symbolic_integer_conversion_finite_requires_exit"
+    },
+    {
+      "diag_norm": "normal call `_` (Handle { arena_index: N, generation: N }) in machine `_` state `_` statement N: completed call result has no complete reference set",
+      "diag_sample": "normal call `decode` (Handle { arena_index: 13643, generation: 1 }) in machine `roundtrip` state `entry` statement 6: completed call result has no complete reference set",
+      "count": 1,
+      "members": [
+        "pass/facts/fixed_layout_byte_roundtrip_through_target_body_exit"
+      ],
+      "witness": "pass/facts/fixed_layout_byte_roundtrip_through_target_body_exit"
+    },
+    {
+      "diag_norm": "provider completion for `_` disagrees with its exact retained requirement contract",
+      "diag_sample": "provider completion for `named-callable(path(nominal\\\\(package-owner\\\\(32:78d666a3ef4ce09f7a7e4a1f30f7d6cfa9b721b34150cbe9ca889272b1820a23\\\\)\\\\,path\\\\(Scheduler::notify\\\\)\\\\)),parameters(parameter\\\\(m",
+      "count": 1,
+      "members": [
+        "pass/progress/provider_receiver_progress_installation"
+      ],
+      "witness": "pass/progress/provider_receiver_progress_installation"
+    },
+    {
+      "diag_norm": "returned view lost its completed invocation capture",
+      "diag_sample": "returned view lost its completed invocation capture",
+      "count": 1,
+      "members": [
+        "pass/domains/runtime_selected_nested_field_domain_exit"
+      ],
+      "witness": "pass/domains/runtime_selected_nested_field_domain_exit"
+    },
+    {
+      "diag_norm": "selected optimizations `_`, `_`, `_`, `_`, `_`, `_`, `_`, `_`, `_`, `_` failed in the complete verified optimizer pipeline during selected/physical validation: ",
+      "diag_sample": "selected optimizations `SelectedSameBlockCopyI64RemovalV1`, `SelectedRedundantExtensionRemovalV1`, `SelectedAddressOffsetFoldV1`, `SelectedConstantBooleanFoldV1`, `SelectedConstantBranchFoldV1`, `Sele",
+      "count": 1,
+      "members": [
+        "pass/optimizer/pre_allocation_joint_frontier_exit"
+      ],
+      "witness": "pass/optimizer/pre_allocation_joint_frontier_exit"
+    },
+    {
+      "diag_norm": "statement N cannot resolve the complete borrowed destination of `_`: the incoming descriptor has no retained loan occurrence",
+      "diag_sample": "statement 0 cannot resolve the complete borrowed destination of `value.middle.items[0].value.changed`: the incoming descriptor has no retained loan occurrence",
+      "count": 1,
+      "members": [
+        "pass/borrows/nested_reference_write_disjoint_facts_exit"
+      ],
+      "witness": "pass/borrows/nested_reference_write_disjoint_facts_exit"
+    },
+    {
+      "diag_norm": "statement N mutates `_` while local borrow `_` is still active (borrowed at statement N; it is reassigned at statement N)",
+      "diag_sample": "statement 9 mutates `parent` while local borrow `holders` is still active (borrowed at statement 5; it is reassigned at statement 11)",
+      "count": 1,
+      "members": [
+        "fail/borrows/region_store_live_sibling_reference"
+      ],
+      "witness": "fail/borrows/region_store_live_sibling_reference"
+    },
+    {
+      "diag_norm": "statement N mutates `_` while local borrow `_` is still active (borrowed at statement N; its last use is at statement N and it is released at state exit)",
+      "diag_sample": "statement 2 mutates `carrier.destination` while local borrow `observed` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)",
+      "count": 1,
+      "members": [
+        "fail/borrows/reference_carrier_store_while_shared"
+      ],
+      "witness": "fail/borrows/reference_carrier_store_while_shared"
+    },
+    {
+      "diag_norm": "temporary backing lifetime coverage is unavailable for an operand of `_` in state `_` at statement N",
+      "diag_sample": "temporary backing lifetime coverage is unavailable for an operand of `entry` in state `entry` at statement 2",
+      "count": 1,
+      "members": [
+        "pass/borrows/inline_carried_reference_exit"
+      ],
+      "witness": "pass/borrows/inline_carried_reference_exit"
+    },
+    {
+      "diag_norm": "terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: N, generation: N }), established: Structur",
+      "diag_sample": "terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 13435, generation: 1 }), established: StructuralArgument { place: PlaceId(104), pa",
+      "count": 1,
+      "members": [
+        "pass/ownership/runtime_match_nested_observation_cleanup_exit"
+      ],
+      "witness": "pass/ownership/runtime_match_nested_observation_cleanup_exit"
+    },
+    {
+      "diag_norm": "terminal-artifact production failed: Lowering(InvalidCleanupPartition { reason: \"cleanup partition actions are interleaved or reordered\" })",
+      "diag_sample": "terminal-artifact production failed: Lowering(InvalidCleanupPartition { reason: \"cleanup partition actions are interleaved or reordered\" })",
+      "count": 1,
+      "members": [
+        "pass/drops/runtime_selected_partial_owner_cleanup_exit"
+      ],
+      "witness": "pass/drops/runtime_selected_partial_owner_cleanup_exit"
+    },
+    {
+      "diag_norm": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Main::main\", reason: \"completed linear arrival lost its exact claim frontier\", ",
+      "diag_sample": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Main::main\", reason: \"completed linear arrival lost its exact claim frontier\", gap: None })",
+      "count": 1,
+      "members": [
+        "pass/ownership/runtime_declared_linear_local_assignment_exit"
+      ],
+      "witness": "pass/ownership/runtime_declared_linear_local_assignment_exit"
+    },
+    {
+      "diag_norm": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Main::main\", reason: \"structural crash route is outside checked Boolean member ",
+      "diag_sample": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Main::main\", reason: \"structural crash route is outside checked Boolean member lowering\", gap: None })",
+      "count": 1,
+      "members": [
+        "pass/traits/runtime_qualified_byte_crash_equality_exit"
+      ],
+      "witness": "pass/traits/runtime_qualified_byte_crash_equality_exit"
+    },
+    {
+      "diag_norm": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"binding_subject\", reason: \"selection survivor requires an exact emitted operati",
+      "diag_sample": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"binding_subject\", reason: \"selection survivor requires an exact emitted operation-result frontier\", gap: None })",
+      "count": 1,
+      "members": [
+        "pass/ownership/runtime_match_projected_subject_cleanup_exit"
+      ],
+      "witness": "pass/ownership/runtime_match_projected_subject_cleanup_exit"
+    },
+    {
+      "diag_norm": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"churn::next\", reason: \"owned edge transfers an unavailable owner\", gap: None })",
+      "diag_sample": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"churn::next\", reason: \"owned edge transfers an unavailable owner\", gap: None })",
+      "count": 1,
+      "members": [
+        "pass/structural/runtime_scalar_record_reclamation_exit"
+      ],
+      "witness": "pass/structural/runtime_scalar_record_reclamation_exit"
+    },
+    {
+      "diag_norm": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"exercise\", reason: \"computed owned structural operand changes its source custod",
+      "diag_sample": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"exercise\", reason: \"computed owned structural operand changes its source custody\", gap: None })",
+      "count": 1,
+      "members": [
+        "pass/expressions/runtime_match_copy_descriptor_call_exit"
+      ],
+      "witness": "pass/expressions/runtime_match_copy_descriptor_call_exit"
+    },
+    {
+      "diag_norm": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"main\", reason: \"owned membership transport cannot establish routed authority\", ",
+      "diag_sample": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"main\", reason: \"owned membership transport cannot establish routed authority\", gap: None })",
+      "count": 1,
+      "members": [
+        "pass/calls/runtime_borrowed_parameter_ensures_issuer_exit"
+      ],
+      "witness": "pass/calls/runtime_borrowed_parameter_ensures_issuer_exit"
+    },
+    {
+      "diag_norm": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"swap::rotate\", reason: \"owned edge transfers an unavailable owner\", gap: None }",
+      "diag_sample": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"swap::rotate\", reason: \"owned edge transfers an unavailable owner\", gap: None })",
+      "count": 1,
+      "members": [
+        "pass/borrows/runtime_copyable_carrier_retirement_exit"
+      ],
+      "witness": "pass/borrows/runtime_copyable_carrier_retirement_exit"
+    },
+    {
+      "diag_norm": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"width\", reason: \"computed owned structural operand changes its source custody\",",
+      "diag_sample": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"width\", reason: \"computed owned structural operand changes its source custody\", gap: None })",
+      "count": 1,
+      "members": [
+        "pass/facts/case_where_equality_data_predicate_nested_payload_carriage_exit"
+      ],
+      "witness": "pass/facts/case_where_equality_data_predicate_nested_payload_carriage_exit"
+    },
+    {
+      "diag_norm": "terminal-artifact production failed: Lowering(OverlappingProjectedCustody { reason: \"projected custody overlaps an earlier transfer or release\", place: PlaceId(",
+      "diag_sample": "terminal-artifact production failed: Lowering(OverlappingProjectedCustody { reason: \"projected custody overlaps an earlier transfer or release\", place: PlaceId(80), earlier: [FixedIndex(1)], requested",
+      "count": 1,
+      "members": [
+        "pass/borrows/runtime_partial_reference_partition_exit"
+      ],
+      "witness": "pass/borrows/runtime_partial_reference_partition_exit"
+    },
+    {
+      "diag_norm": "terminating machine drain reaches recursive component `_`, which has no `_` ranking -- spell one on that component",
+      "diag_sample": "terminating machine drain reaches recursive component `step`, which has no `terminates by` ranking -- spell one on that component",
+      "count": 1,
+      "members": [
+        "pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit"
+      ],
+      "witness": "pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit"
+    },
+    {
+      "diag_norm": "terminating machine spin reaches recursive component `_`, which has no `_` ranking -- spell one on that component",
+      "diag_sample": "terminating machine spin reaches recursive component `step`, which has no `terminates by` ranking -- spell one on that component",
+      "count": 1,
+      "members": [
+        "pass/control_flow/runtime_ranked_state_cycle_owned_record_exit"
+      ],
+      "witness": "pass/control_flow/runtime_ranked_state_cycle_owned_record_exit"
+    },
+    {
+      "diag_norm": "terminating machine walk reaches recursive component `_`, which has no `_` ranking -- spell one on that component",
+      "diag_sample": "terminating machine walk reaches recursive component `iterate`, which has no `terminates by` ranking -- spell one on that component",
+      "count": 1,
+      "members": [
+        "pass/termination/runtime_named_state_remainder_endpoint_exit"
+      ],
+      "witness": "pass/termination/runtime_named_state_remainder_endpoint_exit"
+    }
+  ]
+}
