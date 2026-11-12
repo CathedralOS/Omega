@@ -306,19 +306,17 @@ ensures  result <= input
 {
     transition { _ -> finish(input) }
 
-    machine finish(saved: u16) -> u16
-    ensures result == saved
-    {
+    machine finish(saved: u16) -> u16 {
         saved
     }
 }`,
-          highlight: [2, 3, 8],
+          highlight: [2, 3, 7],
         },
         notes: [
           { for: 2, text: "`requires` states a precondition the caller must establish before invoking `bounded`; the body may rely on it. It is a proof obligation at each call, not a runtime check." },
           { for: 3, text: "`ensures` states the postcondition guaranteed on normal return, using the reserved name `result` for the returned value." },
-          { for: 5, text: "The terminal call `finish(input)` forwards `finish`'s result as `bounded`'s result." },
-          { for: 8, text: "Facts do not ride across a call by themselves: `finish` publishes its own guarantee, `result == saved`. The call passes `input` as `saved`, so `result == input`, which discharges `result <= input`." },
+          { for: 5, text: "`finish(input)` is the last thing `bounded` does, so `finish`'s result becomes `bounded`'s result." },
+          { for: 7, text: "How the checker proves `result <= input`: (1) `finish` is in the same file, so the checker reads its body, which returns `saved` unchanged; (2) the call passes `input` as `saved`, so the result equals `input`; (3) `input <= input`, which is what `bounded` promised. Nothing needed an `ensures` on `finish` here. Code in another package sees only a machine's written contract, so a machine meant for outside callers writes the guarantees they need. This matters because a promise is only as good as the proof behind it." },
           { text: "When the prover refuses an expression, do not fight the syntax. Tighten a precondition, hoist an intermediate value into a guarded transition, or declare an explicit overflow policy." },
         ],
       },
