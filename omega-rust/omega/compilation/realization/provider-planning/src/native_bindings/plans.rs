@@ -41,7 +41,7 @@ pub struct PreparedNativeBuildBindings {
 }
 
 struct PreparedNativeBuildBinding {
-    selection: build_time_evaluation::native_bindings::NativeBindingSelection,
+    selection: language_semantics::declaration_selection::NativeBindingSelection,
     requirement: Result<PreparedNativeRequirement, Vec<Diagnostic>>,
 }
 

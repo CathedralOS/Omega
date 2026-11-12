@@ -3046,10 +3046,11 @@ mod owned_cleanup {
             return None;
         }
         if receipts.iter().any(|place| {
-            removed
-                .iter()
-                .chain(inactive_cases)
-                .any(|removed| place.path[path.len()..].starts_with(removed))
+            let below = &place.path[path.len()..];
+            removed.iter().any(|removed| below.starts_with(removed))
+                || inactive_cases
+                    .iter()
+                    .any(|inactive| crate::flow::lies_under_observed_case(inactive, below))
         }) {
             return None;
         }
@@ -5730,7 +5731,8 @@ mod permission_schedule {
         remaining: Option<&mut RemainingCustody>,
     ) {
         for place in places.iter_mut().filter(|place| {
-            place.root == excluded.root && place.path.starts_with(&excluded.segments)
+            place.root == excluded.root
+                && crate::flow::lies_under_observed_case(&excluded.segments, &place.path)
         }) {
             place.live = false;
             place.case_excluded = true;

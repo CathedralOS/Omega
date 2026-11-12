@@ -1,6 +1,10 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_dup_alias");
-    Build::depend_as(builder, "kit", Source::Path { location: "../../dependency" });
-    Build::depend_as(builder, "kit", Source::Path { location: "../../dependency" });
+    let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../dependency" });
+    dependency::with_alias(&mut kit_dependency, "kit");
+    let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
+    let mut kit_dependency_2: DependencyDescription = dependency::from_source(Source::Path { location: "../../dependency" });
+    dependency::with_alias(&mut kit_dependency_2, "kit");
+    let kit_registration_2: DependencyRegistration = Build::dependency(builder, kit_dependency_2);
     builder.freestanding = true;
 }

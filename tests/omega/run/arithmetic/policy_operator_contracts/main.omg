@@ -1,0 +1,68 @@
+// A `%` or `|` policy operator in `requires` and `ensures` means what it means
+// in executable code: the operand rule is the same in all three
+// (wiki/spec/language/domains.md#operands), and Wrapping and Saturating form
+// total specification terms (wiki/spec/proofs/contracts.md#total-arithmetic).
+// `small_sum` is called with operands whose exact sum leaves `u32`; only the
+// wrapped sum, 4, meets `< 10`. `uses` relies on the same wrapped requirement
+// to prove its Exact `sum + 5`.
+use omega_language_std::console;
+data Main { }
+
+machine small_sum(a: u32, b: u32) -> u32
+    requires a +% b < 10
+    ensures result == a +% b
+{
+    a +% b
+}
+
+machine clamp_sum(a: u8, b: u8) -> u8
+    ensures result == a +| b
+{
+    a +| b
+}
+
+// A wrapping quotient still owes its nonzero divisor, in the contract as in
+// the body.
+machine quotient(a: u32, b: u32) -> u32
+    requires b != 0
+    ensures result == a /% b
+{
+    a /% b
+}
+
+machine shifted(a: u32, count: u32) -> u32
+    requires count < 32
+    ensures result == a <<| count
+{
+    a <<| count
+}
+
+machine uses(a: u32, b: u32) -> u32
+    requires a +% b < 10
+{
+    let sum: u32 = a +% b;
+    sum + 5
+}
+
+machine subject() -> bool {
+    small_sum(4000000000, 294967300) == 4
+        && clamp_sum(200, 100) == 255
+        && quotient(9, 2) == 4
+        && shifted(1, 4) == 16
+        && uses(4000000000, 294967300) == 9
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    transition subject() {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

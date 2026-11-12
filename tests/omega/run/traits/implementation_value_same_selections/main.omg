@@ -1,0 +1,27 @@
+// Expected exit: 0.
+// An implementation is the record it constructs, not its name. `First` and
+// `Second` fill the one `Codec<Message>` slot with the same existing machine,
+// so they are one value: `Holder<First>` is delivered where `Holder<Second>`
+// is declared, and a call through either name runs `encode_message`. The fail
+// twin `fail/traits/implementation_value_selected_machine_mismatch` differs
+// only in the machine `Second` selects.
+data Message { value: u64; }
+trait Codec<T> {
+    machine encode(value: &T) -> u64 terminates;
+}
+machine encode_message(value: &Message) -> u64 terminates { value.value }
+machine encode_again(value: &Message) -> u64 terminates { value.value }
+First satisfies Codec<Message> { Codec::encode = encode_message; }
+Second satisfies Codec<Message> { Codec::encode = encode_message; }
+data Holder<Format satisfies Codec<Message>> [copy] { value: u64; }
+machine convert(value: Holder<First>) -> Holder<Second> { value }
+machine save<T, Format satisfies Codec<T>>(value: &T) -> u64 { Format::encode(value) }
+machine main() crashes Trap {
+    let message: Message = Message { value: 8 };
+    let held: Holder<First> = Holder { value: 8 };
+    let moved: Holder<Second> = convert(held);
+    let observed: u64 = save<Message, Second>(&message);
+    transition observed == moved.value { true -> done() false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

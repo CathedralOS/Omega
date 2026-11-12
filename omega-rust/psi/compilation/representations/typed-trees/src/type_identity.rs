@@ -1813,6 +1813,18 @@ pub(crate) mod identity_context {
             }
         }
 
+        /*
+            Type equality names the value an implementation constructs, so two
+            constructors of one value compare equal. A portable or
+            package-qualified identity keeps the written constructor: it names
+            the declaration an artifact depends on, and equal values must not
+            lose the dependencies of the one actually used.
+        */
+        pub(crate) fn identifies_constructed_values(&self) -> bool {
+            self.portable_machine_applications.is_none()
+                && self.qualification == TypeIdentityQualification::Ordinary
+        }
+
         pub(crate) fn applied_argument(
             &self,
             symbol: SymbolHandle,
@@ -2164,6 +2176,34 @@ pub(crate) mod identity_context {
             name = base_name;
             arguments = *origin_arguments;
         }
+        let constructed = context.identifies_constructed_values();
+        let lifetime_is_relevant =
+            |ordinal| !constructed || program.application_lifetime_is_relevant(symbol, ordinal);
+        let argument_is_relevant =
+            |ordinal| !constructed || program.application_argument_is_relevant(symbol, ordinal);
+        let lifetimes = lifetimes
+            .iter()
+            .enumerate()
+            .filter(|(ordinal, _)| lifetime_is_relevant(*ordinal))
+            .map(|(_, lifetime)| lifetime.clone())
+            .collect::<Vec<_>>();
+        let regions = regions
+            .iter()
+            .enumerate()
+            .filter(|(ordinal, _)| lifetime_is_relevant(*ordinal))
+            .map(|(_, region)| *region)
+            .collect::<Vec<_>>();
+        let (lifetimes, regions) = (lifetimes.as_slice(), regions.as_slice());
+        let arguments = program
+            .type_reference_handles(arguments)
+            .iter()
+            .enumerate()
+            .filter(|(ordinal, _)| argument_is_relevant(*ordinal))
+            .collect::<Vec<_>>();
+        let parameters = program.declaration_type_parameters(symbol);
+        if constructed {
+            symbol = program.implementation_value_head(symbol);
+        }
         if arguments.is_empty()
             && (lifetimes.is_empty()
                 || context.invalid_application.is_none()
@@ -2180,57 +2220,50 @@ pub(crate) mod identity_context {
                 )],
             );
         }
-        let parameters = program.declaration_type_parameters(symbol);
         generic_type_identity(
             program,
             symbol,
             name.as_str(),
             lifetimes,
             regions,
-            program
-                .type_reference_handles(arguments)
-                .iter()
-                .enumerate()
-                .map(|(ordinal, argument)| {
-                    if context.storage_value_indices
-                        && parameters.get(ordinal).is_some_and(|parameter| {
-                            super::storage_identity::independent_value_index(
-                                program, symbol, parameter,
-                            )
-                        })
-                    {
-                        return bare(TypeForm::Unit);
-                    }
-                    if context.invalid_application.is_some()
-                        && parameters.get(ordinal).is_some_and(|parameter| {
-                            matches!(
-                                parameter.kind,
-                                crate::data::TypeParameterKind::Machine { .. }
-                            )
-                        })
-                    {
-                        return match program.static_operand_from_type_reference(*argument) {
-                            Ok(selected) => substitution::index_argument(
-                                program,
-                                super::IndexIdentityArgument::StaticArgument(&selected),
-                                context,
-                            ),
-                            Err(_) => substitution::rejected(context),
-                        };
-                    }
-                    let is_index = parameters
-                        .get(ordinal)
-                        .is_some_and(|parameter| parameter.kind.is_const_or_value());
-                    if is_index {
-                        substitution::index_argument(
-                            program,
-                            super::IndexIdentityArgument::TypeReference(*argument),
-                            context,
+            arguments.into_iter().map(|(ordinal, argument)| {
+                if context.storage_value_indices
+                    && parameters.get(ordinal).is_some_and(|parameter| {
+                        super::storage_identity::independent_value_index(program, symbol, parameter)
+                    })
+                {
+                    return bare(TypeForm::Unit);
+                }
+                if context.invalid_application.is_some()
+                    && parameters.get(ordinal).is_some_and(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            crate::data::TypeParameterKind::Machine { .. }
                         )
-                    } else {
-                        normalize_type_reference(program, *argument, context)
-                    }
-                }),
+                    })
+                {
+                    return match program.static_operand_from_type_reference(*argument) {
+                        Ok(selected) => substitution::index_argument(
+                            program,
+                            super::IndexIdentityArgument::StaticArgument(&selected),
+                            context,
+                        ),
+                        Err(_) => substitution::rejected(context),
+                    };
+                }
+                let is_index = parameters
+                    .get(ordinal)
+                    .is_some_and(|parameter| parameter.kind.is_const_or_value());
+                if is_index {
+                    substitution::index_argument(
+                        program,
+                        super::IndexIdentityArgument::TypeReference(*argument),
+                        context,
+                    )
+                } else {
+                    normalize_type_reference(program, *argument, context)
+                }
+            }),
             context,
         )
     }
@@ -2270,20 +2303,63 @@ pub(crate) mod identity_context {
         {
             return None;
         }
+        let constructed = context.identifies_constructed_values();
+        let head = if constructed {
+            program.implementation_value_head(argument.symbol)
+        } else {
+            argument.symbol
+        };
         if let Some(application) = &argument.application {
-            return Some(generic_type_identity(
-                program,
-                argument.symbol,
-                "",
-                &application.lifetime_arguments,
-                &[],
-                application.arguments.iter().map(|argument| {
+            let lifetimes = application
+                .lifetime_arguments
+                .iter()
+                .enumerate()
+                .filter(|(ordinal, _)| {
+                    !constructed
+                        || program.application_lifetime_is_relevant(argument.symbol, *ordinal)
+                })
+                .map(|(_, lifetime)| lifetime.clone())
+                .collect::<Vec<_>>();
+            let arguments = application
+                .arguments
+                .iter()
+                .enumerate()
+                .filter(|(ordinal, _)| {
+                    !constructed
+                        || program.application_argument_is_relevant(argument.symbol, *ordinal)
+                })
+                .map(|(_, argument)| {
                     substitution::index_argument(
                         program,
                         super::IndexIdentityArgument::StaticArgument(argument),
                         context,
                     )
-                }),
+                })
+                .collect::<Vec<_>>();
+            let binders_dropped = lifetimes.len() != application.lifetime_arguments.len()
+                || arguments.len() != application.arguments.len();
+            if (head != argument.symbol || binders_dropped)
+                && lifetimes.is_empty()
+                && arguments.is_empty()
+            {
+                return Some(compound(
+                    TypeForm::Named,
+                    [normalize_const_or_nominal_name(
+                        program,
+                        head,
+                        "",
+                        Label::Name,
+                        context,
+                    )],
+                ));
+            }
+            return Some(generic_type_identity(
+                program,
+                head,
+                "",
+                &lifetimes,
+                &[],
+                arguments.into_iter(),
                 context,
             ));
         }
@@ -2297,7 +2373,7 @@ pub(crate) mod identity_context {
             TypeForm::Named,
             [normalize_const_or_nominal_name(
                 program,
-                argument.symbol,
+                head,
                 "",
                 Label::Name,
                 context,
@@ -2521,7 +2597,11 @@ pub(crate) mod identity_context {
                 TypeForm::Named,
                 [normalize_const_or_nominal_name(
                     program,
-                    *symbol,
+                    if context.identifies_constructed_values() {
+                        program.implementation_value_head(*symbol)
+                    } else {
+                        *symbol
+                    },
                     name.as_str(),
                     Label::Name,
                     context,

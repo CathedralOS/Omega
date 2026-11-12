@@ -208,6 +208,37 @@ governs which premises a Terminal obligation may use.
 Selecting a mathematical core does not prove an operational interpretation or
 establish a general proof kernel merely by reusing a bootstrap checker.
 
+### Admitting an arithmetic rule
+
+Named decision: `kernel-rule-admission`, settled 2026-11-12.
+
+An arithmetic fact belongs in the kernel as a theorem whose proof the core
+checks; that adds nothing to what is trusted and needs no approval. Until the
+core can check such a proof, a lane may add the fact to the certificate kernel
+as a provisional rule, as ordinary implementation work, when all of these hold:
+
+1. **A program needs it.** The change names a program whose proof cannot be
+   checked without the rule. No rule is added on speculation.
+2. **A general method is preferred.** Where a definition or one method covers
+   the whole class, add that instead of a single fact: division and remainder
+   by their defining equation, bitwise operations by evaluation at their
+   width. A one-off fact is for a class with no such method, such as a product
+   of two non-literal values.
+3. **Its conditions are exact.** The rule states every side condition it
+   depends on: sign, width, a nonzero divisor, the absence of overflow.
+4. **It is tested against arithmetic.** A test evaluates the rule's statement
+   over every value of a small width and compares it with computed results.
+   A program the rule proves and a near-miss it must refuse accompany it.
+5. **It lands alone.** One rule per pull request, with its row in the kernel's
+   rule table.
+6. **It is recorded as trusted.** The row is marked provisional: believed, not
+   derived. Each provisional row is replaced by a checked proof when the core
+   can check one, and none may remain when the kernel is claimed verified.
+
+Owner approval is still required to change the mathematical core, or to accept
+a new kind of evidence the kernel does not check itself, such as an external
+solver's verdict or a new class of assumption.
+
 Independent checking removes the need to trust the proof's producer. Humans
 still review whether the statement is the intended one and whether its
 assumptions are acceptable. Neither LLM confidence nor kernel acceptance proves

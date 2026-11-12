@@ -75,6 +75,17 @@ impl Lowering<'_> {
         let result = match expression.result {
             Some(ValueType::Record(_)) => return self.record(expression).map(Value::Record),
             Some(ValueType::Scalar(scalar_type)) => Some(scalar_type),
+            // A value of a rigid type is only ever named: no operation
+            // produces one, so no result row is minted for it here.
+            Some(ValueType::Rigid(_)) => {
+                let ExpressionKind::Slot(slot) = &expression.kind else {
+                    return Err(self.internal("an operation over a value of a rigid type"));
+                };
+                return match *self.slot_mut(*slot)? {
+                    Some(Bound::Scalar(value)) => Ok(Value::Scalar(value)),
+                    _ => Err(self.internal("a rigid slot is not bound to a value")),
+                };
+            }
             None => None,
         };
         match &expression.kind {

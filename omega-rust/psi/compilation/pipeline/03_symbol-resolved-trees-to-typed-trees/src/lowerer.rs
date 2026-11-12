@@ -790,6 +790,7 @@ pub(crate) mod seeded_continuation {
             type_reference_exposure: Some(
                 AuthoredDeclarationSelectionExposure::PrivateImplementation,
             ),
+            admits_contract_policy_operators: false,
         };
         if let Err(error) = type_resolved_cohort(&mut lowerer, &cohort) {
             return Err(SeededContinuationError::Lowering(error));
@@ -863,6 +864,7 @@ pub(crate) mod seeded_continuation {
             type_reference_exposure: Some(
                 AuthoredDeclarationSelectionExposure::PrivateImplementation,
             ),
+            admits_contract_policy_operators: false,
         };
         type_resolved_cohort(&mut lowerer, &cohort)?;
         for forwarding in source
@@ -1637,6 +1639,7 @@ pub fn lower_symbol_resolved_trees(
         equality_scope: None,
         type_reference_exposure:
             Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
+        admits_contract_policy_operators: false,
     };
     lowerer.typed_trees.service_reaches = symbol_resolved_trees.service_reaches.clone();
     lowerer.typed_trees.service_reach_rows = symbol_resolved_trees.service_reach_rows.clone();
@@ -2005,6 +2008,11 @@ pub(crate) struct Lowerer<'source> {
     pub(crate) equality_scope: Option<crate::expressions::equatable::EqualityScope>,
     pub(crate) type_reference_exposure:
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
+    /// Set while the contracts of a machine or one of its states are lowered.
+    /// Preparation types a suffixed policy operator in those contracts against
+    /// the machine's parameters; no other proof fact has that owner, so every
+    /// other fact still rejects the suffix.
+    pub(crate) admits_contract_policy_operators: bool,
 }
 
 impl Lowerer<'_> {
@@ -2131,6 +2139,18 @@ impl Lowerer<'_> {
         let previous = std::mem::replace(&mut self.type_reference_exposure, exposure.into());
         let result = operation(self);
         self.type_reference_exposure = previous;
+        result
+    }
+
+    /// Lowers the contracts of a machine or state, the proof facts that may
+    /// use a suffixed policy operator.
+    pub(crate) fn admitting_contract_policy_operators<T>(
+        &mut self,
+        operation: impl FnOnce(&mut Self) -> Result<T, Diagnostic>,
+    ) -> Result<T, Diagnostic> {
+        let previous = std::mem::replace(&mut self.admits_contract_policy_operators, true);
+        let result = operation(self);
+        self.admits_contract_policy_operators = previous;
         result
     }
 

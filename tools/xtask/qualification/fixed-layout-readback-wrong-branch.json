@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "fixtures": [
+    "pass/facts/fixed_layout_reference_readback_through_match_join_exit"
+  ],
+  "files": [
+    {
+      "fixture": "pass/facts/fixed_layout_reference_readback_through_match_join_exit",
+      "path": "samples/cli/facts/fixed_layout_reference_readback/match_join/main.omg",
+      "good_sha256": "ea0f4b7d5c6a7ad7363a08af8b621cb5255c6019924d0b23c97bcb159901773d",
+      "weak_sha256": "53a4ebed0dcfad4eab175eb6f2b4c74e9a690cab469966ab413877f5ff851b0d",
+      "strong_sha256": "f90daa3db5adf72fe908e36a617f0d6a0645aeb5473d255aa88cfbabdb0f9aa0",
+      "good_to_weak": [
+        {
+          "before": "data Readback<'held, T> [copy] { value: u64; pointer: &'held T; selected_first: bool; }",
+          "after": "data Readback<'held, T> [copy] { value: u64; pointer: &'held T; }",
+          "occurrences": 1
+        },
+        {
+          "before": "storage: &'storage u64, selected_first: bool) -> Readback<",
+          "after": "storage: &'storage u64) -> Readback<",
+          "occurrences": 1
+        },
+        {
+          "before": "Readback { value: record.value, pointer: loaded, selected_first: selected_first }",
+          "after": "Readback { value: record.value, pointer: loaded }",
+          "occurrences": 1
+        },
+        {
+          "before": "true -> update<7u64>(pointer, storage, true)",
+          "after": "true -> update<7u64>(pointer, storage)",
+          "occurrences": 1
+        },
+        {
+          "before": "false -> update<7u64>(pointer, storage, false)",
+          "after": "false -> update<7u64>(pointer, storage)",
+          "occurrences": 1
+        },
+        {
+          "before": "result.value == 7u64 && result.pointer.value == 43u64 && result.selected_first == choose_first",
+          "after": "result.value == 7u64 && result.pointer.value == 43u64",
+          "occurrences": 1
+        },
+        {
+          "before": "= match choose_first {",
+          "after": "= match !choose_first {",
+          "occurrences": 1
+        }
+      ],
+      "weak_to_strong": [
+        {
+          "before": "data Readback<'held, T> [copy] { value: u64; pointer: &'held T; }",
+          "after": "data Readback<'held, T> [copy] { value: u64; pointer: &'held T; selected_first: bool; }",
+          "occurrences": 1
+        },
+        {
+          "before": "storage: &'storage u64) -> Readback<",
+          "after": "storage: &'storage u64, selected_first: bool) -> Readback<",
+          "occurrences": 1
+        },
+        {
+          "before": "Readback { value: record.value, pointer: loaded }",
+          "after": "Readback { value: record.value, pointer: loaded, selected_first: selected_first }",
+          "occurrences": 1
+        },
+        {
+          "before": "true -> update<7u64>(pointer, storage)",
+          "after": "true -> update<7u64>(pointer, storage, true)",
+          "occurrences": 1
+        },
+        {
+          "before": "false -> update<7u64>(pointer, storage)",
+          "after": "false -> update<7u64>(pointer, storage, false)",
+          "occurrences": 1
+        },
+        {
+          "before": "result.value == 7u64 && result.pointer.value == 43u64",
+          "after": "result.value == 7u64 && result.pointer.value == 43u64 && result.selected_first == choose_first",
+          "occurrences": 1
+        }
+      ]
+    },
+    {
+      "fixture": "pass/facts/fixed_layout_reference_readback_through_match_join_exit",
+      "path": "tests/omega/pass/facts/fixed_layout_reference_readback_through_match_join_exit/main.omg",
+      "good_sha256": "ea0f4b7d5c6a7ad7363a08af8b621cb5255c6019924d0b23c97bcb159901773d",
+      "weak_sha256": "53a4ebed0dcfad4eab175eb6f2b4c74e9a690cab469966ab413877f5ff851b0d",
+      "strong_sha256": "f90daa3db5adf72fe908e36a617f0d6a0645aeb5473d255aa88cfbabdb0f9aa0",
+      "good_to_weak": [
+        {
+          "before": "data Readback<'held, T> [copy] { value: u64; pointer: &'held T; selected_first: bool; }",
+          "after": "data Readback<'held, T> [copy] { value: u64; pointer: &'held T; }",
+          "occurrences": 1
+        },
+        {
+          "before": "storage: &'storage u64, selected_first: bool) -> Readback<",
+          "after": "storage: &'storage u64) -> Readback<",
+          "occurrences": 1
+        },
+        {
+          "before": "Readback { value: record.value, pointer: loaded, selected_first: selected_first }",
+          "after": "Readback { value: record.value, pointer: loaded }",
+          "occurrences": 1
+        },
+        {
+          "before": "true -> update<7u64>(pointer, storage, true)",
+          "after": "true -> update<7u64>(pointer, storage)",
+          "occurrences": 1
+        },
+        {
+          "before": "false -> update<7u64>(pointer, storage, false)",
+          "after": "false -> update<7u64>(pointer, storage)",
+          "occurrences": 1
+        },
+        {
+          "before": "result.value == 7u64 && result.pointer.value == 43u64 && result.selected_first == choose_first",
+          "after": "result.value == 7u64 && result.pointer.value == 43u64",
+          "occurrences": 1
+        },
+        {
+          "before": "= match choose_first {",
+          "after": "= match !choose_first {",
+          "occurrences": 1
+        }
+      ],
+      "weak_to_strong": [
+        {
+          "before": "data Readback<'held, T> [copy] { value: u64; pointer: &'held T; }",
+          "after": "data Readback<'held, T> [copy] { value: u64; pointer: &'held T; selected_first: bool; }",
+          "occurrences": 1
+        },
+        {
+          "before": "storage: &'storage u64) -> Readback<",
+          "after": "storage: &'storage u64, selected_first: bool) -> Readback<",
+          "occurrences": 1
+        },
+        {
+          "before": "Readback { value: record.value, pointer: loaded }",
+          "after": "Readback { value: record.value, pointer: loaded, selected_first: selected_first }",
+          "occurrences": 1
+        },
+        {
+          "before": "true -> update<7u64>(pointer, storage)",
+          "after": "true -> update<7u64>(pointer, storage, true)",
+          "occurrences": 1
+        },
+        {
+          "before": "false -> update<7u64>(pointer, storage)",
+          "after": "false -> update<7u64>(pointer, storage, false)",
+          "occurrences": 1
+        },
+        {
+          "before": "result.value == 7u64 && result.pointer.value == 43u64",
+          "after": "result.value == 7u64 && result.pointer.value == 43u64 && result.selected_first == choose_first",
+          "occurrences": 1
+        }
+      ]
+    }
+  ]
+}

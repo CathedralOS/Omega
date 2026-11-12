@@ -125,9 +125,12 @@ machine save_dynamic<T>(format: &Codec<T>, value: &T, out: &mut [u8]) -> u64 {
 - Complete ordinary fields, erased evidence and schema constraints in trait
   declarations and constructors; use general evidence application, not hidden
   resultless-member classification.
-- Unify result identity for empty and generic constructors. Move
-  `fail/traits/implementation_value_own_const_mismatch` to a positive control
-  when it constructs the same empty `Tag`; preserve actual schema-index,
+- Finish result identity where a constructor still stands for itself: an
+  instantiated default, two generic constructors of one schema application, and
+  an implementation passed as a static argument on a call. Selection-row and
+  empty constructors already compare by the value they construct
+  (`pass/traits/implementation_value_unused_const_one_value`,
+  `run/traits/implementation_value_same_selections`); keep the schema-index,
   selected-machine and lifetime/custody mismatch controls.
 - Audit empty-marker and same-selection customers; place intended distinctions
   in actual schema parameters or relevant fields. A wrapper's distinction does

@@ -1,7 +1,11 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "same_spelling_consumer");
-    Build::depend_as(builder, "api", Source::Path { location: "api" });
-    Build::depend_as(builder, "chosen", Source::Path { location: "chosen" });
+    let mut api_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "api" });
+    dependency::with_alias(&mut api_dependency, "api");
+    let api_registration: DependencyRegistration = Build::dependency(builder, api_dependency);
+    let mut chosen_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "chosen" });
+    dependency::with_alias(&mut chosen_dependency, "chosen");
+    let chosen_registration: DependencyRegistration = Build::dependency(builder, chosen_dependency);
     Build::select_provider<api::main::Value, chosen::main::Provider>(builder, linux_x86_64, CompositionMode::Independent);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::select_provider<api::main::Value, chosen::main::Provider>(builder, windows_x86_64, CompositionMode::Independent);
