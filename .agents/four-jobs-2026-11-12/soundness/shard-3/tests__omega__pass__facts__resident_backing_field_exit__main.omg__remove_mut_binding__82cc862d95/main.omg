@@ -1,0 +1,135 @@
+// Expected exit: 0
+// A granted vacant extent retains actual backing through transport, initialization, permitted writes, and extraction.
+use omega::language::core::extent;
+use omega::language::core::layout;
+use omega::language::core::process_exit;
+use omega::language::core::content;
+use omega::language::core::nat;
+
+data TestMemory {}
+public data Word { prefix: u64; value: u64; suffix: u64; }
+public data WordPlacement {}
+
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
+    let entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
+    entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 16 } };
+    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 3, size_fixed: 24, size_is_dynamic: false, align: 8 };
+    let first: AccessPlan = AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
+        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported });
+    let second: AccessPlan = AccessPlan::with(first, schema.fields[1].key,
+        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported });
+    AccessPlan::with(second, schema.fields[2].key,
+        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported })
+}
+
+MemorySupply satisfies ResourceProfileSupply<TestMemory> {
+    machine profile(storage: &Extent in Granted) -> ResourceProfile {
+        let services: [u64; 32];
+        let mut regions: [ResourceRegion; 32];
+        regions[0] = ResourceRegion {
+            range: RelativeRange { offset: 0, length: storage.length },
+            peer: PeerWritability::Exclusive,
+            stable: StableCapability::ReadWrite,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::None,
+            reach: BoundaryReach { services: services, service_count: 0 },
+        };
+        ResourceProfile { regions: regions, region_count: 1 }
+    }
+}
+
+boundary trait NativeAllocation {
+    machine allocate(count: u64, width: u64) -> addr reaches;
+}
+TestRoots satisfies ExtentRootProvider {
+    machine grant(root: Extent) -> Extent { root }
+}
+TestVacant satisfies VacantContentTransfer {
+    machine transfer(storage: Extent in Granted) -> Extent
+        ensures result in Granted,
+            core::Identity<IntervalSet<Nat>>(
+                Granted::content(old(&storage)),
+                Granted::content(&result)
+            )
+    { storage as Extent }
+}
+
+// Place: field.
+const CAPACITY: u64 = 64;
+machine main() crashes Trap {
+    let address: addr = NativeAllocation::allocate(1, CAPACITY);
+    transition address != 0 { true -> allocated(address) false -> bad() }
+    machine allocated(address: addr) {
+        let granted: Extent in Granted = ExtentRootProvider::grant(Extent { base: address, length: CAPACITY });
+        let vacant: Extent in Granted & Vacant = VacantContentTransfer::transfer(granted);
+        transition vacant.length == CAPACITY { true -> partition(vacant) false -> bad() }
+    }
+    machine partition(vacant: Extent in Granted & Vacant) requires vacant.length == CAPACITY {
+        let parts: VacantExtentParts = split_vacant_extent(vacant, 32);
+        let first: Extent in Granted & Vacant = transport(parts.taken, true);
+        let second: Extent in Granted & Vacant = transport(parts.rest, false);
+        transition first.length == 32 && second.length == 32 {
+            true -> done(first, second)
+            false -> bad()
+        }
+    }
+    machine done(first: Extent in Granted & Vacant, second: Extent in Granted & Vacant) { ProcessExit::exit_process(0); }
+    machine bad() { crash Trap; }
+}
+
+data Held
+requires self.storage.length == self.length
+{
+    storage: Extent in Granted & Vacant;
+    length: u64;
+}
+machine retain_storage(storage: Extent in Granted & Vacant) -> Extent in Granted & Vacant
+ensures result.base == storage.base, result.length == storage.length
+{ storage }
+machine retain_record(held: Held) -> Held {
+    let length: u64 = held.length;
+    let storage: Extent in Granted & Vacant = retain_storage(held.storage);
+    Held { storage: storage, length: length }
+}
+machine transport(storage: Extent in Granted & Vacant, choose: bool) -> Extent in Granted & Vacant
+crashes Trap
+{
+    let length: u64 = storage.length;
+    let mut held: Held = retain_record(Held { storage: storage, length: length });
+    restore_record(&mut held);
+    exercise(held.storage)
+}
+
+machine restore_record(held: &mut Held) {
+    let length: u64 = held.length;
+    let storage: Extent in Granted & Vacant = retain_storage(held.storage);
+    held.storage = storage;
+    held.length = length;
+}
+
+machine exercise(vacant: Extent in Granted & Vacant) -> Extent in Granted & Vacant crashes Trap {
+    transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(vacant, Word { prefix: 101, value: 17, suffix: 103 }) {
+        AccessOutcome::Ready { view } -> extract(view)
+        AccessOutcome::Rejected { returned, reason } -> bad()
+    }
+
+    machine extract(storage: Extent in Granted & Resident<WordPlacement, Word>) -> Extent in Granted & Vacant {
+        let mut retained: Extent in Granted & Resident<WordPlacement, Word> = storage;
+        let view: &mut Access<WordPlacement, Word> = Access::view_resident_mut<WordPlacement, Word>(&mut retained);
+        let before: u64 = read(&view.value);
+        write(&mut view.value, 29u64);
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(retained) {
+            AccessExtraction::Moved { storage, value } -> finish(storage, value, before)
+        }
+    }
+
+    machine finish(storage: Extent in Granted & Vacant, value: Word, before: u64) -> Extent in Granted & Vacant {
+        transition before == 17 && value.value == 29 && value.prefix == 101 && value.suffix == 103 {
+            true -> storage
+            false -> bad()
+        }
+    }
+    machine bad() -> Extent in Granted & Vacant { crash Trap; }
+}

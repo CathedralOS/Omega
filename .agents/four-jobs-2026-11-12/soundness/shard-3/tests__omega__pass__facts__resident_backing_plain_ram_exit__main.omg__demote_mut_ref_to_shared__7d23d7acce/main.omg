@@ -1,0 +1,24 @@
+// Expected exit: 0
+// A qualification-only mutable cast still writes ordinary RAM.
+data Pair { changed: u64; neighbor: u64; }
+domain Pair::Label;
+machine change(pair: &Pair) ensures pair.changed == 41 {
+    pair.changed = 41;
+}
+machine check(pair: &mut Pair in Pair::Label) -> u64
+requires pair.changed == 17, pair.neighbor == 19
+ensures result == 19
+{
+    change(pair as &mut Pair);
+    pair.neighbor
+}
+machine main() crashes Trap {
+    let mut pair: Pair in Pair::Label = Pair { changed: 17, neighbor: 19 };
+    let neighbor: u64 = check(&mut pair);
+    transition pair.changed == 41 && neighbor == 19 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

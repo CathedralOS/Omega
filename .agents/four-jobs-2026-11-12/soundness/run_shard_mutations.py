@@ -21,6 +21,7 @@ from mutant_classify import (  # noqa: E402
     BUCKETS,
     SPEC_RULES,
     classify_mutant,
+    drop_requires_removed_line,
     minimal_mutant_diff,
 )
 
@@ -59,6 +60,7 @@ class MutantRecord:
     route_reason: str = ""
     accepted_by: str = ""
     validity_note: str = ""
+    hole_subtype: str = ""
     seconds: float = 0.0
 
 
@@ -315,7 +317,7 @@ def save_progress(done: set[str], counts: dict[str, int]) -> None:
 TSV_HEADER = (
     "original_fixture\tmutation_kind\tmutant_path\tcurrent_verdict\t"
     "route_verdict\thand_check\tdisposition\taccepted_by\tspec_heading\tspec_path\t"
-    "obligation_line\troute_reason\tvalidity_note\tseconds\n"
+    "obligation_line\troute_reason\tvalidity_note\thole_subtype\tseconds\n"
 )
 
 
@@ -329,13 +331,36 @@ def append_tsv(rows: list[MutantRecord]) -> None:
                 f"{row.current_verdict}\t{row.route_verdict}\t{row.hand_check}\t"
                 f"{row.disposition}\t{row.accepted_by}\t{row.spec_heading}\t{row.spec_path}\t"
                 f"{row.obligation_line}\t{row.route_reason}\t{row.validity_note}\t"
-                f"{row.seconds:.3f}\n"
+                f"{row.hole_subtype}\t{row.seconds:.3f}\n"
             )
 
 
 def spec_quote_for_kind(kind: str) -> str:
     rule = SPEC_RULES.get(kind)
     return rule.quote if rule else ""
+
+
+def probe_drop_requires_subtype(mutant_path: Path, mutant: str, removed: str) -> str:
+    """Add a violating caller; compare accept/reject (fix5 inferred-entry vs unchecked)."""
+    if not removed:
+        return ""
+    calls = re.findall(r"(?m)^\s+([A-Za-z_][\w]*)\(", mutant)
+    if not calls:
+        return "unchecked"
+    target = calls[0]
+    numeric = re.search(r"==\s*(\d+)", removed)
+    bad = "0" if numeric else "0"
+    probe_src = mutant.rstrip() + f"\n\nmachine __violation_probe__() {{\n    {target}({bad});\n}}\n"
+    probe_file = mutant_path.parent / "main.probe-violation.omg"
+    probe_file.write_text(probe_src, encoding="utf-8")
+    mutant_ok, _ = run_omega_check(mutant_path)
+    probe_ok, _ = run_omega_check(probe_file)
+    probe_file.unlink(missing_ok=True)
+    if mutant_ok == "accepted" and probe_ok == "rejected":
+        return "inferred-entry"
+    if mutant_ok == "accepted" and probe_ok == "accepted":
+        return "unchecked"
+    return ""
 
 
 def bucket_counts_from_rows(rows: list[MutantRecord]) -> dict[str, int]:
@@ -348,6 +373,25 @@ def bucket_counts_from_rows(rows: list[MutantRecord]) -> dict[str, int]:
 def parse_tsv_line(cols: list[str]) -> MutantRecord | None:
     if len(cols) < 7:
         return None
+    if len(cols) >= 14:
+        return MutantRecord(
+            original_fixture=cols[0],
+            mutation_kind=cols[1],
+            mutant_path=cols[2],
+            current_verdict=cols[3],
+            route_verdict=cols[4],
+            hand_check=cols[5],
+            disposition=cols[6],
+            accepted_by=cols[7],
+            spec_heading=cols[8],
+            spec_path=cols[9],
+            obligation_line=cols[10],
+            route_reason=cols[11],
+            validity_note=cols[12] if len(cols) > 12 else "",
+            hole_subtype=cols[13] if len(cols) > 13 else "",
+            seconds=float(cols[14]) if len(cols) > 14 and cols[14] else 0.0,
+            spec_quote=spec_quote_for_kind(cols[1]),
+        )
     if len(cols) >= 13:
         return MutantRecord(
             original_fixture=cols[0],
@@ -429,6 +473,14 @@ def revalidate_tsv_rows() -> list[MutantRecord]:
             spec_path = result.spec.path
             spec_quote = result.spec.quote
             spec_heading = result.spec.heading
+        hole_subtype = result.hole_subtype
+        if (
+            old.mutation_kind == "drop_requires_line"
+            and result.disposition == "confirmed-hole"
+            and result.accepted_by
+        ):
+            removed = drop_requires_removed_line(original, mutant)
+            hole_subtype = probe_drop_requires_subtype(mutant_path, mutant, removed)
         rows.append(
             MutantRecord(
                 original_fixture=old.original_fixture,
@@ -445,6 +497,7 @@ def revalidate_tsv_rows() -> list[MutantRecord]:
                 route_reason=result.route_reason or route_reason,
                 accepted_by=result.accepted_by,
                 validity_note=result.validity_note,
+                hole_subtype=hole_subtype,
                 seconds=old.seconds,
             )
         )
@@ -663,6 +716,7 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
                     f"- Current: **{row.current_verdict}** | Route: **{row.route_verdict}**",
                     f"- Obligation: `{row.obligation_line}`",
                     f"- Accepted by: **{row.accepted_by}**",
+                    f"- Hole subtype: **{row.hole_subtype or 'n/a'}**",
                     f"- Validity note: `{row.validity_note}`",
                     f"- Route reason (hint only): `{row.route_reason}`",
                     "",
@@ -728,6 +782,14 @@ def process_fixture_mutations(
             spec_path = result.spec.path
             spec_quote = result.spec.quote
             spec_heading = result.spec.heading
+        hole_subtype = result.hole_subtype
+        if (
+            kind == "drop_requires_line"
+            and result.disposition == "confirmed-hole"
+            and result.accepted_by
+        ):
+            removed = drop_requires_removed_line(source, mutant)
+            hole_subtype = probe_drop_requires_subtype(main_path, mutant, removed)
         fixture_rows.append(
             MutantRecord(
                 original_fixture=fixture,
@@ -744,6 +806,7 @@ def process_fixture_mutations(
                 route_reason=result.route_reason or route_reason,
                 accepted_by=result.accepted_by,
                 validity_note=result.validity_note,
+                hole_subtype=hole_subtype,
                 seconds=rsec,
             )
         )

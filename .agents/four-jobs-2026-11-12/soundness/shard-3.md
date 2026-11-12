@@ -8,29 +8,29 @@ Shard selection: `(i % 8) == 3` over sorted `tests/omega/pass/**/main.omg` and `
 | Bucket | Count |
 | --- | ---: |
 | `confirmed-hole` | 16 |
-| `known-gap-q7-mut` | 141 |
+| `known-gap-q7-mut` | 162 |
 | `disagreement-valid` | 38 |
-| `valid-route-outside` | 110 |
-| `discarded-valid` | 59 |
-| `rejected-both` | 681 |
+| `valid-route-outside` | 120 |
+| `discarded-valid` | 84 |
+| `rejected-both` | 752 |
 | `timeout` | 0 |
 | `failed-run` | 0 |
 | `discarded-no-rule` | 0 |
-| **Total (mutants run)** | **1045** |
+| **Total (mutants run)** | **1172** |
 
-Bucket sum check: 1045 == 1045 (OK).
+Bucket sum check: 1172 == 1172 (OK).
 
 - Fixtures in shard: 1130
-- Fixtures processed: 550
-- Mutants generated: 1045
+- Fixtures processed: 625
+- Mutants generated: 1172
 
 ## Fixture reconcile
 
 - Fixtures in shard: 1130
-- Fixtures with ≥1 mutant row: 441
-- Fixtures with no mutant rows (yet): 689
-- Mutant rows total: 1045
-- Avg mutants / mutated fixture: 2.37
+- Fixtures with ≥1 mutant row: 504
+- Fixtures with no mutant rows (yet): 626
+- Mutant rows total: 1172
+- Avg mutants / mutated fixture: 2.33
 
 ### Fixtures with more than one mutant row
 
@@ -84,7 +84,7 @@ Bucket sum check: 1045 == 1045 (OK).
 - `tests/omega/pass/borrows/runtime_case_reference_reordered_state_returns_exit/main.omg`: 3 rows
 - `tests/omega/pass/borrows/runtime_computed_window_operand_order_exit/main.omg`: 5 rows
 - `tests/omega/pass/borrows/runtime_copyable_carrier_retirement_exit/main.omg`: 3 rows
-- … and 320 more
+- … and 349 more
 
 ## Mutant total accounting
 
@@ -139,7 +139,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__match_operand_versions__main.omg__promote_shared_ref_to_mut__ccb75225c6/main.omg	current=accepted	current_us=1468154	root=compilation	route=no-entry
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__match_operand_versions__main.omg__promote_shared_ref_to_mut__ccb75225c6/main.omg	current=accepted	current_us=1427957	root=compilation	route=no-entry
 ```
 
 ### ## Hand verification (5 confirmed-hole) 2: `tests/omega/pass/borrows/borrowed_array_loop/main.omg` / `promote_shared_ref_to_mut`
@@ -166,7 +166,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__borrowed_array_loop__main.omg__promote_shared_ref_to_mut__f4cc0f530c/main.omg	current=accepted	current_us=1571747	root=compilation	route=no-entry
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__borrowed_array_loop__main.omg__promote_shared_ref_to_mut__f4cc0f530c/main.omg	current=accepted	current_us=1575903	root=compilation	route=no-entry
 ```
 
 ### ## Hand verification (5 confirmed-hole) 3: `tests/omega/pass/borrows/runtime_state_boolean_reference_exit/main.omg` / `promote_shared_ref_to_mut`
@@ -194,7 +194,7 @@ cannot compile admitted project: checked compilation failed for package `runtime
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__runtime_state_boolean_reference_exit__main.omg__promote_shared_ref_to_mut__312788ebc8/main.omg	current=accepted	current_us=11321174	root=compilation	route=outside	Unsupported: machine service reach
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__runtime_state_boolean_reference_exit__main.omg__promote_shared_ref_to_mut__312788ebc8/main.omg	current=accepted	current_us=11460078	root=compilation	route=outside	Unsupported: machine service reach
 ```
 
 ### ## Hand verification (5 confirmed-hole) 4: `tests/omega/pass/borrows/suspension_projected_call_view_shared_cohort_restore_exit/main.omg` / `demote_mut_ref_to_shared`
@@ -221,7 +221,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__suspension_projected_call_view_shared_cohort_restore_exit__main.omg__demote_mut_ref_to_shared__15b1f74b6d/main.omg	current=accepted	current_us=3056745	root=compilation	route=outside	Unsupported: machine service reach
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__suspension_projected_call_view_shared_cohort_restore_exit__main.omg__demote_mut_ref_to_shared__15b1f74b6d/main.omg	current=accepted	current_us=3120474	root=compilation	route=outside	Unsupported: machine service reach
 ```
 
 ### ## Hand verification (5 confirmed-hole) 5: `tests/omega/pass/calls/runtime_dispatch_result_enum_case_exit/main.omg` / `demote_mut_ref_to_shared`
@@ -249,7 +249,7 @@ cannot compile admitted project: checked compilation failed for package `runtime
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__calls__runtime_dispatch_result_enum_case_exit__main.omg__demote_mut_ref_to_shared__67855d45da/main.omg	current=accepted	current_us=11233407	root=compilation	route=outside	Unsupported: machine service reach
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__calls__runtime_dispatch_result_enum_case_exit__main.omg__demote_mut_ref_to_shared__67855d45da/main.omg	current=accepted	current_us=11322469	root=compilation	route=outside	Unsupported: machine service reach
 ```
 
 ## Hand verification (disagreement-valid sample)
@@ -266,7 +266,7 @@ program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests_
 
 **Spec** — `` ():
 
-> 
+> `&mut T` | Exclusive observation and mutation.
 
 **omega --check** (stdout/stderr head):
 
@@ -279,7 +279,7 @@ cannot compile admitted project: checked compilation failed for package `runtime
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__runtime_dispatch_cast_decisions_exit__main.omg__demote_mut_ref_to_shared__a93dc59de0/main.omg	current=accepted	current_us=11309312	root=compilation	route=outside	Unsupported: machine service reach
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__runtime_dispatch_cast_decisions_exit__main.omg__demote_mut_ref_to_shared__a93dc59de0/main.omg	current=accepted	current_us=11055787	root=compilation	route=outside	Unsupported: machine service reach
 ```
 
 ### ## Hand verification (disagreement-valid sample) 2: `tests/omega/pass/arithmetic/runtime_trapping_mutable_local_traps/main.omg` / `demote_mut_ref_to_shared`
@@ -294,7 +294,7 @@ program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests_
 
 **Spec** — `` ():
 
-> 
+> `&mut T` | Exclusive observation and mutation.
 
 **omega --check** (stdout/stderr head):
 
@@ -308,7 +308,7 @@ cannot compile admitted project: checked compilation failed for package `runtime
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__runtime_trapping_mutable_local_traps__main.omg__demote_mut_ref_to_shared__39ceac4305/main.omg	current=accepted	current_us=10959125	root=compilation	route=outside	Unsupported: machine service reach
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__runtime_trapping_mutable_local_traps__main.omg__demote_mut_ref_to_shared__39ceac4305/main.omg	current=accepted	current_us=11544420	root=compilation	route=outside	Unsupported: machine service reach
 ```
 
 ### ## Hand verification (disagreement-valid sample) 3: `tests/omega/pass/build/segment_selector_reload/main.omg` / `remove_mut_binding`
@@ -323,7 +323,7 @@ program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests_
 
 **Spec** — `` ():
 
-> 
+> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
 
 **omega --check** (stdout/stderr head):
 
@@ -336,7 +336,7 @@ cannot compile admitted project: checked compilation failed for package `segment
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__build__segment_selector_reload__main.omg__remove_mut_binding__72027e613e/main.omg	current=accepted	current_us=10553647	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__build__segment_selector_reload__main.omg__remove_mut_binding__72027e613e/main.omg	current=accepted	current_us=10966762	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
 ```
 
 ## Hand verification (5 discarded drop_requires)
@@ -365,7 +365,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__calls__native_code_layout_uncalled_boundary_exit__main.omg__drop_requires_line__bab23fb377/main.omg	current=accepted	current_us=3133472	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__calls__native_code_layout_uncalled_boundary_exit__main.omg__drop_requires_line__bab23fb377/main.omg	current=accepted	current_us=3167379	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
 ```
 
 ### ## Hand verification (5 discarded drop_requires) 2: `tests/omega/pass/calls/runtime_constructor_projected_membership_snapshot_exit/main.omg` / `drop_requires_line`
@@ -392,7 +392,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__calls__runtime_constructor_projected_membership_snapshot_exit__main.omg__drop_requires_line__71b2f598e3/main.omg	current=accepted	current_us=3061110	root=compilation	route=outside	Unsupported: machine attached data
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__calls__runtime_constructor_projected_membership_snapshot_exit__main.omg__drop_requires_line__71b2f598e3/main.omg	current=accepted	current_us=3132084	root=compilation	route=outside	Unsupported: machine attached data
 ```
 
 ### ## Hand verification (5 discarded drop_requires) 3: `tests/omega/pass/facts/float_range_delivery_through_other_machine_exit/main.omg` / `drop_requires_line`
@@ -419,7 +419,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__facts__float_range_delivery_through_other_machine_exit__main.omg__drop_requires_line__08afd9167e/main.omg	current=accepted	current_us=2979026	root=compilation	route=outside	Unsupported: type float
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__facts__float_range_delivery_through_other_machine_exit__main.omg__drop_requires_line__08afd9167e/main.omg	current=accepted	current_us=3096069	root=compilation	route=outside	Unsupported: type float
 ```
 
 ### ## Hand verification (5 discarded drop_requires) 4: `tests/omega/pass/facts/generic_comparison_body_through_other_state_exit/main.omg` / `drop_requires_line`
@@ -446,7 +446,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__facts__generic_comparison_body_through_other_state_exit__main.omg__drop_requires_line__6212920103/main.omg	current=accepted	current_us=3056877	root=compilation	route=outside	Unsupported: machine generic parameters
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__facts__generic_comparison_body_through_other_state_exit__main.omg__drop_requires_line__6212920103/main.omg	current=accepted	current_us=3288048	root=compilation	route=outside	Unsupported: machine generic parameters
 ```
 
 ### ## Hand verification (5 discarded drop_requires) 5: `tests/omega/pass/facts/ieee_float_32bit_ordered_bound_through_parameter_exit/main.omg` / `drop_requires_line`
@@ -473,7 +473,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__facts__ieee_float_32bit_ordered_bound_through_parameter_exit__main.omg__drop_requires_line__3e2f08941b/main.omg	current=accepted	current_us=2968370	root=compilation	route=outside	Unsupported: type float
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__facts__ieee_float_32bit_ordered_bound_through_parameter_exit__main.omg__drop_requires_line__3e2f08941b/main.omg	current=accepted	current_us=3038530	root=compilation	route=outside	Unsupported: type float
 ```
 
 ## Hand verification (5 known-gap-q7-mut)
@@ -502,7 +502,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__offset_integer_at__main.omg__remove_mut_binding__bf6499144d/main.omg	current=accepted	current_us=2255973	root=compilation	route=no-entry
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__offset_integer_at__main.omg__remove_mut_binding__bf6499144d/main.omg	current=accepted	current_us=2569186	root=compilation	route=no-entry
 ```
 
 ### ## Hand verification (5 known-gap-q7-mut) 2: `tests/omega/pass/arithmetic/runtime_explicit_call_result_policy_exit/main.omg` / `remove_mut_binding`
@@ -529,7 +529,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__runtime_explicit_call_result_policy_exit__main.omg__remove_mut_binding__3ec05424e1/main.omg	current=accepted	current_us=2902890	root=compilation	route=outside	Unsupported: type constrained
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__runtime_explicit_call_result_policy_exit__main.omg__remove_mut_binding__3ec05424e1/main.omg	current=accepted	current_us=3301162	root=compilation	route=outside	Unsupported: type constrained
 ```
 
 ### ## Hand verification (5 known-gap-q7-mut) 3: `tests/omega/pass/asm/checked_countdown_literal_exit/main.omg` / `remove_mut_binding`
@@ -556,7 +556,7 @@ warning: unreachable branch: the `true` arm of a transition in machine `main` st
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__asm__checked_countdown_literal_exit__main.omg__remove_mut_binding__8a61b2d28e/main.omg	current=accepted	current_us=2751367	root=compilation	route=outside	Unsupported: machine assembly target
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__asm__checked_countdown_literal_exit__main.omg__remove_mut_binding__8a61b2d28e/main.omg	current=accepted	current_us=2913482	root=compilation	route=outside	Unsupported: machine assembly target
 ```
 
 ### ## Hand verification (5 known-gap-q7-mut) 4: `tests/omega/pass/atomics/runtime_atomic_operand_order_exit/main.omg` / `remove_mut_binding`
@@ -583,7 +583,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__atomics__runtime_atomic_operand_order_exit__main.omg__remove_mut_binding__8536509326/main.omg	current=accepted	current_us=3038514	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__atomics__runtime_atomic_operand_order_exit__main.omg__remove_mut_binding__8536509326/main.omg	current=accepted	current_us=3107509	root=compilation	route=outside	Unsupported: parameter mutable parameter
 ```
 
 ### ## Hand verification (5 known-gap-q7-mut) 5: `tests/omega/pass/borrow/mutable_selector_rhs_snapshot_exit/main.omg` / `remove_mut_binding`
@@ -610,7 +610,7 @@ warning: unreachable branch: the `true` arm of a transition in machine `main` st
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrow__mutable_selector_rhs_snapshot_exit__main.omg__remove_mut_binding__1e4d43208f/main.omg	current=accepted	current_us=3041898	root=compilation	route=outside	Unsupported: machine generic parameters
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrow__mutable_selector_rhs_snapshot_exit__main.omg__remove_mut_binding__1e4d43208f/main.omg	current=accepted	current_us=3299345	root=compilation	route=outside	Unsupported: machine generic parameters
 ```
 
 ## Confirmed-hole entries
@@ -1110,4 +1110,4 @@ program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests_
 
 ## Known gap: Q7 mut
 
-Count: 141 (tracked migration; not counted as confirmed holes).
+Count: 162 (tracked migration; not counted as confirmed holes).

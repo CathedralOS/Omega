@@ -15,11 +15,12 @@ class SpecRule:
 
 SPEC_RULES: dict[str, SpecRule] = {
     "drop_requires_line": SpecRule(
-        "Machine requirements at invocation",
-        "wiki/spec/language/state_contracts.md",
-        "Machine `requires` applies at every invocation, including terminal and recursive "
-        "calls. Every arrival establishes the target's requirements and declared domains "
-        "under actual argument substitution.",
+        "Nested machines and identity; Private entry inference",
+        "wiki/spec/language/machines.md; wiki/spec/language/state_contracts.md",
+        "A written entry contract remains complete even when all currently visible callers "
+        "happen to establish stronger facts. An authored `requires` is complete, including "
+        "on a private helper. Inference cannot silently conjoin further entry conditions "
+        "to make the body check.",
     ),
     "tighten_requires_equality": SpecRule(
         "Machine requirements at invocation",
@@ -111,6 +112,7 @@ class ClassifyResult:
     route_reason: str
     accepted_by: str
     validity_note: str
+    hole_subtype: str = ""
 
 
 def _line_evidence(text: str, pattern: str) -> str:

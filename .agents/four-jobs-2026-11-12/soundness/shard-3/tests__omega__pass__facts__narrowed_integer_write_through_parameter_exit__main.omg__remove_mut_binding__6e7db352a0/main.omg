@@ -1,0 +1,40 @@
+// A completed write of 70 through a signed eight-bit field retains its i64 meaning and leaves the adjacent byte unchanged.
+// Place: parameter.
+// Expected exit: 0
+use omega::language::core::layout;
+
+
+SignedByte satisfies FixedLayout<PortableByte> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    let entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        representation: FieldPlan::IntegerAt {
+            offset: 0, stored_width: 8, interpretation: IntegerInterpretation::Signed,
+        },
+    };
+    LayoutPlan { entries: entries, entry_count: 1, size_fixed: 1, size_is_dynamic: false, align: 1 }
+}
+}
+data PortableByte [copy] { value: i64; }
+data Memory { bytes: [u8; 2]; }
+machine store(destination: &mut i64, value: i64) { destination = value; }
+machine forward(destination: &mut i64, value: i64) { store(destination, value); }
+machine main(memory: &mut Memory) crashes Trap {
+    memory.bytes[1] = 85;
+    let packed: &mut LayoutStorage<PortableByte, SignedByte> = &mut memory.bytes[0] as &mut LayoutStorage<PortableByte, SignedByte>;
+    let value: i64 = 70;
+    forward(&mut packed.value, value);
+    transition memory.bytes[0] == 70 && memory.bytes[1] == 85 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() crashes Trap {
+    let mut entry_storage: Memory;
+    main(&mut entry_storage);
+}
