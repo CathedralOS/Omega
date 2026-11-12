@@ -1,0 +1,22 @@
+# bad: [51e8c45c793007f211d0d9baee7de16767172444] psi: check a body over a const value parameter once and carry its proofs (#2505)
+# good: [d25889014d5e1a5f3770dacd77612125f046e372] psi: answer state-owner and machine-symbol lookups from the declaration index (#2182)
+git bisect start '51e8c45c793007f211d0d9baee7de16767172444' 'd25889014d5e1a5f3770dacd77612125f046e372' '--first-parent'
+# bad: [dfd8c11407518d510ea4d5c2224969048a54bff2] psi: lower field stores, whole assignment and unestablished locals by structure (#2337)
+git bisect bad dfd8c11407518d510ea4d5c2224969048a54bff2
+# skip: [457adf4a11f9245cb0c9c2ca7fe86e36691c30f1] docs: record the decision to check on the lowered form, with counted evidence (#2274)
+git bisect skip 457adf4a11f9245cb0c9c2ca7fe86e36691c30f1
+# skip: [7fa1582007998a70f2f8ba94d1226ffdc736d17a] repo: lint touched crates with clippy before pushing a pull request (#2275)
+git bisect skip 7fa1582007998a70f2f8ba94d1226ffdc736d17a
+# bad: [eb37f41543381552665c4d3b7afee2d33e4b17fc] tests: move bodyless via forwarding leaves to Build::bind rows (#2227)
+git bisect bad eb37f41543381552665c4d3b7afee2d33e4b17fc
+# bad: [2bb43682a8fa9674685325053e03a9ab1cbe5ff8] tools: lock the worktree pool so two sessions never get the same slot (#2208)
+git bisect bad 2bb43682a8fa9674685325053e03a9ab1cbe5ff8
+# skip: [21d787346ea54a73b6c5daf2056034745de20059] docs: avoid rebuilds when mixing compiler checks and lint (#2193)
+git bisect skip 21d787346ea54a73b6c5daf2056034745de20059
+# skip: [3b1bea08cf25446d473ccebc4c517d83eed8f2b0] docs: keep public crash contracts authored under binder dependencies (#2191)
+git bisect skip 3b1bea08cf25446d473ccebc4c517d83eed8f2b0
+# bad: [23ada24f408aae8000afaa61fe2de656e44a8e6f] psi: retain cases without payloads in mathematical definitions (#2183)
+git bisect bad 23ada24f408aae8000afaa61fe2de656e44a8e6f
+# bad: [22f215eb3e7d9814cb3e29f42856e56bb57e60ed] psi: preserve common fields when matching case values (#2078)
+git bisect bad 22f215eb3e7d9814cb3e29f42856e56bb57e60ed
+# first bad commit: [22f215eb3e7d9814cb3e29f42856e56bb57e60ed] psi: preserve common fields when matching case values (#2078)
