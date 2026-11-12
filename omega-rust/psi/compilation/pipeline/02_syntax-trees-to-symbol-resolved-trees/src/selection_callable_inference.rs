@@ -8,14 +8,14 @@
     bounds are never rewritten, and an origin-free cycle publishes nothing.
 */
 
-use arena::Handle;
+use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use source::SourceSpan;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
 use symbol_resolved_trees::expression::{ExpressionNode, StaticMachineArgument};
 use symbol_resolved_trees::statement::Statement;
-use symbol_resolved_trees::types::TypeReference;
+use symbol_resolved_trees::types::{FixedArrayLength, TypeReference};
 use symbols::{SymbolHandle, SymbolKind};
 
 pub(crate) fn pending(parameter: &TypeParameter) -> bool {
@@ -125,6 +125,7 @@ pub(crate) fn infer(program: &mut SymbolResolvedTrees) -> Result<(), Vec<Diagnos
         }
     }
     let mut cursor = 0;
+    let mut diagnostics = Vec::new();
     while cursor < ready.len() {
         let usage = &uses[ready[cursor]];
         cursor += 1;
@@ -163,6 +164,7 @@ pub(crate) fn infer(program: &mut SymbolResolvedTrees) -> Result<(), Vec<Diagnos
             authored_path.clone(),
             *trait_arguments,
         );
+        let trait_arguments = program.copy_type_arguments(trait_arguments, &usage.arguments);
         let destination = program
             .tables
             .declarations
@@ -174,6 +176,7 @@ pub(crate) fn infer(program: &mut SymbolResolvedTrees) -> Result<(), Vec<Diagnos
                     MachineParameterContract::Nominal {
                         trait_definition: previous_trait,
                         requirement: previous_requirement,
+                        trait_arguments: previous_arguments,
                         ..
                     },
             } = &destination.kind
@@ -184,19 +187,28 @@ pub(crate) fn infer(program: &mut SymbolResolvedTrees) -> Result<(), Vec<Diagnos
                 )]);
             };
             if *previous_trait != trait_definition || *previous_requirement != requirement {
-                return Err(vec![error(
+                diagnostics.push(error(
                     usage.source,
                     format!(
                         "inferred callable parameter `{}` has uses requiring different nominal requirement types; one parameter carries one nominal route",
                         destination.name
                     ),
-                )]);
+                ));
+                continue;
             }
-            // Ordinary argument checking compares every substituted trait tuple
-            // against this bound, including additional uses of the same route.
+            match same_type_arguments(program, *previous_arguments, trait_arguments, usage.source) {
+                Ok(true) => {}
+                Ok(false) => diagnostics.push(error(usage.source, format!(
+                    "inferred callable parameter `{}` has conflicting substituted nominal arguments for `{}`: published [{}], required by this use [{}]",
+                    destination.name,
+                    program.symbols.display_path(requirement, "::"),
+                    argument_names(program, *previous_arguments),
+                    argument_names(program, trait_arguments),
+                ))),
+                Err(reason) => diagnostics.push(reason),
+            }
             continue;
         }
-        let trait_arguments = program.copy_type_arguments(trait_arguments, &usage.arguments);
         program
             .tables
             .declarations
@@ -212,16 +224,16 @@ pub(crate) fn infer(program: &mut SymbolResolvedTrees) -> Result<(), Vec<Diagnos
         };
         ready.extend_from_slice(&dependents[usage.forwarded.arena_index() as usize]);
     }
-    let unresolved = program.tables.declarations.data_type_parameters.iter()
+    diagnostics.extend(program.tables.declarations.data_type_parameters.iter()
         .filter(|(_, parameter)| pending(parameter))
         .map(|(_, parameter)| error(parameter.name.source_span(), format!(
             "inferred callable parameter `{}` has no exact originating callable type; bare calls and forwarding cycles cannot supply one",
             parameter.name
-        ))).collect::<Vec<_>>();
-    if unresolved.is_empty() {
+        ))));
+    if diagnostics.is_empty() {
         Ok(())
     } else {
-        Err(unresolved)
+        Err(diagnostics)
     }
 }
 
@@ -358,4 +370,176 @@ fn argument_type(
 
 fn error(source: SourceSpan, message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(message).with_source_span(source)
+}
+
+/*
+    Compare the selected type graph, ignoring copied arena coordinates and
+    diagnostic spellings. Unelaborated domain/value/lifetime forms need their
+    typed identity owner; this early nominal inference route refuses them instead
+    of publishing whichever use happened to be visited first.
+*/
+fn same_type_arguments(
+    program: &SymbolResolvedTrees,
+    left: HandleSpan<TypeReference>,
+    right: HandleSpan<TypeReference>,
+    source: SourceSpan,
+) -> Result<bool, Diagnostic> {
+    let mut pending = Vec::new();
+    fn span(
+        pending: &mut Vec<(TypeReference, TypeReference)>,
+        program: &SymbolResolvedTrees,
+        left: HandleSpan<TypeReference>,
+        right: HandleSpan<TypeReference>,
+    ) -> bool {
+        let left = program.child_type_references(left);
+        let right = program.child_type_references(right);
+        if left.len() != right.len() {
+            return false;
+        }
+        pending.extend(left.iter().cloned().zip(right.iter().cloned()));
+        true
+    }
+    if !span(&mut pending, program, left, right) {
+        return Ok(false);
+    }
+    while let Some((left, right)) = pending.pop() {
+        match (left, right) {
+            (TypeReference::AliasUse { expansion, .. }, right) => pending.push((*expansion, right)),
+            (left, TypeReference::AliasUse { expansion, .. }) => pending.push((left, *expansion)),
+            (
+                TypeReference::Named { symbol: left, .. },
+                TypeReference::Named { symbol: right, .. },
+            ) => {
+                if !left.is_valid() || !right.is_valid() {
+                    return Err(error(
+                        source,
+                        "an inferred nominal type argument has no exact selected declaration",
+                    ));
+                }
+                if left != right {
+                    return Ok(false);
+                }
+            }
+            (TypeReference::Unit, TypeReference::Unit) => {}
+            (TypeReference::Generic(left), TypeReference::Generic(right)) => {
+                if !left.lifetime_arguments.is_empty() || !right.lifetime_arguments.is_empty() {
+                    return Err(error(
+                        source,
+                        "comparing invocation lifetimes during callable type inference is not implemented",
+                    ));
+                }
+                if left.base_symbol != right.base_symbol
+                    || !span(&mut pending, program, left.arguments, right.arguments)
+                {
+                    return Ok(false);
+                }
+            }
+            (
+                TypeReference::DynamicTrait {
+                    symbol: left,
+                    arguments: left_arguments,
+                    ..
+                },
+                TypeReference::DynamicTrait {
+                    symbol: right,
+                    arguments: right_arguments,
+                    ..
+                },
+            ) => {
+                if left != right || !span(&mut pending, program, left_arguments, right_arguments) {
+                    return Ok(false);
+                }
+            }
+            (TypeReference::Slice(left), TypeReference::Slice(right)) => pending.push((
+                program
+                    .declarations()
+                    .child_type_references
+                    .get(left.element_type)
+                    .clone(),
+                program
+                    .declarations()
+                    .child_type_references
+                    .get(right.element_type)
+                    .clone(),
+            )),
+            (TypeReference::Reference(left), TypeReference::Reference(right))
+                if left.lifetime.is_none() && right.lifetime.is_none() =>
+            {
+                if left.access != right.access {
+                    return Ok(false);
+                }
+                pending.push((
+                    program
+                        .declarations()
+                        .child_type_references
+                        .get(left.referee)
+                        .clone(),
+                    program
+                        .declarations()
+                        .child_type_references
+                        .get(right.referee)
+                        .clone(),
+                ));
+            }
+            (TypeReference::FixedArray(left), TypeReference::FixedArray(right)) => {
+                let (
+                    FixedArrayLength::Literal(left_length),
+                    FixedArrayLength::Literal(right_length),
+                ) = (&left.length, &right.length)
+                else {
+                    return Err(error(
+                        source,
+                        "comparing dependent extents during callable type inference is not implemented",
+                    ));
+                };
+                if left_length != right_length {
+                    return Ok(false);
+                }
+                pending.push((
+                    program
+                        .declarations()
+                        .child_type_references
+                        .get(left.element_type)
+                        .clone(),
+                    program
+                        .declarations()
+                        .child_type_references
+                        .get(right.element_type)
+                        .clone(),
+                ));
+            }
+            (
+                TypeReference::Constrained(_)
+                | TypeReference::ConstExpression(_)
+                | TypeReference::Reference(_),
+                _,
+            )
+            | (
+                _,
+                TypeReference::Constrained(_)
+                | TypeReference::ConstExpression(_)
+                | TypeReference::Reference(_),
+            ) => {
+                return Err(error(
+                    source,
+                    "comparing this deferred type operand during callable type inference is not implemented",
+                ));
+            }
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+
+fn argument_names(program: &SymbolResolvedTrees, arguments: HandleSpan<TypeReference>) -> String {
+    program
+        .child_type_references(arguments)
+        .iter()
+        .map(|argument| match argument {
+            TypeReference::Named { symbol, .. } => program.symbols.display_path(*symbol, "::"),
+            TypeReference::Unit => "()".to_owned(),
+            _ => "<compound type>".to_owned(),
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }

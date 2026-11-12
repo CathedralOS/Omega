@@ -12,7 +12,8 @@ public machine forward<Value, const Selected: machine>(value: Value) -> Value {
 }
 
 public machine relay<Element, const Renamed: machine>(value: Element) -> Element {
-    origin<Element, Renamed>(value)
+    let first: Element = origin<Element, Renamed>(value);
+    origin<Element, Renamed>(first)
 }
 
 public machine origin<Item, const Callback: Step<Item>::apply>(value: Item) -> Item {
