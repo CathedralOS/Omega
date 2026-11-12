@@ -2604,6 +2604,8 @@ fn main() {
     );
     let (loaded, saved) = compiler::checked_slice_totals();
     eprintln!("corpus_runner: checked slices: {loaded} loaded, {saved} saved");
+    let (loaded, saved) = compiler::typed_slice_totals();
+    eprintln!("corpus_runner: typed slices: {loaded} loaded, {saved} saved");
     // Detached stragglers from timed-out fixtures die with the process here.
     process::exit(0);
 }

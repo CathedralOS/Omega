@@ -492,6 +492,9 @@ pub(crate) mod checked_slice {
             if let CheckedSliceOwner::Consumer(root_package) = reuse.owner
                 && !(LibrarySliceRequest { root_package }).in_slice(file)
             {
+                if std::env::var_os("TMPKEY").is_some() {
+                    eprintln!("TMPKEY domain={} unkeyed: file {:?} outside the library slice", String::from_utf8_lossy(&domain[..domain.len().min(14)]), file.path);
+                }
                 return None;
             }
             files.push((file.source_id.0, SliceSource::of(file)));
@@ -531,6 +534,31 @@ pub(crate) mod checked_slice {
         digest.len(parts.len());
         for part in parts {
             digest.bytes(part);
+        }
+        if std::env::var_os("TMPKEY").is_some() {
+            let short = |bytes: &[u8]| {
+                let mut d = optimization::digest_encoder::DomainDigestEncoder::new(b"tmp");
+                d.bytes(bytes);
+                d.finish()[..4].iter().map(|b| format!("{b:02x}")).collect::<String>()
+            };
+            let mut ids = Vec::new();
+            let mut texts = Vec::new();
+            for (source_id, file) in &files {
+                ids.extend_from_slice(&(*source_id as u64).to_le_bytes());
+                let mut d = optimization::digest_encoder::DomainDigestEncoder::new(b"f");
+                file.encode(&mut d);
+                texts.extend_from_slice(&d.finish());
+            }
+            eprintln!(
+                "TMPKEY domain={} files={} ids={} texts={} authority={} view={} parts=[{}]",
+                String::from_utf8_lossy(&domain[..domain.len().min(14)]),
+                files.len(),
+                short(&ids),
+                short(&texts),
+                short(&compiler_storage::encode(&authority, LIMITS).ok()?),
+                short(&compiler_storage::encode(&sources.selection_view(), LIMITS).ok()?),
+                parts.iter().map(|part| format!("{}:{}", part.len(), short(part))).collect::<Vec<_>>().join(","),
+            );
         }
         Some(SliceKey {
             digest: digest.finish(),
