@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    Build::application(builder, "size_of_invalid_plan_rejected");
+    Build::application(builder, "size_of_uninstantiated_plan_laid");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
