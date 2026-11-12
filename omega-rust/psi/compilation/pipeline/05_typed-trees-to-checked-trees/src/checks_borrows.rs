@@ -6415,9 +6415,32 @@ mod statements {
                 bound_lookup,
             );
 
-            let exiting_source = local_jump(program, state_flow, borrow_call).and_then(|_| {
-                find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
-            });
+            /*
+                A loan the caller carries into a terminal transfer closes at its last
+                derived use, inside the target's terminal chain too
+                (`state_contracts.md`, terminal calls): a write after that point is
+                judged against the held run, exactly as a later read is. That holds
+                for a terminal machine call as well as for a local jump; whether this
+                loan actually ends before the successor is still proved below.
+            */
+            let exiting_source = local_jump(program, state_flow, borrow_call)
+                .map(|_| ())
+                .or_else(|| {
+                    crate::flow::terminal_invocation(
+                        program,
+                        state_flow.machine_symbol,
+                        state_flow.state_symbol,
+                        borrow_call,
+                    )
+                    .map(|_| ())
+                })
+                .and_then(|_| {
+                    find_state_in_machine(
+                        program,
+                        state_flow.machine_symbol,
+                        state_flow.state_symbol,
+                    )
+                });
             for &loan_handle in &live_loans {
                 let loan = facts.borrow.loans.get(loan_handle);
                 let held_writes = exiting_source
@@ -6547,8 +6570,9 @@ mod statements {
 
     /*
         A transfer to a non-entry block retained by the caller's own machine.
-        Machine-entry calls keep their caller's live loans through completion;
-        nesting and recursive graph fusion do not change that lifetime boundary.
+        Nesting and recursive graph fusion do not change that boundary. A loan
+        carried into any terminal call, a machine-entry call included, still
+        closes at its last derived use (`state_contracts.md`, terminal calls).
     */
     pub(super) use crate::flow::LocalJump;
 
