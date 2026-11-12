@@ -25,6 +25,11 @@ use crate::{ClauseText, Piece, Unserved, refuse};
 #[derive(Clone, Copy)]
 pub(super) struct ClauseScope<'s> {
     pub(super) slots: &'s [Slot],
+    /// The value parameters this reading of the clause has bound, each to
+    /// its literal: a requirement read at the static arguments of one call
+    /// (`requirement_signature`). A name that resolves to one is that
+    /// literal.
+    pub(super) bound: &'s [(SymbolHandle, ScalarTerm)],
     /// The callable whose reserved `result` this clause may name (the
     /// machine's one state; see `TableNamePath::reserved_result_of`).
     pub(super) owner: SymbolHandle,
@@ -297,6 +302,28 @@ impl Program<'_> {
             }
             ExpressionNode::Name(_) if scope.subject.is_some() => {
                 self.field_term(id, scope, expression)
+            }
+            ExpressionNode::Name(path)
+                if path.symbol.is_valid()
+                    && scope.bound.iter().any(|(symbol, _)| *symbol == path.symbol) =>
+            {
+                if typed.expression_table.name_path_members(path.members).len() != 1 {
+                    return unserved("projected value parameter");
+                }
+                let literal = scope
+                    .bound
+                    .iter()
+                    .find(|(symbol, _)| *symbol == path.symbol)
+                    .map(|(_, literal)| literal.clone())
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("value parameter binding"),
+                        )
+                    })?;
+                let scalar_type = literal.scalar_type();
+                Ok((literal, scalar_type))
             }
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, scope.slots, path)?;

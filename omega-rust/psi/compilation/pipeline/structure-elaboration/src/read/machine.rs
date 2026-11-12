@@ -44,23 +44,24 @@ impl<'t> Program<'t> {
             }
         }
         let id = self.next_identity()?;
-        let (signature, names) = self.signature(id, symbol)?;
+        let (signature, names, value_parameters) = self.signature(id, symbol)?;
         self.symbols.push(symbol);
         self.signatures.push(signature);
         self.names.push(names);
+        self.value_parameters.push(value_parameters);
+        self.value_arguments.push(Vec::new());
         Ok(id)
     }
 
-    /// The first machine of a conformance witness: the requirement's
-    /// signature and contract, on a body the caller supplies.
-    pub fn witnessed(
-        &mut self,
+    /// The requirement `requirement` as `declaring_trait` declares it.
+    pub(super) fn declared_requirement(
+        &self,
+        id: MachineId,
         declaring_trait: SymbolHandle,
         requirement: SymbolHandle,
-    ) -> Checked<MachineId> {
-        let id = self.next_identity()?;
+    ) -> Checked<&'t StateSignature> {
         let typed = self.typed;
-        let declared = typed
+        typed
             .trait_definition_by_symbol(declaring_trait)
             .and_then(|declaration| {
                 typed
@@ -74,11 +75,26 @@ impl<'t> Program<'t> {
                     Construct::Machine,
                     Unserved::Machine("requirement that its trait does not declare"),
                 )
-            })?;
-        let (signature, names) = self.requirement_signature(id, declared)?;
+            })
+    }
+
+    /// The first machine of a conformance witness: the requirement's
+    /// signature and contract at `arguments`, the literals of its value
+    /// parameters, on a body the caller supplies.
+    pub fn witnessed(
+        &mut self,
+        declaring_trait: SymbolHandle,
+        requirement: SymbolHandle,
+        arguments: &[semantic_vocabulary::ScalarTerm],
+    ) -> Checked<MachineId> {
+        let id = self.next_identity()?;
+        let declared = self.declared_requirement(id, declaring_trait, requirement)?;
+        let (signature, names) = self.requirement_signature(id, declared, arguments)?;
         self.symbols.push(requirement);
         self.signatures.push(signature);
         self.names.push(names);
+        self.value_parameters.push(0);
+        self.value_arguments.push(arguments.to_vec());
         Ok(id)
     }
 
@@ -89,20 +105,30 @@ impl<'t> Program<'t> {
 
     /// The `MachineId` that stands for a trait requirement in a generic
     /// check form: its signature and contract, read as any machine's, and
-    /// no body.
-    pub(super) fn requirement(&mut self, declared: &'t StateSignature) -> Checked<MachineId> {
+    /// no body. A requirement with value parameters is one machine per
+    /// tuple of literals a call binds them to (`arguments`), because its
+    /// contract differs with them.
+    pub(super) fn requirement(
+        &mut self,
+        declared: &'t StateSignature,
+        arguments: &[semantic_vocabulary::ScalarTerm],
+    ) -> Checked<MachineId> {
         let symbol = declared.symbol;
         for position in 1..=self.symbols.len() as u64 {
             let id = MachineId::new(position).expect("positions start at 1");
-            if self.symbols.get(id) == Some(&symbol) {
+            if self.symbols.get(id) == Some(&symbol)
+                && self.value_arguments.get(id).map(Vec::as_slice) == Some(arguments)
+            {
                 return Ok(id);
             }
         }
         let id = self.next_identity()?;
-        let (signature, names) = self.requirement_signature(id, declared)?;
+        let (signature, names) = self.requirement_signature(id, declared, arguments)?;
         self.symbols.push(symbol);
         self.signatures.push(signature);
         self.names.push(names);
+        self.value_parameters.push(0);
+        self.value_arguments.push(arguments.to_vec());
         self.requirements.push(id);
         Ok(id)
     }
@@ -232,16 +258,22 @@ impl<'t> Program<'t> {
             return unserved("generic parameters");
         }
         // An implementation parameter binds no type and no value: the body
-        // only calls through it. Every other binder kind would put a rigid
-        // type or value into the lowered form, which has no row for one.
+        // only calls through it. A value parameter (`const Units: u64`) is a
+        // value of a known carrier, read as a formal no caller passes
+        // (`value_binders`). A type parameter would put a value of a rigid
+        // type into the lowered form, which has no row for one.
         let parameters = self.typed.machine_type_parameters(machine);
         if parameters.is_empty() != machine.type_parameters.is_empty() {
             return unserved("type parameter span");
         }
-        let implementations_only = parameters.iter().all(|parameter| {
-            parameter.kind == typed_trees::data::TypeParameterKind::Implementation
+        let rigid_kinds_only = parameters.iter().all(|parameter| {
+            matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Implementation
+                    | typed_trees::data::TypeParameterKind::Const { .. }
+            )
         });
-        if !parameters.is_empty() && !(generic_entry && implementations_only) {
+        if !parameters.is_empty() && !(generic_entry && rigid_kinds_only) {
             return unserved("generic parameters");
         }
         if !machine.declared_type_equations.is_empty()
@@ -257,12 +289,56 @@ impl<'t> Program<'t> {
         Ok(())
     }
 
+    /// The value parameters of a generic check form's entry, in declaration
+    /// order: each `const` binder with its carrier type. generics.md, "Value
+    /// binders and const requirements": a `const Count: u32` binds a value
+    /// that "must be statically known within the compiled specialization",
+    /// so the unspecialized body knows only its carrier and what the
+    /// `requires` say of it. Only an integer carrier is served.
+    fn value_binders(&self, id: MachineId, machine: &Machine) -> Checked<Vec<ValueBinder>> {
+        let mut binders = Vec::new();
+        for parameter in self.typed.machine_type_parameters(machine) {
+            let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            else {
+                continue;
+            };
+            if !parameter.symbol.is_valid() {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Spelling("value parameter without a symbol"),
+                ));
+            }
+            let scalar_type = self.scalar_type(id, type_reference)?;
+            if !matches!(scalar_type, semantic_vocabulary::ScalarType::Integer(_)) {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Parameter("value parameter that is not an integer"),
+                ));
+            }
+            binders.push(ValueBinder {
+                symbol: parameter.symbol,
+                name: parameter.name.as_str().to_owned(),
+                scalar_type,
+            });
+        }
+        Ok(binders)
+    }
+
     fn signature(
         &mut self,
         id: MachineId,
         symbol: SymbolHandle,
-    ) -> Checked<(Signature, MachineNames)> {
+    ) -> Checked<(Signature, MachineNames, usize)> {
         let (machine, state) = self.declaration(id, symbol)?;
+        // The entry of a generic check form keeps its value parameters as
+        // formals; `machine_shape` refuses them on every other machine.
+        let binders = if self.rigid && self.symbols.is_empty() {
+            self.value_binders(id, machine)?
+        } else {
+            Vec::new()
+        };
         self.machine_shape(id, machine)?;
         if !state.contracts.is_empty() {
             return Err(refuse(
@@ -281,6 +357,8 @@ impl<'t> Program<'t> {
                 declares_no_crash_route: machine.declares_no_crash_route,
                 is_public: machine.is_public,
             },
+            &binders,
+            &[],
         )?;
         // Diagnostics name the declaration the author wrote, not a clone
         // stage 04 generated from it.
@@ -289,26 +367,84 @@ impl<'t> Program<'t> {
             .unwrap_or(machine);
         names.machine = authored.name.as_str().to_owned();
         names.state = state.name.as_str().to_owned();
-        Ok((signature, names))
+        Ok((signature, names, binders.len()))
+    }
+
+    /// The value parameters of a trait requirement, in declaration order,
+    /// each with its carrier. Any other kind of parameter is refused: a
+    /// requirement over a type parameter has no lowered form yet.
+    pub(super) fn requirement_binders(
+        &self,
+        id: MachineId,
+        requirement: &StateSignature,
+    ) -> Checked<Vec<(SymbolHandle, semantic_vocabulary::ScalarType)>> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        let parameters = self
+            .typed
+            .data_type_parameters
+            .span_or_empty(requirement.type_parameters);
+        if parameters.is_empty() != requirement.type_parameters.is_empty() {
+            return unserved("type parameter span");
+        }
+        let mut binders = Vec::with_capacity(parameters.len());
+        for parameter in parameters {
+            let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            else {
+                return unserved("generic parameters");
+            };
+            if !parameter.symbol.is_valid() {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Spelling("value parameter without a symbol"),
+                ));
+            }
+            let scalar_type = self.scalar_type(id, type_reference)?;
+            if !matches!(scalar_type, semantic_vocabulary::ScalarType::Integer(_)) {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Parameter("value parameter that is not an integer"),
+                ));
+            }
+            binders.push((parameter.symbol, scalar_type));
+        }
+        Ok(binders)
     }
 
     /// A trait requirement's signature and contract. The typed trees hold a
-    /// requirement as a bare signature, not as a machine.
+    /// requirement as a bare signature, not as a machine. `arguments` are
+    /// the literals of its value parameters, in declaration order: its
+    /// clauses are read with each binder standing for its literal, so the
+    /// contract is the one a call with those static arguments is held to.
     fn requirement_signature(
         &mut self,
         id: MachineId,
         requirement: &'t StateSignature,
+        arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
         if requirement.spelling.is_some() {
             return unserved("operator spelling");
         }
-        if !requirement.lifetime_parameters.is_empty()
-            || !requirement.type_parameters.is_empty()
-            || !requirement.conformance_bounds.is_empty()
+        if !requirement.lifetime_parameters.is_empty() || !requirement.conformance_bounds.is_empty()
         {
             return unserved("generic parameters");
         }
+        let binders = self.requirement_binders(id, requirement)?;
+        if binders.len() != arguments.len()
+            || binders
+                .iter()
+                .zip(arguments)
+                .any(|((_, scalar_type), literal)| literal.scalar_type() != *scalar_type)
+        {
+            return unserved("value arguments that are not the requirement's parameters");
+        }
+        let bound: Vec<_> = binders
+            .iter()
+            .map(|(symbol, _)| *symbol)
+            .zip(arguments.iter().cloned())
+            .collect();
         if requirement.is_default || !requirement.native_callback_parameters.is_empty() {
             return unserved("default or native-callback requirement");
         }
@@ -335,6 +471,8 @@ impl<'t> Program<'t> {
             Declarer::Requirement {
                 declares_no_crash_route: requirement.declares_no_crash_route,
             },
+            &[],
+            &bound,
         )?;
         names.machine = requirement.name.as_str().to_owned();
         Ok((signature, names))
@@ -343,6 +481,10 @@ impl<'t> Program<'t> {
     /// The formals, result and clauses of one callable. `owner` is the
     /// symbol its reserved `result` is recorded against. `declared` says
     /// whose clauses they are, for what an absent `crashes` row means.
+    /// `binders` are the value parameters a generic check form leaves rigid:
+    /// each is a scalar formal after the authored ones, which a clause names
+    /// by the binder's symbol like any formal. `bound` are the value
+    /// parameters this reading has bound to literals instead.
     fn contract(
         &mut self,
         id: MachineId,
@@ -351,6 +493,8 @@ impl<'t> Program<'t> {
         return_type: typed_trees::types::TypeReferenceHandle,
         contracts: arena::HandleSpan<typed_trees::signature::SignatureContract>,
         declared: Declarer,
+        binders: &[ValueBinder],
+        bound: &[(SymbolHandle, semantic_vocabulary::ScalarTerm)],
     ) -> Checked<(Signature, MachineNames)> {
         let typed = self.typed;
         let formals = span(&typed.state_parameters, formals, id, "parameter span")?;
@@ -361,6 +505,16 @@ impl<'t> Program<'t> {
             parameters.push(value_type);
             slots.push(Slot {
                 symbol: formal.symbol,
+                value_type,
+                assignable: false,
+                homed: false,
+            });
+        }
+        for binder in binders {
+            let value_type = ValueType::Scalar(binder.scalar_type);
+            parameters.push(value_type);
+            slots.push(Slot {
+                symbol: binder.symbol,
                 value_type,
                 assignable: false,
                 homed: false,
@@ -384,6 +538,7 @@ impl<'t> Program<'t> {
         })?;
         let entry = ClauseScope {
             slots: &slots,
+            bound,
             owner,
             result: ResultTerm::Absent("result in an entry clause"),
             subject: None,
@@ -423,9 +578,15 @@ impl<'t> Program<'t> {
             }
             let facts = span(&typed.proof_facts, contract.facts, id, "fact span")?;
             match contract.kind {
+                // A clause that is the literal `true` states nothing: it
+                // asks nothing of a caller and promises nothing, so it adds
+                // no clause, as an absent `requires` or `ensures` adds none.
                 SignatureContractKind::Requires => {
                     for fact in facts {
                         let expression = self.fact(id, fact)?;
+                        if self.is_true(expression) {
+                            continue;
+                        }
                         requires.push(self.clause(id, &required, expression)?);
                         requires_text.push(self.clause_text(&slots, expression));
                     }
@@ -433,6 +594,9 @@ impl<'t> Program<'t> {
                 SignatureContractKind::Ensures => {
                     for fact in facts {
                         let expression = self.fact(id, fact)?;
+                        if self.is_true(expression) {
+                            continue;
+                        }
                         ensures.push(self.clause(id, &exit, expression)?);
                         ensures_text.push(self.clause_text(&slots, expression));
                     }
@@ -524,6 +688,7 @@ impl<'t> Program<'t> {
             formals: formals
                 .iter()
                 .map(|formal| formal.name.as_str().to_owned())
+                .chain(binders.iter().map(|binder| binder.name.clone()))
                 .collect(),
             requires: requires_text,
             ensures: ensures_text,
@@ -539,6 +704,15 @@ impl<'t> Program<'t> {
             },
             names,
         ))
+    }
+
+    /// Whether a clause's expression is the Boolean literal `true`.
+    fn is_true(&self, expression: typed_trees::expression::ExpressionHandle) -> bool {
+        expression.is_valid()
+            && matches!(
+                self.typed.expression_table.expression(expression),
+                typed_trees::expression::ExpressionNode::Boolean(true)
+            )
     }
 
     fn formal(&mut self, id: MachineId, formal: &StateParameter) -> Checked<ValueType> {
@@ -585,22 +759,38 @@ impl<'t> Program<'t> {
                 statements: Vec::new(),
             });
         }
-        let (_, state) = self.declaration(id, symbol)?;
+        let (machine, state) = self.declaration(id, symbol)?;
         let formals = span(
             &typed.state_parameters,
             state.parameters,
             id,
             "parameter span",
         )?;
+        // A generic check form's value parameters are the formals after the
+        // authored ones, as its signature was read.
+        let binders = match self.value_parameters.get(id) {
+            Some(0) | None => Vec::new(),
+            Some(_) => self.value_binders(id, machine)?,
+        };
+        if formals.len() + binders.len() != signature.parameters.len() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("formals that differ from the signature's"),
+            ));
+        }
         let mut slot_names: Vec<String> = formals
             .iter()
             .map(|formal| formal.name.as_str().to_owned())
+            .chain(binders.iter().map(|binder| binder.name.clone()))
             .collect();
         let mut slots: Vec<Slot> = formals
             .iter()
+            .map(|formal| formal.symbol)
+            .chain(binders.iter().map(|binder| binder.symbol))
             .zip(&signature.parameters)
-            .map(|(formal, value_type)| Slot {
-                symbol: formal.symbol,
+            .map(|(symbol, value_type)| Slot {
+                symbol,
                 value_type: *value_type,
                 assignable: false,
                 homed: false,
@@ -859,4 +1049,13 @@ enum Declarer {
     Requirement {
         declares_no_crash_route: bool,
     },
+}
+
+/// One value parameter of a generic check form: the binder's symbol, which
+/// is what a name in the body or a clause resolves to, its spelling for
+/// diagnostics, and its carrier.
+struct ValueBinder {
+    symbol: SymbolHandle,
+    name: String,
+    scalar_type: semantic_vocabulary::ScalarType,
 }
