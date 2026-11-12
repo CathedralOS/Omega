@@ -6,10 +6,6 @@ ROOT="${OMEGA_REPO:-/agent/repos/omega}"
 cd "$ROOT"
 TOOLS="${BISECT_TOOLS:-$ROOT/.agents/ledger-bisect-2026-11-11/tools}"
 export OMEGA_REPO="$ROOT"
-REV=$(git rev-parse HEAD^{commit})
-if ! git show "$REV:omega-rust/omega/compilation/compiler/Cargo.toml" 2>/dev/null | grep -q 'name = "corpus_runner"'; then
-  exit 125
-fi
 SHORT=$(git rev-parse --short=12 HEAD)
 TARGET="$ROOT/target/bisect-$SHORT"
 rm -rf "$TARGET"
