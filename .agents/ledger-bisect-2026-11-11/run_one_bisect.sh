@@ -29,7 +29,6 @@ verify() {
     set +e
     "$SCRIPT" >/dev/null 2>&1
     r=$?
-    set -e
     case $r in 0) ok=$((ok + 1));; 1) bad=$((bad + 1));; *) skip=$((skip + 1));; esac
   done
   echo "VERIFY $label $(git log -1 --oneline "$c") ok=$ok bad=$bad skip=$skip"

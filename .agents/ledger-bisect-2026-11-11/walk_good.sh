@@ -19,11 +19,7 @@ restore_report() {
 test_commit() {
   git checkout -qf "$1"
   restore_report
-  set +e
   "$SCRIPT"
-  local r=$?
-  set -e
-  return "$r"
 }
 
 set +e
