@@ -14,7 +14,7 @@ Measured commit (PIN): `51e8c45c793007f211d0d9baee7de16767172444`
 
 | rows | kind | diagnostic | witness | breaking commit | PR | mechanism | status |
 | ---: | --- | --- | --- | --- | ---: | --- | --- |
-| 2 | pass/run rejected | terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view | `pass/termination/measure_field_computed_limit` | `78f48cd3217e` |  | checking: preserve integer representation views in crash entry operands (TASKS.md, omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts | bisected |
+| 2 | pass/run rejected | terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view | `pass/termination/measure_field_computed_limit` | `5a4177a6b2d3` |  | psi: preserve computed dispatch custody and call completion (omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/completion.rs, o | bisected |
 Members:
 - `pass/termination/measure_computed_endpoint` — still broken: terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view
 - `pass/termination/measure_field_computed_limit` — still broken: terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view

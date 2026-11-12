@@ -134,8 +134,9 @@ set +e
 nice -n 19 git bisect run "$SCRIPT"
 RC=$?
 set -e
-BREAK=$(git rev-parse HEAD^{commit} 2>/dev/null || true)
 git bisect log >"${OUT_JSON%.json}.log" 2>/dev/null || true
+BREAK=$(grep -m1 "first bad commit" "${OUT_JSON%.json}.log" 2>/dev/null | awk '{print $1}')
+[[ -n "$BREAK" ]] || BREAK=$(git rev-parse HEAD^{commit} 2>/dev/null || true)
 git bisect reset 2>/dev/null || true
 git checkout -qf work/ledger-bisect-part-7 2>/dev/null || true
 
