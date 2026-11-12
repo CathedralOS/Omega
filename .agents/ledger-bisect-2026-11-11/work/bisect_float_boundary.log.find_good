@@ -1,0 +1,5 @@
+pin index0 => 0 (witness meets ledger at PIN under commit-scoped builds)
+PIN_NOT_BAD: frozen pin_observed records rejected/Float::equal, but pass/facts/computed_record_window_through_call_result_exit at 51e8c45c793007f211d0d9baee7de16767172444 classifies exit=0×3 after isolating CARGO_TARGET_DIR to target/bisect-pool-<commit>.
+exponential probe index=659 => 0 773b8422694b5a8e64b43284bcba1ceb6de2b1e9 (fixtures added)
+GOOD=773b8422694b5a8e64b43284bcba1ceb6de2b1e9
+VERDICT: no first-bad commit under frozen-PIN bisect (PIN is not bad on matched builds); git bisect run not executed.

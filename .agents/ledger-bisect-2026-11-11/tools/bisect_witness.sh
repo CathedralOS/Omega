@@ -35,7 +35,8 @@ if git rev-parse -q --verify HEAD^1 >/dev/null 2>&1; then
 fi
 
 export OMEGA_CORPUS_JOBS=1 CARGO_BUILD_JOBS=4 MBX_SCHEDULER_CPUS=4
-BISECT_TARGET="${CARGO_TARGET_DIR:-$ROOT/target/bisect-pool}"
+COMMIT_SHA="$(git rev-parse HEAD)"
+BISECT_TARGET="${CARGO_TARGET_DIR:-$ROOT/target/bisect-pool-${COMMIT_SHA:0:12}}"
 mkdir -p "$BISECT_TARGET"
 chmod -R u+w "$BISECT_TARGET" "$ROOT/target" 2>/dev/null || true
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$BISECT_TARGET" nice -n 19 mbx build -p omega < /dev/null >/dev/null 2>&1 || exit 125
