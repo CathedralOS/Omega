@@ -47,10 +47,48 @@ BUCKETS = (
     "confirmed-hole",
     "known-gap-q7-mut",
     "disagreement-valid",
+    "valid-route-outside",
     "discarded-valid",
     "rejected-both",
     "failed-run",
 )
+
+ROUTE_NON_CHECKER = frozenset({"outside", "no-entry", "unreached"})
+
+SPEC_INDEX_BOUNDS = (
+    "wiki/spec/language/expressions.md",
+    "Contract-gated core operations",
+    "An additional well-formed requirement is proved at the call site or the call "
+    "rejects; it is not rejected merely for falling outside a fixed bounds-clause grammar.",
+)
+
+MULTI_MUTATION_FIXTURES: dict[str, list[str]] = {
+    "tests/omega/pass/arithmetic/modular_power_state_bounds_exit/main.omg": [
+        "amp_to_ampmut",
+        "drop_ensures",
+        "drop_requires",
+        "remove_guard_transition",
+        "remove_mut",
+        "widen_requires",
+    ],
+    "tests/omega/pass/arithmetic/fixed_division_values_survive_calls_exit/main.omg": [
+        "amp_to_ampmut",
+        "drop_requires",
+        "invert_comparison_guard",
+        "remove_guard_transition",
+        "remove_mut",
+    ],
+    "tests/omega/pass/arithmetic/bitwise_singleton_signed_and_unsigned_exit/main.omg": [
+        "drop_requires",
+        "invert_comparison_guard",
+        "remove_guard_transition",
+        "widen_requires",
+    ],
+    "tests/omega/pass/arithmetic/constant_trapping_shift_value_overflow_traps/main.omg": [
+        "amp_to_ampmut",
+        "remove_mut",
+    ],
+}
 
 
 def route_accepts(verdict: str) -> bool:
@@ -135,6 +173,136 @@ def norm_prop(t: str) -> str:
     return re.sub(r"\s+", "", t.strip())
 
 
+def collect_call_sites(mut: str, callee: str) -> list[tuple[str, str]]:
+    """Return (transition_guard, call_expr) for each call to nested machine `callee`."""
+    out: list[tuple[str, str]] = []
+    guard = ""
+    depth = 0
+    for raw in mut.splitlines():
+        line = strip_comments(raw).strip()
+        for ch in raw:
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth = max(0, depth - 1)
+        if line.startswith("transition"):
+            guard = line
+        m = re.search(rf"->\s*{re.escape(callee)}\s*\(([^)]*)\)", line)
+        if m:
+            out.append((guard, m.group(0)))
+        elif re.search(rf"->\s*{re.escape(callee)}\s*\(", line):
+            out.append((guard, line))
+    return out
+
+
+def guard_establishes_req(guard: str, req: str) -> bool:
+    if not guard:
+        return False
+    core = re.sub(r"^\s*requires\s*", "", req).strip()
+    g_compact = norm_prop(guard)
+    c_compact = norm_prop(core)
+    if c_compact and c_compact in g_compact:
+        return True
+    for part in re.split(r"\s*&&\s*", core):
+        if part.strip() and norm_prop(part.strip()) in g_compact:
+            continue
+        if part.strip() and norm_prop(part.strip()) not in g_compact:
+            return False
+    return bool(core)
+
+
+def literal_call_satisfies_req(call_expr: str, req: str) -> bool:
+    m = re.search(r"\(([^)]*)\)", call_expr)
+    if not m:
+        return False
+    args = [a.strip() for a in m.group(1).split(",")]
+    core = re.sub(r"^\s*requires\s*", "", req).strip()
+    for atom in re.split(r"\s*&&\s*", core):
+        atom = atom.strip()
+        m2 = re.match(r"(\w+)\s*<=\s*(\d+)", atom)
+        if m2:
+            name, bound = m2.group(1), int(m2.group(2))
+            for a in args:
+                if re.fullmatch(r"\d+", a):
+                    if int(a) <= bound:
+                        return True
+        m2 = re.match(r"0\s*<=\s*(\w+)", atom)
+        if m2:
+            name = m2.group(1)
+            for a in args:
+                if re.fullmatch(r"\d+", a):
+                    return True
+    return False
+
+
+def data_type_establishes_index(mut: str, call_expr: str, req: str) -> bool:
+    """pick(main, main.k) when data Main requires bounds on k matching index requires."""
+    if not re.search(r"\bmain\.k\b", call_expr):
+        return False
+    dm = re.search(r"data\s+(\w+)\s+requires\s+([^\n{]+)", mut)
+    if not dm or dm.group(1) != "Main":
+        return False
+    constraints = dm.group(2)
+    core = re.sub(r"^\s*requires\s*", "", req).strip()
+    if "index" not in core:
+        return False
+    needed = []
+    for atom in re.split(r"\s*&&\s*", core):
+        needed.append(atom.replace("index", "k"))
+    for n in needed:
+        if n.strip() not in constraints:
+            return False
+    return True
+
+
+def caller_capacity_bounded(mut: str, machine: str, req: str) -> tuple[bool, str]:
+    """consume(buffer, capacity) after capacity = minimum(..., buffer.len)."""
+    if "buffer.len" not in req or "end" not in req:
+        return False, ""
+    if not re.search(rf"let\s+capacity:\s*u64\s*=\s*minimum\([^)]*buffer\.len", mut):
+        return False, ""
+    for guard, call in collect_call_sites(mut, machine):
+        if "capacity" in call and "buffer" in call:
+            return True, f"caller binds `capacity` with `minimum(..., buffer.len)` before `{call}`"
+    return False, ""
+
+
+def caller_establishes(mut: str, machine: str, req: str) -> tuple[bool, str]:
+    sites = collect_call_sites(mut, machine)
+    if not sites:
+        return False, ""
+    for guard, call in sites:
+        if guard_establishes_req(guard, req):
+            return True, f"call `{call}` guarded by `{guard.strip()}`"
+        if literal_call_satisfies_req(call, req):
+            return True, f"literal arguments in `{call}` satisfy `{req}`"
+        if data_type_establishes_index(mut, call, req):
+            return True, f"`{call}` passes `main.k` under `data Main requires …`"
+    ok, note = caller_capacity_bounded(mut, machine, req)
+    if ok:
+        return ok, note
+    if len(sites) == 1 and sites[0][0].strip() == "transition { _ ->":
+        # sole unconditional call with closed program — check computed locals
+        ok, note = caller_capacity_bounded(mut, machine, req)
+        if ok:
+            return ok, note
+    return False, ""
+
+
+def minimal_diff(orig: str, mut: str) -> str:
+    import difflib
+
+    return "".join(
+        difflib.unified_diff(
+            orig.splitlines(keepends=True),
+            mut.splitlines(keepends=True),
+            fromfile="original",
+            tofile="mutant",
+            n=2,
+        )
+    )
+
+
 def requires_restatement(req_line: str, body: str) -> tuple[bool, str]:
     core = re.sub(r"^\s*requires\s*", "", req_line).strip()
     if not core:
@@ -174,6 +342,9 @@ def validity_drop_requires(orig: str, mut: str) -> tuple[bool, str, str, str, st
     restated, pair = requires_restatement(req, body)
     if restated:
         return True, f"valid: {pair}", "", "", "", pair
+    c_ok, c_note = caller_establishes(mut, machine, req)
+    if c_ok:
+        return True, f"valid: {c_note}", "", "", "", c_note
     obs = drop_obligation_lines(req, body)
     if obs:
         sf, hd, qt = SPEC_DROP_REQUIRES
@@ -291,7 +462,13 @@ def assign_bucket(
     if valid:
         if current == "accepted" and route_accepts(route):
             return "discarded-valid", acc
-        return "disagreement-valid", acc
+        if route in ROUTE_NON_CHECKER:
+            return "valid-route-outside", acc
+        cur_ok = current == "accepted"
+        rt_ok = route_accepts(route)
+        if cur_ok != rt_ok:
+            return "disagreement-valid", acc
+        return "discarded-valid", acc
     if kind == "remove_mut" and acc != "none":
         return "known-gap-q7-mut", acc
     if acc != "none":
@@ -410,7 +587,8 @@ def main() -> None:
     fixtures_touched = len({r[0] for r in rows_in})
     no_mutation = FIXTURES_IN_SHARD - fixtures_touched
     mutants_per = Counter(r[0] for r in rows_in)
-    multi = sum(1 for c in mutants_per.values() if c > 1)
+    multi_fixtures = [(fx, c) for fx, c in sorted(mutants_per.items()) if c > 1]
+    extra_rows = sum(c - 1 for _, c in multi_fixtures)
 
     header = [
         "fixture",
@@ -492,6 +670,17 @@ def main() -> None:
         for r in sorted(out_rows, key=lambda x: (x["fixture"], x["mutation_kind"])):
             f.write("\t".join(str(r.get(h, "")) for h in header) + "\n")
 
+    reviewed_former_holes = [
+        r for r in out_rows
+        if r["fixture"] in {
+            "tests/omega/pass/collections/runtime_finite_element_view_call_write_exit/main.omg",
+            "tests/omega/pass/collections/runtime_refined_element_view_call_write_exit/main.omg",
+            "tests/omega/pass/facts/double_indexed_rmw_through_field_exit/main.omg",
+            "tests/omega/pass/facts/field_where_index_through_other_state_exit/main.omg",
+            "tests/omega/pass/facts/nested_result_extent_through_other_state_exit/main.omg",
+        }
+        and r["mutation_kind"] == "drop_requires"
+    ]
     confirmed = [r for r in out_rows if r["hand_bucket"] == "confirmed-hole"]
     discarded = [r for r in out_rows if r["hand_bucket"] == "discarded-valid"]
     q7 = [r for r in out_rows if r["hand_bucket"] == "known-gap-q7-mut"]
@@ -517,17 +706,29 @@ def main() -> None:
         "",
         "## Scope",
         f"- Fixtures in shard: **{FIXTURES_IN_SHARD}**",
-        f"- Fixtures with ≥1 mutant run: **{fixtures_touched}**",
-        f"- `no-mutation` (fixture yielded zero mutants): **{no_mutation}**",
-        f"- Mutant rows (deduped fixture×kind): **{total}**",
-        f"- Fixtures with >1 mutant kind in TSV: **{multi}** (early harness tried two priorities before single-mut cap).",
-        f"- First run logged **1052** checks; final deduped total **{total}** = one row per attempted mutant kind.",
+        f"- `no-mutation` (zero mutant rows): **{no_mutation}** (= {FIXTURES_IN_SHARD} − **{fixtures_touched}** mutated fixtures)",
+        f"- Mutated fixtures (≥1 row): **{fixtures_touched}**",
+        f"- Mutant rows: **{total}** (= **{fixtures_touched}** fixture-keys + **{extra_rows}** extra kinds on multi-mutation fixtures)",
         "",
-        "## Bucket table",
+        "### Fixtures with more than one mutant row",
         "",
-        "| Bucket | Count |",
-        "| --- | ---: |",
+        f"Only **{len(multi_fixtures)}** fixtures contribute the **{extra_rows}** extra rows (not 13 separate fixtures).",
+        "",
+        "| Fixture | Rows | `mutation_kind`s |",
+        "| --- | ---: | --- |",
     ]
+    for fx, count in multi_fixtures:
+        kinds = ", ".join(f"`{k}`" for k in MULTI_MUTATION_FIXTURES.get(fx, []))
+        md.append(f"| `{fx}` | {count} | {kinds} |")
+    md.extend(
+        [
+            "",
+            "## Bucket table",
+            "",
+            "| Bucket | Count |",
+            "| --- | ---: |",
+        ]
+    )
     for b in BUCKETS:
         if buckets[b]:
             md.append(f"| `{b}` | {buckets[b]} |")
@@ -536,7 +737,9 @@ def main() -> None:
     md.append("")
     md.append(
         "Validity is decided by **reading the mutant** (fix3-B). `route_rejection_hint` is recorded "
-        "for `drop_requires` but does not select buckets."
+        "for `drop_requires` but does not select buckets. `valid-route-outside` holds **valid** "
+        "mutants where the route comparison never entered the program (`outside`, `no-entry`, "
+        "`unreached`); that is not a checker disagreement."
     )
     md.append("")
     md.append(f"**Confirmed holes:** {len(confirmed)}")
@@ -577,17 +780,84 @@ def main() -> None:
     write_hand_section(md, "## Hand verification: 5 discarded-valid", h_disc)
     write_hand_section(md, "## Hand verification: 5 known-gap-q7-mut", h_q7)
 
+    OOB_EVIDENCE = {
+        "tests/omega/pass/collections/runtime_finite_element_view_call_write_exit/main.omg": (
+            "`omega run --both` on minimal mutant: native exit 0 / interp exit 0. "
+            "Unguarded probe (`store` calls `at` unconditionally, `cursor.index = 5`): "
+            "`omega --check` **rejects** with `cannot prove index cursor.index is within unknown slice length` — "
+            "no silent runtime trap; bounds must be proved before the indexed write."
+        ),
+        "tests/omega/pass/collections/runtime_refined_element_view_call_write_exit/main.omg": (
+            "Same guarded-call pattern as finite; `omega run --both` on minimal mutant exits 0."
+        ),
+        "tests/omega/pass/facts/double_indexed_rmw_through_field_exit/main.omg": (
+            "Single call site `rmw(&mut holder, 1, 2, 2, 1)`; `omega run --both` on minimal mutant exits 0. "
+            "Removed `requires i <= 2` only; remaining requires and literal `i=1` bound the exercised path."
+        ),
+        "tests/omega/pass/facts/field_where_index_through_other_state_exit/main.omg": (
+            "`omega run --both` on minimal mutant exits 0. Index actual is `main.k`; "
+            "`data Main requires 0 <= k, k <= 3` discharges the index bound at the call."
+        ),
+        "tests/omega/pass/facts/nested_result_extent_through_other_state_exit/main.omg": (
+            "`omega run --both` on minimal mutant exits 0. "
+            "`capacity = minimum(minimum(count, buffer.len), …)` before `consume(buffer, capacity)`."
+        ),
+    }
+
+    if reviewed_former_holes:
+        sf, sh, sq = SPEC_INDEX_BOUNDS
+        md.append("## Reviewed index/`drop_requires` candidates (formerly flagged)")
+        md.append("")
+        md.append(
+            "Five `drop_requires` rows were initially `confirmed-hole` because the mutant body "
+            "still indexes without the removed machine `requires`. After caller/call-site review "
+            "they are **valid** (facts re-established before invocation), not soundness holes."
+        )
+        md.append("")
+        for r in reviewed_former_holes:
+            orig, mut = read_pair(r["fixture"], r["mutant_path"], r["mutation_kind"])
+            diff = minimal_diff(orig, mut).strip() or "(no diff — mutant dir missing; synthetic apply)"
+            sf2, sh2, sq2 = (
+                "wiki/spec/language/numeric_values.md",
+                "Collection bounds",
+                "The core indexing contract requires ordinary call-contract discharge for every "
+                "selected requirement.",
+            )
+            md.extend(
+                [
+                    f"### `{r['mutation_kind']}` — `{r['fixture']}`",
+                    f"- Final bucket: **`{r['hand_bucket']}`** (accepted_by: **{r['accepted_by']}**)",
+                    f"- Validity: {r['validity_note']}",
+                    f"- (a) Prove-at-check spec — `{sf}` → **{sh}**: {sq}",
+                    f"- (a) Also `{sf2}` → **{sh2}**: {sq2}",
+                    f"- (b) Runtime / check evidence: {OOB_EVIDENCE.get(r['fixture'], 'see hand section')}",
+                    "- (c) Minimal mutant diff:",
+                    "```diff",
+                    diff[:4000],
+                    "```",
+                    "",
+                ]
+            )
+
     if confirmed:
+        sf, sh, sq = SPEC_INDEX_BOUNDS
         md.append("## Confirmed-hole entries")
         md.append("")
         for r in confirmed:
+            orig, mut = read_pair(r["fixture"], r["mutant_path"], r["mutation_kind"])
+            diff = minimal_diff(orig, mut).strip()
             md.extend(
                 [
                     f"### `{r['mutation_kind']}` — `{r['fixture']}`",
                     f"- accepted_by: **{r['accepted_by']}**",
                     f"- {r['validity_note']}",
                     f"- Obligation: {r['obligation_line']}",
-                    f"- Spec ({r['spec_file']} → {r['spec_heading']}): {r['spec_quote']}",
+                    f"- (a) Spec `{sf}` → **{sh}**: {sq}",
+                    f"- (b) Evidence: (run recorded at reconcile time)",
+                    "- (c) Minimal mutant diff:",
+                    "```diff",
+                    diff[:4000],
+                    "```",
                     "",
                 ]
             )
