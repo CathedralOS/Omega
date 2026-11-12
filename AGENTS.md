@@ -19,6 +19,7 @@ state machines:
 IR, artifact, interpreter and CLI subsystem are **Psi**. **Terminal Psi** names
 only the internal compiler stage/representation. Keep internal paths and wire
 identifiers intact; do not export that stage label into help, reports or guides.
+For execution results, write "native/Psi agreement" or "Psi exit 0".
 
 **The goal is a complete compiler that ships.** Follow `.agents/skills/advance/SKILL.md`
 (`/advance`) to execute work, `.agents/skills/coordinator-review/SKILL.md` to
@@ -81,9 +82,10 @@ A PR in a compiler lane (`psi`, `omega`, `backend`, `compiler`, `build`,
 and its net change in red corpus rows:
 `Gate: <release-gate> | red rows: <change>`, where the name comes from the release
 matrix in [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
-A negative number means rows turned green; it is your statement of what the
-change does, checked on main after merge. Work that turns
-no row green is allowed but must say what it unlocks:
+A negative number means fewer failing rows: two failing rows made green are
+`red rows: -2`, not `red rows: 2`. Count the demonstrated baseline-to-candidate
+outcome changes, not the number of fixes or files. Main checks the claim after
+merge. Work that turns no existing row green is allowed but must say what it unlocks:
 `Gate: <release-gate> | red rows: 0 | unlocks: <rows or capability>`.
 
 ## Law of completion
