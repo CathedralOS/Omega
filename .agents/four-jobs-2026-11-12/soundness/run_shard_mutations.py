@@ -54,13 +54,22 @@ SPEC_RULES: dict[str, tuple[str, str, str]] = {
         "Entry obligations established at every invocation under exact actual-argument "
         "substitution must be dischargeable at every reachable call.",
     ),
-    "flip_to_mut_loan": (
+    "amp_to_ampmut": (
         "wiki/spec/language/expressions.md",
         "Assignment and explicit `&mut` / `&write` loans",
-        "For named machine calls, mutable and write-only lending require explicit `&mut` "
-        "and `&write` expressions. Such a loan requires existing writable authority at the selected place.",
+        "Such a loan requires existing writable authority at the selected place; "
+        "forming `&mut` without writable authority violates exclusivity and mutability rules.",
     ),
 }
+
+
+@dataclass
+class SpecRead:
+    invalid: bool
+    obligation: str
+    valid_reason: str
+    invalid_only_missing_mut: bool
+    rule: tuple[str, str, str] | None
 
 LET_RE = re.compile(r"^\s*let\s+(?P<mut>mut\s+)?(?P<name>[A-Za-z_][A-Za-z0-9_]*)\b", re.MULTILINE)
 BORROW_MUT_RE = re.compile(r"&\s*(mut|write)\s+(?P<root>[A-Za-z_][A-Za-z0-9_]*)\b")
@@ -92,13 +101,20 @@ class Row:
     rule_file: str
     rule_heading: str
     rule_quote: str
+    accepted_by: str
     mutant_path: str
     current_s: float
     route_s: float
 
 
-ROUTE_NON_JUDGMENT = frozenset(
-    {"no-entry", "unreached", "incomplete", "defect", "error", "unreached", "fallback"}
+BUCKETS = (
+    "confirmed-hole",
+    "known-gap-q7-mut",
+    "disagreement-valid",
+    "discarded-valid",
+    "rejected-both",
+    "timeout",
+    "failed-run",
 )
 
 
@@ -267,7 +283,7 @@ def generate_mutations(source: str) -> list[Mutation]:
     if re.search(r"&(?!\s*(?:mut|write)\b)", source):
         new = re.sub(r"&(?!mut|write)(\s*)", r"&mut\1", source, count=1)
         if new != source:
-            muts.append(Mutation("flip_to_mut_loan", "first shared & -> &mut", new, {}))
+            muts.append(Mutation("amp_to_ampmut", "first shared & -> &mut", new, {}))
     return muts[:8]
 
 
@@ -333,99 +349,158 @@ def accepts(verdict: str) -> bool:
     return verdict == "accepted"
 
 
-def classify(
+def checker_accepted_by(current: str, route: str) -> str:
+    ac, ar = accepts(current), accepts(route)
+    if ac and ar:
+        return "both"
+    if ac:
+        return "current"
+    if ar:
+        return "route"
+    return "neither"
+
+
+def read_spec_verdict(
     kind: str,
     original: str,
     mutant: str,
     mutation: Mutation,
-    fixture_rel: str,
-    current: str,
-    route: str,
-    route_detail: str,
-    q7: set[tuple[str, str]],
-) -> tuple[str, str, str, str, str, str]:
-    """Return bucket, obligation, rule_file, heading, quote, discard_reason."""
-    empty = ("", "", "")
-    if current == "timeout" or route == "timeout":
-        return "discarded_timeout", "", *empty, "checker timeout"
-    if not accepts(current) and not accepts(route):
-        return "discarded_both_reject", "", *empty, ""
-    if not accepts(current):
-        return "discarded_route_only", "", *empty, route_detail
-
-    detail_lower = route_detail.lower()
-    if kind == "drop_requires":
-        removed = mutation.meta.get("removed") or first_requires_clause(original) or ""
-        if route in ROUTE_NON_JUDGMENT or "unsupported" in detail_lower:
-            return (
-                "discarded_valid_mutant",
-                "",
-                *empty,
-                f"route non-judgment ({route}): {route_detail}",
-            )
-        obligation = drop_requires_dependent_obligation(original, mutant, removed) or ""
-        restated = transition_restates_requires(original, removed)
-        if obligation:
-            rule = SPEC_RULES["drop_requires"]
-            return ("confirmed_hole", obligation, rule[0], rule[1], rule[2], route_detail)
-        if restated:
-            return (
-                "discarded_valid_mutant",
-                restated,
-                *empty,
-                f"requires duplicated in transition; route: {route_detail}",
-            )
-        return (
-            "discarded_valid_mutant",
-            "",
-            *empty,
-            route_detail if not accepts(route) else "no body/ensures obligation needs removed requires",
-        )
-
-    obligation = ""
+) -> SpecRead:
+    """Invalidity from reading the mutant only (route messages are not used)."""
     if kind == "remove_mut":
         name = mutation.meta.get("binding", "")
         if count_let_bindings(mutant, name) > 1:
-            return (
-                "discarded_valid_mutant",
+            return SpecRead(
+                False,
                 "",
-                *empty,
-                f"binding `{name}` shadowed by inner `let`",
+                f"inner `let {name}` shadows the demoted binding",
+                False,
+                None,
             )
         obligation = find_remove_mut_violation(mutant, name) or ""
         if not obligation:
-            return "discarded_valid_mutant", "", *empty, "no write/borrow on target binding"
-        rule = SPEC_RULES["remove_mut"]
-        if (fixture_rel, name) in q7:
-            return (
-                "known_gap_q7_mut",
-                obligation,
-                rule[0],
-                rule[1],
-                rule[2],
+            return SpecRead(
+                False,
                 "",
+                "demoted binding has no write, reassign, or &mut/&write use",
+                False,
+                None,
             )
-    elif kind == "weaken_requires":
+        return SpecRead(
+            True,
+            obligation,
+            "",
+            True,
+            SPEC_RULES["remove_mut"],
+        )
+    if kind == "drop_requires":
+        removed = mutation.meta.get("removed") or first_requires_clause(original) or ""
+        obligation = drop_requires_dependent_obligation(original, mutant, removed) or ""
+        if obligation:
+            return SpecRead(True, obligation, "", False, SPEC_RULES["drop_requires"])
+        restated = transition_restates_requires(original, removed)
+        if restated:
+            return SpecRead(False, restated, "same fact restated on a transition arm", False, None)
+        return SpecRead(
+            False,
+            "",
+            "no body or ensures line needs the removed requires fact",
+            False,
+            None,
+        )
+    if kind == "weaken_requires":
         obligation = weaken_requires_breach(original, mutant, mutation.detail) or ""
-        if not obligation:
-            return "discarded_valid_mutant", "", *empty, "weakened requires still dischargeable"
-    elif kind == "remove_guard":
+        if obligation:
+            return SpecRead(True, obligation, "", False, SPEC_RULES["weaken_requires"])
+        return SpecRead(False, "", "weakened requires still satisfied at uses in this file", False, None)
+    if kind == "remove_guard":
         obligation = remove_guard_obligation(original, mutant) or ""
-        if not obligation:
-            return "discarded_valid_mutant", "", *empty, "guard removal still checked"
-    elif kind == "flip_to_mut_loan":
+        if obligation:
+            return SpecRead(True, obligation, "", False, SPEC_RULES["remove_guard"])
+        return SpecRead(False, "", "removed guard does not leave an unchecked branch", False, None)
+    if kind == "amp_to_ampmut":
         obligation = flip_to_mut_line(mutant) or ""
-        if not obligation:
-            return "discarded_valid_mutant", "", *empty, "no &mut site"
-    else:
-        return "discarded_no_specific_rule", obligation, *empty, ""
+        if obligation:
+            return SpecRead(True, obligation, "", False, SPEC_RULES["amp_to_ampmut"])
+        return SpecRead(False, "", "no &mut loan site in mutant", False, None)
+    return SpecRead(False, "", f"no spec read for kind {kind}", False, None)
 
-    if not obligation:
-        return "discarded_valid_mutant", "", *empty, "no spec-breaking site in mutant"
-    rule = SPEC_RULES.get(kind)
-    if not rule:
-        return "discarded_no_specific_rule", obligation, *empty, ""
-    return "confirmed_hole", obligation, rule[0], rule[1], rule[2], ""
+
+def assign_bucket(
+    spec: SpecRead,
+    kind: str,
+    fixture_rel: str,
+    mutation: Mutation,
+    current: str,
+    route: str,
+    q7: set[tuple[str, str]],
+) -> tuple[str, str, str, str, str, str]:
+    """Return bucket, obligation, rule fields, accepted_by, valid/discard note."""
+    if current == "timeout" or route == "timeout":
+        return "timeout", "", "", "", "", "neither", "checker timeout"
+    accepted = checker_accepted_by(current, route)
+    either_accepts = accepted in ("current", "route", "both")
+    name = mutation.meta.get("binding", "")
+
+    if not spec.invalid:
+        if accepted == "both":
+            return (
+                "discarded-valid",
+                spec.obligation,
+                "",
+                "",
+                "",
+                accepted,
+                spec.valid_reason,
+            )
+        if either_accepts:
+            return (
+                "disagreement-valid",
+                spec.obligation,
+                "",
+                "",
+                "",
+                accepted,
+                spec.valid_reason or "valid under spec read; checkers disagree",
+            )
+        return (
+            "rejected-both",
+            "",
+            "",
+            "",
+            "",
+            accepted,
+            spec.valid_reason,
+        )
+
+    rule = spec.rule or SPEC_RULES.get(kind)
+    rfile, rhead, rquote = rule if rule else ("", "", "")
+    if (
+        kind == "remove_mut"
+        and spec.invalid_only_missing_mut
+        and (fixture_rel, name) in q7
+        and either_accepts
+    ):
+        return (
+            "known-gap-q7-mut",
+            spec.obligation,
+            rfile,
+            rhead,
+            rquote,
+            accepted,
+            "",
+        )
+    if either_accepts:
+        return (
+            "confirmed-hole",
+            spec.obligation,
+            rfile,
+            rhead,
+            rquote,
+            accepted,
+            "",
+        )
+    return ("rejected-both", spec.obligation, "", "", "", accepted, "")
 
 
 def mutant_id(fixture: Path, kind: str, detail: str) -> str:
@@ -525,9 +600,11 @@ def write_md(
     n_run = len(rows)
     buckets = bucket_counts(rows)
     by_kind: dict[str, int] = {}
+    by_accepted: dict[str, int] = {}
     for r in rows:
-        if r.bucket == "confirmed_hole":
+        if r.bucket == "confirmed-hole":
             by_kind[r.kind] = by_kind.get(r.kind, 0) + 1
+            by_accepted[r.accepted_by] = by_accepted.get(r.accepted_by, 0) + 1
 
     lines = [
         f"# Soundness mutations shard {SHARD} (PIN {PIN})",
@@ -564,16 +641,7 @@ def write_md(
         "| Bucket | Count |",
         "| --- | ---: |",
     ]
-    bucket_order = [
-        "confirmed_hole",
-        "known_gap_q7_mut",
-        "discarded_both_reject",
-        "discarded_route_only",
-        "discarded_valid_mutant",
-        "discarded_no_specific_rule",
-        "discarded_timeout",
-        "mutant_run_error",
-    ]
+    bucket_order = list(BUCKETS) + ["failed-run"]
     total = 0
     for b in bucket_order:
         c = buckets.get(b, 0)
@@ -602,8 +670,21 @@ def write_md(
         lines.append(f"| `{k}` | {c} |")
     if not by_kind:
         lines.append("| (none) | 0 |")
+    lines.extend(
+        [
+            "",
+            "## Confirmed holes by accepted_by",
+            "",
+            "| accepted_by | Count |",
+            "| --- | ---: |",
+        ]
+    )
+    for k, c in sorted(by_accepted.items()):
+        lines.append(f"| `{k}` | {c} |")
+    if not by_accepted:
+        lines.append("| (none) | 0 |")
 
-    kept = [r for r in rows if r.bucket in ("confirmed_hole", "known_gap_q7_mut")]
+    kept = [r for r in rows if r.bucket in ("confirmed-hole", "known-gap-q7-mut")]
     lines.extend(["", "## Kept rows", ""])
     for r in kept:
         lines.extend(
@@ -613,8 +694,8 @@ def write_md(
                 f"- Bucket: `{r.bucket}`",
                 f"- Mutation: {r.detail}",
                 f"- Mutant: `{r.mutant_path}`",
-                f"- Current: `{r.current}`; route: `{r.route}`",
-                f"- Route detail: {r.route_detail[:300] if r.route_detail else '(n/a)'}",
+                f"- Current: `{r.current}`; route: `{r.route}`; accepted_by: `{r.accepted_by}`",
+                f"- Route detail (hint only): {r.route_detail[:300] if r.route_detail else '(n/a)'}",
                 f"- Broken obligation: `{r.obligation}`",
                 f"- Spec (`{r.rule_file}` § {r.rule_heading}):",
                 "",
@@ -623,26 +704,20 @@ def write_md(
             ]
         )
 
-    samples = [r for r in rows if r.bucket == "confirmed_hole"][:5]
+    samples = [r for r in rows if r.bucket == "confirmed-hole"][:5]
     if samples:
-        lines.extend(["", "## Hand verification (5 confirmed holes)", ""])
+        lines.extend(["", "## Hand verification (5 confirmed-hole)", ""])
         for r in samples:
             lines.extend(hand_verify_row(r))
-    drop_discarded = [
-        r
-        for r in rows
-        if r.kind == "drop_requires"
-        and r.bucket == "discarded_valid_mutant"
-        and accepts(r.current)
-    ][:5]
-    if drop_discarded:
-        lines.extend(["", "## Hand verification (5 discarded drop_requires, current accepts)", ""])
-        for r in drop_discarded:
+    discarded = [r for r in rows if r.bucket == "discarded-valid"][:5]
+    if discarded:
+        lines.extend(["", "## Hand verification (5 discarded-valid)", ""])
+        for r in discarded:
             lines.extend(hand_verify_row(r))
-    rm_samples = [r for r in rows if r.kind == "remove_mut"][:5]
-    if rm_samples:
-        lines.extend(["", "## Hand verification (5 remove_mut rows)", ""])
-        for r in rm_samples:
+    q7_samples = [r for r in rows if r.bucket == "known-gap-q7-mut"][:5]
+    if q7_samples:
+        lines.extend(["", "## Hand verification (5 known-gap-q7-mut)", ""])
+        for r in q7_samples:
             lines.extend(hand_verify_row(r))
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -694,7 +769,7 @@ def main() -> int:
         tsv_path.write_text(
             "fixture\ttier\tmutation_kind\tdetail\tbucket\tcurrent_verdict\troute_verdict\t"
             "route_detail\tdiscard_reason\tobligation\trule_file\trule_heading\t"
-            "mutant_path\tcurrent_seconds\troute_seconds\n",
+            "accepted_by\tmutant_path\tcurrent_seconds\troute_seconds\n",
             encoding="utf-8",
         )
 
@@ -725,7 +800,7 @@ def main() -> int:
                     tier=tier,
                     kind=m.kind,
                     detail=m.detail,
-                    bucket="mutant_run_error",
+                    bucket="failed-run",
                     current="error",
                     route="error",
                     route_detail="",
@@ -734,6 +809,7 @@ def main() -> int:
                     rule_file="",
                     rule_heading="",
                     rule_quote="",
+                    accepted_by="neither",
                     mutant_path="",
                     current_s=0,
                     route_s=0,
@@ -743,18 +819,11 @@ def main() -> int:
             current_v, current_s, _, _ = run_omega(mutant_main)
             route_v, route_s, route_out = run_route(mutant_main)
             _, route_detail = parse_route_output(route_out)
-            bucket, obligation, rfile, rhead, rquote, discard_reason = classify(
-                m.kind,
-                original,
-                m.text,
-                m,
-                rel,
-                current_v,
-                route_v,
-                route_detail,
-                q7,
+            spec = read_spec_verdict(m.kind, original, m.text, m)
+            bucket, obligation, rfile, rhead, rquote, accepted, discard_reason = assign_bucket(
+                spec, m.kind, rel, m, current_v, route_v, q7
             )
-            keep = bucket in ("confirmed_hole", "known_gap_q7_mut")
+            keep = bucket in ("confirmed-hole", "known-gap-q7-mut")
             rel_mutant = mutant_main.relative_to(REPO).as_posix()
             if not keep:
                 shutil.rmtree(mutant_main.parent, ignore_errors=True)
@@ -773,6 +842,7 @@ def main() -> int:
                 rule_file=rfile,
                 rule_heading=rhead,
                 rule_quote=rquote,
+                accepted_by=accepted,
                 mutant_path=rel_mutant if keep else "",
                 current_s=current_s,
                 route_s=route_s,
@@ -782,7 +852,7 @@ def main() -> int:
                 f.write(
                     f"{rel}\t{tier}\t{m.kind}\t{m.detail}\t{bucket}\t{current_v}\t{route_v}\t"
                     f"{row.route_detail}\t{row.discard_reason}\t{row.obligation}\t{rfile}\t{rhead}\t"
-                    f"{rel_mutant}\t{current_s:.3f}\t{route_s:.3f}\n"
+                    f"{accepted}\t{rel_mutant}\t{current_s:.3f}\t{route_s:.3f}\n"
                 )
         progress_path.write_text(str(idx + 1), encoding="utf-8")
         if (idx + 1) % 25 == 0:
