@@ -17723,17 +17723,30 @@ pub(crate) mod law_conformance {
                             None
                         }
                     };
-                    let published = |term| {
+                    let published = |term, depth| {
                         judge
-                            .specification_application_guarantees(term, 0)
+                            .specification_application_guarantees(term, depth)
                             .map(|guarantees| guarantees.data_identities.clone())
                     };
+                    let available = [
+                        judge.identity_value_is_available(&required_term),
+                        judge.identity_value_is_available(&provided_term),
+                    ];
+                    let forms = [
+                        judge.diagnostic_identity_forms(required_term.clone(), 2),
+                        judge.diagnostic_identity_forms(provided_term.clone(), 2),
+                    ];
+                    let deep = [published(&required_term, 3), published(&provided_term, 3)];
+                    let shallow = [published(&required_term, 0), published(&provided_term, 0)];
+                    let repeated = judge.judge_explicit_identity(
+                        required_term.clone(),
+                        provided_term.clone(),
+                        0,
+                    );
                     eprintln!(
-                        "STRUCT correspondence identity required={required_expression:?} provided={provided_expression:?} judgment={judgment:?} admissions={:?}/{:?} published={:?}/{:?} terms={required_term:?}/{provided_term:?}",
+                        "STRUCT correspondence identity required={required_expression:?} provided={provided_expression:?} judgment={judgment:?} admissions={:?}/{:?} available={available:?} forms={forms:?} published_depth3={deep:?} published_depth0={shallow:?} repeated={repeated:?} terms={required_term:?}/{provided_term:?}",
                         admission(&required_term),
                         admission(&provided_term),
-                        published(&required_term),
-                        published(&provided_term)
                     );
                 }
                 matches!(judgment, super::super::StructuralJudgment::Proven)
@@ -50451,6 +50464,21 @@ pub(crate) mod structural_judgment {
                 } else {
                     StructuralJudgment::Unknown
                 }
+            }
+
+            // Temporary bounded correspondence diagnosis; removed before landing.
+            pub(crate) fn diagnostic_identity_forms(
+                &self,
+                value: StructuralTerm,
+                depth: usize,
+            ) -> Vec<(StructuralTerm, bool)> {
+                self.data_identity_forms(value, depth, &mut 64)
+                    .into_iter()
+                    .map(|value| {
+                        let available = self.identity_value_is_available(&value);
+                        (value, available)
+                    })
+                    .collect()
             }
 
             fn data_identity_forms(
