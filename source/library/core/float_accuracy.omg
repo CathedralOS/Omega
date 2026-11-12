@@ -6,10 +6,24 @@
 // comparing, so infinity <= infinity cannot stand in for an error budget.
 // Scaled relative comparison avoids overflowing a-b or tolerance*scale.
 // It is a rounded format computation, not a proof of exact real error.
-module core::float_accuracy;
+module float_accuracy;
 
-use omega::language::core::float_operations;
-use omega::language::core::float_order;
+use omega::language::core::F32::negate;
+use omega::language::core::F64::negate;
+use omega::language::core::F32::maximum;
+use omega::language::core::F64::maximum;
+use omega::language::core::F32::from_f64;
+use omega::language::core::F64::from_f32;
+use omega::language::core::F32::from_i32;
+use omega::language::core::F64::from_i32;
+use omega::language::core::F32::is_finite;
+use omega::language::core::F64::is_finite;
+use omega::language::core::F32::is_nan;
+use omega::language::core::F64::is_nan;
+use omega::language::core::F32::is_infinite;
+use omega::language::core::F64::is_infinite;
+use omega::language::core::F32::TotalOrder;
+use omega::language::core::F64::TotalOrder;
 
 public data NumericClass [copy] {
     case Finite;

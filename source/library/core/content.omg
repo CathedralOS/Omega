@@ -5,7 +5,6 @@
 // checked machine satisfying `Content<Owner, A>::project`; `A` is one of the closed
 // compiler-normalized content algebras below. The conformance body is proof
 // material and adds no runtime metadata to the qualified carrier.
-use omega::language::core::nat;
 
 // A struct literal introduces one half-open member. Compiler normalization
 // lifts it into the canonical finite interval-set term used by `separate` and

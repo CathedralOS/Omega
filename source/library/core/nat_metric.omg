@@ -1,7 +1,6 @@
 // Absolute difference and order lemmas over core Nat. This is the metric
 // substrate used by Rat's denominator-scaled triangle proof: all order facts
 // retain Nat's settled monus spelling (`a <= b` iff `saturating_sub(a, b) == Zero`).
-use omega::language::core::nat;
 
 machine nat_gap(a: Nat, b: Nat) -> Nat {
     let forward: Nat = saturating_sub(a, b);

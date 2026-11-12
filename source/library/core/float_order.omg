@@ -10,7 +10,6 @@
 // performing a floating-point operation or observing an operation-produced
 // NaN payload.
 
-use omega::language::core::float_format;
 
 public trait Order<T> {
     machine before(left: T, right: T) -> bool;

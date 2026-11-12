@@ -16,7 +16,6 @@
 // geometry in ordinary fields and its grant metadata in domain evidence;
 // reclaiming consumes that exact qualified authority.
 
-use omega::language::core::extent;
 
 boundary trait Arena {
     machine allocate(size: u64, align: u64) -> Extent

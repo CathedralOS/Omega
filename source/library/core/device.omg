@@ -40,7 +40,6 @@
 // Device protocols, DMA queue submission, and IPC ownership remain
 // consumer/provider code; this module publishes only the general authority
 // vocabulary (wiki/spec/resources/device_access.md).
-use omega::language::core::extent;
 
 public boundary data DeviceLoan [linear];
 

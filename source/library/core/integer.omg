@@ -1,4 +1,4 @@
-module core::integer;
+module integer;
 
 // Ordinary exact carrier queries. Static type equations select semantic
 // integer meanings; layouts, providers and arithmetic policies do not choose

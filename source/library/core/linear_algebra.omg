@@ -14,9 +14,11 @@
 // Dot may share its inputs but its output must be disjoint; ordinary axpy
 // needs disjoint x and an exclusive y loan, and x == y uses try_axpy_self_f64
 // with one exclusive loan.
-module core::linear_algebra;
+module linear_algebra;
 
-use omega::language::core::float_operations;
+use omega::language::core::F64::negate;
+use omega::language::core::F64::square_root;
+use omega::language::core::F64::maximum;
 
 machine is_finite_f64(value: f64) -> bool {
     let difference: f64 = value - value;

@@ -69,7 +69,6 @@ terminates by items
     }
 }
 
-use omega::language::core::nat;
 
 // length is a structurally recursive proof machine returning core Nat, the
 // generic twin of nat's own ladder over a generic recursive type. The
