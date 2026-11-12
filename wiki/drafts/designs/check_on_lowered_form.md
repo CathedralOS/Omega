@@ -350,8 +350,10 @@ that cannot fail cannot hold work back, and work went ahead
      2026-11-12 passed the entry receipt and native entry settlement
      (`validate_native_program_entry_settlement`) and then stopped in
      `project_terminal_native_body`: "selected provider `NativeFloats` has
-     no retained external implementation for" `Float::add`. Every hosted
-     product selects the target's float realization table, and Omega 00
+     no retained external implementation for" `Float::add`. That product
+     (`run/calls/scalar_contract_route_exit` for `linux_x86_64`, a program
+     with no floats) had selected the target's float realization table;
+     whether every hosted product does was not measured. Omega 00
      requires the application's own module to hold an
      `ExternalProviderConformance` row for each selected external
      realization and the boundary machine it realizes. Psi 06 writes those
