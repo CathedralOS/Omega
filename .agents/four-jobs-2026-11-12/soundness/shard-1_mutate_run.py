@@ -104,6 +104,39 @@ def mutate_source(src: str, kind: str) -> str | None:
     return None
 
 
+def write_synthetic_build(mdir: Path, app_name: str) -> None:
+    text = f"""machine build(builder: &mut Build) {{
+    Build::application(builder, "{app_name}");
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}}
+"""
+    (mdir / "build.omg").write_text(text)
+
+
+def ensure_build_omg(mdir: Path, fix_dir: Path, fixture: str) -> None:
+    if (mdir / "build.omg").is_file():
+        return
+    probe = fix_dir
+    root_tests = REPO / "tests" / "omega"
+    while True:
+        candidate = probe / "build.omg"
+        if candidate.is_file():
+            shutil.copy2(candidate, mdir / "build.omg")
+            return
+        if probe == root_tests:
+            break
+        parent = probe.parent
+        if parent == probe:
+            break
+        probe = parent
+    if re.search(r"(?m)^machine main\(", (mdir / "main.omg").read_text()):
+        app = Path(fixture).parent.name
+        write_synthetic_build(mdir, app)
+
+
 def mutant_id(fixture: str, kind: str, idx: int) -> str:
     h = hashlib.sha256(f"{fixture}:{kind}:{idx}".encode()).hexdigest()[:12]
     safe = fixture.replace("/", "__").replace(".omg", "")
@@ -234,12 +267,24 @@ def main() -> int:
             if mdir.exists():
                 shutil.rmtree(mdir)
             mdir.mkdir(parents=True)
-            shutil.copy2(fix_dir / "build.omg", mdir / "build.omg")
+            build_local = fix_dir / "build.omg"
+            if build_local.is_file():
+                shutil.copy2(build_local, mdir / "build.omg")
+            pkg = fix_dir
+            root_tests = REPO / "tests" / "omega"
+            while pkg > root_tests and not (pkg / "build.omg").is_file():
+                pkg = pkg.parent
+            if (pkg / "build.omg").is_file() and pkg != fix_dir:
+                shutil.copy2(pkg / "build.omg", mdir / "build.omg")
+                for sibling in pkg.glob("*.omg"):
+                    if sibling.name != "main.omg":
+                        shutil.copy2(sibling, mdir / sibling.name)
             for extra in fix_dir.iterdir():
                 if extra.name not in ("main.omg", "build.omg", "expected.txt", "expected_native_exit.txt", "README.md"):
                     if extra.is_file():
                         shutil.copy2(extra, mdir / extra.name)
             (mdir / "main.omg").write_text(mutated)
+            ensure_build_omg(mdir, fix_dir, fixture)
 
             ec, omega_out, t_omega = run_check([str(OMEGA_BIN), "--check", str(mdir / "main.omg")])
             cur = current_verdict(ec, omega_out)
