@@ -8,13 +8,14 @@
 # artifact.
 set -eu
 
-if [ "$#" -ne 3 ]; then
-    echo "usage: gate.sh <name> <package-directory> <decoder.py>" >&2
+if [ "$#" -lt 3 ]; then
+    echo "usage: gate.sh <name> <package-directory> <decoder.py> [decoder-argument...]" >&2
     exit 2
 fi
 gate_name=$1
 gate=$(CDPATH= cd -- "$2" && pwd)
 decoder=$(CDPATH= cd -- "$(dirname -- "$3")" && pwd)/$(basename -- "$3")
+shift 3
 
 if [ -z "${OMEGA_CLI:-}" ] || [ -z "${OMEGA_TARGET:-}" ]; then
     echo "set OMEGA_CLI to the exact freshly built comparator CLI" >&2
@@ -66,9 +67,9 @@ trap cleanup_gate EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
-"$omega_cli" --target "$target" --build-dir "$build_dir" "$gate/main.omg"
+"$omega_cli" --timings --target "$target" --build-dir "$build_dir" "$gate/main.omg"
 cli_identity=$(shasum -a 256 "$omega_cli" | awk '{print $1}')
 artifact_identity=$(shasum -a 256 "$build_dir/omega-program" | awk '{print $1}')
 printf '%s-gate cli_sha256=%s target=%s artifact_sha256=%s\n' \
     "$gate_name" "$cli_identity" "$target" "$artifact_identity"
-python3 "$decoder" "$build_dir/omega-program"
+python3 "$decoder" "$build_dir/omega-program" "$@"

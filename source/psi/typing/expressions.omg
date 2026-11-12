@@ -302,7 +302,7 @@ crashes Trap
 
     // A case fact's payload name has the payload field's declared type.
     // A constant is a value of its declared type; its initializer types
-    // against that type (`type_constants`).
+    // against that type (`Typer::type_constants`).
     machine constant_value(typer: &mut Typer, syntax: &SyntaxTrees, constant: u64 in Trapping) -> u64 in Trapping {
         let declaration: ConstantItem = constant_item(syntax, constant);
         reference_type(&typer.output, declaration.type_reference)
@@ -481,7 +481,7 @@ crashes Trap
 // An anonymous index lands at `u64`. Reading an integer or Boolean element
 // through a policy-qualified collection (`[u64; N] in Trapping`) yields the
 // element under that policy; storing into one takes the element's own
-// carrier (`place_type`).
+// carrier (`Typer::place_type`).
 machine type_index(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
@@ -783,9 +783,13 @@ crashes Trap
     }
 
     machine negate_anonymous(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
-        let value: ExactInteger = typing_value(&typer.output, expression.left);
-        let negated: ExactInteger = exact_integer_negate(value);
-        typing_set_value(&mut typer.output, index, negated);
+        let value: Rational = rational(&typer.output, expression.left);
+        let origin: u64 in Trapping = typing_fractional_origin(&typer.output, expression.left);
+        let negated: Rational = Rational {
+            numerator: exact_integer_negate(value.numerator),
+            denominator: value.denominator
+        };
+        set_rational(&mut typer.output, index, negated, origin);
     }
 
     machine negate_typed(typer: &mut Typer, expression: Expression, signed: bool) {
@@ -1275,7 +1279,8 @@ crashes Trap
     }
 
     machine folded(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: RationalResult) {
-        set_rational(&mut typer.output, index, result.value);
+        let origin: u64 in Trapping = binary_fractional_origin(typer, expression);
+        set_rational(&mut typer.output, index, result.value, origin);
         transition result.valid {
             true -> done()
             _ -> out_of_range(typer, expression)
@@ -1283,7 +1288,8 @@ crashes Trap
     }
 
     machine divided(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: RationalResult, divisor: Rational) {
-        set_rational(&mut typer.output, index, result.value);
+        let origin: u64 in Trapping = binary_fractional_origin(typer, expression);
+        set_rational(&mut typer.output, index, result.value, origin);
         transition result.valid {
             true -> done()
             _ -> undivided(typer, expression, divisor)
@@ -1617,5 +1623,21 @@ crashes Trap
 
     machine unchanged(handle: u64 in Trapping) -> u64 in Trapping {
         handle
+    }
+}
+
+// Children are evaluated left to right. Preserve the first authored fractional
+// origin even when exact folding cancels its denominator.
+machine binary_fractional_origin(typer: &Typer, expression: Expression) -> u64 in Trapping
+crashes Trap
+{
+    let left: u64 in Trapping = typing_fractional_origin(&typer.output, expression.left);
+    transition left > 0 {
+        true -> found(left)
+        _ -> right(typer, expression)
+    }
+    machine found(origin: u64 in Trapping) -> u64 in Trapping { origin }
+    machine right(typer: &Typer, expression: Expression) -> u64 in Trapping {
+        typing_fractional_origin(&typer.output, expression.right)
     }
 }

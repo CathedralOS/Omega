@@ -1,0 +1,141 @@
+use omega_language_std::Console;
+use omega_language_std::ByteRead;
+use psi::Checker;
+use psi::Lexer;
+use psi::ModulePath;
+use psi::Parser;
+use psi::Resolver;
+use psi::ScalarLowerer;
+use psi::ScalarProgram;
+use psi::ScalarStatus;
+use psi::SourceSet;
+use psi::Typer;
+
+// Diagnostic source invocation: a little-endian u32 selected machine index,
+// followed by one complete source unit. It does not claim OCREQ/package
+// admission. Only a completely checked and lowered program publishes a tape.
+
+data Harness { entry: u64 in Trapping; }
+
+machine main() reaches Console invokes Console crashes Trap blocks {
+    let mut harness: Harness;
+    harness.entry = 0;
+    let mut lexer: Lexer;
+    psi::lexer_initialize(&mut lexer, 0);
+    transition { _ -> block header(&mut harness, &mut lexer, 0, 1) }
+
+    machine header(harness: &mut Harness, lexer: &mut Lexer, index: u64 in Trapping, scale: u64 in Trapping) {
+        transition index < 4 {
+            true -> block field(harness, lexer, index, scale)
+            _ -> block read(harness, lexer)
+        }
+    }
+    machine field(harness: &mut Harness, lexer: &mut Lexer, index: u64 in Trapping, scale: u64 in Trapping) {
+        let input: ByteRead = block Console::read_byte();
+        transition input {
+            ByteRead::Byte { value } -> block entry(harness, lexer, index, scale, value)
+            _ -> refuse(253)
+        }
+    }
+    machine entry(harness: &mut Harness, lexer: &mut Lexer, index: u64 in Trapping, scale: u64 in Trapping, value: i32) {
+        harness.entry = harness.entry + (value as u64 in Trapping) * scale;
+        transition { _ -> block header(harness, lexer, index + 1, scale * 256) }
+    }
+    machine read(harness: &mut Harness, lexer: &mut Lexer) {
+        let input: ByteRead = block Console::read_byte();
+        transition input {
+            ByteRead::Byte { value } -> block retain(harness, lexer, value)
+            _ -> tokenize(harness, lexer)
+        }
+    }
+    machine retain(harness: &mut Harness, lexer: &mut Lexer, value: i32) {
+        psi::append_source_byte(lexer, value as u8);
+        transition lexer.source.last_retained {
+            true -> block read(harness, lexer)
+            _ -> refuse(252)
+        }
+    }
+    machine tokenize(harness: &mut Harness, lexer: &mut Lexer) {
+        psi::tokenize(lexer);
+        transition lexer.output.accepted {
+            true -> prepare_parse(harness, lexer)
+            _ -> refuse(251)
+        }
+    }
+    machine prepare_parse(harness: &mut Harness, lexer: &Lexer) {
+        let mut parser: Parser;
+        psi::parser_initialize(&mut parser);
+        psi::parse(&mut parser, lexer.source.id, lexer.source.length as u64 in Trapping, &lexer.output);
+        transition parser.output.accepted {
+            true -> prepare_sources(harness, lexer, &parser)
+            _ -> refuse(250)
+        }
+    }
+    machine prepare_sources(harness: &mut Harness, lexer: &Lexer, parser: &Parser) {
+        let mut sources: SourceSet;
+        psi::source_set_clear(&mut sources);
+        let mut name: ModulePath;
+        psi::module_path_clear(&mut name);
+        let appended: bool = psi::module_path_append(&mut name, 103);
+        let packaged: bool = psi::add_package(&mut sources, &name, false);
+        psi::module_path_clear(&mut name);
+        let added: bool = psi::source_set_add(&mut sources, &lexer.source, 0, &name);
+        transition appended && packaged && added {
+            true -> resolve(harness, parser, &sources)
+            _ -> refuse(252)
+        }
+    }
+    machine resolve(harness: &mut Harness, parser: &Parser, sources: &SourceSet) {
+        let mut resolver: Resolver;
+        psi::resolver_initialize(&mut resolver);
+        psi::resolve(&mut resolver, sources, &parser.output);
+        transition resolver.output.accepted {
+            true -> type_check(harness, parser, sources, &resolver)
+            _ -> refuse(248)
+        }
+    }
+    machine type_check(harness: &mut Harness, parser: &Parser, sources: &SourceSet, resolver: &Resolver) {
+        let mut typer: Typer;
+        psi::type_check(&mut typer, sources, &parser.output, &resolver.output);
+        transition typer.output.accepted {
+            true -> check(harness, parser, resolver, &typer)
+            _ -> refuse(249)
+        }
+    }
+    machine check(harness: &mut Harness, parser: &Parser, resolver: &Resolver, typer: &Typer) {
+        let mut checker: Checker;
+        psi::checker_check(&mut checker, &parser.output, &resolver.output, &typer.output);
+        transition checker.output.accepted {
+            true -> lower(harness, parser, resolver, typer, &checker)
+            _ -> refuse(247)
+        }
+    }
+    machine lower(harness: &mut Harness, parser: &Parser, resolver: &Resolver, typer: &Typer, checker: &Checker) {
+        let mut lowerer: ScalarLowerer;
+        psi::scalar_lower(&mut lowerer, &parser.output, &resolver.output, &typer.output, &checker.output, harness.entry);
+        transition lowerer.output.status {
+            ScalarStatus::Complete -> emit(&lowerer.output)
+            ScalarStatus::Capacity -> refuse(252)
+            _ -> refuse(246)
+        }
+    }
+    machine emit(program: &ScalarProgram) {
+        let mut emitter: AlphaEmitter;
+        alpha_emit(&mut emitter, program);
+        transition emitter.complete {
+            true -> publish(&emitter, 0)
+            _ -> refuse(252)
+        }
+    }
+    machine publish(emitter: &AlphaEmitter, index: u64 in Trapping) {
+        transition index < emitter.length && index < 2097152 {
+            true -> byte(emitter, index)
+            _ -> refuse(0)
+        }
+    }
+    machine byte(emitter: &AlphaEmitter, index: u64 in Trapping) {
+        Console::write_byte(emitter.bytes[index] as i32);
+        transition { _ -> publish(emitter, index + 1) }
+    }
+    machine refuse(status: i32) { Console::exit_process(status); }
+}

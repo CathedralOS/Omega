@@ -3,12 +3,17 @@
 This sibling package owns the Omega-written, target-neutral Psi half of the
 production compiler. `source/omega/` consumes it through the `psi` package
 identity; Omega does not own this source tree. The parser/typing inventory below
-describes current implementation, including retired target prefixes and `via`
+describes current implementation, including data-owned machine declarations, retired target prefixes and `via`
 binding clauses. Those are migration debt, not accepted alternative syntax.
 Package-local `Build::bind<Requirement>(builder, target, locator)` replaces the
 per-symbol native forwarding declaration, with locator lengths inferred;
 `BUILD-OWNED-NATIVE-BINDINGS` and `BUILD-OWNED-TARGET-SELECTION` in
 [the task board](../../TASKS.md#pipeline-route) own the implementation changes.
+Domain casts and admission also retain migration debt: whole-type domain casts
+and implicit domain qualification are not current Omega semantics. The scalar
+execution gate admits only unqualified `u8` machines and refuses other root
+kinds and erased bindings; it does not establish full frontend conformance.
+
 The current live slice contains
 source/span and token representations, a UTF-8-framed lexer that stores only
 semantic tokens, and a fail-closed whole-file parser for ordinary
@@ -101,7 +106,8 @@ named conformance `[public] Name [<generic parameters>] satisfies Trait<argument
 { ... }` holds checked machines only: the reference row `Trait::requirement = Path;`
 is retired and rejects at its first token
 ([`parse/traits.omg`](parse/traits.omg), [`parse/conformance.omg`](parse/conformance.omg));
-`[public] domain [<generic parameters>] Carrier::Name [<indices>] [(subject)]`
+`[public] domain [<generic parameters>] Carrier::Name [<indices>]`
+uses the fixed predicate subject `self`; authored subject binders reject. It
 is a transparent alias `= A & B;` or takes `requires` facts and
 `established by Path, ...` routes, closed by `;` or an empty `{ }`
 ([`parse/domain.omg`](parse/domain.omg)); `[public] const [Owner::]NAME: Type =
@@ -338,8 +344,11 @@ literal is anonymous ([`typing/literals.omg`](typing/literals.omg)): wholly
 anonymous `+`, `-`, `*` and `/` fold over exact rationals (`7 / 2 * 2` is 7;
 [`integers/integers.omg`](integers/integers.omg)), an anonymous `%` or a
 division by zero rejects, and the tree lands once at a destination it fits,
-its value integral there: a declared local, a parameter, a field, a typed
-operand, a cast or a result. A
+its value integral there. Fractional origin survives cancellation and negation:
+a computational integer landing after a fractional intermediate requires `as`
+around the completed anonymous operand. Declared locals, parameters, fields,
+typed peers and results do not acknowledge that history. Explicit casts still
+require final integrality and range. A
 suffix types its literal at that carrier, under a destination's policy. Arithmetic and bitwise operators take
 one fixed-integer or float type, policy included, so differing policies never
 mix; integer comparisons relate exact values of any carriers; `==` also
@@ -772,3 +781,12 @@ owns bounded token selection and trivia traversal;
 Generated data belongs under the semantic phase that consumes it. No retained
 lexical contract consumes the current Unicode identifier table, so it must be
 deleted rather than moved into a generic `generated/` owner.
+
+The initial source-owned [`lowering/scalar.omg`](lowering/scalar.omg) lowers a
+bounded checked scalar subset into stable value and callable operations for
+Omega's Alpha realization. It follows the existing portable operation meanings;
+it is not a second serialized product. Unsupported forms and recursive call
+cycles refuse before publication. The [Alpha execution gate](../../tests/product/alpha/README.md)
+exercises the full frontend before lowering and executes the resulting tape.
+Full portable publication still needs canonical declaration, contract and
+obligation identities beyond the checker's current verdict/count records.
