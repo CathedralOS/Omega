@@ -6,8 +6,6 @@ SCRIPT="${2:?witness script}"
 ROOT="${BISECT_REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 export BISECT_REPO_ROOT="$ROOT"
 cd "$ROOT"
-chmod -R u+w "$ROOT/target" 2>/dev/null || true
-find "$ROOT/target" -type f ! -writable -exec chmod u+w {} + 2>/dev/null || true
 
 nth_fp() {
   local n=$1
@@ -35,7 +33,10 @@ test_at() {
   if is_ledger_only_commit; then
     return 125
   fi
-  chmod -R u+w "$ROOT/target" 2>/dev/null || true
+  if [[ -d "$ROOT/target" ]]; then
+    find "$ROOT/target" \( -type f -o -type d \) ! -perm -u+w -exec chmod u+w {} + 2>/dev/null || true
+    chmod -R u+w "$ROOT/target" 2>/dev/null || true
+  fi
   set +e
   "$SCRIPT" >/dev/null 2>&1
   local rc=$?
@@ -47,44 +48,21 @@ test_at 0
 pin_rc=$?
 [[ "$pin_rc" -eq 1 ]] || { echo "PIN is not bad (rc=$pin_rc) under fixed ledger context" >&2; exit 1; }
 
-hint=$(git log --first-parent -1 --format=%H -S "${BISECT_WITNESS}" -- tests/omega/corpus_outcomes.txt 2>/dev/null || true)
 max_n=$(git rev-list --first-parent --count "$PIN")
 max_n=$((max_n - 1))
-hi=$max_n
-if [[ -n "$hint" ]]; then
-  hi=$(git rev-list --first-parent --count "${hint}..${PIN}" 2>/dev/null || echo "$max_n")
-  if [[ "$hi" -gt "$max_n" ]]; then
-    hi=$max_n
-  fi
-  # confirm hint side is good
-  hint_n=$hi
-  test_at "$hint_n"
-  hint_rc=$?
-  if [[ "$hint_rc" -ne 0 ]]; then
-    hi=$max_n
-  fi
-fi
 
-lo=0
-while ((lo + 1 < hi)); do
-  mid=$(( (lo + hi) / 2 ))
-  test_at "$mid"
+last_bad=0
+for ((n = 1; n <= max_n; n++)); do
+  test_at "$n"
   rc=$?
   if [[ "$rc" -eq 0 ]]; then
-    hi=$mid
-  elif [[ "$rc" -eq 1 ]]; then
-    lo=$mid
-  else
-    lo=$((mid + 1))
-  fi
-done
-
-for ((try = lo; try <= hi; try++)); do
-  test_at "$try"
-  rc=$?
-  if [[ "$rc" -eq 0 ]]; then
-    nth_fp "$try"
+    nth_fp "$n"
     exit 0
   fi
+  if [[ "$rc" -eq 1 ]]; then
+    last_bad=$n
+  fi
 done
+
+echo "no good commit found (last_bad n=$last_bad)" >&2
 exit 1
