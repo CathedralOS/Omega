@@ -343,12 +343,9 @@ mod affine_cleanup {
                     .span_or_empty(disposition.inactive_cases)
                     .iter()
                     .filter(|inactive| inactive.root == root)
-                    .filter_map(|inactive| {
-                        cleanup
-                            .segments
-                            .span_or_empty(inactive.segments)
-                            .strip_prefix(path)
-                    })
+                    .map(|inactive| cleanup.segments.span_or_empty(inactive.segments))
+                    .filter(|inactive| crate::flow::contains_observed_case(path, inactive))
+                    .map(|inactive| &inactive[path.len()..])
                     .collect::<Vec<_>>();
                 super::super::owned_cleanup::claim_receipts(
                     program,
