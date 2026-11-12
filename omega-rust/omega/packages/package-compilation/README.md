@@ -36,13 +36,29 @@ application, deployment, optimization and privileged-service settings.
 The compiler retains this result whole; provider/root/trust receipts remain
 separate, and interpreter execution does not move into this package.
 
-[source_imports.rs](src/source_imports.rs) discovers imports in authored order
-and rejoins them to exact parsed source instances. Its `package_selection`
-module owns requester-local aliases, build/product dependency scopes and
-physical/generated collisions; `paths` owns candidate paths and containment;
-`bindings` joins loaded declarations; `frontier` retains package and toolchain
-ownership. Source assembly asks these owners for the next frontier and passes
-it through Psi's loading, lexing and parsing stages.
+[source_imports.rs](src/source/source_imports.rs) resolves authored imports by
+logical declaration and module identity, independently of source filenames.
+`package_selection` certifies requester-local aliases and Build/Product dependency
+authority. Each registered source owner retains an inventory derived from its
+immutable captured tree; `logical` parses that inventory with the ordinary parser
+in a private syntax forest and retains actual module membership. It excludes the
+Build entry and separately owned package roots. Discovery does not admit those
+private parser coordinates or declarations into the checked program.
+
+A selected namespace acquires its authored module cohorts, including descendants
+needed for qualified references. Module-less units share the package root.
+Ordinary Product sources also acquire siblings of their own logical module;
+Build sources retain staged discovery and acquire namespaces only through explicit
+imports. The inventory is refreshed when the captured filesystem or excluded owner
+roots change. Discovery currently parses every owned source unit before selecting
+cohorts; it is not a header-only parser.
+
+`bindings` joins each authored import to one selected, unambiguous checked-package
+anchor. Psi then resolves the exact declaration or namespace across that selected
+package, enforcing visibility, temporal scope, overload custody and file-local
+exposure. Acquiring a source cohort does not import all its names. There is no
+filename fallback for authored `use`; compiler-issued direct source inputs retain
+their separate custody.
 
 [Entry-contract seeds](src/source_imports/entry_contract_seed.rs) select every
 target profile's contract source from exact package suppliers or the bundled

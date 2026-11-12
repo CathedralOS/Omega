@@ -301,6 +301,8 @@ impl ImmutableSourceParseCheckpoint {
             PackageImportPhase::TargetIndependent,
             &mut storage.resolved_imports,
             &storage.toolchain_contract_custody,
+            &mut storage.package_roots,
+            &storage.filesystem,
         )?;
         storage.attach_parsed(parsed);
         let mut imports = ImportQueue::default();
@@ -479,9 +481,12 @@ impl ImmutableSourceParseCheckpoint {
         }
         if let Some(package_inputs) = package_inputs {
             for request in self.package_imports.iter() {
-                let resolved = request.resolve_for_exact_target(package_inputs)?;
-                imports.enqueue(vec![(resolved.path.clone(), request.importer_scope())])?;
-                source_storage.resolved_imports.push(resolved);
+                for resolved in request
+                    .resolve_for_exact_target(package_inputs, &mut source_storage.package_roots)?
+                {
+                    imports.enqueue(vec![(resolved.path.clone(), request.importer_scope())])?;
+                    source_storage.resolved_imports.push(resolved);
+                }
             }
         }
         load_phase!(PackageImportPhase::ExactTarget(None))?;
@@ -562,6 +567,8 @@ impl ImmutableSourceParseCheckpoint {
                     PackageImportPhase::ExactTarget(None),
                     &mut source_storage.resolved_imports,
                     &source_storage.toolchain_contract_custody,
+                    &mut source_storage.package_roots,
+                    &source_storage.filesystem,
                 )?
                 .0
             }
@@ -571,6 +578,7 @@ impl ImmutableSourceParseCheckpoint {
                 &self.root_path,
                 &source_storage.filesystem,
                 &mut source_storage.resolved_imports,
+                &mut source_storage.package_roots,
             )?,
         };
         source_storage.attach_parsed(parsed);
@@ -710,6 +718,8 @@ impl ImmutableSourceParseCheckpoint {
                 PackageImportPhase::TargetIndependent,
                 &mut storage.resolved_imports,
                 &storage.toolchain_contract_custody,
+                &mut storage.package_roots,
+                &storage.filesystem,
             )?,
             None => (
                 discover_imports(
@@ -718,6 +728,7 @@ impl ImmutableSourceParseCheckpoint {
                     &self.root_path,
                     &storage.filesystem,
                     &mut storage.resolved_imports,
+                    &mut storage.package_roots,
                 )?,
                 Vec::new(),
             ),
@@ -812,7 +823,7 @@ fn append_dependency_build_handoffs_to_storage(
     let mut retained = Vec::with_capacity(entries.len());
     for entry in entries {
         let text = entry.source_text()?;
-        let entry_base = entry.authored_base(package_inputs)?;
+        let entry_base = entry.authored_base(package_inputs, &mut source_storage.package_roots)?;
         let crate::source::source_imports::DependencyGeneratedSource {
             logical_path,
             source,
@@ -841,6 +852,8 @@ fn append_dependency_build_handoffs_to_storage(
             Some(package),
             &mut source_storage.resolved_imports,
             &source_storage.toolchain_contract_custody,
+            &mut source_storage.package_roots,
+            &source_storage.filesystem,
         )?;
         imports.enqueue(discovered)?;
         imports.enqueue(entry_base)?;
@@ -899,6 +912,9 @@ fn load_source_frontiers(
             SourceRouting::Query(inputs) => inputs.validate_frontier(frontier, source_storage)?,
             _ => frontier,
         };
+        for (path, scope) in &frontier {
+            imports.enqueue(source_storage.logical_siblings(path, *scope)?)?;
+        }
         let loaded = psi_compiler::load_source_files(
             frontier,
             &source_storage.filesystem,
@@ -937,6 +953,8 @@ fn load_source_frontiers(
                     *phase,
                     &mut source_storage.resolved_imports,
                     &source_storage.toolchain_contract_custody,
+                    &mut source_storage.package_roots,
+                    &source_storage.filesystem,
                 )?;
                 retained_requests.append(&mut requests);
                 discovered
@@ -951,6 +969,7 @@ fn load_source_frontiers(
                 root_path,
                 &source_storage.filesystem,
                 &mut source_storage.resolved_imports,
+                &mut source_storage.package_roots,
             )?,
             SourceRouting::Query(inputs) => inputs.discover(&parsed, source_storage)?,
         };

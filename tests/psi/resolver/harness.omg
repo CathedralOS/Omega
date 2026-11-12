@@ -6,7 +6,22 @@
 
 use omega_language_std::Console;
 use omega_language_std::ByteRead;
-use psi;
+use psi::BuiltinType;
+use psi::BytePredicate;
+use psi::DependencyScope;
+use psi::DomainBinding;
+use psi::LayoutQuery;
+use psi::Lexer;
+use psi::ModulePath;
+use psi::NameResolution;
+use psi::Parser;
+use psi::PathBinding;
+use psi::ResolveDiagnosticCode;
+use psi::Resolver;
+use psi::SourceSet;
+use psi::SourceSpan;
+use psi::TypeBinding;
+use psi::ValueBinding;
 
 public data ResolverHarness {
 }

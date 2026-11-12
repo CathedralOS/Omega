@@ -7,8 +7,9 @@
 // and that no query dependency overrides an already-admitted product alias, without
 // settling the root `Build` or assigning a package identity to an unbound root capture.
 
-use super::bindings::{ImportOccurrence, ResolvedSourceImport, direct_source_import};
-use super::paths::{is_bundled_core_path, is_bundled_omega_path, resolve_reconciled_import};
+use super::LogicalSourceDiscovery as _;
+use super::bindings::{ImportOccurrence, ResolvedSourceImport};
+use super::paths::{is_bundled_core_path, is_bundled_omega_path};
 use super::{ReconciledPackageImport, SourceStorage, reconciled_package_import};
 use crate::PackageCompilationInputs;
 use build_declarations::DependencyPurpose;
@@ -259,7 +260,7 @@ impl ProductQueryInputs {
                     continue;
                 };
                 let members = syntax.items.identifier_path_members(import.path);
-                let (root, path, prefix) = if let Some(inputs) = owner {
+                let (root, paths, prefix) = if let Some(inputs) = owner {
                     let requester = inputs.package_for_source(&authored.path);
                     let selected = reconciled_package_import(
                         syntax,
@@ -271,18 +272,21 @@ impl ProductQueryInputs {
                         inputs,
                     )?;
                     match selected {
-                        ReconciledPackageImport::Toolchain(path) => {
-                            (super::bundled_omega_root()?, path, 2)
-                        }
-                        ReconciledPackageImport::ToolchainContract { root, path } => {
-                            (root, path, 0)
+                        ReconciledPackageImport::Toolchain { root, logical_path }
+                        | ReconciledPackageImport::ToolchainContract { root, logical_path } => {
+                            let prefix = members.len() - logical_path.len();
+                            let paths = storage.package_roots.select(
+                                &root,
+                                &logical_path,
+                                &storage.filesystem,
+                            )?;
+                            (root, paths, prefix)
                         }
                         ReconciledPackageImport::Package(request) => {
                             let prefix = members.len() - request.relative_path.components().count();
-                            let path = request.physical_source(inputs)?.ok_or_else(|| vec![Diagnostic::error(
-                                "Product query depends on unavailable or generated source before Build completion",
-                            )])?;
-                            (request.expected_root, path, prefix)
+                            let paths =
+                                request.logical_sources(inputs, &mut storage.package_roots)?;
+                            (request.expected_root, paths, prefix)
                         }
                     }
                 } else {
@@ -290,7 +294,7 @@ impl ProductQueryInputs {
                         .first()
                         .ok_or_else(|| vec![Diagnostic::error("empty Product query import")])?;
                     let (root, prefix) = if is_bundled_core_path(syntax, members) {
-                        (super::bundled_omega_root()?, 2)
+                        (super::bundled_core_root()?, 3)
                     } else if is_bundled_omega_path(syntax, members) {
                         return Err(vec![Diagnostic::error(
                             "Product query library imports require an issued Product dependency",
@@ -324,38 +328,35 @@ impl ProductQueryInputs {
                     } else {
                         (storage.default_package_root().to_path_buf(), 0)
                     };
-                    let path = resolve_reconciled_import(
-                        syntax,
-                        root.clone(),
-                        &members[prefix..],
-                        "Product query",
-                        &storage.filesystem,
-                    )?;
-                    if prefix == 1 && path.file_name().is_some_and(|name| name == "build.omg") {
-                        return Err(vec![Diagnostic::error(
-                            "Product query cannot import a dependency Build entry",
-                        )]);
-                    }
-                    (root, path, prefix)
+                    let logical = members[prefix..]
+                        .iter()
+                        .map(|name| name.as_str(syntax).to_owned())
+                        .collect::<Vec<_>>();
+                    let paths =
+                        storage
+                            .package_roots
+                            .select(&root, &logical, &storage.filesystem)?;
+                    (root, paths, prefix)
                 };
-                storage.resolved_imports.push(ResolvedSourceImport {
-                    occurrence: ImportOccurrence::new(
-                        syntax,
-                        authored.source_id,
-                        authored.import_root_range.start + offset,
-                        members,
-                        prefix,
-                    ),
-                    requires_module: !direct_source_import(
-                        syntax,
-                        &root,
-                        &members[prefix..],
-                        &path,
-                        &storage.filesystem,
-                    ),
-                    path: path.clone(),
-                });
-                imports.push((path, authored.scope));
+                if paths.is_empty() {
+                    return Err(vec![Diagnostic::error(
+                        "Product query selects no available logical source namespace",
+                    )]);
+                }
+                let _ = root;
+                for path in paths {
+                    storage.resolved_imports.push(ResolvedSourceImport {
+                        occurrence: ImportOccurrence::new(
+                            syntax,
+                            authored.source_id,
+                            authored.import_root_range.start + offset,
+                            members,
+                            prefix,
+                        ),
+                        path: path.clone(),
+                    });
+                    imports.push((path, authored.scope));
+                }
             }
         }
         Ok(imports)

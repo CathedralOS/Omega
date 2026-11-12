@@ -6,7 +6,26 @@
 
 use omega_language_std::Console;
 use omega_language_std::ByteRead;
-use psi;
+use psi::Adaptation;
+use psi::BuiltinType;
+use psi::DependencyScope;
+use psi::DomainBinding;
+use psi::ExactInteger;
+use psi::Expression;
+use psi::Lexer;
+use psi::ModulePath;
+use psi::Parser;
+use psi::ReferenceAccess;
+use psi::Resolver;
+use psi::Selection;
+use psi::SourceSet;
+use psi::SourceSpan;
+use psi::SyntaxTrees;
+use psi::TypeDiagnosticCode;
+use psi::TypeKind;
+use psi::TypeRow;
+use psi::Typer;
+use psi::Typing;
 
 public data TypingHarness {
 }

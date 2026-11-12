@@ -6,7 +6,23 @@
 
 use omega_language_std::Console;
 use omega_language_std::ByteRead;
-use psi;
+use psi::CheckDiagnostic;
+use psi::CheckDiagnosticCode;
+use psi::Checker;
+use psi::Checks;
+use psi::CrashRoutes;
+use psi::DependencyScope;
+use psi::Lexer;
+use psi::ModulePath;
+use psi::Parser;
+use psi::Resolver;
+use psi::SlotOriginKind;
+use psi::SlotParameterQualification;
+use psi::SlotReturnedBorrowOrigin;
+use psi::SlotReview;
+use psi::SourceSet;
+use psi::SourceSpan;
+use psi::Typer;
 
 public data CheckingHarness {
 }
