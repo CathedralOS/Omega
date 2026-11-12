@@ -335,9 +335,30 @@ that cannot fail cannot hold work back, and work went ahead
      checked as canonical Terminal Psi with its evidence seals, Omega 00
      attaches them, Omega 01 fills each sealed obligation's
      `proof_bundle_fingerprint`, and `run/calls/scalar_contract_route_exit`
-     runs from it to completion (`lowered_route_publication`). The compile
-     does not call it yet: product selection, the provider inventory, target
-     preparation and the program-entry receipt still read Psi 05's trees.
+     runs from it to completion (`lowered_route_publication`). Each machine
+     of a compilation's module now states its declaration identity from the
+     typed trees (`structure-elaboration`, `declare.rs`), so the Build's
+     selected entry is found on the published module as the program-entry
+     receipt finds it on the current checker's program; the same test
+     compares every identity with the current program's. The contract
+     commitment in it is the route's own, a digest of the contract the
+     lowered form publishes, and is never equal to the current checker's
+     for the same machine. A machine stage 04 generated for a static
+     application gets no identity yet, and a module with one does not
+     publish. The compile does not call `publish` yet. A trial that
+     substituted the published artifact for the application's program on
+     2026-11-12 passed the entry receipt and native entry settlement
+     (`validate_native_program_entry_settlement`) and then stopped in
+     `project_terminal_native_body`: "selected provider `NativeFloats` has
+     no retained external implementation for" `Float::add`. Every hosted
+     product selects the target's float realization table, and Omega 00
+     requires the application's own module to hold an
+     `ExternalProviderConformance` row for each selected external
+     realization and the boundary machine it realizes. Psi 06 writes those
+     rows from Psi 05's facts; the route lowers no boundary requirement or
+     external realization, so its module has none. Product selection, the
+     provider inventory and target preparation also still read Psi 05's
+     trees.
      `Build::validate` rows are not handled either; nothing implements them.
      The `fail/` sweep of 2026-11-12 shows what that costs: four programs
      the current checker rejects for their entry are accepted whole by the
