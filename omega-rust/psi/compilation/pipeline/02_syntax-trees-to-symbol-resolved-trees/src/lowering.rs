@@ -4518,6 +4518,9 @@ pub(crate) mod type_reference {
                     },
                 }))
             }
+            TypeReferenceNode::StaticSelection(_) => Err(Diagnostic::error(
+                "a scoped type selection must resolve to an admitted declared type before typed lowering",
+            )),
             TypeReferenceNode::ConstExpression(expression) => {
                 let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
                 Ok(TypeReference::ConstExpression(

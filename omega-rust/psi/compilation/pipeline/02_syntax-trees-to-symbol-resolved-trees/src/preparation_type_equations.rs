@@ -1176,6 +1176,11 @@ mod type_structure {
                     collect_binder_mentions(syntax, *argument, parameters, mentions);
                 }
             }
+            TypeReferenceNode::StaticSelection(selection) => {
+                super::collect_static_argument_binder_mentions(
+                    syntax, selection, parameters, mentions,
+                );
+            }
             TypeReferenceNode::Unit => {}
         }
     }
@@ -2441,6 +2446,9 @@ fn collect_static_argument_binder_mentions(
     if let Some(application) = &argument.application {
         for argument in &application.arguments {
             collect_static_argument_binder_mentions(syntax, argument, parameters, mentions);
+        }
+        if let Some(member) = syntax.expressions.static_member(application.member) {
+            collect_static_argument_binder_mentions(syntax, member, parameters, mentions);
         }
     }
 }

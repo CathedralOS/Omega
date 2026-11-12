@@ -1,0 +1,58 @@
+// A nominal callback's selected suspension contract governs a helper's acquired claim.
+use omega::language::core::drop;
+
+public trait CallbackContract<Value> {
+    machine invoke(value: Value) -> Value suspends;
+}
+
+data Receipt [
+    linear,
+    carry(suspension: forbidden, cpu: any, thread: any, address: movable)
+] dropped by drop_receipt { value: u32; }
+
+machine drop_receipt(receipt: &mut Receipt) {}
+
+machine acquire(value: u32) -> Receipt {
+    let receipt: Receipt = Receipt { value: value };
+    receipt
+}
+
+machine consume(receipt: Receipt) -> u32 {
+    let value: u32 = receipt.value;
+    drop(receipt);
+    value
+}
+
+public machine retain_claim<const Callback: CallbackContract<u32>::invoke>(
+    value: u32
+) -> u32 suspends {
+    let claimed_receipt: Receipt = acquire(value);
+    let ignored: u32 = suspend Callback(value);
+    consume(claimed_receipt)
+}
+
+public machine forward_claim<const Renamed: CallbackContract<u32>::invoke>(
+    value: u32
+) -> u32 suspends {
+    suspend retain_claim<Renamed>(value)
+}
+
+public machine quiet(value: u32) -> u32
+satisfies CallbackContract<u32>::invoke
+{ value }
+
+public machine may_pause(value: u32) -> u32
+satisfies CallbackContract<u32>::invoke
+suspends
+{ value }
+
+machine main() suspends crashes Trap {
+    let direct: u32 = retain_claim<quiet>(61u32);
+    let forwarded: u32 = suspend forward_claim<may_pause>(73u32);
+    transition direct == 61u32 && forwarded == 73u32 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

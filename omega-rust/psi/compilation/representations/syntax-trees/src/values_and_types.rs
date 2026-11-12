@@ -790,6 +790,9 @@ pub mod type_system {
                 lifetime_arguments: Vec<Identifier>,
                 arguments: HandleSpan<TypeReferenceHandle>,
             },
+            // The existing selection carrier preserves which path component
+            // owns an application, before namespace resolution assigns its kind.
+            StaticSelection(crate::expression::StaticMachineArgument),
             ConstExpression(ExpressionHandle),
             DynamicTrait {
                 trait_name: Identifier,

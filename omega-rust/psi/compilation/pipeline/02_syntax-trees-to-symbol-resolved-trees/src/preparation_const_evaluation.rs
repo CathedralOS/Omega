@@ -3831,6 +3831,7 @@ mod templates {
                     }
                     StatementNode::Call(call) => {
                         visit_static_argument_type_inputs(
+                            syntax,
                             &call.machine_arguments,
                             &mut |reference| {
                                 collect_type_expression_handles(
@@ -4020,6 +4021,20 @@ mod templates {
                         TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
                     }
                 }
+            }
+            TypeReferenceNode::StaticSelection(selection) => {
+                visit_static_argument_type_inputs(
+                    syntax,
+                    std::slice::from_ref(selection),
+                    &mut |reference| {
+                        collect_type_expression_handles(
+                            syntax,
+                            reference,
+                            expressions,
+                            type_references,
+                        )
+                    },
+                );
             }
             TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => {}
         }
@@ -4214,6 +4229,10 @@ mod templates {
                 );
                 Ok(())
             }
+            TypeReferenceNode::StaticSelection(_) => Err(
+                "a scoped type selection must resolve before scalar template normalization"
+                    .to_owned(),
+            ),
             TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::Named(_)
             | TypeReferenceNode::Unit => Ok(()),
@@ -4364,6 +4383,15 @@ mod templates {
                         visit_child!(reference);
                     });
                 }
+            }
+            TypeReferenceNode::StaticSelection(selection) => {
+                super::super::uses::visit_static_argument_type_inputs(
+                    syntax,
+                    std::slice::from_ref(selection),
+                    &mut |reference| {
+                        visit_child!(reference);
+                    },
+                );
             }
             TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => {}
         }
@@ -5777,6 +5805,7 @@ mod values {
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::StaticSelection(_)
  => Err(
             "const index types require finite structural values with decidable equality and one canonical form"
                 .to_owned(),
