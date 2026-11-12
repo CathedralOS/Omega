@@ -14,7 +14,7 @@ Measured PIN: `51e8c45c793007f211d0d9baee7de16767172444`
 | ---: | --- | --- | --- | --- | ---: | --- | --- |
 | 1 | pass/run rejected | `two_children` has no executable body: this compiler does no | `pass/ownership/runtime_match_conditional_observation_cleanup_exit` | `22f215eb3e7d` | 2078 | psi: preserve common fields when matching case values (#2078) | commit 22f215eb3e7d9814cb3e29f42856e | bisected |
 | 1 | incomplete | `main` has no executable body: call operation: structural re | `run/borrows/returned_descriptor_entry_snapshot` | `` |  |  | propagated |
-| 1 | incomplete | `main` has no executable body: reference result has no compl | `run/slices/returned_record_fixed_array_window` | `pending` | pending | pending | pending |
+| 1 | incomplete | `main` has no executable body: reference result has no compl | `run/slices/returned_record_fixed_array_window` | `` |  |  | propagated |
 | 1 | pass/run rejected | cannot prove requires contract for call capacity from geomet | `pass/proofs/reviewed_mathematical_data_contract_exit` | `pending` | pending | pending | pending |
 
 ## Members
@@ -27,6 +27,7 @@ Measured PIN: `51e8c45c793007f211d0d9baee7de16767172444`
 - good first-parent: ``
 ### c2
 - `run/slices/returned_record_fixed_array_window` still broken
+- good first-parent: ``
 ### c3
 - `pass/proofs/reviewed_mathematical_data_contract_exit` still broken
 

@@ -1,0 +1,6 @@
+{
+  "cluster_id": "c2",
+  "witness": "run/slices/returned_record_fixed_array_window",
+  "status": "propagated",
+  "reason": "no_good_on_first_parent"
+}
