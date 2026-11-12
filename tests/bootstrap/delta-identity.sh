@@ -305,7 +305,7 @@ do
       fail "$record lacks bound support-section record $needle"
   done
 done
-for needle in "147607" "63948ee46d4bed10344cd8b3adbadda274370fe169cb141f485b8accc71c60a3"
+for needle in "151292" "4e82f36aa94a5cad71297687e2643982d88942bda4750c877fe8d633308fb720"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/tests/delta/staged-compiler/run.sh" ||
     fail "staged-compiler gate lacks packed development record $needle"

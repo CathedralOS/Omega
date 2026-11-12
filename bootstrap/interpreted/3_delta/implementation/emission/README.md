@@ -118,6 +118,15 @@ node/atom occurrences per remaining source token/expression and `4*k*k` per
 pattern for expanded projections. Therefore the original program has at most
 `M = 128*N + 4*N*N <= 64*N*N` occurrences, including call heads and binders.
 
+Byte literals are not charged just once as syntax atoms in this inventory.
+Their lowering adds at most `5*Decoded + 2*Literals` plan occurrences. Each
+decoded byte owns a distinct authored literal byte, and each literal also owns
+two quote bytes; charging those occurrences to their disjoint literal-source
+spans takes at most five occurrences per such source byte. The existing
+128-per-source-byte allowance therefore includes this expansion. Literal
+constructors add no local references or binders, so the separate reference and
+ancestor-cut bounds below are unchanged.
+
 Two smaller counts matter for capture. Local-reference occurrences are bounded
 by `R = 32*N`: an arithmetic template uses at most eleven generated references,
 match wrappers at most two per match, selectors one per arm, and each pattern

@@ -89,6 +89,16 @@ addresses use at most 1,048,584 bytes plus the 2,048-byte register file and one
 8-byte I/O scratch slot. Existing source bounds protect Gamma data accesses;
 this experiment does not claim a machine-checked implementation proof.
 
+The native backend retains an **auditability failure**: numeric semantic
+operation identities and the nested `i_size` ladder make meaning costly to
+recover. Functional controls, scoped ISA/ELF review, and 214 source lines do not
+establish auditability. Gamma already permits named operation functions,
+predicates, and clearer decomposition; missing variants/matching do not excuse
+this code or make a language addition inevitable. Retention comparison must
+consider source refactoring/deletion before an earned facility or a different
+rung. Necessary numeric encoding bytes are separate from semantic operation
+identities. This milestone records the debt rather than claiming to repair it.
+
 ## Delivery continuation
 
 No peer is selected by this experiment. The remaining delivery path is to use
@@ -188,3 +198,35 @@ retain the existing customer-specific limits; `--seconds` bounds native Gamma
 compilation and the optional Omega observation, while smaller controls retain
 60-second process watchdogs. Host processes and resources remain execution
 dependencies as documented above.
+
+The next compiler's source encoder now uses Delta byte literals rather than
+packed numeric text templates. Run its facility and actual encoder controls
+with `successor_test.py --literals` (and optionally `--omega`). The encoder
+consumes existing semantic name/input records; this remains an encoding module,
+not a completed Epsilon lowering pass. Its emitted Delta function is compiled
+to native code and executed; generated-function runtime needs shared semantic
+types, not the Epsilon parser or expression/state dispatcher.
+
+The changed Delta closure is 151,525 bytes,
+`de94946dd946c90c3311dba52aa4622a3c80a18866d5483531de1312cc62e0c6`.
+Its native ELF is 3,984,546 bytes,
+`fce5a6eb20973f6801309579b336b111e38d22d1cedb388b2fa35b4f86671a39`;
+source-owned Alpha construction produced 1,219,139 tape bytes,
+`6fde052af5b348f3b83f29635aaaedbd6959343352da3a3af1442000a102b1d0`,
+matching the independent development producer. A focused all-escape/1,024-byte
+literal and malformed twin agreed byte for byte through the selected Gamma
+evaluator and Alpha Delta; the positive generated program also executed as
+Alpha. Seven literal positives, ten malformed literals, three role/type refusals,
+and the actual encoder/compiled-output controls passed. Existing frontend,
+request, and Alpha customer controls passed; the canonical Epsilon receipt,
+native Epsilon image and Omega fixture artifact above remained byte-identical.
+These observations do not discharge the auditability debt or the existing open
+whole-compiler cumulative arena-containment obligation.
+
+The [shared native correspondence record](../compiled_vm/README.md#native-epsilon-correspondence-for-the-same-storage-customer)
+now includes the full frozen SourceUnit storage customer through this same
+native Epsilon evaluator: all 13 executable artifacts and 36 refusals matched
+the Alpha VM observation. That record owns exact input/artifact provenance,
+reused-runtime disclosure, allocation samples and shared-host timing limits;
+it is stronger evaluator workload evidence, not compiled-Epsilon or Omega
+self-rebuild acceptance.
