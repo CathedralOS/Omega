@@ -631,6 +631,13 @@ pub(super) mod lexical_regions {
                     joined
                 }),
             };
+            if std::env::var("OMEGA_DBG_ARR").is_ok() {
+                eprintln!(
+                    "ARRDBG invoke from={}::{} to={} param={} auth={} closed={} completed={} interval={:?}",
+                    machine.name, state.name, owner.name, parameter.name, authenticated, closed_private,
+                    completed.is_some(), interval
+                );
+            }
             values.push((parameter.symbol, observed));
             bounds.push(super::ParameterBounds::new(parameter.symbol, interval));
             if let Some((capture, completed)) = capture.zip(completed.as_ref()) {
@@ -2856,6 +2863,15 @@ fn join(
         incoming: incoming.clone(),
     }) {
         return;
+    }
+    if std::env::var("OMEGA_DBG_ARR").is_ok() {
+        eprintln!(
+            "ARRDBG join dest={} source={:?} existing={} bounds={:?}",
+            destination.name,
+            source,
+            build.reached_state_index(incoming.state).is_some(),
+            incoming.bounds.iter().map(|b| b.bounds.clone()).collect::<Vec<_>>()
+        );
     }
     let mut incoming = incoming;
     let edge_cases = std::mem::take(&mut incoming.cases);
