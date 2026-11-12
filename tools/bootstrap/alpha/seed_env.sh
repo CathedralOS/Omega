@@ -15,7 +15,7 @@ ALPHA_SEED_HOLE_SIZE=16777216
 ALPHA_MAX_RAW_TAPE_SIZE=16777212
 
 # Bound audited seed identities. These are the same SHA-256 commitments as the
-# bootstrap/0_alpha/README.md retention inventory; the byte sizes are recorded
+# bootstrap/interpreted/0_alpha/README.md retention inventory; the byte sizes are recorded
 # beside them. A digest here is an identity check that the container being
 # stamped is the audited one; it is not a correctness proof of the VM. A
 # rebuilt or re-signed container that differs by one byte is not the audited
@@ -162,7 +162,7 @@ require_packed_closure_identity() {
 # materialized artifact carries the audited VM rather than an assumed one.
 require_alpha_seed_identity() {
   require_bound_identity "$ALPHA_SEED" "$1" \
-    "$ALPHA_SEED_SIZE" "$ALPHA_SEED_SHA256" "bootstrap/0_alpha/README.md"
+    "$ALPHA_SEED_SIZE" "$ALPHA_SEED_SHA256" "bootstrap/interpreted/0_alpha/README.md"
 }
 
 # stamp_seed TAPE SEED_BINARY OUT : copy SEED, memcpy [4-byte LE len][TAPE] into

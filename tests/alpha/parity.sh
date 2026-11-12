@@ -39,7 +39,7 @@ command -v python3 >/dev/null 2>&1 || { echo "seed parity SKIP — no python3"; 
 
 LIN_SEED="$OMEGA_PATH_ALPHA/alpha_x64_linux"
 LIN_HOLE_OFF=12288
-INVENTORY="bootstrap/0_alpha/README.md"
+INVENTORY="bootstrap/interpreted/0_alpha/README.md"
 
 # The Linux seed's bound identity lives in the retention inventory; parse the
 # row the same way container.sh does and bind it before any tape executes.

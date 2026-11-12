@@ -56,8 +56,8 @@
       "item": "GAMMA-PRODUCT-COMPARISON",
       "host": "linux",
       "owning_paths": [
-        "bootstrap/3_delta/implementation/checking/types/calls.gamma",
-        "bootstrap/2_gamma"
+        "bootstrap/interpreted/3_delta/implementation/checking/types/calls.gamma",
+        "bootstrap/interpreted/2_gamma"
       ],
       "suggested_first_slice": "compare one field declaration, construction, and one destructuring operation against the existing pair implementation"
     }

@@ -14,7 +14,7 @@
 # is the ordered source authority, support/support.gamma.sources is the ordered
 # runtime/adapter member authority, and delta_compiler.composed binds the packed
 # entry-plus-member bytes, the packed support bytes, and the selected evaluator
-# tape under GammaComposedV2 (bootstrap/2_gamma/COMPOSED_ARTIFACT.md). The packed
+# tape under GammaComposedV2 (bootstrap/interpreted/2_gamma/COMPOSED_ARTIFACT.md). The packed
 # closure identity is the same source-sha256/source-length the composed record
 # and the staged-compiler and normalization compiler.tsv rows pin; the packed
 # support identity is the same support-sha256/support-length the record pins.
@@ -86,20 +86,20 @@ require_delta_compiler_identity() {
   require_bound_identity "delta_compiler.gamma" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCE" \
     "$DELTA_COMPILER_ENTRY_SIZE" "$DELTA_COMPILER_ENTRY_SHA256" \
-    "bootstrap/3_delta/README.md" || return $?
+    "bootstrap/interpreted/3_delta/README.md" || return $?
   require_bound_identity "implementation.gamma.sources" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" \
     "$DELTA_COMPILER_MANIFEST_SIZE" "$DELTA_COMPILER_MANIFEST_SHA256" \
-    "bootstrap/3_delta/README.md" || return $?
+    "bootstrap/interpreted/3_delta/README.md" || return $?
   require_bound_identity "support.gamma.sources" \
     "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" \
     "$DELTA_COMPILER_SUPPORT_MANIFEST_SIZE" \
     "$DELTA_COMPILER_SUPPORT_MANIFEST_SHA256" \
-    "bootstrap/3_delta/README.md" || return $?
+    "bootstrap/interpreted/3_delta/README.md" || return $?
   require_bound_identity "delta_compiler.composed" \
     "$OMEGA_PATH_DELTA_COMPILER_COMPOSED" \
     "$DELTA_COMPILER_COMPOSED_SIZE" "$DELTA_COMPILER_COMPOSED_SHA256" \
-    "bootstrap/3_delta/README.md" || return $?
+    "bootstrap/interpreted/3_delta/README.md" || return $?
   DELTA_COMPOSED_EXPECTED="GammaComposedV2
 evaluator-sha256 $GAMMA_EVALUATOR_TAPE_SHA256
 source-sha256 $DELTA_COMPILER_PACKED_SHA256
@@ -107,7 +107,7 @@ source-length $DELTA_COMPILER_PACKED_SIZE
 support-sha256 $DELTA_COMPILER_SUPPORT_PACKED_SHA256
 support-length $DELTA_COMPILER_SUPPORT_PACKED_SIZE"
   [ "$(cat "$OMEGA_PATH_DELTA_COMPILER_COMPOSED")" = "$DELTA_COMPOSED_EXPECTED" ] || {
-    echo "bootstrap artifact: delta_compiler.composed does not bind the selected evaluator, packed closure, and packed support section (bootstrap/2_gamma/COMPOSED_ARTIFACT.md)" >&2
+    echo "bootstrap artifact: delta_compiler.composed does not bind the selected evaluator, packed closure, and packed support section (bootstrap/interpreted/2_gamma/COMPOSED_ARTIFACT.md)" >&2
     return 3
   }
   command -v python3 >/dev/null 2>&1 || {
@@ -132,7 +132,7 @@ support-length $DELTA_COMPILER_SUPPORT_PACKED_SIZE"
   require_bound_identity "canonical Delta closure" \
     "$DELTA_IDENTITY_TMP/compiler.gamma" \
     "$DELTA_COMPILER_PACKED_SIZE" "$DELTA_COMPILER_PACKED_SHA256" \
-    "bootstrap/3_delta/delta_compiler.composed" || {
+    "bootstrap/interpreted/3_delta/delta_compiler.composed" || {
       DELTA_IDENTITY_RC=$?
       rm -rf -- "$DELTA_IDENTITY_TMP"
       return "$DELTA_IDENTITY_RC"
@@ -141,7 +141,7 @@ support-length $DELTA_COMPILER_SUPPORT_PACKED_SIZE"
     "$DELTA_IDENTITY_TMP/support.bin" \
     "$DELTA_COMPILER_SUPPORT_PACKED_SIZE" \
     "$DELTA_COMPILER_SUPPORT_PACKED_SHA256" \
-    "bootstrap/3_delta/delta_compiler.composed"
+    "bootstrap/interpreted/3_delta/delta_compiler.composed"
   DELTA_IDENTITY_RC=$?
   rm -rf -- "$DELTA_IDENTITY_TMP"
   return "$DELTA_IDENTITY_RC"

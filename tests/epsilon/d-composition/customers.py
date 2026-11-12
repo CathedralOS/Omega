@@ -100,7 +100,7 @@ def repo_root():
 def members_dir():
     if "OMEGA_PATH_OMEGA_COMPILER" in os.environ:
         return Path(os.environ["OMEGA_PATH_OMEGA_COMPILER"])
-    return repo_root() / "bootstrap/5_omega"
+    return repo_root() / "bootstrap/interpreted/5_omega"
 
 
 def load_member(directory, name):

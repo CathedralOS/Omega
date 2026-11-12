@@ -13,7 +13,7 @@
 # omega_compiler.epsilon.sources is the ordered source authority whose
 # EpsilonSourceClosureV1 rows bind every member length, digest, and path, and
 # repacking it reproduces the packed compiler bytes pinned in
-# bootstrap/5_omega/README.md. A digest here is an identity check that the
+# bootstrap/interpreted/5_omega/README.md. A digest here is an identity check that the
 # bytes being materialized are the bound ones; it is not a proof that D
 # implements Omega. Changing a member or the manifest invalidates the
 # dependent evidence and must update every record.
@@ -87,10 +87,10 @@ require_omega_compiler_identity() {
   require_bound_identity "omega_compiler.epsilon.sources" \
     "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" \
     "$OMEGA_COMPILER_MANIFEST_SIZE" "$OMEGA_COMPILER_MANIFEST_SHA256" \
-    "bootstrap/5_omega/README.md" || return $?
+    "bootstrap/interpreted/5_omega/README.md" || return $?
   require_packed_closure_identity "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" compiler.epsilon \
     "$OMEGA_COMPILER_PACKED_SIZE" "$OMEGA_COMPILER_PACKED_SHA256" \
-    "bootstrap/5_omega/README.md" "canonical Omega D closure" "Omega D source closure"
+    "bootstrap/interpreted/5_omega/README.md" "canonical Omega D closure" "Omega D source closure"
 }
 
 # materialize_omega_compiler DEST : write the canonical packed compiler D

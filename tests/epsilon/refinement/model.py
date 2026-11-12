@@ -1,7 +1,7 @@
 """Independent reconstruction of CheckEpsilon and RunEpsilon.
 
 This module is the test-owned second implementation of the Epsilon v1
-contract (bootstrap/4_epsilon/LANGUAGE.md), written from the contract text
+contract (bootstrap/interpreted/4_epsilon/LANGUAGE.md), written from the contract text
 rather than from the Delta evaluator's source. The refinement gate
 (gate.py) runs the canonical evaluator edge on a source/stdin pair and
 requires the published observation to equal this model's result byte-for-byte,
@@ -31,7 +31,7 @@ in traversal order rather than by a separate whole-program earliest-later-
 declaration census.
 
 Observations are encoded in the canonical edge grammar
-(bootstrap/4_epsilon/EVALUATOR_ENTRY.md): 00 Exit u32 code + stdout,
+(bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md): 00 Exit u32 code + stdout,
 01 Trap kind + stdout prefix, 02 Reject reason + u32 coordinate.
 Divergence is actual nontermination; a bounded check cannot produce it, so
 the corpus contains no divergent case.

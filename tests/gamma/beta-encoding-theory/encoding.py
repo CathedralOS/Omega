@@ -1,7 +1,7 @@
 """Independent reconstruction of the complete Beta encoder theory section.
 
 These builders state the error-valued encoder definitions a second time,
-against the literal grammar in bootstrap/1_beta/LANGUAGE.md and the paused
+against the literal grammar in bootstrap/interpreted/1_beta/LANGUAGE.md and the paused
 candidate architecture in ENCODER_CANDIDATE.md. No emitted Gamma text or
 checker output is read here; identities are derived from the contract alone.
 
@@ -141,7 +141,7 @@ STATUS_CTORS = (ST_OK, ST_INVALID, ST_EXHAUSTED)
 DSTATE_CTORS = tuple(range(D_BAD, D_W4 + 1))
 
 # Mnemonic spelling to (opcode byte value, next expectation constructor),
-# transcribed from bootstrap/1_beta/LANGUAGE.md's 21-row table plus dw.
+# transcribed from bootstrap/interpreted/1_beta/LANGUAGE.md's 21-row table plus dw.
 OPCODES = {b"halt": 0x00, b"imm": 0x01, b"mov": 0x02, b"add": 0x03,
            b"sub": 0x04, b"mul": 0x05, b"div": 0x06, b"mod": 0x07,
            b"loadb": 0x08, b"storeb": 0x09, b"load": 0x0A, b"store": 0x0B,

@@ -2,7 +2,7 @@
 
 This explicit slow gate executes the direct evaluator-level status-252 witness
 for the canonical Epsilon evaluator edge: the refusal the
-[evaluator entry profile](../../../bootstrap/4_epsilon/EVALUATOR_ENTRY.md)
+[evaluator entry profile](../../../bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md)
 classifies as the section-10 outer `Incomplete(cumulative immutable pair
 nodes, 3422453760, 3422453761)`. The lower chain's exact/adjacent pair boundary is
 pinned separately by [tests/gamma/heap-boundary](../../gamma/heap-boundary/README.md);

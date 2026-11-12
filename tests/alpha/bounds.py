@@ -121,7 +121,7 @@ def main():
     linux = sys.platform.startswith('linux') and platform.machine().lower() in ('amd64', 'x86_64')
     if not args.reference and not (mac or windows or linux):
         parser.error('the audited native seed executes only on macOS arm64, Windows x64, or Linux x86-64')
-    seed_path = ROOT / 'bootstrap/0_alpha' / ('alpha_arm64_macos' if mac else ('alpha_x64_linux' if linux else 'alpha_x64_windows.exe'))
+    seed_path = ROOT / 'bootstrap/interpreted/0_alpha' / ('alpha_arm64_macos' if mac else ('alpha_x64_linux' if linux else 'alpha_x64_windows.exe'))
     offset = 32768 if mac else (12288 if linux else 5120)
     seed = seed_path.read_bytes() if not args.reference else None
     failures = 0

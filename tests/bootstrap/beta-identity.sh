@@ -101,7 +101,7 @@ rc=0
 ) 2>"$TMP/corrupt-seed.err" || rc=$?
 [ "$rc" = 3 ] ||
   fail "corrupted seed: expected exit 3, got $rc"
-grep -q 'bootstrap/0_alpha/README.md' "$TMP/corrupt-seed.err" ||
+grep -q 'bootstrap/interpreted/0_alpha/README.md' "$TMP/corrupt-seed.err" ||
   fail "corrupted seed: refusal did not cite the retention inventory"
 [ ! -e "$TMP/refused-seed" ] ||
   fail "corrupted seed: destination was written"
