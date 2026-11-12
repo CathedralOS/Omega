@@ -1,0 +1,1 @@
+program	tests/omega/fail/build/opaque_descriptor_host_type_use/main.omg	current=stopped	current_us=665457	root=compilation	route=unreached	Some("opaque boundary data `Token` cannot claim `[copy]` without an admitted property receipt")

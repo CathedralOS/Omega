@@ -1,0 +1,1 @@
+program	tests/omega/fail/layouts/public_schema_keeps_private_layout/main.omg	current=stopped	current_us=1354199	root=compilation	route=unreached	Some("demanded premise closure checking failed: public interface selects private conformance `HiddenPolicy`")

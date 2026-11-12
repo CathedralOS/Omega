@@ -1,0 +1,2 @@
+program	tests/omega/fail/borrows/view_local_forward_before_store/main.omg	current=rejected	current_us=11222640	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/borrows/view_local_forward_before_store/main.omg	main.omg:7 bytes 192..202	machine `Main::main` state `main` uses reference local `view` before a store establishes it; a reference declared without an initializer holds no descriptor until it is assigned

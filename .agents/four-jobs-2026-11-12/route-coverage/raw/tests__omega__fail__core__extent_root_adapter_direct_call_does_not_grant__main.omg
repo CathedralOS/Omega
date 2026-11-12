@@ -1,0 +1,5 @@
+program	tests/omega/fail/core/extent_root_adapter_direct_call_does_not_grant/main.omg	current=rejected	current_us=1323315	root=compilation	route=no-entry
+program	tests/omega/fail/core/extent_root_adapter_direct_call_does_not_grant/main.omg	current=rejected	current_us=1323315	root=machine:ExtentRootProviderImpl::grant_root	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/core/extent_root_adapter_direct_call_does_not_grant/main.omg	current=rejected	current_us=1323315	root=machine:consume_granted	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/fail/core/extent_root_adapter_direct_call_does_not_grant/main.omg	current=rejected	current_us=1323315	root=machine:direct_adapter_call_does_not_grant	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/core/extent_root_adapter_direct_call_does_not_grant/main.omg	main.omg:17 bytes 432..447	cannot prove requires contract for call consume_granted from direct_adapter_call_does_not_grant: unqualified in Extent::Granted in state `entry`

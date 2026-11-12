@@ -1,0 +1,1 @@
+program	tests/omega/fail/build/component_assumption_wrong_arity/main.omg	current=stopped	current_us=647251	root=compilation	route=unreached	Some("qualified call `accept_component_assumption` has no resolved callable declaration")

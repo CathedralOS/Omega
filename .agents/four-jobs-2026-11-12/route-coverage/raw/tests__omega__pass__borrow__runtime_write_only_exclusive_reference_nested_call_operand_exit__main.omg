@@ -1,0 +1,2 @@
+program	tests/omega/pass/borrow/runtime_write_only_exclusive_reference_nested_call_operand_exit/main.omg	current=rejected	current_us=2367385	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/pass/borrow/runtime_write_only_exclusive_reference_nested_call_operand_exit/main.omg	no-span	view formation has incomplete permission suppliers at its captured source

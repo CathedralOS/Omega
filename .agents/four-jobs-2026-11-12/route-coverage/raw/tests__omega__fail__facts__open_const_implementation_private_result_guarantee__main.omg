@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/open_const_implementation_private_result_guarantee/main.omg	current=rejected	current_us=2645556	root=compilation	route=outside	Unsupported: expression type parameter
+current-diagnostic	tests/omega/fail/facts/open_const_implementation_private_result_guarantee/main.omg	main.omg:11 bytes 442..446	cannot prove ensures contract for exit from selected at statement 0: result == Minimum

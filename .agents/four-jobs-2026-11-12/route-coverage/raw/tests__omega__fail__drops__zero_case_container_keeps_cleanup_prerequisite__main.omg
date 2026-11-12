@@ -1,0 +1,5 @@
+program	tests/omega/fail/drops/zero_case_container_keeps_cleanup_prerequisite/main.omg	current=rejected	current_us=1296057	root=compilation	route=no-entry
+program	tests/omega/fail/drops/zero_case_container_keeps_cleanup_prerequisite/main.omg	current=rejected	current_us=1296057	root=machine:drop_receipt	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/drops/zero_case_container_keeps_cleanup_prerequisite/main.omg	current=rejected	current_us=1296057	root=machine:drop_optional_receipt	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/drops/zero_case_container_keeps_cleanup_prerequisite/main.omg	current=rejected	current_us=1296057	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/drops/zero_case_container_keeps_cleanup_prerequisite/main.omg	no-span	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing owner.ready == true required by drop_optional_receipt clause `owner.ready`

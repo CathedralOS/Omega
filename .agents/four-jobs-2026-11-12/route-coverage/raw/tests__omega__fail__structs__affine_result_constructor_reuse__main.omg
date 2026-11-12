@@ -1,0 +1,4 @@
+program	tests/omega/fail/structs/affine_result_constructor_reuse/main.omg	current=rejected	current_us=1302966	root=compilation	route=no-entry
+program	tests/omega/fail/structs/affine_result_constructor_reuse/main.omg	current=rejected	current_us=1302966	root=machine:Worker::kind	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/structs/affine_result_constructor_reuse/main.omg	current=rejected	current_us=1302966	root=machine:Worker::wrap	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/structs/affine_result_constructor_reuse/main.omg	no-span	cannot use `kind` in machine `Worker::wrap` state `wrap` (statement 1) after `kind` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `kind` first

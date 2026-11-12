@@ -1,0 +1,2 @@
+program	tests/omega/fail/traits/resultless_float_law_false_identity/main.omg	current=rejected	current_us=2329681	root=compilation	route=outside	Unsupported: type float
+current-diagnostic	tests/omega/fail/traits/resultless_float_law_false_identity/main.omg	no-span	cannot prove ensures contract for exit from false_identity at statement 0: first == second

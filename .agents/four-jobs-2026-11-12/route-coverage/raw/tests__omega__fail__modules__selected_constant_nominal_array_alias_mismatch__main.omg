@@ -1,0 +1,1 @@
+program	tests/omega/fail/modules/selected_constant_nominal_array_alias_mismatch/main.omg	current=stopped	current_us=1061100	root=compilation	route=unreached	Some("constant initializer: constant initializer result does not match its declared carrier")

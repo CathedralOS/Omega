@@ -1,0 +1,2 @@
+program	tests/omega/fail/calls/closed_constructor_generic_field_recast_not_identity/main.omg	current=rejected	current_us=11541737	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/calls/closed_constructor_generic_field_recast_not_identity/main.omg	main.omg:9 bytes 412..416	cannot prove requires contract for call take from Main::main: view.value > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`

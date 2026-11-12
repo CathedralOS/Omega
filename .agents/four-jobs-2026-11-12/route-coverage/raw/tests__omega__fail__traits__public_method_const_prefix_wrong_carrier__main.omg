@@ -1,0 +1,3 @@
+program	tests/omega/fail/traits/public_method_const_prefix_wrong_carrier/main.omg	current=rejected	current_us=1704720	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+current-diagnostic	tests/omega/fail/traits/public_method_const_prefix_wrong_carrier/main.omg	no-span	const parameter `Prefix` of `mirror` has an invalid canonical value: expected carrier `u64`, but the canonical value names `bool`
+current-diagnostic	tests/omega/fail/traits/public_method_const_prefix_wrong_carrier/main.omg	no-span	const parameter `Prefix` of `SelectedEcho::mirror` has an invalid canonical value: expected carrier `u64`, but the canonical value names `bool`

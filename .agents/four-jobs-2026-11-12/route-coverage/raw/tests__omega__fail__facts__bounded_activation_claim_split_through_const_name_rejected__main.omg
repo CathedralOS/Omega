@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/bounded_activation_claim_split_through_const_name_rejected/main.omg	current=rejected	current_us=3087053	root=compilation	route=outside	Unsupported: type data without a checked shape
+current-diagnostic	tests/omega/fail/facts/bounded_activation_claim_split_through_const_name_rejected/main.omg	no-span	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))

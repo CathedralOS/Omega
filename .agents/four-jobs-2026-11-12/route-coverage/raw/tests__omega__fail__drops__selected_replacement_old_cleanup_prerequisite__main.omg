@@ -1,0 +1,7 @@
+program	tests/omega/fail/drops/selected_replacement_old_cleanup_prerequisite/main.omg	current=rejected	current_us=1284893	root=compilation	route=no-entry
+program	tests/omega/fail/drops/selected_replacement_old_cleanup_prerequisite/main.omg	current=rejected	current_us=1284893	root=machine:drop_token	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/drops/selected_replacement_old_cleanup_prerequisite/main.omg	current=rejected	current_us=1284893	root=machine:prepare	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/drops/selected_replacement_old_cleanup_prerequisite/main.omg	current=rejected	current_us=1284893	root=machine:consume	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/drops/selected_replacement_old_cleanup_prerequisite/main.omg	current=rejected	current_us=1284893	root=machine:choose	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/drops/selected_replacement_old_cleanup_prerequisite/main.omg	current=rejected	current_us=1284893	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/drops/selected_replacement_old_cleanup_prerequisite/main.omg	no-span	cannot prove automatic cleanup requires at selected edge from choose state entry after statement 2: missing token.ready == true required by drop_token clause `token.ready`

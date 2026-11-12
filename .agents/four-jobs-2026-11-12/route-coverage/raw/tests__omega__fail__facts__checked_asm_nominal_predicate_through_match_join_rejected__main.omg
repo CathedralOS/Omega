@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/checked_asm_nominal_predicate_through_match_join_rejected/main.omg	current=rejected	current_us=2358459	root=compilation	route=outside	Unsupported: contract term other than a formal or literal
+current-diagnostic	tests/omega/fail/facts/checked_asm_nominal_predicate_through_match_join_rejected/main.omg	no-span	cannot prove asm `requires` fact at block entry in main state `entry` (statement 7): output == 9

@@ -1,0 +1,1 @@
+program	tests/omega/pass/facts/captured_storage_bounds_through_other_state_exit/main.omg	current=accepted	current_us=3045824	root=compilation	route=outside	Unsupported: parameter mutable parameter

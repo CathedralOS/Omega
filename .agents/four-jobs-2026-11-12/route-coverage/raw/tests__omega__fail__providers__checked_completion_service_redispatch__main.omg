@@ -1,0 +1,2 @@
+program	tests/omega/fail/providers/checked_completion_service_redispatch/main.omg	current=rejected	current_us=3788045	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/providers/checked_completion_service_redispatch/main.omg	no-span	selected completion provider `NativeConsole::exit_process`: external-completion provider has a cyclic checked invocation path

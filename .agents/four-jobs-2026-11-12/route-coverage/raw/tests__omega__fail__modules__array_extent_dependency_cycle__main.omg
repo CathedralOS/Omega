@@ -1,0 +1,1 @@
+program	tests/omega/fail/modules/array_extent_dependency_cycle/main.omg	current=stopped	current_us=758584	root=compilation	route=unreached	Some("constant initializer: constant initializer dependency cycle")

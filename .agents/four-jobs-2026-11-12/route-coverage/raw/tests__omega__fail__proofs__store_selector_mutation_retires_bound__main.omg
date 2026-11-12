@@ -1,0 +1,4 @@
+program	tests/omega/fail/proofs/store_selector_mutation_retires_bound/main.omg	current=rejected	current_us=1351601	root=compilation	route=no-entry
+program	tests/omega/fail/proofs/store_selector_mutation_retires_bound/main.omg	current=rejected	current_us=1351601	root=machine:clear_limit	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/proofs/store_selector_mutation_retires_bound/main.omg	current=rejected	current_us=1351601	root=machine:wrong	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/proofs/store_selector_mutation_retires_bound/main.omg	no-span	cannot prove ensures contract for exit from wrong at statement 2: bounds.count <= bounds.limit

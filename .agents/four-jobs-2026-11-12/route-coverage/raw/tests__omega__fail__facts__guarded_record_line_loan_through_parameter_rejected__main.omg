@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/guarded_record_line_loan_through_parameter_rejected/main.omg	current=rejected	current_us=1702014	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/guarded_record_line_loan_through_parameter_rejected/main.omg	main.omg:31 bytes 1578..1580	machine `observe` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)

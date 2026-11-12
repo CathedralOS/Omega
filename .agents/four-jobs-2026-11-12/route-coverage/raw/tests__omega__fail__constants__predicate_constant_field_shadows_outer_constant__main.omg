@@ -1,0 +1,1 @@
+program	tests/omega/fail/constants/predicate_constant_field_shadows_outer_constant/main.omg	current=stopped	current_us=869974	root=compilation	route=unreached	Some("data `Bounded` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)")

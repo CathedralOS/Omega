@@ -1,0 +1,5 @@
+program	tests/omega/fail/borrows/terminal_call_returned_loan_live_write/main.omg	current=rejected	current_us=1403475	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/terminal_call_returned_loan_live_write/main.omg	current=rejected	current_us=1403475	root=machine:child	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/borrows/terminal_call_returned_loan_live_write/main.omg	current=rejected	current_us=1403475	root=machine:selected_child	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/borrows/terminal_call_returned_loan_live_write/main.omg	current=rejected	current_us=1403475	root=machine:invalid	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/borrows/terminal_call_returned_loan_live_write/main.omg	no-span	statement 1 mutates `container.cell.value` while local borrow `value` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)

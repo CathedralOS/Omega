@@ -1,0 +1,2 @@
+program	tests/omega/fail/resources/owned_extent_erased_label_rejected/main.omg	current=rejected	current_us=8454079	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+current-diagnostic	tests/omega/fail/resources/owned_extent_erased_label_rejected/main.omg	main.omg:71 bytes 3242..3244	cannot prove ensures contract for exit from forget_label at statement 0: result in Extent::Marked; the returned value does not establish this domain

@@ -1,0 +1,3 @@
+program	tests/omega/fail/providers/assumed_result_bound_target_body_rejected/main.omg	current=rejected	current_us=2499338	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+current-diagnostic	tests/omega/fail/providers/assumed_result_bound_target_body_rejected/main.omg	no-span	cannot prove index `Required.get()` is within length 2 in X86Exercise::exercise::exercise
+current-diagnostic	tests/omega/fail/providers/assumed_result_bound_target_body_rejected/main.omg	no-span	cannot prove index `Required.get()` is within length 2 in ArmExercise::exercise::exercise

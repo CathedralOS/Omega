@@ -1,0 +1,3 @@
+program	tests/omega/fail/domains/qualified_record_false_predicate/main.omg	current=rejected	current_us=1305629	root=compilation	route=no-entry
+program	tests/omega/fail/domains/qualified_record_false_predicate/main.omg	current=rejected	current_us=1305629	root=machine:issue_handle	route=outside	Unsupported: type constrained
+current-diagnostic	tests/omega/fail/domains/qualified_record_false_predicate/main.omg	no-span	cannot prove default-domain field requirement for return from issue_handle at statement 0: Handle requires Handle::Open

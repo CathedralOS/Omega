@@ -1,0 +1,5 @@
+program	tests/omega/fail/drops/composed_cleanup_authored_hook_call/main.omg	current=rejected	current_us=1259716	root=compilation	route=no-entry
+program	tests/omega/fail/drops/composed_cleanup_authored_hook_call/main.omg	current=rejected	current_us=1259716	root=machine:drop_token	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/drops/composed_cleanup_authored_hook_call/main.omg	current=rejected	current_us=1259716	root=machine:finish	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/drops/composed_cleanup_authored_hook_call/main.omg	current=rejected	current_us=1259716	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/drops/composed_cleanup_authored_hook_call/main.omg	main.omg:8 bytes 256..266	reserved cleanup machine `drop_token` is compiler-selected and cannot be selected by source; consume the value with `omega::core::drop(value)` or call an ordinary owner-published protocol operation

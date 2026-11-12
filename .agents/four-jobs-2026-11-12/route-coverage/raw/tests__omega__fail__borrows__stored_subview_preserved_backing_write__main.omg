@@ -1,0 +1,6 @@
+program	tests/omega/fail/borrows/stored_subview_preserved_backing_write/main.omg	current=rejected	current_us=1463505	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/stored_subview_preserved_backing_write/main.omg	current=rejected	current_us=1463505	root=machine:advance	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/borrows/stored_subview_preserved_backing_write/main.omg	current=rejected	current_us=1463505	root=machine:valid	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/borrows/stored_subview_preserved_backing_write/main.omg	current=rejected	current_us=1463505	root=machine:main	route=outside	Unsupported: type fixed array
+current-diagnostic	tests/omega/fail/borrows/stored_subview_preserved_backing_write/main.omg	no-span	statement 3 mutates `cells[0].value` while local borrow `window` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+current-diagnostic	tests/omega/fail/borrows/stored_subview_preserved_backing_write/main.omg	no-span	statement 3 mutates `cells[0].value` while local borrow `window` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)

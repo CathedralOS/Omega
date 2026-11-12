@@ -1,0 +1,3 @@
+program	tests/omega/fail/float/trapping_named_conversion_requires_site_coverage/main.omg	current=rejected	current_us=1329650	root=compilation	route=no-entry
+program	tests/omega/fail/float/trapping_named_conversion_requires_site_coverage/main.omg	current=rejected	current_us=1329650	root=machine:narrow	route=outside	Unsupported: type constrained
+current-diagnostic	tests/omega/fail/float/trapping_named_conversion_requires_site_coverage/main.omg	main.omg:5 bytes 147..155	`F32.from_f64(value)` in machine `narrow` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { sign

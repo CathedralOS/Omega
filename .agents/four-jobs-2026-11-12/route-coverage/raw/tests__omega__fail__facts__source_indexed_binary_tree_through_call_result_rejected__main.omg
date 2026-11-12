@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/source_indexed_binary_tree_through_call_result_rejected/main.omg	current=stopped	current_us=2141731	root=compilation	route=unreached	Some("source constructor predicate has no checked derivation yet")

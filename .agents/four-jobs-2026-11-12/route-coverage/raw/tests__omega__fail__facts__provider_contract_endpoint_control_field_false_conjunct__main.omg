@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/provider_contract_endpoint_control_field_false_conjunct/main.omg	current=rejected	current_us=3161294	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+current-diagnostic	tests/omega/fail/facts/provider_contract_endpoint_control_field_false_conjunct/main.omg	main.omg:19 bytes 657..683	data `Holder` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value

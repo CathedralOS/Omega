@@ -1,0 +1,5 @@
+program	tests/omega/fail/core/aggregate_snapshot_referent_mutation/main.omg	current=rejected	current_us=1383849	root=compilation	route=no-entry
+program	tests/omega/fail/core/aggregate_snapshot_referent_mutation/main.omg	current=rejected	current_us=1383849	root=machine:Owned::content	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/core/aggregate_snapshot_referent_mutation/main.omg	current=rejected	current_us=1383849	root=machine:observe	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/core/aggregate_snapshot_referent_mutation/main.omg	current=rejected	current_us=1383849	root=machine:unchanged	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/core/aggregate_snapshot_referent_mutation/main.omg	main.omg:17 bytes 808..812	cannot prove ensures contract for exit from unchanged at statement 2: core::Identity<<structural type>>(Owned.content(old(&view)), Owned.content(&result))

@@ -1,0 +1,4 @@
+program	tests/omega/fail/traits/dyn_selector_requirement_precondition_unproven/main.omg	current=rejected	current_us=1318428	root=compilation	route=no-entry
+program	tests/omega/fail/traits/dyn_selector_requirement_precondition_unproven/main.omg	current=rejected	current_us=1318428	root=machine:TrimOne::shrink	route=outside	Unsupported: type reference
+program	tests/omega/fail/traits/dyn_selector_requirement_precondition_unproven/main.omg	current=rejected	current_us=1318428	root=machine:probe	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/traits/dyn_selector_requirement_precondition_unproven/main.omg	main.omg:28 bytes 726..732	cannot prove requires contract for call dyn Shrink<1 argument>::shrink from probe: 200 >= 3 && 200 <= 100 (needs fact `value >= 3 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

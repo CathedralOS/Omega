@@ -1,0 +1,2 @@
+program	tests/omega/fail/borrows/state_index_bound/main.omg	current=rejected	current_us=2682887	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/borrows/state_index_bound/main.omg	no-span	cannot prove index `index` is within length 2 in update::entry

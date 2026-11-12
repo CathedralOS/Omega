@@ -1,0 +1,2 @@
+program	tests/omega/fail/core/content_conservation_changed_intermediate/main.omg	current=rejected	current_us=11304817	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/core/content_conservation_changed_intermediate/main.omg	main.omg:77 bytes 2099..2108	cannot prove ensures contract for exit from Main::split_proved at statement 4: core::Identity<<structural type>>(Owned.content(old(&whole)), separate(Owned.content(&result.left), Owned.content(&result.right)))

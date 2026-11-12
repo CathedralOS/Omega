@@ -1,0 +1,1 @@
+program	tests/omega/fail/generics/captured_map_foreign_nominal_region/main.omg	current=stopped	current_us=1157652	root=compilation	route=unreached	Some("static operand changed its retained selected application")

@@ -1,0 +1,5 @@
+program	tests/omega/fail/expressions/arithmetic_domain_mixed/main.omg	current=rejected	current_us=10377674	root=compilation	route=no-entry
+program	tests/omega/fail/expressions/arithmetic_domain_mixed/main.omg	current=rejected	current_us=10377674	root=machine:Main::main	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/expressions/arithmetic_domain_mixed/main.omg	current=rejected	current_us=10377674	root=machine:good	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/expressions/arithmetic_domain_mixed/main.omg	current=rejected	current_us=10377674	root=machine:bad	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/expressions/arithmetic_domain_mixed/main.omg	main.omg:13 bytes 418..419	mixed arithmetic domains in machine `Main::main` state `main` local `c`: one operand is `Wrapping` and the other is `Saturating`. Decision 17 forbids implicit domain mixing -- cross domains with an explicit `as` cast, or declare both operands in the same domain.

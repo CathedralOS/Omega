@@ -1,0 +1,4 @@
+program	tests/omega/fail/facts/case_type_equation_recovery_through_const_name_rejected/main.omg	current=rejected	current_us=2235273	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/facts/case_type_equation_recovery_through_const_name_rejected/main.omg	main.omg:11 bytes 596..695	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
+current-diagnostic	tests/omega/fail/facts/case_type_equation_recovery_through_const_name_rejected/main.omg	main.omg:13 bytes 684..689	match arms produce incompatible values
+current-diagnostic	tests/omega/fail/facts/case_type_equation_recovery_through_const_name_rejected/main.omg	main.omg:11 bytes 596..695	machine `extract$specialized$f7f6e43c477d7198$0$4650` state `entry` stores a boolean into a `i32` return value, which holds a numeric value

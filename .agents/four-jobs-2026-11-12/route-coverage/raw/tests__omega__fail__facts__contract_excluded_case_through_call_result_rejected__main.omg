@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/contract_excluded_case_through_call_result_rejected/main.omg	current=rejected	current_us=1944232	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/facts/contract_excluded_case_through_call_result_rejected/main.omg	main.omg:11 bytes 584..641	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm

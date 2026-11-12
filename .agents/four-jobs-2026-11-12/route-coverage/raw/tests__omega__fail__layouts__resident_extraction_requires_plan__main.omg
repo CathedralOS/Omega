@@ -1,0 +1,4 @@
+program	tests/omega/fail/layouts/resident_extraction_requires_plan/main.omg	current=rejected	current_us=2583965	root=compilation	route=no-entry
+program	tests/omega/fail/layouts/resident_extraction_requires_plan/main.omg	current=rejected	current_us=2583965	root=machine:WordPlacement::plan	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/resident_extraction_requires_plan/main.omg	current=rejected	current_us=2583965	root=machine:extract	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/layouts/resident_extraction_requires_plan/main.omg	main.omg:29 bytes 973..981	policy `WordPlacement::plan` produced an invalid plan: field `value` ends at bit 128, past the fixed size 64 bits

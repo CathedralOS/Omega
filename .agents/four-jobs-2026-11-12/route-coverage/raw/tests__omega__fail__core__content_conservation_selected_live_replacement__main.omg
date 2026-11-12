@@ -1,0 +1,3 @@
+program	tests/omega/fail/core/content_conservation_selected_live_replacement/main.omg	current=rejected	current_us=1265928	root=compilation	route=no-entry
+program	tests/omega/fail/core/content_conservation_selected_live_replacement/main.omg	current=rejected	current_us=1265928	root=machine:replace	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/core/content_conservation_selected_live_replacement/main.omg	no-span	replacement cannot dispose its remaining owned region

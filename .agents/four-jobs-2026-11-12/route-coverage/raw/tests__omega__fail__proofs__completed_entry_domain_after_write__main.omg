@@ -1,0 +1,5 @@
+program	tests/omega/fail/proofs/completed_entry_domain_after_write/main.omg	current=rejected	current_us=1337509	root=compilation	route=no-entry
+program	tests/omega/fail/proofs/completed_entry_domain_after_write/main.omg	current=rejected	current_us=1337509	root=machine:clear	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/proofs/completed_entry_domain_after_write/main.omg	current=rejected	current_us=1337509	root=machine:invalid	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/proofs/completed_entry_domain_after_write/main.omg	no-span	construction value is not proven in domain `Captured::One` in invalid state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+current-diagnostic	tests/omega/fail/proofs/completed_entry_domain_after_write/main.omg	no-span	cannot prove default-domain field requirement for return from invalid at statement 1: Captured requires Captured::One

@@ -1,0 +1,5 @@
+program	tests/omega/fail/contracts/private_counter_public_input/main.omg	current=rejected	current_us=1299798	root=compilation	route=no-entry
+program	tests/omega/fail/contracts/private_counter_public_input/main.omg	current=rejected	current_us=1299798	root=machine:compute	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/contracts/private_counter_public_input/main.omg	current=rejected	current_us=1299798	root=machine:apply	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/contracts/private_counter_public_input/main.omg	current=rejected	current_us=1299798	root=machine:main	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/contracts/private_counter_public_input/main.omg	main.omg:11 bytes 253..260	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

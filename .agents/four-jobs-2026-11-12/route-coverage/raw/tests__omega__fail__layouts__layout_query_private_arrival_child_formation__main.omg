@@ -1,0 +1,2 @@
+program	tests/omega/fail/layouts/layout_query_private_arrival_child_formation/main.omg	current=rejected	current_us=2931436	root=compilation	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/layouts/layout_query_private_arrival_child_formation/main.omg	no-span	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]

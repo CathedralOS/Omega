@@ -1,0 +1,3 @@
+program	tests/omega/fail/recast/shared_byte_slice_cannot_add_atomic_authority/main.omg	current=rejected	current_us=1308650	root=compilation	route=no-entry
+program	tests/omega/fail/recast/shared_byte_slice_cannot_add_atomic_authority/main.omg	current=rejected	current_us=1308650	root=machine:main	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/recast/shared_byte_slice_cannot_add_atomic_authority/main.omg	main.omg:3 bytes 99..101	machine `main` state `entry`: byte-region recast target `[Cell]` must be recursively fact-free; unchecked bytes cannot establish constrained fields, bool, or record invariants

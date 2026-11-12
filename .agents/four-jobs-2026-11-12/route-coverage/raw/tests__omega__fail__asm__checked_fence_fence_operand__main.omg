@@ -1,0 +1,1 @@
+program	tests/omega/fail/asm/checked_fence_fence_operand/main.omg	current=stopped	current_us=753902	root=compilation	route=unreached	Some("/agent/repos/omega/tests/omega/fail/asm/checked_fence_fence_operand/main.omg:40:20: multiple asm instructions must be separated by `;`")

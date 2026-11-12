@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/reflection_declaration_inspection_through_match_join_rejected/main.omg	current=stopped	current_us=1502339	root=compilation	route=unreached	Some("machine `describe` requires type predicate does not hold for the supplied arguments")

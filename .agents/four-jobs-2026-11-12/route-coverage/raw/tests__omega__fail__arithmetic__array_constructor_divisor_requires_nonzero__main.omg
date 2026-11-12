@@ -1,0 +1,4 @@
+program	tests/omega/fail/arithmetic/array_constructor_divisor_requires_nonzero/main.omg	current=rejected	current_us=1267093	root=compilation	route=no-entry
+program	tests/omega/fail/arithmetic/array_constructor_divisor_requires_nonzero/main.omg	current=rejected	current_us=1267093	root=machine:make	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/arithmetic/array_constructor_divisor_requires_nonzero/main.omg	no-span	partial exact division in array literal element of type `i64`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+current-diagnostic	tests/omega/fail/arithmetic/array_constructor_divisor_requires_nonzero/main.omg	main.omg:3 bytes 87..124	partial exact division in machine `make` state `entry` return value: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts

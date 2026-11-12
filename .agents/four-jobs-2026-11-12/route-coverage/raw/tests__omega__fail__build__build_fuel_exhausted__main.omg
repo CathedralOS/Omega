@@ -1,0 +1,2 @@
+program	tests/omega/fail/build/build_fuel_exhausted/main.omg	current=accepted	current_us=1638623	root=compilation	route=no-entry
+program	tests/omega/fail/build/build_fuel_exhausted/main.omg	current=accepted	current_us=1638623	root=machine:entry	route=accepted	route_us=265	discharge_us=87	reverify_us=0	reverified=0	obligations=0	judged=0	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0

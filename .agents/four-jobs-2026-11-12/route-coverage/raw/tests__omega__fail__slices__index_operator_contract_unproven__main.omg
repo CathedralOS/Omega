@@ -1,0 +1,3 @@
+program	tests/omega/fail/slices/index_operator_contract_unproven/main.omg	current=rejected	current_us=1308258	root=compilation	route=no-entry
+program	tests/omega/fail/slices/index_operator_contract_unproven/main.omg	current=rejected	current_us=1308258	root=machine:inspect	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/slices/index_operator_contract_unproven/main.omg	no-span	cannot prove index `3` is within length 3

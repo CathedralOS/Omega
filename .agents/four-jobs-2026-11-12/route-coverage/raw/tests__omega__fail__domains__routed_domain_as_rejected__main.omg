@@ -1,0 +1,4 @@
+program	tests/omega/fail/domains/routed_domain_as_rejected/main.omg	current=rejected	current_us=1283632	root=compilation	route=no-entry
+program	tests/omega/fail/domains/routed_domain_as_rejected/main.omg	current=rejected	current_us=1283632	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/domains/routed_domain_as_rejected/main.omg	no-span	`as ... in Token::Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+current-diagnostic	tests/omega/fail/domains/routed_domain_as_rejected/main.omg	no-span	cannot prove initializer of `forged` in main is in domain `Token::Issued`; an annotation cannot establish routed qualification

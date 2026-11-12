@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_field_rejected/main.omg	current=rejected	current_us=2376165	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/facts/saved_observation_snapshot_indexed_handback_field_rejected/main.omg	no-span	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value

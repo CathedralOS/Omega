@@ -1,0 +1,3 @@
+program	tests/omega/fail/borrows/reference_array_result_live_source_write/main.omg	current=rejected	current_us=11333075	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/borrows/reference_array_result_live_source_write/main.omg	no-span	statement 8 mutates `main.cells.second.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
+current-diagnostic	tests/omega/fail/borrows/reference_array_result_live_source_write/main.omg	no-span	statement 8 mutates `main.cells.second.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)

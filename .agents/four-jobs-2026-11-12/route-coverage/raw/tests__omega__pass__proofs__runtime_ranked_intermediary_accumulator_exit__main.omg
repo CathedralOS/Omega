@@ -1,0 +1,4 @@
+program	tests/omega/pass/proofs/runtime_ranked_intermediary_accumulator_exit/main.omg	current=rejected	current_us=11212121	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/pass/proofs/runtime_ranked_intermediary_accumulator_exit/main.omg	main.omg:30 bytes 630..635	cannot prove ensures contract for exit from descend at statement 1: result <= previous
+current-diagnostic	tests/omega/pass/proofs/runtime_ranked_intermediary_accumulator_exit/main.omg	main.omg:31 bytes 663..667	cannot prove ensures contract for exit from descend at statement 2: result <= previous
+current-diagnostic	tests/omega/pass/proofs/runtime_ranked_intermediary_accumulator_exit/main.omg	no-span	terminating machine descend reaches recursive component `loop`, which has no `terminates by` ranking -- spell one on that component

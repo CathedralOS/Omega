@@ -1,0 +1,1 @@
+program	tests/omega/fail/build/product_entry_description_slot_mismatch/main.omg	current=stopped	current_us=1187915	root=compilation	route=unreached	Some("root binding slot `windows_x86_64::ProgramEntry` does not match the product description's slot `linux_arm64::ProgramEntry`")

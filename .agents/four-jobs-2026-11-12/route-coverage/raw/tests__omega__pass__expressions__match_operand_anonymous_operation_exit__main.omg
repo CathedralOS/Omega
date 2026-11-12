@@ -1,0 +1,2 @@
+program	tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg	current=rejected	current_us=11598144	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg	main.omg:16 bytes 604..605	authored Operator declaration selection occurrence 9727 (`*` in /agent/repos/omega/tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg) remained unresolved after successful checking (CheckedOperator)

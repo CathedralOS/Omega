@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/projection_call_premise_through_call_result_rejected/main.omg	current=rejected	current_us=2316121	root=compilation	route=outside	Unsupported: contract clause that is not a comparison or conjunction
+current-diagnostic	tests/omega/fail/facts/projection_call_premise_through_call_result_rejected/main.omg	main.omg:22 bytes 397..417	cannot prove ensures contract for exit from produced at statement 0: result.kept

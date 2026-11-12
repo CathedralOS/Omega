@@ -1,0 +1,7 @@
+program	tests/omega/fail/ownership/linear_result_member_argument_scope_loss/main.omg	current=rejected	current_us=1366587	root=compilation	route=no-entry
+program	tests/omega/fail/ownership/linear_result_member_argument_scope_loss/main.omg	current=rejected	current_us=1366587	root=machine:pass	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/ownership/linear_result_member_argument_scope_loss/main.omg	current=rejected	current_us=1366587	root=machine:make	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/ownership/linear_result_member_argument_scope_loss/main.omg	current=rejected	current_us=1366587	root=machine:issue	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/ownership/linear_result_member_argument_scope_loss/main.omg	current=rejected	current_us=1366587	root=machine:settle	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/ownership/linear_result_member_argument_scope_loss/main.omg	current=rejected	current_us=1366587	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/ownership/linear_result_member_argument_scope_loss/main.omg	no-span	linear value `second.right` reaches scope exit without being consumed or transferred in machine `main` state `entry`

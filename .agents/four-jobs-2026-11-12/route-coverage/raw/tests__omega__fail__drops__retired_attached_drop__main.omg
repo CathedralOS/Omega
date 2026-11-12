@@ -1,0 +1,4 @@
+program	tests/omega/fail/drops/retired_attached_drop/main.omg	current=rejected	current_us=1243853	root=compilation	route=no-entry
+program	tests/omega/fail/drops/retired_attached_drop/main.omg	current=rejected	current_us=1243853	root=machine:Token::drop	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/drops/retired_attached_drop/main.omg	current=rejected	current_us=1243853	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/drops/retired_attached_drop/main.omg	no-span	`machine Token::drop` attaches cleanup to data `Token`, which is retired: data owns no cleanup machines; declare an independent static machine taking `&mut Token` and select it with `data Token dropped by <machine>`

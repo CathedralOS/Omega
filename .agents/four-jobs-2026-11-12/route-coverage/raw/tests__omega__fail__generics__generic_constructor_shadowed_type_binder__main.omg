@@ -1,0 +1,1 @@
+program	tests/omega/fail/generics/generic_constructor_shadowed_type_binder/main.omg	current=stopped	current_us=791595	root=compilation	route=unreached	Some("generic data `Nested` retains unsolved type equations; its application requires closed instance specialization")

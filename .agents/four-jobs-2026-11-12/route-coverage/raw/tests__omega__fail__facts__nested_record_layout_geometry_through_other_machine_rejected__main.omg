@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/nested_record_layout_geometry_through_other_machine_rejected/main.omg	current=rejected	current_us=2867467	root=compilation	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/facts/nested_record_layout_geometry_through_other_machine_rejected/main.omg	no-span	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]

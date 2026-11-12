@@ -1,0 +1,25 @@
+program	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	current=rejected	current_us=2318303	root=compilation	route=rejected	route_us=76916	discharge_us=76365	reverify_us=73325	reverified=16	obligations=20	judged=16	core_refused=0	unproved=2	refused_other=0	needed_relation=0	needed_branch=0	published_held=2	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+current-diagnostic	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	main.omg:32 bytes 967..968	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or nar
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	2	1	published	every-exit:1	-	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	2	2	safety	discharged-judged+interval	IntegerConstant,formal	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	2	3	safety	discharged-judged+interval	ExactIntegerAdd,IntegerConstant	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	2	4	safety	discharged-judged+interval	ExactIntegerMultiply,IntegerConstant	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	2	5	guarantee	discharged-judged+interval	ExactIntegerSubtract	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	3	1	published	every-exit:1	-	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	3	2	guarantee	discharged-judged+interval	formal	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	4	1	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	4	2	safety	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	4	3	safety	discharged-judged+interval	ExactIntegerAdd,IntegerConstant	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	4	4	safety	discharged-judged+interval	ExactIntegerAdd,IntegerConstant	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	4	5	safety	discharged-judged+interval	ExactIntegerAdd,IntegerConstant	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	4	6	safety	discharged-judged+interval	ExactIntegerAdd,IntegerConstant	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	4	7	safety	discharged-judged+interval	ExactIntegerAdd,IntegerConstant	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	4	8	safety	discharged-judged+interval	ExactIntegerAdd,IntegerConstant	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	4	9	safety	discharged-judged+interval	Call,ExactIntegerAdd	-
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	4	10	safety:ExactIntegerSubtract	unproved	Call,IntegerConstant	the operands' bounds exceed the carrier
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	4	11	safety:IntegerExactCast	unproved	ExactIntegerSubtract	the operands' bounds exceed the carrier
+obligation	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	6	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	4	10	reject	main.omg:32 bytes 967..968	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation) (no proof found from the facts available here: the operands' bounds exceed the carrier)	site=exact
+diagnostic	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	4	11	reject	main.omg:33 bytes 986..988	Exact integer cast in machine `run` state `entry` return value to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion (no proof found from the facts available here: the operands' bounds exceed the car	site=different
+quality	tests/omega/fail/facts/live_across_call_spill_through_other_machine_rejected/main.omg	root=compilation	fragment=all	site=exact	expected=exact arithmetic

@@ -1,0 +1,2 @@
+program	tests/omega/fail/core/integer_query_same_spelling_false_endpoint_rejected/main.omg	current=rejected	current_us=2386287	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/core/integer_query_same_spelling_false_endpoint_rejected/main.omg	main.omg:4 bytes 212..219	cannot prove requires contract for call consume from main: entry() == 0xffffffff (needs fact `value == 0xffffffff` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

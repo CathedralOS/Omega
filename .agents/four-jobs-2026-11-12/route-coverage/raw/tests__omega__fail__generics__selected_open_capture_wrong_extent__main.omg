@@ -1,0 +1,4 @@
+program	tests/omega/fail/generics/selected_open_capture_wrong_extent/main.omg	current=rejected	current_us=1303242	root=compilation	route=no-entry
+program	tests/omega/fail/generics/selected_open_capture_wrong_extent/main.omg	current=rejected	current_us=1303242	root=machine:Selected::forward	route=outside	Unsupported: type fixed array
+program	tests/omega/fail/generics/selected_open_capture_wrong_extent/main.omg	current=rejected	current_us=1303242	root=machine:carry	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/generics/selected_open_capture_wrong_extent/main.omg	main.omg:6 bytes 309..316	argument `value` for state `forward` expects `[u64; 2]`, got `named value`; expected carrier `array(named(name(u64)),literal(2))`, declared place carrier `array(named(name(u64)),literal(3))`

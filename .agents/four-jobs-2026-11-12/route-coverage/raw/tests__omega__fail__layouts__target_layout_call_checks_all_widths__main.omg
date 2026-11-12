@@ -1,0 +1,2 @@
+program	tests/omega/fail/layouts/target_layout_call_checks_all_widths/main.omg	current=rejected	current_us=3261797	root=compilation	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/layouts/target_layout_call_checks_all_widths/main.omg	no-span	IntegerAt call in program requires every performed value to fit its physical storage: performed integer value is not proven to fit

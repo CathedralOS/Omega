@@ -1,0 +1,4 @@
+program	tests/omega/fail/facts/domain_selected_cleanup_computed_conflicting_recipes_rejected/main.omg	current=rejected	current_us=1861351	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/facts/domain_selected_cleanup_computed_conflicting_recipes_rejected/main.omg	no-span	conflicting dropped by machine applications on one owned subject
+current-diagnostic	tests/omega/fail/facts/domain_selected_cleanup_computed_conflicting_recipes_rejected/main.omg	no-span	conflicting dropped by machine applications on one owned subject
+current-diagnostic	tests/omega/fail/facts/domain_selected_cleanup_computed_conflicting_recipes_rejected/main.omg	main.omg:24 bytes 1326..1333	implicit domain weakening in argument `keeper` for state `entry` drops `Other<7>`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target

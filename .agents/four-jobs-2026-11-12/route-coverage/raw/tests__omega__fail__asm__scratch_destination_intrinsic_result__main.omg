@@ -1,0 +1,1 @@
+program	tests/omega/fail/asm/scratch_destination_intrinsic_result/main.omg	current=stopped	current_us=1349215	root=compilation	route=unreached	Some("assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes")

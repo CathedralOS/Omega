@@ -1,0 +1,5 @@
+program	tests/omega/fail/termination/rank_range_subject_intervening_write/main.omg	current=rejected	current_us=1333455	root=compilation	route=no-entry
+program	tests/omega/fail/termination/rank_range_subject_intervening_write/main.omg	current=rejected	current_us=1333455	root=machine:Main::main	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/termination/rank_range_subject_intervening_write/main.omg	current=rejected	current_us=1333455	root=machine:Main::walk	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/termination/rank_range_subject_intervening_write/main.omg	no-span	terminating machine Main::walk: cannot prove rank range `0..=limit + 1` for the rank produced by the selected view
+current-diagnostic	tests/omega/fail/termination/rank_range_subject_intervening_write/main.omg	no-span	machine call cycle: `Main::walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle

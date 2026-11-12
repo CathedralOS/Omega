@@ -1,0 +1,6 @@
+program	tests/omega/fail/domains/captured_guard_bound_replaced_by_call/main.omg	current=rejected	current_us=1314692	root=compilation	route=no-entry
+program	tests/omega/fail/domains/captured_guard_bound_replaced_by_call/main.omg	current=rejected	current_us=1314692	root=machine:Buffer::overwrite	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/domains/captured_guard_bound_replaced_by_call/main.omg	current=rejected	current_us=1314692	root=machine:store	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/domains/captured_guard_bound_replaced_by_call/main.omg	current=rejected	current_us=1314692	root=machine:write	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/domains/captured_guard_bound_replaced_by_call/main.omg	current=rejected	current_us=1314692	root=machine:keep	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/domains/captured_guard_bound_replaced_by_call/main.omg	no-span	cannot prove default-domain field requirement for return from write at statement 1: buffer.label requires [u8; N]::Utf8

@@ -1,0 +1,2 @@
+program	tests/omega/fail/borrows/predicate_reference_retarget_requires_membership/main.omg	current=rejected	current_us=2357441	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/borrows/predicate_reference_retarget_requires_membership/main.omg	no-span	cannot prove the value assigned to `protected.cell` in observed_exit is in domain `Cell::Controlled`; a place declared `in Cell::Controlled` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)

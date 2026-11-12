@@ -1,0 +1,3 @@
+program	tests/omega/pass/facts/non_owning_reference_erasure_through_field_exit/main.omg	current=rejected	current_us=2307293	root=compilation	route=outside	Unsupported: type constrained
+current-diagnostic	tests/omega/pass/facts/non_owning_reference_erasure_through_field_exit/main.omg	no-span	cannot prove default-domain field requirement for return from write at statement 2: storage requires Storage::Issued
+current-diagnostic	tests/omega/pass/facts/non_owning_reference_erasure_through_field_exit/main.omg	main.omg:15 bytes 804..809	cannot prove default-domain field requirement for call write from main::entry: parameter storage requires Storage::Issued

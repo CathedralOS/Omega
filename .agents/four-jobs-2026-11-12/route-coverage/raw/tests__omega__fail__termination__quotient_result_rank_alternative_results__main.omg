@@ -1,0 +1,5 @@
+program	tests/omega/fail/termination/quotient_result_rank_alternative_results/main.omg	current=rejected	current_us=1381880	root=compilation	route=no-entry
+program	tests/omega/fail/termination/quotient_result_rank_alternative_results/main.omg	current=rejected	current_us=1381880	root=machine:step	route=outside	Unsupported: contract disjunction
+program	tests/omega/fail/termination/quotient_result_rank_alternative_results/main.omg	current=rejected	current_us=1381880	root=machine:countdown	route=outside	Unsupported: contract disjunction
+current-diagnostic	tests/omega/fail/termination/quotient_result_rank_alternative_results/main.omg	no-span	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
+current-diagnostic	tests/omega/fail/termination/quotient_result_rank_alternative_results/main.omg	no-span	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle

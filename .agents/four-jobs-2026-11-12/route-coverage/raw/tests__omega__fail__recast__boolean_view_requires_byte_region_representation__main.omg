@@ -1,0 +1,3 @@
+program	tests/omega/fail/recast/boolean_view_requires_byte_region_representation/main.omg	current=rejected	current_us=1284920	root=compilation	route=no-entry
+program	tests/omega/fail/recast/boolean_view_requires_byte_region_representation/main.omg	current=rejected	current_us=1284920	root=machine:read	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/recast/boolean_view_requires_byte_region_representation/main.omg	main.omg:4 bytes 100..102	machine `read` state `entry`: a shared recast may weaken established facts but cannot strengthen them; a raw byte region cannot establish the target's representation facts

@@ -1,0 +1,2 @@
+program	tests/omega/pass/expressions/match_owned_mixed_projection_reads/main.omg	current=rejected	current_us=10787197	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/pass/expressions/match_owned_mixed_projection_reads/main.omg	main.omg:69 bytes 2116..2118	Exact integer cast in machine `exit` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.

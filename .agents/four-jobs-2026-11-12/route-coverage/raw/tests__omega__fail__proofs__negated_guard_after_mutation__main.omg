@@ -1,0 +1,4 @@
+program	tests/omega/fail/proofs/negated_guard_after_mutation/main.omg	current=rejected	current_us=1455150	root=compilation	route=no-entry
+program	tests/omega/fail/proofs/negated_guard_after_mutation/main.omg	current=rejected	current_us=1455150	root=machine:changed	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/proofs/negated_guard_after_mutation/main.omg	current=rejected	current_us=1455150	root=machine:overwrite	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/proofs/negated_guard_after_mutation/main.omg	main.omg:8 bytes 197..206	cannot prove ensures contract for exit from changed at statement 2: !selection.enabled || result == 1

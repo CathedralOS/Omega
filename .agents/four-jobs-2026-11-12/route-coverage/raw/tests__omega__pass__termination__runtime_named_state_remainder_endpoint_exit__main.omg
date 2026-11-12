@@ -1,0 +1,2 @@
+program	tests/omega/pass/termination/runtime_named_state_remainder_endpoint_exit/main.omg	current=rejected	current_us=11512847	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/pass/termination/runtime_named_state_remainder_endpoint_exit/main.omg	no-span	terminating machine walk reaches recursive component `iterate`, which has no `terminates by` ranking -- spell one on that component

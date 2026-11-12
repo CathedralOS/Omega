@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/nominal_declaration_owner_through_other_machine/main.omg	current=rejected	current_us=2756896	root=compilation	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/facts/nominal_declaration_owner_through_other_machine/main.omg	main.omg:6 bytes 211..215	argument `token` for state `read` expects the `library::Token` data type but got `copied::Token` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)

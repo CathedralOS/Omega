@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/nested_zero_leaf_array_storage_through_const_name_rejected/main.omg	current=rejected	current_us=2635608	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/facts/nested_zero_leaf_array_storage_through_const_name_rejected/main.omg	no-span	cannot prove index `512` is within length 512

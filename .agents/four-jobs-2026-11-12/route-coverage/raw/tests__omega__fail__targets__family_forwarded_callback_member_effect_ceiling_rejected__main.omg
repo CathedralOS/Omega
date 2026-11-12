@@ -1,0 +1,8 @@
+program	tests/omega/fail/targets/family_forwarded_callback_member_effect_ceiling_rejected/main.omg	current=rejected	current_us=1304229	root=compilation	route=no-entry
+program	tests/omega/fail/targets/family_forwarded_callback_member_effect_ceiling_rejected/main.omg	current=rejected	current_us=1304229	root=machine:may_block	route=outside	Unsupported: machine suspends or blocks
+program	tests/omega/fail/targets/family_forwarded_callback_member_effect_ceiling_rejected/main.omg	current=rejected	current_us=1304229	root=machine:choose	route=outside	Unsupported: machine target selection
+program	tests/omega/fail/targets/family_forwarded_callback_member_effect_ceiling_rejected/main.omg	current=rejected	current_us=1304229	root=machine:choose	route=outside	Unsupported: machine target selection
+program	tests/omega/fail/targets/family_forwarded_callback_member_effect_ceiling_rejected/main.omg	current=rejected	current_us=1304229	root=machine:forward	route=outside	Unsupported: machine suspends or blocks
+program	tests/omega/fail/targets/family_forwarded_callback_member_effect_ceiling_rejected/main.omg	current=rejected	current_us=1304229	root=machine:main	route=outside	Unsupported: machine suspends or blocks
+program	tests/omega/fail/targets/family_forwarded_callback_member_effect_ceiling_rejected/main.omg	current=rejected	current_us=1304229	root=machine:choose	route=outside	Unsupported: machine supply mode other than a checked body
+current-diagnostic	tests/omega/fail/targets/family_forwarded_callback_member_effect_ceiling_rejected/main.omg	no-span	machine parameter `Forward` forwarded into `choose` does not refine `Callback`: it may block, but the requirement omits `blocks`

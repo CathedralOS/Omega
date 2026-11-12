@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/abstract_signature_call_applied_callback_nested_body_rejected/main.omg	current=stopped	current_us=990031	root=compilation	route=unreached	Some("cannot prove requires contract: machine `witness` state `entry` value call to `observe` violates required fact `premise(kept)`: the instantiated fact is structurally false")

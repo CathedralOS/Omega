@@ -1,0 +1,3 @@
+program	tests/omega/fail/recast/borrowed_byte_shared_to_mutable/main.omg	current=rejected	current_us=1245923	root=compilation	route=no-entry
+program	tests/omega/fail/recast/borrowed_byte_shared_to_mutable/main.omg	current=rejected	current_us=1245923	root=machine:main	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/recast/borrowed_byte_shared_to_mutable/main.omg	main.omg:1 bytes 8..12	machine `main` state `entry` local `value` requires mutable source access; shared or immutable storage cannot supply it

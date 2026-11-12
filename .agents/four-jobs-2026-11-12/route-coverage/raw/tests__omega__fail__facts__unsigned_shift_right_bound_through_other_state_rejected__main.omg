@@ -1,0 +1,17 @@
+program	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	current=rejected	current_us=2358594	root=compilation	route=rejected	route_us=2471	discharge_us=2086	reverify_us=1327	reverified=10	obligations=13	judged=12	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+current-diagnostic	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	main.omg:15 bytes 717..718	exact arithmetic in machine `compute` state `entry` local `res` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or 
+obligation	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	1	1	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	1	2	crash	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	1	3	crash	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	1	4	arrival	discharged-judged+interval	BooleanConstant	-
+obligation	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	1	5	arrival	discharged-judged+interval	BooleanConstant	-
+obligation	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	1	6	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	1	7	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	1	8	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	1	9	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	2	1	safety	discharged-judged+interval	formal	-
+obligation	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	2	2	safety:ExactIntegerSubtract	unproved	ExactIntegerShiftRight,IntegerConstant	the operands' bounds exceed the carrier
+obligation	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	2	3	crash	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	4	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	2	2	reject	main.omg:15 bytes 717..718	exact arithmetic in machine `compute` state `entry` local `res` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation) (no proof found from the facts available here: the operands' bounds exceed the carrier)	site=exact
+quality	tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected/main.omg	root=compilation	fragment=all	site=exact	expected=exact arithmetic

@@ -1,0 +1,2 @@
+program	tests/omega/fail/proofs/dyn_requirement_float_alias_negated/main.omg	current=rejected	current_us=2245537	root=compilation	route=outside	Unsupported: type float
+current-diagnostic	tests/omega/fail/proofs/dyn_requirement_float_alias_negated/main.omg	no-span	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures upper(result)`; callers of the requirement assume it

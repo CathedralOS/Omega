@@ -1,0 +1,5 @@
+program	tests/omega/fail/ownership/linear_issued_argument_unrouted/main.omg	current=rejected	current_us=1367989	root=compilation	route=no-entry
+program	tests/omega/fail/ownership/linear_issued_argument_unrouted/main.omg	current=rejected	current_us=1367989	root=machine:drop_token	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/ownership/linear_issued_argument_unrouted/main.omg	current=rejected	current_us=1367989	root=machine:observe	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/fail/ownership/linear_issued_argument_unrouted/main.omg	current=rejected	current_us=1367989	root=machine:invalid	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/ownership/linear_issued_argument_unrouted/main.omg	main.omg:15 bytes 530..537	cannot prove requires contract for call observe from invalid: token in Token::Issued in state `entry`

@@ -1,0 +1,6 @@
+program	tests/omega/fail/borrows/runtime_selected_reference_holds_input/main.omg	current=rejected	current_us=1406611	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/runtime_selected_reference_holds_input/main.omg	current=rejected	current_us=1406611	root=machine:Low::first	route=outside	Unsupported: type reference
+program	tests/omega/fail/borrows/runtime_selected_reference_holds_input/main.omg	current=rejected	current_us=1406611	root=machine:High::first	route=outside	Unsupported: type reference
+program	tests/omega/fail/borrows/runtime_selected_reference_holds_input/main.omg	current=rejected	current_us=1406611	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/borrows/runtime_selected_reference_holds_input/main.omg	no-span	statement 4 mutates `pair.low` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
+current-diagnostic	tests/omega/fail/borrows/runtime_selected_reference_holds_input/main.omg	no-span	statement 4 mutates `pair.low` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)

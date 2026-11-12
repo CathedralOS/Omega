@@ -1,0 +1,3 @@
+program	tests/omega/fail/facts/source_indexed_family_illegal_runtime_elimination/main.omg	current=rejected	current_us=2998547	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/facts/source_indexed_family_illegal_runtime_elimination/main.omg	no-span	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+current-diagnostic	tests/omega/fail/facts/source_indexed_family_illegal_runtime_elimination/main.omg	no-span	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding

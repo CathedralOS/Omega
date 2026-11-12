@@ -1,0 +1,1 @@
+program	tests/omega/fail/build/provider_package_default_duplicate_rejected/main.omg	current=stopped	current_us=1604782	root=compilation	route=unreached	Some("build selects two provider types for slot `main::Reading`: `main::SecondReading` and `main::FirstReading`")

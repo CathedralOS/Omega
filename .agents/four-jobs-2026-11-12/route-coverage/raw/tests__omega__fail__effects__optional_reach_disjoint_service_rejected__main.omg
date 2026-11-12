@@ -1,0 +1,2 @@
+program	tests/omega/fail/effects/optional_reach_disjoint_service_rejected/main.omg	current=rejected	current_us=2217922	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/effects/optional_reach_disjoint_service_rejected/main.omg	no-span	machine `read_mark` publishes service reach `Mark + Unused` but its checked body reaches undeclared service `Forbidden`

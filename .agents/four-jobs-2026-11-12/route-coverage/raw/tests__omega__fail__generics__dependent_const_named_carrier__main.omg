@@ -1,0 +1,2 @@
+program	tests/omega/fail/generics/dependent_const_named_carrier/main.omg	current=rejected	current_us=1240087	root=compilation	route=no-entry
+current-diagnostic	tests/omega/fail/generics/dependent_const_named_carrier/main.omg	no-span	const parameter `Count` of `Parent` has an invalid named value: named constant `Upper` has type `u32`, expected `u64`

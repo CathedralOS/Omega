@@ -1,0 +1,7 @@
+program	tests/omega/fail/ownership/successor_carried_cleanup_keeps_child_loan/main.omg	current=rejected	current_us=1387235	root=compilation	route=no-entry
+program	tests/omega/fail/ownership/successor_carried_cleanup_keeps_child_loan/main.omg	current=rejected	current_us=1387235	root=machine:drop_cleanup	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/ownership/successor_carried_cleanup_keeps_child_loan/main.omg	current=rejected	current_us=1387235	root=machine:internal	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/ownership/successor_carried_cleanup_keeps_child_loan/main.omg	current=rejected	current_us=1387235	root=machine:entered	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/ownership/successor_carried_cleanup_keeps_child_loan/main.omg	current=rejected	current_us=1387235	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/ownership/successor_carried_cleanup_keeps_child_loan/main.omg	no-span	state `entered` receives `counter` while local borrow `cleanup` is still active
+current-diagnostic	tests/omega/fail/ownership/successor_carried_cleanup_keeps_child_loan/main.omg	no-span	statement 1 mutates `counter.value` while local borrow `cleanup` is still active (borrowed at statement 0)

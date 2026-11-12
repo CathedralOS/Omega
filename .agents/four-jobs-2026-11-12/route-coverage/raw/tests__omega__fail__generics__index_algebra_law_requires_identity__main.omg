@@ -1,0 +1,3 @@
+program	tests/omega/fail/generics/index_algebra_law_requires_identity/main.omg	current=rejected	current_us=1325378	root=compilation	route=no-entry
+program	tests/omega/fail/generics/index_algebra_law_requires_identity/main.omg	current=rejected	current_us=1325378	root=machine:reorder	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/generics/index_algebra_law_requires_identity/main.omg	no-span	index compatibility condition `index-equality:Indexed:reorder::entry:exit-0:Indexed<Left + Right>==Indexed<Right + Left>` is not established: actual `Indexed<Left + Right>` and expected `Indexed<Right + Left>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact 

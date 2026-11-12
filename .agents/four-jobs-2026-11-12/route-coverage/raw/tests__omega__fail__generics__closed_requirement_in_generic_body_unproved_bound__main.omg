@@ -1,0 +1,2 @@
+program	tests/omega/fail/generics/closed_requirement_in_generic_body_unproved_bound/main.omg	current=rejected	current_us=1743367	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/generics/closed_requirement_in_generic_body_unproved_bound/main.omg	no-span	static application of requirement `Echo::echo` violates its declared requires facts: the complete tuple is structurally false

@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/method_array_operand_inference_through_parameter_rejected/main.omg	current=rejected	current_us=1878912	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+current-diagnostic	tests/omega/fail/facts/method_array_operand_inference_through_parameter_rejected/main.omg	main.omg:9 bytes 614..618	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`

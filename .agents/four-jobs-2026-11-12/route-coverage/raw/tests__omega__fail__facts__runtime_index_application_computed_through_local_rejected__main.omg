@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/runtime_index_application_computed_through_local_rejected/main.omg	current=rejected	current_us=1954776	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/runtime_index_application_computed_through_local_rejected/main.omg	main.omg:22 bytes 921..959	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)

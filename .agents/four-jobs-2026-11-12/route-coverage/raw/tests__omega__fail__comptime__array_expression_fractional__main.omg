@@ -1,0 +1,1 @@
+program	tests/omega/fail/comptime/array_expression_fractional/main.omg	current=stopped	current_us=787689	root=compilation	route=unreached	Some("const argument expression: fixed-array length must evaluate to a nonnegative integer count of `u64`: exact anonymous value `3/2` cannot land in an integer const argument")

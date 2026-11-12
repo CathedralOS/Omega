@@ -1,0 +1,5 @@
+program	tests/omega/fail/generics/const_extent_guard_closed_bad_index_type/main.omg	current=rejected	current_us=1236353	root=compilation	route=no-entry
+program	tests/omega/fail/generics/const_extent_guard_closed_bad_index_type/main.omg	current=rejected	current_us=1236353	root=machine:build	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/generics/const_extent_guard_closed_bad_index_type/main.omg	current=rejected	current_us=1236353	root=machine:main	route=outside	Unsupported: type constrained
+current-diagnostic	tests/omega/fail/generics/const_extent_guard_closed_bad_index_type/main.omg	main.omg:1 bytes 100..102	machine `main` state `entry` indexes `values` with `false` of type `bool`, but an index or range endpoint must be an integer
+current-diagnostic	tests/omega/fail/generics/const_extent_guard_closed_bad_index_type/main.omg	<default-build>:1 bytes 0..0	unreachable branch: the `true` arm of a transition in machine `main` state `entry` can never run; its guard can never select it

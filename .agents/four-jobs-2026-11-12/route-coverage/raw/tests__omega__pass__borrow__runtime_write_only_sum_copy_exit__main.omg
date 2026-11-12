@@ -1,0 +1,1 @@
+program	tests/omega/pass/borrow/runtime_write_only_sum_copy_exit/main.omg	current=accepted	current_us=3321427	root=compilation	route=outside	Unsupported: parameter mutable parameter

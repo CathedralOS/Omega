@@ -1,0 +1,8 @@
+program	tests/omega/fail/borrows/shared_entry_jump_into_mutable_receiver_state/main.omg	current=rejected	current_us=1418277	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/shared_entry_jump_into_mutable_receiver_state/main.omg	current=rejected	current_us=1418277	root=machine:Main::run	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/borrows/shared_entry_jump_into_mutable_receiver_state/main.omg	current=rejected	current_us=1418277	root=machine:next	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/borrows/shared_entry_jump_into_mutable_receiver_state/main.omg	current=rejected	current_us=1418277	root=machine:Main::through_shared_state	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/borrows/shared_entry_jump_into_mutable_receiver_state/main.omg	current=rejected	current_us=1418277	root=machine:look	route=outside	Unsupported: type reference
+program	tests/omega/fail/borrows/shared_entry_jump_into_mutable_receiver_state/main.omg	current=rejected	current_us=1418277	root=machine:write	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/borrows/shared_entry_jump_into_mutable_receiver_state/main.omg	main.omg:11 bytes 504..506	argument `main` for state `next` is declared `&mut` (`&mut Main`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+current-diagnostic	tests/omega/fail/borrows/shared_entry_jump_into_mutable_receiver_state/main.omg	main.omg:21 bytes 771..773	argument `main` for state `write` is declared `&mut` (`&mut Main`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding

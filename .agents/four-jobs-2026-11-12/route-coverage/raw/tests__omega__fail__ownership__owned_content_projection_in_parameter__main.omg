@@ -1,0 +1,2 @@
+program	tests/omega/fail/ownership/owned_content_projection_in_parameter/main.omg	current=rejected	current_us=12314726	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/ownership/owned_content_projection_in_parameter/main.omg	no-span	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "retire_owned", reason: "captured scalar store changes logical conserved Content", gap: None })

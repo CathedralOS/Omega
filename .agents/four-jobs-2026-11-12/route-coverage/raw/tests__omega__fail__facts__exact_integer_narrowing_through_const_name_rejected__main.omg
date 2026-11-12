@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/exact_integer_narrowing_through_const_name_rejected/main.omg	current=rejected	current_us=1724601	root=compilation	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/facts/exact_integer_narrowing_through_const_name_rejected/main.omg	main.omg:11 bytes 422..424	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.

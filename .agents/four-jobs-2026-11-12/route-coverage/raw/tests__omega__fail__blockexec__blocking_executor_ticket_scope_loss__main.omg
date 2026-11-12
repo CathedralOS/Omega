@@ -1,0 +1,4 @@
+program	tests/omega/fail/blockexec/blocking_executor_ticket_scope_loss/main.omg	current=rejected	current_us=1308666	root=compilation	route=no-entry
+program	tests/omega/fail/blockexec/blocking_executor_ticket_scope_loss/main.omg	current=rejected	current_us=1308666	root=machine:leak	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/blockexec/blocking_executor_ticket_scope_loss/main.omg	current=rejected	current_us=1308666	root=machine:lose_ticket_claim	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/blockexec/blocking_executor_ticket_scope_loss/main.omg	no-span	linear value `ticket` reaches scope exit without being consumed or transferred in machine `leak` state `entry`

@@ -1,0 +1,4 @@
+program	tests/omega/fail/ownership/dispatch_payload_duplicates_linear_field/main.omg	current=rejected	current_us=1337973	root=compilation	route=no-entry
+program	tests/omega/fail/ownership/dispatch_payload_duplicates_linear_field/main.omg	current=rejected	current_us=1337973	root=machine:produce	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/ownership/dispatch_payload_duplicates_linear_field/main.omg	current=rejected	current_us=1337973	root=machine:duplicate	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/ownership/dispatch_payload_duplicates_linear_field/main.omg	no-span	cannot use `__transition_subject#7::Present.left` in machine `duplicate` state `entry` (statement 1) after `__transition_subject#7::Present.left` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `__transition_subject#7:

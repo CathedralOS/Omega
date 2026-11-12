@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/core_float_representation_through_other_machine_rejected/main.omg	current=rejected	current_us=2022856	root=compilation	route=outside	Unsupported: type float
+current-diagnostic	tests/omega/fail/facts/core_float_representation_through_other_machine_rejected/main.omg	main.omg:14 bytes 516..523	cannot prove requires contract: machine `probe` state `entry` value call to `consume` violates required fact `float::to_bits(value) == 0xff800123`: the instantiated fact is structurally false (`4286578980 == 4286578979`)

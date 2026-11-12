@@ -1,0 +1,1 @@
+program	tests/omega/pass/facts/write_only_reference_store_through_parameter_exit/main.omg	current=accepted	current_us=3060692	root=compilation	route=outside	Unsupported: parameter mutable parameter

@@ -1,0 +1,2 @@
+program	tests/omega/fail/borrows/copied_active_case_snapshot_retains_backing/main.omg	current=rejected	current_us=1762558	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/borrows/copied_active_case_snapshot_retains_backing/main.omg	no-span	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable

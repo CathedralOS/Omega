@@ -1,0 +1,7 @@
+program	tests/omega/fail/borrows/owned_capture_replaced_reference_qualification/main.omg	current=rejected	current_us=1355129	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/owned_capture_replaced_reference_qualification/main.omg	current=rejected	current_us=1355129	root=machine:issue	route=outside	Unsupported: type constrained
+program	tests/omega/fail/borrows/owned_capture_replaced_reference_qualification/main.omg	current=rejected	current_us=1355129	root=machine:observe	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/fail/borrows/owned_capture_replaced_reference_qualification/main.omg	current=rejected	current_us=1355129	root=machine:write_plain	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/borrows/owned_capture_replaced_reference_qualification/main.omg	current=rejected	current_us=1355129	root=machine:main	route=outside	Unsupported: type fixed array
+current-diagnostic	tests/omega/fail/borrows/owned_capture_replaced_reference_qualification/main.omg	main.omg:10 bytes 472..479	cannot prove requires contract for call observe from main: first[0] in Cell::Issued in state `entry`
+current-diagnostic	tests/omega/fail/borrows/owned_capture_replaced_reference_qualification/main.omg	main.omg:14 bytes 649..656	cannot prove requires contract for call observe from main: held.view[0] in Cell::Issued in state `entry`

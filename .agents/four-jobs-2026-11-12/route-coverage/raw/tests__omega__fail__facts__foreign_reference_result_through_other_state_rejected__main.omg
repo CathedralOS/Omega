@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/foreign_reference_result_through_other_state_rejected/main.omg	current=rejected	current_us=1800945	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/facts/foreign_reference_result_through_other_state_rejected/main.omg	no-span	normal call `fill` (Handle { arena_index: 13556, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set

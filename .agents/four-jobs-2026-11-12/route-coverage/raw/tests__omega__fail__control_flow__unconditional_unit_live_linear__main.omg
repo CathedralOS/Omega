@@ -1,0 +1,2 @@
+program	tests/omega/fail/control_flow/unconditional_unit_live_linear/main.omg	current=rejected	current_us=2440090	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/control_flow/unconditional_unit_live_linear/main.omg	no-span	linear value `token` reaches scope exit without being consumed or transferred in machine `tail` state `entry`

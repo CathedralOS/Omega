@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/open_const_implementation_through_local_rejected/main.omg	current=stopped	current_us=1588394	root=compilation	route=unreached	Some("generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments")

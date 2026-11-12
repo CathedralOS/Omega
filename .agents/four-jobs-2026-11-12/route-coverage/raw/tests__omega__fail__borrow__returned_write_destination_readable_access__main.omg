@@ -1,0 +1,6 @@
+program	tests/omega/fail/borrow/returned_write_destination_readable_access/main.omg	current=rejected	current_us=1390205	root=compilation	route=no-entry
+program	tests/omega/fail/borrow/returned_write_destination_readable_access/main.omg	current=rejected	current_us=1390205	root=machine:lend_write	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/borrow/returned_write_destination_readable_access/main.omg	current=rejected	current_us=1390205	root=machine:widen	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/borrow/returned_write_destination_readable_access/main.omg	no-span	machine `widen` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
+current-diagnostic	tests/omega/fail/borrow/returned_write_destination_readable_access/main.omg	main.omg:2 bytes 130..140	machine `widen` state `entry` return value may read, but the source supplies only write-only authority
+current-diagnostic	tests/omega/fail/borrow/returned_write_destination_readable_access/main.omg	main.omg:2 bytes 130..140	machine `widen` state `entry` return value expects `&i32`, but the value is delivered as `&write i32`

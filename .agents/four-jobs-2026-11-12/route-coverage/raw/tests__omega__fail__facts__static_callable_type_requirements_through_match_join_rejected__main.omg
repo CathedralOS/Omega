@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/static_callable_type_requirements_through_match_join_rejected/main.omg	current=stopped	current_us=1401746	root=compilation	route=unreached	Some("machine `increment` requires type predicate does not hold for the supplied arguments")

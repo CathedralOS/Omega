@@ -1,0 +1,4 @@
+program	tests/omega/fail/slices/shared_subslice_state_cannot_lend_mutable/main.omg	current=rejected	current_us=1263201	root=compilation	route=no-entry
+program	tests/omega/fail/slices/shared_subslice_state_cannot_lend_mutable/main.omg	current=rejected	current_us=1263201	root=machine:write	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/slices/shared_subslice_state_cannot_lend_mutable/main.omg	current=rejected	current_us=1263201	root=machine:forwarded	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/slices/shared_subslice_state_cannot_lend_mutable/main.omg	main.omg:4 bytes 77..79	argument `items` for state `forwarded` is declared `&mut` (`&mut [i32]`), but a bare range forms a shared view and the caller lends only immutable access; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`

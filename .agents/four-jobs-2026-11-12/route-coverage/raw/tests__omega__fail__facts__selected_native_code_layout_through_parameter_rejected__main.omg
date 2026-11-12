@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/selected_native_code_layout_through_parameter_rejected/main.omg	current=stopped	current_us=780127	root=compilation	route=unreached	Some("late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation")

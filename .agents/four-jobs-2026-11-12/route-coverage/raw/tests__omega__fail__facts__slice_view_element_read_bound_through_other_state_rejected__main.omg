@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/slice_view_element_read_bound_through_other_state_rejected/main.omg	current=rejected	current_us=2336566	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/facts/slice_view_element_read_bound_through_other_state_rejected/main.omg	no-span	cannot prove index `3` is within unknown slice length of `v` in check_view::entry

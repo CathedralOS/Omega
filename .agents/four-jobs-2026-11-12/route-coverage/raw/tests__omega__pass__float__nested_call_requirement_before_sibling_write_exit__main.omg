@@ -1,0 +1,1 @@
+program	tests/omega/pass/float/nested_call_requirement_before_sibling_write_exit/main.omg	current=accepted	current_us=3072294	root=compilation	route=outside	Unsupported: parameter mutable parameter

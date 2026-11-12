@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/predicate_array_copy_through_other_machine_rejected/main.omg	current=rejected	current_us=2392152	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/predicate_array_copy_through_other_machine_rejected/main.omg	main.omg:20 bytes 588..595	cannot prove requires contract for call qualify from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

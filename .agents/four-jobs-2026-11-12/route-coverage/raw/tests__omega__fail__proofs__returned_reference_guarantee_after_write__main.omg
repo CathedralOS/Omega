@@ -1,0 +1,5 @@
+program	tests/omega/fail/proofs/returned_reference_guarantee_after_write/main.omg	current=rejected	current_us=1341205	root=compilation	route=no-entry
+program	tests/omega/fail/proofs/returned_reference_guarantee_after_write/main.omg	current=rejected	current_us=1341205	root=machine:restore	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/proofs/returned_reference_guarantee_after_write/main.omg	current=rejected	current_us=1341205	root=machine:reset	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/proofs/returned_reference_guarantee_after_write/main.omg	current=rejected	current_us=1341205	root=machine:invalid	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/proofs/returned_reference_guarantee_after_write/main.omg	main.omg:16 bytes 407..412	cannot prove ensures contract for exit from invalid at statement 2: result == 11

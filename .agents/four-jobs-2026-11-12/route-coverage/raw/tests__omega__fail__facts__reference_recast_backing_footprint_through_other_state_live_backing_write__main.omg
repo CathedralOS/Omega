@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/reference_recast_backing_footprint_through_other_state_live_backing_write/main.omg	current=rejected	current_us=2385461	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/facts/reference_recast_backing_footprint_through_other_state_live_backing_write/main.omg	no-span	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)

@@ -1,0 +1,10 @@
+program	tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_local_exit/main.omg	current=accepted	current_us=2999917	root=compilation	route=rejected	route_us=2075	discharge_us=1648	reverify_us=979	reverified=7	obligations=8	judged=7	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_local_exit/main.omg	1	1	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_local_exit/main.omg	1	2	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_local_exit/main.omg	1	3	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_local_exit/main.omg	2	1	safety	discharged-judged+interval	formal	-
+obligation	tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_local_exit/main.omg	2	2	safety:ExactIntegerSubtract	unproved	ExactIntegerDivide,IntegerConstant	the operands' bounds exceed the carrier
+obligation	tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_local_exit/main.omg	2	3	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_local_exit/main.omg	2	4	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_local_exit/main.omg	6	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_local_exit/main.omg	2	2	reject	main.omg:13 bytes 660..661	exact arithmetic in machine `divide_local` state `entry` local `check` may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation) (no proof found from the facts available here: the operands' bounds exceed the carrier)	site=different

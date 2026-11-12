@@ -1,0 +1,1 @@
+program	tests/omega/fail/generics/inferred_machine_array_equation_partial_conflict_rejected/main.omg	current=stopped	current_us=1043011	root=compilation	route=unreached	Some("generic machine `paired` requires equations bind `Capacity` to both 2 and 3")

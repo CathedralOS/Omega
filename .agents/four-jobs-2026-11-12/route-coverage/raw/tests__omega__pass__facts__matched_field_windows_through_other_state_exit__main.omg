@@ -1,0 +1,2 @@
+program	tests/omega/pass/facts/matched_field_windows_through_other_state_exit/main.omg	current=rejected	current_us=2668921	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/pass/facts/matched_field_windows_through_other_state_exit/main.omg	main.omg:9 bytes 386..388	`main` calls `from_state`; `from_state` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `from_state::entry`, statement 0

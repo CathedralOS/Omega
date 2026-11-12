@@ -1,0 +1,5 @@
+program	tests/omega/fail/dependent/match_generic_type_bound_wrong_field/main.omg	current=rejected	current_us=1245771	root=compilation	route=no-entry
+program	tests/omega/fail/dependent/match_generic_type_bound_wrong_field/main.omg	current=rejected	current_us=1245771	root=machine:flag	route=outside	Unsupported: type generic data
+current-diagnostic	tests/omega/fail/dependent/match_generic_type_bound_wrong_field/main.omg	main.omg:13 bytes 455..488	match field `count` is missing, duplicated, or belongs to another record/case
+current-diagnostic	tests/omega/fail/dependent/match_generic_type_bound_wrong_field/main.omg	main.omg:13 bytes 455..488	match structural pattern must mention every declared field or explicitly use `..`
+current-diagnostic	tests/omega/fail/dependent/match_generic_type_bound_wrong_field/main.omg	main.omg:12 bytes 437..494	machine `flag` state `entry` reads a nested member `count`, but data `Value<bool>` has no field `count` (check the spelling of the field name)

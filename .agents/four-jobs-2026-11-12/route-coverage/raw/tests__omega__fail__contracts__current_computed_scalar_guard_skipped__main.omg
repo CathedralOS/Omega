@@ -1,0 +1,4 @@
+program	tests/omega/fail/contracts/current_computed_scalar_guard_skipped/main.omg	current=rejected	current_us=1352580	root=compilation	route=no-entry
+program	tests/omega/fail/contracts/current_computed_scalar_guard_skipped/main.omg	current=rejected	current_us=1352580	root=machine:check	route=outside	Unsupported: type reference
+program	tests/omega/fail/contracts/current_computed_scalar_guard_skipped/main.omg	current=rejected	current_us=1352580	root=machine:selected	route=outside	Unsupported: contract term other than a formal or literal
+current-diagnostic	tests/omega/fail/contracts/current_computed_scalar_guard_skipped/main.omg	main.omg:8 bytes 367..375	cannot prove requires contract for call selected from check: width <= 256 - offset (needs fact `width <= 256 - offset` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

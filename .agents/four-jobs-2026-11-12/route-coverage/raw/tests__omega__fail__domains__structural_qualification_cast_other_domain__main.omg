@@ -1,0 +1,4 @@
+program	tests/omega/fail/domains/structural_qualification_cast_other_domain/main.omg	current=rejected	current_us=1338938	root=compilation	route=no-entry
+program	tests/omega/fail/domains/structural_qualification_cast_other_domain/main.omg	current=rejected	current_us=1338938	root=machine:ready_code	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/fail/domains/structural_qualification_cast_other_domain/main.omg	current=rejected	current_us=1338938	root=machine:main	route=outside	Unsupported: contract contracts on a state
+current-diagnostic	tests/omega/fail/domains/structural_qualification_cast_other_domain/main.omg	main.omg:10 bytes 478..480	implicit domain strengthening in argument `counter` for state `ready_code` assumes `Counter::Ready`; a qualification with no predicate or establishment route may be introduced only by an explicit `as` to the intended target

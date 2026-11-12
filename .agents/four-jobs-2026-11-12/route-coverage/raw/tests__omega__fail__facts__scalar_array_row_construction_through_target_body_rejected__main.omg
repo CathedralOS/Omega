@@ -1,0 +1,3 @@
+program	tests/omega/fail/facts/scalar_array_row_construction_through_target_body_rejected/main.omg	current=rejected	current_us=1722894	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+current-diagnostic	tests/omega/fail/facts/scalar_array_row_construction_through_target_body_rejected/main.omg	main.omg:34 bytes 1267..1273	machine `X86Pair::pair` state `pair` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+current-diagnostic	tests/omega/fail/facts/scalar_array_row_construction_through_target_body_rejected/main.omg	main.omg:43 bytes 1510..1516	machine `ArmPair::pair` state `pair` terminal expression expects `[[u64; 2]; 2]`, got `array literal`

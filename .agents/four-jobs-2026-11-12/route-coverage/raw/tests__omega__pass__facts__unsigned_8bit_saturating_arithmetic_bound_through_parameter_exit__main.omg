@@ -1,0 +1,1 @@
+program	tests/omega/pass/facts/unsigned_8bit_saturating_arithmetic_bound_through_parameter_exit/main.omg	current=accepted	current_us=2994687	root=compilation	route=outside	Unsupported: type constrained

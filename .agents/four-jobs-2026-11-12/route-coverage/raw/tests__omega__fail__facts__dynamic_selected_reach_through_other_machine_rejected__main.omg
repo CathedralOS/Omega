@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/dynamic_selected_reach_through_other_machine_rejected/main.omg	current=rejected	current_us=2429097	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+current-diagnostic	tests/omega/fail/facts/dynamic_selected_reach_through_other_machine_rejected/main.omg	no-span	machine `observe` publishes service reach `<none>` but its checked body reaches undeclared service `Journal`

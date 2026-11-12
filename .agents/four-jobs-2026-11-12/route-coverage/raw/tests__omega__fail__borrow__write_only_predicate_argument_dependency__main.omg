@@ -1,0 +1,5 @@
+program	tests/omega/fail/borrow/write_only_predicate_argument_dependency/main.omg	current=rejected	current_us=1270301	root=compilation	route=no-entry
+program	tests/omega/fail/borrow/write_only_predicate_argument_dependency/main.omg	current=rejected	current_us=1270301	root=machine:valid	route=outside	Unsupported: type reference
+program	tests/omega/fail/borrow/write_only_predicate_argument_dependency/main.omg	current=rejected	current_us=1270301	root=machine:replace	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/borrow/write_only_predicate_argument_dependency/main.omg	current=rejected	current_us=1270301	root=machine:test	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/borrow/write_only_predicate_argument_dependency/main.omg	no-span	machine `test` state `entry` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds 

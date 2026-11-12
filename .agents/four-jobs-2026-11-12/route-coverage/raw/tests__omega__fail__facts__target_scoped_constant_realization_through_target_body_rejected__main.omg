@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/target_scoped_constant_realization_through_target_body_rejected/main.omg	current=rejected	current_us=4016259	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+current-diagnostic	tests/omega/fail/facts/target_scoped_constant_realization_through_target_body_rejected/main.omg	no-span	constant checking: scalar range condition 0: bounds [-2, -2] lie outside [0, 18446744073709551615]

@@ -1,0 +1,2 @@
+program	tests/omega/run/ranges/borrowed_case_payload_bound/main.omg	current=rejected	current_us=2355483	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/run/ranges/borrowed_case_payload_bound/main.omg	no-span	cannot prove every subslice range endpoint of `0..text.length` is non-negative

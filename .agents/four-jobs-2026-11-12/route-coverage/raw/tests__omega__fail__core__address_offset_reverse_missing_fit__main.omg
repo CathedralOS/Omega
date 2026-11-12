@@ -1,0 +1,3 @@
+program	tests/omega/fail/core/address_offset_reverse_missing_fit/main.omg	current=rejected	current_us=1407982	root=compilation	route=no-entry
+program	tests/omega/fail/core/address_offset_reverse_missing_fit/main.omg	current=rejected	current_us=1407982	root=machine:offset	route=outside	Unsupported: type addr
+current-diagnostic	tests/omega/fail/core/address_offset_reverse_missing_fit/main.omg	main.omg:1 bytes 55..56	exact arithmetic in machine `offset` state `entry` return value may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or

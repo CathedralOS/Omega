@@ -1,0 +1,5 @@
+program	tests/omega/fail/borrows/completed_reference_read_cannot_invent_contents/main.omg	current=rejected	current_us=1371582	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/completed_reference_read_cannot_invent_contents/main.omg	current=rejected	current_us=1371582	root=machine:pick	route=outside	Unsupported: type reference
+program	tests/omega/fail/borrows/completed_reference_read_cannot_invent_contents/main.omg	current=rejected	current_us=1371582	root=machine:inspect	route=outside	Unsupported: type reference
+program	tests/omega/fail/borrows/completed_reference_read_cannot_invent_contents/main.omg	current=rejected	current_us=1371582	root=machine:finish	route=outside	Unsupported: expression projected name path
+current-diagnostic	tests/omega/fail/borrows/completed_reference_read_cannot_invent_contents/main.omg	main.omg:12 bytes 366..372	cannot prove requires contract for call finish from inspect: addr::Bound == 18446744073709551616 && retry <= 1 && selected.value == 42 (needs fact `addr::Bound == 18446744073709551616 && retry <= 1 && value == 42` here; establish it before the call via a prior contract guarantee, domain membership, 

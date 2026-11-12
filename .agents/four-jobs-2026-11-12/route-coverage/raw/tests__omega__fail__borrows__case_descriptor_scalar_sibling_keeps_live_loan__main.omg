@@ -1,0 +1,4 @@
+program	tests/omega/fail/borrows/case_descriptor_scalar_sibling_keeps_live_loan/main.omg	current=rejected	current_us=1386665	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/case_descriptor_scalar_sibling_keeps_live_loan/main.omg	current=rejected	current_us=1386665	root=machine:count	route=outside	Unsupported: type reference
+program	tests/omega/fail/borrows/case_descriptor_scalar_sibling_keeps_live_loan/main.omg	current=rejected	current_us=1386665	root=machine:invalid	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/borrows/case_descriptor_scalar_sibling_keeps_live_loan/main.omg	no-span	statement 2 mutates `storage[0]` while local borrow `packet` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)

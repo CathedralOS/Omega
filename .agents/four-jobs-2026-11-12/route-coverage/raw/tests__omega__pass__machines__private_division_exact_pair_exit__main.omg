@@ -1,0 +1,11 @@
+program	tests/omega/pass/machines/private_division_exact_pair_exit/main.omg	current=accepted	current_us=3172001	root=compilation	route=rejected	route_us=5556	discharge_us=5139	reverify_us=496	reverified=4	obligations=9	judged=8	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/machines/private_division_exact_pair_exit/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/machines/private_division_exact_pair_exit/main.omg	1	2	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/machines/private_division_exact_pair_exit/main.omg	1	3	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/machines/private_division_exact_pair_exit/main.omg	2	1	arrival	discharged-judged+interval	BooleanNot,formal	-
+obligation	tests/omega/pass/machines/private_division_exact_pair_exit/main.omg	2	2	arrival	discharged-judged+interval	BooleanNot,formal	-
+obligation	tests/omega/pass/machines/private_division_exact_pair_exit/main.omg	2	3	arrival	discharged-judged+interval	BooleanNot,formal	-
+obligation	tests/omega/pass/machines/private_division_exact_pair_exit/main.omg	2	4	arrival	discharged-judged+interval	formal,join	-
+obligation	tests/omega/pass/machines/private_division_exact_pair_exit/main.omg	3	1	safety:ExactIntegerDivide	unproved	formal	the bounds do not decide the comparison
+obligation	tests/omega/pass/machines/private_division_exact_pair_exit/main.omg	4	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/pass/machines/private_division_exact_pair_exit/main.omg	3	1	reject	main.omg:4 bytes 245..246	partial exact division in machine `divided` state `entry` return value: the divisor must be proven nonzero and the signed `MIN / -1` primitive pair must be excluded (no proof found from the facts available here: the bounds do not decide the comparison)	site=different

@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/shared_qualification_erasure_through_field_rejected/main.omg	current=rejected	current_us=1756184	root=compilation	route=outside	Unsupported: type constrained
+current-diagnostic	tests/omega/fail/facts/shared_qualification_erasure_through_field_rejected/main.omg	main.omg:15 bytes 765..767	machine `main` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance

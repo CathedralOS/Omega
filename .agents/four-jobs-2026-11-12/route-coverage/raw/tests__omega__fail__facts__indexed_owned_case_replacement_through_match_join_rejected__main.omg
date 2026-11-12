@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/indexed_owned_case_replacement_through_match_join_rejected/main.omg	current=rejected	current_us=9436939	root=compilation	route=outside	Unsupported: contract contracts on a state
+current-diagnostic	tests/omega/fail/facts/indexed_owned_case_replacement_through_match_join_rejected/main.omg	no-span	cannot prove initializer of `payload` in witness is in domain `u64::PositiveSmall`; an annotation cannot establish routed qualification

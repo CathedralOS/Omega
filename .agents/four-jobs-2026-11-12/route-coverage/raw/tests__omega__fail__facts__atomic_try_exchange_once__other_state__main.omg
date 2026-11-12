@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/atomic_try_exchange_once/other_state/main.omg	current=rejected	current_us=1937050	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/facts/atomic_try_exchange_once/other_state/main.omg	main.omg:5 bytes 225..230	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type

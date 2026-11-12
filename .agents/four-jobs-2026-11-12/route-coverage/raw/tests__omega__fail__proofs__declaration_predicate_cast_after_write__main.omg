@@ -1,0 +1,4 @@
+program	tests/omega/fail/proofs/declaration_predicate_cast_after_write/main.omg	current=rejected	current_us=1262757	root=compilation	route=no-entry
+program	tests/omega/fail/proofs/declaration_predicate_cast_after_write/main.omg	current=rejected	current_us=1262757	root=machine:widen	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/proofs/declaration_predicate_cast_after_write/main.omg	current=rejected	current_us=1262757	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/proofs/declaration_predicate_cast_after_write/main.omg	main.omg:10 bytes 298..300	Exact integer cast in machine `main` state `entry` from `u64` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.

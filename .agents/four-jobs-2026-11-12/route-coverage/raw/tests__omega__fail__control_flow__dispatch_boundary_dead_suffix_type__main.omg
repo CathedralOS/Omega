@@ -1,0 +1,4 @@
+program	tests/omega/fail/control_flow/dispatch_boundary_dead_suffix_type/main.omg	current=rejected	current_us=1344890	root=compilation	route=no-entry
+program	tests/omega/fail/control_flow/dispatch_boundary_dead_suffix_type/main.omg	current=rejected	current_us=1344890	root=machine:choose	route=outside	Unsupported: completion statement after an unconditional arm
+program	tests/omega/fail/control_flow/dispatch_boundary_dead_suffix_type/main.omg	current=rejected	current_us=1344890	root=machine:main	route=outside	Unsupported: completion statement after an unconditional arm
+current-diagnostic	tests/omega/fail/control_flow/dispatch_boundary_dead_suffix_type/main.omg	main.omg:4 bytes 139..143	machine `choose` state `entry` local `invalid` stores a boolean into a `u64` local, which holds a numeric value

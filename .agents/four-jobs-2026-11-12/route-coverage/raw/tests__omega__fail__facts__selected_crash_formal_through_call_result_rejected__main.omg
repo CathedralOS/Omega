@@ -1,0 +1,3 @@
+program	tests/omega/fail/facts/selected_crash_formal_through_call_result_rejected/main.omg	current=rejected	current_us=2605232	root=compilation	route=outside	Unsupported: machine type equations, owned data or conformances
+current-diagnostic	tests/omega/fail/facts/selected_crash_formal_through_call_result_rejected/main.omg	no-span	call from `safe` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+current-diagnostic	tests/omega/fail/facts/selected_crash_formal_through_call_result_rejected/main.omg	no-span	machine `safe` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site

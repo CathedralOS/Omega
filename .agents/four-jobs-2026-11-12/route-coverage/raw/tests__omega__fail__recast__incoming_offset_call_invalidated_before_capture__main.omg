@@ -1,0 +1,5 @@
+program	tests/omega/fail/recast/incoming_offset_call_invalidated_before_capture/main.omg	current=rejected	current_us=1348011	root=compilation	route=no-entry
+program	tests/omega/fail/recast/incoming_offset_call_invalidated_before_capture/main.omg	current=rejected	current_us=1348011	root=machine:invalidate	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/recast/incoming_offset_call_invalidated_before_capture/main.omg	current=rejected	current_us=1348011	root=machine:capture	route=outside	Unsupported: type reference
+program	tests/omega/fail/recast/incoming_offset_call_invalidated_before_capture/main.omg	current=rejected	current_us=1348011	root=machine:read	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/recast/incoming_offset_call_invalidated_before_capture/main.omg	main.omg:19 bytes 1017..1019	machine `read` state `entry`: cannot bound the recast offset `offset` -- the region holds 32 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint

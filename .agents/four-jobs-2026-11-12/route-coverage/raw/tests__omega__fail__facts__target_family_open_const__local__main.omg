@@ -1,0 +1,3 @@
+program	tests/omega/fail/facts/target_family_open_const/local/main.omg	current=rejected	current_us=1918745	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/facts/target_family_open_const/local/main.omg	main.omg:18 bytes 856..863	cannot prove requires contract: machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+current-diagnostic	tests/omega/fail/facts/target_family_open_const/local/main.omg	build.omg:1 bytes 0..0	unreachable branch: the `true` arm of a transition in machine `main` state `entry` can never run; its guard contradicts the facts in force here: remaining >= 24

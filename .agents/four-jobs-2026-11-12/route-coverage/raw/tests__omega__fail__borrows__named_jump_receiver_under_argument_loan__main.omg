@@ -1,0 +1,10 @@
+program	tests/omega/fail/borrows/named_jump_receiver_under_argument_loan/main.omg	current=rejected	current_us=1506967	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/named_jump_receiver_under_argument_loan/main.omg	current=rejected	current_us=1506967	root=machine:Main::read_form	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/borrows/named_jump_receiver_under_argument_loan/main.omg	current=rejected	current_us=1506967	root=machine:read_after	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/borrows/named_jump_receiver_under_argument_loan/main.omg	current=rejected	current_us=1506967	root=machine:Main::write_form	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/borrows/named_jump_receiver_under_argument_loan/main.omg	current=rejected	current_us=1506967	root=machine:write_through_subject	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/borrows/named_jump_receiver_under_argument_loan/main.omg	current=rejected	current_us=1506967	root=machine:Main::shared_form	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/borrows/named_jump_receiver_under_argument_loan/main.omg	current=rejected	current_us=1506967	root=machine:observe	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/borrows/named_jump_receiver_under_argument_loan/main.omg	no-span	state `observe` receives `main.count` as both mutable and read-only
+current-diagnostic	tests/omega/fail/borrows/named_jump_receiver_under_argument_loan/main.omg	no-span	state `read_after` receives `main.count` as mutable while its mutable receiver reads `main.count`
+current-diagnostic	tests/omega/fail/borrows/named_jump_receiver_under_argument_loan/main.omg	no-span	state `write_through_subject` receives `main.count` as mutable while its mutable receiver writes `main.count`

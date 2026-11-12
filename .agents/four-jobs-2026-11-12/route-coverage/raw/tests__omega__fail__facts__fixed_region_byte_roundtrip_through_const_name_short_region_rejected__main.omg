@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/fixed_region_byte_roundtrip_through_const_name_short_region_rejected/main.omg	current=rejected	current_us=1862511	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/facts/fixed_region_byte_roundtrip_through_const_name_short_region_rejected/main.omg	main.omg:10 bytes 595..597	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible

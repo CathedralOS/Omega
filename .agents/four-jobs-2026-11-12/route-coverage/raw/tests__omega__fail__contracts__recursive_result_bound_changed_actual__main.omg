@@ -1,0 +1,2 @@
+program	tests/omega/fail/contracts/recursive_result_bound_changed_actual/main.omg	current=rejected	current_us=2209517	root=compilation	route=outside	Unsupported: contract ranking witness
+current-diagnostic	tests/omega/fail/contracts/recursive_result_bound_changed_actual/main.omg	main.omg:2 bytes 94..101	machine `descend` cannot prove ensures contract proof fact `result <= previous` on the transition arm guarded by `__transition_subject#43 == true`

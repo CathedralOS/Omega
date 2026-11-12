@@ -1,0 +1,3 @@
+program	tests/omega/fail/borrows/affine_array_projection_copy/main.omg	current=rejected	current_us=1262567	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/affine_array_projection_copy/main.omg	current=rejected	current_us=1262567	root=machine:invalid	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/borrows/affine_array_projection_copy/main.omg	no-span	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `invalid`, state `entry` (statement 0)

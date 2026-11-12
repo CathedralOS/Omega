@@ -1,0 +1,4 @@
+program	tests/omega/fail/domains/qualified_mutable_invalid_field/main.omg	current=rejected	current_us=1306948	root=compilation	route=no-entry
+program	tests/omega/fail/domains/qualified_mutable_invalid_field/main.omg	current=rejected	current_us=1306948	root=machine:Packet::consume	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/domains/qualified_mutable_invalid_field/main.omg	current=rejected	current_us=1306948	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/domains/qualified_mutable_invalid_field/main.omg	no-span	machine `main` state `entry` statement 1: reading `packet.<whole value>` crosses an open default-domain invariant window before data `Packet` is established: the zeroed representation is not yet a `Packet` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carrie

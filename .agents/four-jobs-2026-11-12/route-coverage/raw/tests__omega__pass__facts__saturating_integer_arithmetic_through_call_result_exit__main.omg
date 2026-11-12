@@ -1,0 +1,16 @@
+program	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	current=accepted	current_us=3118228	root=compilation	route=rejected	route_us=11245	discharge_us=10462	reverify_us=8554	reverified=11	obligations=14	judged=11	core_refused=0	unproved=2	refused_other=0	needed_relation=0	needed_branch=1	published_held=1	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	1	1	requirement	discharged-judged+interval	Call	-
+obligation	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	1	2	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	2	1	published	unproved	-	a normal return does not establish this clause
+obligation	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	2	2	guarantee	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	2	3	requirement	discharged-judged+branch	formal	-
+obligation	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	2	4	guarantee	unproved	-	the bounds do not decide the comparison
+obligation	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	4	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	4	2	guarantee	discharged-judged+interval	formal	-
+obligation	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	5	1	requirement	discharged-judged+interval	formal	-
+obligation	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	5	2	safety	discharged-judged+interval	Call,IntegerConstant	-
+obligation	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	5	3	safety	discharged-judged+interval	Call,IntegerConstant	-
+obligation	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	5	4	safety	discharged-judged+interval	ExactIntegerSubtract	-
+obligation	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	6	1	requirement	discharged-judged+interval	formal	-
+obligation	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	8	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/pass/facts/saturating_integer_arithmetic_through_call_result_exit/main.omg	2	4	reject	main.omg:10 bytes 505..515	cannot prove ensures contract for exit from clamp at statement 2: result >= 10 && result <= 100 (no proof found from the facts available here: the bounds do not decide the comparison)	site=different

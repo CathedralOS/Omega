@@ -1,0 +1,6 @@
+program	tests/omega/fail/facts/static_callback_reach_through_local/main.omg	current=rejected	current_us=2346199	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/facts/static_callback_reach_through_local/main.omg	no-span	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+current-diagnostic	tests/omega/fail/facts/static_callback_reach_through_local/main.omg	no-span	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+current-diagnostic	tests/omega/fail/facts/static_callback_reach_through_local/main.omg	no-span	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+current-diagnostic	tests/omega/fail/facts/static_callback_reach_through_local/main.omg	no-span	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+current-diagnostic	tests/omega/fail/facts/static_callback_reach_through_local/main.omg	no-span	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`

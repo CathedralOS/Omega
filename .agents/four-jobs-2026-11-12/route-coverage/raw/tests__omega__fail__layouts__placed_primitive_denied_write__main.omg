@@ -1,0 +1,1 @@
+program	tests/omega/fail/layouts/placed_primitive_denied_write/main.omg	current=stopped	current_us=4409381	root=compilation	route=unreached	Some("placed primitive application does not select its exact plan-issued field operation")

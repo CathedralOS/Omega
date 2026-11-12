@@ -1,0 +1,2 @@
+program	tests/omega/pass/borrows/runtime_computed_window_operand_order_exit/main.omg	current=rejected	current_us=2314375	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/pass/borrows/runtime_computed_window_operand_order_exit/main.omg	no-span	statement 5 borrows `__hoist_2[0..7]` without an exact retained backing for its loan in machine `main`, state `entry`, statement 5

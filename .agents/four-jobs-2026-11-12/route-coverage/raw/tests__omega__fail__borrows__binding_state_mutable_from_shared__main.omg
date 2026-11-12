@@ -1,0 +1,4 @@
+program	tests/omega/fail/borrows/binding_state_mutable_from_shared/main.omg	current=rejected	current_us=1318956	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/binding_state_mutable_from_shared/main.omg	current=rejected	current_us=1318956	root=machine:forward	route=outside	Unsupported: type reference
+program	tests/omega/fail/borrows/binding_state_mutable_from_shared/main.omg	current=rejected	current_us=1318956	root=machine:finish	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/borrows/binding_state_mutable_from_shared/main.omg	main.omg:6 bytes 241..243	argument `cell` for state `finish` is declared `&mut` (`&mut Cell`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding

@@ -1,0 +1,5 @@
+program	tests/omega/fail/arithmetic/unknown_field_write_rejected/main.omg	current=rejected	current_us=10586875	root=compilation	route=no-entry
+program	tests/omega/fail/arithmetic/unknown_field_write_rejected/main.omg	current=rejected	current_us=10586875	root=machine:Main::main	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/arithmetic/unknown_field_write_rejected/main.omg	current=rejected	current_us=10586875	root=machine:done	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/arithmetic/unknown_field_write_rejected/main.omg	main.omg:15 bytes 625..626	machine `Main::main` state `main` assignment: data `Main` has no field `cont` (check the spelling of the field name)
+current-diagnostic	tests/omega/fail/arithmetic/unknown_field_write_rejected/main.omg	main.omg:18 bytes 748..760	store in machine `done` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)

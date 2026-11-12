@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/foreign_nested_record_backing_const_name/main.omg	current=rejected	current_us=3030808	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/facts/foreign_nested_record_backing_const_name/main.omg	main.omg:40 bytes 2337..2342	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)

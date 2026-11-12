@@ -1,0 +1,2 @@
+program	tests/omega/fail/calls/native_code_layout_region_write_rejected/main.omg	current=rejected	current_us=1734091	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/calls/native_code_layout_region_write_rejected/main.omg	main.omg:8 bytes 423..428	machine `overwrite` state `entry` assignment requires mutable source access through every reference crossed by its destination

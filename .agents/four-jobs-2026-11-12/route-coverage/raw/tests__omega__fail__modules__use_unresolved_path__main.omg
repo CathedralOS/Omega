@@ -1,0 +1,1 @@
+program	tests/omega/fail/modules/use_unresolved_path/main.omg	current=stopped	current_us=658942	root=compilation	route=unreached	Some("failed to resolve /tmp/omega-corpus-session-91604-0/source/tests/omega/fail/modules/use_unresolved_path/nonexistent/missing.omg: captured entry is absent: nonexistent")

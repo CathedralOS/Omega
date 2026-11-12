@@ -1,0 +1,6 @@
+program	tests/omega/fail/text/bounded_ascii_write_self_edge_breaks_class/main.omg	current=rejected	current_us=1305999	root=compilation	route=no-entry
+program	tests/omega/fail/text/bounded_ascii_write_self_edge_breaks_class/main.omg	current=rejected	current_us=1305999	root=machine:replace	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/fail/text/bounded_ascii_write_self_edge_breaks_class/main.omg	current=rejected	current_us=1305999	root=machine:write	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/fail/text/bounded_ascii_write_self_edge_breaks_class/main.omg	current=rejected	current_us=1305999	root=machine:Main::main	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/text/bounded_ascii_write_self_edge_breaks_class/main.omg	main.omg:14 bytes 681..683	cannot prove requires contract for call write from write: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[__hoist_2]; bytes is part of [u8; N]::Ascii) in state `entry`
+current-diagnostic	tests/omega/fail/text/bounded_ascii_write_self_edge_breaks_class/main.omg	main.omg:22 bytes 870..877	cannot prove default-domain field requirement for call replace from Main::main::main: parameter bytes requires [u8; N]::Ascii

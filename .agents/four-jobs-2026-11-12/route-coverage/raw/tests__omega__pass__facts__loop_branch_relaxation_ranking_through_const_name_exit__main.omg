@@ -1,0 +1,1 @@
+program	tests/omega/pass/facts/loop_branch_relaxation_ranking_through_const_name_exit/main.omg	current=accepted	current_us=3800107	root=compilation	route=outside	Unsupported: declaration const

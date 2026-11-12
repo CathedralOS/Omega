@@ -1,0 +1,3 @@
+program	tests/omega/fail/facts/case_payload_stored_loan_through_other_state_rejected/main.omg	current=rejected	current_us=2552214	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/facts/case_payload_stored_loan_through_other_state_rejected/main.omg	no-span	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+current-diagnostic	tests/omega/fail/facts/case_payload_stored_loan_through_other_state_rejected/main.omg	no-span	statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3) in machine `main`, state `entry`, statement 3

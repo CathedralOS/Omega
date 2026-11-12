@@ -1,0 +1,4 @@
+program	tests/omega/fail/facts/alias_fact_transfer_through_field_rejected/main.omg	current=rejected	current_us=1319654	root=compilation	route=no-entry
+program	tests/omega/fail/facts/alias_fact_transfer_through_field_rejected/main.omg	current=rejected	current_us=1319654	root=machine:Main::inspect	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/facts/alias_fact_transfer_through_field_rejected/main.omg	current=rejected	current_us=1319654	root=machine:Main::main	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/facts/alias_fact_transfer_through_field_rejected/main.omg	main.omg:27 bytes 428..435	cannot prove requires contract for call inspect from Main::main: roster.member in Player::Alive in state `main`

@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/write_only_indexed_reborrow_through_const_name_rejected/main.omg	current=rejected	current_us=1866664	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/write_only_indexed_reborrow_through_const_name_rejected/main.omg	no-span	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation

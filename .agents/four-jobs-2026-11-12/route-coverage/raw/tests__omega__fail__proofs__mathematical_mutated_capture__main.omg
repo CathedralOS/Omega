@@ -1,0 +1,3 @@
+program	tests/omega/fail/proofs/mathematical_mutated_capture/main.omg	current=rejected	current_us=1417665	root=compilation	route=no-entry
+program	tests/omega/fail/proofs/mathematical_mutated_capture/main.omg	current=rejected	current_us=1417665	root=machine:cut	route=outside	Unsupported: type addr
+current-diagnostic	tests/omega/fail/proofs/mathematical_mutated_capture/main.omg	main.omg:9 bytes 376..377	exact arithmetic in machine `cut` state `entry` return value may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or na

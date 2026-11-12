@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/write_only_reference_store_through_other_state_rejected/main.omg	current=rejected	current_us=1784079	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/write_only_reference_store_through_other_state_rejected/main.omg	no-span	machine `later` state `entry` reads field `target` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation

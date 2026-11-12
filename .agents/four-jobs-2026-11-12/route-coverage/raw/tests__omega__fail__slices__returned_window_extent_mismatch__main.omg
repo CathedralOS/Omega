@@ -1,0 +1,2 @@
+program	tests/omega/fail/slices/returned_window_extent_mismatch/main.omg	current=rejected	current_us=2358643	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/slices/returned_window_extent_mismatch/main.omg	main.omg:20 bytes 971..1031	cannot prove ensures contract for exit from Trailer::window at statement 0: result.bytes.len == 7

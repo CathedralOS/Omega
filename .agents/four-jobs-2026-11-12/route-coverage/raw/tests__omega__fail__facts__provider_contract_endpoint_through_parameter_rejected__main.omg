@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/provider_contract_endpoint_through_parameter_rejected/main.omg	current=rejected	current_us=3805932	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+current-diagnostic	tests/omega/fail/facts/provider_contract_endpoint_through_parameter_rejected/main.omg	no-span	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0

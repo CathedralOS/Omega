@@ -1,0 +1,2 @@
+program	tests/omega/fail/borrows/borrowed_reference_field_live_child_write/main.omg	current=rejected	current_us=2288086	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/borrows/borrowed_reference_field_live_child_write/main.omg	no-span	statement 1 mutates `held.target.value` while local borrow `child` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)

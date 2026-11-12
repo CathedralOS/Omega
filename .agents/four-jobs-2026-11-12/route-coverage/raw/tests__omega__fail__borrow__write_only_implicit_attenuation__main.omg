@@ -1,0 +1,4 @@
+program	tests/omega/fail/borrow/write_only_implicit_attenuation/main.omg	current=rejected	current_us=1245151	root=compilation	route=no-entry
+program	tests/omega/fail/borrow/write_only_implicit_attenuation/main.omg	current=rejected	current_us=1245151	root=machine:consume	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/borrow/write_only_implicit_attenuation/main.omg	current=rejected	current_us=1245151	root=machine:call	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/borrow/write_only_implicit_attenuation/main.omg	main.omg:9 bytes 215..222	argument `value` for state `entry` requires explicit write-only attenuation; pass `&write ...` (a bare value or `&mut ...` does not establish the no-read contract)

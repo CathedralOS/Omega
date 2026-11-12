@@ -1,0 +1,1 @@
+program	tests/omega/fail/traits/computed_static_carrier/main.omg	current=stopped	current_us=786425	root=compilation	route=unreached	Some("const argument expression: landed `u32` result cannot initialize `i32`")

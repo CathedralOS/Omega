@@ -1,0 +1,11 @@
+program	tests/omega/fail/slices/edge_window_beyond_backing/main.omg	current=rejected	current_us=1319819	root=compilation	route=no-entry
+program	tests/omega/fail/slices/edge_window_beyond_backing/main.omg	current=rejected	current_us=1319819	root=machine:range_start	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/slices/edge_window_beyond_backing/main.omg	current=rejected	current_us=1319819	root=machine:range_end	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/slices/edge_window_beyond_backing/main.omg	current=rejected	current_us=1319819	root=machine:from_parameter	route=outside	Unsupported: type fixed array
+program	tests/omega/fail/slices/edge_window_beyond_backing/main.omg	current=rejected	current_us=1319819	root=machine:sized	route=outside	Unsupported: type reference
+program	tests/omega/fail/slices/edge_window_beyond_backing/main.omg	current=rejected	current_us=1319819	root=machine:main	route=outside	Unsupported: type fixed array
+program	tests/omega/fail/slices/edge_window_beyond_backing/main.omg	current=rejected	current_us=1319819	root=machine:done	route=accepted	route_us=155	discharge_us=57	reverify_us=0	reverified=0	obligations=0	judged=0	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+program	tests/omega/fail/slices/edge_window_beyond_backing/main.omg	current=rejected	current_us=1319819	root=machine:wrong	route=accepted	route_us=159	discharge_us=134	reverify_us=9	reverified=1	obligations=1	judged=1	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+current-diagnostic	tests/omega/fail/slices/edge_window_beyond_backing/main.omg	main.omg:14 bytes 594..595	cannot prove ensures contract for exit from range_end at statement 1: result == 9
+current-diagnostic	tests/omega/fail/slices/edge_window_beyond_backing/main.omg	no-span	cannot prove subslice range end bound `range_start(&mut sequence)..range_end(&mut sequence)` is within slice length 8
+obligation	tests/omega/fail/slices/edge_window_beyond_backing/main.omg	1	1	crash	discharged-judged+interval	-	-

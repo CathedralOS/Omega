@@ -1,0 +1,3 @@
+program	tests/omega/fail/facts/provider_contract_endpoint_guarded_crash_through_const_name_rejected/main.omg	current=rejected	current_us=3363031	root=compilation	route=outside	Unsupported: machine invokes
+current-diagnostic	tests/omega/fail/facts/provider_contract_endpoint_guarded_crash_through_const_name_rejected/main.omg	main.omg:27 bytes 778..783	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+current-diagnostic	tests/omega/fail/facts/provider_contract_endpoint_guarded_crash_through_const_name_rejected/main.omg	main.omg:28 bytes 804..809	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route

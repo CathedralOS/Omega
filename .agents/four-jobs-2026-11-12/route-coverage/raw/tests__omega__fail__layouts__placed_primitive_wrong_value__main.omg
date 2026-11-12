@@ -1,0 +1,1 @@
+program	tests/omega/fail/layouts/placed_primitive_wrong_value/main.omg	current=stopped	current_us=4393279	root=compilation	route=unreached	Some("accessor read application for `Accessor<Access<StablePlacement,Value>,number>` with value `u32`: value type does not match the accessor's exact value type")

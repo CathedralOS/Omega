@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/suspension_transported_loan_through_parameter_rejected/main.omg	current=rejected	current_us=2374899	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/facts/suspension_transported_loan_through_parameter_rejected/main.omg	no-span	call to `entry` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier

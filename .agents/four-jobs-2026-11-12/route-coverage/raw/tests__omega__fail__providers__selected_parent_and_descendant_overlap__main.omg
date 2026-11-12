@@ -1,0 +1,2 @@
+program	tests/omega/fail/providers/selected_parent_and_descendant_overlap/main.omg	current=rejected	current_us=2863295	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/providers/selected_parent_and_descendant_overlap/main.omg	no-span	selected whole provider maps `linux_x86_64::ParentMap::satisfies::Parent` and `linux_x86_64::ChildMap::satisfies::Child` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners

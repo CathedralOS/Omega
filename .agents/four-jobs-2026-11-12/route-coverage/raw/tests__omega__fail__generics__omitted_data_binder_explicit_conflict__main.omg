@@ -1,0 +1,1 @@
+program	tests/omega/fail/generics/omitted_data_binder_explicit_conflict/main.omg	current=stopped	current_us=824269	root=compilation	route=unreached	Some("generic data `TinyBytes` requires equation binds `Capacity` to 256 but its explicit argument is 512")

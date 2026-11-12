@@ -1,0 +1,7 @@
+program	tests/omega/fail/ownership/selected_retired_sibling_reuse/main.omg	current=rejected	current_us=1326502	root=compilation	route=no-entry
+program	tests/omega/fail/ownership/selected_retired_sibling_reuse/main.omg	current=rejected	current_us=1326502	root=machine:drop_receipt	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/ownership/selected_retired_sibling_reuse/main.omg	current=rejected	current_us=1326502	root=machine:consume_receipt	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/ownership/selected_retired_sibling_reuse/main.omg	current=rejected	current_us=1326502	root=machine:consume_token	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/ownership/selected_retired_sibling_reuse/main.omg	current=rejected	current_us=1326502	root=machine:choose	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/ownership/selected_retired_sibling_reuse/main.omg	current=rejected	current_us=1326502	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/ownership/selected_retired_sibling_reuse/main.omg	no-span	cannot use `pair.token` in machine `choose` state `entry` (statement 3) after `pair.token` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `pair.token` first

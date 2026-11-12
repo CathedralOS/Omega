@@ -1,0 +1,4 @@
+program	tests/omega/fail/facts/finite_family_owned_field/const_name/main.omg	current=rejected	current_us=2616268	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/finite_family_owned_field/const_name/main.omg	main.omg:29 bytes 1065..1073	cannot prove ensures contract for exit from ReadField::read at statement 2: result >= 100
+current-diagnostic	tests/omega/fail/facts/finite_family_owned_field/const_name/main.omg	main.omg:29 bytes 1065..1073	cannot prove ensures contract for exit from ReadField::read$specialized$ef379b294b035803$0$4700 at statement 2: result >= 100
+current-diagnostic	tests/omega/fail/facts/finite_family_owned_field/const_name/main.omg	main.omg:29 bytes 1065..1073	cannot prove ensures contract for exit from ReadField::read$specialized$d45a4b2c8f81ae01$1$4705 at statement 2: result >= 100

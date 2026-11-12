@@ -1,0 +1,2 @@
+program	tests/omega/pass/ownership/runtime_declared_linear_local_assignment_exit/main.omg	current=rejected	current_us=11266101	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/pass/ownership/runtime_declared_linear_local_assignment_exit/main.omg	no-span	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "completed linear arrival lost its exact claim frontier", gap: None })

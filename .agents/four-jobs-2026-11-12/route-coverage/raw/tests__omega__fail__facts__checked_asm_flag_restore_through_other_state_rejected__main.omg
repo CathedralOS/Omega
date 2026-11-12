@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/checked_asm_flag_restore_through_other_state_rejected/main.omg	current=rejected	current_us=1952665	root=compilation	route=outside	Unsupported: machine assembly target
+current-diagnostic	tests/omega/fail/facts/checked_asm_flag_restore_through_other_state_rejected/main.omg	main.omg:16 bytes 470..475	asm instruction `popfq` operand `saved flags` requires target register `rflags` constraint `u64`; integer literal `0` is outside that operand class

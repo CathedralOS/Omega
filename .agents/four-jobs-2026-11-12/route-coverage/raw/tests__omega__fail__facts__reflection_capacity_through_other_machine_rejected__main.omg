@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/reflection_capacity_through_other_machine_rejected/main.omg	current=rejected	current_us=15998974	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/reflection_capacity_through_other_machine_rejected/main.omg	main.omg:14 bytes 837..844	cannot prove requires contract for call forward from main: bound.valid && bound.bytes == 7 (needs fact `bound.valid && bound.bytes == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

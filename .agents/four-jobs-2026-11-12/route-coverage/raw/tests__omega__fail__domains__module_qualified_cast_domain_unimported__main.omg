@@ -1,0 +1,3 @@
+program	tests/omega/fail/domains/module_qualified_cast_domain_unimported/main.omg	current=rejected	current_us=1243039	root=compilation	route=no-entry
+program	tests/omega/fail/domains/module_qualified_cast_domain_unimported/main.omg	current=rejected	current_us=1243039	root=machine:main	route=outside	Unsupported: expression cast naming a domain
+current-diagnostic	tests/omega/fail/domains/module_qualified_cast_domain_unimported/main.omg	no-span	unknown cast domain `units::u64::Km` for target `u64`

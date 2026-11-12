@@ -1,0 +1,2 @@
+program	tests/omega/fail/arithmetic/qualified_float_cast_specification_fraction_rejected/main.omg	current=rejected	current_us=1385032	root=compilation	route=no-entry
+current-diagnostic	tests/omega/fail/arithmetic/qualified_float_cast_specification_fraction_rejected/main.omg	main.omg:5 bytes 168..173	Exact numeric cast in proposition `fractional` to `u8` is not provably denotation preserving; prove source integrality and exact representability independently or use a named numeric conversion

@@ -1,0 +1,1 @@
+program	tests/omega/fail/traits/const_selector_public_identity/main.omg	current=stopped	current_us=767043	root=compilation	route=unreached	Some("public const `SELECTED` has no canonical declaration identity: const index types require finite structural values with decidable equality and one canonical form")

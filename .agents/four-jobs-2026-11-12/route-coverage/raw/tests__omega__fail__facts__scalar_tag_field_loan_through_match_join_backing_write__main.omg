@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/scalar_tag_field_loan_through_match_join_backing_write/main.omg	current=rejected	current_us=2393987	root=compilation	route=outside	Unsupported: contract contracts on a state
+current-diagnostic	tests/omega/fail/facts/scalar_tag_field_loan_through_match_join_backing_write/main.omg	no-span	statement 2 mutates `storage.value` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 7)

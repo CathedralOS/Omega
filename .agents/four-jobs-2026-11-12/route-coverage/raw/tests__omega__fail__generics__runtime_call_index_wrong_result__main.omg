@@ -1,0 +1,5 @@
+program	tests/omega/fail/generics/runtime_call_index_wrong_result/main.omg	current=rejected	current_us=1421980	root=compilation	route=no-entry
+program	tests/omega/fail/generics/runtime_call_index_wrong_result/main.omg	current=rejected	current_us=1421980	root=machine:bound	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/generics/runtime_call_index_wrong_result/main.omg	current=rejected	current_us=1421980	root=machine:choose	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/generics/runtime_call_index_wrong_result/main.omg	current=rejected	current_us=1421980	root=machine:probe	route=outside	Unsupported: type generic application
+current-diagnostic	tests/omega/fail/generics/runtime_call_index_wrong_result/main.omg	main.omg:7 bytes 458..464	machine `probe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index

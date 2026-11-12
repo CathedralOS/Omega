@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/indexed_recoverable_replacement_window_through_local_rejected/main.omg	current=rejected	current_us=2254198	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/indexed_recoverable_replacement_window_through_local_rejected/main.omg	no-span	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow

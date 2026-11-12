@@ -1,0 +1,5 @@
+program	tests/omega/fail/proofs/numeric_state_argument_mutation/main.omg	current=rejected	current_us=1398488	root=compilation	route=no-entry
+program	tests/omega/fail/proofs/numeric_state_argument_mutation/main.omg	current=rejected	current_us=1398488	root=machine:replace	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/proofs/numeric_state_argument_mutation/main.omg	current=rejected	current_us=1398488	root=machine:small	route=outside	Unsupported: type constrained
+program	tests/omega/fail/proofs/numeric_state_argument_mutation/main.omg	current=rejected	current_us=1398488	root=machine:wrong	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/proofs/numeric_state_argument_mutation/main.omg	main.omg:13 bytes 260..265	cannot prove requires contract for call small from wrong: value <= 9 (needs fact `value <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

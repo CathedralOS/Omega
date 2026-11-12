@@ -1,0 +1,3 @@
+program	tests/omega/fail/borrows/fixed_array_return_local/main.omg	current=rejected	current_us=1348378	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/fixed_array_return_local/main.omg	current=rejected	current_us=1348378	root=machine:invalid	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/borrows/fixed_array_return_local/main.omg	no-span	machine `invalid` returns a view borrowing the local `row`, which does not outlive the call; return a view of storage that outlives the invocation instead

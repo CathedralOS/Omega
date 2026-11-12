@@ -1,0 +1,1 @@
+program	tests/omega/fail/control_flow/nested_machine_statement_after_declarations/main.omg	current=stopped	current_us=712016	root=compilation	route=unreached	Some("/agent/repos/omega/tests/omega/fail/control_flow/nested_machine_statement_after_declarations/main.omg:1:38: executable statements cannot follow nested machine declarations")

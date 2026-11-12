@@ -1,0 +1,5 @@
+program	tests/omega/fail/borrows/multi_origin_returned_reference_live_source_write/main.omg	current=rejected	current_us=1465620	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/multi_origin_returned_reference_live_source_write/main.omg	current=rejected	current_us=1465620	root=machine:choose	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/borrows/multi_origin_returned_reference_live_source_write/main.omg	current=rejected	current_us=1465620	root=machine:conflicting	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/borrows/multi_origin_returned_reference_live_source_write/main.omg	no-span	statement 2 mutates `second` while local borrow `sources` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+current-diagnostic	tests/omega/fail/borrows/multi_origin_returned_reference_live_source_write/main.omg	no-span	statement 2 mutates `second` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)

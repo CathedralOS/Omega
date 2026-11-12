@@ -1,0 +1,1 @@
+program	tests/omega/fail/providers/provider_selection_fabricated_activation/main.omg	current=stopped	current_us=657194	root=compilation	route=unreached	Some("the compiler-owned Build activation cannot be copied into local `counterfeit`")

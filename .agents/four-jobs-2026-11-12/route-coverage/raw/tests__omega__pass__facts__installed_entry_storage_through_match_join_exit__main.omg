@@ -1,0 +1,1 @@
+program	tests/omega/pass/facts/installed_entry_storage_through_match_join_exit/main.omg	current=stopped	current_us=1102797	root=compilation	route=unreached	Some("access view `Access<RegPlacement,Registers>`: demanded premise closure checking failed: generic-data method lost its exact template")

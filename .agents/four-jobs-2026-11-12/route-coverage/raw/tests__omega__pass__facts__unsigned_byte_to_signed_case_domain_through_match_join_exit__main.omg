@@ -1,0 +1,1 @@
+program	tests/omega/pass/facts/unsigned_byte_to_signed_case_domain_through_match_join_exit/main.omg	current=accepted	current_us=2958290	root=compilation	route=outside	Unsupported: expression match on a scalar subject

@@ -1,0 +1,1 @@
+program	tests/omega/fail/providers/applied_binding_unused_const_overflow/main.omg	current=stopped	current_us=955689	root=compilation	route=unreached	Some("integer node `u8(256)` does not fit exact carrier `u8`")

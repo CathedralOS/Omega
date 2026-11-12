@@ -1,0 +1,4 @@
+program	tests/omega/fail/slices/stored_view_callee_changed_selector_bounds/main.omg	current=rejected	current_us=1336064	root=compilation	route=no-entry
+program	tests/omega/fail/slices/stored_view_callee_changed_selector_bounds/main.omg	current=rejected	current_us=1336064	root=machine:replace	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/slices/stored_view_callee_changed_selector_bounds/main.omg	current=rejected	current_us=1336064	root=machine:overwrite	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/slices/stored_view_callee_changed_selector_bounds/main.omg	no-span	cannot prove index `0` is within unknown slice length of `output.values` in overwrite::entry

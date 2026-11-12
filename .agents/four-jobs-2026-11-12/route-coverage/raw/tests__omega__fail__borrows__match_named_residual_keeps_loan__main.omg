@@ -1,0 +1,4 @@
+program	tests/omega/fail/borrows/match_named_residual_keeps_loan/main.omg	current=rejected	current_us=2796720	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/borrows/match_named_residual_keeps_loan/main.omg	no-span	state `consume` receives `counter` while local borrow `bundle` is still active
+current-diagnostic	tests/omega/fail/borrows/match_named_residual_keeps_loan/main.omg	no-span	statement 3 borrows `counter` while local borrow `bundle` is still active (borrowed at statement 1) in machine `binding_subject`, state `entry`, statement 3
+current-diagnostic	tests/omega/fail/borrows/match_named_residual_keeps_loan/main.omg	no-span	statement 3 mutates `counter.value` while local borrow `bundle` is still active (borrowed at statement 1)

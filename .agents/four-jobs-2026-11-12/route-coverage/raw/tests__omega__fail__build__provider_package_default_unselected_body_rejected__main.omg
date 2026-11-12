@@ -1,0 +1,2 @@
+program	tests/omega/fail/build/provider_package_default_unselected_body_rejected/main.omg	current=rejected	current_us=3175040	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/build/provider_package_default_unselected_body_rejected/main.omg	main.omg:6 bytes 154..159	machine `FirstReading::total` ensures contract proof fact `result >= 1000` is disproved by constant arithmetic on the transition arm guarded by `<always>`

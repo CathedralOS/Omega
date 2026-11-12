@@ -1,0 +1,1 @@
+program	tests/omega/fail/proofs/core_identity_carrier_mismatch/main.omg	current=stopped	current_us=1150204	root=compilation	route=unreached	Some("invalid mathematical application `value`: mathematical result does not preserve its declared carrier and policy")

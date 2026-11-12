@@ -1,0 +1,3 @@
+program	tests/omega/fail/borrows/reassigned_view_cannot_escape_local_backing/main.omg	current=rejected	current_us=1302083	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/reassigned_view_cannot_escape_local_backing/main.omg	current=rejected	current_us=1302083	root=machine:reject	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/borrows/reassigned_view_cannot_escape_local_backing/main.omg	no-span	machine `reject` returns a view borrowing the local `items`, which does not outlive the call; return a view of storage that outlives the invocation instead

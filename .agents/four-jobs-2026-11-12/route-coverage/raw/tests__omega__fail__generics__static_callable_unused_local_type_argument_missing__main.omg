@@ -1,0 +1,4 @@
+program	tests/omega/fail/generics/static_callable_unused_local_type_argument_missing/main.omg	current=rejected	current_us=1275550	root=compilation	route=no-entry
+program	tests/omega/fail/generics/static_callable_unused_local_type_argument_missing/main.omg	current=rejected	current_us=1275550	root=machine:invoke	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/generics/static_callable_unused_local_type_argument_missing/main.omg	current=rejected	current_us=1275550	root=machine:main	route=accepted	route_us=274	discharge_us=86	reverify_us=0	reverified=0	obligations=0	judged=0	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+current-diagnostic	tests/omega/fail/generics/static_callable_unused_local_type_argument_missing/main.omg	main.omg:3 bytes 111..118	call `Routine` has an invalid static type argument correspondence

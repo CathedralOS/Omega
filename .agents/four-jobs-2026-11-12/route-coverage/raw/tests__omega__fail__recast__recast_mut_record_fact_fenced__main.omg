@@ -1,0 +1,3 @@
+program	tests/omega/fail/recast/recast_mut_record_fact_fenced/main.omg	current=rejected	current_us=1280168	root=compilation	route=no-entry
+program	tests/omega/fail/recast/recast_mut_record_fact_fenced/main.omg	current=rejected	current_us=1280168	root=machine:Main::main	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/recast/recast_mut_record_fact_fenced/main.omg	main.omg:16 bytes 348..350	machine `Main::main` state `main`: byte-region recast target `Facted` must be recursively fact-free; unchecked bytes cannot establish constrained fields, bool, or record invariants

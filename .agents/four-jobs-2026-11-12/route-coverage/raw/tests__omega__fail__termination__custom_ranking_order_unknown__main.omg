@@ -1,0 +1,5 @@
+program	tests/omega/fail/termination/custom_ranking_order_unknown/main.omg	current=rejected	current_us=1305590	root=compilation	route=no-entry
+program	tests/omega/fail/termination/custom_ranking_order_unknown/main.omg	current=rejected	current_us=1305590	root=machine:Main::main	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/termination/custom_ranking_order_unknown/main.omg	current=rejected	current_us=1305590	root=machine:Main::weaken	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/termination/custom_ranking_order_unknown/main.omg	no-span	terminating machine Main::weaken: `Card::PowerOrder` names no ranking view; the builtin views are `Nat::Descending`, `Nat::BoundedDistance`, `Nat::IncreasingTo(limit)` and `Slice::Length`
+current-diagnostic	tests/omega/fail/termination/custom_ranking_order_unknown/main.omg	no-span	machine call cycle: `Main::weaken` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle

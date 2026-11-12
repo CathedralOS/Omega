@@ -1,0 +1,15 @@
+program	tests/omega/run/calls/scalar_contract_route_exit/main.omg	current=accepted	current_us=3091311	root=compilation	route=accepted	route_us=16050	discharge_us=14793	reverify_us=11349	reverified=8	obligations=14	judged=13	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=1	published_held=1	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	1	1	safety	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	1	2	requirement	discharged-judged+interval	ExactIntegerAdd,IntegerConstant	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	1	3	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	1	4	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	1	5	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	2	1	safety	discharged-judged+interval	formal	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	2	2	safety	discharged-judged+interval	ExactIntegerMultiply,IntegerConstant	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	3	1	published	every-exit:1	-	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	3	2	guarantee	discharged-judged+interval	formal	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	3	3	arrival	discharged-judged+interval	IntegerLessOrEqual,formal	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	3	4	arrival	discharged-judged+interval	IntegerLessOrEqual,formal	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	4	1	requirement	discharged-judged+branch	formal	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	4	2	arrival	discharged-judged+interval	IntegerLessThan,formal	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	4	3	arrival	discharged-judged+interval	IntegerLessThan,formal	-

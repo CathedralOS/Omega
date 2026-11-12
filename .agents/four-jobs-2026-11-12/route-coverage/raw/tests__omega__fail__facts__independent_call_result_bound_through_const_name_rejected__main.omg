@@ -1,0 +1,3 @@
+program	tests/omega/fail/facts/independent_call_result_bound_through_const_name_rejected/main.omg	current=rejected	current_us=2323450	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+current-diagnostic	tests/omega/fail/facts/independent_call_result_bound_through_const_name_rejected/main.omg	main.omg:28 bytes 870..879	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
+current-diagnostic	tests/omega/fail/facts/independent_call_result_bound_through_const_name_rejected/main.omg	main.omg:31 bytes 977..983	cannot prove ensures contract for exit from forwarded at statement 0: result == 7

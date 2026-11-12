@@ -1,0 +1,3 @@
+program	tests/omega/fail/core/content_projection_foreign_owner/main.omg	current=rejected	current_us=1296411	root=compilation	route=no-entry
+program	tests/omega/fail/core/content_projection_foreign_owner/main.omg	current=rejected	current_us=1296411	root=machine:Foreign::content	route=outside	Unsupported: machine type equations, owned data or conformances
+current-diagnostic	tests/omega/fail/core/content_projection_foreign_owner/main.omg	no-span	content projection machine `Foreign::content` is not attached to the exact qualification it projects; use `<Qualification>::content` with a subject matching that domain's carrier

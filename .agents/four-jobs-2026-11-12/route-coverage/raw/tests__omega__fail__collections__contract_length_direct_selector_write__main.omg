@@ -1,0 +1,5 @@
+program	tests/omega/fail/collections/contract_length_direct_selector_write/main.omg	current=rejected	current_us=1348216	root=compilation	route=no-entry
+program	tests/omega/fail/collections/contract_length_direct_selector_write/main.omg	current=rejected	current_us=1348216	root=machine:extent	route=outside	Unsupported: type reference
+program	tests/omega/fail/collections/contract_length_direct_selector_write/main.omg	current=rejected	current_us=1348216	root=machine:select	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/collections/contract_length_direct_selector_write/main.omg	current=rejected	current_us=1348216	root=machine:first	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/collections/contract_length_direct_selector_write/main.omg	no-span	cannot prove index `0` is within unknown slice length of `views[cursor.position]` in first::entry

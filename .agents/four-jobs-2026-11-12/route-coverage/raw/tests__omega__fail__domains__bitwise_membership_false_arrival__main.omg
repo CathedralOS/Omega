@@ -1,0 +1,2 @@
+program	tests/omega/fail/domains/bitwise_membership_false_arrival/main.omg	current=rejected	current_us=2317041	root=compilation	route=outside	Unsupported: contract contracts on a state
+current-diagnostic	tests/omega/fail/domains/bitwise_membership_false_arrival/main.omg	main.omg:3 bytes 83..90	cannot prove requires contract for call consume from main: 130 in u32::Clear in state `entry`

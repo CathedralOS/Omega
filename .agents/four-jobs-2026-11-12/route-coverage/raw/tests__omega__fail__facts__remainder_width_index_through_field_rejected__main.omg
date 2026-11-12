@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/remainder_width_index_through_field_rejected/main.omg	current=rejected	current_us=2298196	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/facts/remainder_width_index_through_field_rejected/main.omg	no-span	cannot prove index `value % window.width` is within unknown slice length of `buckets` in pick::entry

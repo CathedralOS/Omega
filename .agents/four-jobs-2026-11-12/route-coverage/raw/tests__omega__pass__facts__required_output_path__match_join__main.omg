@@ -1,0 +1,2 @@
+program	tests/omega/pass/facts/required_output_path/match_join/main.omg	current=accepted	current_us=3053987	root=compilation	route=accepted	route_us=671	discharge_us=344	reverify_us=24	reverified=1	obligations=1	judged=1	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/facts/required_output_path/match_join/main.omg	2	1	crash	discharged-judged+interval	-	-

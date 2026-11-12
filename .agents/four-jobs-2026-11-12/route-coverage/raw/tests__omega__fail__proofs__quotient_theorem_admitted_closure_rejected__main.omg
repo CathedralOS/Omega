@@ -1,0 +1,12 @@
+program	tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/main.omg	current=rejected	current_us=1325996	root=compilation	route=no-entry
+program	tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/main.omg	current=rejected	current_us=1325996	root=machine:equivalent_reflexive	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/main.omg	current=rejected	current_us=1325996	root=machine:equivalent_symmetric	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/main.omg	current=rejected	current_us=1325996	root=machine:equivalent_transitive	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/main.omg	current=rejected	current_us=1325996	root=machine:RepresentativeEquivalence::reflexive	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/main.omg	current=rejected	current_us=1325996	root=machine:RepresentativeEquivalence::symmetric	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/main.omg	current=rejected	current_us=1325996	root=machine:RepresentativeEquivalence::transitive	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/main.omg	current=rejected	current_us=1325996	root=machine:observe	route=outside	Unsupported: machine supply mode other than a checked body
+program	tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/main.omg	current=rejected	current_us=1325996	root=machine:representative	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/main.omg	current=rejected	current_us=1325996	root=machine:representative_respects	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/main.omg	current=rejected	current_us=1325996	root=machine:admitted	route=outside	Unsupported: type quotient data
+current-diagnostic	tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/main.omg	no-span	specification call `observe` has no observation-free, reach-free, crash-free value denotation: the selected closure contains runtime observations or mutable storage

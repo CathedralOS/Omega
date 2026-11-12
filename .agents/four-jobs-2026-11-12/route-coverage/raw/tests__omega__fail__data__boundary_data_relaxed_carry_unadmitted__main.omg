@@ -1,0 +1,3 @@
+program	tests/omega/fail/data/boundary_data_relaxed_carry_unadmitted/main.omg	current=rejected	current_us=1310649	root=compilation	route=no-entry
+program	tests/omega/fail/data/boundary_data_relaxed_carry_unadmitted/main.omg	current=rejected	current_us=1310649	root=machine:main	route=accepted	route_us=225	discharge_us=62	reverify_us=0	reverified=0	obligations=0	judged=0	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+current-diagnostic	tests/omega/fail/data/boundary_data_relaxed_carry_unadmitted/main.omg	no-span	opaque boundary data `Lease` cannot relax its carry policy without an admitted property receipt

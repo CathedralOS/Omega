@@ -1,0 +1,2 @@
+program	tests/omega/fail/collections/typed_run_relocation_stable/main.omg	current=rejected	current_us=2798211	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+current-diagnostic	tests/omega/fail/collections/typed_run_relocation_stable/main.omg	run.omg:128 bytes 5461..5483	run relocation requires address: movable for the retained element type

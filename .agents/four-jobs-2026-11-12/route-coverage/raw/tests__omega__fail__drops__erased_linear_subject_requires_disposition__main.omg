@@ -1,0 +1,4 @@
+program	tests/omega/fail/drops/erased_linear_subject_requires_disposition/main.omg	current=rejected	current_us=1285151	root=compilation	route=no-entry
+program	tests/omega/fail/drops/erased_linear_subject_requires_disposition/main.omg	current=rejected	current_us=1285151	root=machine:observe	route=outside	Unsupported: type reference
+program	tests/omega/fail/drops/erased_linear_subject_requires_disposition/main.omg	current=rejected	current_us=1285151	root=machine:main	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/drops/erased_linear_subject_requires_disposition/main.omg	no-span	cannot automatically dispose borrowed temporary `named(name(nominal\(package-owner\(32:081e2d63d8ae1f7d16e041b4d1494db2d36d8dba89b56dea4ab88dd0f25aba31\)\,path\(Event\)\)))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition

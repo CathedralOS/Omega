@@ -1,0 +1,11 @@
+program	tests/omega/fail/layouts/placed_factory_generic_preserves_source_predicate/main.omg	current=rejected	current_us=3151951	root=compilation	route=no-entry
+program	tests/omega/fail/layouts/placed_factory_generic_preserves_source_predicate/main.omg	current=rejected	current_us=3151951	root=machine:RegPlacement::plan	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/placed_factory_generic_preserves_source_predicate/main.omg	current=rejected	current_us=3151951	root=machine:place_status	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/layouts/placed_factory_generic_preserves_source_predicate/main.omg	current=rejected	current_us=3151951	root=machine:place_transmit	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/layouts/placed_factory_generic_preserves_source_predicate/main.omg	current=rejected	current_us=3151951	root=machine:finish	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/layouts/placed_factory_generic_preserves_source_predicate/main.omg	current=rejected	current_us=3151951	root=machine:mutate	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/layouts/placed_factory_generic_preserves_source_predicate/main.omg	current=rejected	current_us=3151951	root=machine:bad	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/layouts/placed_factory_generic_preserves_source_predicate/main.omg	current=rejected	current_us=3151951	root=machine:Accessor<Access<RegPlacement,Registers>,status>::read	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/placed_factory_generic_preserves_source_predicate/main.omg	current=rejected	current_us=3151951	root=machine:Accessor<Access<RegPlacement,Registers>,transmit>::write	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/layouts/placed_factory_generic_preserves_source_predicate/main.omg	main.omg:85 bytes 2477..2482	accessor write to schema field `transmit` does not preserve its source declaration predicate
+current-diagnostic	tests/omega/fail/layouts/placed_factory_generic_preserves_source_predicate/main.omg	main.omg:85 bytes 2477..2482	accessor write to schema field `transmit` does not preserve its source declaration predicate

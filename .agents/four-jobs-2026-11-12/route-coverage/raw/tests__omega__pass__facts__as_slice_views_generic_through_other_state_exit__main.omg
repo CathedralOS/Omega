@@ -1,0 +1,2 @@
+program	tests/omega/pass/facts/as_slice_views_generic_through_other_state_exit/main.omg	current=rejected	current_us=2479696	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/pass/facts/as_slice_views_generic_through_other_state_exit/main.omg	no-span	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count

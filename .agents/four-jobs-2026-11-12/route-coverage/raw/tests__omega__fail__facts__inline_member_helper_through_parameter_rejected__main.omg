@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/inline_member_helper_through_parameter_rejected/main.omg	current=rejected	current_us=2442523	root=compilation	route=outside	Unsupported: machine suspends or blocks
+current-diagnostic	tests/omega/fail/facts/inline_member_helper_through_parameter_rejected/main.omg	main.omg:46 bytes 1225..1230	cannot prove requires contract for call apply from probe: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

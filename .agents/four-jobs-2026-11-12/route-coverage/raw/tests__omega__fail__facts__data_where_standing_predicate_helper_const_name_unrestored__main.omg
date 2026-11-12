@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/data_where_standing_predicate_helper_const_name_unrestored/main.omg	current=stopped	current_us=991786	root=compilation	route=unreached	Some("machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate")

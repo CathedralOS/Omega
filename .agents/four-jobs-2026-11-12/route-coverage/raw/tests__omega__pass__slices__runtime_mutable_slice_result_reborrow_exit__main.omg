@@ -1,0 +1,1 @@
+program	tests/omega/pass/slices/runtime_mutable_slice_result_reborrow_exit/main.omg	current=accepted	current_us=2998906	root=compilation	route=outside	Unsupported: parameter mutable parameter

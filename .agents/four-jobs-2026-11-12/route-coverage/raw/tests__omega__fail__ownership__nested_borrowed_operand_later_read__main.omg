@@ -1,0 +1,6 @@
+program	tests/omega/fail/ownership/nested_borrowed_operand_later_read/main.omg	current=rejected	current_us=1363333	root=compilation	route=no-entry
+program	tests/omega/fail/ownership/nested_borrowed_operand_later_read/main.omg	current=rejected	current_us=1363333	root=machine:drop_token	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/ownership/nested_borrowed_operand_later_read/main.omg	current=rejected	current_us=1363333	root=machine:identity	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/ownership/nested_borrowed_operand_later_read/main.omg	current=rejected	current_us=1363333	root=machine:transform	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/ownership/nested_borrowed_operand_later_read/main.omg	current=rejected	current_us=1363333	root=machine:repair	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/ownership/nested_borrowed_operand_later_read/main.omg	no-span	cannot use `holder.token.value` while `holder.token` is absent from borrowed storage: the value moved out at statement 0 must be restored first

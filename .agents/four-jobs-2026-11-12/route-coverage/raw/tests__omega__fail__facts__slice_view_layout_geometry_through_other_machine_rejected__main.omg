@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/slice_view_layout_geometry_through_other_machine_rejected/main.omg	current=rejected	current_us=2971856	root=compilation	route=outside	Unsupported: call compiler operation call
+current-diagnostic	tests/omega/fail/facts/slice_view_layout_geometry_through_other_machine_rejected/main.omg	no-span	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]

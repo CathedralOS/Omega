@@ -1,0 +1,3 @@
+program	tests/omega/fail/constraints/computed_local_value_invalidated/main.omg	current=accepted	current_us=1441100	root=compilation	route=no-entry
+program	tests/omega/fail/constraints/computed_local_value_invalidated/main.omg	current=accepted	current_us=1441100	root=machine:replace	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/constraints/computed_local_value_invalidated/main.omg	current=accepted	current_us=1441100	root=machine:produce	route=outside	Unsupported: parameter mutable parameter

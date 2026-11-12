@@ -1,0 +1,4 @@
+program	tests/omega/fail/collections/fixed_array_write_rejects_element_domain/main.omg	current=rejected	current_us=1331890	root=compilation	route=no-entry
+program	tests/omega/fail/collections/fixed_array_write_rejects_element_domain/main.omg	current=rejected	current_us=1331890	root=machine:main	route=outside	Unsupported: type constrained
+program	tests/omega/fail/collections/fixed_array_write_rejects_element_domain/main.omg	current=rejected	current_us=1331890	root=machine:corrupt	route=outside	Unsupported: contract contracts on a state
+current-diagnostic	tests/omega/fail/collections/fixed_array_write_rejects_element_domain/main.omg	main.omg:5 bytes 192..199	cannot prove default-domain field requirement for call corrupt from main::entry: parameter bytes requires [u8; N]::Ascii

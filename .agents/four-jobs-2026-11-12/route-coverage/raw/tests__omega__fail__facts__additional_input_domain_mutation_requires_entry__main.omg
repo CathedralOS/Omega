@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/additional_input_domain_mutation_requires_entry/main.omg	current=rejected	current_us=2231382	root=compilation	route=outside	Unsupported: contract contracts on a state
+current-diagnostic	tests/omega/fail/facts/additional_input_domain_mutation_requires_entry/main.omg	main.omg:10 bytes 344..353	cannot prove requires contract for call overwrite from observed_exit: cell in Cell::Before in state `entry`

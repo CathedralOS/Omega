@@ -1,0 +1,2 @@
+program	tests/omega/pass/recast/callee_returned_interior_view_exit/main.omg	current=rejected	current_us=2597695	root=compilation	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/pass/recast/callee_returned_interior_view_exit/main.omg	main.omg:45 bytes 1506..1547	`entry_start` calls `Main::main`; `Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete input origins)); in state `Main::main::main`, statement 8

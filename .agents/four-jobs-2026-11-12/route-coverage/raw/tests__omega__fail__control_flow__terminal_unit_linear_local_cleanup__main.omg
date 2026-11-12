@@ -1,0 +1,2 @@
+program	tests/omega/fail/control_flow/terminal_unit_linear_local_cleanup/main.omg	current=rejected	current_us=2624096	root=compilation	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/control_flow/terminal_unit_linear_local_cleanup/main.omg	no-span	linear value `frame` reaches scope exit without being consumed or transferred in machine `drive` state `entry`

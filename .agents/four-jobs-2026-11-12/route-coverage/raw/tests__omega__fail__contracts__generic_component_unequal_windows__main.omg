@@ -1,0 +1,4 @@
+program	tests/omega/fail/contracts/generic_component_unequal_windows/main.omg	current=rejected	current_us=1307986	root=compilation	route=no-entry
+program	tests/omega/fail/contracts/generic_component_unequal_windows/main.omg	current=rejected	current_us=1307986	root=machine:pair	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/contracts/generic_component_unequal_windows/main.omg	current=rejected	current_us=1307986	root=machine:Main::main	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/contracts/generic_component_unequal_windows/main.omg	main.omg:6 bytes 180..184	cannot prove requires contract for call pair from Main::main: main.left[..2].len == main.right[..1].len (needs fact `left.len == right.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`

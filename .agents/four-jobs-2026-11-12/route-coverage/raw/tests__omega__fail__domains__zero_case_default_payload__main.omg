@@ -1,0 +1,3 @@
+program	tests/omega/fail/domains/zero_case_default_payload/main.omg	current=rejected	current_us=1276211	root=compilation	route=no-entry
+program	tests/omega/fail/domains/zero_case_default_payload/main.omg	current=rejected	current_us=1276211	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/domains/zero_case_default_payload/main.omg	no-span	construction of `Holder` omits gated field `value`: its zero-filled representation is not an established value -- initialize it explicitly

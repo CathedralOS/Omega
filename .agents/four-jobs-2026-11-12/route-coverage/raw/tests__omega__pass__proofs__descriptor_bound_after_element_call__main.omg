@@ -1,0 +1,2 @@
+program	tests/omega/pass/proofs/descriptor_bound_after_element_call/main.omg	current=rejected	current_us=1566936	root=compilation	route=no-entry
+current-diagnostic	tests/omega/pass/proofs/descriptor_bound_after_element_call/main.omg	no-span	cannot prove ensures contract for exit from filter at statement 1: partition.count <= partition.records.len

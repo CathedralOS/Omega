@@ -1,0 +1,3 @@
+program	tests/omega/fail/generics/runtime_index_carrier_mismatch/main.omg	current=rejected	current_us=1326017	root=compilation	route=no-entry
+program	tests/omega/fail/generics/runtime_index_carrier_mismatch/main.omg	current=rejected	current_us=1326017	root=machine:preserve	route=outside	Unsupported: type generic application
+current-diagnostic	tests/omega/fail/generics/runtime_index_carrier_mismatch/main.omg	main.omg:4 bytes 191..198	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index

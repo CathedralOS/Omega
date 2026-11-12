@@ -1,0 +1,5 @@
+program	tests/omega/fail/drops/temporary_cleanup_false_compound_contract/main.omg	current=rejected	current_us=1314177	root=compilation	route=no-entry
+program	tests/omega/fail/drops/temporary_cleanup_false_compound_contract/main.omg	current=rejected	current_us=1314177	root=machine:drop_token	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/drops/temporary_cleanup_false_compound_contract/main.omg	current=rejected	current_us=1314177	root=machine:read	route=outside	Unsupported: type reference
+program	tests/omega/fail/drops/temporary_cleanup_false_compound_contract/main.omg	current=rejected	current_us=1314177	root=machine:main	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/drops/temporary_cleanup_false_compound_contract/main.omg	no-span	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Token does not establish drop_token clause `token.ready && token.value == 7`

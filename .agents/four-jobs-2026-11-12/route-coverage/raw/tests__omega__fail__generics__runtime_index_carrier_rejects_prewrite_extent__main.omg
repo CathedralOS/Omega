@@ -1,0 +1,2 @@
+program	tests/omega/fail/generics/runtime_index_carrier_rejects_prewrite_extent/main.omg	current=rejected	current_us=2424022	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/generics/runtime_index_carrier_rejects_prewrite_extent/main.omg	main.omg:8 bytes 647..655	machine `exercise` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index

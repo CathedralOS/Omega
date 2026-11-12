@@ -1,0 +1,16 @@
+program	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	current=rejected	current_us=2467988	root=compilation	route=rejected	route_us=10739	discharge_us=9838	reverify_us=7663	reverified=9	obligations=12	judged=9	core_refused=0	unproved=2	refused_other=0	needed_relation=0	needed_branch=1	published_held=1	uses=8	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+current-diagnostic	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	main.omg:14 bytes 440..441	cannot prove ensures contract for exit from inspect at statement 1: result <= 60
+obligation	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	1	1	domain	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	1	2	domain	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	1	3	crash	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	1	4	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	1	5	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	2	1	published	unproved	-	a normal return does not establish this clause
+obligation	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	2	2	safety	discharged-judged+branch	IntegerConstant,join	-
+obligation	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	2	3	guarantee	unproved	-	the bounds do not decide the comparison
+obligation	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	2	4	guarantee	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	3	1	published	every-exit:1	-	-
+obligation	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	3	2	guarantee	discharged-judged+interval	CallStructuralScalar	-
+obligation	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	5	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	2	3	reject	main.omg:14 bytes 440..441	cannot prove ensures contract for exit from inspect at statement 1: result <= 60 (no proof found from the facts available here: the bounds do not decide the comparison)	site=exact
+quality	tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg	root=compilation	fragment=all	site=exact	expected=cannot prove ensures contract for exit from inspect at statement 1: result <= 60

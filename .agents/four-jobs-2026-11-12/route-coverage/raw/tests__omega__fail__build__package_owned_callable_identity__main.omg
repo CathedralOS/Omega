@@ -1,0 +1,2 @@
+program	tests/omega/fail/build/package_owned_callable_identity/main.omg	current=rejected	current_us=3908396	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+current-diagnostic	tests/omega/fail/build/package_owned_callable_identity/main.omg	no-span	build selects provider `other_clock::clock::DependencyClock` for slot `clock::Clock`, but no candidate exists in the loaded dependency closure

@@ -1,0 +1,4 @@
+program	tests/omega/fail/arithmetic/exact_aggregate_divisor_unproven/main.omg	current=rejected	current_us=1459461	root=compilation	route=no-entry
+program	tests/omega/fail/arithmetic/exact_aggregate_divisor_unproven/main.omg	current=rejected	current_us=1459461	root=machine:quotient	route=outside	Unsupported: type fixed array
+current-diagnostic	tests/omega/fail/arithmetic/exact_aggregate_divisor_unproven/main.omg	main.omg:2 bytes 49..66	partial exact division in array literal element of type `u32`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+current-diagnostic	tests/omega/fail/arithmetic/exact_aggregate_divisor_unproven/main.omg	main.omg:2 bytes 49..66	partial exact division in machine `quotient` state `entry` return value: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts

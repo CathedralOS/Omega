@@ -1,0 +1,4 @@
+program	tests/omega/fail/float/symbolic_integer_conversion_requires_preserves_exact_cast/main.omg	current=rejected	current_us=1274234	root=compilation	route=no-entry
+program	tests/omega/fail/float/symbolic_integer_conversion_requires_preserves_exact_cast/main.omg	current=rejected	current_us=1274234	root=machine:finite_value	route=outside	Unsupported: type float
+program	tests/omega/fail/float/symbolic_integer_conversion_requires_preserves_exact_cast/main.omg	current=rejected	current_us=1274234	root=machine:main	route=outside	Unsupported: type float
+current-diagnostic	tests/omega/fail/float/symbolic_integer_conversion_requires_preserves_exact_cast/main.omg	main.omg:7 bytes 179..190	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round

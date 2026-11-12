@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/temporary_case_cleanup_through_parameter_rejected/main.omg	current=rejected	current_us=1799584	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/facts/temporary_case_cleanup_through_parameter_rejected/main.omg	main.omg:13 bytes 642..659	cannot prove requires contract: machine `main` state `entry` value call to `through_parameter` violates required fact `value.value == 2`: the instantiated fact is structurally false (`1 == 2`)

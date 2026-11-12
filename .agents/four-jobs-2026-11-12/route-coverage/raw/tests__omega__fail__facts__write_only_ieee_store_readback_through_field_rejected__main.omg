@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/write_only_ieee_store_readback_through_field_rejected/main.omg	current=rejected	current_us=1804601	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/write_only_ieee_store_readback_through_field_rejected/main.omg	no-span	machine `store` state `entry` reads write-only parameter `r`; `&write` permits replacement or exact `&write` forwarding, never observation

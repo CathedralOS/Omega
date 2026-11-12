@@ -1,0 +1,3 @@
+program	tests/omega/fail/packages/indexed_contract_out_of_bounds/main.omg	current=rejected	current_us=1395677	root=compilation	route=no-entry
+program	tests/omega/fail/packages/indexed_contract_out_of_bounds/main.omg	current=rejected	current_us=1395677	root=machine:inspect	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/packages/indexed_contract_out_of_bounds/main.omg	no-span	cannot prove index `8` is within length 8

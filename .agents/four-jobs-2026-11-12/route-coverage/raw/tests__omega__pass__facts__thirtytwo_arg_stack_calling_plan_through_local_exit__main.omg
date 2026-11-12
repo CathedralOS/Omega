@@ -1,0 +1,53 @@
+program	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	current=accepted	current_us=3493047	root=compilation	route=rejected	route_us=562127	discharge_us=560818	reverify_us=483658	reverified=46	obligations=50	judged=46	core_refused=0	unproved=4	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	1	2	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	1	published	unproved	-	a normal return does not establish this clause
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	2	safety	discharged-judged+interval	formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	3	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	4	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	5	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	6	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	7	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	8	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	9	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	10	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	11	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	12	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	13	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	14	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	15	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	16	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	17	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	18	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	19	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	20	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	21	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	22	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	23	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	24	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	25	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	26	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	27	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	28	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	29	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	30	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	31	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	32	safety	discharged-judged+interval	ExactIntegerAdd,IntegerConstant	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	33	safety	discharged-judged+interval	ExactIntegerSubtract,formal	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	34	guarantee	unproved	-	the bounds do not decide the comparison
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	3	1	published	unproved	-	a normal return does not establish this clause
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	3	2	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	3	3	safety	discharged-judged+interval	Call,IntegerConstant	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	3	4	safety	discharged-judged+interval	Call,IntegerConstant	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	3	5	safety	discharged-judged+interval	ExactIntegerSubtract	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	3	6	safety	discharged-judged+interval	ExactIntegerAdd,IntegerConstant	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	3	7	guarantee	unproved	-	the bounds do not decide the comparison
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	3	8	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	3	9	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	3	10	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	3	11	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	3	12	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	5	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	7	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	2	34	reject	main.omg:53 bytes 1566..1567	cannot prove ensures contract for exit from pick32 at statement 1: result >= 40 && result <= 80 && result == a32 (no proof found from the facts available here: the bounds do not decide the comparison)	site=different
+diagnostic	tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_local_exit/main.omg	3	7	reject	main.omg:96 bytes 2739..2741	cannot prove ensures contract for exit from probe at statement 37: result == 0 (no proof found from the facts available here: the bounds do not decide the comparison)	site=different

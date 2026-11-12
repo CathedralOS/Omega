@@ -1,0 +1,1 @@
+program	tests/omega/fail/generics/type_equation_template_value_operand/main.omg	current=stopped	current_us=717181	root=compilation	route=unreached	Some("generic data `Template` requires type equation operand `COUNT` does not name a closed type")

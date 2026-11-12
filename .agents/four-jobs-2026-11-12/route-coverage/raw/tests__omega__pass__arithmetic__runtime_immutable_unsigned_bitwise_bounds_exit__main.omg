@@ -1,0 +1,3 @@
+program	tests/omega/pass/arithmetic/runtime_immutable_unsigned_bitwise_bounds_exit/main.omg	current=rejected	current_us=2204847	root=compilation	route=outside	Unsupported: contract term other than a formal or literal
+current-diagnostic	tests/omega/pass/arithmetic/runtime_immutable_unsigned_bitwise_bounds_exit/main.omg	main.omg:10 bytes 349..355	machine `masked` cannot prove ensures contract proof fact `value & 16 >= 16` on the transition arm guarded by `<always>`
+current-diagnostic	tests/omega/pass/arithmetic/runtime_immutable_unsigned_bitwise_bounds_exit/main.omg	main.omg:10 bytes 349..355	machine `masked` cannot prove ensures contract proof fact `result == 16` on the transition arm guarded by `<always>`

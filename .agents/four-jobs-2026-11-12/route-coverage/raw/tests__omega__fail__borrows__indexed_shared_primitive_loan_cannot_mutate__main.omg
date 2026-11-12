@@ -1,0 +1,6 @@
+program	tests/omega/fail/borrows/indexed_shared_primitive_loan_cannot_mutate/main.omg	current=rejected	current_us=1254689	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/indexed_shared_primitive_loan_cannot_mutate/main.omg	current=rejected	current_us=1254689	root=machine:take	route=outside	Unsupported: type reference
+program	tests/omega/fail/borrows/indexed_shared_primitive_loan_cannot_mutate/main.omg	current=rejected	current_us=1254689	root=machine:change	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/borrows/indexed_shared_primitive_loan_cannot_mutate/main.omg	current=rejected	current_us=1254689	root=machine:read	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/borrows/indexed_shared_primitive_loan_cannot_mutate/main.omg	main.omg:10 bytes 394..400	mutable argument `selected_value` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+current-diagnostic	tests/omega/fail/borrows/indexed_shared_primitive_loan_cannot_mutate/main.omg	main.omg:10 bytes 394..400	machine `read` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate

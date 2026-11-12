@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/descriptor_replacement_order_through_call_result_rejected/main.omg	current=rejected	current_us=2027630	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/facts/descriptor_replacement_order_through_call_result_rejected/main.omg	no-span	cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first

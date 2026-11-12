@@ -1,0 +1,3 @@
+program	tests/omega/fail/ownership/linear_temporary_scalar_observation/main.omg	current=rejected	current_us=1336418	root=compilation	route=no-entry
+program	tests/omega/fail/ownership/linear_temporary_scalar_observation/main.omg	current=rejected	current_us=1336418	root=machine:Main::main	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/ownership/linear_temporary_scalar_observation/main.omg	main.omg:9 bytes 186..190	linear value `named(name(nominal\(package-owner\(32:348b834b2ee15f1fc526b3e37beaa6c012691d1c3bc4b2b7cd017469281f30bc\)\,path\(Receipt\)\)))` reaches scope exit without being consumed or transferred in machine `Main::main` state `main`

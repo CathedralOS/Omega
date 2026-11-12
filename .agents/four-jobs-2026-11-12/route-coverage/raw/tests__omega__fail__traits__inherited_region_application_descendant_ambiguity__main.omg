@@ -1,0 +1,5 @@
+program	tests/omega/fail/traits/inherited_region_application_descendant_ambiguity/main.omg	current=rejected	current_us=1324280	root=compilation	route=no-entry
+program	tests/omega/fail/traits/inherited_region_application_descendant_ambiguity/main.omg	current=rejected	current_us=1324280	root=machine:Ambiguous::read	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/traits/inherited_region_application_descendant_ambiguity/main.omg	current=rejected	current_us=1324280	root=machine:read_realization	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/traits/inherited_region_application_descendant_ambiguity/main.omg	current=rejected	current_us=1324280	root=machine:Main::main	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/traits/inherited_region_application_descendant_ambiguity/main.omg	no-span	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`

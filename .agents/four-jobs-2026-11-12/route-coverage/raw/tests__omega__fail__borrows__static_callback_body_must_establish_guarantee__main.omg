@@ -1,0 +1,2 @@
+program	tests/omega/fail/borrows/static_callback_body_must_establish_guarantee/main.omg	current=rejected	current_us=2792399	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/borrows/static_callback_body_must_establish_guarantee/main.omg	main.omg:6 bytes 376..425	cannot prove ensures contract for exit from keep at statement 0: result.bytes.len == source.bytes.len

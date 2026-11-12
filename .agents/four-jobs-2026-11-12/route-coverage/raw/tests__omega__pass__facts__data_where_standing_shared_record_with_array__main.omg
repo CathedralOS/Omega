@@ -1,0 +1,2 @@
+program	tests/omega/pass/facts/data_where_standing_shared_record_with_array/main.omg	current=rejected	current_us=2206052	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/pass/facts/data_where_standing_shared_record_with_array/main.omg	main.omg:8 bytes 532..534	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first

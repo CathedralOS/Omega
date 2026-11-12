@@ -1,0 +1,17 @@
+program	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	current=rejected	current_us=4313111	root=compilation	route=rejected	route_us=11832	discharge_us=11102	reverify_us=9690	reverified=11	obligations=13	judged=11	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=5	published_held=1	uses=7	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+current-diagnostic	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	main.omg:41 bytes 1596..1610	cannot prove requires contract for call verify_payload from step: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+obligation	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	2	1	published	every-exit:5	-	-
+obligation	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	2	2	guarantee	discharged-judged+branch	join	-
+obligation	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	2	3	guarantee	discharged-judged+branch	join	-
+obligation	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	2	4	guarantee	discharged-judged+branch	join	-
+obligation	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	2	5	guarantee	discharged-judged+branch	join	-
+obligation	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	2	6	guarantee	discharged-judged+branch	join	-
+obligation	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	3	1	safety	discharged-judged+interval	IntegerConstant,formal	-
+obligation	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	3	2	safety	discharged-judged+interval	IntegerConstant,formal	-
+obligation	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	3	3	safety	discharged-judged+interval	ExactIntegerSubtract	-
+obligation	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	5	1	requirement	unproved	-	the bounds do not decide the comparison
+obligation	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	6	1	domain	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	8	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	5	1	reject	main.omg:41 bytes 1596..1610	cannot prove requires contract for call verify_payload from step: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry` (no proof found from the facts available here: the bounds do 	site=exact
+quality	tests/omega/fail/facts/five_variant_enum_payload_bound_through_other_state_rejected/main.omg	root=compilation	fragment=all	site=exact	expected=cannot prove requires contract for call

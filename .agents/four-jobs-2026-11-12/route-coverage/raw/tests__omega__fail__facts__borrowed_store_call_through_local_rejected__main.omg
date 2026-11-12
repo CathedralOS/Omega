@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/borrowed_store_call_through_local_rejected/main.omg	current=rejected	current_us=2145927	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/facts/borrowed_store_call_through_local_rejected/main.omg	no-span	machine `update` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable

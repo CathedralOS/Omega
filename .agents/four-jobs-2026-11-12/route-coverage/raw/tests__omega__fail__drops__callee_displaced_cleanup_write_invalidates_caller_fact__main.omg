@@ -1,0 +1,6 @@
+program	tests/omega/fail/drops/callee_displaced_cleanup_write_invalidates_caller_fact/main.omg	current=rejected	current_us=1302972	root=compilation	route=no-entry
+program	tests/omega/fail/drops/callee_displaced_cleanup_write_invalidates_caller_fact/main.omg	current=rejected	current_us=1302972	root=machine:drop_affine_leaf	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/drops/callee_displaced_cleanup_write_invalidates_caller_fact/main.omg	current=rejected	current_us=1302972	root=machine:demand_zero	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/drops/callee_displaced_cleanup_write_invalidates_caller_fact/main.omg	current=rejected	current_us=1302972	root=machine:displace	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/drops/callee_displaced_cleanup_write_invalidates_caller_fact/main.omg	current=rejected	current_us=1302972	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/drops/callee_displaced_cleanup_write_invalidates_caller_fact/main.omg	main.omg:17 bytes 862..873	cannot prove requires contract for call demand_zero from main: counter.drops == 0 (needs fact `counter.drops == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

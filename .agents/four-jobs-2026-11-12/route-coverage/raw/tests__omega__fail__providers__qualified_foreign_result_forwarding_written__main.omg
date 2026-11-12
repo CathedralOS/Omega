@@ -1,0 +1,8 @@
+program	tests/omega/fail/providers/qualified_foreign_result_forwarding_written/main.omg	current=rejected	current_us=1303860	root=compilation	route=no-entry
+program	tests/omega/fail/providers/qualified_foreign_result_forwarding_written/main.omg	current=rejected	current_us=1303860	root=machine:Table::read	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/providers/qualified_foreign_result_forwarding_written/main.omg	current=rejected	current_us=1303860	root=machine:clear	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/providers/qualified_foreign_result_forwarding_written/main.omg	current=rejected	current_us=1303860	root=machine:wrong	route=outside	Unsupported: type reference
+program	tests/omega/fail/providers/qualified_foreign_result_forwarding_written/main.omg	current=rejected	current_us=1303860	root=machine:Table::read	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/providers/qualified_foreign_result_forwarding_written/main.omg	no-span	state `read` receives `protocol` as both mutable and read-only
+current-diagnostic	tests/omega/fail/providers/qualified_foreign_result_forwarding_written/main.omg	main.omg:25 bytes 825..829	cannot prove requires contract for call read from wrong: protocol in Guid::Selected in state `entry`
+current-diagnostic	tests/omega/fail/providers/qualified_foreign_result_forwarding_written/main.omg	main.omg:25 bytes 825..829	cannot prove ensures contract for exit from wrong at statement 0: result.code == 0

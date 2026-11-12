@@ -1,0 +1,3 @@
+program	tests/omega/fail/data/constructor_stale_local_bounds/main.omg	current=rejected	current_us=1311840	root=compilation	route=no-entry
+program	tests/omega/fail/data/constructor_stale_local_bounds/main.omg	current=rejected	current_us=1311840	root=machine:invalid	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/data/constructor_stale_local_bounds/main.omg	main.omg:6 bytes 227..253	data `Bounded` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)

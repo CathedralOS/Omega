@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/computed_subslice_extent_linear_elements_rejected/main.omg	current=rejected	current_us=2368258	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/computed_subslice_extent_linear_elements_rejected/main.omg	no-span	specification call `accepts` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content

@@ -1,0 +1,1 @@
+program	tests/omega/fail/arithmetic/policy_operator_qualified_operand/main.omg	current=stopped	current_us=10199038	root=compilation	route=unreached	Some("`+%` takes unqualified integer operands, but its left operand has type `u32 in Wrapping`; a suffixed operator neither reads nor removes a domain, so cast the domain away first")

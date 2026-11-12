@@ -1,0 +1,1 @@
+program	tests/omega/fail/layouts/fixed_layout_constant_producer_policy_const_identity_rejected/main.omg	current=stopped	current_us=1626609	root=compilation	route=unreached	Some("constant initializer: constant initializer result does not match its declared carrier")

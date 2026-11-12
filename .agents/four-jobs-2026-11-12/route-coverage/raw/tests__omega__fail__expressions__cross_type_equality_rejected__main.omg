@@ -1,0 +1,1 @@
+program	tests/omega/fail/expressions/cross_type_equality_rejected/main.omg	current=stopped	current_us=9535090	root=compilation	route=unreached	Some("cannot compare `P` and `Q` with `==`/`!=`: the operands are different data types (equality requires both operands to be the same type)")

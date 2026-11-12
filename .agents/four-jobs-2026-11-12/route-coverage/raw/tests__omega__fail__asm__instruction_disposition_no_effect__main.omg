@@ -1,0 +1,6 @@
+program	tests/omega/fail/asm/instruction_disposition_no_effect/main.omg	current=rejected	current_us=1459434	root=compilation	route=no-entry
+program	tests/omega/fail/asm/instruction_disposition_no_effect/main.omg	current=rejected	current_us=1459434	root=machine:Finisher::finish	route=outside	Unsupported: machine service reach
+program	tests/omega/fail/asm/instruction_disposition_no_effect/main.omg	current=rejected	current_us=1459434	root=machine:finish_realization	route=outside	Unsupported: machine service reach
+program	tests/omega/fail/asm/instruction_disposition_no_effect/main.omg	current=rejected	current_us=1459434	root=machine:main	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/asm/instruction_disposition_no_effect/main.omg	no-span	cannot prove ensures contract for exit from finish_realization at statement 5: proposition:fact:model_specific_written(2059,0)
+current-diagnostic	tests/omega/fail/asm/instruction_disposition_no_effect/main.omg	no-span	linear value `token` reaches scope exit without being consumed or transferred in machine `finish_realization` state `entry`

@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/content_reunion_through_const_name_rejected/main.omg	current=rejected	current_us=2707071	root=compilation	route=outside	Unsupported: machine type equations, owned data or conformances
+current-diagnostic	tests/omega/fail/facts/content_reunion_through_const_name_rejected/main.omg	main.omg:106 bytes 4328..4336	cannot prove ensures contract for exit from rejoin at statement 10: result in Region::Owned; the returned value does not establish this domain

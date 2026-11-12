@@ -1,0 +1,1 @@
+program	tests/omega/fail/generics/inferred_equation_typed_const_other_machine_conflict/main.omg	current=stopped	current_us=1040170	root=compilation	route=unreached	Some("generic data `IndexedPacket` requires equation binds `Capacity` to 2 but its explicit argument is 3")

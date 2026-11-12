@@ -1,0 +1,3 @@
+program	tests/omega/fail/facts/domain_selected_cleanup_erased_predicates_rejected/main.omg	current=rejected	current_us=2485364	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/domain_selected_cleanup_erased_predicates_rejected/main.omg	no-span	construction value is not proven in domain `Keeper::Held` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+current-diagnostic	tests/omega/fail/facts/domain_selected_cleanup_erased_predicates_rejected/main.omg	no-span	cannot prove initializer of `keeper` in main is in domain `Keeper::Held`; an annotation cannot establish routed qualification

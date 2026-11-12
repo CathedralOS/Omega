@@ -1,0 +1,4 @@
+program	tests/omega/fail/domains/implicit_semantic_domain_local_weakening/main.omg	current=rejected	current_us=1251499	root=compilation	route=no-entry
+program	tests/omega/fail/domains/implicit_semantic_domain_local_weakening/main.omg	current=rejected	current_us=1251499	root=machine:i32::Degrees::add	route=outside	Unsupported: machine operator spelling
+program	tests/omega/fail/domains/implicit_semantic_domain_local_weakening/main.omg	current=rejected	current_us=1251499	root=machine:Main::main	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/domains/implicit_semantic_domain_local_weakening/main.omg	main.omg:12 bytes 266..273	implicit domain weakening in machine `Main::main` state `main` local `raw` drops `Degrees`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target

@@ -1,0 +1,2 @@
+program	tests/omega/fail/drops/nested_cleanup_parent_mutates_child_prerequisite/main.omg	current=rejected	current_us=2306475	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/drops/nested_cleanup_parent_mutates_child_prerequisite/main.omg	no-span	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: owner.token does not establish drop_token clause `token.value == 7`

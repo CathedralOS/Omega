@@ -1,0 +1,15 @@
+program	tests/omega/pass/facts/nested_record_value_through_other_machine_exit/main.omg	current=accepted	current_us=3374512	root=compilation	route=accepted	route_us=12041	discharge_us=10714	reverify_us=8504	reverified=11	obligations=14	judged=11	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=3	uses=10	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/facts/nested_record_value_through_other_machine_exit/main.omg	1	1	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/nested_record_value_through_other_machine_exit/main.omg	1	2	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/nested_record_value_through_other_machine_exit/main.omg	1	3	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/nested_record_value_through_other_machine_exit/main.omg	1	4	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/nested_record_value_through_other_machine_exit/main.omg	2	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/facts/nested_record_value_through_other_machine_exit/main.omg	2	2	safety	discharged-judged+interval	ScalarStructuralField	-
+obligation	tests/omega/pass/facts/nested_record_value_through_other_machine_exit/main.omg	2	3	guarantee	discharged-judged+interval	ExactIntegerAdd	-
+obligation	tests/omega/pass/facts/nested_record_value_through_other_machine_exit/main.omg	3	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/facts/nested_record_value_through_other_machine_exit/main.omg	3	2	requirement	discharged-judged+interval	entry-content	-
+obligation	tests/omega/pass/facts/nested_record_value_through_other_machine_exit/main.omg	3	3	guarantee	discharged-judged+interval	CallStructuralScalar	-
+obligation	tests/omega/pass/facts/nested_record_value_through_other_machine_exit/main.omg	4	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/facts/nested_record_value_through_other_machine_exit/main.omg	4	2	requirement	discharged-judged+interval	entry-content	-
+obligation	tests/omega/pass/facts/nested_record_value_through_other_machine_exit/main.omg	4	3	guarantee	discharged-judged+interval	CallStructuralScalar	-
+obligation	tests/omega/pass/facts/nested_record_value_through_other_machine_exit/main.omg	6	1	crash	discharged-judged+interval	-	-

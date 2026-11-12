@@ -1,0 +1,2 @@
+program	tests/omega/fail/ownership/runtime_singleton_selector_moved_element/main.omg	current=rejected	current_us=2186087	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/ownership/runtime_singleton_selector_moved_element/main.omg	no-span	cannot use `tokens[0]` in machine `main` state `entry` (statement 3) after `tokens[0]` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `tokens[0]` first

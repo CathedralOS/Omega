@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/inferred_array_equation_call_through_field_rejected/main.omg	current=stopped	current_us=1031010	root=compilation	route=unreached	Some("generic machine `capacity` requires equation binds `Capacity` to 2 but its explicit argument is 3")

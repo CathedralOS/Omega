@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/source_indexed_type_parameter_through_const_name_rejected/main.omg	current=stopped	current_us=2361335	root=compilation	route=unreached	Some("source constructor predicate has no checked derivation yet")

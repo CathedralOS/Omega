@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/build_activation_borrow/call_result/main.omg	current=stopped	current_us=781820	root=compilation	route=unreached	Some("root binding requires a compiler-issued &mut Build receiver")

@@ -1,0 +1,1 @@
+program	tests/omega/fail/build/behavior_exclusion_forged_protocol/main.omg	current=stopped	current_us=730712	root=compilation	route=unreached	Some("Build binding protocol requires source-issued designated product operands")

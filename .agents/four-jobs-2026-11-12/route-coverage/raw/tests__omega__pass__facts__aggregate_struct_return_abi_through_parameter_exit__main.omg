@@ -1,0 +1,15 @@
+program	tests/omega/pass/facts/aggregate_struct_return_abi_through_parameter_exit/main.omg	current=accepted	current_us=3288692	root=compilation	route=accepted	route_us=26944	discharge_us=26095	reverify_us=24121	reverified=12	obligations=14	judged=12	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=2	uses=8	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/facts/aggregate_struct_return_abi_through_parameter_exit/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/aggregate_struct_return_abi_through_parameter_exit/main.omg	2	1	domain	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/aggregate_struct_return_abi_through_parameter_exit/main.omg	2	2	domain	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/aggregate_struct_return_abi_through_parameter_exit/main.omg	2	3	domain	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/aggregate_struct_return_abi_through_parameter_exit/main.omg	2	4	domain	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/aggregate_struct_return_abi_through_parameter_exit/main.omg	3	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/facts/aggregate_struct_return_abi_through_parameter_exit/main.omg	3	2	safety	discharged-judged+interval	ScalarStructuralField	-
+obligation	tests/omega/pass/facts/aggregate_struct_return_abi_through_parameter_exit/main.omg	3	3	safety	discharged-judged+interval	ExactIntegerAdd,ScalarStructuralField	-
+obligation	tests/omega/pass/facts/aggregate_struct_return_abi_through_parameter_exit/main.omg	3	4	safety	discharged-judged+interval	ExactIntegerAdd,ScalarStructuralField	-
+obligation	tests/omega/pass/facts/aggregate_struct_return_abi_through_parameter_exit/main.omg	3	5	safety	discharged-judged+interval	ExactIntegerAdd,IntegerConstant	-
+obligation	tests/omega/pass/facts/aggregate_struct_return_abi_through_parameter_exit/main.omg	3	6	guarantee	discharged-judged+interval	ExactIntegerSubtract	-
+obligation	tests/omega/pass/facts/aggregate_struct_return_abi_through_parameter_exit/main.omg	4	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/facts/aggregate_struct_return_abi_through_parameter_exit/main.omg	4	2	guarantee	discharged-judged+interval	CallStructuralScalar	-
+obligation	tests/omega/pass/facts/aggregate_struct_return_abi_through_parameter_exit/main.omg	6	1	crash	discharged-judged+interval	-	-

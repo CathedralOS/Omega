@@ -1,0 +1,2 @@
+program	tests/omega/fail/modules/same_name_record_field_extent/main.omg	current=rejected	current_us=2393062	root=compilation	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/modules/same_name_record_field_extent/main.omg	no-span	cannot prove index `3` is within length 2

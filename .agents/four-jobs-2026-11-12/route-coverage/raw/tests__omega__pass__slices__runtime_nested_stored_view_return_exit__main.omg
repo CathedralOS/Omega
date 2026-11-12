@@ -1,0 +1,2 @@
+program	tests/omega/pass/slices/runtime_nested_stored_view_return_exit/main.omg	current=rejected	current_us=2273213	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/pass/slices/runtime_nested_stored_view_return_exit/main.omg	no-span	returned view has no complete formation frontier

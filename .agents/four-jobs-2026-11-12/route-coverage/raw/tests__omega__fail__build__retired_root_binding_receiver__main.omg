@@ -1,0 +1,1 @@
+program	tests/omega/fail/build/retired_root_binding_receiver/main.omg	current=stopped	current_us=647602	root=compilation	route=unreached	Some("/tmp/omega-corpus-session-76516-0/source/tests/omega/fail/build/retired_root_binding_receiver/main.omg:1:1: receiver-style root binding is retired; use Build::bind(builder, slot, entry)")

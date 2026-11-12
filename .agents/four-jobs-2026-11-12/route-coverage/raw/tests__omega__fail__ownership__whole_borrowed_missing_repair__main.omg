@@ -1,0 +1,4 @@
+program	tests/omega/fail/ownership/whole_borrowed_missing_repair/main.omg	current=rejected	current_us=1310934	root=compilation	route=no-entry
+program	tests/omega/fail/ownership/whole_borrowed_missing_repair/main.omg	current=rejected	current_us=1310934	root=machine:drop_inventory	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/ownership/whole_borrowed_missing_repair/main.omg	current=rejected	current_us=1310934	root=machine:leave_empty	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/ownership/whole_borrowed_missing_repair/main.omg	no-span	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `leave_empty`, state `entry` (statement 0): `inventory` must hold a value again before this state's exits consume the borrow

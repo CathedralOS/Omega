@@ -1,0 +1,5 @@
+program	tests/omega/fail/drops/indexed_cleanup_unproved_disjunction/main.omg	current=rejected	current_us=1364867	root=compilation	route=no-entry
+program	tests/omega/fail/drops/indexed_cleanup_unproved_disjunction/main.omg	current=rejected	current_us=1364867	root=machine:drop_owner	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/drops/indexed_cleanup_unproved_disjunction/main.omg	current=rejected	current_us=1364867	root=machine:finish	route=outside	Unsupported: contract disjunction
+program	tests/omega/fail/drops/indexed_cleanup_unproved_disjunction/main.omg	current=rejected	current_us=1364867	root=machine:main	route=outside	Unsupported: contract disjunction
+current-diagnostic	tests/omega/fail/drops/indexed_cleanup_unproved_disjunction/main.omg	no-span	cannot prove automatic cleanup requires at selected edge from finish state entry after statement 1: owner does not establish drop_owner clause `owner.values[1] == 7`

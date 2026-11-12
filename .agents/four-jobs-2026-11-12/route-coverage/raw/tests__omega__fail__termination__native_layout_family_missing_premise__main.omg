@@ -1,0 +1,2 @@
+program	tests/omega/fail/termination/native_layout_family_missing_premise/main.omg	current=rejected	current_us=2234916	root=compilation	route=outside	Unsupported: machine target selection
+current-diagnostic	tests/omega/fail/termination/native_layout_family_missing_premise/main.omg	no-span	machine `checked_caller` derives progress premise `package:4b4fbeae321cd3876a59f40be31128513ebe5c2d6fda50a29daffda58e414294:product::Token::Fair` for `checked_caller::entry::right.Holder::token` from a selected call, but its published termination contract does not cover that exact subject

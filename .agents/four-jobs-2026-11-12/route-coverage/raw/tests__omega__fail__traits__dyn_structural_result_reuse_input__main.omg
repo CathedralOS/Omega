@@ -1,0 +1,5 @@
+program	tests/omega/fail/traits/dyn_structural_result_reuse_input/main.omg	current=rejected	current_us=1281676	root=compilation	route=no-entry
+program	tests/omega/fail/traits/dyn_structural_result_reuse_input/main.omg	current=rejected	current_us=1281676	root=machine:drop_token	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/traits/dyn_structural_result_reuse_input/main.omg	current=rejected	current_us=1281676	root=machine:Identity::relay	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/traits/dyn_structural_result_reuse_input/main.omg	current=rejected	current_us=1281676	root=machine:probe	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/traits/dyn_structural_result_reuse_input/main.omg	no-span	cannot use `token` in machine `probe` state `entry` (statement 3) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first

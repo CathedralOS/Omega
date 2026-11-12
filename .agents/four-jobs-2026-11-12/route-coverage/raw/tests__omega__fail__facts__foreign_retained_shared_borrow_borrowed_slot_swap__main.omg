@@ -1,0 +1,3 @@
+program	tests/omega/fail/facts/foreign_retained_shared_borrow_borrowed_slot_swap/main.omg	current=rejected	current_us=3051143	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/facts/foreign_retained_shared_borrow_borrowed_slot_swap/main.omg	no-span	statement 13 mutates `first_buffer.value` while local borrow `first` is still active (borrowed at statement 4; its last use is at statement 16)
+current-diagnostic	tests/omega/fail/facts/foreign_retained_shared_borrow_borrowed_slot_swap/main.omg	no-span	statement 13 mutates `first_buffer.value` while local borrow `state` is still active (borrowed at statement 7; its last use is at statement 16)

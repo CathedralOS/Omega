@@ -1,0 +1,1 @@
+program	tests/omega/fail/dependent/data_requires_empty_clause/main.omg	current=stopped	current_us=661100	root=compilation	route=unreached	Some("/tmp/omega-corpus-session-78088-0/source/tests/omega/fail/dependent/data_requires_empty_clause/main.omg:1:23: expected expression")

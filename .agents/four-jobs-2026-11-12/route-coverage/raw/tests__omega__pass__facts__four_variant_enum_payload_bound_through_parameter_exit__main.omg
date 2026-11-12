@@ -1,0 +1,10 @@
+program	tests/omega/pass/facts/four_variant_enum_payload_bound_through_parameter_exit/main.omg	current=accepted	current_us=3823437	root=compilation	route=rejected	route_us=11155	discharge_us=10196	reverify_us=8122	reverified=7	obligations=8	judged=7	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=6	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/facts/four_variant_enum_payload_bound_through_parameter_exit/main.omg	1	1	domain	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/facts/four_variant_enum_payload_bound_through_parameter_exit/main.omg	1	2	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/facts/four_variant_enum_payload_bound_through_parameter_exit/main.omg	2	1	safety	discharged-judged+interval	IntegerConstant,formal	-
+obligation	tests/omega/pass/facts/four_variant_enum_payload_bound_through_parameter_exit/main.omg	2	2	safety	discharged-judged+interval	IntegerConstant,formal	-
+obligation	tests/omega/pass/facts/four_variant_enum_payload_bound_through_parameter_exit/main.omg	2	3	safety	discharged-judged+interval	ExactIntegerSubtract	-
+obligation	tests/omega/pass/facts/four_variant_enum_payload_bound_through_parameter_exit/main.omg	3	1	requirement	discharged-judged+interval	formal	-
+obligation	tests/omega/pass/facts/four_variant_enum_payload_bound_through_parameter_exit/main.omg	5	1	requirement	unproved	-	the bounds do not decide the comparison
+obligation	tests/omega/pass/facts/four_variant_enum_payload_bound_through_parameter_exit/main.omg	7	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/pass/facts/four_variant_enum_payload_bound_through_parameter_exit/main.omg	5	1	reject	main.omg:38 bytes 1297..1304	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry` (no proof found from the facts available here: the boun	site=different

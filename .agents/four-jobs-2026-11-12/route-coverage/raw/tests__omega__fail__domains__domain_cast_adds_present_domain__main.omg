@@ -1,0 +1,1 @@
+program	tests/omega/fail/domains/domain_cast_adds_present_domain/main.omg	current=stopped	current_us=986565	root=compilation	route=unreached	Some("cast entry `+Km` adds domain `Km`, but the operand's type `i32[in Km, in Positive]` already carries `Km`; write `=Km` to keep it")

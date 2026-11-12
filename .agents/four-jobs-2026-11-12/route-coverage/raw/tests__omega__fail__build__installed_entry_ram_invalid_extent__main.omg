@@ -1,0 +1,1 @@
+program	tests/omega/fail/build/installed_entry_ram_invalid_extent/main.omg	current=accepted	current_us=6824996	root=compilation	route=outside	Unsupported: parameter mutable parameter

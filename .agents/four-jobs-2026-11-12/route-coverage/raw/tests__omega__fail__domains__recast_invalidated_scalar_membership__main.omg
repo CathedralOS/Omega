@@ -1,0 +1,5 @@
+program	tests/omega/fail/domains/recast_invalidated_scalar_membership/main.omg	current=rejected	current_us=1283664	root=compilation	route=no-entry
+program	tests/omega/fail/domains/recast_invalidated_scalar_membership/main.omg	current=rejected	current_us=1283664	root=machine:overwrite	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/domains/recast_invalidated_scalar_membership/main.omg	current=rejected	current_us=1283664	root=machine:invalid	route=outside	Unsupported: type constrained
+current-diagnostic	tests/omega/fail/domains/recast_invalidated_scalar_membership/main.omg	main.omg:5 bytes 153..162	cannot prove default-domain field requirement for call overwrite from invalid::entry: parameter value requires u32::Small
+current-diagnostic	tests/omega/fail/domains/recast_invalidated_scalar_membership/main.omg	no-span	cannot prove initializer of `view` in invalid is in domain `u32::Small`; an annotation cannot establish routed qualification

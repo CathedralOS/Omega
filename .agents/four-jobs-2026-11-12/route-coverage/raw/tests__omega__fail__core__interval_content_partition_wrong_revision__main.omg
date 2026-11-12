@@ -1,0 +1,5 @@
+program	tests/omega/fail/core/interval_content_partition_wrong_revision/main.omg	current=rejected	current_us=1371879	root=compilation	route=no-entry
+program	tests/omega/fail/core/interval_content_partition_wrong_revision/main.omg	current=rejected	current_us=1371879	root=machine:drop_region	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/core/interval_content_partition_wrong_revision/main.omg	current=rejected	current_us=1371879	root=machine:Owned::content	route=outside	Unsupported: machine type equations, owned data or conformances
+program	tests/omega/fail/core/interval_content_partition_wrong_revision/main.omg	current=rejected	current_us=1371879	root=machine:split	route=outside	Unsupported: contract contracts on a state
+current-diagnostic	tests/omega/fail/core/interval_content_partition_wrong_revision/main.omg	main.omg:27 bytes 1122..1157	cannot prove ensures contract for exit from split at statement 4: core::Identity<<structural type>>(Owned.content(old(&whole)), separate(Owned.content(&result.left), Owned.content(&result.right)))

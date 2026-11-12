@@ -1,0 +1,2 @@
+program	tests/omega/fail/dependent/symbolic_slice_predicate_store_record_snapshot/main.omg	current=rejected	current_us=2221458	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/dependent/symbolic_slice_predicate_store_record_snapshot/main.omg	main.omg:63 bytes 2505..2512	machine `Main::main` cannot lend restricted field `values` to `entry`: the selected referent's normal-return guarantees do not preserve the field's standing predicate

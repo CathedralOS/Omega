@@ -1,0 +1,4 @@
+program	tests/omega/fail/recast/slice_view_non_tiling_rejected/main.omg	current=rejected	current_us=10696920	root=compilation	route=no-entry
+program	tests/omega/fail/recast/slice_view_non_tiling_rejected/main.omg	current=rejected	current_us=10696920	root=machine:Main::main	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/recast/slice_view_non_tiling_rejected/main.omg	current=rejected	current_us=10696920	root=machine:done	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/recast/slice_view_non_tiling_rejected/main.omg	main.omg:8 bytes 143..145	machine `Main::main` state `main`: slice target `[u16]` does not exactly tile the source's 7 bytes with 2-byte elements

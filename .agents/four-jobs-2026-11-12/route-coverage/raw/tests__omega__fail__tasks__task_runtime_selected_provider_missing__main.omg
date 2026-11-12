@@ -1,0 +1,6 @@
+program	tests/omega/fail/tasks/task_runtime_selected_provider_missing/main.omg	current=rejected	current_us=1497931	root=compilation	route=no-entry
+program	tests/omega/fail/tasks/task_runtime_selected_provider_missing/main.omg	current=rejected	current_us=1497931	root=machine:Worker::run	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/tasks/task_runtime_selected_provider_missing/main.omg	current=rejected	current_us=1497931	root=machine:settle	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/tasks/task_runtime_selected_provider_missing/main.omg	current=rejected	current_us=1497931	root=machine:Main::probe	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/tasks/task_runtime_selected_provider_missing/main.omg	current=rejected	current_us=1497931	root=machine:Main::main	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/tasks/task_runtime_selected_provider_missing/main.omg	no-span	TaskRuntime boundary slot has no retained selected provider plan

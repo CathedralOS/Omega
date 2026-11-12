@@ -1,0 +1,5 @@
+program	tests/omega/fail/domains/array_constructor_later_repair_cannot_qualify_snapshot/main.omg	current=rejected	current_us=1309253	root=compilation	route=no-entry
+program	tests/omega/fail/domains/array_constructor_later_repair_cannot_qualify_snapshot/main.omg	current=rejected	current_us=1309253	root=machine:repair	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/domains/array_constructor_later_repair_cannot_qualify_snapshot/main.omg	current=rejected	current_us=1309253	root=machine:main	route=outside	Unsupported: type fixed array
+current-diagnostic	tests/omega/fail/domains/array_constructor_later_repair_cannot_qualify_snapshot/main.omg	no-span	construction value is not proven in domain `Envelope::Ready` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+current-diagnostic	tests/omega/fail/domains/array_constructor_later_repair_cannot_qualify_snapshot/main.omg	no-span	array literal element is not proven in domain `Envelope::Ready` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance

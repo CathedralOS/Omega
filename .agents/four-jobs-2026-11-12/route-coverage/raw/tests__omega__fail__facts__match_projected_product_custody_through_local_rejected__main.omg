@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/match_projected_product_custody_through_local_rejected/main.omg	current=rejected	current_us=2020552	root=compilation	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/facts/match_projected_product_custody_through_local_rejected/main.omg	no-span	cannot use `result` in machine `choose` state `entry` (statement 3) after `result` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `result` first

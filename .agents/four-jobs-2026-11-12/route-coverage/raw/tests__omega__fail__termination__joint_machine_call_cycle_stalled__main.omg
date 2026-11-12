@@ -1,0 +1,5 @@
+program	tests/omega/fail/termination/joint_machine_call_cycle_stalled/main.omg	current=rejected	current_us=1313761	root=compilation	route=no-entry
+program	tests/omega/fail/termination/joint_machine_call_cycle_stalled/main.omg	current=rejected	current_us=1313761	root=machine:Main::main	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/termination/joint_machine_call_cycle_stalled/main.omg	current=rejected	current_us=1313761	root=machine:Main::scan_a	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/termination/joint_machine_call_cycle_stalled/main.omg	current=rejected	current_us=1313761	root=machine:Main::scan_b	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/termination/joint_machine_call_cycle_stalled/main.omg	no-span	machine call cycle: `Main::scan_a`, `Main::scan_b` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle

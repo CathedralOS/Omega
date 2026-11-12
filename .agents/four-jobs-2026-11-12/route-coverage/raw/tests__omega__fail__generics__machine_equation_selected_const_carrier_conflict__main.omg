@@ -1,0 +1,4 @@
+program	tests/omega/fail/generics/machine_equation_selected_const_carrier_conflict/main.omg	current=rejected	current_us=1282695	root=compilation	route=no-entry
+program	tests/omega/fail/generics/machine_equation_selected_const_carrier_conflict/main.omg	current=rejected	current_us=1282695	root=machine:capacity	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/generics/machine_equation_selected_const_carrier_conflict/main.omg	current=rejected	current_us=1282695	root=machine:selected	route=outside	Unsupported: machine type equations, owned data or conformances
+current-diagnostic	tests/omega/fail/generics/machine_equation_selected_const_carrier_conflict/main.omg	no-span	const parameter `Count` of `capacity` requires `u64`, but `SelectedCount` declares `u32`

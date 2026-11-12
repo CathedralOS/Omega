@@ -1,0 +1,1 @@
+program	tests/omega/fail/domains/domain_pattern_match_bound_generic_equation_wrong_carrier_rejected/main.omg	current=stopped	current_us=1085372	root=compilation	route=unreached	Some("generic machine `generic_ready` requires equation on `Value` does not hold: the supplied `Value` argument is not `Cell`")

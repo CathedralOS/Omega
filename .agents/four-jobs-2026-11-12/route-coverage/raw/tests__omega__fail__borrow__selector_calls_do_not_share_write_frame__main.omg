@@ -1,0 +1,5 @@
+program	tests/omega/fail/borrow/selector_calls_do_not_share_write_frame/main.omg	current=rejected	current_us=1311140	root=compilation	route=no-entry
+program	tests/omega/fail/borrow/selector_calls_do_not_share_write_frame/main.omg	current=rejected	current_us=1311140	root=machine:choose	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/borrow/selector_calls_do_not_share_write_frame/main.omg	current=rejected	current_us=1311140	root=machine:touch	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/borrow/selector_calls_do_not_share_write_frame/main.omg	current=rejected	current_us=1311140	root=machine:main	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/borrow/selector_calls_do_not_share_write_frame/main.omg	no-span	cannot prove index `other` is within length 4 in main::entry

@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/fixed_layout_bit_observation_through_call_result_rejected/main.omg	current=rejected	current_us=2883173	root=compilation	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/facts/fixed_layout_bit_observation_through_call_result_rejected/main.omg	no-span	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7

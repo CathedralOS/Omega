@@ -1,0 +1,4 @@
+program	tests/omega/fail/generics/applied_implementation_unit_value/main.omg	current=rejected	current_us=1288422	root=compilation	route=no-entry
+program	tests/omega/fail/generics/applied_implementation_unit_value/main.omg	current=rejected	current_us=1288422	root=machine:Selected::replace	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/generics/applied_implementation_unit_value/main.omg	current=rejected	current_us=1288422	root=machine:main	route=outside	Unsupported: call requirement dispatch with another call feature
+current-diagnostic	tests/omega/fail/generics/applied_implementation_unit_value/main.omg	main.omg:9 bytes 333..340	machine `main` state `entry`: `replace(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local

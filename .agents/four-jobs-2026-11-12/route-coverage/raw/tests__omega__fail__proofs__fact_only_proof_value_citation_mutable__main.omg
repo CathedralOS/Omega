@@ -1,0 +1,3 @@
+program	tests/omega/fail/proofs/fact_only_proof_value_citation_mutable/main.omg	current=rejected	current_us=1816752	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/proofs/fact_only_proof_value_citation_mutable/main.omg	no-span	machine `reflexive` state `entry` parameter `value` mentions proof-only `Ordinal`, which has no runtime layout
+current-diagnostic	tests/omega/fail/proofs/fact_only_proof_value_citation_mutable/main.omg	main.omg:5 bytes 171..180	mutable argument for state `entry` must be a named place

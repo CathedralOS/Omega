@@ -1,0 +1,3 @@
+program	tests/omega/fail/borrows/opaque_nested_stored_writeonly_input/main.omg	current=rejected	current_us=1296530	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/opaque_nested_stored_writeonly_input/main.omg	current=rejected	current_us=1296530	root=machine:consume	route=outside	Unsupported: machine supply mode other than a checked body
+current-diagnostic	tests/omega/fail/borrows/opaque_nested_stored_writeonly_input/main.omg	no-span	machine `consume` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim

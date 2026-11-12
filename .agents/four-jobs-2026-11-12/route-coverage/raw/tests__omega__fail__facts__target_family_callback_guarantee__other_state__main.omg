@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/target_family_callback_guarantee/other_state/main.omg	current=rejected	current_us=1823315	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/facts/target_family_callback_guarantee/other_state/main.omg	no-span	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement

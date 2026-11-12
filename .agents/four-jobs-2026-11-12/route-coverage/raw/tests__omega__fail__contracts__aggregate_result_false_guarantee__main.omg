@@ -1,0 +1,4 @@
+program	tests/omega/fail/contracts/aggregate_result_false_guarantee/main.omg	current=rejected	current_us=1307703	root=compilation	route=no-entry
+program	tests/omega/fail/contracts/aggregate_result_false_guarantee/main.omg	current=rejected	current_us=1307703	root=machine:replacement	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/contracts/aggregate_result_false_guarantee/main.omg	current=rejected	current_us=1307703	root=machine:main	route=accepted	route_us=263	discharge_us=112	reverify_us=0	reverified=0	obligations=0	judged=0	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+current-diagnostic	tests/omega/fail/contracts/aggregate_result_false_guarantee/main.omg	main.omg:7 bytes 165..216	cannot prove ensures contract for exit from replacement at statement 0: result.child.value == 9 && result.child.ready

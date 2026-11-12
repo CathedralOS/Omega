@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/generic_content_transfer_through_local_rejected/main.omg	current=rejected	current_us=2464536	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/generic_content_transfer_through_local_rejected/main.omg	main.omg:28 bytes 1083..1104	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: core::Identity<<structural type>>(Owned.content(old(&region)), Owned.content(&result))

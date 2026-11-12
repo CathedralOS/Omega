@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/foreign_indirect_float_record_result_through_field_rejected/main.omg	current=rejected	current_us=2013555	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/facts/foreign_indirect_float_record_result_through_field_rejected/main.omg	no-span	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first

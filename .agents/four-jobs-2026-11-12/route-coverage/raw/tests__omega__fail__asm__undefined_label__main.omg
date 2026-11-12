@@ -1,0 +1,1 @@
+program	tests/omega/fail/asm/undefined_label/main.omg	current=stopped	current_us=652929	root=compilation	route=unreached	Some("/tmp/omega-corpus-session-75184-0/source/tests/omega/fail/asm/undefined_label/main.omg:15:5: assembly jump names undeclared label `absent`")

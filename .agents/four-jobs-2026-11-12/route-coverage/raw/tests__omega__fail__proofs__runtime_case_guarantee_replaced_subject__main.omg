@@ -1,0 +1,6 @@
+program	tests/omega/fail/proofs/runtime_case_guarantee_replaced_subject/main.omg	current=rejected	current_us=1347630	root=compilation	route=no-entry
+program	tests/omega/fail/proofs/runtime_case_guarantee_replaced_subject/main.omg	current=rejected	current_us=1347630	root=machine:make	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/proofs/runtime_case_guarantee_replaced_subject/main.omg	current=rejected	current_us=1347630	root=machine:replace	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/proofs/runtime_case_guarantee_replaced_subject/main.omg	current=rejected	current_us=1347630	root=machine:observe	route=outside	Unsupported: type reference
+program	tests/omega/fail/proofs/runtime_case_guarantee_replaced_subject/main.omg	current=rejected	current_us=1347630	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/proofs/runtime_case_guarantee_replaced_subject/main.omg	main.omg:19 bytes 617..624	cannot prove requires contract for call observe from main: choice == constructor:80:package:bd4b07f845557d0cbcf554ce72e541f4570e15bc0e95ec59fb7987f1ef91a498::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, o

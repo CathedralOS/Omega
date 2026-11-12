@@ -1,0 +1,2 @@
+program	tests/omega/pass/layouts/placed_primitive_returned_backing/main.omg	current=rejected	current_us=6581715	root=compilation	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/pass/layouts/placed_primitive_returned_backing/main.omg	main.omg:31 bytes 1082..1088	`main` calls `update`; `update` has no executable body: this compiler does not lower its declaration of it yet (statement sequence: completion stored reference dependencies)

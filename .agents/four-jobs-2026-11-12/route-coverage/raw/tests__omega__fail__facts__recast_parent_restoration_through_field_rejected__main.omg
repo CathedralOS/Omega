@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/recast_parent_restoration_through_field_rejected/main.omg	current=rejected	current_us=2295325	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/facts/recast_parent_restoration_through_field_rejected/main.omg	main.omg:25 bytes 922..929	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate

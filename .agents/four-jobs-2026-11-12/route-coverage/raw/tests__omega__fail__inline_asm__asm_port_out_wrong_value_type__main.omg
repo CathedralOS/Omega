@@ -1,0 +1,3 @@
+program	tests/omega/fail/inline_asm/asm_port_out_wrong_value_type/main.omg	current=rejected	current_us=1343692	root=compilation	route=no-entry
+program	tests/omega/fail/inline_asm/asm_port_out_wrong_value_type/main.omg	current=rejected	current_us=1343692	root=machine:Main::main	route=outside	Unsupported: machine assembly target
+current-diagnostic	tests/omega/fail/inline_asm/asm_port_out_wrong_value_type/main.omg	main.omg:7 bytes 277..280	asm instruction `out` operand `value` requires an exact `u8` for target register `al`, found `u16`

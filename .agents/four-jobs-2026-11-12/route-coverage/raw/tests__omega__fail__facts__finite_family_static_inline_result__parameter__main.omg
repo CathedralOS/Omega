@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/finite_family_static_inline_result/parameter/main.omg	current=rejected	current_us=1863017	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/facts/finite_family_static_inline_result/parameter/main.omg	main.omg:40 bytes 1893..1895	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments

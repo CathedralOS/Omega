@@ -1,0 +1,1 @@
+program	tests/omega/fail/generics/equation_constructor_selected_const_conflict/main.omg	current=stopped	current_us=809433	root=compilation	route=unreached	Some("generic data `Verified` requires type equation has conflicting constructor constants")

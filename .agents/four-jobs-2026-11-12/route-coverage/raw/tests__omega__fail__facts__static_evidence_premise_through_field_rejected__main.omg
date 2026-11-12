@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/static_evidence_premise_through_field_rejected/main.omg	current=rejected	current_us=1777108	root=compilation	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/facts/static_evidence_premise_through_field_rejected/main.omg	main.omg:42 bytes 981..988	cannot prove requires contract: machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false

@@ -1,0 +1,2 @@
+program	tests/omega/pass/slices/termination_slice_length_compile/main.omg	current=rejected	current_us=1434497	root=compilation	route=no-entry
+current-diagnostic	tests/omega/pass/slices/termination_slice_length_compile/main.omg	main.omg:21 bytes 372..376	terminal call `walk` does not select a declared machine entry or callable requirement

@@ -1,0 +1,3 @@
+program	tests/omega/fail/text/qualified_local_byte_alias_replacement_invalid_encoding/main.omg	current=rejected	current_us=1315255	root=compilation	route=no-entry
+program	tests/omega/fail/text/qualified_local_byte_alias_replacement_invalid_encoding/main.omg	current=rejected	current_us=1315255	root=machine:main	route=outside	Unsupported: type constrained
+current-diagnostic	tests/omega/fail/text/qualified_local_byte_alias_replacement_invalid_encoding/main.omg	no-span	cannot prove the value assigned to `alias` in main is in domain `[u8; N]::Utf8`; a place declared `in [u8; N]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)

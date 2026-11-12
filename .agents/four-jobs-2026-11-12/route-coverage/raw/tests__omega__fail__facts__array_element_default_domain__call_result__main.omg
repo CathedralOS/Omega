@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/array_element_default_domain/call_result/main.omg	current=rejected	current_us=2292026	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/facts/array_element_default_domain/call_result/main.omg	main.omg:14 bytes 527..528	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16

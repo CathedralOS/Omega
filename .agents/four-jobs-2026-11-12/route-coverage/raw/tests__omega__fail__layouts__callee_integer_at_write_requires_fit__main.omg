@@ -1,0 +1,5 @@
+program	tests/omega/fail/layouts/callee_integer_at_write_requires_fit/main.omg	current=rejected	current_us=2127306	root=compilation	route=no-entry
+program	tests/omega/fail/layouts/callee_integer_at_write_requires_fit/main.omg	current=rejected	current_us=2127306	root=machine:SignedByte::plan	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/layouts/callee_integer_at_write_requires_fit/main.omg	current=rejected	current_us=2127306	root=machine:set	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/layouts/callee_integer_at_write_requires_fit/main.omg	current=rejected	current_us=2127306	root=machine:Main::main	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/layouts/callee_integer_at_write_requires_fit/main.omg	no-span	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit

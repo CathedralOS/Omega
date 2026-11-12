@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/core_integer_endpoint_through_match_join_rejected/main.omg	current=rejected	current_us=2721056	root=compilation	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/facts/core_integer_endpoint_through_match_join_rejected/main.omg	main.omg:17 bytes 603..610	cannot prove requires contract for call consume from probe: held.value == 0xffffffff (needs fact `value == 0xffffffff` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

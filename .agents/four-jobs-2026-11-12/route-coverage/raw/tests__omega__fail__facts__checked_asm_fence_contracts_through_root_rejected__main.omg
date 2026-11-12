@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/checked_asm_fence_contracts_through_root_rejected/main.omg	current=stopped	current_us=724030	root=compilation	route=unreached	Some("/agent/repos/omega/tests/omega/fail/facts/checked_asm_fence_contracts_through_root_rejected/main.omg:39:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`")

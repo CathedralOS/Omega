@@ -1,0 +1,2 @@
+program	tests/omega/pass/facts/recoverable_replacement_window_through_other_state_exit/main.omg	current=rejected	current_us=2804518	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/pass/facts/recoverable_replacement_window_through_other_state_exit/main.omg	main.omg:29 bytes 1176..1291	`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2

@@ -1,0 +1,2 @@
+program	tests/omega/fail/domains/bodyless_routed_primitive_receiver_requires_issuer/main.omg	current=rejected	current_us=11008473	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/domains/bodyless_routed_primitive_receiver_requires_issuer/main.omg	no-span	cannot prove default-domain field requirement for return from replace at statement 1: row requires u64::IssuedIndex

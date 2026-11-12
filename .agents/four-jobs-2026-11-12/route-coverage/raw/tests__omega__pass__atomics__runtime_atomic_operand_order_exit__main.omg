@@ -1,0 +1,1 @@
+program	tests/omega/pass/atomics/runtime_atomic_operand_order_exit/main.omg	current=accepted	current_us=3156003	root=compilation	route=outside	Unsupported: parameter mutable parameter

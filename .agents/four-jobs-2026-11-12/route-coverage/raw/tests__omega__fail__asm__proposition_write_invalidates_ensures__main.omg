@@ -1,0 +1,4 @@
+program	tests/omega/fail/asm/proposition_write_invalidates_ensures/main.omg	current=rejected	current_us=1311979	root=compilation	route=no-entry
+program	tests/omega/fail/asm/proposition_write_invalidates_ensures/main.omg	current=rejected	current_us=1311979	root=machine:change	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/asm/proposition_write_invalidates_ensures/main.omg	current=rejected	current_us=1311979	root=machine:main	route=accepted	route_us=179	discharge_us=58	reverify_us=0	reverified=0	obligations=0	judged=0	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+current-diagnostic	tests/omega/fail/asm/proposition_write_invalidates_ensures/main.omg	no-span	cannot prove asm `ensures` fact at block exit in change state `entry` (statement 3): proposition:fact:ready(subject.value)

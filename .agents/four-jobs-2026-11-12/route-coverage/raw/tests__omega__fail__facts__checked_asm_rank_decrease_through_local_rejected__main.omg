@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/checked_asm_rank_decrease_through_local_rejected/main.omg	current=rejected	current_us=2321812	root=compilation	route=outside	Unsupported: machine assembly target
+current-diagnostic	tests/omega/fail/facts/checked_asm_rank_decrease_through_local_rejected/main.omg	no-span	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#26#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#26#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`

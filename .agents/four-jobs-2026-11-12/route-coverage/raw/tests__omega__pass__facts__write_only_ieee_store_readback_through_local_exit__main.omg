@@ -1,0 +1,1 @@
+program	tests/omega/pass/facts/write_only_ieee_store_readback_through_local_exit/main.omg	current=accepted	current_us=2894345	root=compilation	route=outside	Unsupported: parameter mutable parameter

@@ -1,0 +1,2 @@
+program	tests/omega/pass/facts/resident_backing_plain_ram_exit/main.omg	current=rejected	current_us=2319986	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/pass/facts/resident_backing_plain_ram_exit/main.omg	main.omg:17 bytes 539..544	cannot prove default-domain field requirement for call check from main::entry: parameter pair requires Pair::Label

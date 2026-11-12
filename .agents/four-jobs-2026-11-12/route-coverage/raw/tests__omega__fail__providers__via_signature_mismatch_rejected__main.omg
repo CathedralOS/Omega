@@ -1,0 +1,4 @@
+program	tests/omega/fail/providers/via_signature_mismatch_rejected/main.omg	current=rejected	current_us=1305040	root=compilation	route=no-entry
+program	tests/omega/fail/providers/via_signature_mismatch_rejected/main.omg	current=rejected	current_us=1305040	root=machine:exit_leaf	route=outside	Unsupported: machine supply mode other than a checked body
+program	tests/omega/fail/providers/via_signature_mismatch_rejected/main.omg	current=rejected	current_us=1305040	root=machine:main	route=accepted	route_us=191	discharge_us=61	reverify_us=0	reverified=0	obligations=0	judged=0	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+current-diagnostic	tests/omega/fail/providers/via_signature_mismatch_rejected/main.omg	no-span	machine `exit_leaf` state `entry` does not satisfy trait `Process` machine `exit` parameter `code`: expected `i32`, got `u32`

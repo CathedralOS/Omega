@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/placed_stable_write_through_parameter_rejected/main.omg	current=stopped	current_us=4302449	root=compilation	route=unreached	Some("placed primitive application does not select its exact plan-issued field operation")

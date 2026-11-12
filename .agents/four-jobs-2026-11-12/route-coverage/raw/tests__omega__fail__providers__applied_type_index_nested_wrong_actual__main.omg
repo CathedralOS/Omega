@@ -1,0 +1,3 @@
+program	tests/omega/fail/providers/applied_type_index_nested_wrong_actual/main.omg	current=rejected	current_us=1301296	root=compilation	route=no-entry
+program	tests/omega/fail/providers/applied_type_index_nested_wrong_actual/main.omg	current=rejected	current_us=1301296	root=machine:wrong	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/providers/applied_type_index_nested_wrong_actual/main.omg	no-span	index compatibility condition `index-equality:Pair:wrong::entry:call-0-0:Pair<Outer, Right>==Pair<Outer, Left>` is not established: actual `Pair<Outer, Right>` and expected `Pair<Outer, Left>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fa

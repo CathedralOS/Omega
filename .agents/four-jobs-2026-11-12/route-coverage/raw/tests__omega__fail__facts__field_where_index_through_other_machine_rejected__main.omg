@@ -1,0 +1,7 @@
+program	tests/omega/fail/facts/field_where_index_through_other_machine_rejected/main.omg	current=rejected	current_us=1356457	root=compilation	route=no-entry
+program	tests/omega/fail/facts/field_where_index_through_other_machine_rejected/main.omg	current=rejected	current_us=1356457	root=machine:produced	route=outside	Unsupported: type reference
+program	tests/omega/fail/facts/field_where_index_through_other_machine_rejected/main.omg	current=rejected	current_us=1356457	root=machine:consumed	route=outside	Unsupported: type reference
+program	tests/omega/fail/facts/field_where_index_through_other_machine_rejected/main.omg	current=rejected	current_us=1356457	root=machine:use	route=outside	Unsupported: type reference
+program	tests/omega/fail/facts/field_where_index_through_other_machine_rejected/main.omg	current=rejected	current_us=1356457	root=machine:Main::main	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/facts/field_where_index_through_other_machine_rejected/main.omg	current=rejected	current_us=1356457	root=machine:successor	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/field_where_index_through_other_machine_rejected/main.omg	no-span	cannot prove index `index + 1` is within length 5 in consumed::entry

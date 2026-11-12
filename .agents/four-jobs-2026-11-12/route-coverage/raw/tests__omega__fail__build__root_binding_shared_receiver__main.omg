@@ -1,0 +1,1 @@
+program	tests/omega/fail/build/root_binding_shared_receiver/main.omg	current=stopped	current_us=634645	root=compilation	route=unreached	Some("exclusive operation receiver is not writable in this state")

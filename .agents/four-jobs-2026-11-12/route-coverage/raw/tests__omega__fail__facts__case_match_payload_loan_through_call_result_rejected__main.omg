@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/case_match_payload_loan_through_call_result_rejected/main.omg	current=rejected	current_us=1840306	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/case_match_payload_loan_through_call_result_rejected/main.omg	main.omg:18 bytes 853..983	mutable argument `<saved subject #4:1>` for state `store` is not writable in this state; the source cannot lend the requested exclusive access

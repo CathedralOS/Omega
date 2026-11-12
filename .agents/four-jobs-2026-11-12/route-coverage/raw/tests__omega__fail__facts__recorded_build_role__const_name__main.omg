@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/recorded_build_role/const_name/main.omg	current=stopped	current_us=1634730	root=compilation	route=unreached	Some("failed to resolve /agent/repos/omega/tests/omega/fail/facts/recorded_build_role/const_name/my_library/values.omg: captured entry is absent: my_library")

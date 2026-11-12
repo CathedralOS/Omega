@@ -1,0 +1,2 @@
+program	tests/omega/fail/recast/pending_layout_view_call_requires_establishment/main.omg	current=rejected	current_us=2639752	root=compilation	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/recast/pending_layout_view_call_requires_establishment/main.omg	build.omg:1 bytes 0..0	argument `value` for state `consume`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value

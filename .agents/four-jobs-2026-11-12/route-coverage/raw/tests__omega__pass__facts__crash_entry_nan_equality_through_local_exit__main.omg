@@ -1,0 +1,1 @@
+program	tests/omega/pass/facts/crash_entry_nan_equality_through_local_exit/main.omg	current=accepted	current_us=3073634	root=compilation	route=outside	Unsupported: type float

@@ -1,0 +1,4 @@
+program	tests/omega/fail/atomics/atomic_operand_implicit_narrowing/main.omg	current=rejected	current_us=1252943	root=compilation	route=no-entry
+program	tests/omega/fail/atomics/atomic_operand_implicit_narrowing/main.omg	current=rejected	current_us=1252943	root=machine:replace	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/atomics/atomic_operand_implicit_narrowing/main.omg	main.omg:3 bytes 44..51	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+current-diagnostic	tests/omega/fail/atomics/atomic_operand_implicit_narrowing/main.omg	main.omg:3 bytes 44..51	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)

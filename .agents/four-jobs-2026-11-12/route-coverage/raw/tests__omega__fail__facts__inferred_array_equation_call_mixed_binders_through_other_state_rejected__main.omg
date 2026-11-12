@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_other_state_rejected/main.omg	current=stopped	current_us=1031431	root=compilation	route=unreached	Some("generic machine `capacity` requires equation binds `Capacity` to 2 but its explicit argument is 3")

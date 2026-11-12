@@ -1,0 +1,4 @@
+program	tests/omega/fail/termination/saved_boolean_after_write/main.omg	current=rejected	current_us=1339969	root=compilation	route=no-entry
+program	tests/omega/fail/termination/saved_boolean_after_write/main.omg	current=rejected	current_us=1339969	root=machine:repeat	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/termination/saved_boolean_after_write/main.omg	no-span	cannot prove the `terminates by` ranking for machine repeat
+current-diagnostic	tests/omega/fail/termination/saved_boolean_after_write/main.omg	no-span	machine call cycle: `repeat` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle

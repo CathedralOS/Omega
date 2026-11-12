@@ -1,0 +1,2 @@
+program	tests/omega/fail/domains/domain_pattern_match_bound_nested_routed_unproven_rejected/main.omg	current=rejected	current_us=2273205	root=compilation	route=outside	Unsupported: type constrained
+current-diagnostic	tests/omega/fail/domains/domain_pattern_match_bound_nested_routed_unproven_rejected/main.omg	main.omg:18 bytes 469..481	executable domain test `Cell::Ready` requires retained authorized provenance; a predicate test cannot establish it

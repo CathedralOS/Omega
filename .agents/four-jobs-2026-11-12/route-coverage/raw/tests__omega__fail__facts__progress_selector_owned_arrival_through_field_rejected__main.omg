@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/progress_selector_owned_arrival_through_field_rejected/main.omg	current=rejected	current_us=2194982	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/facts/progress_selector_owned_arrival_through_field_rejected/main.omg	no-span	machine `select` derives progress premise `package:0565467dfd2e8f9cae03bf3585935f5e37e3d52a00740e1cce445f85d6a92348:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject

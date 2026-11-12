@@ -1,0 +1,5 @@
+program	tests/omega/fail/data/record_pattern_missing_field/main.omg	current=rejected	current_us=10710099	root=compilation	route=no-entry
+program	tests/omega/fail/data/record_pattern_missing_field/main.omg	current=rejected	current_us=10710099	root=machine:Main::main	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/data/record_pattern_missing_field/main.omg	current=rejected	current_us=10710099	root=machine:good	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/data/record_pattern_missing_field/main.omg	current=rejected	current_us=10710099	root=machine:bad	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/data/record_pattern_missing_field/main.omg	no-span	record pattern in machine `Main::main` state `main` does not mention field `z` of `Point` -- record patterns are exhaustive by law: bind it, rename it with `as`, or waive it with `as _`

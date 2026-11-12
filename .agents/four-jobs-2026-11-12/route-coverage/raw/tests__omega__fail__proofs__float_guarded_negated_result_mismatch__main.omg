@@ -1,0 +1,3 @@
+program	tests/omega/fail/proofs/float_guarded_negated_result_mismatch/main.omg	current=rejected	current_us=1420663	root=compilation	route=no-entry
+program	tests/omega/fail/proofs/float_guarded_negated_result_mismatch/main.omg	current=rejected	current_us=1420663	root=machine:wrong_false_result	route=outside	Unsupported: type float
+current-diagnostic	tests/omega/fail/proofs/float_guarded_negated_result_mismatch/main.omg	main.omg:3 bytes 54..72	machine `wrong_false_result` ensures contract proof fact `flag || !flag && Float.meaning64(result) == Float.meaning64(value)` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, 

@@ -1,0 +1,1 @@
+program	tests/omega/fail/float/mixed_float_comparison_formats/main.omg	current=stopped	current_us=1164613	root=compilation	route=unreached	Some("builtin `<` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion")

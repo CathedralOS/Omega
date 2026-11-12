@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/typed_reflection_mutation_through_other_machine_rejected/main.omg	current=stopped	current_us=1499452	root=compilation	route=unreached	Some("machine `increment` requires type predicate does not hold for the supplied arguments")

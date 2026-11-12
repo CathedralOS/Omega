@@ -1,0 +1,4 @@
+program	tests/omega/fail/core/qualified_integer_cast_argument_requires_representability/main.omg	current=rejected	current_us=1402566	root=compilation	route=no-entry
+program	tests/omega/fail/core/qualified_integer_cast_argument_requires_representability/main.omg	current=rejected	current_us=1402566	root=machine:accept	route=outside	Unsupported: type constrained
+program	tests/omega/fail/core/qualified_integer_cast_argument_requires_representability/main.omg	current=rejected	current_us=1402566	root=machine:caller	route=outside	Unsupported: type constrained
+current-diagnostic	tests/omega/fail/core/qualified_integer_cast_argument_requires_representability/main.omg	main.omg:3 bytes 114..116	Exact integer cast in machine `caller` state `entry` from `u16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.

@@ -1,0 +1,5 @@
+program	tests/omega/fail/proofs/indexed_boolean_runtime_selector_not_constant/main.omg	current=rejected	current_us=1394395	root=compilation	route=no-entry
+program	tests/omega/fail/proofs/indexed_boolean_runtime_selector_not_constant/main.omg	current=rejected	current_us=1394395	root=machine:initialize	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/proofs/indexed_boolean_runtime_selector_not_constant/main.omg	current=rejected	current_us=1394395	root=machine:require_selected	route=outside	Unsupported: type reference
+program	tests/omega/fail/proofs/indexed_boolean_runtime_selector_not_constant/main.omg	current=rejected	current_us=1394395	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/proofs/indexed_boolean_runtime_selector_not_constant/main.omg	main.omg:18 bytes 425..441	cannot prove requires contract for call require_selected from main: flags.bits[index] (needs fact `flags.bits[index]` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

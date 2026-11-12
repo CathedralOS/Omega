@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/typed_reflection_through_match_join_rejected/main.omg	current=stopped	current_us=1497439	root=compilation	route=unreached	Some("machine `observe` requires type predicate does not hold for the supplied arguments")

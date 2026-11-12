@@ -1,0 +1,1 @@
+program	tests/omega/fail/generics/open_const_wrong_evidence_binder/main.omg	current=stopped	current_us=985791	root=compilation	route=unreached	Some("cannot prove ensures contract for exit from selected at statement 0: result >= High")

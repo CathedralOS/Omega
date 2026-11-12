@@ -1,0 +1,4 @@
+program	tests/omega/fail/slices/record_length_field_is_not_collection_extent/main.omg	current=rejected	current_us=1322597	root=compilation	route=no-entry
+program	tests/omega/fail/slices/record_length_field_is_not_collection_extent/main.omg	current=rejected	current_us=1322597	root=machine:require_all	route=outside	Unsupported: type reference
+program	tests/omega/fail/slices/record_length_field_is_not_collection_extent/main.omg	current=rejected	current_us=1322597	root=machine:Main::main	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/slices/record_length_field_is_not_collection_extent/main.omg	main.omg:10 bytes 328..339	cannot prove requires contract for call require_all from Main::main: main.bytes[0..main.limit.len].len == 3 (needs fact `bytes.len == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`; authored requirement `prefix.len == 3`

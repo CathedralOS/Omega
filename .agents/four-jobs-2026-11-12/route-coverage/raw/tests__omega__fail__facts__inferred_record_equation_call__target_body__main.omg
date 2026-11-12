@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/inferred_record_equation_call/target_body/main.omg	current=stopped	current_us=1048843	root=compilation	route=unreached	Some("generic machine `read` requires type equation has conflicting constructor constants")

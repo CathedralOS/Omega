@@ -1,0 +1,4 @@
+program	tests/omega/fail/traits/data_in_implementation_argument/main.omg	current=rejected	current_us=1176840	root=compilation	route=no-entry
+program	tests/omega/fail/traits/data_in_implementation_argument/main.omg	current=rejected	current_us=1176840	root=machine:SelectedReading::read	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/traits/data_in_implementation_argument/main.omg	current=rejected	current_us=1176840	root=machine:Main::main	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/traits/data_in_implementation_argument/main.omg	no-span	trait `Concrete` parent `Consumer` cannot bind implementation `Reader`: expected an explicitly named implementation, not a data argument

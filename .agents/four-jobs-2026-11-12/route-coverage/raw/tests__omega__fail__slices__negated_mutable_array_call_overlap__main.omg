@@ -1,0 +1,4 @@
+program	tests/omega/fail/slices/negated_mutable_array_call_overlap/main.omg	current=rejected	current_us=1296299	root=compilation	route=no-entry
+program	tests/omega/fail/slices/negated_mutable_array_call_overlap/main.omg	current=rejected	current_us=1296299	root=machine:collide	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/slices/negated_mutable_array_call_overlap/main.omg	current=rejected	current_us=1296299	root=machine:main	route=outside	Unsupported: type fixed array
+current-diagnostic	tests/omega/fail/slices/negated_mutable_array_call_overlap/main.omg	no-span	state `collide` receives `items` as both mutable and read-only

@@ -1,0 +1,1 @@
+program	tests/omega/fail/generics/machine_equation_nested_const_carrier_conflict/main.omg	current=stopped	current_us=966172	root=compilation	route=unreached	Some("machine equation application has a constructor argument with a different declared carrier")

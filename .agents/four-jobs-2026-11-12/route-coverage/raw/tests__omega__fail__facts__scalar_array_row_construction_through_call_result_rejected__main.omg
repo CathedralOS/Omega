@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/scalar_array_row_construction_through_call_result_rejected/main.omg	current=rejected	current_us=1703670	root=compilation	route=outside	Unsupported: type fixed array
+current-diagnostic	tests/omega/fail/facts/scalar_array_row_construction_through_call_result_rejected/main.omg	main.omg:13 bytes 461..467	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`

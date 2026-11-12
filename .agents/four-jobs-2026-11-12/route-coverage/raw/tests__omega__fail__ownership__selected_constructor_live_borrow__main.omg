@@ -1,0 +1,4 @@
+program	tests/omega/fail/ownership/selected_constructor_live_borrow/main.omg	current=rejected	current_us=1340294	root=compilation	route=no-entry
+program	tests/omega/fail/ownership/selected_constructor_live_borrow/main.omg	current=rejected	current_us=1340294	root=machine:borrowed	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/ownership/selected_constructor_live_borrow/main.omg	no-span	statement 1 moves `left` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+current-diagnostic	tests/omega/fail/ownership/selected_constructor_live_borrow/main.omg	no-span	statement 1 moves `left` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)

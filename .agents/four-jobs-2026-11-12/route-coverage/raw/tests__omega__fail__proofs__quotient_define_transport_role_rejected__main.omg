@@ -1,0 +1,1 @@
+program	tests/omega/fail/proofs/quotient_define_transport_role_rejected/main.omg	current=stopped	current_us=931652	root=compilation	route=unreached	Some("`Quotient::define` requires exactly `F, Congruence`; forward transport is not a `define` role")

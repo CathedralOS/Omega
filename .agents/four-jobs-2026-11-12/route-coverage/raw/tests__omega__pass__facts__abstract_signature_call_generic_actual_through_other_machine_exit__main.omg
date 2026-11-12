@@ -1,0 +1,2 @@
+program	tests/omega/pass/facts/abstract_signature_call_generic_actual_through_other_machine_exit/main.omg	current=rejected	current_us=2040247	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/pass/facts/abstract_signature_call_generic_actual_through_other_machine_exit/main.omg	main.omg:24 bytes 542..546	machine-parameter requirement `Observe` requires contract constant expression call argument `kept` does not form parameter `kept` of `premise`: actual T, required T

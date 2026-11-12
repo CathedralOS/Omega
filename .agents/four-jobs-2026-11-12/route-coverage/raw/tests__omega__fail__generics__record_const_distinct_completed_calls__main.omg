@@ -1,0 +1,2 @@
+program	tests/omega/fail/generics/record_const_distinct_completed_calls/main.omg	current=rejected	current_us=2863122	root=compilation	route=outside	Unsupported: contract clause that projects a formal or result
+current-diagnostic	tests/omega/fail/generics/record_const_distinct_completed_calls/main.omg	main.omg:21 bytes 886..895	cannot prove ensures contract for exit from misplaced at statement 1: result >= 7

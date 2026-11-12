@@ -1,0 +1,1 @@
+program	tests/omega/pass/facts/narrow_to_wide_signed_8to64_extension_through_match_join_exit/main.omg	current=accepted	current_us=2989950	root=compilation	route=outside	Unsupported: expression match on a scalar subject

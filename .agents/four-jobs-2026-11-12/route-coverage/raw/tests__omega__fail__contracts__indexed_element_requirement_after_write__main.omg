@@ -1,0 +1,4 @@
+program	tests/omega/fail/contracts/indexed_element_requirement_after_write/main.omg	current=rejected	current_us=1319956	root=compilation	route=no-entry
+program	tests/omega/fail/contracts/indexed_element_requirement_after_write/main.omg	current=rejected	current_us=1319956	root=machine:letter	route=outside	Unsupported: type reference
+program	tests/omega/fail/contracts/indexed_element_requirement_after_write/main.omg	current=rejected	current_us=1319956	root=machine:invalid	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/contracts/indexed_element_requirement_after_write/main.omg	main.omg:8 bytes 250..256	cannot prove requires contract for call letter from invalid: index < text.len && text[index] >= 97 (needs fact `index < text.len && text[index] >= 97` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

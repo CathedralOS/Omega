@@ -1,0 +1,4 @@
+program	tests/omega/fail/generics/core_slice_for_each_callback_mutability/main.omg	current=rejected	current_us=1361266	root=compilation	route=no-entry
+program	tests/omega/fail/generics/core_slice_for_each_callback_mutability/main.omg	current=rejected	current_us=1361266	root=machine:visit	route=outside	Unsupported: machine type equations, owned data or conformances
+program	tests/omega/fail/generics/core_slice_for_each_callback_mutability/main.omg	current=rejected	current_us=1361266	root=machine:main	route=outside	Unsupported: type fixed array
+current-diagnostic	tests/omega/fail/generics/core_slice_for_each_callback_mutability/main.omg	main.omg:10 bytes 200..208	argument `items` for state `entry` is declared `&mut` (`&mut [Item]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding

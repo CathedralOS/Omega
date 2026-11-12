@@ -1,0 +1,1 @@
+program	tests/omega/fail/asm/checked_asm_compare_mixed_registers/main.omg	current=stopped	current_us=667968	root=compilation	route=unreached	Some("/agent/repos/omega/tests/omega/fail/asm/checked_asm_compare_mixed_registers/main.omg:8:9: assembly instruction and register operands require incompatible targets")

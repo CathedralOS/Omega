@@ -1,0 +1,5 @@
+program	tests/omega/fail/domains/fixed_array_domain_split_after_class_store/main.omg	current=rejected	current_us=1312425	root=compilation	route=no-entry
+program	tests/omega/fail/domains/fixed_array_domain_split_after_class_store/main.omg	current=rejected	current_us=1312425	root=machine:store	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/domains/fixed_array_domain_split_after_class_store/main.omg	current=rejected	current_us=1312425	root=machine:write	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/domains/fixed_array_domain_split_after_class_store/main.omg	current=rejected	current_us=1312425	root=machine:keep	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/domains/fixed_array_domain_split_after_class_store/main.omg	no-span	cannot prove default-domain field requirement for return from write at statement 2: buffer.label requires [u8; N]::Utf8

@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/target_family_contract_operand/other_machine/main.omg	current=rejected	current_us=2682720	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/facts/target_family_contract_operand/other_machine/main.omg	no-span	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`

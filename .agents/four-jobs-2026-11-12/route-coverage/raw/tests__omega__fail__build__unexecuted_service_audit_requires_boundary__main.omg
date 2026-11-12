@@ -1,0 +1,1 @@
+program	tests/omega/fail/build/unexecuted_service_audit_requires_boundary/main.omg	current=stopped	current_us=1003830	root=compilation	route=unreached	Some("Build declaration operand does not resolve to one visible product declaration of the required kind: `Ordinary` (BoundarySubject)")

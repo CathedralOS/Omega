@@ -1,0 +1,1 @@
+program	tests/omega/fail/generics/inferred_record_equation_kind_conflict/main.omg	current=stopped	current_us=1061511	root=compilation	route=unreached	Some("generic machine `read` requires type equation mixes type and value kinds in a constructor argument")

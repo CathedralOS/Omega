@@ -1,0 +1,1 @@
+program	tests/omega/pass/build/dependency_implementation_closure/main.omg	current=stopped	current_us=1900310	root=compilation	route=unreached	Some("access view `Access<UnusedPlacement,UnusedRegisters>`: schema data `UnusedRegisters` field `nested` has no reflected storage geometry: representation recipe has no admitted layout")

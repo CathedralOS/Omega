@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_formal_shadow_rejected/main.omg	current=stopped	current_us=1077232	root=compilation	route=unreached	Some("machine structural inference cannot replace non-type binder `Evidence` with a global declaration")

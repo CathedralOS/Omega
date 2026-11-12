@@ -1,0 +1,7 @@
+program	tests/omega/fail/borrows/erased_cast_borrow_overlaps_mutable_borrow/main.omg	current=rejected	current_us=1415876	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/erased_cast_borrow_overlaps_mutable_borrow/main.omg	current=rejected	current_us=1415876	root=machine:issue	route=outside	Unsupported: type constrained
+program	tests/omega/fail/borrows/erased_cast_borrow_overlaps_mutable_borrow/main.omg	current=rejected	current_us=1415876	root=machine:both	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/fail/borrows/erased_cast_borrow_overlaps_mutable_borrow/main.omg	current=rejected	current_us=1415876	root=machine:main	route=outside	Unsupported: type constrained
+current-diagnostic	tests/omega/fail/borrows/erased_cast_borrow_overlaps_mutable_borrow/main.omg	no-span	state `both` receives `t` as both mutable and read-only
+current-diagnostic	tests/omega/fail/borrows/erased_cast_borrow_overlaps_mutable_borrow/main.omg	no-span	cannot prove default-domain field requirement for return from both at statement 1: a requires Ticket::Held
+current-diagnostic	tests/omega/fail/borrows/erased_cast_borrow_overlaps_mutable_borrow/main.omg	main.omg:9 bytes 431..435	cannot prove default-domain field requirement for call both from main::entry: parameter a requires Ticket::Held

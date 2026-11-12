@@ -1,0 +1,2 @@
+program	tests/omega/fail/layouts/retained_layout_predicate_decisions/main.omg	current=rejected	current_us=3149862	root=compilation	route=outside	Unsupported: contract disjunction
+current-diagnostic	tests/omega/fail/layouts/retained_layout_predicate_decisions/main.omg	no-span	constant checking: scalar predicate is false: requires contract for call require_layout from main: size_of() < 8 || size_of() == 32 && !size_of() != 16 && align_of() == 8 == true

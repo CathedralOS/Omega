@@ -1,0 +1,1 @@
+program	tests/omega/fail/calls/nested_machine_private_descendant/main.omg	current=stopped	current_us=968322	root=compilation	route=unreached	Some("call `outer::hidden` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it")

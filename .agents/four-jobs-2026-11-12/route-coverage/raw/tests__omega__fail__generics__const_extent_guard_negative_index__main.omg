@@ -1,0 +1,5 @@
+program	tests/omega/fail/generics/const_extent_guard_negative_index/main.omg	current=rejected	current_us=1262320	root=compilation	route=no-entry
+program	tests/omega/fail/generics/const_extent_guard_negative_index/main.omg	current=rejected	current_us=1262320	root=machine:first	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/generics/const_extent_guard_negative_index/main.omg	current=rejected	current_us=1262320	root=machine:main	route=outside	Unsupported: type fixed array
+current-diagnostic	tests/omega/fail/generics/const_extent_guard_negative_index/main.omg	main.omg:1 bytes 117..119	anonymous integer value `-1` does not fit destination `u64` in machine `first` state `entry` return value
+current-diagnostic	tests/omega/fail/generics/const_extent_guard_negative_index/main.omg	main.omg:1 bytes 117..119	anonymous integer value `-1` does not fit destination `u64` in machine `first$specialized$077194862acf7f1f$0$4622` state `entry` return value

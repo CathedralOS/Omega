@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/dynamic_trait_dispatch_through_local_rejected/main.omg	current=rejected	current_us=2451315	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/dynamic_trait_dispatch_through_local_rejected/main.omg	main.omg:41 bytes 1342..1349	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

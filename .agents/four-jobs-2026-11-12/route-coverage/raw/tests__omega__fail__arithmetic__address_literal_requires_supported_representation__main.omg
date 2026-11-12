@@ -1,0 +1,9 @@
+program	tests/omega/fail/arithmetic/address_literal_requires_supported_representation/main.omg	current=rejected	current_us=1253174	root=compilation	route=no-entry
+program	tests/omega/fail/arithmetic/address_literal_requires_supported_representation/main.omg	current=rejected	current_us=1253174	root=machine:too_wide_address	route=outside	Unsupported: type addr
+program	tests/omega/fail/arithmetic/address_literal_requires_supported_representation/main.omg	current=rejected	current_us=1253174	root=machine:negative_address	route=outside	Unsupported: type addr
+program	tests/omega/fail/arithmetic/address_literal_requires_supported_representation/main.omg	current=rejected	current_us=1253174	root=machine:too_wide_address_field	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/arithmetic/address_literal_requires_supported_representation/main.omg	current=rejected	current_us=1253174	root=machine:negative_address_field	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/arithmetic/address_literal_requires_supported_representation/main.omg	no-span	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
+current-diagnostic	tests/omega/fail/arithmetic/address_literal_requires_supported_representation/main.omg	no-span	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
+current-diagnostic	tests/omega/fail/arithmetic/address_literal_requires_supported_representation/main.omg	main.omg:2 bytes 77..97	anonymous integer value `18446744073709551616` does not fit destination `addr` in machine `too_wide_address` state `entry` local `value`
+current-diagnostic	tests/omega/fail/arithmetic/address_literal_requires_supported_representation/main.omg	main.omg:3 bytes 148..149	anonymous integer value `-1` does not fit destination `addr` in machine `negative_address` state `entry` local `value`

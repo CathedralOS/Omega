@@ -1,0 +1,4 @@
+program	tests/omega/fail/calls/float_bound_requires_argument_rejected/main.omg	current=rejected	current_us=10564405	root=compilation	route=no-entry
+program	tests/omega/fail/calls/float_bound_requires_argument_rejected/main.omg	current=rejected	current_us=10564405	root=machine:Main::pick	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/calls/float_bound_requires_argument_rejected/main.omg	current=rejected	current_us=10564405	root=machine:Main::main	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/calls/float_bound_requires_argument_rejected/main.omg	main.omg:13 bytes 482..486	cannot prove requires contract: machine `Main::main` state `main` value call to `Main::pick` violates required fact `d > 5.0`: the instantiated fact is structurally false (`1.5 > 5.0`)

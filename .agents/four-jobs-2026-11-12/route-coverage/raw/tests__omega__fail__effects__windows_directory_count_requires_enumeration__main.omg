@@ -1,0 +1,3 @@
+program	tests/omega/fail/effects/windows_directory_count_requires_enumeration/main.omg	current=rejected	current_us=22955850	root=compilation	route=no-entry
+program	tests/omega/fail/effects/windows_directory_count_requires_enumeration/main.omg	current=rejected	current_us=22955850	root=machine:inspect	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/effects/windows_directory_count_requires_enumeration/main.omg	no-span	machine `inspect` publishes service reach `FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation` but its checked body reaches undeclared service `DirectoryEnumeration`

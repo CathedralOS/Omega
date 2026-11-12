@@ -1,0 +1,3 @@
+program	tests/omega/fail/borrows/stored_fixed_array_write_only_read/main.omg	current=rejected	current_us=1483323	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/stored_fixed_array_write_only_read/main.omg	current=rejected	current_us=1483323	root=machine:invalid	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/borrows/stored_fixed_array_write_only_read/main.omg	no-span	machine `invalid` state `entry` reads through index projection of write-only parameter `buffer`; `&write` permits admitted fixed-array element replacement but never observation

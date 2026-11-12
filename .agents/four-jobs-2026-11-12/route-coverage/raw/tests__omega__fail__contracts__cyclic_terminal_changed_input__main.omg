@@ -1,0 +1,6 @@
+program	tests/omega/fail/contracts/cyclic_terminal_changed_input/main.omg	current=rejected	current_us=1299825	root=compilation	route=no-entry
+program	tests/omega/fail/contracts/cyclic_terminal_changed_input/main.omg	current=rejected	current_us=1299825	root=machine:first	route=outside	Unsupported: contract ensures on a call cycle
+program	tests/omega/fail/contracts/cyclic_terminal_changed_input/main.omg	current=rejected	current_us=1299825	root=machine:second	route=outside	Unsupported: contract ensures on a call cycle
+program	tests/omega/fail/contracts/cyclic_terminal_changed_input/main.omg	current=rejected	current_us=1299825	root=machine:main	route=accepted	route_us=169	discharge_us=61	reverify_us=0	reverified=0	obligations=0	judged=0	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+current-diagnostic	tests/omega/fail/contracts/cyclic_terminal_changed_input/main.omg	main.omg:7 bytes 254..260	cannot prove ensures contract for exit from first at statement 1: result <= limit
+current-diagnostic	tests/omega/fail/contracts/cyclic_terminal_changed_input/main.omg	main.omg:16 bytes 500..505	cannot prove ensures contract for exit from second at statement 1: result <= limit

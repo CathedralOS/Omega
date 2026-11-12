@@ -1,0 +1,2 @@
+program	tests/omega/pass/borrows/carried_loan_replacement/main.omg	current=rejected	current_us=1303746	root=compilation	route=no-entry
+current-diagnostic	tests/omega/pass/borrows/carried_loan_replacement/main.omg	main.omg:18 bytes 772..815	machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`; declare it in the owner's generic parameter list

@@ -1,0 +1,10 @@
+program	tests/omega/pass/contracts/contradictory_branch_call_admission_exit/main.omg	current=accepted	current_us=3070613	root=compilation	route=accepted	route_us=4378	discharge_us=3329	reverify_us=1539	reverified=9	obligations=9	judged=8	core_refused=1	unproved=0	refused_other=0	needed_relation=0	needed_branch=1	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/contracts/contradictory_branch_call_admission_exit/main.omg	1	1	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/contracts/contradictory_branch_call_admission_exit/main.omg	1	2	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/pass/contracts/contradictory_branch_call_admission_exit/main.omg	1	3	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/contracts/contradictory_branch_call_admission_exit/main.omg	1	4	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/contracts/contradictory_branch_call_admission_exit/main.omg	1	5	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/contracts/contradictory_branch_call_admission_exit/main.omg	2	1	requirement	discharged-core-refused:checked discreteness has integer order endpoints+branch	formal	-
+obligation	tests/omega/pass/contracts/contradictory_branch_call_admission_exit/main.omg	2	2	safety	discharged-judged+interval	IntegerConstant,formal	-
+obligation	tests/omega/pass/contracts/contradictory_branch_call_admission_exit/main.omg	3	1	safety	discharged-judged+interval	IntegerConstant,formal	-
+obligation	tests/omega/pass/contracts/contradictory_branch_call_admission_exit/main.omg	5	1	crash	discharged-judged+interval	-	-

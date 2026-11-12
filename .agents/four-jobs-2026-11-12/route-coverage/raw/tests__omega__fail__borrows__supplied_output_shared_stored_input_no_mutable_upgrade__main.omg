@@ -1,0 +1,2 @@
+program	tests/omega/fail/borrows/supplied_output_shared_stored_input_no_mutable_upgrade/main.omg	current=rejected	current_us=1889102	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/borrows/supplied_output_shared_stored_input_no_mutable_upgrade/main.omg	main.omg:19 bytes 925..933	machine `exercise` state `entry` local `forbidden` requires mutable source access; shared or immutable storage cannot supply it

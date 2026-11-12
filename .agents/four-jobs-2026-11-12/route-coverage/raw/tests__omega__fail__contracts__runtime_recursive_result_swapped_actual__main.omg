@@ -1,0 +1,7 @@
+program	tests/omega/fail/contracts/runtime_recursive_result_swapped_actual/main.omg	current=rejected	current_us=1327876	root=compilation	route=no-entry
+program	tests/omega/fail/contracts/runtime_recursive_result_swapped_actual/main.omg	current=rejected	current_us=1327876	root=machine:carry	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/contracts/runtime_recursive_result_swapped_actual/main.omg	current=rejected	current_us=1327876	root=machine:step	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/contracts/runtime_recursive_result_swapped_actual/main.omg	main.omg:7 bytes 231..235	cannot prove ensures contract for exit from carry at statement 1: result.first == first
+current-diagnostic	tests/omega/fail/contracts/runtime_recursive_result_swapped_actual/main.omg	main.omg:7 bytes 231..235	cannot prove ensures contract for exit from carry at statement 1: result.second == second
+current-diagnostic	tests/omega/fail/contracts/runtime_recursive_result_swapped_actual/main.omg	main.omg:13 bytes 503..508	cannot prove ensures contract for exit from step at statement 0: result.first == first
+current-diagnostic	tests/omega/fail/contracts/runtime_recursive_result_swapped_actual/main.omg	main.omg:13 bytes 503..508	cannot prove ensures contract for exit from step at statement 0: result.second == second

@@ -1,0 +1,1 @@
+program	tests/omega/pass/expressions/runtime_enum_comparison_left_value_before_right_mutation_exit/main.omg	current=accepted	current_us=3070248	root=compilation	route=outside	Unsupported: parameter mutable parameter

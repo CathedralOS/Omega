@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/index_every_width_through_parameter_rejected/main.omg	current=rejected	current_us=2388549	root=compilation	route=outside	Unsupported: type fixed array
+current-diagnostic	tests/omega/fail/facts/index_every_width_through_parameter_rejected/main.omg	no-span	cannot prove index `index_i64` is within length 4 in read_all::entry

@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/saved_observation_snapshot_stored_reference_handback_field_rejected/main.omg	current=rejected	current_us=2350184	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/facts/saved_observation_snapshot_stored_reference_handback_field_rejected/main.omg	main.omg:15 bytes 573..575	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true

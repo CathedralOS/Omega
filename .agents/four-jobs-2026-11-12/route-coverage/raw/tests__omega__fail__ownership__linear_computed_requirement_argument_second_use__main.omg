@@ -1,0 +1,5 @@
+program	tests/omega/fail/ownership/linear_computed_requirement_argument_second_use/main.omg	current=rejected	current_us=1329598	root=compilation	route=no-entry
+program	tests/omega/fail/ownership/linear_computed_requirement_argument_second_use/main.omg	current=rejected	current_us=1329598	root=machine:drop_receipt	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/ownership/linear_computed_requirement_argument_second_use/main.omg	current=rejected	current_us=1329598	root=machine:consume	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/ownership/linear_computed_requirement_argument_second_use/main.omg	current=rejected	current_us=1329598	root=machine:main	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/ownership/linear_computed_requirement_argument_second_use/main.omg	no-span	cannot use `original` in machine `main` state `entry` (statement 2) after `original` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `original` first

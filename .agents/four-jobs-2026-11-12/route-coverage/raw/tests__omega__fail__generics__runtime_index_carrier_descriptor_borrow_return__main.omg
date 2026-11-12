@@ -1,0 +1,4 @@
+program	tests/omega/fail/generics/runtime_index_carrier_descriptor_borrow_return/main.omg	current=rejected	current_us=1313533	root=compilation	route=no-entry
+program	tests/omega/fail/generics/runtime_index_carrier_descriptor_borrow_return/main.omg	current=rejected	current_us=1313533	root=machine:build	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/generics/runtime_index_carrier_descriptor_borrow_return/main.omg	current=rejected	current_us=1313533	root=machine:expose	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/generics/runtime_index_carrier_descriptor_borrow_return/main.omg	<default-build>:1 bytes 0..0	mutable scalar loan cannot preserve a runtime index descriptor

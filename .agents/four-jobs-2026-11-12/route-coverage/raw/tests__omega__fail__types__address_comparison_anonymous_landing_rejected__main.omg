@@ -1,0 +1,11 @@
+program	tests/omega/fail/types/address_comparison_anonymous_landing_rejected/main.omg	current=rejected	current_us=1252041	root=compilation	route=no-entry
+program	tests/omega/fail/types/address_comparison_anonymous_landing_rejected/main.omg	current=rejected	current_us=1252041	root=machine:negative	route=outside	Unsupported: type addr
+program	tests/omega/fail/types/address_comparison_anonymous_landing_rejected/main.omg	current=rejected	current_us=1252041	root=machine:fractional	route=outside	Unsupported: type addr
+program	tests/omega/fail/types/address_comparison_anonymous_landing_rejected/main.omg	current=rejected	current_us=1252041	root=machine:wide	route=outside	Unsupported: type addr
+program	tests/omega/fail/types/address_comparison_anonymous_landing_rejected/main.omg	current=rejected	current_us=1252041	root=machine:model_exclusive	route=outside	Unsupported: type addr
+program	tests/omega/fail/types/address_comparison_anonymous_landing_rejected/main.omg	current=rejected	current_us=1252041	root=machine:model_outside	route=outside	Unsupported: type addr
+current-diagnostic	tests/omega/fail/types/address_comparison_anonymous_landing_rejected/main.omg	main.omg:1 bytes 8..16	anonymous integer value `-1` does not fit destination `addr` in machine `negative` requires contract
+current-diagnostic	tests/omega/fail/types/address_comparison_anonymous_landing_rejected/main.omg	main.omg:2 bytes 129..130	anonymous value `1/2` is not an integer and cannot land in `addr` in machine `fractional` requires contract; type an operand before division if integer division was intended
+current-diagnostic	tests/omega/fail/types/address_comparison_anonymous_landing_rejected/main.omg	main.omg:3 bytes 151..155	anonymous integer value `18446744073709551616` does not fit destination `addr` in machine `wide` requires contract
+current-diagnostic	tests/omega/fail/types/address_comparison_anonymous_landing_rejected/main.omg	main.omg:6 bytes 315..317	anonymous address comparison operand cannot prove fit in `addr::Bound` in machine `model_exclusive` requires contract
+current-diagnostic	tests/omega/fail/types/address_comparison_anonymous_landing_rejected/main.omg	main.omg:9 bytes 415..419	anonymous address comparison operand cannot prove fit in `addr::Bound` in machine `model_outside` requires contract

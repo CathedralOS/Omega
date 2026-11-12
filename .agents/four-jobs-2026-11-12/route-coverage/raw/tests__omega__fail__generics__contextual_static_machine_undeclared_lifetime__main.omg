@@ -1,0 +1,1 @@
+program	tests/omega/fail/generics/contextual_static_machine_undeclared_lifetime/main.omg	current=stopped	current_us=1280110	root=compilation	route=unreached	Some("nested machine lifetime argument is not declared in its lexical owner")

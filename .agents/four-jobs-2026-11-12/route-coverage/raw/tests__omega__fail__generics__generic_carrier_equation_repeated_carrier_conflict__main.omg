@@ -1,0 +1,1 @@
+program	tests/omega/fail/generics/generic_carrier_equation_repeated_carrier_conflict/main.omg	current=stopped	current_us=824295	root=compilation	route=unreached	Some("generic data `Same` requires type equation has conflicting element types")

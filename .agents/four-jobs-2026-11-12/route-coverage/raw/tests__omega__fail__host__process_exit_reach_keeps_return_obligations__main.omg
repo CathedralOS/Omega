@@ -1,0 +1,5 @@
+program	tests/omega/fail/host/process_exit_reach_keeps_return_obligations/main.omg	current=rejected	current_us=1338451	root=compilation	route=no-entry
+program	tests/omega/fail/host/process_exit_reach_keeps_return_obligations/main.omg	current=rejected	current_us=1338451	root=machine:returning	route=accepted	route_us=226	discharge_us=63	reverify_us=0	reverified=0	obligations=0	judged=0	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+program	tests/omega/fail/host/process_exit_reach_keeps_return_obligations/main.omg	current=rejected	current_us=1338451	root=machine:maybe_exit	route=outside	Unsupported: machine service reach
+program	tests/omega/fail/host/process_exit_reach_keeps_return_obligations/main.omg	current=rejected	current_us=1338451	root=machine:main	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/host/process_exit_reach_keeps_return_obligations/main.omg	no-span	linear value `token` reaches scope exit without being consumed or transferred in machine `main` state `entry`

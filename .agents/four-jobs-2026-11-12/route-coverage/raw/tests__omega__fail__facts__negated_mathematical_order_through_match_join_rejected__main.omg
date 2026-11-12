@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/negated_mathematical_order_through_match_join_rejected/main.omg	current=rejected	current_us=2291907	root=compilation	route=outside	Unsupported: type constrained
+current-diagnostic	tests/omega/fail/facts/negated_mathematical_order_through_match_join_rejected/main.omg	no-span	cannot prove the value assigned to `value` in establish is in domain `u64::Small`; a place declared `in u64::Small` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)

@@ -1,0 +1,1 @@
+program	tests/omega/fail/domains/carrier_exact_ensures_result/main.omg	current=stopped	current_us=1018024	root=compilation	route=unreached	Some("domain membership `u16::Small` expects subject carrier `u16`, got `u8`")

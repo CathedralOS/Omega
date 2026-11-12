@@ -1,0 +1,3 @@
+program	tests/omega/fail/calls/numeric_helper_clamp_requires_declaration/main.omg	current=rejected	current_us=1207995	root=compilation	route=no-entry
+program	tests/omega/fail/calls/numeric_helper_clamp_requires_declaration/main.omg	current=rejected	current_us=1207995	root=machine:evaluate	route=outside	Unsupported: call late-bound selection
+current-diagnostic	tests/omega/fail/calls/numeric_helper_clamp_requires_declaration/main.omg	main.omg:1 bytes 38..43	machine `evaluate` state `entry`: value call `clamp(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.

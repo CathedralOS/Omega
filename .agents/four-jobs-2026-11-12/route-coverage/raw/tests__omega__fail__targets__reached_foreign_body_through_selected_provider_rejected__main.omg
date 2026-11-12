@@ -1,0 +1,2 @@
+program	tests/omega/fail/targets/reached_foreign_body_through_selected_provider_rejected/main.omg	current=rejected	current_us=11707257	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/targets/reached_foreign_body_through_selected_provider_rejected/main.omg	no-span	build selects provider `RelayValue` for unknown boundary slot `Value`; the slot must exist in the loaded dependency closure

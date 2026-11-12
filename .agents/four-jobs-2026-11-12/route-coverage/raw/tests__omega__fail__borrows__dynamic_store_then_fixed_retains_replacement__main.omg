@@ -1,0 +1,4 @@
+program	tests/omega/fail/borrows/dynamic_store_then_fixed_retains_replacement/main.omg	current=rejected	current_us=1319977	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/dynamic_store_then_fixed_retains_replacement/main.omg	current=rejected	current_us=1319977	root=machine:replace	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/borrows/dynamic_store_then_fixed_retains_replacement/main.omg	current=rejected	current_us=1319977	root=machine:invalid	route=outside	Unsupported: type fixed array
+current-diagnostic	tests/omega/fail/borrows/dynamic_store_then_fixed_retains_replacement/main.omg	no-span	statement 6 mutates `replacement.value` while local borrow `slots` is still active (borrowed at statement 4; its last use is at statement 7 and it is released at state exit)

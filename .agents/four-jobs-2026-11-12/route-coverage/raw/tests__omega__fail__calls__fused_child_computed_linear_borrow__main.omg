@@ -1,0 +1,3 @@
+program	tests/omega/fail/calls/fused_child_computed_linear_borrow/main.omg	current=rejected	current_us=2372035	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/calls/fused_child_computed_linear_borrow/main.omg	no-span	linear value `previous` reaches scope exit without being consumed or transferred in machine `compare` state `entry`
+current-diagnostic	tests/omega/fail/calls/fused_child_computed_linear_borrow/main.omg	no-span	linear value `current` reaches scope exit without being consumed or transferred in machine `compare` state `entry`

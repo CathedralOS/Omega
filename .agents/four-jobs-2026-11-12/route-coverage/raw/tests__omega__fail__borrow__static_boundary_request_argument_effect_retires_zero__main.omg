@@ -1,0 +1,5 @@
+program	tests/omega/fail/borrow/static_boundary_request_argument_effect_retires_zero/main.omg	current=rejected	current_us=1336008	root=compilation	route=no-entry
+program	tests/omega/fail/borrow/static_boundary_request_argument_effect_retires_zero/main.omg	current=rejected	current_us=1336008	root=machine:entry	route=outside	Unsupported: machine suspends or blocks
+program	tests/omega/fail/borrow/static_boundary_request_argument_effect_retires_zero/main.omg	current=rejected	current_us=1336008	root=machine:main	route=outside	Unsupported: machine suspends or blocks
+program	tests/omega/fail/borrow/static_boundary_request_argument_effect_retires_zero/main.omg	current=rejected	current_us=1336008	root=machine:change	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/borrow/static_boundary_request_argument_effect_retires_zero/main.omg	main.omg:10 bytes 371..378	cannot prove requires contract for call acquire from entry: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

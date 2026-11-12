@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/additional_input_domain_mutation_through_parameter_rejected/main.omg	current=rejected	current_us=2302768	root=compilation	route=outside	Unsupported: contract contracts on a state
+current-diagnostic	tests/omega/fail/facts/additional_input_domain_mutation_through_parameter_rejected/main.omg	no-span	cannot prove ensures contract for exit from overwrite at statement 1: cell in Cell::Before

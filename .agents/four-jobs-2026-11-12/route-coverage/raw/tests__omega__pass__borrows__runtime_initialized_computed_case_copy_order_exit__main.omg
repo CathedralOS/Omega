@@ -1,0 +1,1 @@
+program	tests/omega/pass/borrows/runtime_initialized_computed_case_copy_order_exit/main.omg	current=accepted	current_us=3271150	root=compilation	route=outside	Unsupported: parameter mutable parameter

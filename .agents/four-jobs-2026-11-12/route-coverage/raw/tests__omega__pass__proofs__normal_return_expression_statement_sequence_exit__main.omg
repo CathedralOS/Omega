@@ -1,0 +1,10 @@
+program	tests/omega/pass/proofs/normal_return_expression_statement_sequence_exit/main.omg	current=accepted	current_us=2974018	root=compilation	route=incomplete	route_us=2623	discharge_us=1284	reverify_us=143	reverified=5	obligations=8	judged=5	core_refused=0	unproved=2	refused_other=0	needed_relation=0	needed_branch=0	published_held=1	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+obligation	tests/omega/pass/proofs/normal_return_expression_statement_sequence_exit/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/pass/proofs/normal_return_expression_statement_sequence_exit/main.omg	2	1	published	every-exit:1	-	-
+obligation	tests/omega/pass/proofs/normal_return_expression_statement_sequence_exit/main.omg	2	2	guarantee	discharged-judged+interval	formal	-
+obligation	tests/omega/pass/proofs/normal_return_expression_statement_sequence_exit/main.omg	3	1	published	unproved	-	a normal return does not establish this clause
+obligation	tests/omega/pass/proofs/normal_return_expression_statement_sequence_exit/main.omg	3	2	guarantee	unproved	-	equality of non-integers is proved only by a hypothesis
+obligation	tests/omega/pass/proofs/normal_return_expression_statement_sequence_exit/main.omg	4	1	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/proofs/normal_return_expression_statement_sequence_exit/main.omg	4	2	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/pass/proofs/normal_return_expression_statement_sequence_exit/main.omg	6	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/pass/proofs/normal_return_expression_statement_sequence_exit/main.omg	3	2	incomplete	main.omg:7 bytes 246..252	cannot prove ensures contract for exit from forwarded at statement 0: result == value (the prover has no rule for this form of goal: equality of non-integers is proved only by a hypothesis)	site=different

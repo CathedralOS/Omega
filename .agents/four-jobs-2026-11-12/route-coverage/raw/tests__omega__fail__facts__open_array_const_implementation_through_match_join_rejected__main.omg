@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/open_array_const_implementation_through_match_join_rejected/main.omg	current=stopped	current_us=1611065	root=compilation	route=unreached	Some("generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments")

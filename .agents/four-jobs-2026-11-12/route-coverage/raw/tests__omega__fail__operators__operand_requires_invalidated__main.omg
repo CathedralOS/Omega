@@ -1,0 +1,5 @@
+program	tests/omega/fail/operators/operand_requires_invalidated/main.omg	current=rejected	current_us=1348232	root=compilation	route=no-entry
+program	tests/omega/fail/operators/operand_requires_invalidated/main.omg	current=rejected	current_us=1348232	root=machine:Integer::equal	route=outside	Unsupported: machine operator spelling
+program	tests/omega/fail/operators/operand_requires_invalidated/main.omg	current=rejected	current_us=1348232	root=machine:reset	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/fail/operators/operand_requires_invalidated/main.omg	current=rejected	current_us=1348232	root=machine:compare	route=outside	Unsupported: contract contracts on a state
+current-diagnostic	tests/omega/fail/operators/operand_requires_invalidated/main.omg	main.omg:15 bytes 456..458	cannot prove requires contract for call equal from compare: value >= 0 (needs fact `right >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

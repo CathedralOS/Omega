@@ -1,0 +1,1 @@
+program	tests/omega/fail/modules/generic_scoped_constant_private_owner/main.omg	current=stopped	current_us=1724170	root=compilation	route=unreached	Some("module type-scoped constants require an exact accessible data carrier selected in their declaring source")

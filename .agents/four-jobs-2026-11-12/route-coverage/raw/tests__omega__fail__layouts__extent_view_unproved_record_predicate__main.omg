@@ -1,0 +1,37 @@
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=compilation	route=no-entry
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:WordPlacement::plan	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:attempt	route=outside	Unsupported: machine service reach
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:LayoutPlan::place_private	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:LayoutPlan::place_private	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:AccessPlan::inaccessible	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:AccessPlan::seed_bounded	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:seed	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:examine	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:search	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:compare	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:append	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:AccessPlan::with	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:AccessPlan::with_reach	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:AccessPlan::with_bounded	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:seek	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:inspect	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:replace	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:advance	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:invalid	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:grow_invalid	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:Access::view	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:Access::view_mut	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:Access::view_resident_mut	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:Access::view_extent	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:Access::view_from_profile	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:Access::view_extent_mut	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:Access::view_mut_from_profile	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:NativeAccess::initialize	route=outside	Unsupported: machine service reach
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:NativeAccess::move_out	route=outside	Unsupported: machine service reach
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:Access::initialize_from_profile	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:Access::extract_resident	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:Access::initialize_owned	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:Access::move_out_owned	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:read	route=outside	Unsupported: machine supply mode other than a checked body
+program	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	current=rejected	current_us=5134697	root=machine:Accessor<Access<WordPlacement,Word>,value>::read	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/layouts/extent_view_unproved_record_predicate/main.omg	layout.omg:644 bytes 24012..24029	nonresident access View cannot establish record predicates for `Word`; independent content-validity evidence is required

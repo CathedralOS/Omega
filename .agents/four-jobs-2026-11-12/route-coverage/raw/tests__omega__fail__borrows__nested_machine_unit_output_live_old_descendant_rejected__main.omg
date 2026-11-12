@@ -1,0 +1,2 @@
+program	tests/omega/fail/borrows/nested_machine_unit_output_live_old_descendant_rejected/main.omg	current=rejected	current_us=11302408	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/borrows/nested_machine_unit_output_live_old_descendant_rejected/main.omg	no-span	statement 5 mutates `old.value` while local borrow `child` is still active (borrowed at statement 3; its last use is at statement 6)

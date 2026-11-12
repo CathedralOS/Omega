@@ -1,0 +1,1 @@
+program	tests/omega/fail/asm/scratch_uninitialized_register/main.omg	current=stopped	current_us=1349840	root=compilation	route=unreached	Some("assembly label `entry` reads uninitialized scratch register/flag value")

@@ -1,0 +1,6 @@
+program	tests/omega/fail/calls/void_value_callee_rejected/main.omg	current=rejected	current_us=10367986	root=compilation	route=no-entry
+program	tests/omega/fail/calls/void_value_callee_rejected/main.omg	current=rejected	current_us=10367986	root=machine:Main::act	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/calls/void_value_callee_rejected/main.omg	current=rejected	current_us=10367986	root=machine:Main::main	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/calls/void_value_callee_rejected/main.omg	current=rejected	current_us=10367986	root=machine:yes	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/calls/void_value_callee_rejected/main.omg	current=rejected	current_us=10367986	root=machine:no	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/calls/void_value_callee_rejected/main.omg	main.omg:10 bytes 242..245	machine `Main::main` state `main`: `act(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local

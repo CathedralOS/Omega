@@ -1,0 +1,5 @@
+program	tests/omega/fail/contracts/indexed_store_selector_write_retires_rhs_fact/main.omg	current=rejected	current_us=1294789	root=compilation	route=no-entry
+program	tests/omega/fail/contracts/indexed_store_selector_write_retires_rhs_fact/main.omg	current=rejected	current_us=1294789	root=machine:select	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/contracts/indexed_store_selector_write_retires_rhs_fact/main.omg	current=rejected	current_us=1294789	root=machine:replacement	route=outside	Unsupported: type reference
+program	tests/omega/fail/contracts/indexed_store_selector_write_retires_rhs_fact/main.omg	current=rejected	current_us=1294789	root=machine:main	route=outside	Unsupported: type fixed array
+current-diagnostic	tests/omega/fail/contracts/indexed_store_selector_write_retires_rhs_fact/main.omg	main.omg:7 bytes 269..280	cannot prove requires contract for call replacement from main: flag == 1 (needs fact `flag == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

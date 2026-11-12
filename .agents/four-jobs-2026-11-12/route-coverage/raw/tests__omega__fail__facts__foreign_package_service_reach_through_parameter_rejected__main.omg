@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/foreign_package_service_reach_through_parameter_rejected/main.omg	current=rejected	current_us=2198872	root=compilation	route=outside	Unsupported: declaration trait
+current-diagnostic	tests/omega/fail/facts/foreign_package_service_reach_through_parameter_rejected/main.omg	no-span	machine `shout` publishes service reach `<none>` but its checked body reaches undeclared service `Lettering`

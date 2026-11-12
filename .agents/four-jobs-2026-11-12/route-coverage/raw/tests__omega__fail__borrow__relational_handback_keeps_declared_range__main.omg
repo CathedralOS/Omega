@@ -1,0 +1,4 @@
+program	tests/omega/fail/borrow/relational_handback_keeps_declared_range/main.omg	current=rejected	current_us=1301899	root=compilation	route=no-entry
+program	tests/omega/fail/borrow/relational_handback_keeps_declared_range/main.omg	current=rejected	current_us=1301899	root=machine:fill	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/borrow/relational_handback_keeps_declared_range/main.omg	current=rejected	current_us=1301899	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/borrow/relational_handback_keeps_declared_range/main.omg	main.omg:5 bytes 218..222	machine `main` cannot lend restricted field `left` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate

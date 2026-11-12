@@ -1,0 +1,1 @@
+program	tests/omega/fail/constants/unused_empty_case_predicate_constant/main.omg	current=stopped	current_us=916188	root=compilation	route=unreached	Some("data `Choice` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)")

@@ -1,0 +1,7 @@
+program	tests/omega/fail/targets/family_private_projected_membership_rejected/main.omg	current=rejected	current_us=1361820	root=compilation	route=no-entry
+program	tests/omega/fail/targets/family_private_projected_membership_rejected/main.omg	current=rejected	current_us=1361820	root=machine:drop_receipt	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/targets/family_private_projected_membership_rejected/main.omg	current=rejected	current_us=1361820	root=machine:produce	route=outside	Unsupported: machine target selection
+program	tests/omega/fail/targets/family_private_projected_membership_rejected/main.omg	current=rejected	current_us=1361820	root=machine:produce	route=outside	Unsupported: machine target selection
+program	tests/omega/fail/targets/family_private_projected_membership_rejected/main.omg	current=rejected	current_us=1361820	root=machine:main	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/targets/family_private_projected_membership_rejected/main.omg	current=rejected	current_us=1361820	root=machine:produce	route=outside	Unsupported: machine supply mode other than a checked body
+current-diagnostic	tests/omega/fail/targets/family_private_projected_membership_rejected/main.omg	no-span	cannot prove initializer of `receipt` in main is in domain `Receipt::Positive`; an annotation cannot establish routed qualification

@@ -1,0 +1,1 @@
+program	tests/omega/fail/facts/finite_family_const_roster/match_join/main.omg	current=stopped	current_us=1411773	root=compilation	route=unreached	Some("const parameter `Width` of `row` requires a normalized closed value")

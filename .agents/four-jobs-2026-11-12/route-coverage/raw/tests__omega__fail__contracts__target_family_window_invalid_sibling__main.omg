@@ -1,0 +1,2 @@
+program	tests/omega/fail/contracts/target_family_window_invalid_sibling/main.omg	current=rejected	current_us=2278667	root=compilation	route=outside	Unsupported: machine target selection
+current-diagnostic	tests/omega/fail/contracts/target_family_window_invalid_sibling/main.omg	no-span	cannot prove ensures contract for exit from window at statement 0: result.len == 2

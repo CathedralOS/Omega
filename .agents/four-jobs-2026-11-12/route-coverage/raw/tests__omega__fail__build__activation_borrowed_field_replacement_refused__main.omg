@@ -1,0 +1,1 @@
+program	tests/omega/fail/build/activation_borrowed_field_replacement_refused/main.omg	current=stopped	current_us=643989	root=compilation	route=unreached	Some("the compiler-owned Build activation cannot be replaced as a whole value")

@@ -1,0 +1,4 @@
+program	tests/omega/fail/borrow/view_field_store_parameter_view_outlives_call/main.omg	current=rejected	current_us=1365587	root=compilation	route=no-entry
+program	tests/omega/fail/borrow/view_field_store_parameter_view_outlives_call/main.omg	current=rejected	current_us=1365587	root=machine:Main::keep	route=outside	Unsupported: machine attached data
+program	tests/omega/fail/borrow/view_field_store_parameter_view_outlives_call/main.omg	current=rejected	current_us=1365587	root=machine:Main::main	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/borrow/view_field_store_parameter_view_outlives_call/main.omg	no-span	assignment stores a borrow-carrying value in persistent field `label` of machine `Main::keep`; persistent loans must be propagated through graph-state transitions before this write can be admitted

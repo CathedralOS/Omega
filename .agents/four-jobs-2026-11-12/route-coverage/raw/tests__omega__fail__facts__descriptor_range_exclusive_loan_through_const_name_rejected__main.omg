@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/descriptor_range_exclusive_loan_through_const_name_rejected/main.omg	current=rejected	current_us=2301545	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/descriptor_range_exclusive_loan_through_const_name_rejected/main.omg	no-span	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)

@@ -1,0 +1,5 @@
+program	tests/omega/fail/relevance/erased_array_wrong_element/main.omg	current=rejected	current_us=1311099	root=compilation	route=no-entry
+program	tests/omega/fail/relevance/erased_array_wrong_element/main.omg	current=rejected	current_us=1311099	root=machine:keep	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/relevance/erased_array_wrong_element/main.omg	current=rejected	current_us=1311099	root=machine:Main::main	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/relevance/erased_array_wrong_element/main.omg	no-span	array literal element stores a boolean into a `i32` element, which holds a numeric value
+current-diagnostic	tests/omega/fail/relevance/erased_array_wrong_element/main.omg	no-span	array literal element stores a boolean into a `i32` element, which holds a numeric value

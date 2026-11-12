@@ -1,0 +1,4 @@
+program	tests/omega/fail/domains/interval_membership_wrapping_false/main.omg	current=rejected	current_us=1321697	root=compilation	route=no-entry
+program	tests/omega/fail/domains/interval_membership_wrapping_false/main.omg	current=rejected	current_us=1321697	root=machine:keep	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/fail/domains/interval_membership_wrapping_false/main.omg	current=rejected	current_us=1321697	root=machine:main	route=outside	Unsupported: contract contracts on a state
+current-diagnostic	tests/omega/fail/domains/interval_membership_wrapping_false/main.omg	main.omg:3 bytes 127..131	cannot prove requires contract for call keep from main: 11 in u8::Small in state `entry`

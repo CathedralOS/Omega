@@ -1,0 +1,1 @@
+program	tests/omega/fail/domains/retired_empty_predicate_body/main.omg	current=stopped	current_us=644414	root=compilation	route=unreached	Some("/tmp/omega-corpus-session-78511-0/source/tests/omega/fail/domains/retired_empty_predicate_body/main.omg:1:40: empty domain bodies are retired; end the declaration with `;`")

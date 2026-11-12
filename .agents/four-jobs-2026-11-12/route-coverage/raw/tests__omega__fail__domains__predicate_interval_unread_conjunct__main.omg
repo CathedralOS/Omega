@@ -1,0 +1,5 @@
+program	tests/omega/fail/domains/predicate_interval_unread_conjunct/main.omg	current=rejected	current_us=1303406	root=compilation	route=no-entry
+program	tests/omega/fail/domains/predicate_interval_unread_conjunct/main.omg	current=rejected	current_us=1303406	root=machine:use_sparse	route=outside	Unsupported: contract domain membership
+program	tests/omega/fail/domains/predicate_interval_unread_conjunct/main.omg	current=rejected	current_us=1303406	root=machine:relay	route=outside	Unsupported: contract domain membership
+program	tests/omega/fail/domains/predicate_interval_unread_conjunct/main.omg	current=rejected	current_us=1303406	root=machine:main	route=outside	Unsupported: contract domain membership
+current-diagnostic	tests/omega/fail/domains/predicate_interval_unread_conjunct/main.omg	main.omg:5 bytes 273..283	cannot prove requires contract for call use_sparse from relay: x in u64::Sparse in state `entry`

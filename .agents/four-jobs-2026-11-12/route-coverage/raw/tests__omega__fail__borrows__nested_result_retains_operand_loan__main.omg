@@ -1,0 +1,6 @@
+program	tests/omega/fail/borrows/nested_result_retains_operand_loan/main.omg	current=rejected	current_us=1334364	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/nested_result_retains_operand_loan/main.omg	current=rejected	current_us=1334364	root=machine:hold	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/borrows/nested_result_retains_operand_loan/main.omg	current=rejected	current_us=1334364	root=machine:bump	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/borrows/nested_result_retains_operand_loan/main.omg	current=rejected	current_us=1334364	root=machine:observe	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/borrows/nested_result_retains_operand_loan/main.omg	current=rejected	current_us=1334364	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/borrows/nested_result_retains_operand_loan/main.omg	no-span	state `observe` receives `value` as mutable more than once

@@ -1,0 +1,3 @@
+program	tests/omega/fail/facts/nested_machine_invocation/target_body/main.omg	current=rejected	current_us=1858707	root=compilation	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/facts/nested_machine_invocation/target_body/main.omg	main.omg:5 bytes 242..246	machine `keep` state `entry` terminal expression expects `T`, got `bool`
+current-diagnostic	tests/omega/fail/facts/nested_machine_invocation/target_body/main.omg	main.omg:5 bytes 242..246	machine `keep$specialized$24e20771f1b96f6b$0$4644` state `entry` terminal expression expects `u64`, got `bool`

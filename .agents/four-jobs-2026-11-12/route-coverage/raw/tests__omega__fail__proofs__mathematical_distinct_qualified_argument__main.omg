@@ -1,0 +1,1 @@
+program	tests/omega/fail/proofs/mathematical_distinct_qualified_argument/main.omg	current=stopped	current_us=1149252	root=compilation	route=unreached	Some("invalid mathematical application `meter_identity(value)`: mathematical argument does not preserve its declared carrier and policy")

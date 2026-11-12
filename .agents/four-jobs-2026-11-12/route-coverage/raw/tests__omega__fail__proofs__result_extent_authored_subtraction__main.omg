@@ -1,0 +1,3 @@
+program	tests/omega/fail/proofs/result_extent_authored_subtraction/main.omg	current=rejected	current_us=2342787	root=compilation	route=outside	Unsupported: machine operator spelling
+current-diagnostic	tests/omega/fail/proofs/result_extent_authored_subtraction/main.omg	main.omg:9 bytes 375..376	cannot prove ensures contract for exit from wrong at statement 0: result.len == end - start
+current-diagnostic	tests/omega/fail/proofs/result_extent_authored_subtraction/main.omg	main.omg:16 bytes 608..616	cannot prove requires contract for call need_two from main: selected.len == 2 (needs fact `bytes.len == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

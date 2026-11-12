@@ -1,0 +1,2 @@
+program	tests/omega/pass/calls/generic_operator_guard_result/main.omg	current=rejected	current_us=2331659	root=compilation	route=no-entry
+current-diagnostic	tests/omega/pass/calls/generic_operator_guard_result/main.omg	no-span	machine `inspect` state `entry` statement 1: stored call has no complete statement-successor effects: an invocation relation is unavailable

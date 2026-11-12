@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/fixed_layout_storage_through_field_rejected/main.omg	current=rejected	current_us=2707821	root=compilation	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/facts/fixed_layout_storage_through_field_rejected/main.omg	no-span	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42

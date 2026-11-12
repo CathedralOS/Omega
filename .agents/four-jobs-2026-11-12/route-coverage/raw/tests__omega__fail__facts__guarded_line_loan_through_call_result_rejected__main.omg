@@ -1,0 +1,4 @@
+program	tests/omega/fail/facts/guarded_line_loan_through_call_result_rejected/main.omg	current=rejected	current_us=2383312	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/guarded_line_loan_through_call_result_rejected/main.omg	no-span	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+current-diagnostic	tests/omega/fail/facts/guarded_line_loan_through_call_result_rejected/main.omg	no-span	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3) in machine `main`, state `entry`, statement 2
+current-diagnostic	tests/omega/fail/facts/guarded_line_loan_through_call_result_rejected/main.omg	no-span	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)

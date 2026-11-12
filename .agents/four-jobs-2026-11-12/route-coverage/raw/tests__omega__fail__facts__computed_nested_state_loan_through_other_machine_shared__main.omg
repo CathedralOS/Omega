@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/computed_nested_state_loan_through_other_machine_shared/main.omg	current=rejected	current_us=1932103	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/computed_nested_state_loan_through_other_machine_shared/main.omg	main.omg:29 bytes 1146..1148	argument `value` for state `apply` is declared `&mut` (`&mut i32[in Wrapping]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding

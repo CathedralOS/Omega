@@ -1,0 +1,2 @@
+program	tests/omega/fail/borrows/copied_scalar_field_without_restriction/main.omg	current=rejected	current_us=2471669	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/borrows/copied_scalar_field_without_restriction/main.omg	main.omg:14 bytes 689..696	cannot prove requires contract for call bounded from selected: limits.value <= 5 (needs fact `value <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

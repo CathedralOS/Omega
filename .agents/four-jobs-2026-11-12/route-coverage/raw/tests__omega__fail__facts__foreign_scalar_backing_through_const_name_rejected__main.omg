@@ -1,0 +1,3 @@
+program	tests/omega/fail/facts/foreign_scalar_backing_through_const_name_rejected/main.omg	current=rejected	current_us=2752315	root=compilation	route=outside	Unsupported: declaration const
+current-diagnostic	tests/omega/fail/facts/foreign_scalar_backing_through_const_name_rejected/main.omg	no-span	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+current-diagnostic	tests/omega/fail/facts/foreign_scalar_backing_through_const_name_rejected/main.omg	no-span	statement 4 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)

@@ -1,0 +1,1 @@
+program	tests/omega/fail/providers/generic_result_phantom_issuer/main.omg	current=stopped	current_us=759570	root=compilation	route=unreached	Some("domain `Token::Issued` authorizes `Issuer::issue` but that requirement does not name the domain on its exact result or an exact non-self external-root parameter")

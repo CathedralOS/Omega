@@ -1,0 +1,2 @@
+program	tests/omega/pass/facts/data_where_standing_nested_borrowed_field_target_body/main.omg	current=rejected	current_us=2465168	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+current-diagnostic	tests/omega/pass/facts/data_where_standing_nested_borrowed_field_target_body/main.omg	no-span	machine `capture` returns a view borrowing input `holder`, which is not permitted by the declared result lifetime relation

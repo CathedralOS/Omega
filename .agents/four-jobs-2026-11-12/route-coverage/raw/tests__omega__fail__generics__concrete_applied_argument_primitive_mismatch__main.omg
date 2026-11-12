@@ -1,0 +1,5 @@
+program	tests/omega/fail/generics/concrete_applied_argument_primitive_mismatch/main.omg	current=rejected	current_us=1274633	root=compilation	route=no-entry
+program	tests/omega/fail/generics/concrete_applied_argument_primitive_mismatch/main.omg	current=rejected	current_us=1274633	root=machine:same	route=outside	Unsupported: machine generic parameters
+program	tests/omega/fail/generics/concrete_applied_argument_primitive_mismatch/main.omg	current=rejected	current_us=1274633	root=machine:wrong	route=outside	Unsupported: type generic data
+program	tests/omega/fail/generics/concrete_applied_argument_primitive_mismatch/main.omg	current=rejected	current_us=1274633	root=machine:main	route=accepted	route_us=176	discharge_us=60	reverify_us=0	reverified=0	obligations=0	judged=0	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+current-diagnostic	tests/omega/fail/generics/concrete_applied_argument_primitive_mismatch/main.omg	main.omg:6 bytes 231..235	machine `wrong` state `entry` local `held` expects `Holder<u8>`, but the value is delivered as `Holder<u16>`

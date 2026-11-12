@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/linear_claim_retirement_through_const_name_rejected/main.omg	current=rejected	current_us=2250540	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/linear_claim_retirement_through_const_name_rejected/main.omg	no-span	cannot use `token` in machine `probe` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first

@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/data_where_standing_write_only_other_machine_unrestored_window/main.omg	current=rejected	current_us=2302575	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/data_where_standing_write_only_other_machine_unrestored_window/main.omg	main.omg:8 bytes 474..476	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first

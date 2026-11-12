@@ -1,0 +1,1 @@
+program	tests/omega/pass/facts/unsigned_64bit_shift_left_bound_through_other_state_exit/main.omg	current=accepted	current_us=3027858	root=compilation	route=outside	Unsupported: typing literal landed type

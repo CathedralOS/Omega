@@ -1,0 +1,3 @@
+program	tests/omega/fail/domains/qualified_fixed_byte_array_nested_zero_route/main.omg	current=rejected	current_us=1262283	root=compilation	route=no-entry
+program	tests/omega/fail/domains/qualified_fixed_byte_array_nested_zero_route/main.omg	current=rejected	current_us=1262283	root=machine:missing	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/domains/qualified_fixed_byte_array_nested_zero_route/main.omg	no-span	construction of `Inner` omits gated field `bytes`: its zero-filled representation is not an established value -- initialize it explicitly

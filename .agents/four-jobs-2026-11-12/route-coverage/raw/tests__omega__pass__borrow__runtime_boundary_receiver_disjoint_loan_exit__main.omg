@@ -1,0 +1,2 @@
+program	tests/omega/pass/borrow/runtime_boundary_receiver_disjoint_loan_exit/main.omg	current=rejected	current_us=10645294	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/pass/borrow/runtime_boundary_receiver_disjoint_loan_exit/main.omg	main.omg:18 bytes 546..553	argument `bytes` for state `publish` expects `&[u8]`, got `named value`; expected carrier `ref(slice(named(name(u8))))`, declared place carrier `named(name(u8))`

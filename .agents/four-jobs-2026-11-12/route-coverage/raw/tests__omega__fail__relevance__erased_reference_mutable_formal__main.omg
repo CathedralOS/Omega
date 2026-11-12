@@ -1,0 +1,5 @@
+program	tests/omega/fail/relevance/erased_reference_mutable_formal/main.omg	current=rejected	current_us=1318485	root=compilation	route=no-entry
+program	tests/omega/fail/relevance/erased_reference_mutable_formal/main.omg	current=rejected	current_us=1318485	root=machine:keep	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/relevance/erased_reference_mutable_formal/main.omg	current=rejected	current_us=1318485	root=machine:main	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/relevance/erased_reference_mutable_formal/main.omg	no-span	machine `keep::entry` erased parameter `witness` cannot be `mut`; an erased binding owns no runtime storage or custody
+current-diagnostic	tests/omega/fail/relevance/erased_reference_mutable_formal/main.omg	no-span	machine `keep::entry` erased parameter `witness` is not scalar; an erased formal on a runtime machine needs a scalar lane or a contract term carrier

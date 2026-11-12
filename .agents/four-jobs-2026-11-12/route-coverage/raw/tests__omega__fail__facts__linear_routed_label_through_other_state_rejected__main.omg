@@ -1,0 +1,4 @@
+program	tests/omega/fail/facts/linear_routed_label_through_other_state_rejected/main.omg	current=rejected	current_us=2490907	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/facts/linear_routed_label_through_other_state_rejected/main.omg	main.omg:18 bytes 703..708	cannot prove requires contract for call label from exercise: claim in Claim::Issued in state `entry`
+current-diagnostic	tests/omega/fail/facts/linear_routed_label_through_other_state_rejected/main.omg	no-span	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+current-diagnostic	tests/omega/fail/facts/linear_routed_label_through_other_state_rejected/main.omg	no-span	cannot prove initializer of `claim` in exercise is in domain `Claim::Issued`; an annotation cannot establish routed qualification

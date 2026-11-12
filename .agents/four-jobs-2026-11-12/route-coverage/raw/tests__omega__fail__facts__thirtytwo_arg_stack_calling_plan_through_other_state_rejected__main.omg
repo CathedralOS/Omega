@@ -1,0 +1,60 @@
+program	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	current=rejected	current_us=2551952	root=compilation	route=rejected	route_us=559357	discharge_us=558374	reverify_us=500000	reverified=46	obligations=52	judged=46	core_refused=0	unproved=6	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+current-diagnostic	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	main.omg:66 bytes 1928..1929	exact arithmetic in machine `step` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, o
+current-diagnostic	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	main.omg:61 bytes 1808..1812	cannot prove ensures contract for exit from probe at statement 1: result == 0
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	1	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	1	2	crash	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	1	published	unproved	-	a normal return does not establish this clause
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	2	safety	discharged-judged+interval	formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	3	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	4	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	5	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	6	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	7	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	8	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	9	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	10	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	11	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	12	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	13	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	14	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	15	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	16	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	17	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	18	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	19	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	20	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	21	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	22	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	23	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	24	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	25	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	26	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	27	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	28	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	29	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	30	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	31	safety	discharged-judged+interval	ExactIntegerAdd,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	32	safety	discharged-judged+interval	ExactIntegerAdd,IntegerConstant	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	33	safety	discharged-judged+interval	ExactIntegerSubtract,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	34	guarantee	unproved	-	the bounds do not decide the comparison
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	3	1	published	unproved	-	a normal return does not establish this clause
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	3	2	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	3	3	requirement	discharged-judged+interval	Call	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	3	4	crash	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	3	5	guarantee	unproved	-	the bounds do not decide the comparison
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	4	1	safety:ExactIntegerSubtract	unproved	IntegerConstant,formal	the operands' bounds exceed the carrier
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	4	2	safety	discharged-judged+interval	IntegerConstant,formal	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	4	3	safety:ExactIntegerAdd	unproved	ExactIntegerSubtract	the operands' bounds exceed the carrier
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	4	4	safety	discharged-judged+interval	ExactIntegerAdd,IntegerConstant	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	4	5	crash	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	4	6	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	4	7	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	4	8	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	4	9	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	6	1	crash	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	8	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	2	34	reject	main.omg:53 bytes 1562..1563	cannot prove ensures contract for exit from pick32 at statement 1: result >= 40 && result <= 81 && result == a32 (no proof found from the facts available here: the bounds do not decide the comparison)	site=different
+diagnostic	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	3	5	reject	main.omg:61 bytes 1808..1812	cannot prove ensures contract for exit from probe at statement 1: result == 0 (no proof found from the facts available here: the bounds do not decide the comparison)	site=exact
+diagnostic	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	4	1	reject	main.omg:66 bytes 1928..1929	exact arithmetic in machine `step` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation) (no proof found from the facts available here: the operands' bounds exceed the carrier)	site=exact
+diagnostic	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	4	3	reject	main.omg:68 bytes 2012..2013	exact arithmetic in machine `step` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation) (no proof found from the facts available here: the operands' bounds exceed the carrier)	site=different
+quality	tests/omega/fail/facts/thirtytwo_arg_stack_calling_plan_through_other_state_rejected/main.omg	root=compilation	fragment=all	site=exact	expected=may overflow `u64`

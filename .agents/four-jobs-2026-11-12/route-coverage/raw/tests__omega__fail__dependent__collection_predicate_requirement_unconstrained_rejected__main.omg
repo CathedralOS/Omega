@@ -1,0 +1,8 @@
+program	tests/omega/fail/dependent/collection_predicate_requirement_unconstrained_rejected/main.omg	current=rejected	current_us=2716822	root=compilation	route=no-entry
+program	tests/omega/fail/dependent/collection_predicate_requirement_unconstrained_rejected/main.omg	current=rejected	current_us=2716822	root=machine:cells_valid	route=outside	Unsupported: type reference
+program	tests/omega/fail/dependent/collection_predicate_requirement_unconstrained_rejected/main.omg	current=rejected	current_us=2716822	root=machine:at_1	route=outside	Unsupported: type reference
+program	tests/omega/fail/dependent/collection_predicate_requirement_unconstrained_rejected/main.omg	current=rejected	current_us=2716822	root=machine:at_2	route=outside	Unsupported: type reference
+program	tests/omega/fail/dependent/collection_predicate_requirement_unconstrained_rejected/main.omg	current=rejected	current_us=2716822	root=machine:at_3	route=outside	Unsupported: type reference
+program	tests/omega/fail/dependent/collection_predicate_requirement_unconstrained_rejected/main.omg	current=rejected	current_us=2716822	root=machine:first	route=outside	Unsupported: type reference
+program	tests/omega/fail/dependent/collection_predicate_requirement_unconstrained_rejected/main.omg	current=rejected	current_us=2716822	root=machine:Main::main	route=outside	Unsupported: machine attached data
+current-diagnostic	tests/omega/fail/dependent/collection_predicate_requirement_unconstrained_rejected/main.omg	main.omg:45 bytes 1067..1072	cannot prove requires contract for call first from Main::main: cells_valid(cells) == true (needs fact `cells_valid(cells) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`

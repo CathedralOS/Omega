@@ -1,0 +1,3 @@
+program	tests/omega/fail/domains/dependent_coordinate_sum_extra_monomial/main.omg	current=rejected	current_us=1417026	root=compilation	route=no-entry
+program	tests/omega/fail/domains/dependent_coordinate_sum_extra_monomial/main.omg	current=rejected	current_us=1417026	root=machine:open_total	route=outside	Unsupported: machine generic parameters
+current-diagnostic	tests/omega/fail/domains/dependent_coordinate_sum_extra_monomial/main.omg	main.omg:8 bytes 356..361	cannot prove ensures contract for exit from open_total at statement 0: result <= 80

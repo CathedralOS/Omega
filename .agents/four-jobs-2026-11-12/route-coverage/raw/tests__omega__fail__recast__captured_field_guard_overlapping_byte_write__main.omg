@@ -1,0 +1,4 @@
+program	tests/omega/fail/recast/captured_field_guard_overlapping_byte_write/main.omg	current=rejected	current_us=1370464	root=compilation	route=no-entry
+program	tests/omega/fail/recast/captured_field_guard_overlapping_byte_write/main.omg	current=rejected	current_us=1370464	root=machine:stamp	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/recast/captured_field_guard_overlapping_byte_write/main.omg	current=rejected	current_us=1370464	root=machine:consume	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/recast/captured_field_guard_overlapping_byte_write/main.omg	main.omg:10 bytes 449..456	cannot prove requires contract for call consume from stamp: bytes[offset].pages <= 4503599627370495 && bytes[offset].base <= 18446744073709551615 - bytes[offset].pages * 4096 (needs fact `descriptor.pages <= 4503599627370495 && descriptor.base <= 18446744073709551615 - descriptor.pages * 4096` here;

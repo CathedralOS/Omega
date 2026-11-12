@@ -1,0 +1,3 @@
+program	tests/omega/fail/float/builtin_operand_borrow_conflict_rejected/main.omg	current=rejected	current_us=11804455	root=compilation	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/float/builtin_operand_borrow_conflict_rejected/main.omg	no-span	state `abs_f64` receives `main.values` as both mutable and read-only
+current-diagnostic	tests/omega/fail/float/builtin_operand_borrow_conflict_rejected/main.omg	no-span	state `pair` receives `main.values` as both mutable and read-only

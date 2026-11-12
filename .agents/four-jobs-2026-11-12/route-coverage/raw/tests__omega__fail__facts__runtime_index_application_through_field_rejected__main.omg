@@ -1,0 +1,3 @@
+program	tests/omega/fail/facts/runtime_index_application_through_field_rejected/main.omg	current=rejected	current_us=1769502	root=compilation	route=outside	Unsupported: type generic data
+current-diagnostic	tests/omega/fail/facts/runtime_index_application_through_field_rejected/main.omg	main.omg:7 bytes 353..368	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+current-diagnostic	tests/omega/fail/facts/runtime_index_application_through_field_rejected/main.omg	build.omg:1 bytes 0..0	unreachable branch: the `true` arm of a transition in machine `main` state `entry` can never run; its guard contradicts the facts in force here: second >= 10

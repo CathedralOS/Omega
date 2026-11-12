@@ -1,0 +1,2 @@
+program	tests/omega/fail/collections/contract_length_wrapping_result_cast_rejected/main.omg	current=rejected	current_us=2342445	root=compilation	route=outside	Unsupported: type reference
+current-diagnostic	tests/omega/fail/collections/contract_length_wrapping_result_cast_rejected/main.omg	no-span	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry

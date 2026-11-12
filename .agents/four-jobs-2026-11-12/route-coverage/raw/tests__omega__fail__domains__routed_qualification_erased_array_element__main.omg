@@ -1,0 +1,5 @@
+program	tests/omega/fail/domains/routed_qualification_erased_array_element/main.omg	current=rejected	current_us=1298900	root=compilation	route=no-entry
+program	tests/omega/fail/domains/routed_qualification_erased_array_element/main.omg	current=rejected	current_us=1298900	root=machine:issue	route=outside	Unsupported: type constrained
+program	tests/omega/fail/domains/routed_qualification_erased_array_element/main.omg	current=rejected	current_us=1298900	root=machine:consume	route=outside	Unsupported: contract contracts on a state
+program	tests/omega/fail/domains/routed_qualification_erased_array_element/main.omg	current=rejected	current_us=1298900	root=machine:main	route=outside	Unsupported: type constrained
+current-diagnostic	tests/omega/fail/domains/routed_qualification_erased_array_element/main.omg	main.omg:9 bytes 385..392	cannot prove requires contract for call consume from main: tickets[0] in Ticket::Held in state `entry`

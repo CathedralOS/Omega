@@ -1,0 +1,3 @@
+program	tests/omega/fail/atomics/fence_no_ordering/main.omg	current=rejected	current_us=1235963	root=compilation	route=no-entry
+program	tests/omega/fail/atomics/fence_no_ordering/main.omg	current=rejected	current_us=1235963	root=machine:fence_invalid	route=outside	Unsupported: call receiver call
+current-diagnostic	tests/omega/fail/atomics/fence_no_ordering/main.omg	main.omg:3 bytes 73..78	machine `fence_invalid` state `entry` uses `NoOrdering`, which is not a declared local, parameter, field, or type in this state (check the spelling)

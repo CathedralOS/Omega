@@ -1,0 +1,13 @@
+program	tests/omega/fail/facts/scalar_width_shifts_through_local_rejected/main.omg	current=rejected	current_us=2321217	root=compilation	route=rejected	route_us=5188	discharge_us=4804	reverify_us=4179	reverified=8	obligations=9	judged=7	core_refused=1	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+current-diagnostic	tests/omega/fail/facts/scalar_width_shifts_through_local_rejected/main.omg	main.omg:8 bytes 405..407	exact arithmetic in machine `shift_round_trip` state `entry` local `shifted` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires
+obligation	tests/omega/fail/facts/scalar_width_shifts_through_local_rejected/main.omg	1	1	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/fail/facts/scalar_width_shifts_through_local_rejected/main.omg	1	2	safety	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/fail/facts/scalar_width_shifts_through_local_rejected/main.omg	1	3	crash	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/scalar_width_shifts_through_local_rejected/main.omg	1	4	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/scalar_width_shifts_through_local_rejected/main.omg	1	5	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/fail/facts/scalar_width_shifts_through_local_rejected/main.omg	2	1	safety:ExactIntegerShiftLeft	unproved	formal	the operands' bounds exceed the carrier
+obligation	tests/omega/fail/facts/scalar_width_shifts_through_local_rejected/main.omg	2	2	safety	discharged-core-refused:checked discreteness has integer order endpoints+interval	formal	-
+obligation	tests/omega/fail/facts/scalar_width_shifts_through_local_rejected/main.omg	3	1	requirement	discharged-judged+interval	formal	-
+obligation	tests/omega/fail/facts/scalar_width_shifts_through_local_rejected/main.omg	5	1	crash	discharged-judged+interval	-	-
+diagnostic	tests/omega/fail/facts/scalar_width_shifts_through_local_rejected/main.omg	2	1	reject	main.omg:8 bytes 405..407	exact arithmetic in machine `shift_round_trip` state `entry` local `shifted` may overflow `u32`: the shift count is not provably below the operand width or the shifted value is not provably in range (no proof found from the facts available here: the operands' bounds exceed the carrier)	site=exact
+quality	tests/omega/fail/facts/scalar_width_shifts_through_local_rejected/main.omg	root=compilation	fragment=all	site=exact	expected=may overflow `u32`

@@ -1,0 +1,5 @@
+program	tests/omega/fail/borrows/provider_reference_state_alias_live_child/main.omg	current=rejected	current_us=1315163	root=compilation	route=no-entry
+program	tests/omega/fail/borrows/provider_reference_state_alias_live_child/main.omg	current=rejected	current_us=1315163	root=machine:exercise	route=outside	Unsupported: machine service reach
+program	tests/omega/fail/borrows/provider_reference_state_alias_live_child/main.omg	current=rejected	current_us=1315163	root=machine:mutate	route=outside	Unsupported: parameter mutable parameter
+current-diagnostic	tests/omega/fail/borrows/provider_reference_state_alias_live_child/main.omg	no-span	state `mutate` receives `reference` as both mutable and read-only
+current-diagnostic	tests/omega/fail/borrows/provider_reference_state_alias_live_child/main.omg	no-span	state `mutate` receives `reference` while local borrow `child` is still active

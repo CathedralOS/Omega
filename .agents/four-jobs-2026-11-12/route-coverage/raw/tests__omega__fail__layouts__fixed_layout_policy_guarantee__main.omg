@@ -1,0 +1,2 @@
+program	tests/omega/fail/layouts/fixed_layout_policy_guarantee/main.omg	current=rejected	current_us=3345540	root=compilation	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/layouts/fixed_layout_policy_guarantee/main.omg	main.omg:18 bytes 1191..1195	cannot prove ensures contract for exit from validate at statement 0: policy(result, storage, expected)

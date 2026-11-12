@@ -1,0 +1,1 @@
+program	tests/omega/pass/facts/runtime_index_application_mutating_operator_through_other_state_exit/main.omg	current=accepted	current_us=3241672	root=compilation	route=outside	Unsupported: parameter mutable parameter

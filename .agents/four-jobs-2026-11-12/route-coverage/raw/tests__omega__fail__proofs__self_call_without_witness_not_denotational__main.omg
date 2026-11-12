@@ -1,0 +1,7 @@
+program	tests/omega/fail/proofs/self_call_without_witness_not_denotational/main.omg	current=rejected	current_us=1332213	root=compilation	route=no-entry
+program	tests/omega/fail/proofs/self_call_without_witness_not_denotational/main.omg	current=rejected	current_us=1332213	root=machine:stalled	route=accepted	route_us=485	discharge_us=296	reverify_us=99	reverified=2	obligations=2	judged=2	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+program	tests/omega/fail/proofs/self_call_without_witness_not_denotational/main.omg	current=rejected	current_us=1332213	root=machine:harmless	route=outside	Unsupported: contract term other than a formal or literal
+current-diagnostic	tests/omega/fail/proofs/self_call_without_witness_not_denotational/main.omg	no-span	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
+current-diagnostic	tests/omega/fail/proofs/self_call_without_witness_not_denotational/main.omg	no-span	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
+obligation	tests/omega/fail/proofs/self_call_without_witness_not_denotational/main.omg	1	1	arrival	discharged-judged+interval	-	-
+obligation	tests/omega/fail/proofs/self_call_without_witness_not_denotational/main.omg	1	2	arrival	discharged-judged+interval	-	-

@@ -1,0 +1,2 @@
+program	tests/omega/fail/facts/size_align_layout_geometry_through_target_body_rejected/main.omg	current=rejected	current_us=2921945	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+current-diagnostic	tests/omega/fail/facts/size_align_layout_geometry_through_target_body_rejected/main.omg	no-span	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]

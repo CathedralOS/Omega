@@ -1,0 +1,4 @@
+program	tests/omega/fail/float/same_carrier_cast_cannot_mint_finite/main.omg	current=rejected	current_us=1264360	root=compilation	route=no-entry
+program	tests/omega/fail/float/same_carrier_cast_cannot_mint_finite/main.omg	current=rejected	current_us=1264360	root=machine:identity	route=outside	Unsupported: type float
+program	tests/omega/fail/float/same_carrier_cast_cannot_mint_finite/main.omg	current=rejected	current_us=1264360	root=machine:invalid	route=outside	Unsupported: type float
+current-diagnostic	tests/omega/fail/float/same_carrier_cast_cannot_mint_finite/main.omg	no-span	cannot prove initializer `identity(value) as f64` satisfies `finite` for the bounded value of machine `invalid` state `entry` local `finite`

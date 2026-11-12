@@ -1,0 +1,1 @@
+program	tests/omega/fail/generics/named_reference_equation_pointee/main.omg	current=stopped	current_us=1041455	root=compilation	route=unreached	Some("generic machine `capture` requires type equation has conflicting element types")

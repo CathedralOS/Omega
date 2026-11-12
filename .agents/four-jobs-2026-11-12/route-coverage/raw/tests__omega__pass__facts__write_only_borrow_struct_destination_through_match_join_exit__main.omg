@@ -1,0 +1,1 @@
+program	tests/omega/pass/facts/write_only_borrow_struct_destination_through_match_join_exit/main.omg	current=accepted	current_us=3095335	root=compilation	route=outside	Unsupported: parameter mutable parameter

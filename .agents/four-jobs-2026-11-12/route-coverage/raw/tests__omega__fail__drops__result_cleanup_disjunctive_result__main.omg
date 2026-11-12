@@ -1,0 +1,6 @@
+program	tests/omega/fail/drops/result_cleanup_disjunctive_result/main.omg	current=rejected	current_us=1308737	root=compilation	route=no-entry
+program	tests/omega/fail/drops/result_cleanup_disjunctive_result/main.omg	current=rejected	current_us=1308737	root=machine:drop_token	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/drops/result_cleanup_disjunctive_result/main.omg	current=rejected	current_us=1308737	root=machine:make_token	route=outside	Unsupported: type data with custody
+program	tests/omega/fail/drops/result_cleanup_disjunctive_result/main.omg	current=rejected	current_us=1308737	root=machine:read	route=outside	Unsupported: type reference
+program	tests/omega/fail/drops/result_cleanup_disjunctive_result/main.omg	current=rejected	current_us=1308737	root=machine:main	route=outside	Unsupported: type data with custody
+current-diagnostic	tests/omega/fail/drops/result_cleanup_disjunctive_result/main.omg	no-span	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by drop_token clause `token.ready`

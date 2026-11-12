@@ -1,0 +1,5 @@
+program	tests/omega/fail/core/content_conservation_interval_balanced_reversed/main.omg	current=rejected	current_us=1339070	root=compilation	route=no-entry
+program	tests/omega/fail/core/content_conservation_interval_balanced_reversed/main.omg	current=rejected	current_us=1339070	root=machine:drop_region	route=outside	Unsupported: parameter mutable parameter
+program	tests/omega/fail/core/content_conservation_interval_balanced_reversed/main.omg	current=rejected	current_us=1339070	root=machine:Owned::content	route=outside	Unsupported: machine type equations, owned data or conformances
+program	tests/omega/fail/core/content_conservation_interval_balanced_reversed/main.omg	current=rejected	current_us=1339070	root=machine:retain	route=outside	Unsupported: contract contracts on a state
+current-diagnostic	tests/omega/fail/core/content_conservation_interval_balanced_reversed/main.omg	main.omg:29 bytes 815..820	cannot prove ensures contract for exit from retain at statement 0: core::Identity<<structural type>>(Owned.content(old(&whole)), Owned.content(&result))

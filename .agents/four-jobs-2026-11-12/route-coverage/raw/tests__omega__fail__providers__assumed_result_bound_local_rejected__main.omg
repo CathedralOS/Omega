@@ -1,0 +1,2 @@
+program	tests/omega/fail/providers/assumed_result_bound_local_rejected/main.omg	current=rejected	current_us=2325662	root=compilation	route=outside	Unsupported: machine service reach
+current-diagnostic	tests/omega/fail/providers/assumed_result_bound_local_rejected/main.omg	no-span	cannot prove index `index` is within length 2 in main::entry
