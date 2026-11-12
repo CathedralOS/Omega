@@ -192,8 +192,13 @@ is renamed on each return edge. All 45 reach a verdict there.
   another invocation's live facts. For example, `machine divided(left, right)
   -> i64 { left / right }` has no `requires`, so it is not valid under its
   own contract.
-- **Q6.** It is `OWNER_QUESTIONS.md`'s `callee-result-body-summary`, added
-  by `#2317`.
+- **Q6 in that measurement.** This was the then-open
+  `callee-result-body-summary`, added by `#2317`. The 2026-11-11 settlement
+  permits [checked local summaries](../../spec/language/state_contracts.md#local-call-summaries)
+  and omitted private entry inference, while authored preconditions remain
+  complete. The recorded classifications above are historical; the
+  [acceptance plan](local_inference_and_contracts.md#acceptance) requires
+  reconciliation of the affected rows, not a claim that they were rerun here.
 - **Matching `#2317`'s families.** Every cause matches one of `#2317`'s
   families, and none is new. So `#2317`'s token screen missed none of these
   causes, though it can still have missed programs.

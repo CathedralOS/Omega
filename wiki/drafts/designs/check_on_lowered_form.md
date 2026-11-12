@@ -177,10 +177,23 @@ These come from the specification, not from this record:
   with its own algebra.
 
 Three rules bound it. Facts never feed type identity, operator selection or
-specialization keys. Information derived from a body crosses only edges inside
-"the same fingerprinted verification unit"; every other edge uses the authored
-contract. Attached domains are part of the declared type and change only at a
-[named cast](named_domain_casts.md).
+specialization keys. Additional semantic facts derived from a body cross only
+exact checked call edges inside the same fixed, fingerprinted verification unit;
+every other edge uses the published contract, including its existing inferred
+operational, ownership and footprint information. Abstract requirements remain
+abstract even within the unit. Unit membership and body-summary dependencies
+follow [local call summaries](../../spec/language/state_contracts.md#local-call-summaries),
+not optimizer inlining or incidental source availability. Attached domains are
+part of the declared type and change only at a [named cast](named_domain_casts.md).
+
+The 2026-11-11 decisions `callee-result-body-summary` and
+`nested-helper-caller-facts` also restrict input discovery: only private checked
+helpers with omitted `requires` may infer additional entry conditions, and all
+arrivals and callable conversions check them. Written preconditions are complete;
+public and required input contracts never narrow to excuse the implementation.
+The [delivery plan](local_inference_and_contracts.md) pins routine local inference
+and separately verified traversal reuse, without requiring arbitrary contract
+discovery or changing kernel-checked acceptance.
 
 Two more rules come from the full read, and are how this checker must differ
 from the code it replaces:
