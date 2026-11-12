@@ -17623,6 +17623,11 @@ pub(crate) mod law_conformance {
                     provided_expression,
                     provided_binders,
                 ) {
+                    if std::env::var_os("OMEGA_ENTAILMENT_TRACE").is_some() {
+                        eprintln!(
+                            "STRUCT correspondence payload mismatch required={required_expression:?} provided={provided_expression:?}"
+                        );
+                    }
                     return false;
                 }
                 let source_keys_disagree = match (required_key, provided_key) {
@@ -17639,10 +17644,15 @@ pub(crate) mod law_conformance {
                         None,
                     )
                 };
-                let (Some(required_term), Some(provided_term)) = (
-                    term(required, required_expression),
-                    term(provided, provided_expression),
-                ) else {
+                let required_term = term(required, required_expression);
+                let provided_term = term(provided, provided_expression);
+                let (Some(required_term), Some(provided_term)) = (required_term, provided_term)
+                else {
+                    if std::env::var_os("OMEGA_ENTAILMENT_TRACE").is_some() {
+                        eprintln!(
+                            "STRUCT correspondence has no complete terms required={required_expression:?} provided={provided_expression:?}"
+                        );
+                    }
                     return false;
                 };
                 let (Some(required_roles), Some(provided_roles)) = (
@@ -17698,10 +17708,35 @@ pub(crate) mod law_conformance {
                     &[],
                     false,
                 );
-                matches!(
-                    judge.judge_explicit_identity(required_term, provided_term, 0),
-                    super::super::StructuralJudgment::Proven,
-                )
+                let judgment =
+                    judge.judge_explicit_identity(required_term.clone(), provided_term.clone(), 0);
+                if std::env::var_os("OMEGA_ENTAILMENT_TRACE").is_some() {
+                    let admission = |term: &super::super::StructuralTerm| {
+                        if let super::super::StructuralTerm::Application {
+                            target,
+                            selections,
+                            ..
+                        } = term
+                        {
+                            Some(super::super::structural_judgment::specification_application_candidate(program, provided.0, *target, selections, judge.frame_resolver()))
+                        } else {
+                            None
+                        }
+                    };
+                    let published = |term| {
+                        judge
+                            .specification_application_guarantees(term, 0)
+                            .map(|guarantees| guarantees.data_identities.clone())
+                    };
+                    eprintln!(
+                        "STRUCT correspondence identity required={required_expression:?} provided={provided_expression:?} judgment={judgment:?} admissions={:?}/{:?} published={:?}/{:?} terms={required_term:?}/{provided_term:?}",
+                        admission(&required_term),
+                        admission(&provided_term),
+                        published(&required_term),
+                        published(&provided_term)
+                    );
+                }
+                matches!(judgment, super::super::StructuralJudgment::Proven)
             }
             /// The shared index key intentionally omits some operation payloads. Check
             /// those before either key correspondence or selected structural fallback.
