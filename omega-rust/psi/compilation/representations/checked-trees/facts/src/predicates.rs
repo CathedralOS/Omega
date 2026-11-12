@@ -425,8 +425,10 @@ impl CheckedScalarExpression {
         The field of a caller's owned structural local that an erased call
         actual observes at the local's place. This is the only constructor of
         a local-rooted field observation: Psi 05 calls it for an erased lane
-        whose source `validation::erased_actuals` resolved to a local, and
-        Psi 06 lowers a local root only where it lowers erased actuals.
+        whose source `validation::erased_actuals` resolved to a local. Psi 06
+        lowers the root at the local's established home without re-checking
+        who formed it; only erased-actual term lowering is given the caller's
+        locals, so a contract clause cannot resolve one.
     */
     pub fn erased_actual_local_field(
         observation: typed_trees::expression::ExpressionHandle,

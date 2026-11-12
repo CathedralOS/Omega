@@ -9679,7 +9679,7 @@ pub(crate) mod attached_unit {
                                 .erased_arguments
                                 .iter()
                                 .map(|argument| {
-                                    let expression = bindings.erased_actual_at(
+                                    let expression = bindings.expression_at(
                                         identities,
                                         checked,
                                         state.state,

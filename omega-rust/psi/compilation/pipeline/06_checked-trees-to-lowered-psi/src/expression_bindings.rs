@@ -1622,8 +1622,13 @@ pub(crate) mod bindings {
                 home: &terminal_psi::StructuralArgument,
                 structural_type: StructuralTypeId,
             ) -> Result<StructuralScalarFieldBinding, LoweringError> {
+                // Psi 05 forms a rooted field observation only over a whole
+                // local, so a projected home is a broken plan.
                 if !home.path.is_empty() {
-                    return unsupported("field observation requires a whole storage home");
+                    return Err(LoweringError::MissingDependencyRosterEntry {
+                        identity_kind: "structural local place",
+                        role: "field observation at a local's place",
+                    });
                 }
                 Ok(StructuralScalarFieldBinding {
                     source_position: 0,
@@ -5411,35 +5416,6 @@ pub(crate) mod bindings {
             statement: u32,
             role: CheckedScalarExpressionRole,
         ) -> Result<LoweredDirectExpression, LoweringError> {
-            self.bound_expression_at(identities, checked, state, statement, role, false)
-        }
-
-        /*
-            The checked expression of one erased call or transition actual.
-            This entry is the only executable-side lowering that admits a
-            field observed at a local's place: the result is converted to a
-            proof term for the callee's erased lane and is never emitted.
-        */
-        pub(crate) fn erased_actual_at(
-            &self,
-            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-            checked: &CheckedTrees,
-            state: symbols::SymbolHandle,
-            statement: u32,
-            role: CheckedScalarExpressionRole,
-        ) -> Result<LoweredDirectExpression, LoweringError> {
-            self.bound_expression_at(identities, checked, state, statement, role, true)
-        }
-
-        fn bound_expression_at(
-            &self,
-            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-            checked: &CheckedTrees,
-            state: symbols::SymbolHandle,
-            statement: u32,
-            role: CheckedScalarExpressionRole,
-            erased_actual: bool,
-        ) -> Result<LoweredDirectExpression, LoweringError> {
             let Some((_, expression)) = value_facts(checked)
                 .scalar_expressions
                 .bound_expression_at(state, statement, role)
@@ -5491,12 +5467,7 @@ pub(crate) mod bindings {
                     ))),
                 });
             };
-            self.expression_in(
-                identities,
-                &checked.facts.proven_scalar_indexes,
-                expression,
-                erased_actual,
-            )
+            self.expression(identities, &checked.facts.proven_scalar_indexes, expression)
         }
 
         pub(crate) fn established_case_payload(
@@ -5621,21 +5592,6 @@ pub(crate) mod bindings {
             proven_indexes: &[checked_trees::expression::ExpressionHandle],
             expression: &CheckedScalarExpression,
         ) -> Result<LoweredDirectExpression, LoweringError> {
-            self.expression_in(identities, proven_indexes, expression, false)
-        }
-
-        /*
-            `erased_actual` is set only by `erased_actual_at`: only an erased
-            call actual may name a field at a local's place, because that
-            observation becomes a proof term and never a read.
-        */
-        fn expression_in(
-            &self,
-            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-            proven_indexes: &[checked_trees::expression::ExpressionHandle],
-            expression: &CheckedScalarExpression,
-            erased_actual: bool,
-        ) -> Result<LoweredDirectExpression, LoweringError> {
             let mut expression = expression.clone();
             self.scalar(&mut expression)?;
             crate::expression_preparation::prepare_expression::PreparedExpressionContext {
@@ -5646,7 +5602,6 @@ pub(crate) mod bindings {
                 structural_locals: &self.structural_locals,
                 scalar_bindings: Some(self),
                 proven_indexes,
-                erased_actual,
             }
             .lower_scalar(identities, &expression)
         }

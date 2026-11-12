@@ -123,7 +123,7 @@ pub(crate) mod branch_states {
                         statement_site.ok_or(LoweringError::Unsupported(
                             "declaration call has no erased value argument custody",
                         ))?;
-                    scalar_bindings.erased_actual_at(
+                    scalar_bindings.expression_at(
                         identities,
                         checked,
                         caller_state,
@@ -1604,9 +1604,10 @@ pub(crate) mod contracts {
                         checked_trees::CheckedStorageRoot::OwnedLocal { .. }
                         | checked_trees::CheckedStorageRoot::ViewLocal { .. },
                     ..
-                } => Err(LoweringError::Unsupported(
-                    "scalar contract predicate observes a field at a body local's place",
-                )),
+                } => Err(LoweringError::MissingDependencyRosterEntry {
+                    identity_kind: "structural local place",
+                    role: "contract clause field observation",
+                }),
             }
         }
 

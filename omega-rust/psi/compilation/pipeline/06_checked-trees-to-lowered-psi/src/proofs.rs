@@ -2117,7 +2117,6 @@ pub(crate) mod crash_routes {
                     structural_locals: &[],
                     scalar_bindings: Some(&scalar_bindings),
                     proven_indexes: &[],
-                    erased_actual: false,
                 }
                 .lower_scalar(identities, expression)?;
             lowered_direct_scalar_term(&expression, values, erased)
