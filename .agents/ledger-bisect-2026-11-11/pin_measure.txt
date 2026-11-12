@@ -1,0 +1,38 @@
+pass/borrows/nested_reference_call_checked_index_exit rejected 2236ms check-target:macos_arm64
+	state `read_reference` receives `value.inner.value` while local borrow `entry` is still active
+	state `observe` receives `value.inner.value` while local borrow `entry` is still active
+	state `read_reference` receives `value.inner.value` while local borrow `entry` is still active
+	state `read_reference` receives `value.inner.value` while local borrow `entry` is still active
+	state `observe` receives `value.inner.value` while local borrow `entry` is still active
+	state `observe` receives `value.inner.value` while local borrow `entry` is still active
+	state `observe` receives `value.inner.value` while local borrow `entry` is still active
+	state `observe` receives `value.inner.value` while local borrow `entry` is still active
+	state `hold` receives `value.inner.value` while local borrow `entry` is still active
+	state `hold` receives `value.inner.value` while local borrow `entry` is still active
+	state `hold` receives `value.inner.value` while local borrow `entry` is still active
+pass/build/const_index_dependency_order_exit rejected 798ms check-target:macos_arm64
+	generated generic application does not match its exact retained instance origin
+pass/dependent/runtime_symbolic_slice_cell_theorem_exit checked 2891ms check-target:macos_arm64
+pass/facts/case_match_payload_loan_through_other_machine_exit rejected 2071ms check-target:macos_arm64
+	state `store` receives `<saved subject #4:1>::Active.message.body` while local borrow `entry` is still active
+	statement 0 mutates `<saved subject #4:1>::Active.message.body.value` while local borrow `entry` is still active (borrowed at statement 0)
+pass/facts/case_match_payload_loan_through_other_state_exit rejected 2082ms check-target:macos_arm64
+	state `store` receives `<saved subject #4:1>::Active.message.body` while local borrow `entry` is still active
+	statement 0 mutates `<saved subject #4:1>::Active.message.body.value` while local borrow `entry` is still active (borrowed at statement 0)
+pass/facts/case_match_payload_loan_through_parameter_exit rejected 2078ms check-target:macos_arm64
+	state `store` receives `<saved subject #4:1>::Active.message.body` while local borrow `entry` is still active
+	statement 0 mutates `<saved subject #4:1>::Active.message.body.value` while local borrow `entry` is still active (borrowed at statement 0)
+pass/facts/case_match_payload_loan_through_target_body_exit rejected 2116ms check-target:macos_arm64
+	state `store` receives `<saved subject #4:1>::Active.message.body` while local borrow `entry` is still active
+	state `store` receives `<saved subject #5:1>::Active.message.body` while local borrow `entry` is still active
+	state `store` receives `<saved subject #6:1>::Active.message.body` while local borrow `entry` is still active
+	state `store` receives `<saved subject #7:1>::Active.message.body` while local borrow `entry` is still active
+	statement 0 mutates `<saved subject #4:1>::Active.message.body.value` while local borrow `entry` is still active (borrowed at statement 0)
+	statement 0 mutates `<saved subject #5:1>::Active.message.body.value` while local borrow `entry` is still active (borrowed at statement 0)
+	statement 0 mutates `<saved subject #6:1>::Active.message.body.value` while local borrow `entry` is still active (borrowed at statement 0)
+	statement 0 mutates `<saved subject #7:1>::Active.message.body.value` while local borrow `entry` is still active (borrowed at statement 0)
+pass/facts/target_family_callback_guarantee/field checked 3049ms check-target:macos_arm64
+pass/generics/runtime_computed_nested_const_call_exit rejected 1025ms check-target:macos_arm64
+	generated generic application does not match its exact retained instance origin
+pass/progress/provider_receiver_progress_installation rejected 2766ms check-target:linux_x86_64
+	provider completion for `named-callable(path(nominal\\(package-owner\\(32:78d666a3ef4ce09f7a7e4a1f30f7d6cfa9b721b34150cbe9ca889272b1820a23\\)\\,path\\(Scheduler::notify\\)\\)),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:78d666a3ef4ce09f7a7e4a1f30f7d6cfa9b721b34150cbe9ca889272b1820a23\\\\\\)\\\\\\,path\\\\\\(SchedulerProvider\\\\\\)\\\\\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:78d666a3ef4ce09f7a7e4a1f30f7d6cfa9b721b34150cbe9ca889272b1820a23\\\\\\)\\\\\\,path\\\\\\(SchedulerHandle\\\\\\)\\\\\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` disagrees with its exact retained requirement contract

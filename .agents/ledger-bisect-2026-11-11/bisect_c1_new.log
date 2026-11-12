@@ -1,0 +1,387 @@
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 1091 revisions left to test after this (roughly 10 steps)
+[77dcc3f4edcaa299d2d2a9a83740c9bcb28f6af3] psi: drop unreachable selection destination uniqueness refusals (#1375)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 545 revisions left to test after this (roughly 9 steps)
+[bad3a551a30c242f067ef619d421146982dac0aa] psi: keep placed RAM backing through capture and return (#1928)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 272 revisions left to test after this (roughly 8 steps)
+[1a52ff2e879c71cca24edafc0d6f2d47ee1f500f] compiler: show a macOS package root only when its receipts agree (#1642)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 272 revisions left to test after this (roughly 8 steps)
+[1d10db25aa4e25b4f8206d0caf051057b113851d] docs: list process input among the closed permission classes (#1640)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 272 revisions left to test after this (roughly 8 steps)
+[3df60605b0a1cb7c496cc49649e5f3c3702c6849] psi: retain owned field guarantees at loop exits (#1531)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 81 revisions left to test after this (roughly 6 steps)
+[e90267933c4acb9dc67d038ce128b54eb0fcfb3f] omega: optimize selected instructions from the selected program representation (#1357)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 40 revisions left to test after this (roughly 5 steps)
+[4bfb128dee0ce8f89cf7051a5d25b27414ca3c95] psi: retain domain membership across owned value captures (#1494)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 19 revisions left to test after this (roughly 4 steps)
+[81c3596953bd89a948c1d6f04c24ba3add626cb0] compiler: preserve invocation constant custody and borrowed Build writes (#1473)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 10 revisions left to test after this (roughly 3 steps)
+[212b0c6345f4910a8b08e7440257f1cb31399f4b] compiler: complete Windows canonicalization through both engines (#1457)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 5 revisions left to test after this (roughly 3 steps)
+[5903bbcd1e9041295d4cd403311c26d789fd6caf] psi: form boolean relations in declared call requirements (#1469)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 2 revisions left to test after this (roughly 2 steps)
+[7523e291b2cb679446d4a5587cdaeb53c1102776] psi: preserve nested reference descriptors through execution (#1465)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 1 step)
+[77008b70bc89343c1dae968586e9572577bf4116] packages: execute required-output path queries with accounted byte views (#1471)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+7523e291b2cb679446d4a5587cdaeb53c1102776 is the first bad commit
+commit 7523e291b2cb679446d4a5587cdaeb53c1102776
+Author: BrilliantWasp <brilliantwasp@proton.me>
+Date:   Mon Nov 2 12:20:14 2026 +0000
+
+    psi: preserve nested reference descriptors through execution (#1465)
+    
+    * psi: retain loaded reference descriptors through nested reads
+    
+    * psi: honor current descriptor replacements and prepared load ownership
+    
+    * tests: observe saved pointers and transported field canaries
+    
+    * omega: authenticate complete joined ingress pointer frontiers
+    
+    * tests: qualify nested descriptor reads across the complete row
+    
+    * tests: trim target witness source whitespace
+    
+    * tests: refresh the formatted target witness observations
+    
+    * psi: derive descriptors from completed nominal receipts
+    
+    * tests: qualify nested references with completed nominal snapshots
+    
+    ---------
+    
+    Co-authored-by: Zachary Canann <zcanann@Zacharys-Mac-mini.local>
+
+ .../control_flow/references/observations.rs        | 120 ++++-----
+ .../reference_custody/observations.rs              | 124 +++++----
+ .../src/borrow/loans.rs                            |   3 +
+ .../src/borrow/loans/descriptor_loads.rs           | 132 ++++++++++
+ .../src/borrow/loans/reference_borrows.rs          |  25 ++
+ .../src/borrow/state.rs                            |   9 +
+ .../src/checks/borrows/aggregates.rs               |   1 +
+ .../src/checks/borrows/calls/conflicts.rs          |   2 +
+ .../src/checks/borrows/calls/receiver.rs           |   1 +
+ .../src/checks/borrows/calls/receiver/footprint.rs |   1 +
+ .../src/checks/borrows/completed_backings.rs       | 112 +++++++++
+ .../src/checks/borrows/completed_custody.rs        |   2 +
+ .../src/checks/borrows/overlap.rs                  |  29 ++-
+ .../src/checks/borrows/place_access.rs             |   2 +
+ .../src/checks/borrows/resources/loan_resources.rs |  19 ++
+ .../src/checks/borrows/shared_observations.rs      |   1 +
+ .../src/checks/borrows/simultaneous.rs             |   3 +
+ .../src/checks/borrows/staged_values/conflicts.rs  |   2 +
+ .../src/checks/borrows/statements.rs               | 164 +++++++++++-
+ .../terminal_unit/state_graph/loan_backing.rs      |  95 +++++++
+ .../src/flow/expression.rs                         |  18 +-
+ .../src/flow/expression/view_referents.rs          | 181 ++++++++++++-
+ .../src/flow/expression/view_retention.rs          |  11 +-
+ .../src/flow/operand_values.rs                     |   2 +-
+ .../src/flow/statements.rs                         |  15 +-
+ .../state_graph/emission/loan_chains.rs            |   6 +-
+ .../checked-trees/src/checked_trees/borrow.rs      |  14 +-
+ .../src/checked_trees/flow/operand.rs              |   5 +
+ .../semantics/src/descriptor_results.rs            |  16 ++
+ .../src/descriptor_results/replay/analysis.rs      |  36 ++-
+ .../descriptor_results/replay/contents_queries.rs  | 279 ++++++++++++++++++---
+ .../src/descriptor_results/replay/replay.rs        | 203 +++++++++++++--
+ .../calls/write_frames/demand/normal_subjects.rs   |  24 +-
+ .../write_frames/place_paths/scalar_coordinates.rs |  18 +-
+ .../contract_entailment/observed_projections.rs    |  80 ++++++
+ .../normal_returns/completed_values.rs             |  53 +++-
+ .../completed_storage/reference_captures.rs        |  14 +-
+ .../data_where_standing/borrowed_field/README.md   |   4 +
+ .../borrowed_field/nested/README.md                |  84 +++++++
+ .../borrowed_field/nested/call_result/build.omg    |   7 +
+ .../nested/call_result/invalid/build.omg           |   7 +
+ .../nested/call_result/invalid/expected.txt        |   1 +
+ .../nested/call_result/invalid/main.omg            |  28 +++
+ .../borrowed_field/nested/call_result/main.omg     |  28 +++
+ .../borrowed_field/nested/const_name/build.omg     |   7 +
+ .../nested/const_name/invalid/build.omg            |   7 +
+ .../nested/const_name/invalid/expected.txt         |   1 +
+ .../nested/const_name/invalid/main.omg             |  32 +++
+ .../borrowed_field/nested/const_name/main.omg      |  32 +++
+ .../nested/controls/known_source/build.omg         |   7 +
+ .../nested/controls/known_source/main.omg          |  22 ++
+ .../nested/controls/snapshot/build.omg             |   7 +
+ .../nested/controls/snapshot/invalid/build.omg     |   7 +
+ .../nested/controls/snapshot/invalid/expected.txt  |   2 +
+ .../nested/controls/snapshot/invalid/main.omg      |  32 +++
+ .../nested/controls/snapshot/main.omg              |  32 +++
+ .../controls/suspended_home/invalid/build.omg      |   7 +
+ .../controls/suspended_home/invalid/expected.txt   |   1 +
+ .../controls/suspended_home/invalid/main.omg       |  14 ++
+ .../nested/controls/write_only/invalid/build.omg   |   7 +
+ .../controls/write_only/invalid/expected.txt       |   1 +
+ .../nested/controls/write_only/invalid/main.omg    |  11 +
+ .../borrowed_field/nested/field/build.omg          |   7 +
+ .../borrowed_field/nested/field/invalid/build.omg  |   7 +
+ .../nested/field/invalid/expected.txt              |   1 +
+ .../borrowed_field/nested/field/invalid/main.omg   |  31 +++
+ .../borrowed_field/nested/field/main.omg           |  31 +++
+ .../borrowed_field/nested/local/build.omg          |   7 +
+ .../borrowed_field/nested/local/invalid/build.omg  |   7 +
+ .../nested/local/invalid/expected.txt              |   1 +
+ .../borrowed_field/nested/local/invalid/main.omg   |  27 ++
+ .../borrowed_field/nested/local/main.omg           |  27 ++
+ .../borrowed_field/nested/match_join/build.omg     |   7 +
+ .../nested/match_join/invalid/build.omg            |   7 +
+ .../nested/match_join/invalid/expected.txt         |   1 +
+ .../nested/match_join/invalid/main.omg             |  27 ++
+ .../borrowed_field/nested/match_join/main.omg      |  27 ++
+ .../borrowed_field/nested/other_machine/build.omg  |   7 +
+ .../nested/other_machine/invalid/build.omg         |   7 +
+ .../nested/other_machine/invalid/expected.txt      |   1 +
+ .../nested/other_machine/invalid/main.omg          |  27 ++
+ .../borrowed_field/nested/other_machine/main.omg   |  27 ++
+ .../borrowed_field/nested/other_state/build.omg    |   7 +
+ .../nested/other_state/invalid/build.omg           |   7 +
+ .../nested/other_state/invalid/expected.txt        |   1 +
+ .../nested/other_state/invalid/main.omg            |  29 +++
+ .../borrowed_field/nested/other_state/main.omg     |  29 +++
+ .../borrowed_field/nested/parameter/build.omg      |   7 +
+ .../nested/parameter/invalid/build.omg             |   7 +
+ .../nested/parameter/invalid/expected.txt          |   1 +
+ .../nested/parameter/invalid/main.omg              |  26 ++
+ .../borrowed_field/nested/parameter/main.omg       |  26 ++
+ .../borrowed_field/nested/target_body/build.omg    |  15 ++
+ .../nested/target_body/invalid/build.omg           |  15 ++
+ .../nested/target_body/invalid/expected.txt        |   1 +
+ .../nested/target_body/invalid/main.omg            |  77 ++++++
+ .../borrowed_field/nested/target_body/main.omg     |  77 ++++++
+ tests/omega/corpus_both_macos_arm64.txt            |  11 +
+ tests/omega/corpus_outcomes.txt                    |  39 +++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  28 +++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  32 +++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  32 +++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  31 +++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  11 +
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  27 ++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  27 ++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  27 ++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  29 +++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  26 ++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  14 ++
+ .../build.omg                                      |  15 ++
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  77 ++++++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  28 +++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  32 +++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  32 +++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  31 +++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  22 ++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  27 ++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  27 ++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  27 ++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  29 +++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  26 ++
+ .../build.omg                                      |  15 ++
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  77 ++++++
+ 179 files changed, 3569 insertions(+), 231 deletions(-)
+ create mode 100644 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow/loans/descriptor_loads.rs
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/README.md
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/call_result/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/call_result/invalid/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/call_result/invalid/expected.txt
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/call_result/invalid/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/call_result/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/const_name/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/const_name/invalid/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/const_name/invalid/expected.txt
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/const_name/invalid/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/const_name/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/controls/known_source/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/controls/known_source/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/controls/snapshot/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/controls/snapshot/invalid/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/controls/snapshot/invalid/expected.txt
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/controls/snapshot/invalid/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/controls/snapshot/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/controls/suspended_home/invalid/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/controls/suspended_home/invalid/expected.txt
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/controls/suspended_home/invalid/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/controls/write_only/invalid/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/controls/write_only/invalid/expected.txt
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/controls/write_only/invalid/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/field/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/field/invalid/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/field/invalid/expected.txt
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/field/invalid/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/field/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/local/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/local/invalid/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/local/invalid/expected.txt
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/local/invalid/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/local/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/match_join/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/match_join/invalid/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/match_join/invalid/expected.txt
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/match_join/invalid/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/match_join/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/other_machine/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/other_machine/invalid/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/other_machine/invalid/expected.txt
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/other_machine/invalid/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/other_machine/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/other_state/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/other_state/invalid/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/other_state/invalid/expected.txt
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/other_state/invalid/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/other_state/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/parameter/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/parameter/invalid/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/parameter/invalid/expected.txt
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/parameter/invalid/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/parameter/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/target_body/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/target_body/invalid/build.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/target_body/invalid/expected.txt
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/target_body/invalid/main.omg
+ create mode 100644 samples/cli/facts/data_where_standing/borrowed_field/nested/target_body/main.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_call_result/build.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_call_result/expected.txt
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_call_result/main.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_const_name/build.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_const_name/expected.txt
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_const_name/main.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_descriptor_identity/build.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_descriptor_identity/expected.txt
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_descriptor_identity/main.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_field/build.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_field/expected.txt
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_field/main.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_intermediate_write_only/build.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_intermediate_write_only/expected.txt
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_intermediate_write_only/main.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_local/build.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_local/expected.txt
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_local/main.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_match_join/build.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_match_join/expected.txt
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_match_join/main.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_other_machine/build.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_other_machine/expected.txt
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_other_machine/main.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_other_state/build.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_other_state/expected.txt
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_other_state/main.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_parameter/build.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_parameter/expected.txt
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_parameter/main.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_suspended_descriptor_slot/build.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_suspended_descriptor_slot/expected.txt
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_suspended_descriptor_slot/main.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_target_body/build.omg
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_target_body/expected.txt
+ create mode 100644 tests/omega/fail/facts/data_where_standing_nested_borrowed_field_target_body/main.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_call_result/build.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_call_result/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_call_result/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_call_result/main.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_const_name/build.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_const_name/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_const_name/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_const_name/main.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_descriptor_snapshot/build.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_descriptor_snapshot/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_descriptor_snapshot/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_descriptor_snapshot/main.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_field/build.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_field/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_field/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_field/main.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_known_saved_descriptor/build.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_known_saved_descriptor/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_known_saved_descriptor/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_known_saved_descriptor/main.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_local/build.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_local/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_local/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_local/main.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_match_join/build.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_match_join/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_match_join/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_match_join/main.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_other_machine/build.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_other_machine/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_other_machine/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_other_machine/main.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_other_state/build.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_other_state/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_other_state/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_other_state/main.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_parameter/build.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_parameter/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_parameter/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_parameter/main.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_target_body/build.omg
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_target_body/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_target_body/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/data_where_standing_nested_borrowed_field_target_body/main.omg
+bisect found first bad commit

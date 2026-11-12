@@ -1,0 +1,72 @@
+[
+  [
+    38,
+    {
+      "rows": 5,
+      "kind": "pass/run rejected",
+      "diag": "state `read_reference` receives `value.inner.value` while local borrow `entry` is still active",
+      "witness": "pass/borrows/nested_reference_call_checked_index_exit",
+      "breaking_prior": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members": [
+        "pass/borrows/nested_reference_call_checked_index_exit",
+        "pass/facts/case_match_payload_loan_through_other_machine_exit",
+        "pass/facts/case_match_payload_loan_through_other_state_exit",
+        "pass/facts/case_match_payload_loan_through_parameter_exit",
+        "pass/facts/case_match_payload_loan_through_target_body_exit"
+      ]
+    }
+  ],
+  [
+    78,
+    {
+      "rows": 2,
+      "kind": "pass/run rejected",
+      "diag": "authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity",
+      "witness": "pass/build/const_index_dependency_order_exit",
+      "breaking_prior": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members": [
+        "pass/build/const_index_dependency_order_exit",
+        "pass/generics/runtime_computed_nested_const_call_exit"
+      ]
+    }
+  ],
+  [
+    118,
+    {
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "diag": "authored Operator declaration selection occurrence 566 (`<=` in tests/omega/pass/facts/target_fa",
+      "witness": "pass/facts/target_family_callback_guarantee/field",
+      "breaking_prior": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members": [
+        "pass/facts/target_family_callback_guarantee/field"
+      ]
+    }
+  ],
+  [
+    158,
+    {
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "diag": "cannot prove requires contract for call read_selected from Main::main: valid_values(main.rows.va",
+      "witness": "pass/dependent/runtime_symbolic_slice_cell_theorem_exit",
+      "breaking_prior": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members": [
+        "pass/dependent/runtime_symbolic_slice_cell_theorem_exit"
+      ]
+    }
+  ],
+  [
+    198,
+    {
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "diag": "provider completion for `named-callable(path(nominal\\\\(package-owner\\\\(32:78d666a3ef4ce09f7a7e4a",
+      "witness": "pass/progress/provider_receiver_progress_installation",
+      "breaking_prior": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members": [
+        "pass/progress/provider_receiver_progress_installation"
+      ]
+    }
+  ]
+]

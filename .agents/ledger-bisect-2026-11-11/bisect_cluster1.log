@@ -1,0 +1,391 @@
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 1090 revisions left to test after this (roughly 10 steps)
+[d804f20bd422d1271620ad396b235ffdfbe8be6e] library: require an existing directory for recursive creation
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 544 revisions left to test after this (roughly 9 steps)
+[87d26fdb191598d904842c8315aa528dc8051660] facts(sixteen_arg_stack_calling_plan): add 9-place 16-argument stack calling plan fact row
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 272 revisions left to test after this (roughly 8 steps)
+[7d9848e51eb2c7df9634f52366d69bd70e95d66b] tests(facts): pin unsigned_64bit_wrapping_subtraction_bound corpus fixtures and goldens
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 135 revisions left to test after this (roughly 7 steps)
+[8d0f98ca0891ad367b3cf47263ade17ad61b30f0] samples: document nested record value transport measured evidence
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 67 revisions left to test after this (roughly 6 steps)
+[2b4b58ce7d633aac8a90e56299cfb30dac7fcc12] facts(live_across_twenty_calls_preservation_bound): add 9-place live-across-twenty-calls preservation fact row
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 33 revisions left to test after this (roughly 5 steps)
+[eebd783fc781b7ff12e49bf34073c5c338103dc4] psi: preserve checked scalar result qualifications through lowering
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 16 revisions left to test after this (roughly 4 steps)
+[da8e7ef97831570ceba908e9b8c1769ac1f1cdde] facts(thirtytwo_variant_enum_payload_bound): add 9-place 32-variant enum payload bound row
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 8 revisions left to test after this (roughly 3 steps)
+[b3ab7d113875e9dbc7038b02d9216be69f118466] facts(live_across_twentysix_calls_preservation_bound): add 9-place twenty-six-call live preservation row
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 2 steps)
+[2f7f82ff519f610d7de112c368203b30b6be6a7d] facts(thirtyseven_variant_enum_payload_bound): add 9-place 37-variant enum payload bound row
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 2 revisions left to test after this (roughly 1 step)
+[8c370bb3bf6a77859d1d901a62c0b5b34925c94f] facts(live_across_twentyseven_calls_preservation_bound): add 9-place twenty-seven-call live preservation row
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[4c6fa0c02bf56ecbcf51ea96d44095c6a4d1d5bf] psi: preserve exact custody through value qualification
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+4c6fa0c02bf56ecbcf51ea96d44095c6a4d1d5bf is the first bad commit
+commit 4c6fa0c02bf56ecbcf51ea96d44095c6a4d1d5bf
+Author: Zachary Canann <zacharycanann@gmail.com>
+Date:   Mon Oct 19 09:24:01 2026 -0700
+
+    psi: preserve exact custody through value qualification
+    
+    Qualification follows the selected normalized domain atoms rather than unrelated issuer domains on a linear carrier. Core Vacant and Resident now name explicit protected transfer routes; these declarations do not implement initialization or provide backing.
+    
+    A representation-preserving qualification consumes the operand's exact claim across places, calls, projections and checked target families. Nested qualifications consume the completed child's exact membership. Partial moves retain unselected siblings, and unselected target bodies still discharge their promises.
+    
+    Nine authored places and eleven runtime fixtures execute with native and Terminal exit 0 on macOS ARM64. Eighteen source controls reject missing issuance, moved-value reuse, resident-index substitution and checked-adapter custody forgery. Six neighboring runtime outcomes match d012ed8f, including its existing unsupported Terminal host binding. Scoped Clippy completes with existing warnings; warnings-as-errors is not clean. The actual-backed initialization and retirement lifecycle remains unfinished.
+
+ TASKS.md                                           |  23 ++-
+ omega-rust/psi/compilation/checking/src/lib.rs     |  14 +-
+ .../checking/src/machine_calls/calls.rs            |  10 +-
+ .../checking/src/machine_calls/calls/topology.rs   |  25 ++++
+ .../src/value_custody/owned_value_source.rs        |  39 ++++++
+ .../checking/src/value_custody/receiving_values.rs |  11 +-
+ .../src/checks/content/call_results.rs             |   7 +-
+ .../src/checks/contracts/writes.rs                 |  97 ++++++++-----
+ .../src/checks/multiplicity/claim_outcomes.rs      |  59 +-------
+ .../linear_validation/claim_provenance.rs          |  12 ++
+ .../structural_values/place_values.rs              |  11 +-
+ .../statement_sequence/result_consumption.rs       |  58 ++++----
+ .../src/facts/index_compatibility/labels.rs        |   7 -
+ .../index_compatibility/unevidenced_diagnostics.rs | 154 +--------------------
+ .../src/facts/qualification_facts.rs               |  25 ++--
+ .../src/unit/attached_unit/claims.rs               |   2 +
+ .../attached_unit/structural_values/emission.rs    |  63 ++++++---
+ samples/cli/facts/linear_routed_label/README.md    |  51 +++++++
+ .../linear_routed_label/call_result/build.omg      |   7 +
+ .../call_result/expected_interpreter_exit.txt      |   1 +
+ .../call_result/expected_native_exit.txt           |   1 +
+ .../call_result/invalid/build.omg                  |   7 +
+ .../call_result/invalid/expected.txt               |   1 +
+ .../call_result/invalid/main.omg                   |  28 ++++
+ .../call_result/invalid/sample.json                |   1 +
+ .../facts/linear_routed_label/call_result/main.omg |  28 ++++
+ .../facts/linear_routed_label/const_name/build.omg |   7 +
+ .../const_name/expected_interpreter_exit.txt       |   1 +
+ .../const_name/expected_native_exit.txt            |   1 +
+ .../const_name/invalid/build.omg                   |   7 +
+ .../const_name/invalid/expected.txt                |   1 +
+ .../const_name/invalid/main.omg                    |  29 ++++
+ .../const_name/invalid/sample.json                 |   1 +
+ .../facts/linear_routed_label/const_name/main.omg  |  29 ++++
+ .../cli/facts/linear_routed_label/field/build.omg  |   7 +
+ .../field/expected_interpreter_exit.txt            |   1 +
+ .../field/expected_native_exit.txt                 |   1 +
+ .../linear_routed_label/field/invalid/build.omg    |   7 +
+ .../linear_routed_label/field/invalid/expected.txt |   1 +
+ .../linear_routed_label/field/invalid/main.omg     |  29 ++++
+ .../linear_routed_label/field/invalid/sample.json  |   1 +
+ .../cli/facts/linear_routed_label/field/main.omg   |  29 ++++
+ .../cli/facts/linear_routed_label/local/build.omg  |   7 +
+ .../local/expected_interpreter_exit.txt            |   1 +
+ .../local/expected_native_exit.txt                 |   1 +
+ .../linear_routed_label/local/invalid/build.omg    |   7 +
+ .../linear_routed_label/local/invalid/expected.txt |   1 +
+ .../linear_routed_label/local/invalid/main.omg     |  28 ++++
+ .../linear_routed_label/local/invalid/sample.json  |   1 +
+ .../cli/facts/linear_routed_label/local/main.omg   |  28 ++++
+ .../facts/linear_routed_label/match_join/build.omg |   7 +
+ .../match_join/expected_interpreter_exit.txt       |   1 +
+ .../match_join/expected_native_exit.txt            |   1 +
+ .../match_join/invalid/build.omg                   |   7 +
+ .../match_join/invalid/expected.txt                |   1 +
+ .../match_join/invalid/main.omg                    |  32 +++++
+ .../match_join/invalid/sample.json                 |   1 +
+ .../facts/linear_routed_label/match_join/main.omg  |  32 +++++
+ .../linear_routed_label/other_machine/build.omg    |   7 +
+ .../other_machine/expected_interpreter_exit.txt    |   1 +
+ .../other_machine/expected_native_exit.txt         |   1 +
+ .../other_machine/invalid/build.omg                |   7 +
+ .../other_machine/invalid/expected.txt             |   1 +
+ .../other_machine/invalid/main.omg                 |  27 ++++
+ .../other_machine/invalid/sample.json              |   1 +
+ .../linear_routed_label/other_machine/main.omg     |  27 ++++
+ .../linear_routed_label/other_state/build.omg      |   7 +
+ .../other_state/expected_interpreter_exit.txt      |   1 +
+ .../other_state/expected_native_exit.txt           |   1 +
+ .../other_state/invalid/build.omg                  |   7 +
+ .../other_state/invalid/expected.txt               |   1 +
+ .../other_state/invalid/main.omg                   |  31 +++++
+ .../other_state/invalid/sample.json                |   1 +
+ .../facts/linear_routed_label/other_state/main.omg |  31 +++++
+ .../facts/linear_routed_label/parameter/build.omg  |   7 +
+ .../parameter/expected_interpreter_exit.txt        |   1 +
+ .../parameter/expected_native_exit.txt             |   1 +
+ .../parameter/invalid/build.omg                    |   7 +
+ .../parameter/invalid/expected.txt                 |   1 +
+ .../linear_routed_label/parameter/invalid/main.omg |  28 ++++
+ .../parameter/invalid/sample.json                  |   1 +
+ .../facts/linear_routed_label/parameter/main.omg   |  28 ++++
+ .../linear_routed_label/target_body/build.omg      |   7 +
+ .../target_body/expected_interpreter_exit.txt      |   1 +
+ .../target_body/expected_native_exit.txt           |   1 +
+ .../target_body/invalid/build.omg                  |   7 +
+ .../target_body/invalid/expected.txt               |   1 +
+ .../target_body/invalid/main.omg                   |  36 +++++
+ .../target_body/invalid/sample.json                |   1 +
+ .../facts/linear_routed_label/target_body/main.omg |  36 +++++
+ source/library/core/extent.omg                     |  36 ++++-
+ tests/omega/corpus_both_macos_arm64.txt            |  11 ++
+ tests/omega/corpus_outcomes.txt                    |  65 ++++++++-
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  30 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  34 +++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  37 +++++
+ .../linear_routed_label_call_result/build.omg      |   7 +
+ .../linear_routed_label_call_result/expected.txt   |   1 +
+ .../facts/linear_routed_label_call_result/main.omg |  28 ++++
+ .../facts/linear_routed_label_const_name/build.omg |   7 +
+ .../linear_routed_label_const_name/expected.txt    |   1 +
+ .../facts/linear_routed_label_const_name/main.omg  |  29 ++++
+ .../fail/facts/linear_routed_label_field/build.omg |   7 +
+ .../facts/linear_routed_label_field/expected.txt   |   1 +
+ .../fail/facts/linear_routed_label_field/main.omg  |  29 ++++
+ .../fail/facts/linear_routed_label_local/build.omg |   7 +
+ .../facts/linear_routed_label_local/expected.txt   |   1 +
+ .../fail/facts/linear_routed_label_local/main.omg  |  28 ++++
+ .../facts/linear_routed_label_match_join/build.omg |   7 +
+ .../linear_routed_label_match_join/expected.txt    |   1 +
+ .../facts/linear_routed_label_match_join/main.omg  |  32 +++++
+ .../linear_routed_label_other_machine/build.omg    |   7 +
+ .../linear_routed_label_other_machine/expected.txt |   1 +
+ .../linear_routed_label_other_machine/main.omg     |  27 ++++
+ .../linear_routed_label_other_state/build.omg      |   7 +
+ .../linear_routed_label_other_state/expected.txt   |   1 +
+ .../facts/linear_routed_label_other_state/main.omg |  31 +++++
+ .../facts/linear_routed_label_parameter/build.omg  |   7 +
+ .../linear_routed_label_parameter/expected.txt     |   1 +
+ .../facts/linear_routed_label_parameter/main.omg   |  28 ++++
+ .../linear_routed_label_target_body/build.omg      |   7 +
+ .../linear_routed_label_target_body/expected.txt   |   1 +
+ .../facts/linear_routed_label_target_body/main.omg |  36 +++++
+ .../bump_allocator_cast_minted_vacant/expected.txt |   2 +-
+ .../bump_allocator_cast_minted_vacant/main.omg     |  28 +---
+ .../expected.txt                                   |   2 +-
+ .../expected.txt                                   |   1 +
+ .../resident_qualification_wrong_index/main.omg    |  13 ++
+ .../resident_transfer_cast_forgery/expected.txt    |   1 +
+ .../memory/resident_transfer_cast_forgery/main.omg |   8 ++
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  16 +++
+ .../memory/weak_vacant_qualifier_drop/expected.txt |   2 +-
+ .../linear_qualification_nested_move/build.omg     |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../linear_qualification_nested_move/main.omg      |  28 ++++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  34 +++++
+ .../linear_routed_label_call_result/build.omg      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../facts/linear_routed_label_call_result/main.omg |  28 ++++
+ .../facts/linear_routed_label_const_name/build.omg |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../facts/linear_routed_label_const_name/main.omg  |  29 ++++
+ .../pass/facts/linear_routed_label_field/build.omg |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../pass/facts/linear_routed_label_field/main.omg  |  29 ++++
+ .../pass/facts/linear_routed_label_local/build.omg |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../pass/facts/linear_routed_label_local/main.omg  |  28 ++++
+ .../facts/linear_routed_label_match_join/build.omg |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../facts/linear_routed_label_match_join/main.omg  |  32 +++++
+ .../linear_routed_label_other_machine/build.omg    |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../linear_routed_label_other_machine/main.omg     |  27 ++++
+ .../linear_routed_label_other_state/build.omg      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../facts/linear_routed_label_other_state/main.omg |  31 +++++
+ .../facts/linear_routed_label_parameter/build.omg  |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../facts/linear_routed_label_parameter/main.omg   |  28 ++++
+ .../linear_routed_label_target_body/build.omg      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../facts/linear_routed_label_target_body/main.omg |  36 +++++
+ 183 files changed, 2067 insertions(+), 379 deletions(-)
+ create mode 100644 samples/cli/facts/linear_routed_label/README.md
+ create mode 100644 samples/cli/facts/linear_routed_label/call_result/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/call_result/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/call_result/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/call_result/invalid/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/call_result/invalid/expected.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/call_result/invalid/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/call_result/invalid/sample.json
+ create mode 100644 samples/cli/facts/linear_routed_label/call_result/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/const_name/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/const_name/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/const_name/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/const_name/invalid/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/const_name/invalid/expected.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/const_name/invalid/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/const_name/invalid/sample.json
+ create mode 100644 samples/cli/facts/linear_routed_label/const_name/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/field/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/field/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/field/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/field/invalid/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/field/invalid/expected.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/field/invalid/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/field/invalid/sample.json
+ create mode 100644 samples/cli/facts/linear_routed_label/field/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/local/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/local/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/local/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/local/invalid/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/local/invalid/expected.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/local/invalid/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/local/invalid/sample.json
+ create mode 100644 samples/cli/facts/linear_routed_label/local/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/match_join/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/match_join/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/match_join/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/match_join/invalid/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/match_join/invalid/expected.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/match_join/invalid/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/match_join/invalid/sample.json
+ create mode 100644 samples/cli/facts/linear_routed_label/match_join/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/other_machine/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/other_machine/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/other_machine/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/other_machine/invalid/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/other_machine/invalid/expected.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/other_machine/invalid/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/other_machine/invalid/sample.json
+ create mode 100644 samples/cli/facts/linear_routed_label/other_machine/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/other_state/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/other_state/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/other_state/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/other_state/invalid/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/other_state/invalid/expected.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/other_state/invalid/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/other_state/invalid/sample.json
+ create mode 100644 samples/cli/facts/linear_routed_label/other_state/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/parameter/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/parameter/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/parameter/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/parameter/invalid/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/parameter/invalid/expected.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/parameter/invalid/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/parameter/invalid/sample.json
+ create mode 100644 samples/cli/facts/linear_routed_label/parameter/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/target_body/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/target_body/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/target_body/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/target_body/invalid/build.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/target_body/invalid/expected.txt
+ create mode 100644 samples/cli/facts/linear_routed_label/target_body/invalid/main.omg
+ create mode 100644 samples/cli/facts/linear_routed_label/target_body/invalid/sample.json
+ create mode 100644 samples/cli/facts/linear_routed_label/target_body/main.omg
+ create mode 100644 tests/omega/fail/domains/linear_qualification_reuse_moved_source/build.omg
+ create mode 100644 tests/omega/fail/domains/linear_qualification_reuse_moved_source/expected.txt
+ create mode 100644 tests/omega/fail/domains/linear_qualification_reuse_moved_source/main.omg
+ create mode 100644 tests/omega/fail/domains/linear_qualification_reuse_projected_source/build.omg
+ create mode 100644 tests/omega/fail/domains/linear_qualification_reuse_projected_source/expected.txt
+ create mode 100644 tests/omega/fail/domains/linear_qualification_reuse_projected_source/main.omg
+ create mode 100644 tests/omega/fail/domains/linear_qualification_unselected_target_issuer/build.omg
+ create mode 100644 tests/omega/fail/domains/linear_qualification_unselected_target_issuer/expected.txt
+ create mode 100644 tests/omega/fail/domains/linear_qualification_unselected_target_issuer/main.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_call_result/build.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_call_result/expected.txt
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_call_result/main.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_const_name/build.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_const_name/expected.txt
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_const_name/main.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_field/build.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_field/expected.txt
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_field/main.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_local/build.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_local/expected.txt
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_local/main.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_match_join/build.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_match_join/expected.txt
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_match_join/main.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_other_machine/build.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_other_machine/expected.txt
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_other_machine/main.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_other_state/build.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_other_state/expected.txt
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_other_state/main.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_parameter/build.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_parameter/expected.txt
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_parameter/main.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_target_body/build.omg
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_target_body/expected.txt
+ create mode 100644 tests/omega/fail/facts/linear_routed_label_target_body/main.omg
+ create mode 100644 tests/omega/fail/memory/resident_qualification_wrong_index/expected.txt
+ create mode 100644 tests/omega/fail/memory/resident_qualification_wrong_index/main.omg
+ create mode 100644 tests/omega/fail/memory/resident_transfer_cast_forgery/expected.txt
+ create mode 100644 tests/omega/fail/memory/resident_transfer_cast_forgery/main.omg
+ create mode 100644 tests/omega/fail/memory/vacant_transfer_checked_adapter_forgery/expected.txt
+ create mode 100644 tests/omega/fail/memory/vacant_transfer_checked_adapter_forgery/main.omg
+ create mode 100644 tests/omega/pass/domains/linear_qualification_nested_move/build.omg
+ create mode 100644 tests/omega/pass/domains/linear_qualification_nested_move/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/domains/linear_qualification_nested_move/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/domains/linear_qualification_nested_move/main.omg
+ create mode 100644 tests/omega/pass/domains/linear_qualification_projected_sibling/build.omg
+ create mode 100644 tests/omega/pass/domains/linear_qualification_projected_sibling/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/domains/linear_qualification_projected_sibling/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/domains/linear_qualification_projected_sibling/main.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_call_result/build.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_call_result/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_call_result/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_call_result/main.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_const_name/build.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_const_name/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_const_name/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_const_name/main.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_field/build.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_field/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_field/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_field/main.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_local/build.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_local/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_local/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_local/main.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_match_join/build.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_match_join/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_match_join/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_match_join/main.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_other_machine/build.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_other_machine/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_other_machine/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_other_machine/main.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_other_state/build.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_other_state/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_other_state/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_other_state/main.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_parameter/build.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_parameter/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_parameter/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_parameter/main.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_target_body/build.omg
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_target_body/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_target_body/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/linear_routed_label_target_body/main.omg
+bisect found first bad commit

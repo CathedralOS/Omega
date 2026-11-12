@@ -1,0 +1,10 @@
+pass/borrows/nested_reference_call_checked_index_exit	broken	state `read_reference` receives `value.inner.value` while local borrow `entry` is still active	c1
+pass/facts/case_match_payload_loan_through_other_machine_exit	broken	state `store` receives `<saved subject #4:1>::Active.message.body` while local borrow `entry` is still active	c1
+pass/facts/case_match_payload_loan_through_other_state_exit	broken	state `store` receives `<saved subject #4:1>::Active.message.body` while local borrow `entry` is still active	c1
+pass/facts/case_match_payload_loan_through_parameter_exit	broken	state `store` receives `<saved subject #4:1>::Active.message.body` while local borrow `entry` is still active	c1
+pass/facts/case_match_payload_loan_through_target_body_exit	broken	state `store` receives `<saved subject #4:1>::Active.message.body` while local borrow `entry` is still active	c1
+pass/build/const_index_dependency_order_exit	broken	generated generic application does not match its exact retained instance origin	c2
+pass/generics/runtime_computed_nested_const_call_exit	broken	generated generic application does not match its exact retained instance origin	c2
+pass/progress/provider_receiver_progress_installation	broken	provider completion for named-callable disagrees with its exact retained requirement contract	c3
+pass/facts/target_family_callback_guarantee/field	fixed		c_fixed_118
+pass/dependent/runtime_symbolic_slice_cell_theorem_exit	fixed		c_fixed_158

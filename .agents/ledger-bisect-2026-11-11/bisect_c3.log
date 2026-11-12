@@ -1,0 +1,107 @@
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 620 revisions left to test after this (roughly 9 steps)
+[420b3d25c5c5c70da5927cf21840c61471f3cb47] psi: retire Unit plan and type-reference attachment helpers (#1852)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 310 revisions left to test after this (roughly 8 steps)
+[33e8d316274d091073680febe3099f787725eb84] psi: allow fixed arguments in calls inside generic functions (#1529)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 154 revisions left to test after this (roughly 7 steps)
+[e326c8b36230da73f0dfbf9110b41fdd9191a674] omega: run layout optimization on the resolved layout representation (#1338)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 77 revisions left to test after this (roughly 6 steps)
+[7976cbfffacaf7c2d3153aa8d24f276817438916] backend: delete the test-only machine-code object route and its replay (#1282)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 38 revisions left to test after this (roughly 5 steps)
+[735d5a84739782c663cb07c4e28c6fd1f45801fd] compiler: retain resident backing through borrowed access operations (#1327)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 38 revisions left to test after this (roughly 5 steps)
+[56198b770c675e69b663408cf81ba9077d328b04] psi: lend affine rank inputs without copying custody (#1360)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 38 revisions left to test after this (roughly 5 steps)
+[3df6bb8063dce430fe303ea64737343ee7a6e889] repo: route each omega command to the one owner of that command (#1328)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 38 revisions left to test after this (roughly 5 steps)
+[41eec4ca4a9e451523e675f268eb78296ffa51f6] compiler: preserve typed array regions through byte recasts (#1298)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 10 revisions left to test after this (roughly 4 steps)
+[567acd80e5b7e1ebb9bb37bceadffb4e74a063f6] library: complete Darwin stat transport through machines and target bodies (#1300)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 5 revisions left to test after this (roughly 3 steps)
+[71b9881e976567e01ba31331c1bb60103c691859] tools: land hands the compiler-check wait to the merge queue (#1297)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 2 revisions left to test after this (roughly 2 steps)
+[0948d66c9cda2a14b141212ba98e6d126a08752d] compiler: carry canonical calling declarations through native execution (#1299)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[9aa729694d8b6c2de036d49a62c6e9a622d1acac] psi: keep callee premises out of initializer operator custody (#1292)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[fe8304b0f3ce6c23c37a26368767255b6bb0cf50] compiler: preserve nested C-layout constants across closure checks (#1287)
+running '.agents/ledger-bisect-tools/bisect_witness.sh'
+0948d66c9cda2a14b141212ba98e6d126a08752d is the first bad commit
+commit 0948d66c9cda2a14b141212ba98e6d126a08752d
+Author: BrilliantWasp <brilliantwasp@proton.me>
+Date:   Sun Nov 1 21:17:31 2026 +0000
+
+    compiler: carry canonical calling declarations through native execution (#1299)
+    
+    * samples: select window providers through Build
+    
+    WindowDemo now selects ordinary Windows and macOS implementations directly from Build instead of forwarding through a target-prefixed family. Retain the existing rendering, message and cleanup bodies, the 16/60/4096 bounds, and every original guard and increment.
+    
+    Express Main default-domain clauses with requires self, use core integer carrier limits for signed-width gates, and spell packed Win32 fields and flags in hex. Fresh checking with the optimized compiler at fixed base 40f9 checks both source packages and reaches normal pending policy review. Native GUI qualification remains in progress.
+    
+    * samples: document explicit window provider selection
+    
+    Describe the current range, numeric and target-selection source forms and keep the run instructions independent of historical host observations. Fresh project review was regenerated after this documentation change because local package identity includes the README.
+    
+    * compiler: carry canonical calling declarations through native execution
+    
+    * tools: lower source-read ceiling after calling cleanup
+    
+    ---------
+    
+    Co-authored-by: Zachary Canann <zcanann@Zacharys-Mac-mini.local>
+
+ TASKS.md                                           |  15 +-
+ .../native-artifact/src/runtime_provisions.rs      |  14 +-
+ .../driver/src/checked/checking/source_checking.rs |   2 +-
+ .../compilation/driver/src/execution_settlement.rs |   7 +-
+ .../compilation/driver/src/product_boundary.rs     |  90 ------
+ .../driver/src/product_execution/component.rs      |  79 +++--
+ .../driver/src/terminal/calling_catalog.rs         |  79 +++++
+ .../driver/src/terminal/calling_policy_code.rs     |  72 -----
+ .../omega/compilation/driver/src/terminal/mod.rs   |   4 +-
+ .../tests/support/callback_telescope_controls.rs   |   5 +-
+ .../native-production/src/realization.rs           |   1 -
+ .../src/realization/callable_objects.rs            |   3 +-
+ .../src/callback_settlement/placement.rs           |  11 +-
+ .../src/callback_settlement/registrar_imports.rs   |   7 +-
+ .../src/optimization/mod.rs                        |  31 ++
+ .../src/provider_admission/settlements/boundary.rs |  37 ++-
+ .../src/provider_admission/settlements/mod.rs      |   3 +-
+ .../settlements/source_imports.rs                  |  82 ++---
+ .../src/retained_terminal/proposal.rs              |  20 +-
+ .../compilation/products/src/prepared_build.rs     |   6 +-
+ .../src/boundary_value_recipes.rs                  | 119 --------
+ .../calling_policy_plans/boundary_signatures.rs    | 186 +-----------
+ .../calling_policy_plans/default_applications.rs   | 137 +++++++++
+ .../src/calling_policy_plans/mod.rs                |  10 +-
+ .../src/calling_policy_plans/plan_computation.rs   |  63 +---
+ .../src/calling_policy_plans/policy_code.rs        |   4 +-
+ .../src/calling_policy_plans/scalar_completion.rs  |  74 ++++-
+ .../calling_policy_plans/selected_application.rs   |  27 +-
+ .../src/calling_policy_plans/terminal_signature.rs |  56 +++-
+ .../src/provider_planning/external_binding_rows.rs |  52 ++--
+ .../provider-planning/src/provider_settlement.rs   |   7 +-
+ .../terminal-production/src/calling_signatures.rs  | 138 ++++++++-
+ samples/gui/window_demo/README.md                  |  24 +-
+ samples/gui/window_demo/build.omg                  |  11 +-
+ samples/gui/window_demo/main.omg                   |  24 +-
+ samples/gui/window_demo/providers.omg              | 331 +++++++++++----------
+ tools/source_text_reads.txt                        |   2 +-
+ 37 files changed, 933 insertions(+), 900 deletions(-)
+ create mode 100644 omega-rust/omega/compilation/driver/src/terminal/calling_catalog.rs
+ delete mode 100644 omega-rust/omega/compilation/driver/src/terminal/calling_policy_code.rs
+ create mode 100644 omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/default_applications.rs
+bisect found first bad commit
