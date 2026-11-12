@@ -1,0 +1,163 @@
+// This internal construction API is deliberately smaller than OCREQ admission.
+// It validates immutable source ranges and requester-local package edges. It
+// does not obtain source bytes, infer packages from paths, or resolve imports.
+machine OmegaSourceSet::single(&mut self, length: i32) {
+    self.package_count = 1;
+    self.packages[0].role = 0;
+    self.packages[0].name.start = 0;
+    self.packages[0].name.end = 0;
+    self.dependency_count = 0;
+    self.unit_count = 1;
+    self.units[0].package = 0;
+    self.units[0].start = 0;
+    self.units[0].end = length;
+}
+
+machine OmegaSourceSet::equal_name(
+    &mut self, source: &[u8], left: OmegaRelativeSpan, right: OmegaRelativeSpan
+) -> i32 {
+    transition left.end - left.start == right.end - right.start {
+        true -> byte(0)
+        _ -> return 0
+    }
+    state byte(offset: i32) {
+        transition offset < left.end - left.start {
+            true -> compare(offset)
+            _ -> return 1
+        }
+    }
+    state compare(offset: i32) {
+        transition source[left.start + offset] == source[right.start + offset] {
+            true -> byte(offset + 1)
+            _ -> return 0
+        }
+    }
+}
+
+machine OmegaSourceSet::identifier(&mut self, source: &[u8], name: OmegaRelativeSpan) -> i32 {
+    transition (name.start >= 0) && (name.start < name.end) && (name.end <= source.len) {
+        true -> byte(name.start)
+        _ -> return 0
+    }
+    state byte(index: i32) {
+        transition index < name.end {
+            true -> classify(index, source[index])
+            _ -> return 1
+        }
+    }
+    state classify(index: i32, value: i32) {
+        transition ((value >= 65) && (value <= 90)) ||
+            ((value >= 97) && (value <= 122)) || (value == 95) ||
+            ((index > name.start) && (value >= 48) && (value <= 57)) {
+            true -> byte(index + 1)
+            _ -> return 0
+        }
+    }
+}
+
+machine OmegaSourceSet::valid(&mut self, source: &[u8]) -> i32 {
+    transition (self.package_count > 0) && (self.package_count <= 64) &&
+        (self.unit_count > 0) && (self.unit_count <= 512) &&
+        (self.dependency_count >= 0) && (self.dependency_count <= 256) {
+        true -> package(0)
+        _ -> return 0
+    }
+    state package(index: i32) {
+        transition index < self.package_count {
+            true -> package_name(index, self.packages[index].name)
+            _ -> edge(0)
+        }
+    }
+    state package_name(index: i32, name: OmegaRelativeSpan) {
+        transition (self.identifier(source, name) == 1) ||
+            ((self.package_count == 1) && (self.dependency_count == 0) &&
+             (name.start == 0) && (name.end == 0)) {
+            true -> package_role(index)
+            _ -> return 0
+        }
+    }
+    state package_role(index: i32) {
+        transition (self.packages[index].role >= 0) && (self.packages[index].role <= 2) {
+            true -> prior_package(index, 0)
+            _ -> return 0
+        }
+    }
+    state prior_package(index: i32, prior: i32) {
+        transition prior < index {
+            true -> distinct_package(index, prior)
+            _ -> package(index + 1)
+        }
+    }
+    state distinct_package(index: i32, prior: i32) {
+        transition (self.equal_name(source, self.packages[index].name, self.packages[prior].name) == 0) &&
+            ((self.packages[index].role == 0) || (self.packages[index].role != self.packages[prior].role)) {
+            true -> prior_package(index, prior + 1)
+            _ -> return 0
+        }
+    }
+    state edge(index: i32) {
+        transition index < self.dependency_count {
+            true -> edge_shape(index, self.dependencies[index])
+            _ -> unit(0, 0)
+        }
+    }
+    state edge_shape(index: i32, row: OmegaSourceDependency) {
+        transition (row.requester >= 0) && (row.requester < self.package_count) &&
+            (row.target >= 0) && (row.target < self.package_count) &&
+            (row.requester != row.target) && (self.identifier(source, row.alias) == 1) {
+            true -> own_name(index, row)
+            _ -> return 0
+        }
+    }
+    state own_name(index: i32, row: OmegaSourceDependency) {
+        transition self.equal_name(source, row.alias, self.packages[row.requester].name) {
+            0 -> prior_edge(index, row, 0)
+            _ -> return 0
+        }
+    }
+    state prior_edge(index: i32, row: OmegaSourceDependency, prior: i32) {
+        transition prior < index {
+            true -> compare_edge(index, row, prior, self.dependencies[prior])
+            _ -> edge(index + 1)
+        }
+    }
+    state compare_edge(index: i32, row: OmegaSourceDependency, prior: i32,
+        other: OmegaSourceDependency) {
+        transition (row.requester == other.requester) &&
+            (self.equal_name(source, row.alias, other.alias) == 1) {
+            true -> return 0
+            _ -> prior_edge(index, row, prior + 1)
+        }
+    }
+    state unit(index: i32, previous_end: i32) {
+        transition index < self.unit_count {
+            true -> unit_shape(index, previous_end, self.units[index])
+            _ -> return 1
+        }
+    }
+    state unit_shape(index: i32, previous_end: i32, row: OmegaSourceUnit) {
+        transition (row.package >= 0) && (row.package < self.package_count) &&
+            (row.start >= previous_end) && (row.end >= row.start) && (row.end <= source.len) {
+            true -> unit(index + 1, row.end)
+            _ -> return 0
+        }
+    }
+}
+
+// Source ranges, rather than parser visitation order, retain the owner of every
+// type, call, field and import. A byte at a unit's end belongs to no token.
+machine OmegaSourceSet::unit_at(&mut self, offset: i32) -> i32 {
+    transition true { true -> unit(0) }
+    state unit(index: i32) {
+        transition index < self.unit_count {
+            true -> contains(index, self.units[index])
+            _ -> return -1
+        }
+    }
+    state contains(index: i32, row: OmegaSourceUnit) {
+        transition (offset >= row.start) && (offset < row.end) {
+            true -> return index
+            _ -> unit(index + 1)
+        }
+    }
+}

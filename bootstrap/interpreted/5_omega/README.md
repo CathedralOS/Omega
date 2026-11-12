@@ -42,11 +42,11 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The current eight-member
-manifest materializes 20,790 lines / 764,081 bytes with SHA-256
-`2d7602e4e1e63822be65b950ccb4170c9dfddcc6de8344f9ab0729209133a681`.
-The manifest itself is 1,339 bytes, SHA-256
-`7325b74b8f01b5427fb8d74f9e027926542486ce6478cf454787c0cd18ede6fd`;
+The current ten-member
+manifest materializes 21,758 lines / 802,399 bytes with SHA-256
+`2053a19e7de2930b37bba7ff474ddfb876330ffd56769786520e7c8ad5743826`.
+The manifest itself is 1,674 bytes, SHA-256
+`61bc043c92d7fa2560ce3c6a98938e5bd0ee7f5c56c07f426283439b985aaea7`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -61,6 +61,36 @@ Its public request route validates OCREQ shape and re-walks the bound subject;
 the complete OCREQ semantic admission phases remain unfinished as detailed below.
 The direct `compile(source, entry)` boundary is an internal compilation customer,
 not a replacement public request protocol.
+
+The internal `compile_set(source, entry_unit, entry)` customer accepts a bounded
+source set: at most 64 package identities, 256 direct dependency aliases and 512
+source units. Each unit has invocation-owned package membership and an exact
+byte range. The parser checks that unit independently and reads its optional
+specified `module name::path;` header. Module-less files of one package share
+one logical module; physical paths supply no namespace. Types and calls retain
+their exact declaration identity across units. Source-order changes do not
+select a different imported declaration.
+
+Imports are file-local. Exact imports select declarations; namespace imports
+bind a namespace without importing its ordinary machines as bare names.
+Repeated imports of one identity are allowed, while competing imported names
+refuse. Qualified names require the requester's own package or a direct
+requester-local dependency alias, with public visibility across packages.
+Public field and call-interface types cannot expose private records. The
+current subset handles explicitly declared modules, free machines and named
+records; it does not add attached declarations, reexports, overload selection,
+or full build/request admission. The single-view API is the one-unit case.
+Every supplied declaration is checked, including unused units and bodies.
+
+The construction application is [construct_omega.epsilon](../construct_omega.epsilon).
+It reads exact package, direct-alias and unit rows followed by up to 4 MiB of
+source bytes. Package roles distinguish ordinary packages from the explicitly
+trusted core and standard library; spelling alone grants no such role. The
+selected entry is a source-unit ordinal and name span. This internal input
+context is separate from OCREQ package acquisition and admission. A successful
+invocation writes Alpha tape; a refusal writes its source coordinate and exits
+nonzero. The implementation remains under construction; Epsilon source
+acceptance alone does not establish compilation of the Omega compiler closure.
 
 The emitted subset retains a nullary `u8` program entry. Free and nested
 machines may use plain `u8`, `u32`, `u64`, `bool`, `u32 in Trapping`, copy records,

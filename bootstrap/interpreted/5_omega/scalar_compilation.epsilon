@@ -63,6 +63,10 @@ data OmegaByteIndexPlan {
 }
 
 data OmegaScalarCompiler {
+    import_bindings: [OmegaImportBinding; 4096];
+    query_path: OmegaNamePath;
+    address_path: OmegaNamePath;
+    entry_unit: i32;
     parser: OmegaParser;
     tape: AlphaTapeBuffer;
     status: OmegaScalarCompilationStatus;
@@ -322,31 +326,7 @@ machine OmegaScalarCompiler::scan_u8(
 machine OmegaScalarCompiler::resolve_machine(
     &mut self, source: &[u8], start: i32, end: i32
 ) -> i32 {
-    transition true { true -> scan(0) }
-
-    state scan(index: i32) {
-        transition index < self.parser.machine_count {
-            true -> candidate(index)
-            _ -> return -1
-        }
-    }
-
-    state candidate(index: i32) {
-        transition self.parser.machine_items[index].path_member_count {
-            1 -> compare(index)
-            _ -> scan(index + 1)
-        }
-    }
-
-    state compare(index: i32) {
-        let name: OmegaRelativeSpan = self.parser.members[
-            self.parser.machine_items[index].first_path_member];
-        transition self.span_equals(source, name.start, name.end,
-            source[start..end]) {
-            1 -> return index
-            _ -> scan(index + 1)
-        }
-    }
+    return self.resolve_declaration(source, start, end, OmegaDeclarationKind::Machine);
 }
 
 // Resolve a transition-target name to the index of an authored state owned
@@ -1040,7 +1020,7 @@ machine OmegaScalarCompiler::expression_type(
         }
     }
     state call(call: OmegaCallExpressionSyntax) {
-        let callee: i32 = self.resolve_machine(source, call.target.start, call.target.end);
+        let callee: i32 = self.resolve_call_machine(source, call);
         transition callee >= 0 {
             true -> return self.state_types[self.parser.machine_items[callee].first_state]
             _ -> return -1
@@ -1235,19 +1215,20 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state call(call: OmegaCallExpressionSyntax) {
-        transition (call.has_receiver == 0) && (call.machine_argument_count == 0) {
+        transition (self.call_has_static_target(call) == 1) && (call.machine_argument_count == 0) {
             true -> target(call)
             _ -> unsupported(call.start)
         }
     }
     state target(call: OmegaCallExpressionSyntax) {
-        transition self.resolve_state(source, owner, call.target.start, call.target.end) < 0 {
+        transition (call.has_receiver != 0) ||
+            (self.resolve_state(source, owner, call.target.start, call.target.end) < 0) {
             true -> global_target(call)
             _ -> unsupported(call.target.start)
         }
     }
     state global_target(call: OmegaCallExpressionSyntax) {
-        let callee: i32 = self.resolve_machine(source, call.target.start, call.target.end);
+        let callee: i32 = self.resolve_call_machine(source, call);
         transition callee >= 0 {
             true -> arity(call, callee)
             _ -> rejected(call.target.start)
@@ -2244,6 +2225,15 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
 }
 
 machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
+    self.parser.sources.single(source.len);
+    self.compile_set(source, 0, entry);
+}
+
+// The caller supplies only immutable bytes, package edges and source ranges.
+// Parsing and declaration selection remain inside the compiler. This internal
+// construction entry does not claim full OCREQ admission.
+machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i32, entry: &[u8]) {
+    self.entry_unit = entry_unit;
     self.status = OmegaScalarCompilationStatus::Pending;
     self.diagnostic_offset = 0;
     self.literal_offset = 0;
@@ -2262,7 +2252,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     self.loan_count = 0;
     self.layout_depth = 0;
     self.tape.initialize();
-    self.parser.parse_view(source);
+    self.parser.parse_set(source);
     transition self.parser.status {
         OmegaParserStatus::Complete -> check_roots()
         OmegaParserStatus::LexicalFailure -> lexical_reject()
@@ -2285,10 +2275,17 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     }
 
     state check_roots() {
-        transition (self.parser.root_count == self.parser.machine_count + self.parser.data_count) &&
-            (self.parser.machine_count > 0) {
-            true -> reset_storage(0)
+        transition (self.parser.root_count == self.parser.machine_count + self.parser.data_count + self.parser.use_count) &&
+            (self.parser.machine_count > 0) && (self.entry_unit >= 0) &&
+            (self.entry_unit < self.parser.sources.unit_count) {
+            true -> imports()
             _ -> non_machine_root(0)
+        }
+    }
+    state imports() {
+        transition self.validate_imports(source) {
+            1 -> reset_storage(0)
+            _ -> return
         }
     }
     state reset_storage(index: i32) {
@@ -2393,7 +2390,13 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     state check_declarations(index: i32) {
         transition index < self.parser.machine_count {
             true -> machine_shape(index)
-            _ -> check_entry_bounds(0)
+            _ -> public_interfaces()
+        }
+    }
+    state public_interfaces() {
+        transition self.check_public_interfaces(source) {
+            1 -> check_entry_bounds(0)
+            _ -> return
         }
     }
     state check_entry_bounds(state_index: i32) {
@@ -2456,9 +2459,10 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
             self.parser.machine_items[index].first_path_member];
         let other: OmegaRelativeSpan = self.parser.members[
             self.parser.machine_items[previous].first_path_member];
-        transition self.span_equals(source, name.start, name.end,
-            source[other.start..other.end]) {
-            1 -> duplicate_arity(index, previous, name.start)
+        transition (self.same_module(source, self.parser.sources.unit_at(name.start),
+            self.parser.sources.unit_at(other.start)) == 1) &&
+            (self.span_equals(source, name.start, name.end, source[other.start..other.end]) == 1) {
+            true -> duplicate_arity(index, previous, name.start)
             _ -> check_duplicate(index, previous + 1)
         }
     }
@@ -2694,7 +2698,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     state check_call(index: i32, state_index: i32, statement: i32) {
         let call: OmegaCallStatementSyntax = self.parser.call_statements[
             self.parser.statements[statement].item_index];
-        transition (call.receiver_member_count == 0) &&
+        transition (call.receiver_member_count + 1 == call.name_member_count) &&
             (call.receiver_starts_at_self == 0) &&
             (call.machine_argument_count == 0) {
             true -> call_target(index, state_index, statement, call)
@@ -2705,7 +2709,8 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     state call_target(index: i32, state_index: i32, statement: i32,
         call: OmegaCallStatementSyntax) {
         let name: OmegaRelativeSpan = self.parser.members[call.target_member];
-        transition self.resolve_state(source, index, name.start, name.end) < 0 {
+        transition (call.receiver_member_count > 0) ||
+            (self.resolve_state(source, index, name.start, name.end) < 0) {
             true -> global_call_target(index, state_index, statement, call, name)
             _ -> incomplete(4, name.start)
         }
@@ -2713,7 +2718,8 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
 
     state global_call_target(index: i32, state_index: i32, statement: i32,
         call: OmegaCallStatementSyntax, name: OmegaRelativeSpan) {
-        let callee: i32 = self.resolve_machine(source, name.start, name.end);
+        let callee: i32 = self.resolve_machine(source,
+            self.parser.members[call.first_receiver_member].start, name.end);
         transition callee >= 0 {
             true -> call_arity(index, state_index, statement, call, callee)
             _ -> reject(-1, 4, name.start)
@@ -3116,8 +3122,9 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     state finish_machine(index: i32) {
         let name: OmegaRelativeSpan = self.parser.members[
             self.parser.machine_items[index].first_path_member];
-        transition self.span_equals(source, name.start, name.end, entry) {
-            1 -> select(index)
+        transition (self.parser.sources.unit_at(name.start) == self.entry_unit) &&
+            (self.span_equals(source, name.start, name.end, entry) == 1) {
+            true -> select(index)
             _ -> check_machine(index + 1)
         }
     }
@@ -3459,19 +3466,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
 machine OmegaScalarCompiler::resolve_data(
     &mut self, source: &[u8], start: i32, end: i32
 ) -> i32 {
-    transition true { true -> next(0) }
-    state next(index: i32) {
-        transition index < self.parser.data_count {
-            true -> name(index, self.parser.data_items[index].name)
-            _ -> return -1
-        }
-    }
-    state name(index: i32, other: OmegaRelativeSpan) {
-        transition self.span_equals(source, start, end, source[other.start..other.end]) {
-            1 -> return index
-            _ -> next(index + 1)
-        }
-    }
+    return self.resolve_declaration(source, start, end, OmegaDeclarationKind::Data);
 }
 
 machine OmegaScalarCompiler::scalar_type(
@@ -4106,13 +4101,14 @@ machine OmegaScalarCompiler::check_record_literal(
     expression: i32, expected: i32
 ) -> i32 {
     let row: OmegaStructLiteralSyntax = self.parser.struct_literals[self.parser.expressions[expression].payload0];
-    transition (expected >= 100000) && (expected < 104096) && (row.type_member_count == 1) &&
+    transition (expected >= 100000) && (expected < 104096) && (row.type_member_count > 0) &&
         (self.type_copy(source, expected) == 1) {
         true -> name(row, self.parser.members[row.first_type_member])
         _ -> unsupported()
     }
     state name(row: OmegaStructLiteralSyntax, name: OmegaRelativeSpan) {
-        transition self.resolve_data(source, name.start, name.end) == expected - 100000 {
+        transition self.resolve_data(source, name.start,
+            self.parser.members[row.first_type_member + row.type_member_count - 1].end) == expected - 100000 {
             true -> count(row)
             _ -> rejected(name.start)
         }
