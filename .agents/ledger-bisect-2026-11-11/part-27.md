@@ -31,7 +31,7 @@ Witness: `pass/targets/private_target_supplies_remain_disclosed`
 
 Members: `pass/targets/private_target_supplies_remain_disclosed` `pass/targets/retained_target_provider_family_exit`
 
-members that did not flip with the witness: pass/targets/retained_target_provider_family_exit
+retained_target_provider_family_exit first read exit 127 at the breaking commit because the witness script was edited while that run was in flight. Recheck on the same commit-scoped runner: exit 1, rejected, unknown canonical target profile `reserved_target`. It flips with the witness (parent 0, breaking 1).
 
 Mechanism:
 
@@ -42,7 +42,7 @@ mechanism not established
 Member checks at the parent and at the breaking commit:
 
 - `pass/targets/private_target_supplies_remain_disclosed` parent=0 breaking=1
-- `pass/targets/retained_target_provider_family_exit` parent=0 breaking=127
+- `pass/targets/retained_target_provider_family_exit` parent=0 breaking=1
 
 ## Fixed on PIN
 

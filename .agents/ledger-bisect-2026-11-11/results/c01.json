@@ -31,8 +31,8 @@
     },
     "pass/targets/retained_target_provider_family_exit": {
       "at_parent": 0,
-      "at_bad": 127
+      "at_bad": 1
     }
   },
-  "note": "members that did not flip with the witness: pass/targets/retained_target_provider_family_exit"
+  "note": "retained_target_provider_family_exit first read exit 127 at the breaking commit because the witness script was edited while that run was in flight. Recheck on the same commit-scoped runner: exit 1, rejected, unknown canonical target profile `reserved_target`. It flips with the witness (parent 0, breaking 1)."
 }
