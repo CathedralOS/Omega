@@ -142,7 +142,8 @@
         "pass/facts/open_const_implementation_private_record_package_exit"
       ],
       "bisect": {
-        "status": "pending"
+        "status": "propagated",
+        "reason": "no good first-parent ancestor"
       }
     },
     {

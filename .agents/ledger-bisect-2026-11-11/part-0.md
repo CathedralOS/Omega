@@ -15,7 +15,7 @@ Members: `pass/facts/open_const_implementation_statement_const_result_exit` `pas
 | 1 | pass/run rejected | cannot establish assignment invariants: source parent type is unavailable | `pass/borrows/runtime_reassigned_view_capture_exit` | `` |  |  | propagated |
 Members: `pass/borrows/runtime_reassigned_view_capture_exit`
 
-| 1 | pass/run rejected | cannot prove ensures contract for exit from Selected::read at statement 0: result == Value | `pass/facts/open_const_implementation_private_record_package_exit` | `` |  |  | pending |
+| 1 | pass/run rejected | cannot prove ensures contract for exit from Selected::read at statement 0: result == Value | `pass/facts/open_const_implementation_private_record_package_exit` | `` |  |  | propagated |
 Members: `pass/facts/open_const_implementation_private_record_package_exit`
 
 | 1 | pass/run rejected | cannot prove requires contract for call require_cell_value from Main::main: first >= 0 && first <= 100 (needs fact `valu | `pass/borrows/runtime_shared_reference_array_cohort_restoration_exit` | `` |  |  | propagated |
