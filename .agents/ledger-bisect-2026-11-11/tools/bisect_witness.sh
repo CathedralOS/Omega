@@ -1,9 +1,25 @@
 #!/bin/bash
-# git bisect run helper: 0 = matches ledger, 1 = worse than ledger, 125 = skip
+# 0 = good (PIN-ledger expected), 1 = bad (PIN break reproduced), 125 = skip
 set -euo pipefail
 WITNESS="${BISECT_WITNESS:?}"
-ROOT="$(git -C "$(dirname "$0")/../../.." rev-parse --show-toplevel)"
+ROOT="${BISECT_REPO_ROOT:-$(git rev-parse --show-toplevel)}"
+TOOLS="$(dirname "$0")"
 cd "$ROOT"
+
+if git rev-parse -q HEAD^1 >/dev/null 2>&1; then
+  mapfile -t changed < <(git diff --name-only HEAD^1 HEAD)
+  if ((${#changed[@]} > 0)); then
+    ledger_only=1
+    for f in "${changed[@]}"; do
+      [[ "$f" == tests/omega/corpus_outcomes.txt ]] && continue
+      [[ "$f" == *.md ]] && continue
+      ledger_only=0
+      break
+    done
+    ((ledger_only)) && exit 125
+  fi
+fi
+
 export OMEGA_CORPUS_JOBS=1 CARGO_BUILD_JOBS=4 MBX_SCHEDULER_CPUS=4
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$ROOT/target" nice -n 19 mbx build -p omega < /dev/null >/dev/null 2>&1 || exit 125
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$ROOT/target" nice -n 19 mbx test --no-run -p compiler --test corpus_runner < /dev/null >/dev/null 2>&1 || exit 125
@@ -13,4 +29,5 @@ export OMEGA_CORPUS_ROOT="$ROOT" OMEGA_LIBRARY_ROOT="$ROOT/source/library"
 export OMEGA_CORPUS_FIXTURE_FILTER="$WITNESS" OMEGA_CORPUS_RECORDS=/tmp/bisect_one_record.txt
 rm -f /tmp/bisect_one_record.txt
 nice -n 19 "$RUNNER" < /dev/null >/dev/null 2>&1 || true
-python3 "$(dirname "$0")/bisect_test.py" "$WITNESS" /tmp/bisect_one_record.txt
+export BISECT_WITNESS_SPEC
+python3 "$TOOLS/bisect_test.py" "$WITNESS" /tmp/bisect_one_record.txt

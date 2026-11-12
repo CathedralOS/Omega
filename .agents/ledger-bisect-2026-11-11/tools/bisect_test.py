@@ -1,48 +1,70 @@
 #!/usr/bin/env python3
+"""Classify one corpus run vs fixed PIN ledger + witness observation."""
+from __future__ import annotations
+
+import json
 import os
+import re
 import sys
 from pathlib import Path
 
-_default_repo = Path(__file__).resolve()
-while _default_repo != _default_repo.parent and not (
-    _default_repo / "tests/omega/corpus_outcomes.txt"
-).exists():
-    _default_repo = _default_repo.parent
-REPO = Path(os.environ.get("OMEGA_CORPUS_ROOT") or _default_repo)
 
-
-def parse_header(line: str) -> tuple[str, str] | None:
-    parts = line.split()
-    if len(parts) < 3:
-        return None
-    return parts[0], parts[1]
-
-
-def ledger_status(fixture: str) -> str | None:
-    for line in (REPO / "tests/omega/corpus_outcomes.txt").read_text().splitlines():
-        if line.startswith(fixture + " "):
-            return line.split()[1]
+def parse_record(text: str, witness: str) -> tuple[str, list[str]] | None:
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if not line.startswith(witness + " "):
+            continue
+        status = line.split()[1]
+        diags: list[str] = []
+        j = i + 1
+        while j < len(lines) and lines[j].startswith("\t"):
+            diags.append(lines[j][1:].strip())
+            j += 1
+        return status, diags
     return None
 
 
+def norm_diag(d: str) -> str:
+    d = d.strip()
+    d = re.sub(r"`[^`]*`", "`_`", d)
+    d = re.sub(r"\b\d+\b", "N", d)
+    return d[:160]
+
+
+def status_satisfies_expected(observed: str, expected: str, tier: str) -> bool:
+    if observed == expected:
+        return True
+    if tier != "fail" and expected == "checked" and observed == "built":
+        return True
+    return False
+
+
+def same_bad_class(observed_diags: list[str], pin_diag: str) -> bool:
+    if not pin_diag:
+        return bool(observed_diags)
+    if not observed_diags:
+        return False
+    if observed_diags[0] == pin_diag:
+        return True
+    return norm_diag(observed_diags[0]) == norm_diag(pin_diag)
+
+
 def main() -> int:
-    witness, rec_path = sys.argv[1], Path(sys.argv[2])
-    text = rec_path.read_text() if rec_path.exists() else ""
-    line = next((l for l in text.splitlines() if l.startswith(witness + " ")), None)
-    if not line:
+    witness = sys.argv[1]
+    rec_path = Path(sys.argv[2])
+    spec_path = Path(os.environ["BISECT_WITNESS_SPEC"])
+    spec = json.loads(spec_path.read_text())
+    if witness != spec["witness"]:
         return 125
-    fixture, status = parse_header(line)
-    tier = fixture.split("/")[0]
-    prior = ledger_status(fixture)
-    if prior is None:
+    parsed = parse_record(rec_path.read_text() if rec_path.exists() else "", witness)
+    if not parsed:
         return 125
-    is_fail = tier == "fail"
-    if is_fail:
-        bad = prior in ("rejected", "incomplete") and status not in ("rejected", "incomplete")
-    else:
-        rank = {"built": 2, "checked": 1}
-        bad = rank.get(status, 0) < rank.get(prior, 0)
-    return 1 if bad else 0
+    status, diags = parsed
+    if status_satisfies_expected(status, spec["expected_good_status"], spec["tier"]):
+        return 0
+    if status == spec["pin_bad_status"] and same_bad_class(diags, spec["pin_bad_diag"]):
+        return 1
+    return 125
 
 
 if __name__ == "__main__":
