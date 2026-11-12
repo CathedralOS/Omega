@@ -1,0 +1,35 @@
+// Copy or select saved access, then keep reading the same data after a call that may pause.
+// Fact: A loan transported into a record before a possible suspension keeps its original backing, so the record reads 73 after the call.
+// Expected exit: 0
+public boundary trait Scheduler { machine park() reaches suspends; }
+public Immediate satisfies Scheduler { machine park() {} }
+data Cell { value: i32; }
+data Backing { left: i32; values: [i32; 1]; right: i32; }
+data Forbidden { left: i32; values: [i32; 1]; right: i32; }
+data Sources { first: &[i32; 1]; second: &[i32; 1]; }
+data Message { left: i32; body: &Cell; right: i32; }
+machine read(message: Message) -> i32 {
+    transition message.left == 5 &&mut message.right == 9 { true -> message.body.value _ -> 0 }
+}
+machine exercise(flag: bool) -> i32 suspends reaches Scheduler {
+    let first: Backing = Backing { left: 101, values: [73], right: 103 };
+    let second: Forbidden = Forbidden { left: 107, values: [11], right: 109 };
+    let first_storage: &[i32; 1] = &first.values;
+    let second_storage: &[i32; 1] = &second.values;
+    let sources: Sources = Sources { first: first_storage, second: second_storage };
+    let selected: &[i32; 1] = match flag { true -> sources.first _ -> sources.second };
+    let copied: &[i32; 1] = selected;
+    let reference: &Cell = copied as &Cell;
+    let message: Message = Message { left: 5, body: reference, right: 9 };
+    let canaries: bool = first.left == 101 && first.right == 103 && second.left == 107 && second.right == 109;
+    suspend Scheduler::park();
+    let observed: i32 = read(message);
+    transition canaries { true -> observed _ -> 0 }
+}
+machine main() reaches Scheduler crashes Trap {
+    let observed: i32 = suspend exercise(true);
+    let other: i32 = suspend exercise(false);
+    transition observed == 73 && other == 11 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
