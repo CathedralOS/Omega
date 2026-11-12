@@ -1,0 +1,13 @@
+{
+  "witness": "pass/proofs/proposition_relation_hierarchy_compile",
+  "breaking_commit": "c33344e50059e6a1295e76610801b726fdb11ee5",
+  "pr": "1022",
+  "mechanism": "psi: preserve generic native contracts through checking and execution (#1022) \u2014 omega-rust/omega/compilation/driver/src/checked/checking/product_selections.rs, omega-rust/omega/compilation/products/src/checked_compilation.rs, omega-rust/omega/compilation/products/src/package_build.rs",
+  "status": "bisected",
+  "bisect_exit": 0,
+  "good_commit": "c64728d90e83036051d52fb69961b786423230c6",
+  "good_end_rc": 0,
+  "bad_pin_rc": 125,
+  "stability": "sanity(g=0,b=125)",
+  "method": "pin_frozen_ledger_v2"
+}
