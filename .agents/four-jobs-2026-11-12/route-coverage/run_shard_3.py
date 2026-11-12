@@ -113,50 +113,44 @@ def parse_program_line(line: str) -> dict[str, str]:
     }
 
 
-def tallied_route_kind(routes: list[str]) -> str:
-    def has(name: str) -> bool:
-        return any(r == name for r in routes)
+JUDGED_ROUTES = frozenset({"accepted", "rejected"})
 
-    def first(name: str) -> str | None:
-        for r in routes:
-            if r == name:
-                return r
-        return None
 
-    for decided in ("rejected", "incomplete"):
-        if has(decided):
-            return decided
-    for und in FALLBACK_UNDECIDED:
-        if first(und):
-            return und
-    if has("accepted"):
+def route_tsv_verdict(routes: list[str]) -> str:
+    """All roots must be judged; partial when any root accepts alongside unjudged/outside."""
+    if not routes:
+        return "error"
+    any_accepted = any(r == "accepted" for r in routes)
+    any_rejected = any(r == "rejected" for r in routes)
+    any_non_judged = any(r not in JUDGED_ROUTES for r in routes)
+
+    if any_accepted and any_non_judged:
+        return "partial"
+    if any_rejected:
+        return "rejected"
+    if any_accepted:
         return "accepted"
-    if first("outside"):
-        return "outside"
-    return routes[0] if routes else "-"
-
-
-def route_tsv_verdict(kind: str) -> str:
-    if kind in ("accepted", "rejected"):
-        return kind
     return "outside"
 
 
 def pick_first_refusal(
-    kind: str,
+    route_verdict: str,
     programs: list[dict[str, str]],
     fallbacks: list[str],
 ) -> str:
     """Construct or bucket name for ranking (not generic Unsupported)."""
-    if kind == "rejected":
+    if route_verdict == "rejected":
         return "-"
-    if kind == "accepted":
-        outside_hints = [
-            normalize_construct_refusal(p["outside"])
-            for p in programs
-            if p.get("route") == "outside" and p.get("outside")
-        ]
-        return outside_hints[0] if outside_hints else "-"
+    if route_verdict == "partial":
+        for prog in programs:
+            route = prog.get("route", "")
+            if route == "accepted":
+                continue
+            if route == "outside" and prog.get("outside"):
+                return f"partial:{normalize_construct_refusal(prog['outside'])}"
+            if route not in JUDGED_ROUTES:
+                return f"partial:{normalize_construct_refusal(route)}"
+        return "partial:unclassified"
 
     for prog in programs:
         route = prog.get("route", "")
@@ -178,11 +172,9 @@ def pick_first_refusal(
     if fallbacks:
         return normalize_construct_refusal(fallbacks[0])
 
-    if kind == "outside":
+    if route_verdict in ("outside", "accepted"):
         return "-"
-    if kind in ("no-entry", "unreached"):
-        return normalize_construct_refusal(kind)
-    return normalize_construct_refusal(kind)
+    return "-"
 
 
 def agreement(current: str, route_verdict: str) -> str:
@@ -249,9 +241,8 @@ def run_one(fixture: str) -> tuple[str, str, str, str, float]:
         return "error", current or "", "n-a", "no-output", sec
 
     routes = [p["route"] for p in programs if p.get("route")]
-    kind = tallied_route_kind(routes)
-    route_verdict = route_tsv_verdict(kind)
-    first_refusal = pick_first_refusal(kind, programs, fallbacks)
+    route_verdict = route_tsv_verdict(routes)
+    first_refusal = pick_first_refusal(route_verdict, programs, fallbacks)
     agr = agreement(current or programs[0].get("current", ""), route_verdict)
     return (
         route_verdict,
