@@ -1,0 +1,31 @@
+// An effectful call as a `==` operand: the boundary's `requires
+// right >= 0` is discharged by the sibling operand's own `ensures
+// value >= 0` — `mut` on a machine param lets the param be loaned
+// `&mut` inside the body.
+// The operator's declared home: bare primitive operands would join the
+// core's primitive operator family, which only the core may publish.
+domain i32::Counted;
+
+boundary machine == Integer::equal(left: i32 in Counted, right: i32 in Counted) -> bool
+requires right >= 0;
+
+machine prepare(value: &i32 in Counted) -> i32 in Counted
+ensures value >= 0 {
+    value = 1;
+    0
+}
+
+machine compare(mut value: i32 in Counted) -> bool {
+    prepare(&mut value) == value
+}
+
+data Main {}
+
+machine Main::main(main: &mut Main) {
+    transition compare(5) {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() {}
+}

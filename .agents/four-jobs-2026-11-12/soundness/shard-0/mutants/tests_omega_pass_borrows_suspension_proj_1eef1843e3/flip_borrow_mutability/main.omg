@@ -1,0 +1,22 @@
+// Expected exit: 0
+public boundary trait Scheduler { machine park() reaches suspends; }
+public Immediate satisfies Scheduler { machine park() {} }
+data Cell { value: i32; }
+data Backing { left: i32; values: [i32; 1]; alternate: [i32; 1]; right: i32; }
+data Message { body: &mut Cell; }
+machine project(source: &Backing, flag: bool) -> &[i32; 1] { transition flag { true -> &source.values _ -> &source.alternate } }
+machine read(message: Message) -> i32 { message.body.value }
+machine main() reaches Scheduler crashes Trap {
+ let backing: Backing = Backing { left: 101, values: [73], alternate: [11], right: 103 };
+ let source: &Backing = &backing;
+ let saved: &[i32; 1] = project(source, true);
+ let sibling: &[i32; 1] = project(source, false);
+ let reference: &Cell = saved as &Cell;
+ let message: Message = Message { body: reference };
+ suspend Scheduler::park();
+ let observed: i32 = read(message);
+ let other: i32 = sibling[0];
+ transition observed == 73 && other == 11 { true -> done() _ -> bad() }
+ machine done() {}
+ machine bad() crashes Trap { crash Trap; }
+}

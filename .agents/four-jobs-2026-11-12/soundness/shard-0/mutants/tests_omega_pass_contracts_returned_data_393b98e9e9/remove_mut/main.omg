@@ -1,0 +1,52 @@
+// Expected exit: 0
+// Forwarding a complete value preserves its identity without comparing the
+// contents of its borrowed buffer or selecting equality for its float fields.
+data Packet<'buffer> { tag: u8; output: &'buffer mut [u8]; }
+data Slot<'buffer> { before: u8; answer: Packet<'buffer>; after: u8; }
+data Floating [copy] { value: f64; }
+trait Equatable<Value> {
+    machine equals(left: &Value, right: &Value) -> bool;
+}
+FloatingEquality satisfies Equatable<Floating> {
+    machine equals(left: &Floating, right: &Floating) -> bool { false }
+}
+
+machine through_field<'buffer>(incoming: Packet<'buffer>) -> Slot<'buffer>
+ensures core::Identity<Packet<'buffer>>(result.answer, incoming)
+{ Slot { before: 83u8, answer: incoming, after: 89u8 } }
+
+machine forward_float(incoming: Floating) -> Floating
+ensures core::Identity<Floating>(result, incoming)
+{ incoming }
+
+machine observe<'buffer>(output: &'buffer mut [u8]) -> bool {
+    let slot: Slot<'buffer> = through_field(Packet { tag: 37u8, output: output });
+    let neighbors: bool = slot.before == 83u8 && slot.after == 89u8;
+    let returned: Packet<'buffer> = slot.answer;
+    transition returned.output.len == 3u64 {
+        true -> inspect(returned, neighbors)
+        false -> false
+    }
+    machine inspect(returned: Packet<'buffer>, neighbors: bool) -> bool
+    requires returned.output.len == 3u64
+    {
+        let original: bool = returned.tag == 37u8 && returned.output[0u64] == 41u8
+            && returned.output[1u64] == 43u8 && returned.output[2u64] == 47u8;
+        returned.output[1u64] = 97u8;
+        neighbors && original
+    }
+}
+
+machine main() crashes Trap {
+    let storage: [u8; 5] = [79u8, 41u8, 43u8, 47u8, 81u8];
+    let forwarded: bool = observe(&mut storage[1u64..4u64]);
+    let untouched: bool = storage[0u64] == 79u8 && storage[1u64] == 41u8
+        && storage[2u64] == 97u8 && storage[3u64] == 47u8 && storage[4u64] == 81u8;
+    let floating: Floating = forward_float(Floating { value: 7.0f64 });
+    let executable_comparison: bool = floating == floating;
+    transition forwarded && untouched && floating.value == 7.0f64 && !executable_comparison {
+        true -> done() _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

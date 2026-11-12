@@ -1,0 +1,6 @@
+// Kernel instruction-model checking only. No entry is bound and no
+// privileged instruction is executed by the host corpus runner.
+machine build(builder: &mut Build) {
+    Build::package(builder, "port_write_effect_contract");
+    builder.freestanding = true;
+}

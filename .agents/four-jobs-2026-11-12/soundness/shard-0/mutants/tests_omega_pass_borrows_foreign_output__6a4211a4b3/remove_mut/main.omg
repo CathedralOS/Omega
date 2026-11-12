@@ -1,0 +1,48 @@
+// Expected exit: 0. A copied foreign output through a helper and a stored
+// shared reference keeps its first referent after the output slot is replaced.
+
+public data Output<'source> { value: &'source u8; }
+public data TerminatedInput requires terminator == 0, {
+    digit: u8;
+    marker: u8;
+    terminator: u8;
+}
+public data InputDirectory<'source> { value: &'source TerminatedInput; }
+
+public boundary trait ParseNumber {
+    machine parse<'source>(source: &'source TerminatedInput, output: &mut Output<'source>, base: i32) -> i64
+    reaches
+    requires base == 10;
+}
+
+machine refresh<'source>(source: &'source InputDirectory<'source>, output: &mut Output<'source>) -> i64
+reaches ParseNumber {
+    ParseNumber::parse(source.value, output, 10)
+}
+
+data Main {}
+machine Main::main(main: &mut Main) reaches ParseNumber crashes Trap {
+    let first: TerminatedInput = TerminatedInput { digit: 52, marker: 120, terminator: 0 };
+    let second: TerminatedInput = TerminatedInput { digit: 53, marker: 121, terminator: 0 };
+    let sentinel: u8 = 7;
+    let output: Output = Output { value: &sentinel };
+    let first_view: InputDirectory = InputDirectory { value: &first };
+    let second_view: InputDirectory = InputDirectory { value: &second };
+    let first_number: i64 = refresh(&first_view, &mut output);
+    let captured: &u8 = output.value;
+    let second_number: i64 = refresh(&second_view, &mut output);
+    let previous: u8 = captured;
+    let current: u8 = output.value;
+    transition first_number == 4 && second_number == 5 && previous == 120 && current == 121 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ParseNumber crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

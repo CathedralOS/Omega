@@ -1,0 +1,27 @@
+// A helper must return correctly whether it reads its saved data or leaves that data unused.
+// The two calls take different return branches and must produce 73 and 19.
+// Expected exit: 0
+public boundary trait Scheduler { machine park() reaches suspends; }
+public Immediate satisfies Scheduler { machine park() {} }
+data Cell { value: i32; }
+data Backing { values: [i32; 1]; }
+data Message { left: i32; body: &mut Cell; right: i32; }
+// The other two fields must keep their values while the saved access is moved.
+machine read(message: Message) -> i32 {
+    transition message.left == 5 && message.right == 9 { true -> message.body.value _ -> 0 }
+}
+machine transport(consume: bool) -> i32 suspends reaches Scheduler {
+    let backing: Backing = Backing { values: [73] };
+    let storage: &[i32; 1] = &backing.values;
+    let reference: &Cell = storage as &Cell;
+    let message: Message = Message { left: 5, body: reference, right: 9 };
+    suspend Scheduler::park();
+    transition consume { true -> read(message) false -> 19 }
+}
+machine main() reaches Scheduler crashes Trap {
+    let observed: i32 = suspend transport(true);
+    let cleaned: i32 = suspend transport(false);
+    transition observed == 73 && cleaned == 19 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

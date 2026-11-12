@@ -1,0 +1,27 @@
+// Expected exit: 0
+// A pending unrelated call cannot hide a new borrow of owned local storage.
+data Cell { number: u64; }
+data Held<'scope> { pointer: &'scope Cell; marker: u64; }
+data Reply<T> { value: T; observed: u64; marker: u64; }
+trait Forward<T> { machine forward(value: T) -> T; }
+Identity satisfies Forward<u64> {
+    machine forward(value: u64) -> u64 { value }
+}
+machine zero() -> u64 { 0 }
+
+machine carry<T, Selected satisfies Forward<T>>(value: T) -> Reply<T> {
+    let forwarded: T = Selected::forward(value);
+    let number: Cell = Cell { number: 7 };
+    let held: Held = Held { pointer: &number, marker: zero() };
+    let observed: u64 = held.pointer.number;
+    Reply { value: forwarded, observed: observed, marker: held.marker }
+}
+
+machine main() crashes Trap {
+    let answer: Reply<u64> = carry<u64, Identity>(23u64);
+    transition answer.value == 23u64 && answer.observed == 7u64 && answer.marker == 0u64 {
+        true -> done() _ -> bad()
+    }
+    machine done() { }
+    machine bad() { crash Trap; }
+}

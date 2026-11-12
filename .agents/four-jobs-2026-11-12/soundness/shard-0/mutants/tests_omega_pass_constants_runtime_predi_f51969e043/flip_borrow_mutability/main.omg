@@ -1,0 +1,49 @@
+// Ordinary constants establish their data/case predicates without becoming
+// generic indices. Keep exact u64 bits through nested record/array copies.
+public data Bounded [copy] requires value <= 7 { value: u64; }
+public data Choice [copy] 
+    requires (self in Choice::Empty) || ((self in Choice::Selected) && (self.value <= 7)) || ((self in Choice::Uninhabited) && (self.value < 0))
+{
+    case Empty;
+    case Selected(value: u64);
+    case Uninhabited(value: u64);
+}
+public data Packet [copy] {
+    bounded: Bounded;
+    rows: [Bounded; 2];
+    choice: Choice;
+    maximum: u64;
+}
+public const Packet::VALUE: Packet = Packet {
+    bounded: Bounded { value: 7 },
+    rows: [Bounded { value: 0 }, Bounded { value: 6 }],
+    choice: Choice::Selected { value: 5 },
+    maximum: 18446744073709551615,
+};
+data Main { packet: Packet; }
+machine Main::main(main: &Main) crashes Trap {
+    main.packet = Packet::VALUE;
+    let packet: Packet = Packet::VALUE;
+    let wrapped: u64 in Wrapping = (packet.maximum as u64 in Wrapping) + 1;
+    transition wrapped == 0 && main.packet.bounded.value == 7 && packet.rows[1].value == 6 {
+        true -> inspect(packet.choice)
+        false -> bad()
+    }
+    machine inspect(choice: Choice) {
+        transition choice {
+            Choice::Selected { value } -> check(value)
+            _ -> bad()
+        }
+    }
+    machine check(value: u64) {
+        transition value == 5 { true -> done() false -> bad() }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

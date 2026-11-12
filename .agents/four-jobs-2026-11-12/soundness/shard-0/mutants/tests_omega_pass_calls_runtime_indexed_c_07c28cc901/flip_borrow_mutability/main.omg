@@ -1,0 +1,51 @@
+// Expected exit: 0
+use omega::language::core::drop;
+
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &Token) { token.value = 0; }
+data Slot { case Empty; case Held(storage: Token); }
+data Pool { before: u64; slots: [Slot; 8192]; after: u64; }
+
+machine reserve(owner: &mut Pool, next: u64, key: u64, value: u64) -> u64
+requires addr::Bound == 18446744073709551616 && next < 8192 && key < 8192
+{
+    transition owner.slots[next] in Slot::Empty {
+        true -> take(owner, next, key, value)
+        _ -> 83
+    }
+    machine take(owner: &mut Pool, next: u64, key: u64, value: u64) -> u64
+    requires addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 &&
+        (owner.slots[next] in Slot::Empty)
+    {
+        transition { _ -> keep(owner, next, key, value) }
+    }
+    machine keep(owner: &mut Pool, next: u64, key: u64, value: u64) -> u64
+    requires addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 &&
+        (owner.slots[next] in Slot::Empty)
+    {
+        owner.slots[next] = Slot::Held { storage: Token { value: value } };
+        value
+    }
+}
+machine read(slot: &Slot) -> u64 {
+    match slot {
+        Slot::Empty -> 0
+        Slot::Held { storage } -> storage.value
+    }
+}
+machine main() crashes Trap
+requires addr::Bound == 18446744073709551616
+{
+    let slots: [Slot; 8192];
+    let mut owner: Pool = Pool { before: 91, slots: slots, after: 97 };
+    let first: u64 = reserve(&mut owner, 0, 0, 47);
+    let fallback: u64 = reserve(&mut owner, 0, 1, 59);
+    let second: u64 = reserve(&mut owner, 1, 1, 59);
+    let valid: bool = first == 47 && fallback == 83 && second == 59 &&
+        read(&owner.slots[0]) == 47 && read(&owner.slots[1]) == 59 &&
+        read(&owner.slots[2]) == 0 && owner.before == 91 && owner.after == 97;
+    drop(owner);
+    transition valid { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
