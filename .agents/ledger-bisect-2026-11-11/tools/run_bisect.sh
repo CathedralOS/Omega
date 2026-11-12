@@ -80,20 +80,21 @@ PY
 )
 fi
 
-python3 - "$OUT_JSON" <<PY
-import json
+python3 - "$OUT_JSON" "$WITNESS" "$BREAK" "$PR" "$MECH" "$RC" "$GOOD" "$G_RC" "$B_RC" "$STABILITY" <<'PY'
+import json, sys
+out, witness, brk, pr, mech, rc, good, g_rc, b_rc, stab = sys.argv[1:11]
 json.dump({
-  "witness": "$WITNESS",
-  "breaking_commit": "$BREAK",
-  "pr": "$PR" or None,
-  "mechanism": """${MECH//\"/\\\"}"""[:300],
-  "status": "bisected" if "$BREAK" else "propagated",
-  "bisect_exit": $RC,
-  "good_commit": "$GOOD",
-  "good_end_rc": $G_RC,
-  "bad_pin_rc": $B_RC,
-  "stability": "$STABILITY",
+  "witness": witness,
+  "breaking_commit": brk or None,
+  "pr": pr or None,
+  "mechanism": mech[:300],
+  "status": "bisected" if brk else "propagated",
+  "bisect_exit": int(rc),
+  "good_commit": good,
+  "good_end_rc": int(g_rc),
+  "bad_pin_rc": int(b_rc),
+  "stability": stab,
   "method": "pin_frozen_ledger_v2",
-}, open("$OUT_JSON","w"), indent=2)
+}, open(out, "w"), indent=2)
 PY
 echo "witness=$WITNESS break=${BREAK:0:12} pr=${PR:-} good=${GOOD:0:12} stability=$STABILITY"

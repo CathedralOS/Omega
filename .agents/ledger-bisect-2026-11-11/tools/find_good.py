@@ -21,10 +21,10 @@ def main() -> int:
     witness = sys.argv[1]
     repo = Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip())
     script = Path(os.environ["BISECT_WITNESS_SCRIPT"])
-    max_steps = int(os.environ.get("BISECT_GOOD_MAX", "48"))
+    hard_max = int(os.environ.get("BISECT_GOOD_MAX", "4000"))
 
     commits = subprocess.check_output(
-        ["git", "rev-list", "--first-parent", "-n", str(max_steps), PIN],
+        ["git", "rev-list", "--first-parent", "-n", str(hard_max), PIN],
         cwd=repo,
         text=True,
     ).splitlines()
@@ -34,33 +34,48 @@ def main() -> int:
 
     branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo, text=True).strip()
 
-    # commits[0] is newest (PIN); search for newest good (rc==0).
     def test_at(i: int) -> int:
         subprocess.check_call(["git", "checkout", "-q", commits[i]], cwd=repo)
         return run_test(repo, script, witness)
 
-    pin_rc = test_at(0)
-    if pin_rc == 0:
+    if test_at(0) == 0:
         subprocess.check_call(["git", "checkout", "-q", branch], cwd=repo)
         print(commits[0])
         return 0
 
-    lo, hi = 0, len(commits) - 1
-    good_idx = None
+    # Exponential probe for oldest index that is still good (newest good = smallest index with rc==0).
+    hi_bad = 0
+    lo_good = len(commits) - 1
+    step = 1
+    while step < len(commits):
+        i = step
+        rc = test_at(i)
+        if rc == 0:
+            lo_good = i
+            break
+        hi_bad = i
+        step *= 2
+
+    if test_at(lo_good) != 0:
+        # No good in window; return deepest ancestor tested.
+        subprocess.check_call(["git", "checkout", "-q", branch], cwd=repo)
+        print(commits[-1])
+        return 1
+
+    # Binary search for smallest index with rc==0 (newest good).
+    lo, hi = hi_bad, lo_good
+    best = lo_good
     while lo <= hi:
         mid = (lo + hi) // 2
         rc = test_at(mid)
         if rc == 0:
-            good_idx = mid
-            lo = mid + 1  # seek newer still-good
-        else:
+            best = mid
             hi = mid - 1
+        else:
+            lo = mid + 1
 
     subprocess.check_call(["git", "checkout", "-q", branch], cwd=repo)
-    if good_idx is None:
-        print(commits[-1])
-        return 1
-    print(commits[good_idx])
+    print(commits[best])
     return 0
 
 
