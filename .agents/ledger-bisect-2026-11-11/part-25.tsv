@@ -1,0 +1,14 @@
+fail/facts/slice_view_element_read_bound_through_other_machine_rejected	fixed_on_main	cannot prove index `3` is within unknown slice length of `view` in target_reader::entry	
+fail/slices/stored_view_backing_mutated_while_returned_live	fixed_on_main	returned view has no complete formation frontier	
+fail/slices/stored_view_container_read_while_returned_live	fixed_on_main	returned view has no complete formation frontier	
+fail/traits/public_guarantee_wrong_formal	fixed_on_main	machine `Wrong::set` proves no guarantee for the selected comparison law `Setting::set`	
+pass/borrow/runtime_write_only_exclusive_reference_nested_call_operand_exit	fixed_on_main	view formation has incomplete permission suppliers at its captured source	
+pass/dependent/state_arrival_byte_predicate_guarded_compile	fixed_on_main	cannot prove requires contract for call checked from Main::main: valid_utf8(main.buffer[0..1]) (needs fact `valid_utf8(view)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`; authored requirement `valid_utf8(view)`	
+pass/layouts/placed_primitive_returned_backing	still_broken	`main` calls `update`; `update` has no executable body: this compiler does not lower its declaration of it yet (statement sequence: completion stored reference dependencies)	c1-placed-update-incomplete
+pass/recast/runtime_inline_shared_slice_record_read_exit	fixed_on_main		
+pass/slices/runtime_indexed_descriptor_replacement_call_exit	still_broken	returned view has no complete formation frontier	c0-formation-frontier
+pass/slices/runtime_nested_stored_view_return_exit	still_broken	returned view has no complete formation frontier	c0-formation-frontier
+pass/slices/runtime_nested_view_candidate_backings_exit	still_broken	returned view has no complete formation frontier	c0-formation-frontier
+pass/slices/runtime_stored_view_direct_window_argument_exit	still_broken	returned view has no complete formation frontier	c0-formation-frontier
+pass/slices/runtime_stored_view_dynamic_selection_exit	still_broken	returned view has no complete formation frontier	c0-formation-frontier
+pass/text/runtime_owned_string_byte_view_exit	fixed_on_main		
