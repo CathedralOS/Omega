@@ -179,18 +179,31 @@ def generate_mutations(source: str) -> list[tuple[str, str]]:
         if tightened != source:
             out.append(("tighten_requires_equality", tightened))
 
-    if "let mut " in source:
-        once = source.replace("let mut ", "let ", 1)
-        out.append(("remove_mut_binding", once))
+    for binding in re.finditer(r"(?m)^\s*let mut ([A-Za-z_][A-Za-z0-9_]*)\b", source):
+        name = binding.group(1)
+        rest = source[binding.end() :]
+        writes = re.search(
+            rf"(?m)\b{re.escape(name)}\s*(\[|\.|=)|\b{re.escape(name)}\[[^\]]+\]\s*=",
+            rest,
+        )
+        if writes:
+            once = (
+                source[: binding.start()]
+                + binding.group(0).replace("let mut ", "let ", 1)
+                + source[binding.end() :]
+            )
+            out.append(("remove_mut_binding", once))
+            break
 
     if "&mut " in source:
         demoted = source.replace("&mut ", "&", 1)
         out.append(("demote_mut_ref_to_shared", demoted))
 
-    shared_ref = re.search(r"(?<![&])&(?![&mut])(?=\w)", source)
+    shared_ref = re.search(r"(?<![&=])&(?![&=])(?=[A-Za-z_])", source)
     if shared_ref:
         promoted = source[: shared_ref.start()] + "&mut " + source[shared_ref.end() :]
-        out.append(("promote_shared_ref_to_mut", promoted))
+        if promoted != source:
+            out.append(("promote_shared_ref_to_mut", promoted))
 
     guard_line = re.search(
         r"(?m)^\s*transition\s*\{[^}]*\bif\b[^}]*\}", source
