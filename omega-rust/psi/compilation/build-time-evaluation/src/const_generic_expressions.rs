@@ -1598,22 +1598,9 @@ mod call_custody {
                 .const_declarations()
                 .iter()
                 .filter(|declaration| declaration.symbol == symbol);
-            let declaration = declarations.next().ok_or_else(|| {
-                if std::env::var("OMEGA_DBG_CONST").is_ok() {
-                    eprintln!(
-                        "CONSTDBG missing symbol={} kind={:?} consts=[{}]",
-                        self.program.symbols.name(symbol),
-                        self.program.symbols.get(symbol).kind,
-                        self.program
-                            .const_declarations()
-                            .iter()
-                            .map(|declaration| self.program.symbols.name(declaration.symbol).to_owned())
-                            .collect::<Vec<_>>()
-                            .join(","),
-                    );
-                }
-                "constant selection lost its declaration"
-            })?;
+            let declaration = declarations
+                .next()
+                .ok_or("constant selection lost its declaration")?;
             if declarations.next().is_some() {
                 return Err("constant selection has ambiguous declaration custody".into());
             }
