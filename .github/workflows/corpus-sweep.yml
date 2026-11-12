@@ -22,9 +22,15 @@ name: Corpus sweep
 # CORPUS_SWEEP_TOKEN secret; without it the sweep still opens the pull
 # request, and the repository must allow GitHub Actions to create pull requests.
 
+# The sweep yields to required checks. Its 64 shards are about 26 runner-hours,
+# and the repository runs only a few jobs at a time, so an uncapped sweep
+# would hold the merge queue for hours. It runs two shards at a time and
+# starts at 10:41 UTC, the quietest hours for the people and agents landing
+# changes; a full sweep then takes about half a day.
+
 on:
   schedule:
-    - cron: '41 2 * * *'
+    - cron: '41 10 * * *'
   workflow_dispatch:
 
 permissions:
@@ -59,6 +65,7 @@ jobs:
     timeout-minutes: 45
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     container:

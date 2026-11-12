@@ -133,6 +133,20 @@ needs it. Whatever remains fails the shard. Each shard's summary tables every
 row by class, with the ledger and observed outcome and the first diagnostic,
 and uploads its evidence as `corpus-gate-shard-N-attempt`.
 
+**Runners.** The repository runs only a few jobs at a time, and on 2026-11-12
+gate shards waited up to an hour each for a runner while the merge queue
+stood still. Two rules keep the gate from starving the other required checks.
+A run starts at most three shards at once. And a merge-queue entry does not
+repeat its pull request's run when that run already judged the same diff:
+the plan job fetches the pull request head the entry carries and passes it as
+`--judged-head`, and the plan skips when every path main gained since that
+head branched is one the corpus cannot read (prose, `.github/`, `tools/`,
+`wiki/`, `bootstrap/`, `.agents/`). A compiler or library source, a fixture, a
+ledger (it moves the baseline) or a `samples/` path in between forces the
+full run, and so does any failure to find or compare the two commits. The
+skip relies on `corpus-gate` being required on the pull request as well as in
+the queue, which the one ruleset entry gives.
+
 **Build.** Shards run in `ubuntu:24.04` as root at `/home/user/Omega`, the
 container and path the warm-build job builds main in, and restore that build
 with `tools/ci/corpus_host.sh`; only the crates the candidate changed compile.
@@ -151,8 +165,9 @@ mbx xtask corpus-gate check --plan build/corpus-gate/plan.json --shard 0 < /dev/
 
 ### Nightly sweep
 
-`.github/workflows/corpus-sweep.yml` runs every fixture on main's head at 02:41
-UTC in 64 shards (`cargo xtask corpus-gate sweep-shard`), then
+`.github/workflows/corpus-sweep.yml` runs every fixture on main's head at 10:41
+UTC in 64 shards, two at a time so required checks keep their runners (a full
+sweep takes about half a day; `cargo xtask corpus-gate sweep-shard`), then
 `cargo xtask corpus-gate sweep-report` splices every row whose outcome differs
 from the ledger with `--record`'s rules (the measured commit as the stamp, and
 `regressed-from:` on a pass/run row that lost a success) and opens or replaces

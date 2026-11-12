@@ -174,6 +174,24 @@ pub fn classify(path: &str) -> PathClass {
     }
 }
 
+/// Whether the commits main gained since a pull request branched leave that
+/// pull request's own gate verdict standing.
+///
+/// A merge-queue entry carries the same diff the pull request's run judged.
+/// The two runs can differ only through what main gained in between, so the
+/// entry needs no second run when none of those paths can change a corpus
+/// outcome or the baseline it is compared with. A ledger counts as moving
+/// the baseline, and `samples/` reaches the fixtures that build a sample, so
+/// both force the run even though the row selection treats them as neutral.
+pub fn base_moved_nothing_the_gate_reads(moved: &[(char, String)]) -> bool {
+    moved.iter().all(|(_, path)| {
+        let ledger = path
+            .strip_prefix("tests/omega/corpus_")
+            .is_some_and(|rest| rest.ends_with(".txt") && !rest.contains('/'));
+        classify(path) == PathClass::Neutral && !ledger && !path.starts_with("samples/")
+    })
+}
+
 /// `prefix fragment,fragment` lines; `#` starts a comment.
 pub fn parse_path_map(text: &str) -> Vec<(String, Vec<String>)> {
     text.lines()
@@ -466,10 +484,11 @@ pub fn pack(
 }
 
 fn changed_paths(root: &Path, base: &str) -> Result<Vec<(char, String)>, String> {
-    let text = git(
-        root,
-        &["diff", "--name-status", "--no-renames", base, "HEAD"],
-    )?;
+    paths_between(root, base, "HEAD")
+}
+
+fn paths_between(root: &Path, from: &str, to: &str) -> Result<Vec<(char, String)>, String> {
+    let text = git(root, &["diff", "--name-status", "--no-renames", from, to])?;
     Ok(text
         .lines()
         .filter_map(|line| {
@@ -521,6 +540,7 @@ fn append_step_summary(markdown: &str) {
 fn run_plan(args: &[String]) -> Result<(), u8> {
     let root = repo_root();
     let mut base = None;
+    let mut judged_head = None;
     let mut shards = 8usize;
     let mut budget = 2200u64;
     let mut out = PathBuf::from("build/corpus-gate/plan.json");
@@ -529,6 +549,7 @@ fn run_plan(args: &[String]) -> Result<(), u8> {
         let value = args.get(i + 1).cloned();
         match (args[i].as_str(), value) {
             ("--base", Some(v)) => base = Some(v),
+            ("--judged-head", Some(v)) => judged_head = Some(v),
             ("--shards", Some(v)) => {
                 shards = v
                     .parse()
@@ -570,7 +591,21 @@ fn run_plan(args: &[String]) -> Result<(), u8> {
         shards,
         budget_secs_per_shard: budget,
     };
-    let (skip, chosen) = plan_selection(&inputs);
+    let (mut skip, chosen) = plan_selection(&inputs);
+    // A merge-queue entry names the pull request head whose own run judged
+    // this diff. Any failure to compare the two bases keeps the full run.
+    if skip.is_none()
+        && let Some(judged) = judged_head.as_deref().filter(|rev| !rev.is_empty())
+        && let Ok(fork) = git(&root, &["merge-base", judged, &base])
+        && let Ok(moved) = paths_between(&root, fork.trim(), &base)
+        && base_moved_nothing_the_gate_reads(&moved)
+    {
+        skip = Some(format!(
+            "the pull request's own run judged this diff, and main gained nothing the corpus reads since it branched at {} ({} path(s) moved)",
+            &fork.trim()[..fork.trim().len().min(12)],
+            moved.len()
+        ));
+    }
     let chosen = filter_closure(&chosen, &all);
     // Use only as many shards as the selection needs: a smoke-only plan
     // should not hold eight runners.
@@ -1193,7 +1228,7 @@ fn infra(message: impl std::fmt::Display) -> u8 {
     4
 }
 
-const USAGE: &str = "usage: cargo xtask corpus-gate plan --base <rev> [--shards N] [--shard-secs S] [--out plan.json]
+const USAGE: &str = "usage: cargo xtask corpus-gate plan --base <rev> [--judged-head <rev>] [--shards N] [--shard-secs S] [--out plan.json]
        cargo xtask corpus-gate check --plan plan.json --shard K [--known observed.txt] [--no-base] [--out dir]
        cargo xtask corpus-gate sweep-shard --shard k/N --out records.txt
        cargo xtask corpus-gate sweep-report --records <dir> [--shards N] [--body body.md] [--observed observed.txt]";
@@ -1401,5 +1436,33 @@ mod tests {
         assert_eq!(classify("Cargo.lock"), PathClass::Compiler);
         assert_eq!(classify("tests/omega/README.md"), PathClass::Compiler);
         assert_eq!(classify("brand-new-dir/x.rs"), PathClass::Compiler);
+    }
+
+    #[test]
+    fn a_queue_entry_reuses_the_pull_request_verdict_only_when_main_moved_nothing_it_reads() {
+        let moved = |paths: &[&str]| -> Vec<(char, String)> {
+            paths.iter().map(|path| ('M', (*path).to_owned())).collect()
+        };
+        assert!(base_moved_nothing_the_gate_reads(&[]));
+        assert!(base_moved_nothing_the_gate_reads(&moved(&[
+            "wiki/spec/x.md",
+            "OWNER_QUESTIONS.md",
+            ".github/workflows/corpus-gate.yml",
+            "tools/xtask/src/corpus_gate.rs",
+        ])));
+        // A compiler source, a fixture, a ledger or a sample each force the run.
+        for path in [
+            "omega-rust/psi/compilation/validation/src/calls.rs",
+            "source/library/std/filesystem.omg",
+            "tests/omega/pass/a/x/main.omg",
+            "tests/omega/corpus_outcomes.txt",
+            "samples/cli/games/main.omg",
+            "Cargo.lock",
+        ] {
+            assert!(
+                !base_moved_nothing_the_gate_reads(&moved(&["wiki/spec/x.md", path])),
+                "{path}"
+            );
+        }
     }
 }

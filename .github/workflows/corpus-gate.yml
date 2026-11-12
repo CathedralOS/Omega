@@ -11,8 +11,16 @@ name: Corpus gate
 # has the operating notes.
 #
 # Required status: `corpus-gate` (the last job). It reports success when the
-# plan skips (a pull request that changes only ledgers and Markdown) and fails
-# when any shard fails or does not finish.
+# plan skips (a pull request that changes only ledgers and Markdown, or a
+# merge-queue entry whose pull request run already judged the same diff) and
+# fails when any shard fails or does not finish.
+#
+# Runners are the scarce resource: on 2026-11-12 the repository ran three or
+# four jobs at a time, a gate run's eight shards waited up to an hour each for
+# one, and the merge queue stopped. So a merge-queue entry does not repeat the
+# pull request's run when main gained nothing the corpus reads in between, and
+# a run's shards are capped so one change cannot hold every runner while other
+# changes' required checks wait.
 
 on:
   pull_request:
@@ -49,11 +57,29 @@ jobs:
       - name: Install verified mbx
         shell: bash
         run: bash tools/xtask/bootstrap-mbx.sh
+      - name: Find the pull request head a merge-queue entry carries
+        id: judged
+        if: github.event_name == 'merge_group'
+        env:
+          HEAD_REF: ${{ github.event.merge_group.head_ref }}
+        run: |
+          # The entry's branch is named gh-readonly-queue/<base>/pr-<number>-<sha>.
+          # The pull request's own run judged that head, so the plan can tell
+          # whether main gained anything the corpus reads since it branched.
+          # Any failure here leaves the head unset and the gate runs in full.
+          number=$(printf '%s' "$HEAD_REF" | sed -nE 's|.*/pr-([0-9]+)-[0-9a-f]+$|\1|p')
+          if [ -n "$number" ] &&
+            git fetch -q --no-tags --filter=blob:none --unshallow origin &&
+            git fetch -q --no-tags --filter=blob:none origin "refs/pull/$number/head"; then
+            echo "head=$(git rev-parse FETCH_HEAD)" >> "$GITHUB_OUTPUT"
+          fi
       - name: Choose the rows this change can affect
         id: plan
+        env:
+          JUDGED_HEAD: ${{ steps.judged.outputs.head }}
         run: |
           mkdir -p build/corpus-gate
-          mbx xtask corpus-gate plan --base HEAD^1 --shards 8 --shard-secs 2200 --out build/corpus-gate/plan.json
+          mbx xtask corpus-gate plan --base HEAD^1 --judged-head "$JUDGED_HEAD" --shards 8 --shard-secs 2200 --out build/corpus-gate/plan.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: corpus-gate-plan
@@ -68,6 +94,9 @@ jobs:
     timeout-minutes: 40
     strategy:
       fail-fast: false
+      # One change's shards must not take every runner from the other
+      # changes' required checks.
+      max-parallel: 3
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     # The same container, user and path as a cloud session and the warm-build
