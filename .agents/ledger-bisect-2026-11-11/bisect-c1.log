@@ -1,0 +1,211 @@
+running 'bash' '/tmp/ledger-bisect-pin/tools/bisect_witness.sh'
+Bisecting: 1093 revisions left to test after this (roughly 10 steps)
+[3112de7015221c4dbfd695477ac83f34b7271f62] library: delete the unused topology package and its pending fixture (#1374)
+running 'bash' '/tmp/ledger-bisect-pin/tools/bisect_witness.sh'
+Bisecting: 546 revisions left to test after this (roughly 9 steps)
+[68e707bce565fe5dcc41941171bfd49168e3bf21] tools: restore visible compiler charts in reference layout (#812)
+running 'bash' '/tmp/ledger-bisect-pin/tools/bisect_witness.sh'
+Bisecting: 273 revisions left to test after this (roughly 8 steps)
+[bd87af7ca17b72125640d0521e744151d87010eb] tests: move the linear receipt acknowledgement fixtures onto a boundary trait (#1088)
+running 'bash' '/tmp/ledger-bisect-pin/tools/bisect_witness.sh'
+Bisecting: 136 revisions left to test after this (roughly 7 steps)
+[48b4ad5e070e64d668391bdc2d4f88c78aaaddbf] psi: migrate generic contract operands to Build selection (#1220)
+running 'bash' '/tmp/ledger-bisect-pin/tools/bisect_witness.sh'
+Bisecting: 68 revisions left to test after this (roughly 6 steps)
+[fe24ed35c27f14ae07fc809196227efb41fa7fcf] psi: record a named constant's value in applied callable array lengths (#1289)
+running 'bash' '/tmp/ledger-bisect-pin/tools/bisect_witness.sh'
+Bisecting: 34 revisions left to test after this (roughly 5 steps)
+[dc0af1ded8d716e6819cf1001b1f11339278419d] samples: carry captured alias suppliers through results and joins (#1324)
+running 'bash' '/tmp/ledger-bisect-pin/tools/bisect_witness.sh'
+Bisecting: 16 revisions left to test after this (roughly 4 steps)
+[1982527ed4be50c661ce88b7616d3b3befadf5e2] psi: preserve generic case predicates through native execution (#1310)
+running 'bash' '/tmp/ledger-bisect-pin/tools/bisect_witness.sh'
+Bisecting: 8 revisions left to test after this (roughly 3 steps)
+[d49fa6e1ac13f22d78f84ef2f3f8e9a4896b5705] psi: seed borrowed-field twins opaquely so exact values cannot discharge them (#1319)
+running 'bash' '/tmp/ledger-bisect-pin/tools/bisect_witness.sh'
+Bisecting: 3 revisions left to test after this (roughly 2 steps)
+[41eec4ca4a9e451523e675f268eb78296ffa51f6] compiler: preserve typed array regions through byte recasts (#1298)
+running 'bash' '/tmp/ledger-bisect-pin/tools/bisect_witness.sh'
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[2174c0d10bb146aea6a86f55262bc536feb86ea3] compiler: choose product providers over terminal demand (#1313)
+running 'bash' '/tmp/ledger-bisect-pin/tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[bebbe455e7517a069862d87aead2f1ca911588c3] tests: freeze stage 05 re-derivation and Omega firewall edges (#1312)
+running 'bash' '/tmp/ledger-bisect-pin/tools/bisect_witness.sh'
+2174c0d10bb146aea6a86f55262bc536feb86ea3 is the first bad commit
+commit 2174c0d10bb146aea6a86f55262bc536feb86ea3
+Author: Noelle Harper <noelle21b@proton.me>
+Date:   Sun Nov 1 23:02:46 2026 +0000
+
+    compiler: choose product providers over terminal demand (#1313)
+    
+    * psi: classify contents under exact lexical substitutions
+    
+    Keep an unclassifiable unrelated static operand from changing the contents capability of a scalar. Using that operand still refuses, including erased semantic fields. Retain closed literal const extents in the lexical environment so an instantiated fixed array and its literal form share contents capabilities; unresolved recipes do not supply an extent.
+    
+    The focused storage-contents test failed before each repair and passes with the changes, including invalid operand, erased-field, and missing extent controls. This is a local prerequisite checkpoint for the ongoing canonical declaration ABI migration; that migration and its publication remain unfinished.
+    
+    * compiler: retain exact canonical declaration abi applications
+    
+    Publish callback-independent declaration applications, complete noncallback static operands, policy requests, selected opaque storage roles, and exact inline field carrier identities in Terminal Psi. Materialize canonical calling inputs after artifact transport without Source geometry reconstruction. Preserve full field predicates and native callback telescope correspondence.
+    
+    This is the canonical publication milestone, not completion of the orchestration migration: production calling-plan preparation and Source review correspondence remain to be migrated. Focused evidence and final review follow on this frozen candidate.
+    
+    * psi: compare complete selected opaque target storage
+    
+    Normalize only producer-allocated record and field coordinates when comparing target-layout applications. Preserve exact policy/schema identities, target facts, complete placements and codecs. Reject swapped equal-size field placements and unknown correspondence.
+    
+    * Preserve complete declaration ABI application custody
+    
+    * Retain exact ABI application rosters through policy review and foreign bindings
+    
+    * compiler: realize explicit calling policies from terminal
+    
+    Target policy activation now materializes exact declaration ABI inputs from the shared canonical catalog, retaining geometry-free Source coordinates for independent review instead of rebuilding Source layouts or callback paths. Callback review checks the supplied candidate type application, exact selected report and target member against original custody.
+    
+    Separate direct callback storage from abstract pointer transport, preserve the pointer judgment through pruning, and retain the boundary-opaque referent classification through canonical and native recovery. Stored references remain physical leaves rather than implicit callback-write dereferences.
+    
+    The focused real Build/check/review test passed in 41.836 seconds with equal-size child substitution, complete-report mutation, target-fact mutation and indirect-pointer controls. Native and two-target checks are in progress. This local checkpoint is not publication; default policy Source geometry and Cathedral boot remain unfinished.
+    
+    * compiler: pin canonical calling execution and review evidence
+    
+    Retain focused check, native and Terminal/native agreement rows for authored policy execution and the private-layout checked registrar at5599dba65fa9. Portable artifact replay was explicitly requested and matched; unrequested observations were not counted as runtime evidence.
+    
+    Shared publication and corresponding single-target native bytes passed for macos_arm64 and linux_arm64 in90.743 seconds. Target refusal isolation passed in5.290 seconds, selected opaque execution agreed at72, and the two intended policy/layout refusal controls still reject. Reference transport6 and fixed-view recovery1 passed, including a true abstract-opaque marker in recovery.
+    
+    * compiler: preserve exact invocation and complete application catalogs
+    
+    * compiler: record exact ABI fixture source and runtime outcomes
+    
+    * compiler: retain unadmitted callback uses without inventing entries
+    
+    * compiler: pin exact ABI runtime after callback ingress repair
+    
+    * psi: retain owned assignment homes without reference inventory
+    
+    * psi: retain owned assignment homes without reference inventory
+    
+    * psi: locate unknown write origins and pin snapshot invalidation
+    
+    * psi: locate unknown write origins and pin snapshot invalidation
+    
+    * compiler: retain integrated calling policy execution evidence
+    
+    The647f9c72 integration checks three programs and executes all three in Terminal Psi and native at exit0, preserves direct callback native exit0 and three intended refusals. Both package reviews pass. Two targets share one publication, retain independent refusals and match their single-target native bytes.
+    
+    The subsequent a01cddf delta changes only the missing-origin diagnostic and adds a conservative snapshot unit control; successful paths and earlier evidence remain unchanged. Remove completed canonical calling publication work from the board; default ABI, opaque review and source-free provider settlement remain open.
+    
+    * psi: record source-located unknown assignment origin refusal
+    
+    * compiler: pin reconciled shared policy execution
+    
+    At c36eb72a517d, three programs agree at native and Terminal exit0, direct foreign callback execution exits0, and both shared-publication target tests pass. Keep measured provenance separate from this golden-only commit. Independent review approved c36 production and a75 custody repair.
+    
+    * compiler: materialize default calling plans from terminal storage
+    
+    Retain one CallingProgram for Product declarations even when no authored calling policy exists. Default external and independent component applications consume exact Source-issued ABI keys and canonical storage instead of rebuilding layouts from typed signatures. Closed receiver exports enter the shared declaration census without requiring an invocation or a Calling policy.
+    
+    ABI-only scalar completion is bound to the full declaration key, target, artifact and canonical extent roster. It carries actual scalar helper debt but cannot certify Product formation or authorize ordinary entries. Table dispatch preserves public formal identities while projecting out dispatch-only lanes.
+    
+    Initial scoped checks: compiler crate check, five ABI-storage controls and one dispatch projection test pass. End-to-end candidate execution and publication remain pending; the frozen c36 producer rejects the new closed generic component export at default ABI materialization.
+    
+    * compiler: retain exact dispatch projections in native applications
+    
+    Persist the dispatch-only semantic prefix in calling applications and authenticate it in commitment version8 and native derivation records OMGNTI10. A single validated projection preserves public telescope identities while deriving physical parameter ordinals for recovery, default classification, opaque movement and callbacks. Selected external mechanisms, component exports and inbound callbacks independently constrain that projection.
+    
+    Product nominal telescope checking reads its designated immutable declaration frontier while leaving actuals in their supplying context. This repairs the next frozen generic component refusal without rooting Product bodies as Build execution.
+    
+    Three native recovery controls pass, including a table receiver plus remaining wire argument and stale-commitment projection substitution. End-to-end candidate validation and publication remain pending.
+    
+    * compiler: leave unapplied default ABI declarations dormant
+    
+    An open local telescope without checked actual operands supplies no executable ABI request. Preserve its canonical storage refusal rather than rejecting a dormant external candidate during default selection. Real boundary demands still require their full exact application.
+    
+    Include the missing declaration name and role in Product telescope diagnostics. Remove superseded source-spelling ownership tests; the runtime multi-target tests observe publication sharing and output equality directly.
+    
+    * psi: preserve the product frontier across build projections
+    
+    A repeated Build projection must retain the original designated Product declaration owner rather than install the already-pruned Build roster as a new frontier. Reuse the existing immutable Arc; ordinary Build execution roots remain projected.
+    
+    * psi: retain product declaration formal tables through projection
+    
+    Source preparation knows the exact formal-table span and lifetime arity of each nominal Product application. Carry that association into checking and identity projection rather than rediscovering the declaration in a pruned root roster. Keep actual argument and formation checks in the supplying context, and visit formal dependencies under their declaring owner.
+    
+    The frozen generic component witness demonstrated that Inspect is absent from current, Product-frontier and nested-frontier rosters after projection. The broader RetainedTraitScope behavior is unchanged. A wrong-arity control still owes the complete source telescope.
+    
+    * backend: read complete v6 provider calling application rosters
+    
+    The v6 writer emits a counted roster of complete ABI keys per service method. Its independent bounded reader still consumed the v5 optional singleton fields, misaligning the following row count and rejecting real component descriptions. Read the published v6 framing, enforce key/operand ordering and requirement correspondence, and preserve existing resource bounds.
+    
+    Six retained-input tests pass, including empty and plural ABI rosters, phantom local operands, duplicate keys, foreign requirements, repeated formal ordinals, truncation and commitment controls. Returning to the frozen generic default-component witness for native and Terminal execution.
+    
+    * tests: lower the retired source ownership assertion baseline
+    
+    Seven source-text reads disappeared with the superseded calling-materialization ownership tests. Runtime publication-sharing, target-isolation and retained-application controls own those behavioral obligations.
+    
+    * compiler: join complete closed component provider rosters
+    
+    Component verification and native selection consume one exact candidate projection, retaining selecting owner, declaring receiver, package, target and every closed application. Exports use actual closed requirement and body identities rather than source templates. Source and canonical admission prepare the selecting owner before the component join.
+    
+    Compiler check completed in 12.54s and six backend-plan tests passed. The unchanged default component ABI witness now executes native with exit 0; Terminal execution still refuses its nested array storage at the component input bridge. That remaining runtime repair is required before publication.
+    
+    * psi: transfer complete owned component input contents
+    
+    Independent child instantiation accepts the existing complete-content initializer for owned scalar and case data. Capture authenticates actual source cells; declaration identities remap artifact-local field, case and type coordinates. Ordinary child entry validation completes before caller custody commits. Loans, resource backing and erased establishments remain unsupported rather than being copied as data.
+    
+    The affected crate check completed in 2.27s. Two focused mapping tests passed, including distinct dense namespaces and invalid reference, index, field and nominal-child controls. Real component both-engine acceptance follows on this candidate.
+    
+    * compiler: record canonical default component ABI acceptance
+    
+    The uncalled generic component export now uses the shared Terminal calling program and transfers its nested array and neighbor canaries correctly in native and Terminal execution. Record its success and the exact wrong-arity rejection, and remove default ABI materialization from the remaining source migration work.
+    
+    The final Cargo-selected producer is fc8f93fd5c6 source, binary SHA256 84ea28fdb88679d807e54d2e53637f01e5071b0761a76eeeb2a8fd486767e2e3. Four positive programs agree in both engines and four relevant reject controls reject for their intended reasons. Six roster tests, two contents-mapping tests, one dispatch-projection test and two shared-artifact/target-isolation tests passed. Source-free dependency checks passed. Independent exact-candidate semantic reviews approved fc8 and its c2 roster repair.
+    
+    Earlier record attempts accidentally selected the retained 3edf runner; those rejected observations remain historical and the uncommitted rows were replaced only by current-producer executions. Linux arm64 output equality was checked, not Linux execution. Source-aware provider preparation and the Cathedral handoff remain open.
+    
+    * psi: match every retained public ABI source occurrence
+    
+    The canonical census coalesces equivalent Build and Product declarations while retaining each exact contributing source symbol. The direct external satisfier join consumes that retained association instead of only its first occurrence; outer application, local operands, callback requirements and selecting-owner checks remain unchanged. This resolves the concrete conflict-review finding before restarting integrated validation.
+    
+    * compiler: pin integrated default ABI execution evidence
+    
+    Record successful current-source observations after resolving the actual main conflict. Producer930d13be83c, SHA2561d4837247a8c3d4a1c5ca7646ebdcead627c795493d2daf0d6ea286114364d73: four positives agree native0/Terminal0, and four selected invalid controls reject for their authored obligations. New default component witness took5.636s; shared-artifact byte equality and target isolation both passed in68.901s. Dispatch projection passed, source-free dependency guards passed, and independent conflict review approved the exact930 source. Earlierfc8 results remain historical rather than relabeled.
+    
+    * compiler: activate prepared calling review without source custody
+    
+    Prepare exact request owners, callback review addresses and deferred full opaque application descriptions while the checked owner exists. Activation retains only an expired-safe weak owner association and prepared metadata, never checked trees or their full declaration census. Original result ordering and duplicate-selection refusal remain intact; canonical callback layout correspondence stays with its existing owner.
+    
+    The compiler crate check completed in13.99s. Two real Source-drop tests passed (8906a3c1): opaque/scalar and private-callback packets produce identical complete native applications after both real checked owner allocations expire, while a substituted owner refuses. Two focused metadata tests passed (43207d6b), preserving full-key distinction and original refusal order. Runtime and shared-target checks follow on this candidate; overall provider settlement and Cathedral acceptance remain open.
+    
+    * compiler: choose product providers over terminal demand
+    
+    Select Product provider demand and whole maps from the shared canonical Terminal artifact. Return admitted plan facts and original candidate and declaration correspondence together, preserving exact review provenance without source-use-set selection or another Independent admission. Retain the per-target choice for publication under its artifact, profile, application roots and assumptions.
+    
+    Declaration derivation, Via evaluation and remaining source review consumers remain explicit upstream work. Crate check passed in 11.42 seconds. Focused runtime, source-discard replay and multi-target validation follow on this candidate; this checkpoint is not publication or closure of the compiler migration.
+    
+    * compiler: review recorded product provider demands
+    
+    The first canonical-choice candidate failed the shared-target witness because source-wide operator review still required providers for dormant float helpers. Record the canonical fixed point demand roster on its result and use it for occurrence review, while all selected declarations and the separate full grant catalog remain checked. Demanded zero or multiple provider refusals are unchanged.
+    
+    The connected compiler check passed in 12.48 seconds. Repeat the previously failed target witness and scoped native, Terminal and reject controls before publication.
+    
+    ---------
+    
+    Co-authored-by: Zachary Canann <zacharycanann@gmail.com>
+
+ .../compilation/driver/src/execution_settlement.rs |  18 +-
+ .../driver/src/terminal/terminal_artifact.rs       |  21 +-
+ .../tests/support/provider_choice_controls.rs      |   5 +-
+ .../realization/provider-planning/src/lib.rs       |   1 -
+ .../provider-planning/src/provider_planning.rs     |   4 +-
+ .../provider_planning/selection_declarations.rs    |   4 +-
+ .../provider-planning/src/provider_settlement.rs   | 222 +++++++++++----------
+ .../src/target_machines/authored_providers.rs      |  10 +-
+ .../src/target_machines/provider_publication.rs    |  78 ++++++--
+ .../provider-selection/src/boundary_review.rs      |  21 +-
+ .../realization/provider-selection/src/lib.rs      |   3 +-
+ .../provider-selection/src/publication.rs          | 199 ++++++++++++++++--
+ .../provider-selection/src/selected_binding.rs     |   2 +-
+ .../selected-dispatch/src/provider_binding.rs      |  11 +-
+ 14 files changed, 404 insertions(+), 195 deletions(-)
+bisect found first bad commit

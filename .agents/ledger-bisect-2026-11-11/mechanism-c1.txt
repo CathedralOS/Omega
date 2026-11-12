@@ -1,0 +1,1 @@
+omega #1313 provider settlement prefers product providers over terminal demand, leaving computed_record window calls without a lowerable window machine body
