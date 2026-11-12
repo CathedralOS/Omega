@@ -1,4 +1,6 @@
-// Expected error contains: cannot prove
+// A guard on one copy of a value bounds a later read of the same place after
+// another copy of that value was written back (restored-scalar-value-facts,
+// wiki/spec/terminal-psi/fact_validity.md "Restored scalar values").
 use omega_language_std::console;
 data Main { items: [u8; 64]; saved: u8; other: u64; }
 machine Main::main(main: &mut Main) reaches Console {
