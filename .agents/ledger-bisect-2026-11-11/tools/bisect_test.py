@@ -2,7 +2,9 @@
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
+import os
+
+REPO = Path(os.environ["OMEGA_REPO_ROOT"])
 
 
 def parse_header(line: str) -> tuple[str, str] | None:

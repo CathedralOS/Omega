@@ -9,7 +9,16 @@ TOOLS="$ROOT/.agents/ledger-bisect-2026-11-11/tools"
 cd "$ROOT"
 export BISECT_WITNESS="$WITNESS"
 GOOD="$(python3 "$TOOLS/resolve_good.py" "$WITNESS")"
-SCRIPT="$TOOLS/bisect_witness.sh"
+
+# Installed paths must survive `git checkout` during bisect (`.agents/` is not on old commits).
+INSTALL=/tmp/ledger-bisect-p6
+mkdir -p "$INSTALL"
+cp "$TOOLS/bisect_witness.sh" "$INSTALL/bisect_witness.sh"
+cp "$TOOLS/bisect_test.py" "$INSTALL/bisect_test.py"
+chmod +x "$INSTALL/bisect_witness.sh"
+SCRIPT="$INSTALL/bisect_witness.sh"
+export OMEGA_REPO_ROOT="$ROOT"
+export BISECT_TEST_PY="$INSTALL/bisect_test.py"
 
 sanity() {
   local ref=$1
@@ -30,10 +39,11 @@ B_741=$(sanity "$REF_741270")
 
 STABILITY="deterministic"
 if [[ "$G_RC" -ne 0 ]]; then
-  STABILITY="flaky_or_wrong_good(rc=$G_RC at $GOOD)"
-fi
-if [[ "$B_PIN" -ne 1 ]]; then
+  STABILITY="flaky_or_wrong_good(rc=$G_RC at ${GOOD:0:12})"
+elif [[ "$B_PIN" -ne 1 ]]; then
   STABILITY="flaky_or_wrong_bad_pin(rc=$B_PIN)"
+elif [[ "$B_741" -ne 1 ]]; then
+  STABILITY="note_bad_at_741270_rc=$B_741"
 fi
 
 export GIT_PAGER=cat
@@ -47,7 +57,7 @@ git bisect reset >/dev/null 2>&1 || true
 git checkout -q work/ledger-bisect-part-6
 
 if [[ "$B_741" -eq 1 ]] && [[ "$BREAK" == "$PIN" ]]; then
-  STABILITY="pin_not_first_bad_already_bad_at_741270"
+  STABILITY="${STABILITY};pin_not_first_bad_already_bad_at_741270"
 fi
 
 PR=$(git log -1 --format='%s' "$BREAK" | sed -n 's/.*#\([0-9][0-9]*\).*/\1/p' | head -1)
@@ -55,9 +65,9 @@ MECH=$(python3 - "$BREAK" <<'PY'
 import subprocess, sys
 brk = sys.argv[1]
 subj = subprocess.run(["git", "log", "-1", "--format=%s", brk], capture_output=True, text=True).stdout.strip()
-files = subprocess.run(["git", "show", "--stat", "--format=", brk], capture_output=True, text=True).stdout.strip().split("\n")
-top = files[0].strip() if files and files[0].strip() else ""
-print(f"{subj}" + (f" — touches {top.split()[0]}" if top else ""))
+stat = subprocess.run(["git", "show", "--stat", "--format=", brk], capture_output=True, text=True).stdout.strip().split("\n")
+top = stat[0].strip() if stat and stat[0].strip() else ""
+print(subj if not top else f"{subj} — {top.split('|')[0].strip()}")
 PY
 )
 
@@ -77,4 +87,4 @@ json.dump({
   "stability": "$STABILITY",
 }, open("$OUT_JSON","w"), indent=2)
 PY
-echo "witness=$WITNESS break=${BREAK:0:12} pr=$PR stability=$STABILITY"
+echo "witness=$WITNESS break=${BREAK:0:12} pr=${PR:-none} good=${GOOD:0:12} stability=$STABILITY"
