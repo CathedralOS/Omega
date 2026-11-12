@@ -44,15 +44,15 @@ def reference(evaluator, source, payload=b""):
     return execute(evaluator, struct.pack("<I", len(source)) + source + payload)
 
 
-def compile_program(work, source, name="subject", compiler=Compiler):
-    tape = work / (name + ".tape")
+def compile_program(work, source, name="subject", compiler=Compiler, realize=stamp):
+    tape = work / (name + (".tape" if realize is stamp else ".elf"))
     tape.write_bytes(compiler(source).compile())
     executable = work / name
-    stamp(tape, executable)
+    realize(tape, executable)
     return executable
 
 
-def controls(work, evaluator, compiler=Compiler):
+def controls(work, evaluator, compiler=Compiler, realize=stamp):
     cases = [
         ("constant", "(def main () Int 42)", b"", (0, b"*")),
         ("wrap", "(def main () Int (+ 18446744073709551615 43))", b"", (0, b"*")),
@@ -89,7 +89,7 @@ def controls(work, evaluator, compiler=Compiler):
     ]
     for label, text, payload, expected in cases:
         source = text.encode("ascii")
-        actual = execute(compile_program(work, source, compiler=compiler), payload)
+        actual = execute(compile_program(work, source, compiler=compiler, realize=realize), payload)
         original = reference(evaluator, source, payload)
         assert actual == original == expected, (label, actual, original, expected)
     invalid = [
@@ -141,7 +141,7 @@ def controls(work, evaluator, compiler=Compiler):
         previous = getattr(gamma, field)
         try:
             setattr(gamma, field, limit)
-            actual = execute(compile_program(work, source, compiler=compiler), payload)
+            actual = execute(compile_program(work, source, compiler=compiler, realize=realize), payload)
         finally:
             setattr(gamma, field, previous)
         assert actual == expected, (field, actual, expected)
