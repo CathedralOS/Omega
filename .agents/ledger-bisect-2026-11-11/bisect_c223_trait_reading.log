@@ -1,0 +1,13 @@
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 1371 revisions left to test after this (roughly 11 steps)
+[ada37ee6d07d513abb6c401dfd9959ad1f4b1bde] psi: recover case type equations in generic dispatch (#1079)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 1371 revisions left to test after this (roughly 11 steps)
+[c14376dc2cc7bcebae1ffee987254fb0c721925d] omega: one owner projects semantic reachability (#477)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 948 revisions left to test after this (roughly 10 steps)
+[356c7fae51066d7c521fc09b0bccc05d9a4247e3] psi: group semantic vocabulary into scalars, storage and boundary (#1511)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'
+Bisecting: 474 revisions left to test after this (roughly 9 steps)
+[4e39c52dbd9ab815ec06a767b2feb84cb383fd96] measure: nested-machine field-write checking cliff (#1021)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/bisect_witness.sh'

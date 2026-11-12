@@ -1,3 +1,14 @@
+pass/borrows/runtime_dependent_callback_window_byte_exit	broken	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish 	c23_dependent_callback
+pass/borrows/runtime_dependent_forwarded_window_exit	broken	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish 	c23_dependent_callback
+pass/borrows/runtime_dependent_window_byte_payload_exit	broken	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish 	c23_dependent_callback
+pass/borrows/runtime_dependent_window_image_sibling_exit	broken	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish 	c23_dependent_callback
+pass/borrows/runtime_dependent_window_region_disjoint_write_exit	broken	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish 	c23_dependent_callback
+pass/generics/runtime_dependent_callback_renamed_formals_exit	broken	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish 	c23_dependent_callback
+pass/generics/runtime_dependent_window_parameter_index_exit	broken	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish 	c23_dependent_callback
 fail/borrows/replaced_carrier_keeps_new_backing_loan	fixed	machine `reject_live_write` state `entry` expression type application uses undeclared lifetime argument `'storage' in `C	c63_lifetime_carrier
 pass/borrows/carried_loan_replacement	broken	machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`;	c63_lifetime_carrier
 pass/ownership/runtime_carried_loan_field_replacement_exit	broken	machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`;	c63_lifetime_carrier
+fail/arithmetic/indexed_divisor_copied_selector_storage_write	fixed	division by zero in machine `quotient` state `entry` return value: the divisor is provably zero, which always traps at r	c103_division_by_zero
+pass/borrow/runtime_write_only_exclusive_reference_nested_call_operand_exit	broken	view formation has incomplete permission suppliers at its captured source	c143_view_permission
+pass/facts/target_family_callback_guarantee/local	fixed		c183_operator_selection
+pass/traits/applied_conformance_captured_fresh_regions_exit	broken	machine `Reader::read` state `read` does not satisfy trait `Reading` machine `read`: conformance borrow contract: callab	c223_trait_reading

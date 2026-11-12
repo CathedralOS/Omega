@@ -1,12 +1,35 @@
 {
   "pin": "51e8c45c793007f211d0d9baee7de16767172444",
+  "counts": {"total": 14, "fixed_on_pin": 3, "still_broken": 11},
   "clusters": [
+    {
+      "cluster_id": "c23_dependent_callback",
+      "report_index": 23,
+      "rows": 7,
+      "kind": "pass/run regression",
+      "diag": "cannot prove requires contract for call receive_inferred from main: Count == 7",
+      "witness": "pass/borrows/runtime_dependent_callback_window_byte_exit",
+      "members": [
+        "pass/borrows/runtime_dependent_callback_window_byte_exit",
+        "pass/borrows/runtime_dependent_forwarded_window_exit",
+        "pass/borrows/runtime_dependent_window_byte_payload_exit",
+        "pass/borrows/runtime_dependent_window_image_sibling_exit",
+        "pass/borrows/runtime_dependent_window_region_disjoint_write_exit",
+        "pass/generics/runtime_dependent_callback_renamed_formals_exit",
+        "pass/generics/runtime_dependent_window_parameter_index_exit"
+      ],
+      "breaking_commit": "",
+      "pr": "",
+      "mechanism": "",
+      "status": "propagated",
+      "propagate_reason": "bisect not finished in this session after methodology fix; witness bad at PIN (deterministic x2); good de25db89edf verified"
+    },
     {
       "cluster_id": "c63_lifetime_carrier",
       "report_index": 63,
       "rows": 3,
-      "kind": "pass/run rejected",
-      "diag": "machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`",
+      "kind": "pass/run regression",
+      "diag": "undeclared lifetime argument `'storage' in `Carrier`",
       "witness": "pass/borrows/carried_loan_replacement",
       "members": [
         "fail/borrows/replaced_carrier_keeps_new_backing_loan",
@@ -15,9 +38,63 @@
       ],
       "breaking_commit": "ccd41080b4c87d58f5b924c2e1a10552510ab32c",
       "pr": "1945",
-      "mechanism": "#1945 retains generic constructor/type-inference payloads through owned construction destinations, breaking Carrier lifetime applications",
+      "mechanism": "psi #1945 retains generic constructor/type-inference through owned construction destinations, breaking Carrier lifetime applications",
       "status": "bisected",
       "good_commit": "de25db89edf196dc1bf697a9c34886669d66b694"
+    },
+    {
+      "cluster_id": "c103_division_by_zero",
+      "report_index": 103,
+      "rows": 1,
+      "kind": "fail still accepts (fixed)",
+      "diag": "division by zero in machine `quotient`",
+      "witness": "fail/arithmetic/indexed_divisor_copied_selector_storage_write",
+      "members": ["fail/arithmetic/indexed_divisor_copied_selector_storage_write"],
+      "breaking_commit": "",
+      "pr": "",
+      "mechanism": "",
+      "status": "fixed_on_pin"
+    },
+    {
+      "cluster_id": "c143_view_permission",
+      "report_index": 143,
+      "rows": 1,
+      "kind": "pass/run regression",
+      "diag": "view formation has incomplete permission suppliers at its captured source",
+      "witness": "pass/borrow/runtime_write_only_exclusive_reference_nested_call_operand_exit",
+      "members": ["pass/borrow/runtime_write_only_exclusive_reference_nested_call_operand_exit"],
+      "breaking_commit": "",
+      "pr": "",
+      "mechanism": "",
+      "status": "propagated",
+      "propagate_reason": "bisect not finished in this session after methodology fix"
+    },
+    {
+      "cluster_id": "c183_operator_selection",
+      "report_index": 183,
+      "rows": 1,
+      "kind": "pass/run regression (fixed)",
+      "diag": "(built at PIN)",
+      "witness": "pass/facts/target_family_callback_guarantee/local",
+      "members": ["pass/facts/target_family_callback_guarantee/local"],
+      "breaking_commit": "",
+      "pr": "",
+      "mechanism": "",
+      "status": "fixed_on_pin"
+    },
+    {
+      "cluster_id": "c223_trait_reading",
+      "report_index": 223,
+      "rows": 1,
+      "kind": "pass/run regression",
+      "diag": "trait `Reading` conformance borrow contract: callable input does not preserve captured region identity",
+      "witness": "pass/traits/applied_conformance_captured_fresh_regions_exit",
+      "members": ["pass/traits/applied_conformance_captured_fresh_regions_exit"],
+      "breaking_commit": "",
+      "pr": "",
+      "mechanism": "",
+      "status": "propagated",
+      "propagate_reason": "bisect not finished; witness bad at PIN and 741270df; already bad at ccd41080 (c63 break is not first bad for this witness)"
     }
   ]
 }

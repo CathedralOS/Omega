@@ -2,7 +2,7 @@
 # git bisect run helper using fixed PIN witness spec (not checkout ledger).
 set -euo pipefail
 SPEC="${BISECT_WITNESS_SPEC:?}"
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${LEDGER_BISECT_REPO:-$(git rev-parse --show-toplevel)}"
 cd "$ROOT"
 if [[ -L "$ROOT/target" ]] && [[ ! -e "$ROOT/target" ]]; then
   rm -f "$ROOT/target"
@@ -42,4 +42,5 @@ export OMEGA_CORPUS_ROOT="$ROOT" OMEGA_LIBRARY_ROOT="$ROOT/source/library"
 export OMEGA_CORPUS_FIXTURE_FILTER="$WITNESS" OMEGA_CORPUS_RECORDS=/tmp/bisect_one_record.txt
 rm -f /tmp/bisect_one_record.txt
 nice -n 19 "$RUNNER" < /dev/null >/dev/null 2>&1 || true
-python3 "$(dirname "$0")/bisect_test.py" /tmp/bisect_one_record.txt
+BT="${LEDGER_BISECT_TOOL_ROOT:-$(dirname "$0")}"
+python3 "$BT/bisect_test.py" /tmp/bisect_one_record.txt

@@ -3,16 +3,16 @@
 set -euo pipefail
 PIN="${1:?PIN}"
 SPEC="${2:?spec json}"
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${LEDGER_BISECT_REPO:-$(git rev-parse --show-toplevel)}"
 cd "$ROOT"
 export BISECT_WITNESS_SPEC="$SPEC"
-DIR="$(cd "$(dirname "$0")" && pwd)"
+DIR="${LEDGER_BISECT_TOOL_ROOT:-$(cd "$(dirname "$0")" && pwd)}"
 BRANCH="$(git branch --show-current 2>/dev/null || true)"
 
 test_commit() {
   git checkout -q "$1"
   local rc=0
-  "$DIR/bisect_witness.sh" || rc=$?
+  "$DIR/bisect_witness.sh" 2>/dev/null || rc=$?
   [[ "$rc" -eq 0 ]]
 }
 

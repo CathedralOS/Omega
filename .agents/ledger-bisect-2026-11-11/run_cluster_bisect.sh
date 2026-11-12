@@ -1,14 +1,24 @@
 #!/bin/bash
 set -euo pipefail
 PIN=51e8c45c793007f211d0d9baee7de16767172444
-DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(git -C "$DIR" rev-parse --show-toplevel)"
-cd "$ROOT"
-OBS="$DIR/pin_observed.txt"
+SCRIPT_REPO=/agent/repos/omega
+WT=/tmp/omega-bisect-wt
+DIR="$SCRIPT_REPO/.agents/ledger-bisect-2026-11-11"
 LEDGER=/tmp/ledger_bisect_part23_corpus_outcomes.txt
 CLUSTER_ID="$1"
 WITNESS="$2"
 LOG="$DIR/bisect_${CLUSTER_ID}.log"
+OBS="$DIR/pin_observed.txt"
+if [[ ! -f "$WT/.git" ]]; then
+  git -C "$SCRIPT_REPO" worktree add -f "$WT" "$PIN" >/dev/null 2>&1 || true
+fi
+if [[ ! -f "$WT/.git" ]]; then
+  echo "missing bisect worktree at $WT" >&2
+  exit 1
+fi
+export LEDGER_BISECT_REPO="$WT"
+export LEDGER_BISECT_TOOL_ROOT="$DIR"
+cd "$WT"
 SPEC=$(python3 "$DIR/build_spec_from_pin.py" "$CLUSTER_ID" "$WITNESS" "$OBS" "$LEDGER")
 export BISECT_WITNESS_SPEC="$SPEC"
 echo "cluster=$CLUSTER_ID witness=$WITNESS spec=$SPEC" | tee "$LOG"
@@ -31,7 +41,6 @@ export BISECT_WITNESS_SPEC="$SPEC"
 git bisect start --first-parent "$PIN" "$GOOD" 2>&1 | tee -a "$LOG"
 git bisect run "$DIR/bisect_witness.sh" 2>&1 | tee -a "$LOG"
 FIRST=$(grep -m1 ' is the first bad commit' "$LOG" | awk '{print $1}' || true)
-[[ -n "$FIRST" ]] || FIRST=$(git bisect log 2>/dev/null | grep -m1 'first bad commit' | grep -oE '[0-9a-f]{40}' | head -1 || true)
 git bisect reset "$PIN" 2>&1 | tee -a "$LOG"
 git checkout -q "$PIN"
 SUBJ=$(git log -1 --format=%s "$FIRST" 2>/dev/null || true)
@@ -43,3 +52,5 @@ MECH=$(git show --stat --format= "$FIRST" 2>/dev/null | grep -E '^\s+.*\|' | gre
   echo "subject=$SUBJ"
   echo "mechanism=$MECH"
 } | tee -a "$LOG"
+cd "$SCRIPT_REPO"
+git checkout -q work/ledger-bisect-part-23
