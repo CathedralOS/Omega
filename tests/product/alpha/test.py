@@ -64,6 +64,27 @@ def refused(name, source, status, entry=0):
     COUNT += 1
 
 
+def source_unit_customer():
+    # Pack the actual source declarations unchanged. The wrapper supplies a
+    # canonical caller; Python implements no part of their behavior.
+    owned = (ROOT / 'source/psi/source/source.omg').read_bytes()
+    source_id = owned[owned.index(b'public data SourceId [copy]'):
+                      owned.index(b'public data Span [copy]')]
+    source_unit = owned[owned.index(b'public data SourceUnit'):
+                        owned.index(b'machine source_unit_append(')]
+    source_unit = source_id + source_unit + b"""machine chosen()->u8 {
+ let mut unit:SourceUnit;
+ let id:SourceId=SourceId{value:77 as u32 +Trapping};
+ unit.length=19; unit.last_retained=false;
+ unit.bytes[0]=42;
+ source_unit_clear(&mut unit,id);
+ transition (unit.id.value as -Trapping)==(id.value as -Trapping)
+  && unit.length==0 && unit.last_retained
+  && unit.bytes[0]==42 { true->42 false->1 }
+}"""
+    return source_unit
+
+
 def domain_cast_cases():
     """Canonical explicit accounting, through real checking and Alpha output."""
     for policy in (b'Trapping', b'Wrapping', b'Saturating'):
@@ -161,31 +182,13 @@ def domain_cast_cases():
         refused('policy-overflow-value-' + policy.decode(), source, 246)
         refused('policy-overflow-value-false-' + policy.decode(),
                 source.replace(b'==' + expected + b'{42}', b'==1{42}'), 247)
-    # Pack the actual source declarations unchanged. The wrapper supplies a
-    # canonical caller; Python implements no part of their behavior. Accepted
-    # checking must reach the scalar lowerer's explicit storage refusal, which
-    # does not claim that this backend emitted a SourceUnit program.
-    owned = (ROOT / 'source/psi/source/source.omg').read_bytes()
-    source_id = owned[owned.index(b'public data SourceId [copy]'):
-                      owned.index(b'public data Span [copy]')]
-    source_unit = owned[owned.index(b'public data SourceUnit'):
-                        owned.index(b'machine source_unit_append(')]
-    source_unit = source_id + source_unit + b"""machine chosen()->u8 {
- let mut unit:SourceUnit;
- let id:SourceId=SourceId{value:77 as u32 +Trapping};
- unit.length=19; unit.last_retained=false;
- unit.bytes[0]=42;
- source_unit_clear(&mut unit,id);
- transition (unit.id.value as -Trapping)==(id.value as -Trapping)
-  && unit.length==0 && unit.last_retained
-  && unit.bytes[0]==42 { true->42 false->1 }
-}"""
-    refused('actual-SourceUnit-checked-before-storage-frontier', source_unit, 246)
+    source_unit = source_unit_customer()
+    accepted('actual-SourceUnit-storage', source_unit, 42, 1)
     refused('SourceUnit-selector-still-owes-bounds',
-            source_unit.replace(b'[0]=42', b'[131072]=42'), 247)
+            source_unit.replace(b'[0]=42', b'[131072]=42'), 247, 1)
     refused('SourceUnit-view-keeps-shared-access',
             source_unit.replace(b'unit.bytes[0]=42',
-                                b'(&unit.bytes)[0]=42'), 249)
+                                b'(&unit.bytes)[0]=42'), 249, 1)
     refused('shared-reference-binding-does-not-make-referent-mutable',
             b'machine chosen()->u8{let mut bytes:[u8;1];let mut view:&[u8;1]=&bytes;view[0]=42;0}', 249)
     refused('chained-view-keeps-call-argument-loan', b"""
@@ -321,6 +324,158 @@ machine observe(value:&mut u8)->u8 {
     print(f'Omega-written canonical casts: {COUNT} actual source/output cases passed')
 
 
+def storage_cases():
+    """Checked source storage/control, emitted and run on the same Alpha seed."""
+    source = source_unit_customer()
+    accepted('actual-SourceUnit-clear-retains-byte', source, 42, 1)
+    last_byte = source.replace(
+        b'unit.bytes[0]=42;',
+        b'unit.bytes[0]=42; unit.bytes[131071]=211;')
+    last_byte = last_byte.replace(
+        b'&& unit.bytes[0]==42',
+        b'&& unit.bytes[0]==42 && unit.bytes[131071]==211')
+    accepted('actual-SourceUnit-clear-retains-both-buffer-edges', last_byte, 42, 1)
+    refused('actual-SourceUnit-outside-buffer',
+            source.replace(b'[0]=42', b'[131072]=42'), 247, 1)
+    refused('actual-SourceUnit-shared-view-cannot-store',
+            source.replace(b'unit.bytes[0]=42',
+                           b'(&unit.bytes)[0]=42'), 249, 1)
+
+    accepted('packed-field-stores-retain-siblings', b'''
+data Packet [copy] { first:u8; half:u16; word:u32; last:u8; }
+machine chosen()->u8 {
+ let mut packet:Packet=Packet{first:17,half:2,word:3,last:29};
+ packet.half=65535; packet.word=4294967295;
+ transition packet.first==17 && packet.half==65535
+  && packet.word==4294967295 && packet.last==29 {true->42 false->1}
+}''', 42)
+    accepted('full-width-storage-and-unsigned-order', b'''
+machine chosen()->u8 {
+ let mut high:u64=18446744073709551615;
+ let low:u64=9223372036854775807;
+ high=identity(high);
+ transition high>low && low<high && high==18446744073709551615
+  && high>=high && !(high<low) {true->42 false->1}
+}
+machine identity(value:u64)->u64 {value}
+''', 42)
+    accepted('packed-word-crosses-signed-order-boundary', b'''
+data Word [copy] { before:u8; value:u64; after:u8; }
+machine chosen()->u8 {
+ let mut word:Word=Word{before:17,value:9223372036854775808,after:29};
+ let one:u64=1;
+ let zero:u64=0;
+ let boundary:bool=!(word.value<one) && word.value>one
+  && !(word.value<=one) && word.value>=one
+  && one<word.value && !(one>word.value)
+  && one<=word.value && !(one>=word.value)
+  && word.value<=word.value && word.value>=word.value;
+ word.value=18446744073709551615;
+ transition boundary && word.value>zero && !(word.value<zero)
+  && word.value>=zero && !(word.value<=zero)
+  && zero<word.value && !(zero>word.value)
+  && zero<=word.value && !(zero>=word.value)
+  && word.before==17 && word.after==29 {true->42 false->1}
+}
+''', 42)
+    refused('full-width-division-needs-unsigned-lowering',
+            b'machine chosen()->u8{let value:u64=42;(value/2) as u8}', 246)
+    refused('oversized-owned-array-refuses-before-publication',
+            b'machine chosen()->u8{let bytes:[u8;33554433];42}', 252)
+    accepted('aggregate-argument-snapshot-precedes-later-effect', b'''
+data Pair [copy] { first:u8; second:u8; }
+machine chosen()->u8 {
+ let mut pair:Pair=Pair{first:42,second:19};
+ let before:u8=take(pair,change(&mut pair));
+ transition before==42 && pair.first==7 && pair.second==19 {true->42 false->1}
+}
+machine take(before:Pair,ignored:u8)->u8 {before.first}
+machine change(pair:&mut Pair)->u8 {pair.first=7;0}
+''', 42)
+    accepted('constructor-evaluates-before-overwriting-target', b'''
+data Pair [copy] { first:u8; second:u8; }
+machine chosen()->u8 {
+ let mut pair:Pair=Pair{first:1,second:42};
+ pair=Pair{first:pair.second,second:pair.first};
+ transition pair.first==42 && pair.second==1 {true->42 false->1}
+}
+''', 42)
+    accepted('terminal-call-retains-borrowed-caller-local', b'''
+machine chosen()->u8 {let value:u8=42;transition {_ -> read(&value)}}
+machine read(value:&u8)->u8 {value}
+''', 42)
+    accepted('terminal-call-writes-borrowed-caller-local', b'''
+machine chosen()->u8 {let mut value:u8=1;transition {_ -> replace(&mut value)}}
+machine replace(value:&mut u8)->u8 {value=42;value}
+''', 42)
+    accepted('short-circuit-skips-complete-call-effects', b'''
+machine chosen()->u8 {
+ let mut value:u8=0;
+ let left:bool=false && change(&mut value);
+ let right:bool=true || change(&mut value);
+ transition value==0 && !left && right {true->42 false->1}
+}
+machine change(value:&mut u8)->bool {value=7;true}
+''', 42)
+    accepted('short-circuit-executes-selected-call-effects', b'''
+machine chosen()->u8 {
+ let mut value:u8=0;
+ let result:bool=true && change(&mut value);
+ transition value==7 && result {true->42 false->1}
+}
+machine change(value:&mut u8)->bool {value=7;true}
+''', 42)
+    accepted('nested-calls-preserve-all-staged-arguments', b'''
+machine chosen()->u8 {outer(one(),inner(twenty(),twenty_one()))}
+machine outer(left:u8,right:u8)->u8 {transition left==1 && right==41 {true->42 false->0}}
+machine inner(left:u8,right:u8)->u8 {transition left==20 && right==21 {true->41 false->0}}
+machine one()->u8 {1}
+machine twenty()->u8 {20}
+machine twenty_one()->u8 {21}
+''', 42)
+    accepted('zero-sized-storage-does-no-memory-access', b'''
+data Empty [copy] {}
+machine chosen()->u8 {
+ let empty:Empty=Empty{};
+ let first:[u8;0];
+ let second:[u8;0]=first;
+ consume(empty,second);
+ 42
+}
+machine consume(empty:Empty,bytes:[u8;0]) {}
+''', 42)
+    accepted('array-element-width-and-evaluation-order', b'''
+machine chosen()->u8 {
+ let mut values:[u32;2]=[17,4294967295];
+ values[0]=values[1];
+ transition values[0]==4294967295 && values[1]==4294967295 {true->42 false->1}
+}
+''', 42)
+    refused('aggregate-results-remain-explicit-coverage', b'''
+data Pair [copy] {value:u8;}
+machine chosen()->u8 {42}
+machine make()->Pair {Pair{value:42}}
+''', 246)
+    refused('nested-reference-projection-needs-dereference-path', b'''
+data Word [copy] {value:u8;}
+machine chosen()->u8 {42}
+machine read(view:& &Word)->u8 {view.value}
+''', 246)
+    refused('stored-reference-fields-remain-explicit-coverage', b'''
+data View [copy] {value:&u8;}
+machine chosen()->u8 {let value:u8=42;let view:View=View{value:&value};42}
+''', 246)
+    refused('storage-call-keeps-exclusive-argument-obligations', b'''
+machine chosen()->u8 {let mut value:u8=0;write(&mut value,&mut value);42}
+machine write(left:&mut u8,right:&mut u8) {left=1;right=2;}
+''', 247)
+    refused('storage-call-keeps-local-reference-escape-check', b'''
+machine chosen()->u8 {42}
+machine escaped()->&u8 {let value:u8=42;&value}
+''', 247)
+    print(f'Omega-written storage/control: {COUNT} actual source/output cases passed')
+
+
 def main():
     first = accepted('literal', b'machine chosen() -> u8 { 42 }', 42)
     changed = accepted('changed-source', b'machine chosen() -> u8 { 43 }', 43)
@@ -346,7 +501,7 @@ def main():
     refused('callee-result-overflow', b'machine f() -> u8 { g() + g() } machine g() -> u8 { 128 }', 247)
     refused('zero-divisor', b'machine f() -> u8 { let a: u8 = 5; a / 0 }', 247)
     refused('unsupported-width', b'machine f() -> u16 { 42 }', 246)
-    refused('unsupported-mutation', b'machine f() -> u8 { let mut a: u8 = 1; a = 2; a }', 246)
+    accepted('mutable-scalar-storage', b'machine f() -> u8 { let mut a: u8 = 1; a = 2; a }', 2)
     accepted('nested-call', b'machine start() -> u8 { nested() machine nested() -> u8 { 42 } }', 42)
     refused('nested-capture', b'machine start() -> u8 { let a: u8 = 42; nested() machine nested() -> u8 { a } }', 248)
     refused('qualified-owner', b'data Box {} machine Box::f() -> u8 { 42 }', 246)
@@ -395,5 +550,7 @@ if __name__ == '__main__':
         shutil.copy2(PROGRAM, retained)
     if len(sys.argv) == 3 and sys.argv[2] == '--domain-casts':
         domain_cast_cases()
+    elif len(sys.argv) == 3 and sys.argv[2] == '--storage':
+        storage_cases()
     else:
         main()

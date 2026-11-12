@@ -1,7 +1,7 @@
-# Omega-written scalar compiler execution
+# Omega-written compiler execution
 
 This gate compiles an Omega source unit with the Omega-written Psi frontend,
-lowers its checked scalar operations, emits Alpha tape with the Omega-written
+lowers its checked operations and storage, emits Alpha tape with the Omega-written
 backend, and executes those exact bytes on the audited Alpha seed. The host Rust
 compiler builds the gate executable and remains an explicit development trust
 dependency. This result does not establish bootstrap construction of that
@@ -31,19 +31,36 @@ clauses whose preconditions the synthetic caller might otherwise assume.
 Only ordinary free declarations are admitted; qualified owners and trait or
 implementation members need their proper selection semantics first. Nested
 helpers remain callable through ordinary lexical resolution, but cannot be
-selected as external entries. Only machine root items are admitted; global
-declarations and imports are unsupported even when unused. Erased bindings
+selected as external entries. Machine roots and monomorphic record declarations are admitted. Global constants,
+domains, imports, generic or sum declarations, and linear records remain
+unsupported even when unused. Erased bindings
 are also unsupported, so they cannot silently become runtime data.
 
-The initial lowering supports immutable initialized `u8` locals, exact integer
-constant trees, checked `u8` identity casts, ordinary `u8` arithmetic and resolved
-nullary calls. Explicit singleton `Wrapping`, `Saturating` and `Trapping` casts
-retain the same byte payload through locals and casts. Arithmetic, signatures
-and the selected entry still require ordinary unqualified `u8`. The machine
-ends with its scalar result. Every machine must fit this subset, including
-uncalled declarations; unsupported facilities produce no tape. Recursive call
-cycles are explicitly unsupported until constant-space tail transfer is
-implemented. Acyclic calls use separate frames and preserve all caller values.
+The bounded lowering supports plain unsigned `u8`, `u16`, `u32`, `u64`, `bool`
+and Unit values, monomorphic packed records, fixed arrays and references to
+supported storage. Locals and parameters own separate storage. Projections use
+checked field identities and one shared layout; loads and stores touch the
+exact field width. Copyable aggregate reads take fresh snapshots before later
+argument or constructor effects. Affine storage can be constructed and borrowed;
+arbitrary affine reads, nested references, stored reference fields, arrays of
+references, and aggregate or reference results remain explicit refusals.
+Unused field types do not imply support for their executable layouts.
+
+Calls evaluate arguments in source order and stage completed values before
+entering a callee. Every acyclic call retains its caller frame, including terminal
+calls borrowing caller locals. Recursive cycles remain unsupported until proper
+tail transfer is implemented. Final transitions test literal, guard and wildcard
+arms in order. Boolean `&&` and `||` skip the complete unselected operand,
+including its calls and writes. Ordinary checking still establishes indexing
+bounds, access, loans, initialization and arithmetic obligations.
+
+Unsigned comparisons cover the full `u64` range. Exact addition, subtraction
+and multiplication preserve the ordinary checked bounds; division and remainder
+currently support through `u32`, with `u64` explicitly refused. Explicit singleton
+`Wrapping`, `Saturating` and `Trapping` casts preserve stored payloads. Runtime
+arithmetic and comparisons still require plain operands; policy arithmetic is
+not silently replaced with exact arithmetic. The selected external entry returns
+ordinary unqualified `u8`.
 Anonymous literal division remains rational through the typer. Fractional
 history requires explicit `as` at a computational integer landing, even when
 cancellation makes its final value integral; typed integer division uses the
@@ -68,9 +85,10 @@ Mathematical `Int`/`Nat` and decimal landing remain
 outside this bounded numeric frontier.
 
 [`source/psi/lowering/scalar.omg`](../../../source/psi/lowering/scalar.omg) is the
-first source-owned lowering implementation. Its bounded internal records use
-stable machine/value indices and the existing `IntegerConstant`,
-`ExactInteger*`, `Call`, and scalar-return meanings from the
+source-owned lowering orchestration. Its adjacent `layout.omg`, `storage.omg`,
+`expressions.omg` and `statements.omg` retain type layouts, owned places and
+transfers, expression evaluation and control. Stable machine/value/field identities
+use the existing memory, call, control and return meanings from the
 [operation vocabulary](../../../wiki/spec/terminal-psi/encoding.md#operation-rows)
 and [normal results](../../../wiki/spec/terminal-psi/calls_and_outcomes.md#normal-results).
 It is an internal lowering slice, not another portable artifact format. Full
@@ -80,10 +98,10 @@ cannot be turned into those identities by inventing proof records. No serialized
 Psi publication or independently replayable proof claim is made here.
 
 [`source/omega/compilation/alpha/emitter.omg`](../../../source/omega/compilation/alpha/emitter.omg) consumes
-only that lowered program. Each activation owns slots in `[32,64)` MiB of Alpha
-memory. Frame allocation is checked before stores; the region is disjoint from
-the at-most-2 MiB tape and Alpha's downward return stack. Layout and emission run
-the same instruction traversal twice. The emitter publishes nothing until all
+only that lowered program. Each activation owns value slots, packed local and
+parameter storage, and call-argument scratch in `[32,64)` MiB of Alpha memory. Frame allocation is checked before stores; the region is disjoint from
+the at-most-2 MiB tape and Alpha's downward return stack. Copy and zero loops check zero size before accessing memory and use no hidden
+return-stack frames. Layout and emission run the same instruction traversal twice. The emitter publishes nothing until all
 source checking, supported-form checks, call-cycle analysis and emission finish.
 
 The public Omega compiler continues to enforce its sealed OCREQ boundary. This
@@ -119,6 +137,21 @@ The same invocation also packs the retained `SourceId`, `SourceUnit` and
 `source_unit_clear` declarations directly from their source owner, with a
 caller that directly accesses the compiler's ordinary byte buffer. The compiler's
 private source-buffer helpers retain their explicit bounds; independent qualified
-array cases continue to check reference-view accounting. That customer must pass parsing, typing and checking before the existing
-storage-backend coverage refusal; it is not claimed as emitted by this scalar
-backend. Bound, shared-access and live-loan negatives must fail earlier.
+array cases continue to check reference-view accounting. That customer must produce actual Alpha tape and exit 42 after clearing metadata
+while retaining byte-buffer canaries. Bound, shared-access and live-loan negatives
+must still fail before publication.
+
+
+The existing driver also runs its storage cases against the same compiler:
+
+```sh
+OMEGA_CLI=/absolute/path/to/fresh/omega OMEGA_TARGET=linux_x86_64 \
+  sh tests/product/alpha/run.sh --storage
+```
+
+These cases execute the actual `SourceUnit` declaration and clear helper, packed
+field widths, full-width unsigned comparisons, argument snapshots, constructor
+ordering, borrowed terminal-call storage, short-circuit effects and zero-sized
+storage. Every accepted source is compiled twice for byte-identical tape and
+executed on the same Alpha seed. Unsupported layouts and ownership violations
+retain distinct refusal checks.

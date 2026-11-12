@@ -1,0 +1,270 @@
+// One packed internal memory layout for every retained monomorphic type.
+// This is an Alpha execution representation, not a foreign ABI or a new
+// serialized artifact. Byte arrays stay byte arrays; loads and stores must
+// use their exact layout width, including at allocation boundaries.
+public data ScalarLayoutKind [copy] {
+    case Absent;
+    case Unit;
+    case Scalar;
+    case Reference;
+    case Record;
+    case Array;
+}
+
+public data ScalarLayoutState [copy] {
+    case Unseen;
+    case Visiting;
+    case Complete;
+}
+
+public data ScalarLayout [copy] {
+    kind: ScalarLayoutKind;
+    size: u64 in Trapping;
+    // Array element or reference referent type handle; zero otherwise.
+    inner: u64 in Trapping;
+    length: u64 in Trapping;
+}
+
+public machine scalar_layout_at(program: &ScalarProgram, handle: u64 in Trapping) -> ScalarLayout
+crashes Trap
+{
+    transition handle < program.layout_count && handle < 8192 {
+        true -> read(program, handle)
+        _ -> invalid()
+    }
+    machine read(program: &ScalarProgram, handle: u64 in Trapping) -> ScalarLayout { program.layouts[(handle) as -Trapping] }
+    machine invalid() -> ScalarLayout { crash Trap; }
+}
+
+// Clear only the dense type authority for this invocation. Unsupported types
+// may remain unused; requesting one fails instead of borrowing another row's
+// layout. No previous compilation supplies layout evidence.
+public machine scalar_layout_clear(lowerer: &mut ScalarLowerer, typing: &Typing)
+crashes Trap
+{
+    lowerer.output.layout_count = typing.types.row_count;
+    lowerer.layout_work_count = 0 as u64 +Trapping;
+    transition { _ -> row(lowerer, 0 as u64 +Trapping) }
+    machine row(lowerer: &mut ScalarLowerer, index: u64 in Trapping) {
+        transition index < lowerer.output.layout_count && index < 8192 {
+            true -> clear(lowerer, index)
+            _ -> done()
+        }
+    }
+    machine clear(lowerer: &mut ScalarLowerer, index: u64 in Trapping) {
+        lowerer.layout_states[(index) as -Trapping] = ScalarLayoutState::Unseen;
+        lowerer.output.layouts[(index) as -Trapping] = ScalarLayout {
+            kind: ScalarLayoutKind::Absent, size: 0 as u64 +Trapping,
+            inner: 0 as u64 +Trapping, length: 0 as u64 +Trapping
+        };
+        transition { _ -> row(lowerer, index + 1) }
+    }
+    machine done() {}
+}
+
+// Explicit DFS follows data fields as well as type-row children. Recursive
+// owned representations, generic layouts, sums, linear cleanup and unknown
+// qualification remain coverage refusals. Reference cycles are also outside
+// this first bounded representation; they never become zero-sized records.
+public machine scalar_require_layout(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping)
+crashes Trap
+{
+    lowerer.layout_work_count = 0 as u64 +Trapping;
+    transition { _ -> require(lowerer, syntax, typing, handle) }
+
+    machine require(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) {
+        transition handle > 0 && handle < lowerer.output.layout_count && handle < 8192 {
+            true -> color(lowerer, syntax, typing, handle)
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine color(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) {
+        transition lowerer.layout_states[(handle) as -Trapping] {
+            ScalarLayoutState::Unseen -> push(lowerer, syntax, typing, handle)
+            ScalarLayoutState::Complete -> next(lowerer, syntax, typing)
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine push(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) {
+        transition lowerer.layout_work_count < 8192 {
+            true -> pushed(lowerer, syntax, typing, handle)
+            _ -> full(lowerer)
+        }
+    }
+    machine pushed(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) {
+        lowerer.layout_work[(lowerer.layout_work_count) as -Trapping] = handle as -Trapping;
+        lowerer.layout_work_count = lowerer.layout_work_count + 1;
+        lowerer.layout_states[(handle) as -Trapping] = ScalarLayoutState::Visiting;
+        lowerer.layout_cursors[(handle) as -Trapping] = 0;
+        lowerer.layout_sizes[(handle) as -Trapping] = 0;
+        transition { _ -> next(lowerer, syntax, typing) }
+    }
+    machine next(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing) {
+        transition lowerer.layout_work_count > 0 && lowerer.layout_work_count <= 8192 {
+            true -> top(lowerer, syntax, typing)
+            _ -> done()
+        }
+    }
+    machine top(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing) {
+        let handle: u64 in Trapping = lowerer.layout_work[(lowerer.layout_work_count - 1) as -Trapping] as u64 +Trapping;
+        let row: TypeRow = type_table_row(&typing.types, handle);
+        let policy: bool = row.domain == DomainBinding::Unqualified
+            || row.domain == DomainBinding::Wrapping || row.domain == DomainBinding::Saturating
+            || row.domain == DomainBinding::Trapping;
+        transition policy {
+            true -> form(lowerer, syntax, typing, handle, row)
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine form(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, row: TypeRow) {
+        transition row.kind {
+            TypeKind::Unit -> finish(lowerer, syntax, typing, handle, ScalarLayoutKind::Unit, 0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping)
+            TypeKind::Builtin -> builtin(lowerer, syntax, typing, handle, row)
+            TypeKind::Array -> array(lowerer, syntax, typing, handle, row)
+            TypeKind::Reference -> reference(lowerer, syntax, typing, handle, row)
+            TypeKind::Data -> record(lowerer, syntax, typing, handle, row)
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine builtin(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, row: TypeRow) {
+        transition row.builtin {
+            BuiltinType::Bool -> boolean(lowerer, syntax, typing, handle, row)
+            BuiltinType::U8 -> scalar(lowerer, syntax, typing, handle, 1 as u64 +Trapping)
+            BuiltinType::U16 -> scalar(lowerer, syntax, typing, handle, 2 as u64 +Trapping)
+            BuiltinType::U32 -> scalar(lowerer, syntax, typing, handle, 4 as u64 +Trapping)
+            BuiltinType::U64 -> scalar(lowerer, syntax, typing, handle, 8 as u64 +Trapping)
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine boolean(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, row: TypeRow) {
+        transition row.domain == DomainBinding::Unqualified {
+            true -> scalar(lowerer, syntax, typing, handle, 1 as u64 +Trapping)
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine scalar(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, size: u64 in Trapping) {
+        transition { _ -> finish(lowerer, syntax, typing, handle, ScalarLayoutKind::Scalar, size, 0 as u64 +Trapping, 0 as u64 +Trapping) }
+    }
+    machine array(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, row: TypeRow) {
+        let extent: TypeRow = type_table_row(&typing.types, row.length);
+        transition extent.kind == TypeKind::StaticInteger && row.inner > 0 && row.inner < 8192 {
+            true -> array_child(lowerer, syntax, typing, handle, row, extent.length)
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine array_child(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, row: TypeRow, length: u64 in Trapping) {
+        transition lowerer.layout_states[(row.inner) as -Trapping] == ScalarLayoutState::Complete {
+            true -> array_size(lowerer, syntax, typing, handle, row, length)
+            _ -> require(lowerer, syntax, typing, row.inner)
+        }
+    }
+    machine array_size(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, row: TypeRow, length: u64 in Trapping) {
+        let element: ScalarLayout = scalar_layout_at(&lowerer.output, row.inner);
+        transition element.kind == ScalarLayoutKind::Reference {
+            true -> unsupported(lowerer)
+            _ -> array_bounded(lowerer, syntax, typing, handle, row, length, element)
+        }
+    }
+    machine array_bounded(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, row: TypeRow, length: u64 in Trapping, element: ScalarLayout) {
+        // Both factors are bounded before multiplication, and the product
+        // is at most 2^50 here. Oversized frames remain explicit capacity.
+        transition length <= 33554432 && element.size <= 33554432 {
+            true -> array_product(lowerer, syntax, typing, handle, row, length, element.size * length)
+            _ -> full(lowerer)
+        }
+    }
+    machine array_product(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, row: TypeRow, length: u64 in Trapping, size: u64 in Trapping) {
+        transition size <= 33554432 {
+            true -> finish(lowerer, syntax, typing, handle, ScalarLayoutKind::Array, size, row.inner, length)
+            _ -> full(lowerer)
+        }
+    }
+    machine reference(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, row: TypeRow) {
+        transition row.domain == DomainBinding::Unqualified && row.inner > 0 && row.inner < 8192 {
+            true -> reference_child(lowerer, syntax, typing, handle, row)
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine reference_child(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, row: TypeRow) {
+        let referent: TypeRow = type_table_row(&typing.types, row.inner);
+        // The current place representation follows one reference binding.
+        // Nested reference projection and assignment need a retained path of
+        // dereferences; treating a pointer slot as its eventual record is wrong.
+        transition referent.kind == TypeKind::Reference {
+            true -> unsupported(lowerer)
+            _ -> reference_layout(lowerer, syntax, typing, handle, row)
+        }
+    }
+    machine reference_layout(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, row: TypeRow) {
+        transition lowerer.layout_states[(row.inner) as -Trapping] == ScalarLayoutState::Complete {
+            true -> finish(lowerer, syntax, typing, handle, ScalarLayoutKind::Reference, 8 as u64 +Trapping, row.inner, 0 as u64 +Trapping)
+            _ -> require(lowerer, syntax, typing, row.inner)
+        }
+    }
+    machine record(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, row: TypeRow) {
+        let item: DataItem = syntax_trees_data_item(syntax, row.item);
+        transition row.domain == DomainBinding::Unqualified && row.argument_count == 0
+            && item.generic_parameter_count == 0 && item.case_count == 0 && !item.is_boundary
+            && item.multiplicity != DataMultiplicity::Linear {
+            true -> fields(lowerer, syntax, typing, handle, item)
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine fields(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, item: DataItem) {
+        let offset: u64 in Trapping = lowerer.layout_cursors[(handle) as -Trapping] as u64 +Trapping;
+        let size: u64 in Trapping = lowerer.layout_sizes[(handle) as -Trapping] as u64 +Trapping;
+        transition offset < item.field_count {
+            true -> field(lowerer, syntax, typing, handle, item.first_field + offset, size)
+            _ -> finish(lowerer, syntax, typing, handle, ScalarLayoutKind::Record, size, 0 as u64 +Trapping, 0 as u64 +Trapping)
+        }
+    }
+    machine field(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping) {
+        let declaration: DataField = syntax_trees_field(syntax, field);
+        let child: u64 in Trapping = reference_type(typing, declaration.type_reference);
+        transition field < 1024 && child > 0 && child < 8192 {
+            true -> field_child(lowerer, syntax, typing, handle, field, size, child)
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine field_child(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping, child: u64 in Trapping) {
+        transition lowerer.layout_states[(child) as -Trapping] == ScalarLayoutState::Complete {
+            true -> field_size(lowerer, syntax, typing, handle, field, size, child)
+            _ -> require(lowerer, syntax, typing, child)
+        }
+    }
+    machine field_size(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping, child: u64 in Trapping) {
+        let layout: ScalarLayout = scalar_layout_at(&lowerer.output, child);
+        transition layout.kind == ScalarLayoutKind::Reference {
+            true -> unsupported(lowerer)
+            _ -> field_bounded(lowerer, syntax, typing, handle, field, size, layout)
+        }
+    }
+    machine field_bounded(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping, layout: ScalarLayout) {
+        transition layout.size <= 33554432 && size <= 33554432 - layout.size {
+            true -> field_offset(lowerer, syntax, typing, handle, field, size, layout.size)
+            _ -> full(lowerer)
+        }
+    }
+    machine field_offset(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping, width: u64 in Trapping) {
+        let cursor: u64 = lowerer.layout_cursors[(handle) as -Trapping];
+        transition cursor < 1024 {
+            true -> field_stored(lowerer, syntax, typing, handle, field, size, width, cursor)
+            _ -> full(lowerer)
+        }
+    }
+    machine field_stored(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping, width: u64 in Trapping, cursor: u64) {
+        lowerer.output.field_offsets[(field) as -Trapping] = size as -Trapping;
+        lowerer.layout_sizes[(handle) as -Trapping] = (size + width) as -Trapping;
+        lowerer.layout_cursors[(handle) as -Trapping] = cursor + 1;
+        transition { _ -> next(lowerer, syntax, typing) }
+    }
+    machine finish(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, kind: ScalarLayoutKind, size: u64 in Trapping, inner: u64 in Trapping, length: u64 in Trapping) {
+        lowerer.output.layouts[(handle) as -Trapping] = ScalarLayout { kind: kind, size: size, inner: inner, length: length };
+        lowerer.layout_states[(handle) as -Trapping] = ScalarLayoutState::Complete;
+        lowerer.layout_work_count = lowerer.layout_work_count - 1;
+        transition { _ -> next(lowerer, syntax, typing) }
+    }
+    machine unsupported(lowerer: &mut ScalarLowerer) { lowerer.output.status = ScalarStatus::Unsupported; }
+    machine full(lowerer: &mut ScalarLowerer) { lowerer.output.status = ScalarStatus::Capacity; }
+    machine done() {}
+}

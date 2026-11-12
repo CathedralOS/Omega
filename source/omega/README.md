@@ -48,8 +48,9 @@ The Rust producer may build `application/construction/main.omg` as a development
 ramp. Bootstrap variants must eventually construct this same application from
 their documented seeds, then use it to rebuild itself reproducibly. No successful
 self-compilation or source-only bootstrap of this application is claimed yet.
-The current backend remains the checked scalar slice; the actual closure exceeds
-that subset and its observed failures determine the next implementation work.
+The current backend handles a bounded checked integer and storage subset; the
+actual compiler closure still exceeds it. Its observed refusals determine the
+next implementation work, rather than implying a successful self-build.
 
 ## Closed source-set input
 
