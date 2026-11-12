@@ -32,10 +32,15 @@ def main() -> int:
         mech = b.get("mechanism", "").replace("|", "\\|")
         diag = cl.get("diag", "").replace("|", "\\|")[:120]
         kind = cl.get("kind", "pass/run regression")
+        flaky = ""
+        if b.get("flaky_good") or b.get("flaky_bad"):
+            flaky = " flaky"
         lines.append(
             f"| {cl['count']} | {kind} | {diag} | `{cl['witness']}` | "
-            f"`{b.get('first_bad', '')[:12]}` | {b.get('pr', '') or ''} | {mech} | {status} |"
+            f"`{b.get('first_bad', '')[:12]}` | {b.get('pr', '') or ''} | {mech} | {status}{flaky} |"
         )
+        if b.get("good"):
+            lines.append(f"Good: `{b['good'][:12]}`")
         for m in cl.get("members", []):
             cls = "broken" if m in cl.get("broken_set", cl.get("members", [])) else "fixed"
             fd = state.get("fixture_diag", {}).get(m, "")

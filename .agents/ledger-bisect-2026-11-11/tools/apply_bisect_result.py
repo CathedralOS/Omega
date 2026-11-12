@@ -10,8 +10,9 @@ STATE = Path(__file__).resolve().parents[1] / "state.json"
 
 
 def main() -> int:
-    line = sys.stdin.read().strip()
-    if not line.startswith("{"):
+    raw = sys.stdin.read()
+    line = next((ln.strip() for ln in raw.splitlines() if ln.strip().startswith("{")), "")
+    if not line:
         print("no json on stdin", file=sys.stderr)
         return 1
     result = json.loads(line)
