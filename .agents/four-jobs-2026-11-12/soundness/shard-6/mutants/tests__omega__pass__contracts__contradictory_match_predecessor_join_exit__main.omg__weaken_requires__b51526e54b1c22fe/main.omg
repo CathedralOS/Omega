@@ -1,0 +1,14 @@
+// A match joins two arms, one of which the entry requirement rules out. The
+// subtraction after the join needs `chosen >= 100` from every arrival: the
+// live arm proves it and the ruled-out arm closes by contradiction.
+machine pick(count: u64) -> u64
+requires count >= 10 && count < 1000u64
+{
+    let chosen: u64 = match count < 5 { true -> 0u64, false -> count + 100u64 };
+    chosen - 100u64
+}
+machine main() crashes Trap {
+    transition pick(12) == 12 && pick(700) == 700 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
