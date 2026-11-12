@@ -1,0 +1,68 @@
+fixture	tier	mutation_kind	mutant_path	current_verdict	route_verdict	agree	hand_verdict	spec_file	spec_quote	current_s	route_s
+tests/omega/pass/arithmetic/bitwise_singleton_signed_and_unsigned_exit/main.omg	pass	drop_requires	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_arithmetic_bitwise_singleton_signed_and_unsigned_exit_main_omg_0b7021d138__drop_requires	accepted	rejected	disagree	confirmed-invalid	wiki/spec/language/state_contracts.md	Machine `requires` applies at every invocation, including terminal and recursive calls. Every arrival establishes the target's requirements and declared domains under actual argument substitution.	2.755	3.385
+tests/omega/pass/arithmetic/bitwise_singleton_signed_and_unsigned_exit/main.omg	pass	widen_requires		rejected	rejected	agree	discarded-both-reject			1.654	1.791
+tests/omega/pass/arithmetic/bitwise_singleton_signed_and_unsigned_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.725	0.685
+tests/omega/pass/arithmetic/bitwise_singleton_signed_and_unsigned_exit/main.omg	pass	invert_comparison_guard		rejected	unreached	agree	discarded-both-reject			0.900	1.039
+tests/omega/pass/arithmetic/constant_trapping_shift_value_overflow_traps/main.omg	pass	amp_to_ampmut		rejected	unreached	agree	discarded-both-reject			6.206	7.003
+tests/omega/pass/arithmetic/constant_trapping_shift_value_overflow_traps/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			6.346	11.723
+tests/omega/pass/arithmetic/fixed_division_values_survive_calls_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			7.707	8.086
+tests/omega/pass/arithmetic/fixed_division_values_survive_calls_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			3.984	7.426
+tests/omega/pass/arithmetic/fixed_division_values_survive_calls_exit/main.omg	pass	amp_to_ampmut		rejected	unreached	agree	discarded-both-reject			4.063	7.007
+tests/omega/pass/arithmetic/fixed_division_values_survive_calls_exit/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			6.459	11.388
+tests/omega/pass/arithmetic/fixed_division_values_survive_calls_exit/main.omg	pass	invert_comparison_guard		rejected	unreached	agree	discarded-both-reject			4.511	7.727
+tests/omega/pass/arithmetic/modular_power_state_bounds_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			8.375	9.139
+tests/omega/pass/arithmetic/modular_power_state_bounds_exit/main.omg	pass	widen_requires		rejected	outside	agree	discarded-both-reject			7.367	10.612
+tests/omega/pass/arithmetic/modular_power_state_bounds_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			3.849	6.824
+tests/omega/pass/arithmetic/modular_power_state_bounds_exit/main.omg	pass	amp_to_ampmut		rejected	unreached	agree	discarded-both-reject			4.069	6.903
+tests/omega/pass/arithmetic/modular_power_state_bounds_exit/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			6.629	12.317
+tests/omega/pass/arithmetic/modular_power_state_bounds_exit/main.omg	pass	drop_ensures		rejected	outside	agree	discarded-both-reject			6.441	12.091
+tests/omega/pass/arithmetic/bitwise_singleton_signed_and_unsigned_exit/main.omg	pass	drop_requires	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_arithmetic_bitwise_singleton_signed_and_unsigned_exit_main_omg_0b7021d138__drop_requires	accepted	rejected	disagree	confirmed-invalid	wiki/spec/language/state_contracts.md	Machine `requires` applies at every invocation, including terminal and recursive calls. Every arrival establishes the target's requirements and declared domains under actual argument substitution.	2.720	3.315
+tests/omega/pass/arithmetic/bitwise_singleton_signed_and_unsigned_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.736	0.714
+tests/omega/pass/arithmetic/constant_trapping_shift_value_overflow_traps/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			6.546	11.578
+tests/omega/pass/arithmetic/constant_trapping_shift_value_overflow_traps/main.omg	pass	amp_to_ampmut		rejected	unreached	agree	discarded-both-reject			3.807	6.792
+tests/omega/pass/arithmetic/fixed_division_values_survive_calls_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			5.125	8.231
+tests/omega/pass/arithmetic/fixed_division_values_survive_calls_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			5.039	8.266
+tests/omega/pass/arithmetic/modular_power_state_bounds_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			5.731	9.091
+tests/omega/pass/arithmetic/qualified_float_cast_abstract_prior_fact/main.omg	pass	drop_requires		rejected	no-entry	agree	discarded-both-reject			1.199	1.244
+tests/omega/pass/arithmetic/runtime_boolean_divisor_state_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.704	0.680
+tests/omega/pass/arithmetic/runtime_call_live_remainder_recovery_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			8.017	8.856
+tests/omega/pass/arithmetic/runtime_exact_dispatch_divisor_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.193	6.786
+tests/omega/pass/arithmetic/runtime_fixed_integer_across_console_exit/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			8.770	12.126
+tests/omega/pass/arithmetic/runtime_min_max_clamp_narrowing_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.505	7.207
+tests/omega/pass/arithmetic/runtime_qualified_cast_decision_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			1.607	1.855
+tests/omega/pass/arithmetic/runtime_signed_minimum_remainder_exit/main.omg	pass	drop_requires		rejected	rejected	agree	discarded-both-reject			1.568	1.955
+tests/omega/pass/arithmetic/runtime_trapping_shift_count_traps/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			8.599	11.603
+tests/omega/pass/arithmetic/signed_index_bounds/main.omg	pass	drop_requires		rejected	no-entry	agree	discarded-both-reject			1.337	1.438
+tests/omega/pass/arrays/array_operand_epochs/main.omg	pass	amp_to_ampmut		rejected	unreached	agree	discarded-both-reject			0.646	0.706
+tests/omega/pass/arrays/record_array_literal/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.598	0.693
+tests/omega/pass/asm/atomic_release_disposition_literal_exit/main.omg	pass	remove_mut	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_asm_atomic_release_disposition_literal_exit_main_omg_ff79536b43__remove_mut	accepted	outside	disagree	confirmed-invalid	wiki/spec/language/ownership.md	Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding.	2.495	3.174
+tests/omega/pass/asm/checked_fence_x86_in_aarch64_body/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.659	0.757
+tests/omega/pass/asm/finite_prefix_preserves_model_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			1.538	1.769
+tests/omega/pass/asm/scratch_latest_zero_flag_exit/main.omg	pass	remove_mut	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_asm_scratch_latest_zero_flag_exit_main_omg_f688e5467d__remove_mut	accepted	outside	disagree	confirmed-invalid	wiki/spec/language/ownership.md	Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding.	2.522	2.949
+tests/omega/pass/atomics/placed_atomic_load/main.omg	pass	remove_mut	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_atomics_placed_atomic_load_main_omg_5ebfd24054__remove_mut	accepted	no-entry	disagree	confirmed-invalid	wiki/spec/language/ownership.md	Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding.	3.281	3.885
+tests/omega/pass/atomics/runtime_atomic_computed_operands_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.655	0.689
+tests/omega/pass/atomics/runtime_case_payload_atomic_events_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			1.993	2.566
+tests/omega/pass/blockexec/blocking_executor_custody_claims_compile/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.738	0.737
+tests/omega/pass/borrow/named_operator_disjoint_argument_preserves_bound/main.omg	pass	remove_mut	.agents/four-jobs-2026-11-12/soundness/shard-5/ests_omega_pass_borrow_named_operator_disjoint_argument_preserves_bound_main_omg_a92dc43876__remove_mut	accepted	no-entry	disagree	confirmed-invalid	wiki/spec/language/ownership.md	Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding.	1.386	1.522
+tests/omega/pass/borrow/runtime_exclusive_loan_local_write_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.430	6.882
+tests/omega/pass/borrow/runtime_signed_element_window_exit/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.688	0.696
+tests/omega/pass/borrow/runtime_write_only_captured_record_copy_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.058	2.458
+tests/omega/pass/borrow/runtime_write_only_exclusive_reference_projected_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.723	0.697
+tests/omega/pass/borrow/runtime_write_only_reference_aggregate_call_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.267	7.100
+tests/omega/pass/borrow/storage_address_backing_identity_exit/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			1.555	1.773
+tests/omega/pass/borrow/write_only_whole_scalar_replace/main.omg	pass	remove_mut	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_borrow_write_only_whole_scalar_replace_main_omg_111bcb0f21__remove_mut	accepted	no-entry	disagree	confirmed-invalid	wiki/spec/language/ownership.md	Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding.	1.262	1.457
+tests/omega/pass/borrows/borrowed_field_helper_output_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.605	0.690
+tests/omega/pass/borrows/boundary_scalar_slice_write_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.647	0.692
+tests/omega/pass/borrows/carry_property_declared/main.omg	pass	amp_to_ampmut		rejected	unreached	agree	discarded-both-reject			0.607	0.671
+tests/omega/pass/borrows/completed_selector_value_composition_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			1.954	2.424
+tests/omega/pass/borrows/copied_image_descriptor_unrelated_write/main.omg	pass	remove_mut	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_borrows_copied_image_descriptor_unrelated_write_main_omg_11ec3a7a8d__remove_mut	accepted	outside	disagree	confirmed-invalid	wiki/spec/language/ownership.md	Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding.	2.597	3.249
+tests/omega/pass/borrows/dispatch_subject_view_released_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.678	0.700
+tests/omega/pass/borrows/foreign_output_captured_reference_exit/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.658	0.674
+tests/omega/pass/borrows/indexed_record_field_replacement_exit/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			6.080	6.817
+tests/omega/pass/borrows/linear_owner_materialized_shared_reference_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.146	6.761
+tests/omega/pass/borrows/local_shared_record_sequence_observations_exit/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			8.645	11.440
+tests/omega/pass/borrows/nested_machine_carried_field_replacement_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			8.344	9.274
+tests/omega/pass/borrows/nested_reference_byte_observations_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.128	6.640
+tests/omega/pass/borrows/opaque_generic_shared_stored_writeonly_provider/main.omg	pass	amp_to_ampmut		rejected	no-entry	agree	discarded-both-reject			1.295	1.422
+tests/omega/pass/borrows/pending_registration_write_after_completion/main.omg	pass	remove_mut	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_borrows_pending_registration_write_after_completion_main_omg_55e4dda937__remove_mut	accepted	outside	disagree	confirmed-invalid	wiki/spec/language/ownership.md	Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding.	3.260	4.075
+tests/omega/pass/borrows/projected_mut_member_loan/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			8.506	11.073
