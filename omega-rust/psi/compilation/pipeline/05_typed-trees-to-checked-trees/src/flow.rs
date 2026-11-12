@@ -548,6 +548,18 @@ mod builder {
                     .sum::<usize>()
             })
             .sum::<usize>();
+        /*
+            A replayed part is not rebuilt here, so no pass could confirm or
+            withdraw an assumption about it; its rows stay absent as before.
+        */
+        pass_limit = pass_limit.saturating_add(build.normal_return_predicates.assume_all(
+            program,
+            machines.iter().copied().filter(|position| {
+                !replays
+                    .iter()
+                    .any(|replay| replay.machines.binary_search(position).is_ok())
+            }),
+        ));
         let mut pass = 0;
         while pass < pass_limit {
             if pass != 0 {
@@ -1026,6 +1038,65 @@ mod normal_returns {
                             })
                     })
             })
+        }
+
+        /*
+            Start a group's solve by assuming every class on every exclusive entry
+            formal, so a body that hands its referent back to itself, directly or
+            through another member, is not refused for lack of the row it is about
+            to earn. Starting empty can never admit such a body: its recursive exit
+            needs the row before any pass has published it.
+
+            The assumption is only a starting point. Each complete pass replaces the
+            table with what the bodies prove under it, callers of a withdrawn row
+            are rebuilt, and a result is accepted only from a complete pass whose
+            own table it reproduces. A surviving row therefore holds at every normal
+            return by induction on call depth; whether the calls return at all is
+            ranked separately. Exceeding the pass bound discards the table.
+
+            The seeded cells count as discovered here, so the returned height
+            extends the bound once for the passes that withdraw them.
+        */
+        pub(super) fn assume_all(
+            &mut self,
+            program: &dyn validation::CheckingInput,
+            machines: impl Iterator<Item = usize>,
+        ) -> usize {
+            let mut rows = Vec::new();
+            for position in machines {
+                let machine = &program.machines()[position];
+                let Some(entry) = program.machine_states(machine).first() else {
+                    continue;
+                };
+                if !machine.body_is_present {
+                    continue;
+                }
+                let mut cells: Vec<_> = program
+                    .state_parameters(entry)
+                    .iter()
+                    .filter(|formal| {
+                        validation::reference_shell(program, formal.type_reference)
+                            .is_some_and(|shell| shell.access.is_exclusive())
+                    })
+                    .flat_map(|formal| {
+                        ByteSequencePredicate::ALL
+                            .into_iter()
+                            .map(|predicate| ReturnedPredicate {
+                                parameter: formal.symbol,
+                                reference_type: formal.type_reference,
+                                predicate,
+                            })
+                    })
+                    .collect();
+                if cells.is_empty() {
+                    continue;
+                }
+                cells.sort_unstable_by_key(ReturnedPredicate::key);
+                cells.dedup();
+                rows.push((position, cells));
+            }
+            rows.sort_unstable_by_key(|row| row.0);
+            self.replace(rows).1
         }
 
         fn replace(&mut self, rows: Vec<(usize, Vec<ReturnedPredicate>)>) -> (Vec<usize>, usize) {
