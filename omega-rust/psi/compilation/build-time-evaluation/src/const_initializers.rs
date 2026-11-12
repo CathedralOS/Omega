@@ -2330,8 +2330,31 @@ mod replay {
             prepare_selected_execution(&probe, selected.provider_bodies, selected.operators)
                 .map_err(|reason| super::failure(source::SourceSpan::default(), reason))?
                 .unwrap_or(probe);
+        // A replayed initializer's type can name a constant only through a
+        // fixed-array extent, as `SIZE` in `[u64; SIZE]`, which no probe
+        // declaration references. The realized program must still retain it.
+        let referenced_constants = {
+            let mut constants = crate::const_initializers::TypeExtentConstants {
+                program: &probe,
+                visited: Vec::new(),
+                constants: Vec::new(),
+            };
+            for declaration in &replay_declarations {
+                typed_trees::references::visit_type_reference(
+                    &probe,
+                    &mut constants,
+                    declaration.declared_type,
+                );
+            }
+            constants.constants
+        };
+        let replay_roots = probe_symbols
+            .iter()
+            .copied()
+            .chain(referenced_constants)
+            .collect::<Vec<_>>();
         let replay_execution =
-            PreparedEvaluationInputs::domain_for_program(&probe, &probe_symbols, &[]);
+            PreparedEvaluationInputs::domain_for_program(&probe, &replay_roots, &[]);
         let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probe, &replay_execution)?;
         let checked = super::invocations::CheckedInitializers::prepare(
             &prepared,
@@ -4603,4 +4626,34 @@ fn materialize_value(
     let handle = syntax.expressions.insert(value);
     syntax.expressions.set_source_span(handle, source_span);
     Ok(handle)
+}
+
+/// Constants named by the types a replayed initializer is checked against.
+struct TypeExtentConstants<'program> {
+    program: &'program typed_trees::TypedTrees,
+    visited: Vec<typed_trees::types::TypeReferenceHandle>,
+    constants: Vec<symbols::SymbolHandle>,
+}
+
+impl Extend<symbols::SymbolHandle> for TypeExtentConstants<'_> {
+    fn extend<T: IntoIterator<Item = symbols::SymbolHandle>>(&mut self, symbols: T) {
+        for symbol in symbols {
+            if symbol.is_valid()
+                && self.program.symbols.get(symbol).kind == symbols::SymbolKind::Const
+                && !self.constants.contains(&symbol)
+            {
+                self.constants.push(symbol);
+            }
+        }
+    }
+}
+
+impl typed_trees::references::TypedReferences for TypeExtentConstants<'_> {
+    fn type_reference(&mut self, reference: typed_trees::types::TypeReferenceHandle) -> bool {
+        if self.visited.contains(&reference) {
+            return false;
+        }
+        self.visited.push(reference);
+        true
+    }
 }
