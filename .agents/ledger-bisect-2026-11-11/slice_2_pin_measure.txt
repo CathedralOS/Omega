@@ -1,0 +1,87 @@
+pass/borrows/returned_record_case_field_store_exit rejected 10600ms check-target:macos_arm64
+	cannot establish assignment invariants: partial write enclosure has no exact active-case frontier
+	cannot establish assignment invariants: partial write enclosure has no exact active-case frontier
+	cannot establish assignment invariants: partial write enclosure has no exact active-case frontier
+	cannot establish assignment invariants: partial write enclosure has no exact active-case frontier
+pass/borrows/runtime_reassigned_view_capture_exit rejected 2295ms check-target:macos_arm64
+	cannot establish assignment invariants: source parent type is unavailable
+pass/borrows/runtime_reassigned_view_return_exit checked 3179ms check-target:macos_arm64
+pass/domains/private_case_payload_construction rejected 2080ms check-target:macos_arm64
+	data `Locator` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Locator` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+pass/facts/descriptor_range_exclusive_loan_through_call_result_exit checked 3309ms check-target:macos_arm64
+pass/facts/descriptor_range_exclusive_loan_through_const_name_exit checked 3213ms check-target:macos_arm64
+pass/facts/descriptor_range_exclusive_loan_through_field_exit checked 3280ms check-target:macos_arm64
+pass/facts/descriptor_range_exclusive_loan_through_local_exit checked 3104ms check-target:macos_arm64
+pass/facts/descriptor_range_exclusive_loan_through_match_join_exit checked 2903ms check-target:macos_arm64
+pass/facts/descriptor_range_exclusive_loan_through_other_machine_exit checked 3062ms check-target:macos_arm64
+pass/facts/descriptor_range_exclusive_loan_through_other_state_exit checked 3034ms check-target:macos_arm64
+pass/facts/descriptor_range_exclusive_loan_through_parameter_exit checked 3014ms check-target:macos_arm64
+pass/facts/descriptor_range_exclusive_loan_through_target_body_exit checked 3158ms check-target:macos_arm64
+pass/facts/match_loan_last_use_through_call_result_exit checked 2988ms check-target:macos_arm64
+pass/facts/match_loan_last_use_through_const_name_exit checked 3107ms check-target:macos_arm64
+pass/facts/match_loan_last_use_through_field_exit checked 3050ms check-target:macos_arm64
+pass/facts/match_loan_last_use_through_local_exit checked 3044ms check-target:macos_arm64
+pass/facts/match_loan_last_use_through_match_join_exit checked 3069ms check-target:macos_arm64
+pass/facts/match_loan_last_use_through_other_machine_exit checked 3020ms check-target:macos_arm64
+pass/facts/match_loan_last_use_through_other_state_exit checked 3114ms check-target:macos_arm64
+pass/facts/match_loan_last_use_through_parameter_exit checked 3027ms check-target:macos_arm64
+pass/facts/match_loan_last_use_through_target_body_exit checked 3280ms check-target:macos_arm64
+pass/facts/static_callback_reach_through_field rejected 4754ms check-target:macos_arm64 terminal-inspections:failed
+	data `Carrier` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	inspection main admission: [Diagnostic { severity: Error, message: "data `Carrier` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(32), span: Span { start: 1634, end: 1687 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("static_callback_reach_through_field"), path: "tests/omega/pass/facts/static_callback_reach_through_field/main.omg", line: 55, column: 28 }) }]
+pass/facts/target_family_callback_guarantee/const_name checked 3367ms check-target:macos_arm64
+pass/optimizer/pre_allocation_joint_frontier_exit rejected 3156ms check-target:macos_arm64
+	selected optimizations `SelectedSameBlockCopyI64RemovalV1`, `SelectedRedundantExtensionRemovalV1`, `SelectedAddressOffsetFoldV1`, `SelectedConstantBooleanFoldV1`, `SelectedConstantBranchFoldV1`, `SelectedDeadCompareRemovalV1`, `SelectedRedundantCompareRemovalV1`, `SelectedEquivalentCompareRemovalV1`, `SelectedCopiedCallOperandFoldV1`, `SelectedStoredLoadForwardingV1` failed in the complete verified optimizer pipeline during selected/physical validation: common physical staging failed: SelectedOptimization(PreAllocation(PreAllocationBudgetExceeded { required: OptimizationWorkUsage { rule_evaluations: 41, candidates: 41, validation_steps: 4918568, commits: 2, iterations: 1 }, budget: OptimizationWorkBudget { rule_evaluations: 1000000, candidates: 100000, validation_steps: 4000000, commits: 100000, iterations: 1000000 } })); no alternate compiler route was run and no output was installed
+pass/slices/let_matched_mutable_window checked 3350ms check-target:macos_arm64
+pass/termination/progress_selector_owned_arrival_replacement_helper_exit rejected 684ms check-target:macos_arm64
+	tests/omega/pass/termination/progress_selector_owned_arrival_replacement_helper_exit/main.omg:15:39: a cast names its domains either with entries (`as T +D`) or with the older `as T in D`, not both
+pass/traits/inline_member_seals_target_family_provider rejected 1269ms
+	cannot prove published termination for machine `FamilyConsole::write_byte`: its checked body reaches an operation without a usable termination guarantee; state `FamilyConsole::write_byte::write_byte` statement 0 call 0 targets `NativeProvider::write_byte::write_byte` through `NativeProvider`, summary Some(NoGuarantee); source target `NativeProvider::write_byte::write_byte`, selected contract `<none>`: selected public declaration has no requirement signature
+fail/dependent/case_where_unproved_bound_rejected rejected 1283ms unexpected
+	data `Interval` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/descriptor_range_exclusive_loan_through_call_result_rejected rejected 2264ms expected
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/descriptor_range_exclusive_loan_through_const_name_rejected rejected 2335ms expected
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/descriptor_range_exclusive_loan_through_field_rejected rejected 2251ms expected
+	statement 3 mutates `pair.chosen` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/descriptor_range_exclusive_loan_through_local_rejected rejected 1340ms expected
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/descriptor_range_exclusive_loan_through_match_join_rejected rejected 2257ms expected
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/descriptor_range_exclusive_loan_through_other_machine_rejected rejected 1308ms expected
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+fail/facts/descriptor_range_exclusive_loan_through_other_state_rejected rejected 2306ms expected
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)
+fail/facts/descriptor_range_exclusive_loan_through_parameter_rejected rejected 1295ms expected
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+fail/facts/descriptor_range_exclusive_loan_through_target_body_rejected rejected 2421ms expected
+	statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+	statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+fail/facts/match_loan_last_use_through_call_result_rejected rejected 1205ms expected
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/match_loan_last_use_through_const_name_rejected rejected 1239ms expected
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/match_loan_last_use_through_field_rejected rejected 1238ms expected
+	statement 3 mutates `box` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)
+	statement 3 mutates `box` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/match_loan_last_use_through_local_rejected rejected 1223ms expected
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/match_loan_last_use_through_match_join_rejected rejected 1251ms expected
+	statement 6 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/facts/match_loan_last_use_through_other_machine_rejected rejected 1230ms expected
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+fail/facts/match_loan_last_use_through_other_state_rejected rejected 1259ms expected
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)
+fail/facts/match_loan_last_use_through_parameter_rejected rejected 1244ms expected
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+fail/facts/match_loan_last_use_through_target_body_rejected rejected 2273ms expected
+	statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+	statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+fail/facts/static_callback_reach_through_field rejected 2337ms unexpected
+	data `Carrier` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/traits/dyn_finite_family_narrowed_provider rejected 10150ms unexpected
+	cannot prove requires contract: machine `Primary::code$specialized$a14de39e48d0cdd3$2$5593` state `code` value call to `Item::code` violates required fact `Width == 16 || Width == 32`: the instantiated fact is structurally false (`64 == 16 || 64 == 32`)
+run/ownership/sequence_owned_local_cleanup rejected 2224ms check-target:macos_arm64
+	cannot prove published termination for machine `CleanupConsole::write_byte`: its checked body reaches an operation without a usable termination guarantee; state `CleanupConsole::write_byte::write_byte` statement 0 call 0 targets `ConsoleNativeProvider::write_byte::write_byte` through `ConsoleNativeProvider`, summary Some(NoGuarantee); source target `ConsoleNativeProvider::write_byte::write_byte`, selected contract `<none>`: selected public declaration has no requirement signature

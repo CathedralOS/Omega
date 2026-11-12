@@ -1,0 +1,100 @@
+{
+  "fixed": [
+    "fail/dependent/case_where_unproved_bound_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_call_result_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_const_name_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_field_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_local_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_match_join_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_other_machine_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_other_state_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_parameter_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_target_body_rejected",
+    "fail/facts/match_loan_last_use_through_call_result_rejected",
+    "fail/facts/match_loan_last_use_through_const_name_rejected",
+    "fail/facts/match_loan_last_use_through_field_rejected",
+    "fail/facts/match_loan_last_use_through_local_rejected",
+    "fail/facts/match_loan_last_use_through_match_join_rejected",
+    "fail/facts/match_loan_last_use_through_other_machine_rejected",
+    "fail/facts/match_loan_last_use_through_other_state_rejected",
+    "fail/facts/match_loan_last_use_through_parameter_rejected",
+    "fail/facts/match_loan_last_use_through_target_body_rejected",
+    "fail/facts/static_callback_reach_through_field",
+    "fail/traits/dyn_finite_family_narrowed_provider",
+    "pass/borrows/runtime_reassigned_view_return_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_call_result_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_const_name_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_field_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_local_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_match_join_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_other_machine_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_other_state_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_parameter_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_target_body_exit",
+    "pass/facts/match_loan_last_use_through_call_result_exit",
+    "pass/facts/match_loan_last_use_through_const_name_exit",
+    "pass/facts/match_loan_last_use_through_field_exit",
+    "pass/facts/match_loan_last_use_through_local_exit",
+    "pass/facts/match_loan_last_use_through_match_join_exit",
+    "pass/facts/match_loan_last_use_through_other_machine_exit",
+    "pass/facts/match_loan_last_use_through_other_state_exit",
+    "pass/facts/match_loan_last_use_through_parameter_exit",
+    "pass/facts/match_loan_last_use_through_target_body_exit",
+    "pass/facts/target_family_callback_guarantee/const_name",
+    "pass/slices/let_matched_mutable_window",
+    "pass/termination/progress_selector_owned_arrival_replacement_helper_exit"
+  ],
+  "broken": [
+    "pass/borrows/returned_record_case_field_store_exit",
+    "pass/borrows/runtime_reassigned_view_capture_exit",
+    "pass/domains/private_case_payload_construction",
+    "pass/facts/static_callback_reach_through_field",
+    "pass/optimizer/pre_allocation_joint_frontier_exit",
+    "pass/traits/inline_member_seals_target_family_provider",
+    "run/ownership/sequence_owned_local_cleanup"
+  ],
+  "clusters": [
+    {
+      "count": 2,
+      "witness": "pass/traits/inline_member_seals_target_family_provider",
+      "diag": "cannot prove published termination for machine `FamilyConsole::write_byte`: its checked body reaches an operation without a usable termination guarantee; state `FamilyConsole::write_byte::write_byte` statement 0 call 0 targets `NativeProvider::write_byte::write_byte` through `NativeProvider`, summary Some(NoGuarantee); source target `NativeProvider::write_byte::write_byte`, selected contract `<none>`: selected public declaration has no requirement signature",
+      "members": [
+        "pass/traits/inline_member_seals_target_family_provider",
+        "run/ownership/sequence_owned_local_cleanup"
+      ]
+    },
+    {
+      "count": 2,
+      "witness": "pass/domains/private_case_payload_construction",
+      "diag": "data `Locator` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value",
+      "members": [
+        "pass/domains/private_case_payload_construction",
+        "pass/facts/static_callback_reach_through_field"
+      ]
+    },
+    {
+      "count": 1,
+      "witness": "pass/borrows/returned_record_case_field_store_exit",
+      "diag": "cannot establish assignment invariants: partial write enclosure has no exact active-case frontier",
+      "members": [
+        "pass/borrows/returned_record_case_field_store_exit"
+      ]
+    },
+    {
+      "count": 1,
+      "witness": "pass/borrows/runtime_reassigned_view_capture_exit",
+      "diag": "cannot establish assignment invariants: source parent type is unavailable",
+      "members": [
+        "pass/borrows/runtime_reassigned_view_capture_exit"
+      ]
+    },
+    {
+      "count": 1,
+      "witness": "pass/optimizer/pre_allocation_joint_frontier_exit",
+      "diag": "selected optimizations `SelectedSameBlockCopyI64RemovalV1`, `SelectedRedundantExtensionRemovalV1`, `SelectedAddressOffsetFoldV1`, `SelectedConstantBooleanFoldV1`, `SelectedConstantBranchFoldV1`, `SelectedDeadCompareRemovalV1`, `SelectedRedundantCompareRemovalV1`, `SelectedEquivalentCompareRemovalV1`, `SelectedCopiedCallOperandFoldV1`, `SelectedStoredLoadForwardingV1` failed in the complete verified optimizer pipeline during selected/physical validation: common physical staging failed: SelectedOptimization(PreAllocation(PreAllocationBudgetExceeded { required: OptimizationWorkUsage { rule_evaluations: 41, candidates: 41, validation_steps: 4918568, commits: 2, iterations: 1 }, budget: OptimizationWorkBudget { rule_evaluations: 1000000, candidates: 100000, validation_steps: 4000000, commits: 100000, iterations: 1000000 } })); no alternate compiler route was run and no output was installed",
+      "members": [
+        "pass/optimizer/pre_allocation_joint_frontier_exit"
+      ]
+    }
+  ]
+}

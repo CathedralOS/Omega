@@ -1,0 +1,198 @@
+{
+  "k": 2,
+  "n": 40,
+  "prior_tables": [
+    {
+      "prior_index": 2,
+      "rows": 38,
+      "kind": "pass/run rejected",
+      "diag_sample": "cannot establish assignment invariants: partial write enclosure has no declared type",
+      "witness": "pass/borrows/runtime_reassigned_view_return_exit",
+      "members_listed": [
+        "fail/facts/descriptor_range_exclusive_loan_through_call_result_rejected",
+        "fail/facts/descriptor_range_exclusive_loan_through_const_name_rejected",
+        "fail/facts/descriptor_range_exclusive_loan_through_field_rejected"
+      ],
+      "members_more": 35,
+      "members_recovered": [
+        "fail/facts/descriptor_range_exclusive_loan_through_call_result_rejected",
+        "fail/facts/descriptor_range_exclusive_loan_through_const_name_rejected",
+        "fail/facts/descriptor_range_exclusive_loan_through_field_rejected",
+        "fail/facts/descriptor_range_exclusive_loan_through_local_rejected",
+        "fail/facts/descriptor_range_exclusive_loan_through_match_join_rejected",
+        "fail/facts/descriptor_range_exclusive_loan_through_other_machine_rejected",
+        "fail/facts/descriptor_range_exclusive_loan_through_other_state_rejected",
+        "fail/facts/descriptor_range_exclusive_loan_through_parameter_rejected",
+        "fail/facts/descriptor_range_exclusive_loan_through_target_body_rejected",
+        "fail/facts/match_loan_last_use_through_call_result_rejected",
+        "fail/facts/match_loan_last_use_through_const_name_rejected",
+        "fail/facts/match_loan_last_use_through_field_rejected",
+        "fail/facts/match_loan_last_use_through_local_rejected",
+        "fail/facts/match_loan_last_use_through_match_join_rejected",
+        "fail/facts/match_loan_last_use_through_other_machine_rejected",
+        "fail/facts/match_loan_last_use_through_other_state_rejected",
+        "fail/facts/match_loan_last_use_through_parameter_rejected",
+        "fail/facts/match_loan_last_use_through_target_body_rejected",
+        "pass/borrows/returned_record_case_field_store_exit",
+        "pass/borrows/runtime_reassigned_view_capture_exit",
+        "pass/borrows/runtime_reassigned_view_return_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_call_result_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_const_name_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_field_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_local_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_match_join_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_other_machine_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_other_state_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_parameter_exit",
+        "pass/facts/descriptor_range_exclusive_loan_through_target_body_exit",
+        "pass/facts/match_loan_last_use_through_call_result_exit",
+        "pass/facts/match_loan_last_use_through_const_name_exit",
+        "pass/facts/match_loan_last_use_through_field_exit",
+        "pass/facts/match_loan_last_use_through_local_exit",
+        "pass/facts/match_loan_last_use_through_match_join_exit",
+        "pass/facts/match_loan_last_use_through_other_machine_exit",
+        "pass/facts/match_loan_last_use_through_other_state_exit",
+        "pass/facts/match_loan_last_use_through_parameter_exit",
+        "pass/facts/match_loan_last_use_through_target_body_exit",
+        "pass/slices/let_matched_mutable_window"
+      ],
+      "recovered_count": 40
+    },
+    {
+      "prior_index": 42,
+      "rows": 4,
+      "kind": "fail wrong reason",
+      "diag_sample": "data `Interval` literal cannot prove the default domain: a `requires` fact is not established by",
+      "witness": "fail/dependent/case_where_unproved_bound_rejected",
+      "members_listed": [
+        "fail/dependent/case_where_unproved_bound_rejected",
+        "fail/facts/static_callback_reach_through_field",
+        "pass/domains/private_case_payload_construction",
+        "pass/facts/static_callback_reach_through_field"
+      ],
+      "members_more": 0,
+      "members_recovered": [
+        "fail/dependent/case_where_unproved_bound_rejected",
+        "fail/facts/static_callback_reach_through_field",
+        "pass/domains/private_case_payload_construction",
+        "pass/facts/static_callback_reach_through_field"
+      ],
+      "recovered_count": 4
+    },
+    {
+      "prior_index": 82,
+      "rows": 2,
+      "kind": "pass/run rejected",
+      "diag_sample": "cannot prove published termination for machine `_`: its checked body reaches an operation wit...",
+      "witness": "pass/termination/progress_selector_owned_arrival_replacement_helper_exit",
+      "members_listed": [
+        "pass/traits/inline_member_seals_target_family_provider",
+        "run/ownership/sequence_owned_local_cleanup"
+      ],
+      "members_more": 0,
+      "members_recovered": [
+        "pass/termination/progress_selector_owned_arrival_replacement_helper_exit",
+        "pass/traits/inline_member_seals_target_family_provider",
+        "run/ownership/sequence_owned_local_cleanup"
+      ],
+      "recovered_count": 3
+    },
+    {
+      "prior_index": 122,
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "diag_sample": "authored Operator declaration selection occurrence 568 (`<=` in tests/omega/pass/facts/target_fa",
+      "witness": "pass/facts/target_family_callback_guarantee/const_name",
+      "members_listed": [
+        "pass/facts/target_family_callback_guarantee/const_name"
+      ],
+      "members_more": 0,
+      "members_recovered": [
+        "pass/facts/target_family_callback_guarantee/const_name"
+      ],
+      "recovered_count": 1
+    },
+    {
+      "prior_index": 162,
+      "rows": 1,
+      "kind": "fail wrong reason",
+      "diag_sample": "cannot prove requires contract: machine `Primary::code$specialized$a14de39e48d0cdd3$2$5592` stat",
+      "witness": "fail/traits/dyn_finite_family_narrowed_provider",
+      "members_listed": [
+        "fail/traits/dyn_finite_family_narrowed_provider"
+      ],
+      "members_more": 0,
+      "members_recovered": [
+        "fail/traits/dyn_finite_family_narrowed_provider"
+      ],
+      "recovered_count": 1
+    },
+    {
+      "prior_index": 202,
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "diag_sample": "selected optimizations `SelectedSameBlockCopyI64RemovalV1`, `SelectedRedundantExtensionRemovalV1",
+      "witness": "pass/optimizer/pre_allocation_joint_frontier_exit",
+      "members_listed": [
+        "pass/optimizer/pre_allocation_joint_frontier_exit"
+      ],
+      "members_more": 0,
+      "members_recovered": [
+        "pass/optimizer/pre_allocation_joint_frontier_exit"
+      ],
+      "recovered_count": 1
+    }
+  ],
+  "all_members": [
+    "fail/dependent/case_where_unproved_bound_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_call_result_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_const_name_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_field_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_local_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_match_join_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_other_machine_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_other_state_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_parameter_rejected",
+    "fail/facts/descriptor_range_exclusive_loan_through_target_body_rejected",
+    "fail/facts/match_loan_last_use_through_call_result_rejected",
+    "fail/facts/match_loan_last_use_through_const_name_rejected",
+    "fail/facts/match_loan_last_use_through_field_rejected",
+    "fail/facts/match_loan_last_use_through_local_rejected",
+    "fail/facts/match_loan_last_use_through_match_join_rejected",
+    "fail/facts/match_loan_last_use_through_other_machine_rejected",
+    "fail/facts/match_loan_last_use_through_other_state_rejected",
+    "fail/facts/match_loan_last_use_through_parameter_rejected",
+    "fail/facts/match_loan_last_use_through_target_body_rejected",
+    "fail/facts/static_callback_reach_through_field",
+    "fail/traits/dyn_finite_family_narrowed_provider",
+    "pass/borrows/returned_record_case_field_store_exit",
+    "pass/borrows/runtime_reassigned_view_capture_exit",
+    "pass/borrows/runtime_reassigned_view_return_exit",
+    "pass/domains/private_case_payload_construction",
+    "pass/facts/descriptor_range_exclusive_loan_through_call_result_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_const_name_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_field_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_local_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_match_join_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_other_machine_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_other_state_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_parameter_exit",
+    "pass/facts/descriptor_range_exclusive_loan_through_target_body_exit",
+    "pass/facts/match_loan_last_use_through_call_result_exit",
+    "pass/facts/match_loan_last_use_through_const_name_exit",
+    "pass/facts/match_loan_last_use_through_field_exit",
+    "pass/facts/match_loan_last_use_through_local_exit",
+    "pass/facts/match_loan_last_use_through_match_join_exit",
+    "pass/facts/match_loan_last_use_through_other_machine_exit",
+    "pass/facts/match_loan_last_use_through_other_state_exit",
+    "pass/facts/match_loan_last_use_through_parameter_exit",
+    "pass/facts/match_loan_last_use_through_target_body_exit",
+    "pass/facts/static_callback_reach_through_field",
+    "pass/facts/target_family_callback_guarantee/const_name",
+    "pass/optimizer/pre_allocation_joint_frontier_exit",
+    "pass/slices/let_matched_mutable_window",
+    "pass/termination/progress_selector_owned_arrival_replacement_helper_exit",
+    "pass/traits/inline_member_seals_target_family_provider",
+    "run/ownership/sequence_owned_local_cleanup"
+  ]
+}
