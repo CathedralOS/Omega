@@ -11548,9 +11548,15 @@ pub(crate) use qualification_facts::build_content_facts;
     The facts one flow construction read, captured before it ran. Flow
     construction is a function of these plus declaration data that does not
     change inside the fixed point.
+
+    The semantic plan it read is not copied. Each iteration rebuilds that plan
+    from the declaration plan, which the fixed point never changes, by seeding
+    the entry requirements inferred so far; equal requirements therefore give
+    an equal plan, and the requirements are a few rows where the plan is the
+    largest table in checking.
 */
 struct FlowConstructionInputs {
-    semantic: facts::FactPlan,
+    entry_requirements: checked_trees::ContextualCleanupEntryRequirements,
     borrow: checked_trees::BorrowFacts,
     proof: checked_trees::ProofFacts,
     domains: checked_trees::DomainFacts,
@@ -11561,7 +11567,7 @@ struct FlowConstructionInputs {
 impl FlowConstructionInputs {
     fn capture(prepared: &CheckFacts) -> Self {
         Self {
-            semantic: prepared.semantic.clone(),
+            entry_requirements: prepared.contextual_cleanup.entry_requirements.clone(),
             borrow: prepared.borrow.clone(),
             proof: prepared.proof.clone(),
             domains: prepared.domains.clone(),
@@ -11581,7 +11587,7 @@ struct FlowConstruction {
 impl FlowConstruction {
     fn read_the_same_inputs(&self, prepared: &CheckFacts) -> bool {
         let inputs = &self.inputs;
-        inputs.semantic == prepared.semantic
+        inputs.entry_requirements == prepared.contextual_cleanup.entry_requirements
             && inputs.borrow == prepared.borrow
             && inputs.proof == prepared.proof
             && inputs.domains == prepared.domains
