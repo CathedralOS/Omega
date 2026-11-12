@@ -216,6 +216,9 @@ pub mod flow_effects {
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record)]
+        // Keep the same live subject and acquisition when a helper is selected.
+        // Each row requires suspension permission under its condition; the row
+        // grants no permission and changes none of the other carry obligations.
         pub struct ConditionalCarryRequirement {
             pub state: u32,
             pub statement_index: u64,

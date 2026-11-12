@@ -2091,13 +2091,13 @@ pub(crate) mod operational {
                     if let Some(contract) =
                         program.retained_static_machine_contract(binding.selected)
                     {
-                        let signature = contract.signature();
+                        let bound = signature_operational(program, contract.signature());
                         result |= ContractDependencyWork::parameter(
                             binding.selected,
                             if suspend {
-                                signature.suspends
+                                bound.may_suspend
                             } else {
-                                signature.blocks
+                                bound.may_block
                             },
                         );
                     } else if let Some((machine, _)) =

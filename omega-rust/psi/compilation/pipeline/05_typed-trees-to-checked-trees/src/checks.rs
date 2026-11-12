@@ -7435,7 +7435,7 @@ mod carry {
     }
 
     /*
-        A quiet callback needs no permission to keep a value across suspension.
+        Running a quiet callback does not require suspension permission.
         Keep that permission requirement conditional until callback selection,
         alongside the same exact live subjects and loans. Lifetime and access
         checks still run here; only suspension permission may wait for selection.

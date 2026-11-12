@@ -3868,7 +3868,7 @@ mod routed_scalar_tests {
     }
 
     #[test]
-    fn routed_scalar_specialization_retains_exact_authored_issuer() {
+    fn routed_specialization_retains_guarded_acquisitions_and_exact_issuer() {
         let mut module = module();
         let declaration = module.machines[0].declaration.as_mut().unwrap();
         declaration.callable = TerminalIdentityIndex(2);
@@ -3901,6 +3901,10 @@ mod routed_scalar_tests {
             dependencies: Vec::new(),
             calls: Vec::new(),
         });
+        assert_eq!(
+            decode_module(&encode_module(&module).unwrap()).unwrap(),
+            module
+        );
         {
             use language_semantics::{
                 ScopedPermissionClaimIdentity, ScopedPermissionEventSource, SuspensionValueOrigin,
@@ -3962,6 +3966,58 @@ mod routed_scalar_tests {
             )
             .unwrap();
         }
+        // A captured helper still uses the callback supplied to its method.
+        // The guard names that method slot after the capture's type slot.
+        let capture_commitment = {
+            let application = module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap();
+            application.suspension_dependency.parameters = vec![1];
+            application.conditional_carry[0].condition.parameters = vec![1];
+            let capture_commitment = terminal_psi::template_contract_commitment(
+                [8; 32],
+                2,
+                &application.suspension_dependency,
+                &application.blocking_dependency,
+                &application.conditional_carry,
+            )
+            .unwrap();
+            application.capture = Some(terminal_psi::ClosedReachCapture {
+                template_identity: TerminalIdentityIndex(1),
+                template_base_commitment: [8; 32],
+                template_commitment: capture_commitment,
+                suspension_dependency: application.suspension_dependency.clone(),
+                blocking_dependency: application.blocking_dependency.clone(),
+                conditional_carry: application.conditional_carry.clone(),
+                specialization_commitment: [6; 32],
+                parameter_kinds: vec![0],
+                telescope: vec![terminal_psi::ClosedReachParameter::Type {
+                    argument: "u32".into(),
+                }],
+            });
+            application.template_commitment = terminal_psi::template_contract_commitment(
+                application.template_base_commitment,
+                2,
+                &application.suspension_dependency,
+                &application.blocking_dependency,
+                &application.conditional_carry,
+            )
+            .unwrap();
+            capture_commitment
+        };
+        module.machines[0]
+            .declaration
+            .as_mut()
+            .unwrap()
+            .specialization
+            .as_mut()
+            .unwrap()
+            .capture = Some(terminal_psi::CheckedMachineCapture {
+            template_identity: TerminalIdentityIndex(1),
+            template_commitment: capture_commitment,
+            specialization_commitment: [6; 32],
+        });
         let preserved = module.clone();
         module.machines[0]
             .closed_reach_application
@@ -3977,7 +4033,7 @@ mod routed_scalar_tests {
             .unwrap()
             .conditional_carry[0]
             .condition
-            .parameters = vec![1];
+            .parameters = vec![2];
         assert!(decode_module(&encode_raw(&module).unwrap()).is_err());
         module = preserved.clone();
         module.machines[0]

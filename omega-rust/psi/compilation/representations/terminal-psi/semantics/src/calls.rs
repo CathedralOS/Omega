@@ -1687,7 +1687,9 @@ pub mod closed_reach {
                 validate_operational_contract(
                     capture.template_base_commitment,
                     capture.template_commitment,
-                    &capture.telescope.iter().collect::<Vec<_>>(),
+                    // The capture's template still owns the method binders.
+                    // A closed method supplies those after its capture prefix.
+                    &parameters,
                     &capture.suspension_dependency,
                     &capture.blocking_dependency,
                     &capture.conditional_carry,
