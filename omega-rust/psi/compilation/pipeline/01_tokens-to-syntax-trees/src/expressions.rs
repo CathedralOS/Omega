@@ -1207,6 +1207,23 @@ pub(crate) mod parse_postfix {
         let Ok((first, mut input)) = input.take_identifier() else {
             return Ok(None);
         };
+        if input.at_punctuation(PunctuationKind::Dot) {
+            input = input.take_punctuation(PunctuationKind::Dot, ".")?;
+            let (member, rest) = input.take_identifier()?;
+            return Ok(Some((
+                StaticMachineArgument {
+                    type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+                    path: Box::default(),
+                    application: None,
+                    const_literal: None,
+                    evidence_projection: Some(syntax_trees::expression::EvidenceProjection {
+                        term: first,
+                        member,
+                    }),
+                },
+                rest,
+            )));
+        }
         let mut path = vec![first];
         while input.at_punctuation(PunctuationKind::ColonColon) {
             let after_separator = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
@@ -1255,35 +1272,13 @@ pub(crate) mod parse_postfix {
         {
             return parse_static_type_argument(syntax_trees, input).map(Some);
         }
-        let Ok((first, rest)) = input.take_identifier() else {
+        let Some((argument, rest)) = parse_static_name_selection(syntax_trees, input)? else {
             return try_parse_static_value_argument(syntax_trees, input);
         };
         input = rest;
-        let argument = if input.at_punctuation(PunctuationKind::Dot) {
-            input = input.take_punctuation(PunctuationKind::Dot, ".")?;
-            let (member, rest) = input.take_identifier()?;
-            input = rest;
-            StaticMachineArgument {
-                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
-                path: Box::default(),
-                application: None,
-                const_literal: None,
-                evidence_projection: Some(syntax_trees::expression::EvidenceProjection {
-                    term: first,
-                    member,
-                }),
-            }
-        } else {
-            let Some((argument, rest)) = parse_static_name_selection(syntax_trees, authored)?
-            else {
-                return Ok(None);
-            };
-            input = rest;
-            if input.at_punctuation(PunctuationKind::LeftBracket) || input.at_contextual("in") {
-                return parse_static_type_argument(syntax_trees, authored).map(Some);
-            }
-            argument
-        };
+        if input.at_punctuation(PunctuationKind::LeftBracket) || input.at_contextual("in") {
+            return parse_static_type_argument(syntax_trees, authored).map(Some);
+        }
 
         if input.at_punctuation(PunctuationKind::GreaterGreater)
             && let Some(value) = try_parse_static_value_argument(syntax_trees, authored)?
@@ -1509,6 +1504,34 @@ pub(crate) mod parse_postfix {
     #[cfg(test)]
     mod transaction_tests {
         use super::*;
+
+        #[test]
+        fn static_selection_member_projection_keeps_its_application_owner() {
+            let tokens = source_files_to_tokens::Lexer::new("<Family<u32>::Operations.step>()")
+                .tokenize()
+                .unwrap();
+            let retained = Input::retain_source(&tokens);
+            let mut syntax = SyntaxTrees::new(source::SourceId(7));
+            let input = Input::new(source::SourceId(7), &tokens, &retained, &mut syntax);
+            let (arguments, _) = try_parse_static_machine_arguments(&mut syntax, input)
+                .unwrap()
+                .expect("scoped projection");
+            let [argument] = arguments.as_ref() else {
+                panic!("one operand");
+            };
+            let application = argument.application.as_ref().expect("family application");
+            assert_eq!(argument.path[0].as_str(&syntax), "Family");
+            let member = syntax
+                .expressions
+                .static_member(application.member)
+                .expect("member");
+            let projection = member
+                .evidence_projection
+                .as_ref()
+                .expect("evidence projection");
+            assert_eq!(projection.term.as_str(&syntax), "Operations");
+            assert_eq!(projection.member.as_str(&syntax), "step");
+        }
 
         #[test]
         fn rejected_nested_static_attempts_leave_the_published_prefix_intact() {
