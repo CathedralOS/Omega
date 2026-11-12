@@ -280,7 +280,10 @@ enclosing machine does not export its helpers.
 
 Runtime parameters and locals of enclosing invocations are **not captured**.
 Pass them explicitly, including references, capabilities and lifetime-bearing
-values. Enclosing generic/static declaration bindings remain lexical context;
+values. The same holds for an enclosing machine's named evidence outputs: only
+the declaring machine assigns them. A nested machine that should supply one
+declares its own guarantee, and a terminal call to it discharges the caller's
+guarantee from the callee's guarantee and result case. Enclosing generic/static declaration bindings remain lexical context;
 resolution and specialization retain their exact identities without creating an
 implicit runtime environment. Nested contracts can use that static context and
 their own parameters, not another invocation's local values or live facts by
