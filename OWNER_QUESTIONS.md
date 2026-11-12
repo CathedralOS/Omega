@@ -50,12 +50,10 @@ trust must be deleted or delegated to that owner rather than dressed as an
 Omega guarantee. If the boundary or enforceable claim is genuinely ambiguous,
 promote that narrow ambiguity here before adding machinery.
 
-Bootstrap design exploration is delegated engineering work, not an owner
-question merely because it compares a different implementation or language
-facility. Apply [whole-chain minimization](bootstrap/MINIMIZATION.md): identify
-the next compiler/checker customer and compare complete audit cost. Experiments
-remain non-authoritative; changes to the trust boundary or required assurances
-must be surfaced before relying on them.
+Bootstrap construction follows the owner's [variant mandate](bootstrap/MINIMIZATION.md).
+Architecture exploration and implementation within that mandate are delegated.
+Unresolved changes outside it belong in [OWNER_QUESTIONS_BOOTSTRAP.md](OWNER_QUESTIONS_BOOTSTRAP.md).
+This file continues to own product-language questions.
 
 Name the contracts checked and found silent. A question that cannot cite them
 has not shown its decision is open. Specifications are organized by mechanism
@@ -183,11 +181,16 @@ Build::dependency(builder, core, locator);
 Build::validate(builder, core);
 ```
 
-The shipped Build vocabulary has no `Build::dependency` and names no
-dependency by identifier. A dependency is registered with
-`Build::depend(builder, Source::Path { location: "vendor" })` or
-`Build::depend_as(builder, "vendor", source)`, and is known afterwards by its
-alias bytes. The bundled `core`, `std` and `alloc` are never registered by a
+Premise update (#2530 and the corpus migration that retires `depend*`): the
+shipped vocabulary now registers a dependency as a configured description,
+`Build::dependency(builder, description) -> DependencyRegistration` (and
+`Build::build_dependency` for Build scope), where
+`dependency::from_source(source)` builds the description and
+`dependency::with_alias(&mut description, "vendor")` sets its alias. It still
+names no dependency by identifier; the registration carries no fields, and the
+coordinator knows the dependency by its alias bytes. The returned
+`DependencyRegistration` is one candidate argument for `Build::validate`; this
+note does not choose it. The bundled `core`, `std` and `alloc` are never registered by a
 product at all; the toolchain supplies them. Today
 `omega --check source/library/core/main.omg` is refused with
 `source root ... overlaps toolchain root`, so no command can check a bundled
@@ -196,7 +199,8 @@ library as a subject.
 The question:
 
 - **(a)** Is the argument of `Build::validate` the dependency's alias, as in
-  `Build::validate(builder, "vendor")`, or a new identifier form?
+  `Build::validate(builder, "vendor")`, the returned `DependencyRegistration`,
+  or a new identifier form?
 - **(b)** How is a bundled library named as a subject: by
   `Build::validate(builder, "core")` without registration, by checking the
   library's own directory as a root (lifting the overlap refusal for the
@@ -842,7 +846,147 @@ result case, not the result of a terminal call.
 
 Until answered the three rows are left as recorded and the checker is unchanged.
 
-### Q21 - While both checkers exist, may the lowered-form checker govern a compilation whose Build program and target entry contract only the current checker judges?
+### Q21 - Does a long operator chain count against the parser's expression depth, and what limit does the Rust compiler publish?
+
+Decision name: `expression-tree-depth-provision`.
+
+**Customer.** Generated Omega source, such as a table of several thousand
+terms summed or concatenated in one expression, must end in a named compiler
+outcome, never a host stack overflow. Today that guarantee is bought with
+256 MiB thread stacks: several hundred walkers in Psi 02 to 06 recurse once
+per level of the expression tree, and the stacks are sized so the walkers
+finish before the stack ends. `PIPELINE-ARCHITECTURE-ENFORCEMENT` on
+[TASKS.md](TASKS.md) asks to drop those stacks. Measured on a development
+build, the whole standard library and 1,000 nested parentheses both check with
+every such stack at 8 MiB, so the size is driven by how deep a tree may be,
+not by ordinary programs.
+
+**Gap.** The parser refuses nesting beyond 1,024 levels
+(`MAX_NESTING_DEPTH`; `tests/omega/fail/parser/nesting_exceeds_max_depth`),
+but only parentheses, calls and types count. An operator chain such as
+`a + b + c + ...` is parsed by a loop and builds a tree as deep as the chain
+is long; prefix runs (`~~~x`) and suffix chains (`a.b.c`) do the same. The
+parser's unit tests parse 4,096 prefixes and a 7,167-operator chain on
+purpose. No fixture or sample chains more than 264 operators, and a
+2,000-term sum does not finish checking in ten minutes, but nothing bounds
+the tree those chains build.
+
+[Compiler requests](wiki/spec/build/compiler_request.md#outcomes) defines
+`Incomplete` as "Named private provision exceeded; no verdict on unexamined
+source" and its scalar-resource table already names `parser_expression_depth`
+and `parser_type_depth`, each with limit 128. The same section says "The
+parser capacities are private D budgets over its fixed tables, not Omega
+source limits". It does not say whether the Rust reference compiler publishes
+under those codes, with which limit, or what an expression's depth is for a
+chain.
+
+**Question.**
+
+- **(a)** Is an expression's depth the depth of its tree, so that every
+  operator of a chain, every prefix and every suffix counts one level, the
+  same as a parenthesis?
+- **(b)** When the Rust compiler exceeds its own bound, does it publish
+  `Incomplete` under `parser_expression_depth` with its own selected limit
+  (today's 1,024), or `Reject` as the existing nesting fixture pins?
+- **(c)** Is 128, the table's limit, a ceiling the Rust compiler must also
+  meet? Two corpus fixtures nest 200 and 300 parentheses deep and four chain
+  264 operators.
+
+Until answered the stacks keep their size. A parser change that charges
+chains against the existing 1,024 levels and refuses beyond it is prepared on
+`work/psi-parser-chain-depth` and meets answer (a) with either answer to (b);
+it is held because it changes which programs parse.
+
+### Q22 - May a compile reuse the checked result of an unchanged dependency instead of checking it afresh?
+
+Decision name: `validation-subjects` (reuse of an unchanged dependency's check).
+
+**Customer.** Any application that depends on the bundled `std`. Its ordinary
+`omega` build pays for typing and checking `std` and `core` again on every
+compile, although neither changed. The corpus makes the cost visible: 1,946 of
+its 17,213 recorded rows declare `std` as a path dependency, and they hold
+25.7 of the 52.4 recorded machine-hours.
+
+The owner asked for the bundled library to be checked once and the result kept
+as an artifact, keyed on a digest of the library's content and the compiler,
+which later compiles load instead of checking again. The specification refuses
+that, so it was not built.
+
+**Measured, at `c930a0075d77` on a 4-CPU Linux host.** Twelve `std`-dependent
+fixtures (four each from `pass/`, `fail/` and `run/`), one worker, took 200.1
+seconds: 12.8 to 23.0 seconds each. A fixture that does not depend on `std`
+takes about 5 seconds. Inside those 200 seconds:
+
+- 108 typing passes (Psi 00 to 03) took 74.0 seconds, nine per fixture.
+- 77 checks (Psi 04 to 05) took 93.3 seconds, more than six per fixture.
+- 62 of those checks computed a library slice, the part of the checked program
+  that is not the root package. Only 22 slices were distinct, by the existing
+  key over the library's sources and admissions
+  (`omega-library-slice-v1` in
+  `omega-rust/psi/compilation/psi-compiler/src/source_checking.rs`). The other
+  40 repeated work an earlier fixture in the same process had already done on
+  identical input.
+
+One fixture, `pass/modules/direct_file_import_exit`, shows where a single
+compile spends 23 seconds. It types the 12-file Build program three times and
+a 37-file Build scope four times, checks the 1,092-machine Build program three
+times (one of them reused in process), checks a 2,643-machine program that
+holds the dependency without the fixture, types the 120-file product once
+(3.4 seconds) and checks its 4,823 machines twice under different admissions
+(2.4 and 2.7 seconds).
+
+The library is therefore not checked once per fixture as a separable unit.
+Each check judges one whole program, library and root together, and one
+compile performs several of them. A stored library result would remove the
+40 repeats and the repeated typing, but the two whole-product checks would
+remain unless Psi 05 also learns to accept dependency declarations it did not
+judge in this compile.
+
+**Gap.** These contracts were checked:
+
+- [Validation subjects](wiki/spec/build/validation_subjects.md#what-this-rule-does-not-do):
+  *"No result is reused: a consumer checks every dependency declaration it
+  needs afresh, and the full-package gate is a claim about the library, not
+  evidence a consumer consumes in place of checking."* This refuses the
+  requested artifact outright, and equally an in-process store shared between
+  the corpus runner's fixtures.
+- [Publication and separate consumption](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption):
+  *"Internal stages may reuse their trusted immutable outputs without repeating
+  their checking. Changed bytes or a different producing process require a new
+  admission decision."* It permits reuse inside one compile and reuse of a
+  trusted producer's published Psi artifact. A dependency consumed as source
+  is neither.
+- [Products, reuse, and native harnesses](wiki/spec/build/testing.md#products-reuse-and-native-harnesses):
+  *"Reuse source preparation and compatible checked/lowered representations."*
+  It covers the roots of one build, not two compiles.
+- [Orchestration](wiki/spec/build/validation_subjects.md#orchestration):
+  *"The saving comes from scheduling"*. The sanctioned saving is to check only
+  the dependency declarations the subject demands. That is `VALIDATION-SUBJECTS`
+  in `TASKS.md`, whose change of the consumer default waits on the
+  `Build::validate` naming question above.
+
+**Question.**
+
+- **(a)** Does "no result is reused" stand for every compile, including the
+  corpus runner and the sample gate? Then the routes to a cheaper fixture are
+  the two existing board items: `VALIDATION-SUBJECTS` (check only the demanded
+  closure) and `PIPELINE-ARCHITECTURE-ENFORCEMENT` (run Build and Psi 00 to 07
+  once per compile, which the measurements above bound at roughly a third of a
+  fixture's time).
+- **(b)** Or may a compile accept a dependency's retained check when the key
+  proves the input identical: the same source bytes, package identities,
+  admissions and compiler? Then say where the result may live (one process, or
+  a file under the build directory), whether typed trees count as a result or
+  as source preparation, and whether `--verify` bypasses it.
+- **(c)** Or is the bundled library to be consumed as a published Psi artifact
+  from a trusted producer, under the admission rule quoted above, rather than
+  as source? Then the toolchain needs a producer and a host authorization for
+  it, and consumers stop registering `source/library/std` as a path dependency.
+
+Until answered no dependency check is reused across compiles and nothing was
+changed in the compiler.
+
+### Q23 - While both checkers exist, may the lowered-form checker govern a compilation whose Build program and target entry contract only the current checker judges?
 
 Decision name: `lowered-route-governance-scope`.
 

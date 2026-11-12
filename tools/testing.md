@@ -410,6 +410,17 @@ per-fixture compile time — against `tests/omega/corpus_outcomes.txt`. A diff
 means observable behavior moved; `--record` re-pins the golden when the
 movement is intended.
 
+Pull requests no longer edit that file. The post-merge check publishes the
+ledger it measured as the asset `corpus_outcomes.txt` of the release
+`corpus-ledger`. When a copy is at `build/corpus-ledger/corpus_outcomes.txt`,
+`cargo xtask corpus` compares with it and says so; otherwise it compares with
+the file in the repository. `--record` and `--golden` are unaffected. Fetch
+the copy with:
+
+```bash
+gh release download corpus-ledger --pattern corpus_outcomes.txt --dir build/corpus-ledger --clobber
+```
+
 ```bash
 python3 tools/corpus_gate.py --filter facts/saved_observation_snapshot   # one fact: 105 fixtures
 python3 tools/corpus_gate.py --filter fail/contracts/scalar_copy_guard  # one behavior

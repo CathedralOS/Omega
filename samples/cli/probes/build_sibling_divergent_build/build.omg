@@ -4,8 +4,14 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "build_sibling_divergent_build");
-    Build::depend_as(builder, "a", Source::Path { location: "sibling_a" });
-    Build::depend_as(builder, "c", Source::Path { location: "sibling_c" });
-    Build::depend_as(builder, "e", Source::Path { location: "sibling_e" });
+    let mut a_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "sibling_a" });
+    dependency::with_alias(&mut a_dependency, "a");
+    let a_registration: DependencyRegistration = Build::dependency(builder, a_dependency);
+    let mut c_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "sibling_c" });
+    dependency::with_alias(&mut c_dependency, "c");
+    let c_registration: DependencyRegistration = Build::dependency(builder, c_dependency);
+    let mut e_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "sibling_e" });
+    dependency::with_alias(&mut e_dependency, "e");
+    let e_registration: DependencyRegistration = Build::dependency(builder, e_dependency);
     builder.freestanding = true;
 }

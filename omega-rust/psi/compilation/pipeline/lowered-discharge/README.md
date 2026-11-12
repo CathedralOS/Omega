@@ -602,6 +602,28 @@ literals, whose denotation is `Falsehood`, and the goal follows
 ([integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules):
 "closes an impossible arrival without pruning that arrival").
 
+Two orders between values with no literal contradict through the guard's own
+value instead. After `requires low <= high`, the arm of `high < low` knows
+`c == true`, where `c` is the comparison's result. Chaining the two orders
+reaches only `high < high`, and the kernel calls a relation false only between
+two literals. But `c == false` denotes `low <= high` under `c`'s result
+equation, and that is known. So `c == false` is proved
+(`ValueEqualityTransport`), `true == c` and `c == false` give `true == false`
+(`EqualitySymmetry`, `EqualityTransitivity`), and the denotation of that is
+`Falsehood`. The negated guard's denotation may be any goal the direct search
+proves, not only a known fact: `requires low < high` rules out `high < low`
+by weakening. No kernel rule was added for this, and the mathematical core
+judges the whole certificate.
+
+An exact remainder by a divisor that is not a literal takes a bound from its
+dividend: it lies between zero and the dividend, so `-7 <= value <= 7` gives
+`-7 <= value % divisor <= 7` once `divisor` is proved positive or below
+minus one (`remainder_within_dividend`). This is the one step here that
+rests on a provisional kernel rule: the kernel trusts the statement
+(`IntegerRemainderWithinDividend` in
+[classicality](../../../../../wiki/spec/proofs/classicality.md)), and its
+mathematical core does not derive it.
+
 `verify_obligation` then decides the whole certificate. Its acceptance records
 whether the mathematical core judged it as well. Most certificates are
 `Judged`; a discreteness step from a transported strict guard (`a < 10` to
@@ -615,19 +637,18 @@ Each of these is true in the programs that need it and has no derivation in
 the rules of [integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md),
 so the obligation is `Unproved`. None is worked around here.
 
-- *A contradiction between two values with no literal.* `low <= high`
-  under the guard `high < low` chains to `high < high`. A closed false
-  relation has the denotation `Falsehood` only between two literals, so
-  nothing follows. Required automatic discharge counts "contradiction of
-  an unreachable path" among order atoms as floor
-  (`pass/contracts/contradictory_relational_branch_exit`).
-- *A quotient or remainder by a divisor that is not a literal.* The
-  endpoint chain replays a divide or remainder only by a literal or
-  landed divisor. `value / divisor` with `divisor >= 2`, and
-  `value % divisor` bounded by the dividend's own bounds, get only what
-  the relational unsigned remainder form gives (`result < divisor`)
-  (`pass/arithmetic/runtime_full_width_unsigned_quotient_exit`,
-  `runtime_bounded_dividend_remainder_exit`).
+- *A contradiction between two order facts when neither is a taken guard.*
+  Two bare facts `low <= high` and `high < low` (two `requires`, or a
+  split alternative against a requirement) chain to `high < high`, and no
+  rule calls that false without a literal. It would take irreflexivity of
+  `<` on a value as a kernel rule. None of the programs in
+  [route one measures](../../../../../wiki/drafts/designs/route_one_measures.md#2-verdict-agreement)
+  needs it: a guard that contradicts an order is closed through the
+  guard's value, above.
+- *A quotient by a divisor that is not a literal.* The endpoint chain
+  replays a divide only by a literal or landed divisor, so `value / divisor`
+  with `divisor >= 2` gets no bound
+  (`pass/arithmetic/runtime_full_width_unsigned_quotient_exit`).
 - *A quotient related to its dividend.* `value / 2 <= value` is a
   relation between two values; the chain maps literal endpoints only
   (`run/contracts/scalar_crash_route_exit`).

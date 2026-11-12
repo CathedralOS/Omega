@@ -2272,17 +2272,8 @@ pub(crate) mod wire_schema_queries {
                 )
                 .unwrap_or(symbol);
             let declaration = self.symbols.authored_origin(generic);
-            declaration.is_valid()
-                && self.symbols.name(declaration) == "FixedVec"
-                && self
-                    .symbols
-                    .symbol_source_span(declaration)
-                    .and_then(|span| self.symbols.source_file(span))
-                    .is_some_and(|source| {
-                        source.origin == source::SourceOrigin::Toolchain
-                            && source.path.strip_prefix(&source.package_root).ok()
-                                == Some(std::path::Path::new("fixed_vec.omg"))
-                    })
+            self.symbols.core_vocabulary(declaration)
+                == Some(language_core::core_vocabulary::CoreVocabulary::FixedVec)
         }
 
         fn named_type_reference_name(

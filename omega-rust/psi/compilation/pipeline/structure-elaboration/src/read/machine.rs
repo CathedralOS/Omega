@@ -981,7 +981,11 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::Assignment(assignment) => self.assignment(id, &slots, assignment)?,
                 StatementNode::Call(call) => {
-                    Statement::Evaluate(self.call_statement(id, &slots, call)?)
+                    let called = self.call_statement(id, &slots, call)?;
+                    if !call.discards_result {
+                        undiscarded(id, &called)?;
+                    }
+                    Statement::Evaluate(called)
                 }
                 StatementNode::Expression(expression) => {
                     let expected = if last {
@@ -1011,7 +1015,10 @@ impl<'t> Program<'t> {
                                 target: Target::Value(expression),
                             }
                         }
-                        (false, _) | (true, None) => Statement::Evaluate(expression),
+                        (false, _) | (true, None) => {
+                            undiscarded(id, &expression)?;
+                            Statement::Evaluate(expression)
+                        }
                     }
                 }
                 StatementNode::LocalData(local)
@@ -1335,4 +1342,20 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
             }
         }
     }
+}
+
+/// A statement evaluated for effect leaves no value behind. One that has a
+/// value and is not the machine's final value is a defect the route hands
+/// back, never a statement it reads past. `wiki/spec/language/effects.md`:
+/// "A non-Unit call result cannot be silently discarded. Intentional discard
+/// is `_ = call();`".
+fn undiscarded(id: MachineId, statement: &Expression) -> Checked<()> {
+    if statement.result.is_some() {
+        return Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Statement("expression statement that discards its value"),
+        ));
+    }
+    Ok(())
 }

@@ -165,6 +165,25 @@ in premise closure. A `Truth` child, an unrelated positive value, or a signed
 carrier cannot establish this relational form. Formation of the remainder and
 availability of its result remain separate verifier obligations.
 
+For an exact remainder whose divisor is a value that no literal or landing
+fixes, the witness may root at the dividend and cite the one canonical
+`result = remainder(dividend, divisor)` definition with no landing. Its child
+is the conjunction of one nonstrict literal bound on the dividend and one
+divisor premise, in that order: `0 < divisor`, or `divisor < -1` on a signed
+carrier. The conclusion is `result <= max(U, 0)` from `dividend <= U`, or
+`min(L, 0) <= result` from `L <= dividend`: a truncating remainder is zero
+or has its dividend's sign and is no larger in magnitude. It holds for
+signed and unsigned fixed carriers of any width, and its endpoints are the
+dividend's or zero, so no endpoint arithmetic can overflow. The divisor
+premise excludes a zero divisor and every divisor of minus one, and with
+that signed `MIN % -1`. A strict dividend bound, `0 <= divisor`,
+`divisor < 0`, `divisor <= -1`, a premise about another value, a `Truth`
+child, a Wrapping or Saturating remainder, or a dividend equal to the divisor
+or the result rejects. An acceptance records this form as
+`IntegerRemainderWithinDividend`, a
+provisional row of the [certificate rules](../proofs/classicality.md), not as
+`IntegerAffineBound`.
+
 An additive translation word also admits a relative comparison with its own
 root. Its child proves `root <= root` together with every independently
 reconstructed no-wrap condition for the word’s Wrapping steps. The checked

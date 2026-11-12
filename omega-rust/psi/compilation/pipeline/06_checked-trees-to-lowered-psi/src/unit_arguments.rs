@@ -895,6 +895,7 @@ pub(crate) mod attached_unit {
                             } else {
                                 selected
                             };
+                            let recorded = operations.completed_cleanup_frontiers.len();
                             self.partition_node(
                                 identities, &leaf.root, selected, None, 0, values, next_value,
                                 next_block, next_edge, operations,
@@ -904,6 +905,38 @@ pub(crate) mod attached_unit {
                             } else {
                                 end
                             };
+                            // One root can be split between partitions: the fields a
+                            // conditional move left behind and the moved field itself.
+                            // A scope this tree closed is not finished while a later
+                            // action of the sequence still disposes storage inside it,
+                            // so it must not be recorded as a completed value.
+                            let later = &regions[position..];
+                            let unfinished = |completion: &crate::emission::selected_continuations::CompletedCleanupFrontier| {
+                                later.iter().any(|region| {
+                                    let inside = |place, path: &[terminal_psi::StructuralPathSegment]| {
+                                        place == completion.region.place
+                                            && path.starts_with(&completion.region.path)
+                                    };
+                                    // Retiring the home follows its completed value.
+                                    let retires = matches!(
+                                        region.action.physical(),
+                                        Some(TerminalAffineCleanupAction::RetireHome(_))
+                                    );
+                                    let selected = region
+                                        .selected_region
+                                        .as_ref()
+                                        .is_some_and(|selected| inside(selected.place, &selected.path));
+                                    !retires
+                                        && (selected
+                                            || inside(region.action.place(), region.action.path()))
+                                })
+                            };
+                            let fresh = operations.completed_cleanup_frontiers.split_off(recorded);
+                            operations.completed_cleanup_frontiers.extend(
+                                fresh
+                                    .into_iter()
+                                    .filter(|completion| !unfinished(completion)),
+                            );
                         } else {
                             let end = position
                                 + regions[position..]

@@ -1,7 +1,7 @@
 use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "private_callback_fragments_incomplete_source");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
     Build::bind(builder, macos_arm64::ProgramEntry, start);
     Build::bind<Registrar::register>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol { install_name: "libomega_descriptor_fixture.dylib", symbol: "_timer_register" }

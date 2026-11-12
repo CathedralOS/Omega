@@ -26,7 +26,7 @@ Three more productions of the same layer, each with the same sentence, premise a
 | by-value operands | [`by_value/main.omg`](by_value/main.omg) | [`by_value/invalid/main.omg`](by_value/invalid/main.omg) | the operands are `[copy]` data passed by value, `Pod::describe(left, right)` |
 | private helper | [`private_helper/main.omg`](private_helper/main.omg) | [`private_helper/invalid/main.omg`](private_helper/invalid/main.omg) | `describe` delegates to a package-private `Wrapped::widen`; the twin removes `public` from `describe` and keeps every operand |
 
-The row has no root `main.omg`; `local` is its canonical witness. Every place and production is a two-package project: the application and its `lib/` dependency, bound by `Build::depend_as(builder, "lib", …)`.
+The row has no root `main.omg`; `local` is its canonical witness. Every place and production is a two-package project: the application and its `lib/` dependency, bound by a `Build::dependency` registration whose description `dependency::with_alias` names `"lib"`.
 
 ## Defect and repair
 

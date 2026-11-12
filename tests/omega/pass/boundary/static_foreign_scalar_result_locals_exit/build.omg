@@ -3,7 +3,7 @@ use omega::language::core::external_binding;
 // selects the checked timespec adapter and binds only its raw read.
 machine build(builder: &mut Build) {
     Build::application(builder, "static_foreign_scalar_result_locals_exit");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
     Build::bind<ElapsedClock::now>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"

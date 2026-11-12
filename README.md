@@ -452,7 +452,7 @@ The check will extend beyond the diagram:
 - **Check independently built code.** Component evidence will account for all entries
     and outgoing authority, including callbacks, cleanup, and selected providers.
     An independent consumer will check it without merging the services' source trees.
-- **Run the checker as ordinary build code.** A `build_depend` will grant library
+- **Run the checker as ordinary build code.** A `Build::build_dependency` will grant library
     access to the build, not the application. The helper will receive captured
     component inputs and a linear output obligation, not deployment credentials.
 - **Enforce the actual connections.** The installer will receive the owner's
