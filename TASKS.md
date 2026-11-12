@@ -85,7 +85,7 @@ Write each item so any agent can start from it alone: current state, files and e
   Acceptance: two-target builds run Psi `00–07` and Build once and Omega `00–09` once per target with clean boundary guards.
 
 - **VALIDATION-SUBJECTS.** Implement [validation subjects](wiki/drafts/designs/validation_subjects.md): check the selected packages in full and dependencies only through their required semantic closure.
-  - First give the toolchain release gate an explicit full-package check of each bundled library; a sample corpus does not count.
+  - **OWNER-BLOCKED** on `validation-subjects` (`Build::validate` naming) in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md): give the toolchain release gate an explicit full-package check of each bundled library once the owner decides how a bundled library becomes a subject; a sample corpus does not count.
   - Carry the subject set through orchestration, discover dependencies while checking (types, data, proofs, cleanup, conformances, bindings), keep deferred bodies in name resolution; add `Build::validate`, the all-members workspace default, and full validation of the admitted revision.
   Acceptance: the eight cases in the draft pass; a one-line `omega --check` no longer body-checks unreached library machines and its measured Psi 05 time drops accordingly.
 
