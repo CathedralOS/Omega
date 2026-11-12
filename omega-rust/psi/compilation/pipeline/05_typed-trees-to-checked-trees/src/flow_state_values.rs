@@ -576,6 +576,28 @@ pub(super) mod lexical_regions {
             && captured.iter().all(|value| {
                 value.state_symbol == state.symbol && value.statement_index == call.statement_index
             });
+        if std::env::var("OMEGA_DBG_ARR").is_ok() {
+            eprintln!(
+                "ARRDBG auth-parts from={} to={} site={} target_ok={} origin={:?} roster={} covers={} nested={} receiver={} counts={}/{} same_stmt={}",
+                machine.name,
+                owner.name,
+                site.is_some(),
+                site.is_some_and(|site| site.target_symbol(program) == destination.symbol),
+                owner.lexical_region_origin.map(|origin| (program.symbols.name(origin.machine).to_owned(), origin.state == state.symbol)),
+                site.is_some_and(|site| validation::call_site_argument_expressions(program, &site)
+                    .iter()
+                    .copied()
+                    .eq(captured.iter().map(|value| value.expression))),
+                super::lexical_scope_covers_call(program, machine.symbol, owner.symbol),
+                super::lexically_nested_machine(program, owner.symbol),
+                call.has_receiver,
+                captured.len(),
+                parameters.len(),
+                captured.iter().all(|value| {
+                    value.state_symbol == state.symbol && value.statement_index == call.statement_index
+                }),
+            );
+        }
         let mut values = Vec::new();
         let mut bounds = Vec::new();
         let mut fields = Vec::new();
