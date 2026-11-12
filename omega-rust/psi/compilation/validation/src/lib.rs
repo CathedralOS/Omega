@@ -707,12 +707,7 @@ pub mod product_entries {
     }
     pub use root_bindings::collect_root_bindings;
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct RootBinding {
-        pub slot: String,
-        pub implementation: String,
-        pub implementation_symbol: symbols::SymbolHandle,
-    }
+    pub use language_semantics::declaration_selection::RootBinding;
 
     pub fn validate_source_compatibility(
         typed: &TypedTrees,

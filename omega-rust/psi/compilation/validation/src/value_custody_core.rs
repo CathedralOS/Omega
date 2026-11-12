@@ -10617,11 +10617,29 @@ pub mod storage_contents {
                 .collect::<Vec<_>>();
             (data, substitutions)
         };
+        // A boundary-opaque declaration authors no fields. Once the build
+        // selects its representation, its contents are those of the selected
+        // carrier, so every contents question about the opaque value is
+        // answered from that carrier here, in the one place that walks
+        // contents. The declaration's own multiplicity and cleanup selection
+        // still apply below: the carrier supplies the shape, the opaque
+        // declaration keeps deciding whether a value may be copied.
+        let selected_carrier = (data.supply_mode
+            == language_semantics::DataSupplyMode::BoundaryOpaque)
+            .then(|| {
+                representation_selections::selection_for_opaque(
+                    program.opaque_representation_selections(),
+                    data.symbol,
+                )
+            })
+            .flatten()
+            .map(|selection| selection.carrier_type());
         // An opaque declaration's empty field roster says nothing about hidden
         // references. The sealed toolchain activation claim is the exception:
         // its backing is activation-local, and the activation storage contract
         // owns every loan of it, so no caller place hides behind the claim.
         if requirement == ContentsRequirement::BorrowFree
+            && selected_carrier.is_none()
             && data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
             && !crate::value_custody::activation_storage::is_toolchain_activation_claim(
                 program, data,
@@ -10679,16 +10697,21 @@ pub mod storage_contents {
             resolve(program, field.type_reference, &substitutions, requirement)
                 .is_some_and(|field| check_contents(program, &field, active, complete, requirement))
         };
-        let supported = program
-            .data_members(data)
-            .iter()
-            .all(|member| match member {
-                DataMember::Field(field) => check_field(field),
-                DataMember::Variant(variant) => program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .all(&mut check_field),
-            });
+        let supported = match selected_carrier {
+            Some(carrier) => resolve(program, carrier, &[], requirement).is_some_and(|carrier| {
+                check_contents(program, &carrier, active, complete, requirement)
+            }),
+            None => program
+                .data_members(data)
+                .iter()
+                .all(|member| match member {
+                    DataMember::Field(field) => check_field(field),
+                    DataMember::Variant(variant) => program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .all(&mut check_field),
+                }),
+        };
         active.pop();
         if supported {
             complete.push(resolved.clone());

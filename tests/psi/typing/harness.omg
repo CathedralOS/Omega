@@ -665,15 +665,14 @@ machine TypingHarness::builtin_tag(value: BuiltinType) -> u8 {
         BuiltinType::F32 -> tag(10)
         BuiltinType::F64 -> tag(11)
         BuiltinType::Slice -> tag(12)
-        BuiltinType::Result -> tag(13)
-        BuiltinType::SyscallResult -> tag(14)
-        BuiltinType::Terminal -> tag(15)
-        BuiltinType::Never -> tag(16)
-        BuiltinType::UInt -> tag(17)
-        BuiltinType::Int -> tag(18)
-        BuiltinType::AtomicBool -> tag(19)
-        BuiltinType::AtomicU32 -> tag(20)
-        BuiltinType::AtomicU64 -> tag(21)
+        BuiltinType::SyscallResult -> tag(13)
+        BuiltinType::Terminal -> tag(14)
+        BuiltinType::Never -> tag(15)
+        BuiltinType::UInt -> tag(16)
+        BuiltinType::Int -> tag(17)
+        BuiltinType::AtomicBool -> tag(18)
+        BuiltinType::AtomicU32 -> tag(19)
+        BuiltinType::AtomicU64 -> tag(20)
     }
 
     machine tag(number: u8) -> u8 {
