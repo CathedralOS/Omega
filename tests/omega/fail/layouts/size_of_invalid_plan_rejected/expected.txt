@@ -1,0 +1,1 @@
+alignment 0 is not a positive power of two
