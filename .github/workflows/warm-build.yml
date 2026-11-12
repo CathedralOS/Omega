@@ -12,7 +12,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  # The build is published to ghcr.io/cathedralos/omega-warm-build.
+  packages: write
 
 # One run at a time. GitHub keeps only the newest waiting push, so a busy main
 # still publishes instead of cancelling every build before it finishes.
@@ -34,13 +36,12 @@ jobs:
     env:
       HOME: /root
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TAG: warm-build-linux-x86_64
       SLOT: ${{ matrix.slot }}
     steps:
       - name: Install build tools
         run: |
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd gh
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
           echo "/root/.cargo/bin" >> "$GITHUB_PATH"
       - name: Check out the commit at the session path
@@ -68,17 +69,4 @@ jobs:
         run: |
           cd "$BUILD_DIR"
           bash tools/warm_build.sh pack "$SLOT" /tmp/warm
-          asset=$(sed -n 's/^asset=//p' "/tmp/warm/warm-build-$SLOT.txt")
-          # The archive goes up before the manifest that names it, so a session
-          # never reads a manifest whose archive is not there yet.
-          gh release upload "$TAG" "/tmp/warm/$asset" --clobber --repo "${{ github.repository }}"
-          gh release upload "$TAG" "/tmp/warm/warm-build-$SLOT.txt" --clobber --repo "${{ github.repository }}"
-          # Drop this slot's superseded archives and the retired v1 format's files.
-          gh release view "$TAG" --repo "${{ github.repository }}" --json assets --jq '.assets[].name' |
-            grep -E "^target-$SLOT-|^target-[0-9a-f]{12}\.tar|^warm-build\.json$" | grep -vx "$asset" |
-            while read -r old; do
-              gh release delete-asset "$TAG" "$old" --yes --repo "${{ github.repository }}"
-            done
-          # The description is written here so it never names a retired tool.
-          gh release edit "$TAG" --repo "${{ github.repository }}" --notes \
-            "Prebuilt omega target directories for cloud sessions, replaced on every push to main by .github/workflows/warm-build.yml. A session restores one with tools/warm_build.sh; the warm-build-<slot>.txt manifests name the commit each archive was built from."
+          bash tools/warm_build.sh publish "$SLOT" /tmp/warm
