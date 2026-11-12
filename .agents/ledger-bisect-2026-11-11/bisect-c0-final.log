@@ -1,0 +1,355 @@
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 385 revisions left to test after this (roughly 9 steps)
+[fe8304b0f3ce6c23c37a26368767255b6bb0cf50] compiler: preserve nested C-layout constants across closure checks (#1287)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 192 revisions left to test after this (roughly 8 steps)
+[164121a7b7fb90d2273131445bc9207252f9e079] library: back the Windows time and filesystem raw requirements with Build rows (#1066)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 96 revisions left to test after this (roughly 7 steps)
+[c2bf4573a2ba029214ebea6f9ba3cb6657fbcb29] psi: preserve selected const contracts and prepared execution (#1205)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 48 revisions left to test after this (roughly 6 steps)
+[9e22144baca11c2dc04873e945208d5ab620e953] omega: share derived terminal code across equal product sources (#1250)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 23 revisions left to test after this (roughly 5 steps)
+[1a145e34bda10bfda8e8f8be3342c5a6897abb9a] psi: construct closed witnesses through arena continuations (#1228)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 11 revisions left to test after this (roughly 4 steps)
+[abba4104f9024ad58c839bf5d57a0a995a12ea28] repo: move remaining macOS jobs to supported ARM image (#1231)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 5 revisions left to test after this (roughly 3 steps)
+[c0b334362da0ce997052dc277a639af7471555e9] docs: cut measurements to summaries and stop raw dumps returning (#1243)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 2 revisions left to test after this (roughly 2 steps)
+[2d8374906b27f8ec880426f0e5e650cbd0a26861] psi: denote Boolean scalars on default stacks (#1246)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 1 step)
+[e9f492c5ccc6f84731ce0e65eb9a9d4f56fdb067] samples: preserve scalar issuer routes through Build selection (#1241)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[b7e951cdab51dda4e199f3fd33c53a0408fe72db] psi: restore parent predicates through scalar view stores (#1242)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+b7e951cdab51dda4e199f3fd33c53a0408fe72db is the first bad commit
+commit b7e951cdab51dda4e199f3fd33c53a0408fe72db
+Author: BrilliantWasp <brilliantwasp@proton.me>
+Date:   Sun Nov 1 17:12:51 2026 +0000
+
+    psi: restore parent predicates through scalar view stores (#1242)
+    
+    * psi: restore parent predicates through scalar view stores
+    
+    * tests: record scalar view restoration source and engine outcomes
+    
+    * docs: clarify measured scalar view restoration scope
+    
+    ---------
+    
+    Co-authored-by: Zachary Canann <zcanann@Zacharys-Mac-mini.local>
+
+ TASKS.md                                           |  24 +-
+ omega-rust/psi/compilation/checking/README.md      |  12 +
+ .../contract_entailment/stored_predicates.rs       |  12 +-
+ .../structural_judgment/normal_returns.rs          |  15 +-
+ .../structural_judgment/storage_effects.rs         |  43 +++-
+ .../storage_effects/entry_reads.rs                 | 103 ++++++++-
+ .../src/proof_contracts/default_domains.rs         |   5 +-
+ .../default_domains/assignment_windows.rs          | 249 +++++++++++++++++----
+ .../default_domains/post_store_predicates.rs       |  18 +-
+ .../cli/facts/recast_parent_restoration/README.md  | 116 ++++++++++
+ .../call_result/build.omg                          |   7 +
+ .../call_result/expected_interpreter_exit.txt      |   1 +
+ .../call_result/expected_native_exit.txt           |   1 +
+ .../call_result/invalid/build.omg                  |   7 +
+ .../call_result/invalid/expected.txt               |   2 +
+ .../call_result/invalid/main.omg                   |  37 +++
+ .../recast_parent_restoration/call_result/main.omg |  37 +++
+ .../recast_parent_restoration/const_name/build.omg |   7 +
+ .../const_name/expected_interpreter_exit.txt       |   1 +
+ .../const_name/expected_native_exit.txt            |   1 +
+ .../const_name/invalid/build.omg                   |   7 +
+ .../const_name/invalid/expected.txt                |   2 +
+ .../const_name/invalid/main.omg                    |  37 +++
+ .../recast_parent_restoration/const_name/main.omg  |  37 +++
+ .../controls/changed_end/build.omg                 |   7 +
+ .../controls/changed_end/expected.txt              |   2 +
+ .../controls/changed_end/main.omg                  |  20 ++
+ .../controls/preserved_end/build.omg               |   7 +
+ .../preserved_end/expected_interpreter_exit.txt    |   1 +
+ .../preserved_end/expected_native_exit.txt         |   1 +
+ .../controls/preserved_end/main.omg                |  19 ++
+ .../controls/unrestored/build.omg                  |   7 +
+ .../controls/unrestored/expected.txt               |   2 +
+ .../controls/unrestored/main.omg                   |  18 ++
+ .../recast_parent_restoration/field/build.omg      |   7 +
+ .../field/expected_interpreter_exit.txt            |   1 +
+ .../field/expected_native_exit.txt                 |   1 +
+ .../field/invalid/build.omg                        |   7 +
+ .../field/invalid/expected.txt                     |   2 +
+ .../field/invalid/main.omg                         |  38 ++++
+ .../facts/recast_parent_restoration/field/main.omg |  38 ++++
+ .../recast_parent_restoration/local/build.omg      |   7 +
+ .../local/expected_interpreter_exit.txt            |   1 +
+ .../local/expected_native_exit.txt                 |   1 +
+ .../local/invalid/build.omg                        |   7 +
+ .../local/invalid/expected.txt                     |   2 +
+ .../local/invalid/main.omg                         |  36 +++
+ .../facts/recast_parent_restoration/local/main.omg |  36 +++
+ .../recast_parent_restoration/match_join/build.omg |   7 +
+ .../match_join/expected_interpreter_exit.txt       |   1 +
+ .../match_join/expected_native_exit.txt            |   1 +
+ .../match_join/invalid/build.omg                   |   7 +
+ .../match_join/invalid/expected.txt                |   2 +
+ .../match_join/invalid/main.omg                    |  38 ++++
+ .../recast_parent_restoration/match_join/main.omg  |  38 ++++
+ .../other_machine/build.omg                        |   7 +
+ .../other_machine/expected_interpreter_exit.txt    |   1 +
+ .../other_machine/expected_native_exit.txt         |   1 +
+ .../other_machine/invalid/build.omg                |   7 +
+ .../other_machine/invalid/expected.txt             |   2 +
+ .../other_machine/invalid/main.omg                 |  38 ++++
+ .../other_machine/main.omg                         |  38 ++++
+ .../other_state/build.omg                          |   7 +
+ .../other_state/expected_interpreter_exit.txt      |   1 +
+ .../other_state/expected_native_exit.txt           |   1 +
+ .../other_state/invalid/build.omg                  |   7 +
+ .../other_state/invalid/expected.txt               |   2 +
+ .../other_state/invalid/main.omg                   |  38 ++++
+ .../recast_parent_restoration/other_state/main.omg |  38 ++++
+ .../recast_parent_restoration/parameter/build.omg  |   7 +
+ .../parameter/expected_interpreter_exit.txt        |   1 +
+ .../parameter/expected_native_exit.txt             |   1 +
+ .../parameter/invalid/build.omg                    |   7 +
+ .../parameter/invalid/expected.txt                 |   2 +
+ .../parameter/invalid/main.omg                     |  36 +++
+ .../recast_parent_restoration/parameter/main.omg   |  36 +++
+ .../target_body/build.omg                          |  11 +
+ .../target_body/expected_interpreter_exit.txt      |   1 +
+ .../target_body/expected_native_exit.txt           |   1 +
+ .../target_body/invalid/build.omg                  |  11 +
+ .../target_body/invalid/expected.txt               |   2 +
+ .../target_body/invalid/main.omg                   |  45 ++++
+ .../recast_parent_restoration/target_body/main.omg |  45 ++++
+ tests/omega/corpus_both_macos_arm64.txt            |  10 +
+ tests/omega/corpus_outcomes.txt                    |  32 +++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  20 ++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  37 +++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  37 +++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  38 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  36 +++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  38 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  38 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  38 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  36 +++
+ .../build.omg                                      |  11 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  45 ++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  18 ++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  19 ++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  37 +++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  37 +++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  38 ++++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  36 +++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  38 ++++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  38 ++++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  38 ++++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  36 +++
+ .../build.omg                                      |  11 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  45 ++++
+ 158 files changed, 2430 insertions(+), 89 deletions(-)
+ create mode 100644 samples/cli/facts/recast_parent_restoration/README.md
+ create mode 100644 samples/cli/facts/recast_parent_restoration/call_result/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/call_result/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/call_result/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/call_result/invalid/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/call_result/invalid/expected.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/call_result/invalid/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/call_result/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/const_name/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/const_name/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/const_name/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/const_name/invalid/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/const_name/invalid/expected.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/const_name/invalid/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/const_name/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/controls/changed_end/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/controls/changed_end/expected.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/controls/changed_end/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/controls/preserved_end/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/controls/preserved_end/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/controls/preserved_end/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/controls/preserved_end/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/controls/unrestored/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/controls/unrestored/expected.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/controls/unrestored/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/field/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/field/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/field/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/field/invalid/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/field/invalid/expected.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/field/invalid/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/field/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/local/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/local/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/local/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/local/invalid/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/local/invalid/expected.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/local/invalid/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/local/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/match_join/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/match_join/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/match_join/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/match_join/invalid/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/match_join/invalid/expected.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/match_join/invalid/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/match_join/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/other_machine/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/other_machine/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/other_machine/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/other_machine/invalid/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/other_machine/invalid/expected.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/other_machine/invalid/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/other_machine/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/other_state/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/other_state/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/other_state/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/other_state/invalid/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/other_state/invalid/expected.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/other_state/invalid/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/other_state/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/parameter/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/parameter/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/parameter/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/parameter/invalid/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/parameter/invalid/expected.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/parameter/invalid/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/parameter/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/target_body/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/target_body/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/target_body/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/target_body/invalid/build.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/target_body/invalid/expected.txt
+ create mode 100644 samples/cli/facts/recast_parent_restoration/target_body/invalid/main.omg
+ create mode 100644 samples/cli/facts/recast_parent_restoration/target_body/main.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_changed_end_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_changed_end_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_changed_end_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_call_result_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_call_result_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_call_result_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_const_name_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_const_name_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_const_name_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_field_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_field_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_field_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_local_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_local_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_local_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_match_join_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_match_join_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_match_join_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_other_machine_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_other_machine_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_other_machine_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_other_state_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_other_state_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_other_state_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_parameter_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_parameter_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_parameter_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_target_body_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_target_body_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_through_target_body_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_unrestored_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_unrestored_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/recast_parent_restoration_unrestored_rejected/main.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_preserved_end_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_preserved_end_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_preserved_end_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_preserved_end_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_call_result_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_call_result_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_call_result_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_call_result_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_const_name_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_const_name_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_const_name_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_const_name_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_field_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_field_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_field_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_field_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_local_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_local_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_local_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_local_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_match_join_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_match_join_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_match_join_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_match_join_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_other_machine_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_other_machine_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_other_machine_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_other_machine_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_other_state_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_other_state_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_other_state_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_other_state_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_parameter_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_parameter_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_parameter_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_parameter_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_target_body_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_target_body_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_target_body_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/recast_parent_restoration_through_target_body_exit/main.omg
+bisect found first bad commit

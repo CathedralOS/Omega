@@ -1,0 +1,23 @@
+pass/borrows/runtime_selected_reference_mutation_complement_exit rejected 2547ms check-target:macos_arm64
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `main` state `entry` at statement 4: destination descriptor has no complete captured suppliers
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `main` state `entry` at statement 6: destination descriptor has no complete captured suppliers
+pass/borrows/runtime_uniform_projected_reference_selection_exit rejected 2204ms check-target:macos_arm64
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `main` state `entry` at statement 4: destination descriptor has no complete captured suppliers
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `main` state `entry` at statement 6: destination descriptor has no complete captured suppliers
+pass/facts/computed_record_window_through_other_machine_exit incomplete 2672ms check-target:macos_arm64
+	`main` calls `exercise`, which calls `window`; `window` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `window::entry`, statement 0
+pass/facts/computed_record_window_through_other_state_exit incomplete 2673ms check-target:macos_arm64
+	`main` calls `exercise`, which calls `window`; `window` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `window::entry`, statement 1
+pass/facts/match_computed_root_through_other_state_exit rejected 2319ms check-target:macos_arm64
+	cannot prove requires contract for call compute from write: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/target_family_contract_operand/call_result checked 3299ms check-target:macos_arm64
+pass/generics/generic_result_parameter_receipt rejected 1195ms
+	machine `received` state `entry` statement 6: operand has no complete completed call-slot relation
+pass/write_only/returned_destination_transport_exit rejected 2236ms check-target:macos_arm64
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `main` state `entry` at statement 15: destination descriptor has no complete captured suppliers
+fail/borrows/conditional_reference_replacement_false_first_stale_index rejected 1264ms unexpected
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `exercise` state `entry` at statement 1: destination descriptor has no complete captured suppliers
+fail/borrows/conditional_reference_replacement_true_first_stale_index rejected 1254ms unexpected
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `exercise` state `entry` at statement 1: destination descriptor has no complete captured suppliers
+fail/slices/reborrowed_replaced_descriptor rejected 1272ms unexpected
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `store` state `entry` at statement 5: assignment has no complete incoming storage prefix

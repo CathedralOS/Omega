@@ -1,0 +1,46 @@
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 770 revisions left to test after this (roughly 10 steps)
+[784f814d95a51c63da636abe49ae793cbd1c5dcf] psi: lower records and field reads by structure and check them on the lowered form (#2332)
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 694 revisions left to test after this (roughly 10 steps)
+[54cb3e7dc11e366dd36bf34320947f7d49eb2999] library: bind PosixFilesystemLinux through Build rows (#1622)
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 694 revisions left to test after this (roughly 10 steps)
+[27346780ceea94a71196685d200daed70d90b679] omega: move provider admission evidence out of terminal-to-abstract lowering (#1533)
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 694 revisions left to test after this (roughly 10 steps)
+[bfcffe6bcfcedb6fd60713e223408566c6c4e10d] psi: retain provider facts and canonical reference storage (#1175)
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 562 revisions left to test after this (roughly 9 steps)
+[0384a26aa645abf0b3cb7a51e95f4cc00bcfea64] psi: close domain predicates that test case membership (#1609)
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 562 revisions left to test after this (roughly 9 steps)
+[ffc4d649fa8c2244d87091f8b8a694db7a181036] compiler: keep build-native provenance through named provider maps (#1787)
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 562 revisions left to test after this (roughly 9 steps)
+[356c7fae51066d7c521fc09b0bccc05d9a4247e3] psi: group semantic vocabulary into scalars, storage and boundary (#1511)
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 562 revisions left to test after this (roughly 9 steps)
+[0378c9bcf14f9e63f4c4dd67bc60a0ec06da6cd2] psi: allow record updates that restore declared bounds (#1777)
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 562 revisions left to test after this (roughly 9 steps)
+[acc1843a993e8eea8fc08081922ab12ccc21fe64] psi: drop per-block, per-contract and per-field allocations from checking scans (#1983)
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 562 revisions left to test after this (roughly 9 steps)
+[a6221394f4e0314def4124990a2d9fe5e76ef3be] repo: keep ownership of open PRs across sessions (#1776)
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 562 revisions left to test after this (roughly 9 steps)
+[c4682bf3a992060bd38859b9949cdab248463f47] psi: compile long Boolean policies (#1973)
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 562 revisions left to test after this (roughly 9 steps)
+[a13d19cdbfbaad6f5f96bcceafdba0c77f92efbc] psi: publish a generic death edge's cleanup prerequisite to its callers (#2324)
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 555 revisions left to test after this (roughly 9 steps)
+[43be3bb535d16808cd53362f3016fe06835a7d2d] psi: keep declared outputs for dyn calls on outside selectors (#1770)
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 555 revisions left to test after this (roughly 9 steps)
+[7b83e320f1d671f34f591812fdb7f00de34d0d97] packages: keep unchanged reviews valid when dependency checks are reused (#1660)
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 555 revisions left to test after this (roughly 9 steps)
+[34093d8f350278d863ebc3d95c7f7e42eddd4ebe] omega: preserve original scalar homes across independent components (#1371)
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
