@@ -91,6 +91,22 @@ pub(in crate::encoding) fn policy(
     })?;
     encoder.field("service_audits", |encoder| {
         encoder.sequence(&value.service_audits, encode_nominal)
+    })?;
+    encoder.sequence_field(
+        "component_assumptions",
+        &value.component_assumptions,
+        component_assumption,
+    )
+}
+
+pub(super) fn component_assumption(
+    encoder: &mut Encoder,
+    value: &crate::record::PackagePolicyComponentAssumption,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.package_identity_field("component", value.component)?;
+    encoder.fixed_bytes_field("assumption", &value.assumption)?;
+    encoder.field("bound_rows", |encoder| {
+        encoder.sequence(&value.bound_rows, |encoder, row| encoder.string(row))
     })
 }
 

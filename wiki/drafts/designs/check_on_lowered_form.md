@@ -177,10 +177,23 @@ These come from the specification, not from this record:
   with its own algebra.
 
 Three rules bound it. Facts never feed type identity, operator selection or
-specialization keys. Information derived from a body crosses only edges inside
-"the same fingerprinted verification unit"; every other edge uses the authored
-contract. Attached domains are part of the declared type and change only at a
-[named cast](named_domain_casts.md).
+specialization keys. Additional semantic facts derived from a body cross only
+exact checked call edges inside the same fixed, fingerprinted verification unit;
+every other edge uses the published contract, including its existing inferred
+operational, ownership and footprint information. Abstract requirements remain
+abstract even within the unit. Unit membership and body-summary dependencies
+follow [local call summaries](../../spec/language/state_contracts.md#local-call-summaries),
+not optimizer inlining or incidental source availability. Attached domains are
+part of the declared type and change only at a [named cast](named_domain_casts.md).
+
+The 2026-11-11 decisions `callee-result-body-summary` and
+`nested-helper-caller-facts` also restrict input discovery: only private checked
+helpers with omitted `requires` may infer additional entry conditions, and all
+arrivals and callable conversions check them. Written preconditions are complete;
+public and required input contracts never narrow to excuse the implementation.
+The [delivery plan](local_inference_and_contracts.md) pins routine local inference
+and separately verified traversal reuse, without requiring arbitrary contract
+discovery or changing kernel-checked acceptance.
 
 Two more rules come from the full read, and are how this checker must differ
 from the code it replaces:
@@ -360,6 +373,30 @@ that cannot fail cannot hold work back, and work went ahead
      certificates run in the `generic_certificate_carry` example on the same
      typed trees.
    - Whether this meets the condition is the owner's reading.
+
+   <a id="condition-3-value-parameters"></a>
+   **Second result, 2026-11-12: value parameters.** A machine over `const
+   Units: u64` is lowered once with `Units` a formal that no caller passes,
+   and proved from its own `requires`. The machine stage 04 generates for
+   `<7>` then has each certificate decided again by `proof/admission` with
+   the literal in the formal's place, against its own goals and hypotheses
+   and with no search. The witness is
+   `pass/facts/lexical_generic_bound_through_local_exit`, the first in
+   [lowered type generics](lowered_type_generics.md#recommendation-and-order):
+   both of its generic bodies, `Selected::value<const Units: u64>` and
+   `selected<Implementation satisfies Bounded>`, are checked once and
+   carried, and its fail twin, which differs only in the trait member's
+   `requires`, is refused at the member's refinement proof while a search
+   over the generated caller alone accepts it. The compiler test
+   `lowered_route_generics` pins both, with `#2378`'s pair. The program
+   passes `omega run --both` on the current pipeline (native exit 0, Psi
+   exit 0, Linux x86_64, `omega` built at `b741666a1`). Limits, each stated with its reason in the
+   [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#value-parameters):
+   a body that reads the parameter as an operand is not carried; a member's
+   refinement of a requirement with value parameters is proved per argument
+   in use, not for every value; a value parameter in a type waits for
+   arrays. A type parameter is still not served, and the route is still not
+   the compile path.
 
 4. **For one fully supported scope, old code is retired and the result is
    measured.** A scope is fully supported when every program in it is governed
@@ -583,9 +620,9 @@ code and are not yet confirmed by a run:
   (`flow_expression.rs` `invoke`).
 - Index segments compare by expression structure, so a fact on `a[i]` can
   outlive a change to `i` (`validation/src/places.rs`).
-- Omega 00 turns every operation obligation reference in a unit into an
+- Omega 01 turns every operation obligation reference in a unit into an
   accepted fact, with no evidence attached
-  (`00_terminal-psi-to-abstract-operations/src/optimization.rs`
+  (`01_abstract-operations-to-abstract-operations/src/verified_unit.rs`
   `source_checked_obligation_facts`); the interpreter still checks. A wrongly
   kept fact therefore makes native code and the interpreter disagree. An
   earlier wording said the back end read a list of source-checked obligations

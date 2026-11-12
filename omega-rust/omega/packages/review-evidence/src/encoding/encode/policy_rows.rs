@@ -106,10 +106,12 @@ pub(crate) fn runtime_permission_rows(
         crate::record::PackagePolicyTerminalPermission,
     )],
     assumed: &[String],
+    component_assumptions: &[crate::record::PackagePolicyComponentAssumption],
 ) -> Result<Vec<PackagePolicyRow>, PackageReviewEncodingError> {
     let count = permissions
         .len()
         .checked_add(assumed.len())
+        .and_then(|count| count.checked_add(component_assumptions.len()))
         .ok_or_else(|| rejected("runtime permission row count overflows"))?;
     let mut builder = Builder::new(
         package,
@@ -122,5 +124,6 @@ pub(crate) fn runtime_permission_rows(
     for (service, permission) in permissions {
         components::terminal_permission(&mut builder, service, permission)?;
     }
+    assembly::component_assumptions_rows(&mut builder, component_assumptions)?;
     builder.finish().map(|(rows, _)| rows)
 }

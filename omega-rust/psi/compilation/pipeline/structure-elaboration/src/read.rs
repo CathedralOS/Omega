@@ -59,6 +59,10 @@ pub(crate) struct Program<'t> {
     pub requirements: Vec<MachineId>,
     /// Every call through an implementation parameter read so far.
     pub selections: Vec<crate::Selected>,
+    /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
+    /// pushed with each machine's signature.
+    pub value_parameters: IdTable<MachineId, usize>,
+    pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
@@ -120,6 +124,8 @@ impl<'t> Program<'t> {
             rigid,
             requirements: Vec::new(),
             selections: Vec::new(),
+            value_parameters: IdTable::default(),
+            value_arguments: IdTable::default(),
             records: IdTable::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
@@ -404,6 +410,7 @@ mod tests {
             subject: None,
             formal_fields: false,
             slots: &[],
+            bound: &[],
             owner,
             result: ResultTerm::Named(result, u32_type),
         };
@@ -690,6 +697,7 @@ mod tests {
             subject: None,
             formal_fields: false,
             slots: &slots,
+            bound: &[],
             owner: SymbolHandle::invalid(),
             result: ResultTerm::Absent("result in an entry clause"),
         };

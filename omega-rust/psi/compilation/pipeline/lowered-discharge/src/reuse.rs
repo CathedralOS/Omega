@@ -181,8 +181,10 @@ pub fn reverify_at_call(
     // cites keep their positions, because the assumptions given to the
     // kernel below are the callee's `requires` in clause order.
     let proof = Transport {
-        value: &|value, scalar_type| formal_actual(&actuals, tables, value, scalar_type),
-        assumption: &|index| Ok(Cited::Index(index)),
+        value: &|value, scalar_type| {
+            formal_actual(&actuals, tables, value, scalar_type).map(Moved::Value)
+        },
+        assumption: &|index, _| Ok(Cited::Index(index)),
         axiom: &|index| Ok(index),
         refused: std::cell::RefCell::new(None),
     }
@@ -236,6 +238,14 @@ fn formal_actual(
     (tables.values.get(actual)?.scalar_type == scalar_type).then_some(actual)
 }
 
+/// What a value a certificate names becomes where the certificate is moved
+/// to: the destination's value, or, for a value parameter the destination
+/// has bound, the literal it is bound to.
+enum Moved {
+    Value(ValueId),
+    Literal(semantic_vocabulary::IntegerValue),
+}
+
 /// What a hypothesis a certificate cites becomes where the certificate is
 /// moved to: the position of the same hypothesis there, or, where the
 /// destination does not assume it, a proof of it from what the destination
@@ -252,8 +262,10 @@ enum Cited {
 /// term or rule form this does not list, makes the whole move fail: a
 /// partial rename would leave the certificate naming the source's values.
 struct Transport<'a> {
-    value: &'a dyn Fn(ValueId, ScalarType) -> Option<ValueId>,
-    assumption: &'a dyn Fn(usize) -> Checked<Cited>,
+    value: &'a dyn Fn(ValueId, ScalarType) -> Option<Moved>,
+    /// A cited assumption's position at the source, with what it concludes
+    /// once moved.
+    assumption: &'a dyn Fn(usize, &Proposition) -> Checked<Cited>,
     axiom: &'a dyn Fn(usize) -> Checked<usize>,
     /// Why a cited hypothesis could not be moved, when that is what failed.
     refused: std::cell::RefCell<Option<Refusal>>,
@@ -266,7 +278,7 @@ impl Transport<'_> {
         self.node(node).ok_or_else(|| self.refused.take())
     }
 
-    fn value(&self, value: ValueId, scalar_type: ScalarType) -> Option<ValueId> {
+    fn value(&self, value: ValueId, scalar_type: ScalarType) -> Option<Moved> {
         (self.value)(value, scalar_type)
     }
 
@@ -282,9 +294,13 @@ impl Transport<'_> {
 
     fn term(&self, term: &ScalarTerm) -> Option<ScalarTerm> {
         Some(match term {
-            ScalarTerm::Value { id, scalar_type } => {
-                ScalarTerm::value(self.value(*id, *scalar_type)?, *scalar_type)
-            }
+            ScalarTerm::Value { id, scalar_type } => match self.value(*id, *scalar_type)? {
+                Moved::Value(value) => ScalarTerm::value(value, *scalar_type),
+                Moved::Literal(value) => ScalarTerm::Integer {
+                    scalar_type: scalar_type.as_integer()?,
+                    value,
+                },
+            },
             ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => term.clone(),
             ScalarTerm::ExactIntegerAdd {
                 scalar_type,
@@ -320,10 +336,20 @@ impl Transport<'_> {
     fn math(&self, term: &IntegerMathTerm) -> Option<IntegerMathTerm> {
         Some(match term {
             IntegerMathTerm::IntegerLiteral(_) => term.clone(),
-            IntegerMathTerm::MathValue { source_type, value } => IntegerMathTerm::MathValue {
-                source_type: *source_type,
-                value: self.value(*value, ScalarType::Integer(*source_type))?,
-            },
+            IntegerMathTerm::MathValue { source_type, value } => {
+                match self.value(*value, ScalarType::Integer(*source_type))? {
+                    Moved::Value(value) => IntegerMathTerm::MathValue {
+                        source_type: *source_type,
+                        value,
+                    },
+                    // The mathematical integer a literal embeds as, which is
+                    // how the kernel denotes a literal operand.
+                    Moved::Literal(value) => IntegerMathTerm::embed(ScalarTerm::Integer {
+                        scalar_type: *source_type,
+                        value,
+                    })?,
+                }
+            }
             IntegerMathTerm::Add(left, right) => {
                 IntegerMathTerm::Add(Box::new(self.math(left)?), Box::new(self.math(right)?))
             }
@@ -394,20 +420,22 @@ impl Transport<'_> {
             ProofRule::SemanticAxiom { index } => ProofRule::SemanticAxiom {
                 index: self.cited_axiom(*index)?,
             },
-            ProofRule::Assumption { index } => match (self.assumption)(*index) {
-                Ok(Cited::Index(index)) => ProofRule::Assumption { index },
-                // The destination does not assume this hypothesis; the proof
-                // of it stands where the citation stood, and must conclude
-                // exactly what was cited.
-                Ok(Cited::Proof(proof)) => {
-                    return (proof.conclusion == self.proposition(&node.conclusion)?)
-                        .then_some(proof);
+            ProofRule::Assumption { index } => {
+                match (self.assumption)(*index, &self.proposition(&node.conclusion)?) {
+                    Ok(Cited::Index(index)) => ProofRule::Assumption { index },
+                    // The destination does not assume this hypothesis; the proof
+                    // of it stands where the citation stood, and must conclude
+                    // exactly what was cited.
+                    Ok(Cited::Proof(proof)) => {
+                        return (proof.conclusion == self.proposition(&node.conclusion)?)
+                            .then_some(proof);
+                    }
+                    Err(refused) => {
+                        self.refused.replace(Some(refused));
+                        return None;
+                    }
                 }
-                Err(refused) => {
-                    self.refused.replace(Some(refused));
-                    return None;
-                }
-            },
+            }
             ProofRule::ValueEqualityTransport {
                 premise,
                 equalities,
@@ -615,6 +643,18 @@ pub struct Selection<'a> {
 /// the same way. The specialization's own call requirements are the
 /// implementation's; each is the witness's proof of it, moved likewise.
 ///
+/// A value parameter of the generic body (`const Units: u64`) is one of its
+/// formals there and a literal in the specialization, which stage 04 put
+/// wherever the body named the binder. So each such formal in a carried
+/// proof becomes that literal, and every other value keeps its place among
+/// the values. Which literal is worked out here, from the two lowered
+/// contracts alone (`Instantiation::of`): it is the one at which the generic
+/// contract is the specialization's. The typed trees record the argument
+/// only as its spelling, which is not read. The literal is only what the
+/// proof is instantiated at: the goals and hypotheses it must then fit are
+/// the specialization's own, so a wrong one yields a proof the kernel
+/// refuses.
+///
 /// Returns one verdict per obligation that takes a certificate, in table
 /// order. Nothing here is trusted: a carried proof that does not fit is
 /// refused by the kernel, as `Unproved(KernelRefused)`.
@@ -659,8 +699,17 @@ pub fn reverify_specialization(
         tables,
         &prepared.types,
     )?;
+    let rigid = generic.value_parameters.get(template).copied().unwrap_or(0);
+    let instantiation = Instantiation::of(
+        crate::terminal_machine(&generic.module.machines, template, specialization)?,
+        rigid,
+        lowered,
+        tables,
+        specialization,
+    )?;
     let carry = Carry {
         specialization,
+        instantiation,
         generic,
         template: terminal_check_tables::row(
             &generic.tables.machines,
@@ -729,10 +778,222 @@ pub fn reverify_specialization(
     Ok(verdicts)
 }
 
+/// How the values of a generic body are the values of one specialization of
+/// it. The generic body's scalar formals are the specialization's
+/// (`authored` of them), then its value parameters; every value after those
+/// is the specialization's value that many places earlier.
+struct Instantiation {
+    authored: usize,
+    /// The literal each value parameter is in the specialization, in
+    /// declaration order; `None` for one neither contract mentions, which
+    /// no proof can then be moved through.
+    bound: Vec<Option<ScalarTerm>>,
+}
+
+impl Instantiation {
+    /// Works the instantiation out from the two lowered contracts: the
+    /// literals at which each `ensures` clause of `generic` is the
+    /// specialization's clause at the same position, and its `requires`
+    /// clauses are the specialization's, in some order (they are held in
+    /// canonical order, which a literal in place of a formal can change).
+    /// Refused when there is no such instantiation: `specialization` is then
+    /// not that body's contract at any value of its parameters.
+    fn of(
+        generic: &TerminalMachine,
+        rigid: usize,
+        specialization: &TerminalMachine,
+        tables: &MachineTables,
+        machine: MachineId,
+    ) -> Checked<Self> {
+        let refuse = |detail| {
+            Err(refusal(
+                RefusalReason::Unsupported,
+                machine,
+                Construct::Machine,
+                detail,
+            ))
+        };
+        let authored = specialization.parameters.len();
+        if generic.parameters.len() != authored + rigid {
+            return refuse("the specialization's formals are not the generic body's");
+        }
+        let mut found = Self {
+            authored,
+            bound: vec![None; rigid],
+        };
+        if rigid == 0 {
+            return Ok(found);
+        }
+        let (theirs, mine) = (&generic.contract, &specialization.contract);
+        if theirs.ensures.len() != mine.ensures.len()
+            || theirs.requires.len() != mine.requires.len()
+        {
+            return refuse("the specialization's contract is not the generic body's");
+        }
+        for (theirs, mine) in theirs.ensures.iter().zip(&mine.ensures) {
+            if !found.unify(tables, &theirs.proposition, &mine.proposition) {
+                return refuse("a guarantee of the specialization is not the generic body's");
+            }
+        }
+        // ponytail: tries every pairing of the `requires` clauses, which is
+        // factorial in their number; contracts hold a handful.
+        if theirs.requires.len() > 8 {
+            return refuse("too many requires clauses to pair");
+        }
+        let mut taken = vec![false; mine.requires.len()];
+        if !found.pair(tables, &theirs.requires, &mine.requires, &mut taken) {
+            return refuse("the requirements of the specialization are not the generic body's");
+        }
+        Ok(found)
+    }
+
+    /// Pairs each of `theirs` with a distinct clause of `mine` it is under
+    /// one instantiation, extending `self.bound`; restores it on failure.
+    fn pair(
+        &mut self,
+        tables: &MachineTables,
+        theirs: &[Proposition],
+        mine: &[Proposition],
+        taken: &mut [bool],
+    ) -> bool {
+        let Some((first, rest)) = theirs.split_first() else {
+            return true;
+        };
+        for candidate in 0..mine.len() {
+            if taken[candidate] {
+                continue;
+            }
+            let saved = self.bound.clone();
+            taken[candidate] = true;
+            if self.unify(tables, first, &mine[candidate]) && self.pair(tables, rest, mine, taken) {
+                return true;
+            }
+            taken[candidate] = false;
+            self.bound = saved;
+        }
+        false
+    }
+
+    /// Whether `theirs` is `mine` once each value parameter is a literal,
+    /// binding the parameters `theirs` names to the literals `mine` has in
+    /// their place. A parameter already bound must agree.
+    fn unify(&mut self, tables: &MachineTables, theirs: &Proposition, mine: &Proposition) -> bool {
+        let (mut generic_leaves, mut leaves) = (Vec::new(), Vec::new());
+        if !leaf_terms(theirs, &mut generic_leaves) || !leaf_terms(mine, &mut leaves) {
+            return false;
+        }
+        if generic_leaves.len() != leaves.len() {
+            return false;
+        }
+        for (theirs, mine) in generic_leaves.into_iter().zip(leaves) {
+            let (
+                ScalarTerm::Value { id, scalar_type },
+                ScalarTerm::Integer {
+                    scalar_type: literal_type,
+                    ..
+                },
+            ) = (theirs, mine)
+            else {
+                continue;
+            };
+            let Some(parameter) = usize::try_from(id.get() - 1)
+                .ok()
+                .and_then(|position| position.checked_sub(self.authored))
+                .filter(|parameter| *parameter < self.bound.len())
+            else {
+                continue;
+            };
+            if *scalar_type != ScalarType::Integer(*literal_type) {
+                return false;
+            }
+            match &self.bound[parameter] {
+                None => self.bound[parameter] = Some(mine.clone()),
+                Some(bound) if bound == mine => {}
+                Some(_) => return false,
+            }
+        }
+        // The leaves only propose the literals. That the whole clause is the
+        // specialization's is decided by moving it.
+        let moved = Transport {
+            value: &|value, scalar_type| self.moved_as(tables, value, scalar_type),
+            assumption: &|index, _| Ok(Cited::Index(index)),
+            axiom: &|index| Ok(index),
+            refused: std::cell::RefCell::new(None),
+        }
+        .proposition(theirs);
+        moved.as_ref() == Some(mine)
+    }
+
+    /// What the generic body's value `value` is in the specialization.
+    fn moved(&self, value: ValueId) -> Option<Moved> {
+        let position = usize::try_from(value.get() - 1).ok()?;
+        if position < self.authored {
+            return Some(Moved::Value(value));
+        }
+        match self.bound.get(position - self.authored) {
+            Some(Some(ScalarTerm::Integer { value, .. })) => Some(Moved::Literal(*value)),
+            Some(_) => None,
+            None => ValueId::new(value.get() - self.bound.len() as u64).map(Moved::Value),
+        }
+    }
+
+    /// `moved`, for a value that must have the type `scalar_type` there.
+    fn moved_as(
+        &self,
+        tables: &MachineTables,
+        value: ValueId,
+        scalar_type: ScalarType,
+    ) -> Option<Moved> {
+        match self.moved(value)? {
+            Moved::Value(mine) => {
+                (tables.values.get(mine)?.scalar_type == scalar_type).then_some(Moved::Value(mine))
+            }
+            Moved::Literal(literal) => {
+                let position = usize::try_from(value.get() - 1).ok()? - self.authored;
+                let Some(ScalarTerm::Integer {
+                    scalar_type: bound_type,
+                    ..
+                }) = self.bound.get(position)?
+                else {
+                    return None;
+                };
+                (ScalarType::Integer(*bound_type) == scalar_type).then_some(Moved::Literal(literal))
+            }
+        }
+    }
+}
+
+/// The value and literal terms of a contract clause, in one fixed order of
+/// its structure; `false` for a form a contract clause of this subset does
+/// not have. Two clauses of one shape list their terms position for
+/// position.
+fn leaf_terms<'p>(proposition: &'p Proposition, out: &mut Vec<&'p ScalarTerm>) -> bool {
+    fn term<'p>(term: &'p ScalarTerm, out: &mut Vec<&'p ScalarTerm>) -> bool {
+        match term {
+            ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => {
+                out.push(term);
+                true
+            }
+            _ => false,
+        }
+    }
+    match proposition {
+        Proposition::Truth | Proposition::Falsehood => true,
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => term(left, out) && term(right, out),
+        Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
+            parts.iter().all(|part| leaf_terms(part, out))
+        }
+        _ => false,
+    }
+}
+
 /// The proofs a specialization takes from its generic body and from each
 /// selected implementation's conformance witness.
 struct Carry<'a> {
     specialization: MachineId,
+    instantiation: Instantiation,
     generic: &'a Elaboration,
     /// The generic body's tables and its verdicts.
     template: &'a MachineTables,
@@ -760,16 +1021,42 @@ impl Carry<'_> {
     }
 
     /// The specialization has the generic body's values and calls, one for
-    /// one. Selecting a machine parameter changes only which machine a call
-    /// names, so anything else means `specialization` is not that body.
+    /// one, except the value parameters it has bound. Selecting a machine
+    /// parameter changes only which machine a call names, and binding a
+    /// value parameter only removes its formal, so anything else means
+    /// `specialization` is not that body. A body that reads a value
+    /// parameter as an operand differs here: the specialization evaluates a
+    /// constant where the generic body reads its formal, so it has a value
+    /// the generic body does not, and is refused.
     fn corresponds(&self) -> Checked<()> {
-        let same_values = self.tables.values.len() == self.template.values.len()
-            && self
-                .tables
-                .values
-                .iter()
-                .zip(self.template.values.iter())
-                .all(|((_, mine), (_, theirs))| mine == theirs);
+        let same_values = self.tables.values.len() + self.instantiation.bound.len()
+            == self.template.values.len()
+            && self.template.values.iter().all(|(value, theirs)| {
+                match self.instantiation.moved(value) {
+                    Some(Moved::Value(mine)) => self.tables.values.get(mine) == Some(theirs),
+                    // A value parameter is a formal there, whether or not
+                    // the contract mentions it.
+                    Some(Moved::Literal(_)) | None => matches!(
+                        theirs.origin,
+                        terminal_check_tables::values::ValueOrigin::MachineParameter { .. }
+                    ),
+                }
+            });
+        let same_actuals =
+            |mine: &[terminal_check_tables::edges::Actual],
+             theirs: &[terminal_check_tables::edges::Actual]| {
+                use terminal_check_tables::edges::Actual;
+                mine.len() == theirs.len()
+                    && mine.iter().zip(theirs).all(|pair| match pair {
+                        (Actual::Value(mine), Actual::Value(theirs)) => {
+                            matches!(
+                                self.instantiation.moved(*theirs),
+                                Some(Moved::Value(moved)) if moved == *mine
+                            )
+                        }
+                        (mine, theirs) => mine == theirs,
+                    })
+            };
         let same_calls = self.tables.invocations.len() == self.template.invocations.len()
             && self
                 .tables
@@ -777,7 +1064,7 @@ impl Carry<'_> {
                 .iter()
                 .zip(self.template.invocations.iter())
                 .all(|((_, mine), (_, theirs))| {
-                    mine.site == theirs.site && mine.actuals == theirs.actuals
+                    mine.site == theirs.site && same_actuals(&mine.actuals, &theirs.actuals)
                 });
         if same_values && same_calls {
             Ok(())
@@ -967,20 +1254,28 @@ impl Carry<'_> {
         };
         Transport {
             value: &|value, scalar_type| {
-                (self.tables.values.get(value)?.scalar_type == scalar_type).then_some(value)
+                self.instantiation.moved_as(self.tables, value, scalar_type)
             },
-            assumption: &|index| {
+            assumption: &|index, concluded| {
                 let row = cited(&evidence.assumptions, index)?;
-                if let Some(Justification::CalleeGuarantee { invocation, clause }) = self
+                let justification = self
                     .template
                     .knowledge
                     .get(row)
-                    .map(|row| row.justification)
+                    .map(|row| row.justification);
+                if let Some(Justification::CalleeGuarantee { invocation, clause }) = justification
                     && let Some(selection) = self.selection(invocation)?
                 {
                     return self
                         .requirement_guarantee(selection, invocation, clause, target, concerns)
                         .map(Cited::Proof);
+                }
+                // An entry `requires` clause is found by what it says once
+                // moved, not by its position: the clauses are in canonical
+                // order, which a literal in place of a value parameter can
+                // change.
+                if let Some(Justification::EntryRequirement { .. }) = justification {
+                    return self.entry_requirement(concluded, target, concerns);
                 }
                 self.position(row, &target.assumption_rows, concerns)
                     .map(Cited::Index)
@@ -1004,6 +1299,35 @@ impl Carry<'_> {
                 )
             })
         })
+    }
+
+    /// Where the specialization assumes the entry `requires` clause that
+    /// says `concluded`.
+    fn entry_requirement(
+        &self,
+        concluded: &Proposition,
+        target: &Hypotheses,
+        concerns: Construct,
+    ) -> Checked<Cited> {
+        target
+            .assumption_rows
+            .iter()
+            .zip(&target.assumptions)
+            .position(|(row, assumed)| {
+                assumed == concluded
+                    && matches!(
+                        self.tables.knowledge.get(*row).map(|row| row.justification),
+                        Some(Justification::EntryRequirement { .. })
+                    )
+            })
+            .map(Cited::Index)
+            .ok_or_else(|| {
+                self.refuse(
+                    RefusalReason::Unproved(UnprovedCause::NoDerivation),
+                    concerns,
+                    "an entry requirement the generic proof cites is not assumed here",
+                )
+            })
     }
 
     /// Where, among `rows`, the specialization holds the hypothesis that the
@@ -1134,9 +1458,10 @@ impl Carry<'_> {
                 } else {
                     return None;
                 };
-                (self.tables.values.get(mine)?.scalar_type == scalar_type).then_some(mine)
+                (self.tables.values.get(mine)?.scalar_type == scalar_type)
+                    .then_some(Moved::Value(mine))
             },
-            assumption: &|index| {
+            assumption: &|index, _| {
                 let row = evidence.assumptions.get(index).copied().ok_or_else(|| {
                     unsupported(
                         "the refinement proof cites a hypothesis its evidence does not list",

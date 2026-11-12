@@ -28,6 +28,26 @@ use std::path::Path;
 pub enum SealedIntrinsic {
     /// A member of core's `NativeFloats` realization of `FloatNativeOperations`.
     NativeFloatOperation,
+    /// Core's `NativeFloats` map itself.
+    NativeFloatMap,
+    /// The private `FloatNativeOperations` trait `NativeFloats` realizes.
+    NativeFloatOperationsTrait,
+    /// A public `Float`, `F32`, `F64` or integer-from-float conversion
+    /// operation in core `float_operations.omg`.
+    FloatOperationRequirement,
+    /// Core `layout.omg`'s opaque `LayoutTarget` data.
+    LayoutTargetData,
+    /// Core `layout.omg`'s opaque `LayoutStorage` data.
+    LayoutStorageData,
+    /// Core `layout.omg`'s `layout_target_facts` snapshot query.
+    LayoutTargetFacts,
+    /// Core `layout.omg`'s free placed `read` or `write` primitive.
+    PlacedPrimitive(PlacedPrimitiveOperation),
+    /// A sealed placement-lifecycle operation over an `Access` or `Run` profile.
+    PlacementLifecycle {
+        operation: PlacementOperation,
+        content: PlacementContent,
+    },
     /// One of the four static-interrupt operations in core `static_interrupt.omg`.
     StaticInterrupt(StaticInterruptOperation),
     /// `TaskRuntime::start` in core `task.omg`.
@@ -50,6 +70,29 @@ pub enum SealedIntrinsic {
     FixedImageRequirement(FixedImageOperation),
     /// The bundled `uefi_x86_64` realization of a fixed-image requirement.
     FixedImageRealization(FixedImageOperation),
+}
+
+/// The free placed scalar primitives in core `layout.omg`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PlacedPrimitiveOperation {
+    Read,
+    Write,
+}
+
+/// What a placement-lifecycle operation does to its profile's content.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PlacementOperation {
+    Initialize,
+    MoveOut,
+    View,
+    Relocate,
+}
+
+/// Whether the profile holds one resident (`Access`) or a run (`Run`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PlacementContent {
+    Resident,
+    Run,
 }
 
 /// The hosted operations the compiler realizes for every hosted target.
@@ -75,7 +118,7 @@ pub enum FixedImageOperation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SealedDeclaration {
+pub(crate) enum SealedDeclaration {
     /// Exactly this package-relative declaration path.
     Exact(&'static str),
     /// Any single-segment member directly under this owner path.
@@ -83,7 +126,7 @@ enum SealedDeclaration {
 }
 
 impl SealedDeclaration {
-    fn matches(self, declaration: &str) -> bool {
+    pub(crate) fn matches(self, declaration: &str) -> bool {
         match self {
             Self::Exact(path) => declaration == path,
             Self::MemberOf(owner) => declaration
@@ -124,6 +167,8 @@ macro_rules! bundled {
 }
 
 const CORE_LAYOUT: &[u8] = bundled!("core/layout.omg");
+const CORE_RUN: &[u8] = bundled!("core/run.omg");
+const CORE_FLOAT_OPERATIONS: &[u8] = bundled!("core/float_operations.omg");
 const CORE_EXTENT: &[u8] = bundled!("core/extent.omg");
 const CORE_PROGRAM_IMAGE: &[u8] = bundled!("core/program_image.omg");
 const CORE_PROCESS_EXIT: &[u8] = bundled!("core/process_exit.omg");
@@ -202,7 +247,175 @@ const HOSTED_REALIZATIONS: [&[SealedIntrinsicRow]; 4] = [
     &HOSTED_MACOS_X86_64,
 ];
 
+const fn member_row(
+    file: &'static str,
+    owner: &'static str,
+    source: &'static [u8],
+    intrinsic: SealedIntrinsic,
+) -> SealedIntrinsicRow {
+    SealedIntrinsicRow {
+        file,
+        declaration: SealedDeclaration::MemberOf(owner),
+        source,
+        intrinsic,
+    }
+}
+
+const fn lifecycle(operation: PlacementOperation, content: PlacementContent) -> SealedIntrinsic {
+    SealedIntrinsic::PlacementLifecycle { operation, content }
+}
+
 const ROWS: &[SealedIntrinsicRow] = &[
+    row(
+        "float_provider.omg",
+        "NativeFloats",
+        CORE_FLOAT_PROVIDER,
+        SealedIntrinsic::NativeFloatMap,
+    ),
+    row(
+        "float_provider.omg",
+        "FloatNativeOperations",
+        CORE_FLOAT_PROVIDER,
+        SealedIntrinsic::NativeFloatOperationsTrait,
+    ),
+    member_row(
+        "float_operations.omg",
+        "Float",
+        CORE_FLOAT_OPERATIONS,
+        SealedIntrinsic::FloatOperationRequirement,
+    ),
+    member_row(
+        "float_operations.omg",
+        "F32",
+        CORE_FLOAT_OPERATIONS,
+        SealedIntrinsic::FloatOperationRequirement,
+    ),
+    member_row(
+        "float_operations.omg",
+        "F64",
+        CORE_FLOAT_OPERATIONS,
+        SealedIntrinsic::FloatOperationRequirement,
+    ),
+    member_row(
+        "float_operations.omg",
+        "I8",
+        CORE_FLOAT_OPERATIONS,
+        SealedIntrinsic::FloatOperationRequirement,
+    ),
+    member_row(
+        "float_operations.omg",
+        "I16",
+        CORE_FLOAT_OPERATIONS,
+        SealedIntrinsic::FloatOperationRequirement,
+    ),
+    member_row(
+        "float_operations.omg",
+        "I32",
+        CORE_FLOAT_OPERATIONS,
+        SealedIntrinsic::FloatOperationRequirement,
+    ),
+    member_row(
+        "float_operations.omg",
+        "I64",
+        CORE_FLOAT_OPERATIONS,
+        SealedIntrinsic::FloatOperationRequirement,
+    ),
+    member_row(
+        "float_operations.omg",
+        "U8",
+        CORE_FLOAT_OPERATIONS,
+        SealedIntrinsic::FloatOperationRequirement,
+    ),
+    member_row(
+        "float_operations.omg",
+        "U16",
+        CORE_FLOAT_OPERATIONS,
+        SealedIntrinsic::FloatOperationRequirement,
+    ),
+    member_row(
+        "float_operations.omg",
+        "U32",
+        CORE_FLOAT_OPERATIONS,
+        SealedIntrinsic::FloatOperationRequirement,
+    ),
+    member_row(
+        "float_operations.omg",
+        "U64",
+        CORE_FLOAT_OPERATIONS,
+        SealedIntrinsic::FloatOperationRequirement,
+    ),
+    row(
+        "layout.omg",
+        "LayoutTarget",
+        CORE_LAYOUT,
+        SealedIntrinsic::LayoutTargetData,
+    ),
+    row(
+        "layout.omg",
+        "LayoutStorage",
+        CORE_LAYOUT,
+        SealedIntrinsic::LayoutStorageData,
+    ),
+    row(
+        "layout.omg",
+        "layout_target_facts",
+        CORE_LAYOUT,
+        SealedIntrinsic::LayoutTargetFacts,
+    ),
+    row(
+        "layout.omg",
+        "read",
+        CORE_LAYOUT,
+        SealedIntrinsic::PlacedPrimitive(PlacedPrimitiveOperation::Read),
+    ),
+    row(
+        "layout.omg",
+        "write",
+        CORE_LAYOUT,
+        SealedIntrinsic::PlacedPrimitive(PlacedPrimitiveOperation::Write),
+    ),
+    row(
+        "layout.omg",
+        "Access::initialize_from_profile",
+        CORE_LAYOUT,
+        lifecycle(PlacementOperation::Initialize, PlacementContent::Resident),
+    ),
+    row(
+        "layout.omg",
+        "Access::extract_resident",
+        CORE_LAYOUT,
+        lifecycle(PlacementOperation::MoveOut, PlacementContent::Resident),
+    ),
+    row(
+        "layout.omg",
+        "Access::view_from_profile",
+        CORE_LAYOUT,
+        lifecycle(PlacementOperation::View, PlacementContent::Resident),
+    ),
+    row(
+        "layout.omg",
+        "Access::view_mut_from_profile",
+        CORE_LAYOUT,
+        lifecycle(PlacementOperation::View, PlacementContent::Resident),
+    ),
+    row(
+        "run.omg",
+        "Run::initialize_from_profile",
+        CORE_RUN,
+        lifecycle(PlacementOperation::Initialize, PlacementContent::Run),
+    ),
+    row(
+        "run.omg",
+        "Run::extract_from_profile",
+        CORE_RUN,
+        lifecycle(PlacementOperation::MoveOut, PlacementContent::Run),
+    ),
+    row(
+        "run.omg",
+        "Run::relocate_from_profiles",
+        CORE_RUN,
+        lifecycle(PlacementOperation::Relocate, PlacementContent::Run),
+    ),
     row(
         "layout.omg",
         "Access",
@@ -408,11 +621,20 @@ mod tests {
             )),
             None
         );
+        // The map itself is its own row; a bare member owner is not.
         assert_eq!(
             SealedIntrinsicCatalog::classify(site(
                 "float_provider.omg",
                 "NativeFloats",
                 CORE_FLOAT_PROVIDER
+            )),
+            Some(SealedIntrinsic::NativeFloatMap)
+        );
+        assert_eq!(
+            SealedIntrinsicCatalog::classify(site(
+                "float_operations.omg",
+                "Float",
+                CORE_FLOAT_OPERATIONS
             )),
             None
         );

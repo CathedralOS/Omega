@@ -125,6 +125,7 @@ impl PackagePolicyAcceptance {
                         row.kind,
                         PackagePolicyRowKind::TerminalPermission
                             | PackagePolicyRowKind::AssumedBindingContract
+                            | PackagePolicyRowKind::ComponentAssumption
                     )
                 })
                 .map(|row| (row.key, row.text.clone()))

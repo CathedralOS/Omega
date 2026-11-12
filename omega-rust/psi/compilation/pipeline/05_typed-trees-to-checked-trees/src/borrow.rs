@@ -2423,8 +2423,17 @@ mod last_uses {
                         continue;
                     }
                     let alias_statement = loans.get(alias.handle).statement_index;
-                    if !(order.precedes(carrier_statement, alias_statement)
-                        || (temporary && carrier_statement == alias_statement))
+                    let alias_last_use = loans.get(alias.handle).last_use_statement_index;
+                    // An alias of the carrier's storage reaches the stored
+                    // reference whenever it is live after the store, also when
+                    // the alias was formed first: `slots[2].value` reads the
+                    // reference that `slots[1..3] = ...` stored after
+                    // `slots = &mut holders` was formed.
+                    let alias_reaches_carrier = order.precedes(carrier_statement, alias_statement)
+                        || (temporary && carrier_statement == alias_statement)
+                        || (order.precedes(alias_statement, carrier_statement)
+                            && order.precedes(carrier_statement, alias_last_use));
+                    if !alias_reaches_carrier
                         || !place_use_counts(carrier.handle, alias_statement)
                         || alias.place.root != carrier.storage_owner
                         || !owner_path_overlaps_place_segments(
@@ -2435,7 +2444,6 @@ mod last_uses {
                     {
                         continue;
                     }
-                    let alias_last_use = loans.get(alias.handle).last_use_statement_index;
                     let carried = loans.get_mut(carrier.handle);
                     changed |= extend_last_use(
                         &order,

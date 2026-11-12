@@ -59,6 +59,10 @@ impl PackagePolicyBaseline {
         ordered(&self.slack_uses)?;
         ordered(&self.semantic_dependencies)?;
         ordered(&self.service_audits)?;
+        ordered(&self.component_assumptions)?;
+        for row in &self.component_assumptions {
+            row.validate()?;
+        }
         for service in &self.service_audits {
             service.validate_resolved()?;
         }

@@ -3788,10 +3788,10 @@ mod shape_collector {
             }
             let owns_linear_claim = data.properties.multiplicity == Multiplicity::Linear;
             if data.supply_mode == DataSupplyMode::BoundaryOpaque {
-                if self
-                    .program
-                    .core_layout_declaration(data.symbol, "LayoutTarget")
-                {
+                if self.program.core_layout_declaration(
+                    data.symbol,
+                    language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetData,
+                ) {
                     self.in_progress.remove(&identity);
                     return None;
                 }

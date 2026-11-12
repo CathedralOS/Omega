@@ -13,7 +13,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **NESTED-MACHINE-UNIFICATION.** Replace `state` with nested machines ([machines.md](wiki/spec/language/machines.md#nested-machines-and-identity), [state_contracts.md](wiki/spec/language/state_contracts.md)).
   - Resolve recursive scopes, elaborate flat identities, and reject runtime capture or code after trailing declarations.
-  - Complete cyclic arrivals, normal returns, loans, restoration, linear custody, and SCC rank measures across call shapes.
+  - Complete [local inference](wiki/drafts/designs/local_inference_and_contracts.md), cyclic arrivals, normal returns, loans, restoration, linear custody, and SCC rank measures across call shapes.
   - Complete the declaration-model migration across linked repositories, samples, the corpus, and both compilers.
   Acceptance: 3-level nesting, helper calls, cycles, and 9-place rows pass `omega run --both`; `state` syntax is deleted.
 
@@ -56,7 +56,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions.
 
 - **BUILD-OWNED-NATIVE-BINDINGS.** Implement `Build::bind<Requirement>(builder, target, locator)` ([foreign_bindings.md](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)) and retire `via`.
-  - First **SEALED-INTRINSIC-CATALOG** (catalog float `sealed`/layout snapshot checks; seal task/mask providers in `language_core::sealed_intrinsics`), then migrate table/vtable, user-intrinsic, generic-trait, Windows `ProcessExit` `via` sites; delete `via` parsing.
+  - First **SEALED-INTRINSIC-CATALOG**: supply task/interrupt-mask providers per decision `sealed-runtime-providers`, then migrate table/vtable, user-intrinsic, generic-trait, Windows `ProcessExit` `via` sites; delete `via` parsing.
   Acceptance: PlaySoundW, ALSA, and AudioQueue bindings pass `omega run --both` on matching hosts, and `via` is removed.
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish retiring standalone `boundary requirement` declarations ([machines.md](wiki/spec/language/machines.md#supply)).
@@ -82,7 +82,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (covers **OPERATOR-BOUNDARY-CALLS**, **TARGET-SEMANTIC-APPLICATIONS**) Settle providers over Terminal Psi in `execution_settlement.rs`.
   - Move `execution_settlement.rs`, `provider_binding.rs`, `operators.rs`, opaque/const/review paths, float/FMA/GUI calls, and target capsules to Terminal Psi.
-  Acceptance: two-target builds share one Terminal artifact, and `pass/float/float_computation_route_exit` passes `--both`.
+  Acceptance: `FIREWALL_ALLOWANCES` in `tools/xtask/src/boundary.rs` has no `provider-planning` or `selected-dispatch` rows, and `mbx xtask check-boundary` passes.
 
 ## Lowering, checker, and data-flow
 
@@ -125,8 +125,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Retire Psi 06 shape gates (`tools/stage06_shape_gates.txt`) and source-context reads (`tools/stage06_source_context.txt`) using Psi 05 plans.
   Acceptance: retired gates have checking reject twins in `tests/omega/fail/facts/`, and `linux_x86_64` native corpus passes.
 
-- **WIRE-CODEC-LIBRARY.** (covers **SEMANTIC-REFLECTION**) Complete [semantic reflection](wiki/spec/language/reflection.md) and `compact_binary` in `source/library/std/wire.omg`.
-  Acceptance: `source/library/std/wire.omg`, the 40-field record, `tests/omega/{pass,fail}/wire/*`, and `wire_protocol` pass `omega run --both`.
+- **WIRE-CODEC-LIBRARY.** (covers **SEMANTIC-REFLECTION**) Complete [semantic reflection](wiki/spec/language/reflection.md) and `compact_binary` in `source/library/core/wire.omg`.
+  Acceptance: `source/library/core/wire.omg`, the 40-field record, `tests/omega/{pass,fail}/wire/*`, and `wire_protocol` pass `omega run --both`.
 
 ## Universal interpreter cutover
 

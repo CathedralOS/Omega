@@ -1,1 +1,4 @@
-machine main() {}
+use mechanism::main;
+machine main() reaches Signal, PortIo {
+    Signal::emit();
+}

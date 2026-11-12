@@ -30,6 +30,19 @@ each, used only by the generic check form, which is never encoded to
 `PSITERM\0` bytes (as the [open question](check_on_lowered_form.md#open-questions)
 on generic bodies already plans).
 
+**Status, 2026-11-12.** Step 1 of [the order](#recommendation-and-order),
+value parameters, is built and recorded as
+[condition 3's second result](check_on_lowered_form.md#condition-3-value-parameters).
+It differs from the text below in three ways. The literal a specialization
+binds is worked out from the two lowered contracts, not taken from
+`reverify_at_call`'s formal-for-actual substitution, because the typed trees
+record a generated machine's argument only as its spelling. A requirement
+with value parameters is read at the literals of each call, so the fail
+twin is refused at `Units == 7`, where the member's refinement proof is
+missing, not "for every `Units`, before any specialization". And a body that
+reads the parameter as an operand is not carried yet. Steps 2 and 3 are not
+built.
+
 ## What the specification asks
 
 These sentences bind the design; each choice below cites the one it rests on.
@@ -308,7 +321,10 @@ for `core::integer`), cannot serve an opaque `T`, and whether it counts as
 Not decided here. Each is a language or gate question; the lowered-form
 representation itself is delegated
 ([OWNER_QUESTIONS.md](../../../OWNER_QUESTIONS.md), Psi representation
-paragraph).
+paragraph). They are filed there, in this order, as the decisions
+`type-family-operation-outside-arm`, `contract-conjunct-under-type-equation`
+and `finite-family-generic-check`, each with what the current checker does
+with a small program of that shape.
 
 1. **Operations on `T` outside an arm.** In a finite family, may a body apply
    an operator to a value of type `T` outside a branch that establishes one
