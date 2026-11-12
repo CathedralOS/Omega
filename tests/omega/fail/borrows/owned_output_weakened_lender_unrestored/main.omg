@@ -1,0 +1,19 @@
+// The helper may temporarily write zero through a weaker view.
+// The caller's positive-number requirement must hold when the loan ends.
+public data Ticket [copy] { number: u64; }
+public domain Ticket::Issued requires self.number > 0;
+public data Output<T> { body: T; }
+
+machine finish<'storage>(mut output: Output<&'storage mut Ticket>) -> u64
+ensures output.body.number == 0
+{
+    output.body.number = 0;
+    output.body.number = 0;
+    0
+}
+
+machine main() {
+    let mut old_ticket: Ticket in Issued = Ticket { number: 5 };
+    let output: Output<&mut Ticket> = Output { body: &mut old_ticket as -Issued };
+    let ignored: u64 = finish(output);
+}
