@@ -2,7 +2,6 @@
 """Job 1 shard runner: route coverage measurement (shard 3 of 8)."""
 from __future__ import annotations
 
-import re
 import subprocess
 import sys
 import time
@@ -19,7 +18,13 @@ HEADER = (
     "fixture\ttier\troute_verdict\tcurrent_verdict\tagreement\tfirst_refusal\tseconds\n"
 )
 
-UNDECIDED = ("fallback", "refused-module", "defect", "panicked", "no-entry", "unreached")
+FALLBACK_UNDECIDED = ("fallback", "refused-module", "defect", "panicked")
+REASON_PREFIXES = (
+    "Unsupported: ",
+    "Incomplete: ",
+    "IllFormed: ",
+    "OutOfScope: ",
+)
 
 
 def tier(fixture: str) -> str:
@@ -58,117 +63,139 @@ def load_done() -> set[str]:
 def field_map(fields: list[str]) -> dict[str, str]:
     out: dict[str, str] = {}
     for f in fields:
-        if "=" in f and not f.startswith("root="):
+        if f.startswith("root="):
+            out["root"] = f.removeprefix("root=")
+        elif "=" in f:
             k, v = f.split("=", 1)
             out[k] = v
-        elif f.startswith("root="):
-            out["root"] = f.removeprefix("root=")
     return out
 
 
-def parse_program_line(line: str) -> tuple[str, str, str, str | None]:
-    """Return (fixture, current, route_kind, refusal_hint)."""
+def normalize_construct_refusal(raw: str) -> str:
+    raw = raw.strip()
+    if not raw:
+        return ""
+    if raw == "no-entry":
+        return "bucket:no-program-entry"
+    if raw == "unreached":
+        return "bucket:current-checker-stopped"
+    for prefix in REASON_PREFIXES:
+        if raw.startswith(prefix):
+            return raw.removeprefix(prefix).strip()
+    if raw.startswith("reason="):
+        return raw.removeprefix("reason=").strip()
+    return raw
+
+
+def outside_payload(fields: list[str]) -> str:
+    try:
+        idx = fields.index("route=outside")
+    except ValueError:
+        return ""
+    if idx + 1 < len(fields):
+        return fields[idx + 1]
+    return ""
+
+
+def parse_program_line(line: str) -> dict[str, str]:
     fields = line.split("\t")
     if len(fields) < 2:
-        return "", "", "", None
-    fixture = fields[1]
+        return {}
     fm = field_map(fields[2:])
-    current = fm.get("current", "")
-    route = fm.get("route", "")
-    refusal: str | None = None
-    if route == "outside":
-        # Reason is the first bare field after route=outside tab fields.
-        try:
-            idx = fields.index("route=outside")
-            if idx + 1 < len(fields):
-                refusal = fields[idx + 1]
-        except ValueError:
-            pass
-    elif route in UNDECIDED and route in ("no-entry", "unreached"):
-        refusal = route
-    return fixture, current, route, refusal
+    return {
+        "fixture": fields[1],
+        "current": fm.get("current", ""),
+        "route": fm.get("route", ""),
+        "root": fm.get("root", ""),
+        "outside": outside_payload(fields),
+        "refused_reason": fm.get("reason", ""),
+        "refused_detail": fields[-1] if fm.get("route") == "refused-module" else "",
+    }
 
 
-def aggregate_routes(
-    programs: list[tuple[str, str, str, str | None]],
-    fallbacks: list[str],
-    diagnostics_incomplete: bool,
-) -> tuple[str, str]:
-    routes = [r for _, _, r, _ in programs if r]
-    refusal = ""
+def tallied_route_kind(routes: list[str]) -> str:
+    def has(name: str) -> bool:
+        return any(r == name for r in routes)
 
-    def has(prefix: str) -> bool:
-        return any(r == prefix or r.startswith(prefix) for r in routes)
-
-    def first(prefix: str) -> str | None:
+    def first(name: str) -> str | None:
         for r in routes:
-            if r == prefix or r.startswith(prefix):
+            if r == name:
                 return r
         return None
 
     for decided in ("rejected", "incomplete"):
         if has(decided):
-            if decided == "rejected":
-                tsv = "rejected"
-            else:
-                tsv = "outside"
-                if not refusal:
-                    refusal = "incomplete"
-            break
-    else:
-        for und in UNDECIDED:
-            if first(und):
-                tsv = "outside"
-                if not refusal:
-                    refusal = und
-                break
-        else:
-            if has("accepted"):
-                tsv = "accepted"
-            elif has("outside"):
-                tsv = "outside"
-                for _, _, _, hint in programs:
-                    if hint:
-                        refusal = hint
-                        break
-            else:
-                tsv = "outside"
-                if routes:
-                    refusal = routes[0]
-                else:
-                    refusal = "no-program-line"
-
-    if fallbacks and not refusal:
-        refusal = fallbacks[0]
-    elif diagnostics_incomplete and tsv == "outside" and not refusal:
-        refusal = "incomplete"
-
-    for _, _, _, hint in programs:
-        if hint and tsv == "outside" and not refusal:
-            refusal = hint
-            break
-
-    if not refusal and tsv == "outside":
-        refusal = "-"
-
-    return tsv, refusal
+            return decided
+    for und in FALLBACK_UNDECIDED:
+        if first(und):
+            return und
+    if has("accepted"):
+        return "accepted"
+    if first("outside"):
+        return "outside"
+    return routes[0] if routes else "-"
 
 
-def agreement(current: str, route_tsv: str) -> str:
-    if route_tsv in ("timeout", "error", "outside"):
+def route_tsv_verdict(kind: str) -> str:
+    if kind in ("accepted", "rejected"):
+        return kind
+    return "outside"
+
+
+def pick_first_refusal(
+    kind: str,
+    programs: list[dict[str, str]],
+    fallbacks: list[str],
+) -> str:
+    """Construct or bucket name for ranking (not generic Unsupported)."""
+    if kind == "rejected":
+        return "-"
+    if kind == "accepted":
+        outside_hints = [
+            normalize_construct_refusal(p["outside"])
+            for p in programs
+            if p.get("route") == "outside" and p.get("outside")
+        ]
+        return outside_hints[0] if outside_hints else "-"
+
+    for prog in programs:
+        route = prog.get("route", "")
+        if route == "outside" and prog.get("outside"):
+            return normalize_construct_refusal(prog["outside"])
+        if route == "refused-module" and prog.get("refused_reason"):
+            detail = prog.get("refused_detail", "")
+            base = normalize_construct_refusal(prog["refused_reason"])
+            if detail and detail != base:
+                return f"{base} ({detail[:120]})"
+            return base
+        if route == "no-entry":
+            return "bucket:no-program-entry"
+        if route == "unreached":
+            return "bucket:current-checker-stopped"
+        if route == "incomplete":
+            return "bucket:prover-incomplete"
+
+    if fallbacks:
+        return normalize_construct_refusal(fallbacks[0])
+
+    if kind == "outside":
+        return "-"
+    if kind in ("no-entry", "unreached"):
+        return normalize_construct_refusal(kind)
+    return normalize_construct_refusal(kind)
+
+
+def agreement(current: str, route_verdict: str) -> str:
+    if route_verdict not in ("accepted", "rejected"):
         return "n-a"
-    if current in ("stopped", "") or route_tsv in ("",):
+    if current not in ("accepted", "rejected"):
         return "n-a"
-    if current == "rejected" and route_tsv == "rejected":
-        return "agree"
-    if current == "accepted" and route_tsv == "accepted":
-        return "agree"
-    if current in ("accepted", "rejected") and route_tsv in ("accepted", "rejected"):
-        return "disagree"
-    return "n-a"
+    cur_ok = current == "accepted"
+    route_ok = route_verdict == "accepted"
+    return "agree" if cur_ok == route_ok else "disagree"
 
 
-def run_one(fixture: str) -> tuple[str, str, str, str, str, float]:
+def run_one(fixture: str) -> tuple[str, str, str, str, float]:
     rel = fixture
     args = [str(BIN)]
     if tier(fixture) == "fail":
@@ -186,7 +213,7 @@ def run_one(fixture: str) -> tuple[str, str, str, str, str, float]:
         )
     except Exception as exc:  # noqa: BLE001
         sec = time.monotonic() - t0
-        return "error", "", "n-a", str(exc), sec
+        return "error", "", "n-a", str(exc)[:200], sec
 
     sec = time.monotonic() - t0
     if proc.returncode == 124:
@@ -194,45 +221,45 @@ def run_one(fixture: str) -> tuple[str, str, str, str, str, float]:
 
     out = proc.stdout or ""
     err = proc.stderr or ""
-    if "panicked" in out.splitlines()[0:3] if out else []:
-        pass
-
     if proc.returncode != 0 and not out.strip():
         detail = (err or out).strip().split("\n")[0][:200]
         return "error", "", "n-a", detail, sec
 
-    programs: list[tuple[str, str, str, str | None]] = []
+    programs: list[dict[str, str]] = []
     fallbacks: list[str] = []
     current = ""
-    diagnostic_incomplete = False
 
     for line in out.splitlines():
         if line.startswith("program\t"):
-            fix, cur, route, hint = parse_program_line(line)
-            if fix == rel or fix.endswith(rel) or rel.endswith(fix):
-                programs.append((fix, cur, route, hint))
-                if cur:
-                    current = cur
+            parsed = parse_program_line(line)
+            if parsed.get("fixture") in (rel, fixture) or rel.endswith(
+                parsed.get("fixture", "")
+            ):
+                programs.append(parsed)
+                if parsed.get("current"):
+                    current = parsed["current"]
         elif line.startswith("fallback\t") and rel in line:
             parts = line.split("\t")
             if len(parts) >= 4:
-                # fallback constructs are Debug-formatted in field 4.
-                construct = parts[3].strip()
-                fallbacks.append(construct)
-        elif line.startswith("diagnostic\t") and rel in line:
-            if "\tincomplete\t" in line:
-                diagnostic_incomplete = True
+                fallbacks.append(parts[3].strip())
 
     if not programs:
         if "panicked" in out:
             return "error", "panicked", "n-a", "panicked", sec
         return "error", current or "", "n-a", "no-output", sec
 
-    route_tsv, first_refusal = aggregate_routes(
-        programs, fallbacks, diagnostic_incomplete
+    routes = [p["route"] for p in programs if p.get("route")]
+    kind = tallied_route_kind(routes)
+    route_verdict = route_tsv_verdict(kind)
+    first_refusal = pick_first_refusal(kind, programs, fallbacks)
+    agr = agreement(current or programs[0].get("current", ""), route_verdict)
+    return (
+        route_verdict,
+        current or programs[0].get("current", ""),
+        agr,
+        first_refusal,
+        sec,
     )
-    agr = agreement(current or programs[0][1], route_tsv)
-    return route_tsv, current or programs[0][1], agr, first_refusal, sec
 
 
 def append_row(
