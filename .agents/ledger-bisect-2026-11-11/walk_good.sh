@@ -2,6 +2,7 @@
 set -euo pipefail
 WITNESS="${1:?}"
 PIN="${2:-51e8c45c793007f211d0d9baee7de16767172444}"
+START_FROM="${3:-}"
 export OMEGA_REPO="/agent/repos/omega"
 export OMEGA_BISECT_TOOLS="/tmp/ledger-bisect-part-30-tools"
 export OMEGA_PIN_ROOT="/tmp/ledger-bisect-part-30"
