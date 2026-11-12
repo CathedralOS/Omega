@@ -2003,7 +2003,7 @@ pass/expressions/runtime_numeric_cast_exit built 15216ms exit:70 interpreter-exi
 pass/expressions/runtime_owned_match_borrowed_subject_exit built 4190ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/expressions/runtime_owned_match_call_result_exit built 14768ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/expressions/runtime_owned_match_effectful_subject_exit built 3606ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/expressions/runtime_owned_match_multiple_projected_claims_exit built 3546ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/expressions/runtime_owned_match_multiple_projected_claims_exit built 19803ms exit:0 interpreter-exit:0 interpreter:agrees @ae9de1c29777
 pass/expressions/runtime_owned_match_parameter_claim_replacement_exit built 4225ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/expressions/runtime_owned_match_pattern_claim_replacement_exit built 2953ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/expressions/runtime_owned_match_pattern_replacement_exit built 4071ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
