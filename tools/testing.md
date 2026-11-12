@@ -1287,7 +1287,11 @@ probe; the gate checks it and reports it apart from the native score.
 Its failure still makes the gate fail. Intended-invalid projects never enter
 package acceptance or native execution: they must exit 1 from checking and match
 all authored diagnostic fragments. Missing expectations, wrong reasons, crashes
-and timeouts fail; no negative coverage disappears into an unscored row. Existing
+and timeouts fail; no negative coverage disappears into an unscored row. A
+program with `expected_native_error.txt` must pass `--check` and then fail its
+native build with every non-empty line of that file in the output, reported as
+`native-rejected`; an empty file, a check failure, a native build that succeeds
+or a missing line fails it. Existing
 no-oracle/freestanding reporting and positive package-review behavior are unchanged.
 
 ```bash
