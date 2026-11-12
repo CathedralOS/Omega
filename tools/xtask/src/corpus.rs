@@ -7,6 +7,7 @@ use std::process::{Command, Stdio};
 
 use crate::{execution, producer};
 
+use crate::fixture_selection::FixtureSelection;
 use crate::repo_root;
 
 pub(crate) const SELECTION_BUDGET: usize = 200;
@@ -348,12 +349,10 @@ fn host_target() -> &'static str {
     }
 }
 
-pub fn selected_fixture_names(root: &Path, filter_text: &str) -> Result<Vec<String>, String> {
-    let fragments: Vec<_> = filter_text
-        .split(',')
-        .map(str::trim)
-        .filter(|v| !v.is_empty())
-        .collect();
+pub fn selected_fixture_names(
+    root: &Path,
+    selection: &FixtureSelection,
+) -> Result<Vec<String>, String> {
     let corpus = root.join("tests/omega");
     let mut names = Vec::new();
     for tier in ["pass", "fail", "run"] {
@@ -377,9 +376,7 @@ pub fn selected_fixture_names(root: &Path, filter_text: &str) -> Result<Vec<Stri
                             .to_string_lossy()
                             .replace('\\', "/")
                     );
-                    if fragments.is_empty()
-                        || fragments.iter().any(|fragment| name.contains(fragment))
-                    {
+                    if selection.matches(&name) {
                         names.push(name);
                     }
                 } else {
@@ -405,7 +402,7 @@ fn selected_fixture_count(
     filter_text: &str,
     shard_text: &str,
 ) -> Result<usize, String> {
-    let count = selected_fixture_names(root, filter_text)?.len();
+    let count = selected_fixture_names(root, &FixtureSelection::fragments(filter_text))?.len();
     if let Some((_, n_str)) = shard_text.trim().split_once('/')
         && let Ok(shards) = n_str.parse::<usize>()
         && shards > 1
@@ -470,14 +467,23 @@ fn print_pinned_regressions(root: &Path, golden_path: &Path, filters: &[String])
 pub fn observe(
     root: &Path,
     binary: &Path,
-    filter: &str,
+    selection: &FixtureSelection,
     shard: &str,
     native_target: Option<&str>,
     interpret: bool,
     check_sites: bool,
     evidence: &Path,
 ) -> Result<String, String> {
-    if filter.trim().is_empty() {
+    let filter_text = match selection {
+        FixtureSelection::All => String::new(),
+        FixtureSelection::Fragments(parts) => parts.join(","),
+        FixtureSelection::Exact(paths) => paths
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+            .join(","),
+    };
+    if selection.is_unfiltered() || filter_text.trim().is_empty() {
         return Err("refusing an unfiltered harness invocation".to_owned());
     }
     fs::create_dir_all(evidence).map_err(|e| e.to_string())?;
@@ -489,13 +495,19 @@ pub fn observe(
         .env("OMEGA_CORPUS_ROOT", root)
         .env("OMEGA_LIBRARY_ROOT", root.join("source/library"))
         .env("OMEGA_CORPUS_RECORDS", &records_path)
-        .env("OMEGA_CORPUS_FIXTURE_FILTER", filter)
+        // Retained older runners still receive a bounded substring filter;
+        // their extra prefix matches fail the unchanged observed-roster guard.
+        .env("OMEGA_CORPUS_FIXTURE_FILTER", &filter_text)
+        .env_remove("OMEGA_CORPUS_FIXTURE_PATHS")
         .env_remove("NEXTEST")
         .env_remove("OMEGA_CORPUS_MIGRATION_FIXTURES")
         .env_remove("OMEGA_CORPUS_SHARD")
         .env_remove("OMEGA_CORPUS_NATIVE")
         .env_remove("OMEGA_CORPUS_INTERPRET")
         .env_remove("OMEGA_CORPUS_NATIVE_TARGET");
+    if matches!(selection, FixtureSelection::Exact(_)) {
+        command.env("OMEGA_CORPUS_FIXTURE_PATHS", &filter_text);
+    }
     if !shard.is_empty() {
         command.env("OMEGA_CORPUS_SHARD", shard);
     }
@@ -736,7 +748,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let records_text = observe(
         &root,
         binary,
-        &filter,
+        &FixtureSelection::fragments(&filter),
         &shard,
         native.then_some(target),
         interpret,
@@ -1090,8 +1102,17 @@ mod tests {
             fs::write(directory.join("main.omg"), "input").unwrap();
         }
         assert_eq!(
-            selected_fixture_names(&root, "pass/group/control").unwrap(),
+            selected_fixture_names(&root, &FixtureSelection::fragments("pass/group/control"))
+                .unwrap(),
             ["pass/group/control", "pass/group/control_more"]
+        );
+        assert_eq!(
+            selected_fixture_names(
+                &root,
+                &FixtureSelection::exact(["pass/group/control".to_owned()]).unwrap()
+            )
+            .unwrap(),
+            ["pass/group/control"]
         );
         fs::remove_dir_all(root).unwrap();
     }

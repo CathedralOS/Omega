@@ -430,7 +430,9 @@ impl Replay {
                         .runner
                         .as_deref()
                         .ok_or("runtime controls need the prepared runner")?,
-                    &self.fixtures.join(","),
+                    &crate::fixture_selection::FixtureSelection::exact(
+                        self.fixtures.iter().cloned(),
+                    )?,
                     "",
                     Some(target),
                     true,

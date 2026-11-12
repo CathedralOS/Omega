@@ -586,10 +586,11 @@ fn run_plan(args: &[String]) -> Result<(), u8> {
     let base = git(&root, &["rev-parse", &base]).map_err(infra)?;
     let head = git(&root, &["rev-parse", "HEAD"]).map_err(infra)?;
     let changes = changed_paths(&root, &base).map_err(infra)?;
-    let all: BTreeSet<String> = corpus::selected_fixture_names(&root, "")
-        .map_err(infra)?
-        .into_iter()
-        .collect();
+    let all: BTreeSet<String> =
+        corpus::selected_fixture_names(&root, &crate::fixture_selection::FixtureSelection::All)
+            .map_err(infra)?
+            .into_iter()
+            .collect();
     let millis = ledger_millis(&root);
     let smoke = read_list(&root.join(SMOKE_LIST));
     let path_map = parse_path_map(&fs::read_to_string(root.join(PATH_MAP)).unwrap_or_default());
@@ -823,7 +824,7 @@ impl Observer<'_> {
         let text = corpus::observe(
             self.root,
             binary,
-            &names.join(","),
+            &crate::fixture_selection::FixtureSelection::exact(names.iter().cloned())?,
             "",
             None,
             false,
@@ -1117,7 +1118,7 @@ fn run_sweep_shard(args: &[String]) -> Result<(), u8> {
     let text = corpus::observe(
         &root,
         binary,
-        "pass/,fail/,run/",
+        &crate::fixture_selection::FixtureSelection::fragments("pass/,fail/,run/"),
         shard,
         None,
         false,

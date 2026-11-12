@@ -33,6 +33,9 @@
 //! `timeout`, and the pool applies back-pressure so stragglers cannot multiply
 //! past the worker count), `OMEGA_CORPUS_RECORDS=<path>` (write the records
 //! to that file rather than stdout, which a fixture's build log also reaches).
+//! `OMEGA_CORPUS_FIXTURE_PATHS` selects comma-separated exact paths instead of
+//! fragments. An empty or duplicate exact list refuses; qualification also
+//! verifies the complete requested and observed rosters.
 //!
 //! `OMEGA_CORPUS_MIGRATION_FIXTURES` contains newline-separated exact
 //! `pending/group/name` paths from the gate's reviewed migration roster. Only
@@ -155,6 +158,8 @@ mod artifact_capture;
 mod entry_inputs;
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
+#[path = "support/fixture_selection.rs"]
+mod fixture_selection;
 #[path = "support/incoming_backing_controls.rs"]
 mod incoming_backing_controls;
 #[path = "support/native_component_descriptions.rs"]
@@ -2343,15 +2348,16 @@ fn run_one_bounded(
 /// termination fixtures; `fail/proofs` scopes to one tier+group). A set value
 /// matching nothing fails rather than running empty — the canary filters use
 /// the same convention.
-fn fixture_filter() -> Option<Vec<String>> {
-    let fragments: Vec<String> = env::var("OMEGA_CORPUS_FIXTURE_FILTER")
-        .ok()?
-        .split(',')
-        .map(str::trim)
-        .filter(|fragment| !fragment.is_empty())
-        .map(str::to_string)
-        .collect();
-    (!fragments.is_empty()).then_some(fragments)
+fn fixture_filter() -> Result<fixture_selection::FixtureSelection, String> {
+    match env::var("OMEGA_CORPUS_FIXTURE_PATHS") {
+        Ok(paths) => fixture_selection::FixtureSelection::exact(
+            paths.split(',').map(|path| path.trim().to_owned()),
+        ),
+        Err(env::VarError::NotPresent) => Ok(fixture_selection::FixtureSelection::fragments(
+            &env::var("OMEGA_CORPUS_FIXTURE_FILTER").unwrap_or_default(),
+        )),
+        Err(error) => Err(format!("invalid OMEGA_CORPUS_FIXTURE_PATHS: {error}")),
+    }
 }
 
 /// `OMEGA_CORPUS_SHARD=k/N`: keep fixtures whose FNV-1a hash of
@@ -2432,7 +2438,13 @@ fn main() {
         .and_then(|value| value.parse::<u64>().ok())
         .map(std::time::Duration::from_secs)
         .unwrap_or(std::time::Duration::from_secs(120));
-    let filter = fixture_filter();
+    let filter = match fixture_filter() {
+        Ok(selection) => selection,
+        Err(message) => {
+            eprintln!("corpus_runner: {message}");
+            process::exit(2);
+        }
+    };
     let prior = prior_millis();
     let mut migration_mains = match migration_pending_mains(&root) {
         Ok(mains) => mains,
@@ -2474,11 +2486,7 @@ fn main() {
                     .to_string_lossy()
                     .replace('\\', "/")
             );
-            if let Some(fragments) = &filter
-                && !fragments
-                    .iter()
-                    .any(|fragment| candidate.contains(fragment))
-            {
+            if !filter.matches(&candidate) {
                 continue;
             }
             if let Some((k, n)) = shard
@@ -2498,7 +2506,7 @@ fn main() {
             jobs.push((tier, base.clone(), main, fixture_cap));
         }
     }
-    if jobs.is_empty() && (filter.is_some() || shard.is_some()) {
+    if jobs.is_empty() && (!filter.is_unfiltered() || shard.is_some()) {
         eprintln!("corpus_runner: filter/shard matched no fixtures");
         process::exit(2);
     }

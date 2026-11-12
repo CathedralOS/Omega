@@ -24,6 +24,8 @@ mod corpus;
 mod corpus_gate;
 mod doctor;
 mod execution;
+#[path = "../../../omega-rust/omega/compilation/compiler/tests/support/fixture_selection.rs"]
+mod fixture_selection;
 mod fmt;
 mod focused_test;
 mod landing;
