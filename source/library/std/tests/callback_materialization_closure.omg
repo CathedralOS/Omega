@@ -17,7 +17,7 @@ SecondaryWndClassWindowProcedureSlot satisfies PrivateCallbackSlot<ForeignRecord
 UnusedWindowProcedureSlot satisfies PrivateCallbackSlot<ForeignRecord, Spread, UnusedProcedure::call> { }
 
 // Callback slots and the registrar name this same selected layout.
-Spread satisfies FixedLayout<ForeignRecord> {
+public Spread satisfies FixedLayout<ForeignRecord> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
     reaches none terminates {
         let mut owned_entries: [FieldEntry; 64];
@@ -38,7 +38,7 @@ Spread satisfies FixedLayout<ForeignRecord> {
     }
 }
 
-data ForeignRecord {
+public data ForeignRecord {
     payload: u64;
 }
 
