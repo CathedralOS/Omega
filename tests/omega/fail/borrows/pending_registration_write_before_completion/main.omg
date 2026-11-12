@@ -1,10 +1,11 @@
-// A pending registration keeps its buffer lent after register returns: Pending<'source>
-// retains the loan of main.buffer until completion consumes it. Carrying it into the
-// terminal call wait() does not end that loan early, so writing the buffer inside wait
-// before completion must reject. The pass twin writes only after completion.
+// A boundary registration stays in flight after register returns: Pending<'source>
+// retains the loan of buffer until completion consumes it. Writing buffer while the
+// operation is in flight must reject. The pass twin writes only after completion.
 use omega::language::core::content;
+use omega::language::core::drop;
 public data ByteUnit {}
-public data Buffer { value: u64; }
+public data Buffer [linear] dropped by drop_buffer { value: u64; }
+machine drop_buffer(buffer: &mut Buffer) {}
 public domain Buffer::Owned;
 machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
 satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
@@ -28,26 +29,24 @@ public boundary trait Reader {
     ensures result in Capacity::Available crashes Trap;
     machine release(capacity: Capacity in Capacity::Available) reaches crashes Trap;
 }
-data Main { buffer: Buffer; }
-machine Main::run(main: &mut Main) reaches Reader crashes Trap {
+data Main {}
+machine run_main(main: &mut Main) reaches Reader crashes Trap {
     let capacity: Capacity in Capacity::Available = Reader::acquire();
-    let pending: Pending = Reader::register(capacity, &main.buffer);
-    transition { _ -> wait(main, pending) }
-
-    machine wait(main: &mut Main, pending: Pending in Pending::Retained) reaches Reader crashes Trap {
-        main.buffer.value = 99;
-        let mut observed: u64 = 0;
-        let returned: Capacity in Capacity::Available = Reader::complete(pending, &mut observed);
-        Reader::release(returned);
-        transition observed == 37 { true -> done(main) _ -> bad(main) }
-    }
-
-    machine done(main: &mut Main) {}
-    machine bad(main: &mut Main) crashes Trap { crash Trap; }
+    let mut buffer: Buffer in Buffer::Owned = Buffer { value: 37 };
+    let pending: Pending = Reader::register(capacity, &buffer);
+    buffer.value = 99;
+    let mut observed: u64 = 0;
+    let returned: Capacity in Capacity::Available = Reader::complete(pending, &mut observed);
+    Reader::release(returned);
+    let value: u64 = buffer.value;
+    drop(buffer);
+    transition observed == 37 && value == 99 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Reader crashes Trap {
-    let mut entry_storage: Main = Main { buffer: Buffer { value: 37 } };
-    Main::run(&mut entry_storage);
+    let mut entry_storage: Main;
+    run_main(&mut entry_storage);
 }
