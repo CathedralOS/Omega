@@ -236,6 +236,35 @@ mod case_access {
             pub stable_index_subject: bool,
         }
 
+        /*
+            Zero formation of an owned array, as its one `ZeroCaseElements` fact
+            states it: `array[index].element` has `variant` selected for every
+            index in `first..end`. It answers for each such element exactly as a
+            selected observation at that element's own place would.
+        */
+        pub(super) struct ElementCaseObservation {
+            pub array: CanonicalPlace,
+            pub first: usize,
+            pub end: usize,
+            pub element: Vec<facts::PlaceSegment>,
+            pub variant: SymbolHandle,
+        }
+
+        impl ElementCaseObservation {
+            pub(super) fn covers(&self, subject: &CanonicalPlace) -> bool {
+                let array = self.array.segments.len();
+                subject.root == self.array.root
+                    && subject.segments.len() == array + 1 + self.element.len()
+                    && subject.segments[..array] == self.array.segments[..]
+                    && matches!(
+                        subject.segments[array],
+                        facts::PlaceSegment::FixedIndex { index }
+                            if self.first <= index && index < self.end
+                    )
+                    && subject.segments[array + 1..] == self.element[..]
+            }
+        }
+
         /* A tag observation as the facts spell it, before normalization. */
         struct RawObservation {
             place: CanonicalPlace,
@@ -266,7 +295,7 @@ mod case_access {
             machine: &typed_trees::machine::Machine,
             state: &typed_trees::state::State,
             statement_index: usize,
-        ) -> Vec<CaseObservation> {
+        ) -> (Vec<CaseObservation>, Vec<ElementCaseObservation>) {
             let observed = arena::unique_handles_in_order(
                 semantic
                     .context_fact_handles(contexts.iter().copied())
@@ -277,9 +306,11 @@ mod case_access {
                                 | FactPayload::BooleanExpression(_)
                                 | FactPayload::ContractBooleanExpression { .. }
                                 | FactPayload::CaseValue { .. }
+                                | FactPayload::ZeroCaseElements { .. }
                         )
                     }),
             );
+            let mut elements = Vec::new();
             let mut observer = Observer {
                 program,
                 machine,
@@ -318,6 +349,34 @@ mod case_access {
                             selected: value,
                         });
                     }
+                    FactPayload::ZeroCaseElements {
+                        first,
+                        end,
+                        element,
+                        variant,
+                    } => {
+                        if !variant.is_valid()
+                            || program.symbols.get(variant).kind != symbols::SymbolKind::Variant
+                        {
+                            continue;
+                        }
+                        let Some(array) = fact.place.as_place().and_then(|place| {
+                            super::canonical_place_from_semantic_place(
+                                program,
+                                semantic,
+                                semantic.places.get(place),
+                            )
+                        }) else {
+                            continue;
+                        };
+                        elements.push(ElementCaseObservation {
+                            array,
+                            first,
+                            end,
+                            element: semantic.place_segments.span_or_empty(element).to_vec(),
+                            variant,
+                        });
+                    }
                     _ => {}
                 }
             }
@@ -346,7 +405,7 @@ mod case_access {
                 })
                 .collect::<Vec<_>>();
             rows.sort_by(|left, right| left.place.compare_identity(&right.place));
-            rows
+            (rows, elements)
         }
 
         /*
@@ -493,6 +552,7 @@ mod case_access {
         state: &'program typed_trees::state::State,
         statement_index: usize,
         observations: Vec<CaseObservation>,
+        element_observations: Vec<observations::ElementCaseObservation>,
         indexed_observations: Vec<usize>,
         scalar_values: Option<crate::checks::current_scalar_values::CurrentScalarValues<'program>>,
     }
@@ -518,7 +578,7 @@ mod case_access {
         ) -> Option<Self> {
             let machine = program.machine_by_symbol(machine_symbol)?;
             let state = program.state_in_machine(machine, state_symbol)?;
-            let observations =
+            let (observations, element_observations) =
                 observations::collect(program, semantic, contexts, machine, state, statement_index);
             let indexed_observations: Vec<_> = observations
                 .iter()
@@ -549,6 +609,7 @@ mod case_access {
                 state,
                 statement_index,
                 observations,
+                element_observations,
                 indexed_observations,
                 scalar_values,
             })
@@ -729,6 +790,114 @@ mod case_access {
                     }
                 }
             }
+            self.for_each_inactive_element_case(&mut visit);
+        }
+
+        /*
+            The same exclusions for zero-formed array elements. Every element of
+            one `ZeroCaseElements` range has the same type, the same stability and
+            the same excluded alternatives, so decide those once on the first
+            element and then name each element's namespace.
+        */
+        fn for_each_inactive_element_case(&self, visit: &mut impl FnMut(&CanonicalPlace)) {
+            for row in &self.element_observations {
+                if row.first >= row.end {
+                    continue;
+                }
+                let index_position = row.array.segments.len();
+                let mut subject = CanonicalPlace {
+                    root: row.array.root,
+                    segments: row
+                        .array
+                        .segments
+                        .iter()
+                        .copied()
+                        .chain([PlaceSegment::FixedIndex { index: row.first }])
+                        .chain(row.element.iter().copied())
+                        .collect(),
+                };
+                if !stable_subject(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    self.statement_index,
+                    &subject,
+                ) {
+                    continue;
+                }
+                let Some(reference) = validation::canonical_owned_place_type_reference(
+                    self.program,
+                    self.state.symbol,
+                    self.statement_index,
+                    &subject,
+                ) else {
+                    continue;
+                };
+                let root_is_plain_without_cleanup =
+                    validation::canonical_owned_place_type_reference(
+                        self.program,
+                        self.state.symbol,
+                        self.statement_index,
+                        &CanonicalPlace {
+                            root: subject.root,
+                            segments: Vec::new(),
+                        },
+                    )
+                    .is_some_and(|reference| {
+                        validation::has_plain_contents_without_nominal_cleanup(
+                            self.program,
+                            reference,
+                        )
+                    });
+                if root_is_plain_without_cleanup
+                    && validation::has_no_owned_cleanup_obligations(self.program, reference)
+                {
+                    continue;
+                }
+                let reference = validation::peel_declared_constraints(self.program, reference);
+                let Some(data) = self.program.closed_data_definition(reference).or_else(|| {
+                    self.program
+                        .typed_program()
+                        .data_application_definition(reference)
+                }) else {
+                    continue;
+                };
+                let excluded: Vec<SymbolHandle> = self
+                    .program
+                    .data_members(data)
+                    .iter()
+                    .filter_map(|member| match member {
+                        typed_trees::data::DataMember::Variant(variant)
+                            if variant.symbol != row.variant
+                                && self.program.symbols.get(variant.symbol).parent
+                                    == self.program.symbols.get(row.variant).parent =>
+                        {
+                            Some(variant.symbol)
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                if excluded.is_empty() {
+                    continue;
+                }
+                let case_position = subject.segments.len();
+                subject.segments.push(PlaceSegment::Case {
+                    variant: row.variant,
+                });
+                /*
+                    One exclusion names the case for the whole range. Every
+                    reader of these paths accepts a range where one element's
+                    index would stand, so no element needs its own copy.
+                */
+                subject.segments[index_position] = PlaceSegment::FixedRange {
+                    start: row.first,
+                    end: row.end,
+                };
+                for variant in &excluded {
+                    subject.segments[case_position] = PlaceSegment::Case { variant: *variant };
+                    visit(&subject);
+                }
+            }
         }
 
         fn has_value(&self, subject: &CanonicalPlace, case: SymbolHandle, required: bool) -> bool {
@@ -864,6 +1033,12 @@ mod case_access {
                                 row.variant == case && !required
                             }
                     })
+                    || self.element_observations.iter().any(|row| {
+                        self.program.symbols.get(row.variant).parent
+                            == self.program.symbols.get(case).parent
+                            && (row.variant == case) == required
+                            && row.covers(subject)
+                    })
             };
             self.case_evidence_proves(case, required, has_case_evidence)
         }
@@ -944,6 +1119,38 @@ mod case_access {
                         } else {
                             row.variant == case && !required
                         }
+                }) || self.element_observations.iter().any(|row| {
+                    /*
+                        The projection reads one element. Name the covered
+                        element it selects and ask the same question of that
+                        element's tagged place.
+                    */
+                    row.array.root == prefix.root
+                        && self.program.symbols.get(row.variant).parent
+                            == self.program.symbols.get(case).parent
+                        && (row.variant == case) == required
+                        && values
+                            .call_argument_projection_index(
+                                &prefix.segments,
+                                projection,
+                                row.array.segments.len(),
+                            )
+                            .filter(|index| row.first <= *index && *index < row.end)
+                            .is_some_and(|index| {
+                                let tagged: Vec<PlaceSegment> = row
+                                    .array
+                                    .segments
+                                    .iter()
+                                    .copied()
+                                    .chain([PlaceSegment::FixedIndex { index }])
+                                    .chain(row.element.iter().copied())
+                                    .collect();
+                                values.matches_call_argument_projection(
+                                    &tagged,
+                                    &prefix.segments,
+                                    projection,
+                                )
+                            })
                 })
             });
             if !proven && validation::trace_flags::check_sites() {
@@ -1117,6 +1324,130 @@ mod case_access {
         }
     }
 
+    /*
+        An inactive case of a zero-formed array is observed once for a range of
+        elements: its path spells that range where one element's path spells its
+        index. Such a path stands for the same case in every element of the range,
+        so it is a prefix of an element's path when the index lies inside it.
+        Every reader of inactive-case paths compares through these two.
+    */
+    fn observed_segment_admits(observed: PlaceSegment, queried: PlaceSegment) -> bool {
+        observed == queried
+            || matches!(
+                (observed, queried),
+                (
+                    PlaceSegment::FixedRange { start, end },
+                    PlaceSegment::FixedIndex { index },
+                ) if start <= index && index < end
+            )
+    }
+
+    /* The observed case path, or a path below it. */
+    pub(crate) fn lies_under_observed_case(
+        observed: &[PlaceSegment],
+        path: &[PlaceSegment],
+    ) -> bool {
+        observed.len() <= path.len()
+            && observed
+                .iter()
+                .zip(path)
+                .all(|(observed, queried)| observed_segment_admits(*observed, *queried))
+    }
+
+    /* A path that contains the observed case path. */
+    pub(crate) fn contains_observed_case(path: &[PlaceSegment], observed: &[PlaceSegment]) -> bool {
+        path.len() <= observed.len()
+            && observed
+                .iter()
+                .zip(path)
+                .all(|(observed, queried)| observed_segment_admits(*observed, *queried))
+    }
+
+    /*
+        One `ZeroCaseElements` fact read below a storage prefix, for the transfers
+        that carry every observation under a moved or copied value. The fact
+        stands for a selected case at `array[index].element` for each covered
+        index, so a prefix that holds the whole array carries the fact itself and
+        a prefix inside one covered element carries that element's single tag.
+    */
+    pub(crate) enum ZeroCaseBelow {
+        /* The array's path below the prefix. */
+        Elements { array: Vec<PlaceSegment> },
+        /* The tagged place's path below the prefix, inside one element. */
+        Element { place: Vec<PlaceSegment> },
+    }
+
+    pub(crate) fn zero_case_below(
+        program: &dyn validation::CheckingInput,
+        array: &[PlaceSegment],
+        elements: std::ops::Range<usize>,
+        element: &[PlaceSegment],
+        prefix: &[PlaceSegment],
+    ) -> Option<ZeroCaseBelow> {
+        if let Some(array) = array.strip_prefix(prefix) {
+            return Some(ZeroCaseBelow::Elements {
+                array: array.to_vec(),
+            });
+        }
+        let (selector, inside) = prefix.strip_prefix(array)?.split_first()?;
+        let index = match *selector {
+            PlaceSegment::FixedIndex { index } => index,
+            PlaceSegment::Index { expression }
+                if program.expression_table.expression_is_valid(expression) =>
+            {
+                crate::flow::expressions(program)
+                    .constant_integer_value(expression)
+                    .and_then(|value| usize::try_from(value).ok())?
+            }
+            _ => return None,
+        };
+        if !elements.contains(&index) {
+            return None;
+        }
+        Some(ZeroCaseBelow::Element {
+            place: element.strip_prefix(inside)?.to_vec(),
+        })
+    }
+
+    /*
+        The case a `ZeroCaseElements` fact selects at exactly `subject`, for the
+        readers that look for one place's own tag observation.
+    */
+    pub(crate) fn zero_case_at(
+        program: &dyn validation::CheckingInput,
+        semantic: &FactPlan,
+        fact: &facts::Fact,
+        subject: &CanonicalPlace,
+    ) -> Option<SymbolHandle> {
+        let facts::FactPayload::ZeroCaseElements {
+            first,
+            end,
+            element,
+            variant,
+        } = fact.payload
+        else {
+            return None;
+        };
+        let array = canonical_place_from_semantic_place(
+            program,
+            semantic,
+            semantic.places.get(fact.place.as_place()?),
+        )?;
+        if array.root != subject.root {
+            return None;
+        }
+        match zero_case_below(
+            program,
+            &array.segments,
+            first..end,
+            semantic.place_segments.span_or_empty(element),
+            &subject.segments,
+        )? {
+            ZeroCaseBelow::Element { place } if place.is_empty() => Some(variant),
+            _ => None,
+        }
+    }
+
     pub(crate) fn place_cases_are_selected(
         program: &dyn validation::CheckingInput,
         semantic: &FactPlan,
@@ -1261,6 +1592,81 @@ mod case_access {
                         values.selector_has_immutable_denotation(*expression)
                     }))
             })
+    }
+
+    #[cfg(test)]
+    mod zero_case_below_tests {
+        use super::{ZeroCaseBelow, zero_case_below};
+        use facts::PlaceSegment;
+
+        fn field(index: u32) -> PlaceSegment {
+            PlaceSegment::Field {
+                symbol: symbols::SymbolHandle::from_parts(index, 1),
+            }
+        }
+
+        fn at(index: usize) -> PlaceSegment {
+            PlaceSegment::FixedIndex { index }
+        }
+
+        /* `owner.table[2..6]` tagged at `.slot.kind` inside each element. */
+        fn below(prefix: &[PlaceSegment]) -> Option<(bool, Vec<PlaceSegment>)> {
+            let program = typed_trees::TypedTrees::default();
+            zero_case_below(
+                &program,
+                &[field(1), field(2)],
+                2..6,
+                &[field(3), field(4)],
+                prefix,
+            )
+            .map(|below| match below {
+                ZeroCaseBelow::Elements { array } => (true, array),
+                ZeroCaseBelow::Element { place } => (false, place),
+            })
+        }
+
+        #[test]
+        fn a_prefix_holding_the_array_carries_the_whole_fact() {
+            assert_eq!(below(&[]), Some((true, vec![field(1), field(2)])));
+            assert_eq!(below(&[field(1)]), Some((true, vec![field(2)])));
+            assert_eq!(below(&[field(1), field(2)]), Some((true, vec![])));
+        }
+
+        #[test]
+        fn a_prefix_inside_one_covered_element_carries_that_tag() {
+            assert_eq!(
+                below(&[field(1), field(2), at(2)]),
+                Some((false, vec![field(3), field(4)]))
+            );
+            assert_eq!(
+                below(&[field(1), field(2), at(5), field(3)]),
+                Some((false, vec![field(4)]))
+            );
+            assert_eq!(
+                below(&[field(1), field(2), at(5), field(3), field(4)]),
+                Some((false, vec![]))
+            );
+        }
+
+        #[test]
+        fn other_storage_carries_nothing() {
+            assert_eq!(below(&[field(1), field(2), at(6)]), None);
+            assert_eq!(below(&[field(1), field(2), at(1)]), None);
+            assert_eq!(below(&[field(1), field(2), at(3), field(9)]), None);
+            assert_eq!(below(&[field(1), field(9)]), None);
+            assert_eq!(
+                below(&[
+                    field(1),
+                    field(2),
+                    PlaceSegment::FixedRange { start: 2, end: 6 }
+                ]),
+                None
+            );
+            assert_eq!(
+                below(&[field(1), field(2), at(3), field(3), field(4), field(5)]),
+                None
+            );
+        }
     }
 }
 mod coverage {
@@ -1809,8 +2215,10 @@ pub(crate) use canonicalization::{
     source_independent_place,
 };
 pub(crate) use case_access::{
-    CaseEvidence, place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,
-    place_cases_are_selected_after, stable_subject as stable_case_subject,
+    CaseEvidence, ZeroCaseBelow, contains_observed_case, lies_under_observed_case,
+    place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,
+    place_cases_are_selected_after, stable_subject as stable_case_subject, zero_case_at,
+    zero_case_below,
 };
 pub(crate) use literal_projection::{
     LiteralExpressionProjection, LiteralValueSource, literal_argument_access_places,

@@ -8972,8 +8972,9 @@ fn statement_phase(statement: &StatementNode) -> &'static str {
 }
 
 /*
-    A case arm's payload marker (`let __arm_destructure#V=..`) precedes that
-    arm's transition; the arm, not the sequence, binds its fields.
+    A case arm's payload marker, a local whose role is `ArmPattern`,
+    precedes that arm's transition; the arm, not the sequence, binds its
+    fields.
 */
 fn is_arm_destructure_marker(statement: &StatementNode) -> bool {
     matches!(statement, StatementNode::LocalData(local)

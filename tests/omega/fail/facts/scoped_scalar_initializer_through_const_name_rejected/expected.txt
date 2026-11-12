@@ -1,1 +1,1 @@
-cannot prove scalar result domain for return from @const-qualification-SCALAR-0
+domain constraint `BelowIndex` for the const leaf value is false

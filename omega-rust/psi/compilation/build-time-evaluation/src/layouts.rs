@@ -4305,8 +4305,6 @@ pub(crate) mod access_views {
 pub(crate) mod layout_plans {
     use typed_trees::TypedTrees;
 
-    use super::schema_reflection::{build_schema_value, schema_fields};
-    use crate::BuildTimeAdmissionPlan;
     use crate::build_time_evaluation::type_reference_table;
     use language_semantics::callback_declarations::PrivateCallbackSlotSelection;
     use symbols::SymbolKind;
@@ -4851,96 +4849,6 @@ pub(crate) mod layout_plans {
     pub type PrivateCallbackLayoutDemandReport = layout_plans::PrivateCallbackLayoutDemandReport<
         typed_trees::PrivateCallbackSlotApplication,
     >;
-
-    pub fn compute_native_layout_plan_for_machine(
-        typed: &TypedTrees,
-        machine_symbol: symbols::SymbolHandle,
-        schema_data: &str,
-        selection: Option<crate::AuthorizedSelection>,
-    ) -> Result<NativeLayoutPlanReport, String> {
-        let (fields, fingerprint) = schema_fields(typed, schema_data)?;
-        compute_native_layout_plan_with_schema(
-            typed,
-            machine_symbol,
-            schema_data,
-            &fields,
-            fingerprint,
-            selection,
-            None,
-            &Default::default(),
-        )
-    }
-
-    pub(super) fn compute_native_layout_plan_with_schema(
-        typed: &TypedTrees,
-        machine_symbol: symbols::SymbolHandle,
-        schema_data: &str,
-        schema_fields: &[super::schema_reflection::SchemaFieldInfo],
-        schema_report_fingerprint: u64,
-        selection: Option<crate::AuthorizedSelection>,
-        shared_admission: Option<&BuildTimeAdmissionPlan>,
-        accounting: &crate::evaluation_accounting::EvaluationAccounting,
-    ) -> Result<NativeLayoutPlanReport, String> {
-        let machine = typed
-            .machine_by_symbol(machine_symbol)
-            .ok_or_else(|| "layout policy lost its exact machine declaration".to_owned())?;
-        let policy_machine = machine.name.as_str();
-        let (selection_authority, custody) = match selection {
-            Some(selection) => (Some(selection.authority), Some(selection.custody)),
-            None => (None, None),
-        };
-        let schema_value = build_schema_value(typed, schema_data, schema_fields)?;
-
-        let owned_admission;
-        let admission = match shared_admission {
-            Some(admission) => admission,
-            None => {
-                owned_admission = BuildTimeAdmissionPlan::infer(typed, selection_authority);
-                &owned_admission
-            }
-        };
-        match custody {
-            Some(custody) => {
-                admission.require_common_floor_for_invocation(typed, machine, custody)?
-            }
-            None => admission.require_common_floor(typed, machine)?,
-        }
-
-        let mut request =
-            super::policy_arguments::policy_request(typed, machine, vec![schema_value])?;
-        admission.require_invocation_failures(
-            crate::BuildTimeProgram::Typed(typed),
-            machine,
-            &mut request.arguments,
-            custody,
-        )?;
-        let evaluation = accounting
-            .evaluate(
-                checked_interpreter::BuildMachineProgram::Typed(typed),
-                request,
-            )
-            .map_err(|reason| {
-                format!("build-time evaluation of `{policy_machine}` failed: {reason}")
-            })?;
-
-        let layout = validate_plan(
-            evaluation.value(),
-            schema_fields,
-            schema_report_fingerprint,
-            policy_machine,
-        )?;
-        let private_callback_demands = normalize_private_callback_demands(
-            typed,
-            machine,
-            evaluation.private_layout_placements(),
-            policy_machine,
-            None,
-        )?;
-        Ok(NativeLayoutPlanReport {
-            layout,
-            private_callback_demands,
-        })
-    }
 
     pub(crate) fn normalize_private_callback_demands(
         typed: &TypedTrees,
@@ -6347,17 +6255,6 @@ pub(crate) mod schema_reflection {
             }
         }
 
-        pub(crate) fn build_schema_value(
-            typed: &TypedTrees,
-            schema_data: &str,
-            schema_fields: &[SchemaFieldInfo],
-        ) -> Result<BuildTimeValue, String> {
-            let data = typed
-                .data_definition_by_name_str(schema_data)
-                .ok_or_else(|| format!("no data definition named `{schema_data}` exists"))?;
-            build_selected_schema_value(typed, data, schema_fields)
-        }
-
         pub(crate) fn build_selected_schema_value(
             typed: &TypedTrees,
             data: &typed_trees::data::DataDefinition,
@@ -6578,7 +6475,7 @@ pub(crate) mod schema_reflection {
             Ok(())
         }
     }
-    pub(crate) use schema_value::{build_schema_value, build_selected_schema_value};
+    pub(crate) use schema_value::build_selected_schema_value;
 
     const SCHEMA_FIELD_CAPACITY: usize = 32;
 
@@ -6619,23 +6516,6 @@ pub(crate) mod schema_reflection {
             ordered.sort_unstable_by_key(|field| field.identity);
         }
         ordered
-    }
-
-    pub(crate) fn schema_fields(
-        typed: &TypedTrees,
-        schema_data: &str,
-    ) -> Result<(Vec<SchemaFieldInfo>, u64), String> {
-        let data = typed
-            .data_definition_by_name_str(schema_data)
-            .ok_or_else(|| format!("no data definition named `{schema_data}` exists"))?;
-        schema_fields_for(typed, data)
-    }
-
-    pub(crate) fn schema_fields_for(
-        typed: &TypedTrees,
-        data: &DataDefinition,
-    ) -> Result<(Vec<SchemaFieldInfo>, u64), String> {
-        schema_fields_for_target(typed, data, None)
     }
 
     pub(crate) fn schema_fields_for_target(
@@ -7015,7 +6895,7 @@ pub(crate) mod schema_reflection {
 
     #[cfg(test)]
     mod tests {
-        use super::{reflected_member_layout, schema_fields_for};
+        use super::{reflected_member_layout, schema_fields_for_target};
         use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
         use typed_trees::TypedTrees;
         use typed_trees::data::{DataDefinition, DataField, DataMember, DataVariant};
@@ -7026,7 +6906,7 @@ pub(crate) mod schema_reflection {
         fn empty_record_has_an_empty_physical_schema() {
             let typed = TypedTrees::default();
             let record = DataDefinition::default();
-            let (fields, fingerprint) = schema_fields_for(&typed, &record)
+            let (fields, fingerprint) = schema_fields_for_target(&typed, &record, None)
                 .expect("an empty record needs no physical field entries");
             assert!(fields.is_empty());
             assert_eq!(
