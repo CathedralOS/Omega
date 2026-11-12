@@ -308,7 +308,10 @@ for `core::integer`), cannot serve an opaque `T`, and whether it counts as
 Not decided here. Each is a language or gate question; the lowered-form
 representation itself is delegated
 ([OWNER_QUESTIONS.md](../../../OWNER_QUESTIONS.md), Psi representation
-paragraph).
+paragraph). They are filed there, in this order, as the decisions
+`type-family-operation-outside-arm`, `contract-conjunct-under-type-equation`
+and `finite-family-generic-check`, each with what the current checker does
+with a small program of that shape.
 
 1. **Operations on `T` outside an arm.** In a finite family, may a body apply
    an operator to a value of type `T` outside a branch that establishes one
