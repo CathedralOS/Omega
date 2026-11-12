@@ -946,3 +946,53 @@ tests/omega/pass/relevance/erased_field_init_order/main.omg	pass	remove_guard_tr
 tests/omega/pass/relevance/erased_reference_parameter_exit/main.omg	pass	remove_mut	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_relevance_erased_reference_parameter_exit_main_omg_9ba0b9d00e__remove_mut	accepted	outside	disagree	confirmed-invalid	wiki/spec/language/ownership.md	Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding.	2.321	2.810
 tests/omega/pass/resources/owned_extent_label_erasure_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.761	0.796
 tests/omega/pass/slices/copy_array_under_view/main.omg	pass	amp_to_ampmut		rejected	unreached	agree	discarded-both-reject			0.622	0.667
+tests/omega/pass/slices/empty_fixed_array_slice_call_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.682	0.677
+tests/omega/pass/slices/guarded_param_subslice/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.687	0.673
+tests/omega/pass/slices/live_view_edge_write/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.621	0.670
+tests/omega/pass/slices/mutable_byte_field_range_local_initializer_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.599	0.680
+tests/omega/pass/slices/negated_mutable_array_call_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.621	0.680
+tests/omega/pass/slices/recursive_subslice_element_accumulator_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.134	6.749
+tests/omega/pass/slices/runtime_anonymous_slice_argument_return_exit/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.678	0.677
+tests/omega/pass/slices/runtime_call_endpoint_view_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			8.025	8.858
+tests/omega/pass/slices/runtime_element_view_requires_index_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			7.940	8.777
+tests/omega/pass/slices/runtime_forwarded_view_runtime_index_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			8.606	11.674
+tests/omega/pass/slices/runtime_indexed_record_field_range_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.131	2.396
+tests/omega/pass/slices/runtime_matched_window_coordinate_capture_exit/main.omg	pass	drop_requires	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_slices_runtime_matched_window_coordinate_capture_exit_main_omg_20fc8152d7__drop_requires	accepted	outside	disagree	confirmed-invalid	wiki/spec/language/state_contracts.md	Machine `requires` applies at every invocation, including terminal and recursive calls. Every arrival establishes the target's requirements and declared domains under actual argument substitution.	2.567	3.084
+tests/omega/pass/slices/runtime_mutable_slice_result_whole_forward_exit/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			1.963	2.180
+tests/omega/pass/slices/runtime_nested_view_candidate_backings_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			1.973	2.196
+tests/omega/pass/slices/runtime_published_view_length_bounds_cast_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.662	0.668
+tests/omega/pass/slices/runtime_returned_nested_array_window_home_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.657	0.666
+tests/omega/pass/slices/runtime_slice_element_runtime_index_read_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.130	6.841
+tests/omega/pass/slices/runtime_slice_record_field_offset_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.227	6.887
+tests/omega/pass/slices/runtime_subslice_len_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.329	6.688
+tests/omega/pass/slices/saved_byte_predicate_operand_disjoint_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.069	2.330
+tests/omega/pass/slices/stored_element_view_runtime_destination/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.689	0.724
+tests/omega/pass/slices/whole_element_store/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.654	0.675
+tests/omega/pass/storage/large_zero_initialized_local_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.079	7.027
+tests/omega/pass/storage/runtime_parameter_slice_forward_exit/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			8.548	11.450
+tests/omega/pass/structs/mutable_record_state_transfer/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			8.618	11.440
+tests/omega/pass/structs/runtime_declared_record_member_fill_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.173	6.763
+tests/omega/pass/structs/runtime_qualified_record_call_composition_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.214	6.741
+tests/omega/pass/structs/zeroed_record_members_exit/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			8.518	11.638
+tests/omega/pass/structural/element_store/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			7.985	8.833
+tests/omega/pass/structural/runtime_mutable_record_copy_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.168	6.868
+tests/omega/pass/structural/selected_record_payload_observations_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.260	6.758
+tests/omega/pass/targets/portable_family_entry_installations_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.679	0.675
+tests/omega/pass/targets/runtime_family_callback_requirement_conjunction_exit/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.609	0.671
+tests/omega/pass/targets/runtime_family_nested_nominal_callback_conjunction_exit/main.omg	pass	drop_requires		rejected	unreached	agree	discarded-both-reject			0.678	0.674
+tests/omega/pass/targets/runtime_target_inherited_named_provider_defaults_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.636	0.667
+tests/omega/pass/targets/single_target_internal_same_target_caller/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			8.794	11.373
+tests/omega/pass/targets/unreached_foreign_body_caller_exit/main.omg	pass	remove_mut		rejected	outside	agree	discarded-both-reject			8.617	11.434
+tests/omega/pass/terminal_psi/member_crash_contract_boundary/main.omg	pass	drop_requires	.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_terminal_psi_member_crash_contract_boundary_main_omg_240fa279d4__drop_requires	accepted	no-entry	disagree	confirmed-invalid	wiki/spec/language/state_contracts.md	Machine `requires` applies at every invocation, including terminal and recursive calls. Every arrival establishes the target's requirements and declared domains under actual argument substitution.	1.254	1.421
+tests/omega/pass/termination/auxiliary_payload_computed_arrival/main.omg	pass	drop_requires		rejected	no-entry	agree	discarded-both-reject			1.273	1.373
+tests/omega/pass/termination/computed_rank_copies/main.omg	pass	drop_requires		rejected	no-entry	agree	discarded-both-reject			1.259	1.360
+tests/omega/pass/termination/distance_conjunction_guard_exit/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			6.200	6.957
+tests/omega/pass/termination/increasing_to_rank_range_compile/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.609	0.657
+tests/omega/pass/termination/lexicographic_measure/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.643	0.669
+tests/omega/pass/termination/measure_field_fresh_arrival/main.omg	pass	remove_guard_transition		rejected	unreached	agree	discarded-both-reject			0.587	0.649
+tests/omega/pass/termination/measure_field_relational_range/main.omg	pass	drop_requires		rejected	no-entry	agree	discarded-both-reject			1.159	1.337
+tests/omega/pass/termination/measure_variable_step/main.omg	pass	drop_requires		rejected	no-entry	agree	discarded-both-reject			1.224	1.390
+tests/omega/pass/termination/nested_helper_record_measure_rank_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			1.847	2.077
+tests/omega/pass/termination/private_rank_endpoint_composed_endpoint_exit/main.omg	pass	drop_requires		rejected	outside	agree	discarded-both-reject			2.262	2.414
+tests/omega/pass/termination/progress_selector_owned_arrival_reference_boundary_exit/main.omg	pass	drop_requires	.agents/four-jobs-2026-11-12/soundness/shard-5/ass_termination_progress_selector_owned_arrival_reference_boundary_exit_main_omg_4cf3389aa7__drop_requires	accepted	outside	disagree	confirmed-invalid	wiki/spec/language/state_contracts.md	Machine `requires` applies at every invocation, including terminal and recursive calls. Every arrival establishes the target's requirements and declared domains under actual argument substitution.	2.692	3.128
+tests/omega/pass/termination/quotient_endpoint_call_component/main.omg	pass	drop_requires		rejected	no-entry	agree	discarded-both-reject			1.310	1.480
