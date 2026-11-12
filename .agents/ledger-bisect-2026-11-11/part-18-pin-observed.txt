@@ -1,0 +1,25 @@
+pass/borrows/runtime_copied_reference_conditional_nominal_backing_exit rejected 2574ms check-target:macos_arm64
+	machine `probe` state `entry` statement 2: cannot prove selected case for payload access `choice.payload.target`: no captured source place is available
+pass/borrows/runtime_copied_reference_conditional_structural_result_exit rejected 2213ms check-target:macos_arm64
+	machine `probe` state `entry` statement 2: cannot prove selected case for payload access `choice.payload.target`: no captured source place is available
+pass/calls/nonreturning_record_match_normal_exit checked 13409ms check-target:macos_arm64
+pass/calls/nonreturning_record_match_stopped_exit checked 10754ms check-target:macos_arm64
+pass/domains/qualified_record_case_predicate rejected 1263ms
+	cannot prove default-domain field requirement for return from issue_handle at statement 0: Handle requires Handle::Open
+	cannot prove default-domain field requirement for return from issue_literal at statement 0: Handle requires Handle::Open
+pass/facts/case_where_equality_data_predicate_nested_payload_carriage_exit rejected 2725ms check-target:macos_arm64
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "width", reason: "computed owned structural operand changes its source custody", gap: None })
+pass/facts/recast_parent_restoration_through_call_result_exit checked 3330ms check-target:macos_arm64
+pass/facts/recast_parent_restoration_through_const_name_exit checked 3144ms check-target:macos_arm64
+pass/facts/recast_parent_restoration_through_field_exit checked 3059ms check-target:macos_arm64
+pass/facts/recast_parent_restoration_through_local_exit checked 2923ms check-target:macos_arm64
+pass/facts/recast_parent_restoration_through_match_join_exit checked 2978ms check-target:macos_arm64
+pass/facts/recast_parent_restoration_through_other_machine_exit checked 3170ms check-target:macos_arm64
+pass/facts/recast_parent_restoration_through_other_state_exit checked 3018ms check-target:macos_arm64
+pass/facts/recast_parent_restoration_through_parameter_exit checked 3150ms check-target:macos_arm64
+pass/facts/recast_parent_restoration_through_target_body_exit checked 3131ms check-target:macos_arm64
+pass/providers/runtime_provider_reference_allocation_exit rejected 2465ms check-target:linux_x86_64
+	machine `initialize_frame` state `entry` statement 3: cannot prove selected case for payload access `frame.result.value`: no captured source place is available
+fail/comptime/generic_constructor_field_demand_extent_domain_violation rejected 2227ms unexpected
+	fixed-array length `[u8; observed()]`: const evaluation of `observed` failed: data `Bounded` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	fixed-array length `[u8; observed()]`: const evaluation of `observed` failed: data `Bounded` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
