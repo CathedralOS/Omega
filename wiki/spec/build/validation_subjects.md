@@ -2,8 +2,9 @@
 
 Named decision: `validation-subjects`, ratified 2026-11-08.
 
-A check fully validates the packages selected as its subjects and freshly
-checks the complete semantic dependency closure those declarations require.
+A check fully validates the packages selected as its subjects and checks the
+complete semantic dependency closure those declarations require, freshly or by
+[exact-key reuse of a dependency slice](#what-this-rule-does-not-do).
 Everything else is outside the check's claim. A passed check therefore means
 exactly: every declaration of the subject packages is valid, and every
 declaration they depend on is valid.
@@ -101,8 +102,10 @@ the slice contains and depends on, the identity of the compiler that produced
 the result, and the target. A different key, or an entry that cannot be read
 or does not validate, means a fresh check; nothing is reused on a partial
 match. The consumer's own package is never reused. Changing one dependency
-file invalidates only the slices that include it, and any rebuilt compiler
-invalidates every entry. `--verify` withholds trust acceptance
+file invalidates only the slices that contain or depend on it, and a compiler
+with a different identity invalidates every entry. Obligations that depend on
+the Build's provider or target selections are not part of a reused slice and
+are checked in every compile. `--verify` withholds trust acceptance
 and re-verifies under retained source pins; it does not widen the subject set.
 Optimization settings change how a valid program is realized, never which
 declarations a check claims. There is no setting that narrows a subject below

@@ -379,7 +379,8 @@ justify omitting it. An inbound policy predicate alone is not evidence that a
 callback envelope was emitted.
 
 The envelope's restore writes the floating control unit, so it counts as use of
-control state. Every hosted `ProgramEntry` ceiling and the ordinary boundary
-ceiling therefore include control state, as the UEFI entry's already does; the
+control state. Every hosted `ProgramEntry` ceiling and the
+[permitted transitive machine-state use](calling_plans.md#plan-structure) of an
+ordinary boundary `StatePlan` therefore include control state, as the UEFI entry's already does; the
 hosted ABIs make these controls callee-preserved, like the callee-saved general
 registers the ceilings list.

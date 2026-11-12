@@ -7,7 +7,8 @@ authored source. The rule now: a check fully validates the packages it was
 asked to validate and freshly checks only the dependency declarations those
 need. A library is checked in full when it is itself the subject: its own
 development, a workspace check, or a project admitting, updating or auditing
-it. There is no optimization flag and no result reuse.
+it. There is no optimization flag. Exact-key reuse of a checked dependency
+slice is allowed (owner ruling 2026-11-12).
 
 The normative owner is [validation subjects](../../spec/build/validation_subjects.md),
 with touch points in [optimizations](../../spec/build/optimizations.md#phase-and-product-boundaries),
@@ -40,7 +41,9 @@ Delete this record when the implementation and acceptance are complete.
 - Full validation of a revision at admission, update and audit; an invalid
   declaration is a validation failure. A consumer's edit does not promote its
   unchanged dependencies to subjects.
-- No result reuse. `--verify` unchanged. No program-scope or optimization
+- Exact-key reuse of dependency slices only (owner ruling 2026-11-12); never
+  the consumer's own package or Build-selection-dependent obligations.
+  `--verify` unchanged. No program-scope or optimization
   setting narrows a subject. Pruning stays after checking within the scope.
 - Precondition: the toolchain release gate checks each bundled library as a
   subject before the consumer default changes.

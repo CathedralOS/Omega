@@ -170,7 +170,8 @@ requires T == u16 || T == u32 || T == u64
 ```
 
 `T` must be exactly one of those. A branch that establishes `T == u32` may use
-`u32` operations on its `T` values.
+`u32` operations on its `T` values. Outside such a branch an operation on `T`
+is allowed when every listed type supports it, and is checked for each.
 
 ## Static or runtime?
 

@@ -65,7 +65,7 @@ let memory: TestGroup = builder.tests.group<Tests::memory>();
 builder.tests.service<Tests::memory, FilesystemService>();
 ```
 
-Every test starts with fresh service state; the filesystem is empty. Build fixture data inside the
+The runner supplies an empty filesystem for every test invocation. Build fixture data inside the
 test and pass it to helpers as arguments. A dependency's tests cannot turn the
 in-memory filesystem you gave them into access to the real one.
 
