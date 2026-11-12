@@ -661,3 +661,33 @@ correspondence receipts justify retaining both while their representations are
 improved; they do not establish that either realization meets the whole-chain
 independent-reviewability goal. This debt belongs in the comparison alongside
 execution time, memory and trust assumptions.
+
+## Nominal-case construction observation (unfinished)
+
+The candidate bootstrap compiler at `501411f37fe18b55b4e068811c36258f318b002b`
+adds nullary copy sums for the unchanged source-Psi `NumericBase` declaration and
+`lexer_digit_in_base` helper. Its 6,797-byte lexer customer checks all 256 raw
+bytes against four independently authored base predicates, alongside identifier
+boundaries. The independent model produced and executed 17 Alpha tapes and
+passed 36 refusal/reset controls in 21.620 seconds. The storage model regression
+retained all 13 earlier tapes and the complete observation in 18.887 seconds.
+These are model results, not completed source-owned construction evidence.
+
+The reused native Epsilon evaluator `b1cc4441…fe2e0` began the same complete
+793,158-byte Epsilon customer, with compiler closure 778,742 bytes,
+`f250f98315032419393d2a297cf5ff892bcfddb95346cf62f2cc32a2019659c5`.
+Its request was `aacf5003762b373cad3cb5dc6c52a21cd834eb25be0a0c7fe586a0fb8d12c5c3`.
+The observation was interrupted after 1,009.487 seconds when estimated
+unreclaimable headroom on the shared 32 GiB host crossed the predeclared 1.5 GB
+guard. The child maximum RSS was 22,525,132 KiB; no observation was published
+and no OOM event occurred. This is a host-resource interruption, not a source
+rejection, completed native result, or evidence that the architecture is
+infeasible. No fresh cold construction was attempted.
+
+Review also corrected one negative from unsupported brace syntax to a parsed
+payload declaration. The corrected payload-layout refusal and subsequent default
+reset passed a separate 11.655-second model run, asserting one parsed payload
+field and the declaration-anchored refusal. The interrupted native request kept
+its original bytes and cannot establish that corrected layout boundary.
+The next construction input is the actual Omega-written compiler source closure;
+further small-customer expansion and validation-only retries are deferred.
