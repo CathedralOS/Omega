@@ -55,8 +55,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Add the checked-machine realization entry kind beside catalog intrinsic and unsupported in `target::CanonicalFloatRealization`; retire core's now selection-free `build.omg` activation (`State::Defaults`, `CompletedProviderDefaults::from_captured_toolchain`) while keeping differential-evidence identities; profile remaining `select_provider` cost inside this item.
   Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions.
 
-- **BUILD-OWNED-NATIVE-BINDINGS.** Implement `Build::bind<Requirement>(builder, target, locator)` ([foreign_bindings.md](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)) and retire `via`.
-  - First **SEALED-INTRINSIC-CATALOG**: supply task/interrupt-mask providers per decision `sealed-runtime-providers`, then migrate table/vtable, user-intrinsic, generic-trait, Windows `ProcessExit` `via` sites; delete `via` parsing.
+- **BUILD-OWNED-NATIVE-BINDINGS.** Replace `via` with [Build-owned bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding).
+  - First **SEALED-INTRINSIC-CATALOG** (`sealed-runtime-providers`); migrate table/vtable, user-intrinsic, generic-trait and Windows `ProcessExit` sites. Repair UEFI release custody and positional dispatch per [table acceptance](wiki/spec/build/foreign_bindings.md#migration-acceptance).
   Acceptance: PlaySoundW, ALSA, and AudioQueue bindings pass `omega run --both` on matching hosts, and `via` is removed.
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish retiring standalone `boundary requirement` declarations ([machines.md](wiki/spec/language/machines.md#supply)).

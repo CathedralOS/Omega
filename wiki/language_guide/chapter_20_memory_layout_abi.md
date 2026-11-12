@@ -112,6 +112,24 @@ boundary trait WindowProcedure: Calling<MicrosoftX64Policy> { ... }
 Policies are library code too. See
 [calling plans](../spec/build/calling_plans.md).
 
+## Functions supplied through a table
+
+Some foreign APIs, including firmware, give you a table of function addresses.
+Call an ordinary boundary requirement; its package's Build connects that
+requirement to an exact field of the table argument with `FunctionFieldBinding`.
+`reflect::parameter` names the table formal and `reflect::field` names the field.
+The table need not be the first argument.
+
+The binding says where to find the function. The requirement's calling plan
+says whether the table is also passed to it. A firmware allocation operation
+may use the table only for lookup; an object protocol may pass it as a receiver.
+A separate receiver is an ordinary explicit argument, not an implicit `self`.
+
+The caller still needs a valid readable table and the admitted contract that
+justifies calling the function. A readable address or matching record layout
+does not grant that trust. See
+[function-table bindings](../spec/build/foreign_bindings.md#function-table-bindings).
+
 ## Access policies and externally mutable memory
 
 A device register can change underneath you, and reading or writing it has

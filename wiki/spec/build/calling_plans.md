@@ -69,12 +69,34 @@ An ordinary call's register/stack ABI does not describe hardware entering an
 already-live activation. Agreement between the two facets for ordinary calls
 does not merge their meanings.
 
-One native-parameter identity space contains semantic formals and private
-callback entries. Declaration order fixes native argument position; declared
+One native-parameter identity space contains passed semantic formals and private
+callback entries. Declaration order fixes native argument position after explicit
+dispatch-only formals are excluded; declared
 names establish nominal identity under the owning requirement. A multi-register
 aggregate remains one parameter with several physical locations. Whole-parameter
 and private-field destinations refer to the same identity space. See
 [callback destinations](private_callbacks.md#declared-native-destinations).
+
+### Table dispatch argument accounting
+
+Under `native-table-field-binding`, a requirement's calling plan accounts for
+the exact formal selected by its [function-table binding](foreign_bindings.md#function-table-bindings)
+as either dispatch-only or passed normally. A dispatch-only formal remains a
+semantic call argument and a checked read source, but occupies no native
+argument position. A passed table participates in both lookup and the ordinary
+native argument roster. A separate receiver is an ordinary passed parameter.
+
+Normalize this correspondence before assigning registers, stack slots or
+aggregate pieces. Retain the exact formal identities, roles, native argument
+origins and selected field correspondence in the plan application. The binding
+does not supply a second policy or change that mapping. Missing, duplicate,
+wrong-requirement or incompatible mappings reject; a native binding with no
+table lookup cannot leave a dispatch-only formal unaccounted for.
+
+All other parameters keep their existing order and callback mappings. There is
+no dispatch-prefix rule or general argument-reordering facility. Evaluation,
+readability, lifetime, authority and memory effects of the selected table remain
+owed even when it has no native location.
 
 ## Shape and placement
 
@@ -153,8 +175,9 @@ requirement's schema while the row retains the declaring requirement's identity.
 
 All selected import, vtable, and service-table consumers retain the evaluated
 plan through layout and emission. They cannot reselect it from the output target
-or duplicate its arity in a dispatch recipe. Dispatch-only operands are added
-only where the selected topology requires them. Missing or unrealizable plans
+or duplicate its arity in a dispatch recipe. Dispatch-only operands are exact
+semantic formals accounted for by the requirement's plan, not synthetic operands
+added by a binding kind. Missing or unrealizable plans
 reject. A wider compiler scratch slot cannot redefine a retained foreign scalar
 type; insufficient storage rejects.
 
