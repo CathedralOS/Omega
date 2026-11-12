@@ -592,6 +592,14 @@ pub(crate) mod parse_expression {
         ) -> ParseResult<'tokens, 'source, ExpressionHandle>,
         operators: &[(PunctuationKind, BinaryOperator, u8)],
     ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+        // Each operator of a chain wraps what came before in one more tree
+        // node, so a chain is as deep as it is long even though it is parsed
+        // by a loop. We charge every operator one nesting level and parse its
+        // right operand at that depth; a chain then spends the same
+        // `MAX_NESTING_DEPTH` budget as parentheses do, and the walkers that
+        // recurse over the finished tree meet a bounded depth.
+        let chain_depth = input.depth();
+        let mut operators_seen: u16 = 0;
         let (mut expression, mut input) = lower(syntax_trees, input, context)?;
         let mut pending = [None; PRECEDENCE_LEVELS];
         let mut pending_count = 0;
@@ -643,7 +651,12 @@ pub(crate) mod parse_expression {
             pending[pending_count] =
                 Some((expression, operator, precedence, operator_span, policy));
             pending_count += 1;
-            (expression, input) = lower(syntax_trees, input, context)?;
+            let operand = input
+                .with_depth(chain_depth.saturating_add(operators_seen))
+                .deepen()?;
+            operators_seen = operators_seen.saturating_add(1);
+            (expression, input) = lower(syntax_trees, operand, context)?;
+            input = input.with_depth(chain_depth);
         }
 
         while pending_count != 0 {
@@ -695,12 +708,17 @@ pub(crate) mod parse_expression {
         let Some((first_prefix, mut input)) = take_unary_prefix(input, context)? else {
             return parse_postfix_expression_handle(syntax_trees, input, context);
         };
+        // A run of prefixes nests its operand once per prefix, so each one
+        // spends a nesting level like a parenthesis would.
+        let prefix_depth = input.depth();
+        input = input.deepen()?;
         let mut prefixes = Vec::new();
         while let Some((prefix, rest)) = take_unary_prefix(input, context)? {
             prefixes.push(prefix);
-            input = rest;
+            input = rest.deepen()?;
         }
         let (mut expression, rest) = parse_postfix_expression_handle(syntax_trees, input, context)?;
+        let rest = rest.with_depth(prefix_depth);
         while let Some(prefix) = prefixes.pop() {
             expression = apply_unary_prefix(syntax_trees, expression, prefix)?;
         }
@@ -1019,7 +1037,17 @@ pub(crate) mod parse_postfix {
         mut input: Input<'tokens, 'source>,
         context: ExpressionContext,
     ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+        // Each suffix (a member, a call, an index, a cast) wraps the expression
+        // so far in one more node. Every pass of this loop after the first
+        // has applied one, so it spends one nesting level.
+        let suffix_depth = input.depth();
+        let mut first_pass = true;
         loop {
+            if first_pass {
+                first_pass = false;
+            } else {
+                input = input.deepen()?;
+            }
             let can_call = matches!(
                 exprs_of(syntax_trees).expression(expression),
                 ExpressionNode::Name(_) | ExpressionNode::Member(_)
@@ -1264,7 +1292,7 @@ pub(crate) mod parse_postfix {
             break;
         }
 
-        Ok((expression, input))
+        Ok((expression, input.with_depth(suffix_depth)))
     }
 
     fn at_cast_entry(input: Input<'_, '_>) -> bool {
