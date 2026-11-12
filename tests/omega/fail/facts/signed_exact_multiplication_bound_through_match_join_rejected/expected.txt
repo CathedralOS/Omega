@@ -1,1 +1,1 @@
-cannot prove ensures contract for exit from choose_product
+machine `choose_product` cannot prove ensures contract proof fact `result >= 40 && result <= 90`

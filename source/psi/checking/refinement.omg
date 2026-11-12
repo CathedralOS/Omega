@@ -13,6 +13,7 @@ use psi::checking::zone;
 use psi::resolution::resolution;
 use psi::syntax::syntax;
 use psi::types::types;
+use psi::checking::domains;
 
 // Universal public-contract implication is a post-settlement operation:
 // Checker::check_supply runs after every ordinary body, before project_slots

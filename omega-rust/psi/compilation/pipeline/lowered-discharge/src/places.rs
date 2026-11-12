@@ -1923,7 +1923,7 @@ impl<'a> Storage<'a> {
                         RefusalReason::Unestablished,
                         self.machine,
                         concerns,
-                        "a case payload is accessed on a path that does not establish its case",
+                        "cannot prove selected case for payload access: a path to this access does not establish the case",
                     )));
                 }
             }
