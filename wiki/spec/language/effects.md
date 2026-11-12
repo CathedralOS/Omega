@@ -748,7 +748,12 @@ Composition makes two checks, and neither replaces the other. Every entry
 reachable through the selected providers' possible edges fits the calling
 requirement's `invokes`. The complete realized graph of possible edges,
 inventory included, is acyclic under the rule below. Both rerun when a provider
-is replaced. For a native binding the clause, or its omission, is the claim
+is replaced.
+
+Source checking also requires the `invokes` edges of every declared checked
+provider to be acyclic, whether or not a Build selects it. A cycle among
+providers that only a future Build could combine is rejected where it is
+written, not deferred until some Build selects it. For a native binding the clause, or its omission, is the claim
 that [foreign admission](../build/foreign_bindings.md#operational-coherence)
 accepts for that exact binding; unknown native behavior is not an empty claim.
 
