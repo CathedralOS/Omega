@@ -1,1 +1,4 @@
-~ pass/build/native_component_reuse: REGRESSED (checked -> rejected)
+pass/build/native_component_reuse rejected 5099ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(21) has no admitted mechanism
+pass/build/native_component_reuse_foreign rejected 4174ms check-target:macos_arm64
+	no provider is selected for boundary requirement `NativeAbsolute::absolute`, which the program entry reaches on target `macos_arm64`
