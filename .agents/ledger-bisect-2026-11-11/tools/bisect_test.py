@@ -25,26 +25,39 @@ def record_flags(line: str) -> list[str]:
     return [p for p in parts[3:] if not p.startswith("@") and not p.endswith("ms")]
 
 
+def write_reason(code: int, reason: str, detail: str = "") -> None:
+    rf = os.environ.get("BISECT_REASON_FILE")
+    if not rf:
+        return
+    Path(rf).write_text(f"exit={code}\t{reason}\t{detail}\n")
+
+
 def main() -> int:
     witness, rec_path = sys.argv[1], Path(sys.argv[2])
-    expect = load_expect()
+    try:
+        expect = load_expect()
+    except Exception as e:
+        write_reason(125, "expect-load-fail", str(e))
+        return 125
     if witness != expect["witness"]:
+        write_reason(125, "witness-mismatch", witness)
         return 125
     text = rec_path.read_text() if rec_path.exists() else ""
     line = next((l for l in text.splitlines() if l.startswith(witness + " ")), None)
     if not line:
+        write_reason(125, "no-corpus-record", rec_path.as_posix())
         return 125
     obs = parse_records(text + ("\n" if text and not text.endswith("\n") else ""))[witness]
     flags = record_flags(line)
     tier = expect["tier"]
+    diag0 = norm_diag((obs["diagnostics"] or [""])[0])
 
     def pin_bad() -> bool:
         if obs["status"] != expect["pin_bad_status"]:
             return False
         if expect["pin_bad_unexpected"] != ("unexpected" in flags):
             return False
-        diag = norm_diag((obs["diagnostics"] or [""])[0])
-        return diag == expect["pin_bad_diag_norm"]
+        return diag0 == expect["pin_bad_diag_norm"]
 
     def good() -> bool:
         if tier == "fail":
@@ -62,9 +75,16 @@ def main() -> int:
         return True
 
     if pin_bad():
+        write_reason(1, "pin-broken", f"status={obs['status']} flags={','.join(flags)} diag={diag0[:80]}")
         return 1
     if good():
+        write_reason(0, "pin-good", f"status={obs['status']} flags={','.join(flags)}")
         return 0
+    write_reason(
+        125,
+        "other-outcome",
+        f"status={obs['status']} flags={','.join(flags)} diag={diag0[:120]}",
+    )
     return 125
 
 
