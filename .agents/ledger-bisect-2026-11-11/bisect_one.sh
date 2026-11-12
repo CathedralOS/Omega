@@ -59,6 +59,8 @@ set -e
 BREAK=$(git rev-parse HEAD^{commit} 2>/dev/null || true)
 git bisect log >"${OUT_JSON%.json}.log" 2>/dev/null || true
 git bisect reset 2>/dev/null || true
+git checkout -f work/ledger-bisect-part-7 2>/dev/null || true
+cp -f "${OUT_JSON}.tmp" "$OUT_JSON" 2>/dev/null || true
 PR=""
 if [[ -n "$BREAK" ]]; then
   PR=$(git log -1 --format='%s' "$BREAK" 2>/dev/null | sed -n 's/.*#\([0-9][0-9]*\).*/\1/p' | head -1)
@@ -94,5 +96,6 @@ payload = {
     "bisect_exit": int(rc),
 }
 open(out, "w").write(json.dumps(payload, indent=2))
+open(out + ".tmp", "w").write(json.dumps(payload, indent=2))
 print(json.dumps(payload, indent=2))
 PY

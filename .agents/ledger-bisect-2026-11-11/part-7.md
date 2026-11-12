@@ -19,7 +19,7 @@ Members:
 - `pass/termination/measure_computed_endpoint` — still broken: terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view
 - `pass/termination/measure_field_computed_limit` — still broken: terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view
 
-| 1 | pass/run rejected | proposition `chained` expects 2 proof-static binder argument(s), received 0 | `pass/proofs/family_carrier_relation_laws` | `` |  | propagated: witness bad at PIN (exit 1) and at first-parent parent e2e7876a03e4 (exit 1); ledger stamp @ccdb99ca not fetchable for `git bisect start` | propagated |
+| 1 | pass/run rejected | proposition `chained` expects 2 proof-static binder argument(s), received 0 | `pass/proofs/family_carrier_relation_laws` | `f3612364ffbb` | 2228 | tests: record four case-payload rows that already check (#2228) (tests/omega/corpus_outcomes.txt) | bisected |
 Members:
 - `pass/proofs/family_carrier_relation_laws` — still broken: proposition `chained` expects 2 proof-static binder argument(s), received 0
 
