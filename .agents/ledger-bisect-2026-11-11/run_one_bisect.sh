@@ -25,7 +25,7 @@ restore_report() {
 
 sync_tools() {
   mkdir -p "$OMEGA_BISECT_TOOLS"
-  cp "$REPO/.agents/ledger-bisect-2026-11-11/tools/"*.py "$OMEGA_BISECT_TOOLS/"
+  cp "$REPO/.agents/ledger-bisect-2026-11-11/tools/bisect_test.py" "$OMEGA_BISECT_TOOLS/"
   cp "$REPO/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh" "$OMEGA_BISECT_TOOLS/"
   chmod +x "$OMEGA_BISECT_TOOLS/bisect_witness.sh"
 }

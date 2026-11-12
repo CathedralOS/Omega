@@ -6,6 +6,8 @@ PIN=51e8c45c793007f211d0d9baee7de16767172444
 cd "$REPO"
 git checkout -qf work/ledger-bisect-part-30
 chmod +x .agents/ledger-bisect-2026-11-11/*.sh
+rm -rf /tmp/ledger-bisect-part-30-target
+mkdir -p /tmp/ledger-bisect-part-30 /tmp/ledger-bisect-part-30-tools
 
 run_one() {
   local tag="$1" witness="$2" anchor="${3:-$PIN}"

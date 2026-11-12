@@ -11,7 +11,7 @@ cd "$REPO"
 git checkout -qf work/ledger-bisect-part-30
 mkdir -p "$RUNTIME" "$TOOLS"
 install_tools() {
-  cp "$REPO/.agents/ledger-bisect-2026-11-11/tools/"*.py "$TOOLS/"
+  cp "$REPO/.agents/ledger-bisect-2026-11-11/tools/bisect_test.py" "$TOOLS/"
   cp "$REPO/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh" "$TOOLS/"
   cp "$REPO/.agents/ledger-bisect-2026-11-11/"{exp_walk_good.sh,run_one_bisect.sh,setup_pin_refs.sh} "$TOOLS/"
   chmod +x "$TOOLS"/*.sh
