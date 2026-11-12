@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-SCRIPT = ROOT / ".agents/ledger-bisect-2026-11-11/tools/bisect_pin_witness.sh"
+SCRIPT = Path("/tmp/part14-bisect-tools/tools/bisect_pin_witness.sh")
 MAX_STEPS = int(os.environ.get("PIN_GOOD_MAX_STEPS", "80"))
 
 

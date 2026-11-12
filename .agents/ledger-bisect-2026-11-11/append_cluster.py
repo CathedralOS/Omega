@@ -40,6 +40,7 @@ def main() -> None:
     mech = mechanism(brk)
     md = ROOT / ".agents/ledger-bisect-2026-11-11/part-14.md"
     tsv = ROOT / ".agents/ledger-bisect-2026-11-11/part-14.tsv"
+    md.parent.mkdir(parents=True, exist_ok=True)
     if not md.exists():
         md.write_text(
             f"# Ledger bisect part 14 (PIN `{PIN[:12]}`)\n\n"

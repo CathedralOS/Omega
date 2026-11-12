@@ -3,7 +3,9 @@ set -euo pipefail
 ROOT="/agent/repos/omega"
 PIN=51e8c45c793007f211d0d9baee7de16767172444
 BRANCH=work/ledger-bisect-part-14
-TOOLS="$ROOT/.agents/ledger-bisect-2026-11-11/tools"
+TOOL_ROOT="/tmp/part14-bisect-tools"
+rm -rf "$TOOL_ROOT" && cp -a "$ROOT/.agents/ledger-bisect-2026-11-11" "$TOOL_ROOT"
+TOOLS="$TOOL_ROOT/tools"
 cd "$ROOT"
 git checkout -f "$BRANCH"
 FILTER=$(paste -sd, /tmp/part14_fixtures.txt)
@@ -53,7 +55,7 @@ for w in "${WITNESSES[@]}"; do
   OUT="/tmp/bisect_c${cluster}.json"
   export BISECT_GOOD="${PRE_GOOD[$w]:-}"
   bash "$TOOLS/run_pin_bisect.sh" "$w" "$PIN" "$BRANCH" "$OUT" || true
-  python3 "$ROOT/.agents/ledger-bisect-2026-11-11/append_cluster.py" "$cluster" "$OUT"
+  python3 "$TOOL_ROOT/append_cluster.py" "$cluster" "$OUT"
   git add .agents/ledger-bisect-2026-11-11/
   git commit -m "repo: ledger bisect part 14 cluster ${cluster}"
   git push -u origin "$BRANCH"
