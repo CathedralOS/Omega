@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from soundness_validate import classify  # noqa: E402
+from soundness_validate import accepted_by, classify  # noqa: E402
 
 PIN = "0835b3aaf803ed97f905be42d94727ff58459263"
 REPO = Path(__file__).resolve().parents[3]
@@ -153,7 +153,7 @@ def run_both_checkers(main_omg: Path, timeout_s: int) -> tuple[str, str]:
             stdin=subprocess.DEVNULL,
         )
     except subprocess.TimeoutExpired:
-        return "timeout", "timeout"
+        return "timeout", "timeout", "timeout"
     current = "error"
     route = "error"
     for line in p.stdout.splitlines():
@@ -264,12 +264,15 @@ def _md_lines(
         "",
         f"| Bucket | Count |",
         f"| --- | ---: |",
-        f"| confirmed-invalid | {totals['confirmed_invalid']} |",
+        f"| confirmed-hole | {totals['confirmed_hole']} |",
         f"| known-gap-q7-mut | {totals['known_gap_q7']} |",
+        f"| disagreement-valid | {totals['disagreement_valid']} |",
+        f"| valid-route-outside | {totals['valid_route_outside']} |",
         f"| discarded-valid | {totals['discarded_valid']} |",
-        f"| discarded-no-rule | {totals['discarded_no_rule']} |",
-        f"| mutant-run-failed | {totals['mutant_run_failed']} |",
-        f"| mutant-generate-failed | {totals['mutant_generate_failed']} |",
+        f"| rejected-both | {totals['rejected_both']} |",
+        f"| timeout | {totals['timeout']} |",
+        f"| failed-run | {totals['failed_run']} |",
+        f"| no-mutation | {totals['no_mutation']} |",
         f"| **mutant total** | **{totals['mutants_run']}** |",
         "",
         f"Baseline mutant total before this resume pass: {totals.get('baseline_mutants', 'see meta')}. "
@@ -277,7 +280,9 @@ def _md_lines(
         "",
         *_downgraded_line(shard, totals),
         "",
-        f"- Confirmed-invalid by mutation kind: {totals.get('confirmed_by_kind', {})}",
+        f"- Fixtures with corpus rows: {totals.get('fixtures', 0)}",
+        f"- Confirmed-hole by mutation kind: {totals.get('confirmed_by_kind', {})}",
+        f"- Confirmed-hole by accepted_by: {totals.get('confirmed_by_acceptor', {})}",
         "",
         "## Confirmed-invalid and known-gap rows",
         "",
@@ -328,7 +333,7 @@ def main() -> int:
 
     header = (
         "fixture\tmutation_kind\tmutant_path\tcurrent_verdict\troute_verdict\t"
-        "hand_verdict\tspec_path\tspec_quote\tobligation_line\troute_reason\treview_reason\n"
+        "hand_verdict\tspec_path\tspec_quote\tobligation_line\troute_reason\treview_reason\taccepted_by\thole_subtype\n"
     )
     meta = out_dir / f"shard-{args.shard}.meta.json"
     if tsv.exists() and not args.resume and not args.fresh:
@@ -422,7 +427,7 @@ def main() -> int:
                         mrel,
                         "error",
                         "error",
-                        "mutant-run-failed",
+                        "failed-run",
                         "",
                         "",
                         "",
@@ -435,21 +440,17 @@ def main() -> int:
                 shutil.rmtree(mdir, ignore_errors=True)
                 continue
 
-            hand, spec_path, spec_quote, obligation, review_reason = classify(
-                mut.kind, source, mut.content, current, route, route_reason
+            hand, spec_path, spec_quote, obligation, review_reason, acc_by, hole_subtype = (
+                classify(mut.kind, source, mut.content, current, route, route_reason)
             )
-            if hand == "confirmed-invalid":
+            if hand == "confirmed-hole":
                 counters.kept_holes += 1
-                if current != route:
-                    counters.kept_disagree += 1
             elif hand == "known-gap-q7-mut":
-                counters.kept_holes += 0  # tracked in totals only
-            elif hand == "discarded-no-rule":
-                counters.discarded_no_rule += 1
-            else:
+                pass
+            elif hand == "discarded-valid":
                 counters.discarded_valid += 1
 
-            if hand not in {"confirmed-invalid", "known-gap-q7-mut"}:
+            if hand not in {"confirmed-hole", "known-gap-q7-mut"}:
                 shutil.rmtree(mdir, ignore_errors=True)
 
             append_tsv(
@@ -466,6 +467,8 @@ def main() -> int:
                     obligation.replace("\t", " "),
                     route_reason.replace("\t", " ")[:500],
                     review_reason.replace("\t", " ")[:500],
+                    acc_by,
+                    hole_subtype,
                 ],
             )
             fixture_had_row = True
@@ -473,7 +476,7 @@ def main() -> int:
         if not fixture_had_row:
             append_tsv(
                 tsv,
-                [rel, "_no_mutations", "", "", "", "discarded-valid", "", "", "", "", ""],
+                [rel, "_no_mutations", "", "", "", "no-mutation", "", "", "", "", "", "", ""],
             )
 
         with progress.open("a", encoding="utf-8") as pf:
@@ -505,13 +508,17 @@ def main() -> int:
 def _totals_from_tsv(tsv: Path) -> dict:
     counts = {
         "mutants_run": 0,
-        "confirmed_invalid": 0,
+        "confirmed_hole": 0,
         "known_gap_q7": 0,
-        "kept_disagree": 0,
+        "disagreement_valid": 0,
+        "valid_route_outside": 0,
         "discarded_valid": 0,
-        "discarded_no_rule": 0,
-        "mutant_run_failed": 0,
-        "mutant_generate_failed": 0,
+        "rejected_both": 0,
+        "timeout": 0,
+        "failed_run": 0,
+        "no_mutation": 0,
+        "fixtures": 0,
+        "confirmed_by_acceptor": {},
         "originals_skipped": 0,
         "confirmed_by_kind": {},
         "downgraded": 0,
@@ -522,40 +529,50 @@ def _totals_from_tsv(tsv: Path) -> dict:
     from collections import Counter
 
     by_kind: Counter[str] = Counter()
+    by_acc: Counter[str] = Counter()
+    fixtures: set[str] = set()
     for line in tsv.read_text().splitlines()[1:]:
         parts = line.split("\t")
-        if len(parts) < 6:
-            continue
-        kind, hand, current, route = parts[1], parts[5], parts[3], parts[4]
+        while len(parts) < 12:
+            parts.append("")
+        kind, hand = parts[1], parts[5]
+        fixtures.add(parts[0])
         if kind == "_original_not_accepted":
             counts["originals_skipped"] += 1
             continue
-        if kind == "_mutant_generate_failed":
-            counts["mutant_generate_failed"] += 1
-            counts["mutants_run"] += 1
+        if kind == "_no_mutations":
+            counts["no_mutation"] += 1
             continue
         if kind.startswith("_"):
-            continue
-        if hand == "mutant-run-failed":
-            counts["mutant_run_failed"] += 1
+            counts["failed_run"] += 1
             counts["mutants_run"] += 1
             continue
         counts["mutants_run"] += 1
-        if hand == "confirmed-invalid":
-            counts["confirmed_invalid"] += 1
+        bucket = hand or "discarded-valid"
+        if bucket == "confirmed-hole":
+            counts["confirmed_hole"] += 1
             by_kind[kind] += 1
-            if current != route:
-                counts["kept_disagree"] += 1
-        elif hand == "known-gap-q7-mut":
+            acc = parts[11] or accepted_by(parts[3], parts[4])
+            by_acc[acc] += 1
+        elif bucket == "known-gap-q7-mut":
             counts["known_gap_q7"] += 1
-            by_kind[f"{kind} (q7)"] += 1
-        elif hand == "discarded-no-rule":
-            counts["discarded_no_rule"] += 1
-        elif hand == "discarded-valid":
-            counts["discarded_valid"] += 1
+        elif bucket == "disagreement-valid":
+            counts["disagreement_valid"] += 1
+        elif bucket == "valid-route-outside":
+            counts["valid_route_outside"] += 1
+        elif bucket == "rejected-both":
+            counts["rejected_both"] += 1
+        elif bucket == "timeout":
+            counts["timeout"] += 1
+        elif bucket == "failed-run":
+            counts["failed_run"] += 1
+        elif bucket == "no-mutation":
+            counts["no_mutation"] += 1
         else:
             counts["discarded_valid"] += 1
+    counts["fixtures"] = len(fixtures)
     counts["confirmed_by_kind"] = dict(by_kind)
+    counts["confirmed_by_acceptor"] = dict(by_acc)
     return counts
 
 
@@ -565,7 +582,7 @@ def _holes_from_tsv(tsv: Path) -> list[str]:
         return rows
     for line in tsv.read_text().splitlines()[1:]:
         parts = line.split("\t")
-        if len(parts) < 8 or parts[5] not in {"confirmed-invalid", "known-gap-q7-mut"}:
+        if len(parts) < 8 or parts[5] not in {"confirmed-hole", "known-gap-q7-mut"}:
             continue
         rel, kind, mrel, current, route, hand, spec_path, spec_quote = parts[:8]
         obligation = parts[8] if len(parts) > 8 else ""
@@ -575,6 +592,7 @@ def _holes_from_tsv(tsv: Path) -> list[str]:
             f"- Mutant: `{mrel}`\n"
             f"- Current checker: `{current}`; route: `{route}`\n"
             f"- Hand check: **{hand}**\n"
+            f"- accepted_by: `{parts[11] if len(parts)>11 else ''}`\n"
             f"- Broken obligation: `{obligation}`\n"
             f"- Spec ({spec_path}):\n\n"
             f"> {spec_quote}\n"

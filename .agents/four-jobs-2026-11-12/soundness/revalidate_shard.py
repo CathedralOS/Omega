@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Re-run lead-review classification on an existing shard TSV."""
+"""Re-run fix3 classification on an existing shard TSV."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -12,11 +13,14 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from soundness_validate import classify  # noqa: E402
+from entry_probe import probe_subtype  # noqa: E402
 
 HEADER = (
     "fixture\tmutation_kind\tmutant_path\tcurrent_verdict\troute_verdict\t"
-    "hand_verdict\tspec_path\tspec_quote\tobligation_line\troute_reason\treview_reason\n"
+    "hand_verdict\tspec_path\tspec_quote\tobligation_line\troute_reason\treview_reason\taccepted_by\thole_subtype\n"
 )
+
+REPO_REF = REPO
 
 
 def main() -> int:
@@ -30,94 +34,108 @@ def main() -> int:
         print("missing tsv", tsv_path)
         return 1
 
-    old_confirmed = 0
-    downgraded = 0
     rows_out: list[str] = [HEADER]
     buckets: Counter[str] = Counter()
-    kinds_confirmed: Counter[str] = Counter()
-    kinds_q7: Counter[str] = Counter()
 
     for line in tsv_path.read_text().splitlines()[1:]:
         parts = line.split("\t")
-        while len(parts) < 11:
+        while len(parts) < 13:
             parts.append("")
         fixture, kind = parts[0], parts[1]
         orig_path = REPO / fixture
         mutant_path = REPO / parts[2] if parts[2] else None
 
-        if kind in {"_original_not_accepted", "_no_mutations"} or kind.startswith("_"):
-            if kind == "_mutant_generate_failed":
-                parts[5] = "mutant-generate-failed"
-                buckets["mutant-generate-failed"] += 1
-                buckets["mutant-total"] += 1
-            else:
-                parts[5] = parts[5] or "discarded-valid"
-            rows_out.append("\t".join(parts[:11]) + "\n")
+        if kind in {"_original_not_accepted"}:
+            rows_out.append("\t".join(parts[:13]) + "\n")
             continue
-
-        if parts[5] == "confirmed-invalid":
-            old_confirmed += 1
+        if kind == "_no_mutations":
+            parts[5] = "no-mutation"
+            rows_out.append("\t".join(parts[:13]) + "\n")
+            buckets["no-mutation"] += 1
+            continue
+        if kind.startswith("_"):
+            parts[5] = "failed-run"
+            rows_out.append("\t".join(parts[:13]) + "\n")
+            buckets["failed-run"] += 1
+            buckets["mutant-total"] += 1
+            continue
 
         original = orig_path.read_text(encoding="utf-8") if orig_path.exists() else ""
         mutant = ""
         if mutant_path and mutant_path.exists():
             mutant = mutant_path.read_text(encoding="utf-8")
         elif original and kind == "remove_mut":
-            import re
-
             mutant = re.sub(r"\blet\s+mut\s+", "let ", original, count=1)
 
-        route_reason = parts[9] or f"route={parts[4]}"
-        prior = parts[5]
-        verdict, spec_path, spec_quote, obligation, review = classify(
-            kind, original, mutant, parts[3], parts[4], route_reason
+        hand, spec_path, spec_quote, obligation, review, acc, hole_subtype = classify(
+            kind, original, mutant, parts[3], parts[4], parts[9]
         )
-        if prior == "confirmed-invalid" and verdict != "confirmed-invalid":
-            downgraded += 1
+        if (
+            kind == "drop_requires"
+            and hand == "confirmed-hole"
+            and mutant_path
+            and mutant_path.exists()
+        ):
+            import os
 
-        parts[5] = verdict
-        parts[6] = spec_path
-        parts[7] = spec_quote.replace("\t", " ").replace("\n", " ")
-        parts[8] = obligation.replace("\t", " ")
-        parts[10] = review.replace("\t", " ")[:500]
-        rows_out.append("\t".join(parts[:11]) + "\n")
+            from run_shard_mutations import run_both_checkers  # noqa: E402
 
-        if parts[5] == "mutant-run-failed":
-            buckets["mutant-run-failed"] += 1
-        buckets[verdict] += 1
+            def accepted(p: Path) -> bool:
+                os.environ.setdefault("OMEGA_LIBRARY_ROOT", str(REPO_REF / "source/library"))
+                os.environ.setdefault("OMEGA_CORPUS_ROOT", str(REPO_REF))
+                cur, _, _ = run_both_checkers(p, 60)
+                return cur == "accepted"
+
+            built = probe_subtype(mutant_path, original, accepted)
+            hole_subtype = built if built != "probe-not-built" else hole_subtype or "probe-not-built"
+        parts[5:13] = [
+            hand,
+            spec_path,
+            spec_quote.replace("\t", " ").replace("\n", " "),
+            obligation.replace("\t", " "),
+            parts[9],
+            review.replace("\t", " ")[:500],
+            acc,
+            hole_subtype,
+        ]
+        rows_out.append("\t".join(parts[:13]) + "\n")
+        buckets[hand] += 1
         buckets["mutant-total"] += 1
-        if verdict == "confirmed-invalid":
-            kinds_confirmed[kind] += 1
-        if verdict == "known-gap-q7-mut":
-            kinds_q7[kind] += 1
 
     tsv_path.write_text("".join(rows_out), encoding="utf-8")
     meta = out / f"shard-{args.shard}.meta.json"
     payload = {}
     if meta.exists():
         payload = json.loads(meta.read_text())
-    payload.update(
-        {
-            "downgraded_from_confirmed": downgraded,
-            "old_confirmed_total": old_confirmed,
-            "revalidated_mutants": buckets["mutant-total"],
-        }
-    )
+    payload["revalidated_mutants"] = buckets["mutant-total"]
     meta.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
-    print(f"downgraded_from_confirmed={downgraded} (was {old_confirmed})")
     print(f"mutant_total={buckets['mutant-total']}")
     for bucket in (
-        "confirmed-invalid",
+        "confirmed-hole",
         "known-gap-q7-mut",
+        "disagreement-valid",
+        "valid-route-outside",
         "discarded-valid",
-        "discarded-no-rule",
-        "mutant-run-failed",
-        "mutant-generate-failed",
+        "rejected-both",
+        "timeout",
+        "failed-run",
+        "no-mutation",
     ):
         print(f"{bucket}={buckets.get(bucket, 0)}")
-    print("confirmed_by_kind", dict(kinds_confirmed))
-    print("q7_by_kind", dict(kinds_q7))
+    assert buckets["mutant-total"] == sum(
+        buckets.get(b, 0)
+        for b in (
+            "confirmed-hole",
+            "known-gap-q7-mut",
+            "disagreement-valid",
+            "valid-route-outside",
+            "discarded-valid",
+            "rejected-both",
+            "timeout",
+            "failed-run",
+        )
+    )
     return 0
 
 

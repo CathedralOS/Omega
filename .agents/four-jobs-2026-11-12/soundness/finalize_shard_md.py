@@ -55,7 +55,82 @@ def pick_rows(tsv: Path, hand: str, kind: str | None, n: int) -> list[list[str]]
     return rows
 
 
-def write_section(title: str, rows: list[list[str]]) -> list[str]:
+def minimal_diff(original: Path, mutant: Path) -> str:
+    if not original.exists() or not mutant.exists():
+        return "_mutant or original missing_"
+    o = original.read_text().splitlines()
+    m = mutant.read_text().splitlines()
+    out: list[str] = []
+    for i, (a, b) in enumerate(zip(o, m), 1):
+        if a != b:
+            out.append(f"@@ line {i} @@")
+            out.append(f"- {a}")
+            out.append(f"+ {b}")
+    if len(o) != len(m):
+        out.append(f"@@ length {len(o)} -> {len(m)} @@")
+    return "\n".join(out[:24]) or "_no line diff (identical)_"
+
+
+def fixture_reconcile(tsv: Path, shard: int) -> list[str]:
+    from collections import Counter
+
+    import subprocess
+
+    proc = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(REPO),
+            "ls-files",
+            "tests/omega/pass/**/main.omg",
+            "tests/omega/run/**/main.omg",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    paths = sorted(proc.stdout.splitlines())
+    shard_fixtures = [paths[i] for i in range(len(paths)) if i % 8 == shard]
+    rows_per: Counter[str] = Counter()
+    no_mut: set[str] = set()
+    mutated: set[str] = set()
+    mutant_rows = 0
+    for line in tsv.read_text().splitlines()[1:]:
+        parts = line.split("\t")
+        if not parts:
+            continue
+        fixture, kind = parts[0], parts[1]
+        rows_per[fixture] += 1
+        if kind == "_no_mutations":
+            no_mut.add(fixture)
+        elif kind == "_original_not_accepted":
+            pass
+        elif not kind.startswith("_"):
+            mutated.add(fixture)
+            mutant_rows += 1
+    multi = [f for f, n in rows_per.items() if n > 1]
+    return [
+        "## Fixture reconciliation",
+        "",
+        f"| Metric | Count |",
+        f"| --- | ---: |",
+        f"| Fixtures in shard (index % 8 == {shard}) | {len(shard_fixtures)} |",
+        f"| Fixtures with any TSV row | {len(rows_per)} |",
+        f"| No-mutation fixtures (`_no_mutations`) | {len(no_mut)} |",
+        f"| Mutated fixtures (≥1 mutant row) | {len(mutated)} |",
+        f"| Mutant rows (excl. metadata) | {mutant_rows} |",
+        f"| Fixtures with >1 TSV row | {len(multi)} |",
+        "",
+    ] + (
+        ["Sample fixtures with multiple rows:", ""]
+        + [f"- `{f}` ({rows_per[f]} rows)" for f in sorted(multi)[:15]]
+        + (["", f"_…and {len(multi) - 15} more._", ""] if len(multi) > 15 else [""])
+        if multi
+        else ["", "_No fixture has more than one TSV row._", ""]
+    )
+
+
+def write_section(title: str, rows: list[list[str]], *, with_diff: bool = False) -> list[str]:
     if not rows:
         return [f"## {title}", "", "_No rows in this shard._", ""]
     lines = [f"## {title}", ""]
@@ -68,9 +143,13 @@ def write_section(title: str, rows: list[list[str]]) -> list[str]:
             f"- obligation: `{parts[8] if len(parts)>8 else ''}`",
             f"- route_reason: `{parts[9] if len(parts)>9 else ''}`",
             f"- review_reason: `{parts[10] if len(parts)>10 else ''}`",
+            f"- hole_subtype: `{parts[12] if len(parts)>12 else ''}`",
             "",
         ]
         mutant = REPO / mrel if mrel else None
+        original = REPO / rel
+        if with_diff and mutant and mutant.exists():
+            lines += ["**Minimal diff**", "```diff", minimal_diff(original, mutant), "```", ""]
         if mutant and mutant.exists():
             lines.append(capture(mutant))
             lines.append("")
@@ -86,9 +165,11 @@ def main() -> int:
     totals = _totals_from_tsv(tsv)
     totals["baseline_mutants"] = totals["mutants_run"]
     body = _md_lines(args.shard, Counters(), _holes_from_tsv(tsv), totals)
+    body += fixture_reconcile(tsv, args.shard)
     body += write_section(
-        "Hand verification: confirmed-invalid (5)",
-        pick_rows(tsv, "confirmed-invalid", None, 5),
+        "Hand verification: confirmed-hole (5)",
+        pick_rows(tsv, "confirmed-hole", None, 5),
+        with_diff=True,
     )
     body += write_section(
         "Hand verification: known-gap-q7 remove_mut (5)",

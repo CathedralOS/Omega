@@ -1,0 +1,35 @@
+use omega::language::core::layout;
+// An unrelated partial-width layout does not give plain byte-view elements
+// unknown encodings. Bounds and exclusive access remain independently checked.
+
+
+SignedByte satisfies FixedLayout<PortableByte> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    let entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        representation: FieldPlan::IntegerAt {
+            offset: 0,
+            stored_width: 8,
+            interpretation: IntegerInterpretation::Signed,
+        },
+    };
+    LayoutPlan {
+        entries: entries,
+        entry_count: 1,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+}
+
+data PortableByte [copy] { value: i64; }
+data RawView { value: LayoutStorage<PortableByte, SignedByte>; }
+public boundary trait ByteWriter { machine write(value: &mut u8) reaches; }
+machine write_first(bytes: &mut [u8]) reaches ByteWriter {
+    transition bytes.len > 0 { true -> change(bytes) _ -> done() }
+    machine change(bytes: &mut [u8]) { ByteWriter::write(&mut bytes[0]); }
+    machine done() {}
+}
+machine main() {}

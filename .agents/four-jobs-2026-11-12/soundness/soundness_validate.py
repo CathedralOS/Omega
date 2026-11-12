@@ -1,8 +1,9 @@
-"""Lead-review classification for soundness mutation rows."""
+"""Lead-review classification (fix3): validity from reading the mutant; holes if either checker accepts."""
 
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 SPEC_OWNED_LOCAL_MUT = (
     "wiki/spec/language/ownership.md",
@@ -25,21 +26,75 @@ SPEC_REQUIRES_ARRIVAL = (
     "under actual argument substitution.",
 )
 
+SPEC_MODULAR_ENTRY = (
+    "wiki/spec/language/machines.md#nested-machines-and-identity",
+    "A written entry contract remains complete even when all currently visible callers "
+    "happen to establish stronger facts.",
+)
+
+SPEC_AUTHORED_REQUIRES = (
+    "wiki/spec/language/state_contracts.md#private-entry-inference",
+    "An authored `requires` is complete, including on a private helper. Inference "
+    "cannot silently conjoin further entry conditions to make the body check.",
+)
+
 SPEC_NONZERO_RANGE = (
     "wiki/spec/language/expressions.md",
     "proof error, not a runtime panic. Thus `..=len-1` needs nonzero length, and an",
 )
 
-ROUTE_AUTO_DISCARD = {
-    "no-entry",
-    "unreached",
-    "outside",
-    "unsupported",
-    "incomplete",
-    "defect",
-    "error",
-    "timeout",
-}
+SPEC_REBORROW = (
+    "wiki/spec/language/ownership.md",
+    "Reborrowing retains exact immediate parent lineage. Shared children freeze the "
+    "parent's mutation; exclusive children suspend the corresponding parent branch.",
+)
+
+ROUTE_NON_VERDICT = frozenset(
+    {"outside", "no-entry", "unreached", "unsupported", "incomplete", "defect", "error"}
+)
+
+
+def route_is_accept(route: str) -> bool:
+    return route == "accepted"
+
+
+def route_is_reject(route: str) -> bool:
+    return route == "rejected"
+
+
+def route_is_non_verdict(route: str) -> bool:
+    return route in ROUTE_NON_VERDICT
+
+
+def runtime_trap_only(mutant: str, kind: str) -> bool:
+    if "crashes Trap" not in mutant and "crash Trap" not in mutant:
+        return False
+    if _line_find(r"/", mutant) or _line_find(r"\[[^\]]+\]", mutant):
+        return False
+    return kind in {"drop_requires", "widen_requires", "drop_divisor_guard"}
+
+
+def confirmed_hole_allowed(kind: str, mutant: str, spec_path: str) -> tuple[bool, str]:
+    if runtime_trap_only(mutant, kind):
+        return False, "violation only reaches a runtime Trap arm; not a check-time proof hole"
+    if spec_path and "expressions.md" in spec_path:
+        return True, "spec cites check-time proof error, not a runtime panic"
+    if spec_path and "ownership.md" in spec_path:
+        return True, "owned-local / borrow rules are checked obligations, not runtime traps"
+    if spec_path and "state_contracts.md" in spec_path:
+        return True, "machine requires/ensures are check-time contracts"
+    return True, "check-time contract rule"
+
+
+@dataclass
+class Invalidity:
+    invalid: bool
+    obligation: str = ""
+    spec_path: str = ""
+    spec_quote: str = ""
+    valid_reason: str = ""
+    q7_only: bool = False
+    hole_subtype: str = ""
 
 
 def _line_find(pattern: str, text: str) -> str | None:
@@ -53,69 +108,194 @@ def demoted_mut_binding(original: str, mutant: str) -> str | None:
     om = list(re.finditer(r"\blet\s+mut\s+(\w+)", original))
     if not om:
         return None
-    first = om[0].group(1)
-    if re.search(rf"\blet\s+mut\s+{re.escape(first)}\b", mutant):
+    name = om[0].group(1)
+    if re.search(rf"\blet\s+mut\s+{re.escape(name)}\b", mutant):
         return None
-    if not re.search(rf"\blet\s+{re.escape(first)}\b", mutant):
+    if not re.search(rf"\blet\s+{re.escape(name)}\b", mutant):
         return None
-    return first
+    return name
 
 
 def binding_shadowed(mutant: str, name: str) -> bool:
-    hits = 0
-    for line in mutant.splitlines():
-        if re.search(rf"\blet\s+(?:mut\s+)?{re.escape(name)}\b", line):
-            hits += 1
-    return hits > 1
+    return (
+        sum(
+            1
+            for line in mutant.splitlines()
+            if re.search(rf"\blet\s+(?:mut\s+)?{re.escape(name)}\b", line)
+        )
+        > 1
+    )
 
 
 def mutating_use(mutant: str, name: str) -> str | None:
-    patterns = [
+    for pat in (
         rf"&mut\s+{re.escape(name)}\b",
         rf"&write\s+{re.escape(name)}\b",
         rf"\b{re.escape(name)}\s*\[[^\]]+\]\s*=",
         rf"\b{re.escape(name)}\.[A-Za-z_][\w]*\s*=",
-    ]
-    for pat in patterns:
+        rf"(?<![\w.]){re.escape(name)}\s*=",
+    ):
         hit = _line_find(pat, mutant)
         if hit:
             return hit
-    assign = _line_find(rf"(?<![\w.]){re.escape(name)}\s*=", mutant)
-    if assign and "&" not in assign.split("=", 1)[0]:
-        return assign
     return None
 
 
-def weakened_requires_obligation(original: str, mutant: str) -> str | None:
+def extract_first_requires_clause(text: str) -> str | None:
+    m = re.search(r"^\s*requires\s", text, re.M)
+    if not m:
+        return None
+    start = m.end()
+    depth = 0
+    for i in range(start, len(text)):
+        c = text[i]
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            if depth == 0:
+                return text[start:i].strip()
+            depth -= 1
+    return text[start:].strip()
+
+
+def internal_restatement(mutant: str, requires_clause: str) -> str | None:
+    """Transition/guard inside the machine that restates the removed entry fact."""
+    tokens: list[str] = []
+    for frag in re.findall(r"!=\s*0\w*|==\s*0\w*|<\s*\w+|>\s*\w+|\w+\s*!=\s*\w+", requires_clause):
+        tokens.append(frag)
+    if not tokens and requires_clause:
+        tokens = [requires_clause[: min(48, len(requires_clause))]]
+    for number, line in enumerate(mutant.splitlines(), 1):
+        if not re.search(r"\b(transition|match)\b", line):
+            continue
+        if any(tok in line for tok in tokens if tok):
+            return f"L{number}: {line.strip()}"
+    return None
+
+
+def drop_requires_invalidity(original: str, mutant: str) -> Invalidity:
+    """Fix5: invalid only if body still needs removed entry fact without internal restatement."""
+    orig_req = extract_first_requires_clause(original)
+    mut_req = extract_first_requires_clause(mutant)
+    if not orig_req or mut_req:
+        return Invalidity(False, valid_reason="requires not removed")
+
+    modular_quote = (
+        f"[modular] ({SPEC_MODULAR_ENTRY[0]}) {SPEC_MODULAR_ENTRY[1]} | "
+        f"[authored] ({SPEC_AUTHORED_REQUIRES[0]}) {SPEC_AUTHORED_REQUIRES[1]}"
+    )
+    inside = internal_restatement(mutant, orig_req)
+    if inside:
+        return Invalidity(
+            False,
+            valid_reason=(
+                f"internal transition/guard restates removed requires `{orig_req}` at {inside}; "
+                f"outside callers cannot supply this fact ({SPEC_MODULAR_ENTRY[1]})"
+            ),
+        )
+
+    for pat, spec in (
+        (r"/", SPEC_NONZERO_RANGE),
+        (r"\[[^\]]+\]", SPEC_INDEX_BOUNDS),
+    ):
+        hit = _line_find(pat, mutant)
+        if hit:
+            return Invalidity(
+                True,
+                hit,
+                SPEC_MODULAR_ENTRY[0],
+                modular_quote,
+                hole_subtype="probe-not-built",
+            )
+    ensures = _line_find(r"\bensures\b", mutant)
+    if ensures:
+        return Invalidity(
+            True,
+            ensures,
+            SPEC_AUTHORED_REQUIRES[0],
+            modular_quote,
+            hole_subtype="probe-not-built",
+        )
+    return Invalidity(
+        False,
+        valid_reason="removed requires not used by body without internal restatement",
+    )
+
+
+def remove_mut_invalidity(original: str, mutant: str) -> Invalidity:
+    binding = demoted_mut_binding(original, mutant)
+    if not binding:
+        return Invalidity(False, valid_reason="no demoted let mut")
+    if binding_shadowed(mutant, binding):
+        return Invalidity(False, valid_reason=f"binding `{binding}` is shadowed")
+    obligation = mutating_use(mutant, binding) or ""
+    if not obligation:
+        return Invalidity(False, valid_reason="demoted binding has no mutating use")
+    q7 = bool(
+        re.search(
+            rf"&mut\s+{re.escape(binding)}\b|&write\s+{re.escape(binding)}\b", obligation
+        )
+    )
+    return Invalidity(
+        True,
+        obligation,
+        SPEC_OWNED_LOCAL_MUT[0],
+        SPEC_OWNED_LOCAL_MUT[1],
+        q7_only=q7,
+    )
+
+
+def weaken_requires_invalidity(original: str, mutant: str) -> Invalidity:
     if "!= 0" in original and "== 0" in mutant:
         div = _line_find(r"/", mutant)
         if div:
-            return div
-    removed = "requires" in original and not re.search(r"^\s*requires\s", mutant, re.M)
-    if removed:
-        for pat in (r"\[[^\]]+\]", r"/", r"ensures\s", r"transition\s"):
-            hit = _line_find(pat, mutant)
-            if hit:
-                return hit
-    return None
+            return Invalidity(True, div, SPEC_NONZERO_RANGE[0], SPEC_NONZERO_RANGE[1])
+    return Invalidity(False, valid_reason="weakened guard not used in body")
 
 
-def flip_borrow_obligation(original: str, mutant: str) -> str | None:
-    for number, (oline, mline) in enumerate(
-        zip(original.splitlines(), mutant.splitlines()), 1
-    ):
-        if oline != mline and ("&mut" in mline or "&write" in mline):
-            return f"L{number}: {mline.strip()}"
-    return _line_find(r"&mut|&write", mutant)
+def flip_borrow_invalidity(original: str, mutant: str) -> Invalidity:
+    for number, (o, m) in enumerate(zip(original.splitlines(), mutant.splitlines()), 1):
+        if o == m:
+            continue
+        if "&mut" in m or "&write" in m or ("&" in m and "&mut" not in o and "&write" not in o):
+            return Invalidity(
+                True,
+                f"L{number}: {m.strip()}",
+                SPEC_REBORROW[0],
+                SPEC_REBORROW[1],
+            )
+    hit = _line_find(r"&mut|&write", mutant)
+    if hit and hit not in original:
+        return Invalidity(True, hit, SPEC_REBORROW[0], SPEC_REBORROW[1])
+    return Invalidity(False, valid_reason="borrow change not tied to a use line")
 
 
-def same_fact_in_transition(original: str, removed_requires: str) -> str | None:
-    """If transition restates removed requires, return the transition line (else None)."""
-    req_line = removed_requires.strip()
-    for line in original.splitlines():
-        if "transition" in line and req_line and req_line in line:
-            return line.strip()
-    return None
+def assess_invalidity(kind: str, original: str, mutant: str) -> Invalidity:
+    if kind == "drop_requires":
+        return drop_requires_invalidity(original, mutant)
+    if kind == "remove_mut":
+        return remove_mut_invalidity(original, mutant)
+    if kind in {"widen_requires", "drop_divisor_guard"}:
+        return weaken_requires_invalidity(original, mutant)
+    if kind == "flip_borrow_mutability":
+        return flip_borrow_invalidity(original, mutant)
+    if kind == "write_through_shared_borrow":
+        hit = _line_find(r"\[[0-9]+\]\s*=", mutant)
+        if hit:
+            return Invalidity(True, hit, SPEC_REBORROW[0], SPEC_REBORROW[1])
+    return Invalidity(False, valid_reason=f"no invalidity rule for kind {kind}")
+
+
+def accepted_by(current: str, route: str) -> str:
+    cur = current == "accepted"
+    rte = route_is_accept(route)
+    if cur and rte:
+        return "both"
+    if cur:
+        return "current"
+    if rte:
+        return "route"
+    return ""
 
 
 def classify(
@@ -125,140 +305,82 @@ def classify(
     current: str,
     route: str,
     route_reason: str = "",
-) -> tuple[str, str, str, str, str]:
-    """Return hand_verdict, spec_path, spec_quote, obligation_line, review_reason."""
+) -> tuple[str, str, str, str, str, str, str]:
+    """hand_verdict, spec_path, spec_quote, obligation, review_reason, accepted_by, hole_subtype."""
+    _ = route_reason  # recorded separately; never used to decide validity
+
+    if kind == "_mutant_generate_failed":
+        return "failed-run", "", "", "", "mutant directory staging failed", "", ""
     if kind.startswith("_"):
-        return "discarded-valid", "", "", "", ""
+        return "no-mutation", "", "", "", "", "", ""
 
-    if kind == "drop_requires":
-        if current != "accepted":
-            return (
-                "discarded-valid",
-                "",
-                "",
-                "",
-                f"current={current} (not accepted; no soundness signal)",
-            )
-        reason = route_reason or f"route={route}"
-        if route in ROUTE_AUTO_DISCARD or "unsupported" in reason.lower():
-            return (
-                "discarded-valid",
-                "",
-                "",
-                "",
-                f"route non-proof refusal: {route}; {reason[:240]}",
-            )
-        obligation = weakened_requires_obligation(original, mutant) or ""
-        proof_reject = (
-            route == "rejected"
-            and obligation
-            and any(
-                token in reason.lower()
-                for token in ("cannot prove", "unproved", "rejected", "diagnostic")
-            )
-        )
-        if proof_reject:
-            spec_path, spec_quote = SPEC_REQUIRES_ARRIVAL
-            dup = same_fact_in_transition(original, obligation)
-            if dup:
-                return (
-                    "discarded-valid",
-                    "",
-                    "",
-                    obligation,
-                    f"requires duplicated in transition: `{dup}`",
-                )
-            return (
-                "confirmed-invalid",
-                spec_path,
-                spec_quote,
-                obligation,
-                f"route rejected obligation: {reason[:240]}",
-            )
-        if route == "accepted" and obligation:
-            return (
-                "confirmed-invalid",
-                SPEC_REQUIRES_ARRIVAL[0],
-                SPEC_REQUIRES_ARRIVAL[1],
-                obligation,
-                "both checkers accepted after requires removal",
-            )
-        return (
-            "discarded-valid",
-            "",
-            "",
-            obligation,
-            f"insufficient route evidence: {route}; {reason[:240]}",
-        )
+    if current == "timeout" or route == "timeout":
+        return "timeout", "", "", "", "checker timeout", "", ""
 
-    if current != "accepted":
-        return "discarded-valid", "", "", "", f"current={current}"
+    if current == "error" or route == "error":
+        return "failed-run", "", "", "", "checker error", "", ""
 
-    if kind == "remove_mut":
-        binding = demoted_mut_binding(original, mutant)
-        if not binding or binding_shadowed(mutant, binding):
-            return (
-                "discarded-valid",
-                "",
-                "",
-                "",
-                "missing demoted binding or shadowed name",
-            )
-        obligation = mutating_use(mutant, binding) or ""
-        if not obligation:
-            return "discarded-valid", "", "", "", "no mutating use of demoted binding"
-        spec_path, spec_quote = SPEC_OWNED_LOCAL_MUT
-        if re.search(
-            rf"&mut\s+{re.escape(binding)}\b|&write\s+{re.escape(binding)}\b", obligation
-        ):
+    cur_ok = current == "accepted"
+    rte_ok = route_is_accept(route)
+    acc = accepted_by(current, route)
+    inv = assess_invalidity(kind, original, mutant)
+
+    if inv.invalid:
+        if inv.q7_only and (cur_ok or rte_ok):
             return (
                 "known-gap-q7-mut",
-                spec_path,
-                spec_quote,
-                obligation,
-                f"Q7 gap: writable loan/store on non-mut `{binding}`",
+                inv.spec_path,
+                inv.spec_quote,
+                inv.obligation,
+                f"Q7 missing-mut enforcement on `{inv.obligation}`",
+                acc,
+                inv.hole_subtype,
             )
-        return (
-            "confirmed-invalid",
-            spec_path,
-            spec_quote,
-            obligation,
-            "current accepts illegal write on non-mut local",
-        )
+        if cur_ok or rte_ok:
+            ok, why = confirmed_hole_allowed(kind, mutant, inv.spec_path)
+            if not ok:
+                return "discarded-valid", "", "", inv.obligation, why, "", ""
+            return (
+                "confirmed-hole",
+                inv.spec_path,
+                inv.spec_quote,
+                inv.obligation,
+                f"modular-entry hole: {why}",
+                acc,
+                inv.hole_subtype or ("probe-not-built" if kind == "drop_requires" else ""),
+            )
+        return "rejected-both", "", "", inv.obligation, "invalid mutant rejected by both checkers", "", ""
 
-    if kind in {"widen_requires", "drop_divisor_guard"}:
-        obligation = weakened_requires_obligation(original, mutant) or ""
-        if not obligation:
-            return "discarded-valid", "", "", "", "no dependent body obligation"
-        if "/" in obligation:
-            spec_path, spec_quote = SPEC_NONZERO_RANGE
-        elif "[" in obligation:
-            spec_path, spec_quote = SPEC_INDEX_BOUNDS
-        else:
-            spec_path, spec_quote = SPEC_REQUIRES_ARRIVAL
+    if cur_ok and rte_ok:
+        return "discarded-valid", "", "", "", inv.valid_reason or "valid mutant; both checkers accept", "", ""
+    if cur_ok and route_is_reject(route):
         return (
-            "confirmed-invalid",
-            spec_path,
-            spec_quote,
-            obligation,
-            f"weakened guard with body use; route={route}",
+            "disagreement-valid",
+            "",
+            "",
+            "",
+            inv.valid_reason or "valid mutant; current accepts, route rejects",
+            "current",
+            "",
         )
-
-    if kind == "flip_borrow_mutability":
-        obligation = flip_borrow_obligation(original, mutant) or ""
-        if not obligation:
-            return "discarded-valid", "", "", "", "borrow flip did not change a use line"
-        spec_path = "wiki/spec/language/ownership.md"
-        spec_quote = (
-            "Reborrowing retains exact immediate parent lineage. Shared children freeze the "
-            "parent's mutation; exclusive children suspend the corresponding parent branch."
-        )
+    if rte_ok and current == "rejected":
         return (
-            "confirmed-invalid",
-            spec_path,
-            spec_quote,
-            obligation,
-            f"current accepted borrow mutability change; route={route}",
+            "disagreement-valid",
+            "",
+            "",
+            "",
+            inv.valid_reason or "valid mutant; route accepts, current rejects",
+            "route",
+            "",
         )
-
-    return "discarded-no-rule", "", "", "", f"unclassified kind {kind}"
+    if cur_ok and route_is_non_verdict(route):
+        return (
+            "valid-route-outside",
+            "",
+            "",
+            "",
+            f"valid mutant; route non-verdict `{route}`",
+            "",
+            "",
+        )
+    return "rejected-both", "", "", "", inv.valid_reason or "valid mutant; both reject", "", ""

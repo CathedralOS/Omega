@@ -1,0 +1,24 @@
+// Fixed-token declaration heads retain named identities and operand-directed
+// selection. Boundary requirements remain provider-agnostic. Every head sits on
+// a fixture-owned type: primitive `i32 +` belongs to the core semantic home, and
+// the `[]`/`[..]` declarations stay outside the builtin slice-indexing operand
+// space that build-time policy evaluation needs.
+
+data Cell { value: i32; }
+
+operator + Cell::add(left: Cell, right: Cell) -> Cell;
+
+data Table<T> {
+    cells: [T; 8];
+}
+
+boundary machine [] Table::at<T>(items: &mut Table<T>, index: u64) -> T
+requires
+    index < 8;
+
+boundary machine [..] Table::window<T>(items: &Table<T>, start: u64, end: u64) -> &Table<T>
+requires
+    start <= end && end <= 8;
+
+machine main() {
+}
