@@ -32,6 +32,31 @@ def rev_list_first_parent(pin: str) -> list[str]:
     return [x for x in r.stdout.splitlines() if x]
 
 
+def fixture_path(witness: str) -> str:
+    tier, rest = witness.split("/", 1)
+    return f"tests/omega/{tier}/{rest}"
+
+
+def oldest_fixture_commit(witness: str) -> str | None:
+    r = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(REPO),
+            "log",
+            "--first-parent",
+            "--reverse",
+            "-1",
+            "--format=%H",
+            "--",
+            fixture_path(witness),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    return r.stdout.strip() or None
+
+
 def checkout(ref: str) -> None:
     subprocess.run(["git", "-C", str(REPO), "checkout", "-f", ref], check=True)
 
@@ -60,23 +85,24 @@ def main() -> int:
         restore_branch()
         return 1
 
-    lo, hi = 1, len(revs) - 1
-    best = None
-    while lo <= hi:
-        mid = (lo + hi) // 2
-        checkout(revs[mid])
+    floor = oldest_fixture_commit(witness)
+    start = 1
+    if floor and floor in revs:
+        start = revs.index(floor)
+
+    # Newest good: smallest index i with ec==0 (walk from PIN toward older commits).
+    for i in range(1, start + 800):
+        if i >= len(revs):
+            break
+        checkout(revs[i])
         ec = run_test(witness)
         if ec == 0:
-            best = revs[mid]
-            hi = mid - 1
-        else:
-            lo = mid + 1
+            print(revs[i])
+            restore_branch()
+            return 0
     restore_branch()
-    if not best:
-        print("no good commit on first-parent chain", file=sys.stderr)
-        return 1
-    print(best)
-    return 0
+    print("no good commit on first-parent chain", file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":
