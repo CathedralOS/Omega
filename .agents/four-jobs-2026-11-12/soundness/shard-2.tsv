@@ -1,7 +1,0 @@
-fixture	tier	mutation_kind	mutant_path	current_verdict	route_verdict	run_disposition	route_rejection_detail	rule_hint	seconds
-tests/omega/pass/arithmetic/anonymous_integer_arith/main.omg	pass	drop_machine_ensures	.agents/four-jobs-2026-11-12/soundness/shard-2/tests_omega_pass_arithmetic_anonymous_integer_arith_drop_machine_ensures_ff4980a8cdc6/main.omg	accepted	no-entry	current_accepts		wiki/spec/language/state_contracts.md	1.74
-tests/omega/pass/arithmetic/anonymous_integer_arith/main.omg	pass	mut_ref_to_ref	.agents/four-jobs-2026-11-12/soundness/shard-2/tests_omega_pass_arithmetic_anonymous_integer_arith_mut_ref_to_ref_c9ffa0793b7a/main.omg	accepted	no-entry	current_accepts		wiki/spec/language/ownership.md	1.60
-tests/omega/pass/arithmetic/chained_const_binder_scale_exit/main.omg	pass	drop_machine_requires		rejected	outside	rejected_both	Unsupported: machine generic parameters	wiki/spec/language/state_contracts.md	2.68
-tests/omega/pass/arithmetic/chained_const_binder_scale_exit/main.omg	pass	ref_to_mut_ref		rejected	outside	rejected_both	Unsupported: machine generic parameters	wiki/spec/language/ownership.md	1.85
-tests/omega/pass/arithmetic/compound_assign/main.omg	pass	remove_mut		rejected	no-entry	rejected_both		wiki/spec/language/ownership.md	1.34
-tests/omega/pass/arithmetic/compound_assign/main.omg	pass	mut_ref_to_ref	.agents/four-jobs-2026-11-12/soundness/shard-2/tests_omega_pass_arithmetic_compound_assign_mut_ref_to_ref_8a6250c50b7e/main.omg	accepted	no-entry	current_accepts		wiki/spec/language/ownership.md	1.60

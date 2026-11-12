@@ -353,11 +353,15 @@ def main() -> int:
                 stats["both_rejected"] = stats.get("both_rejected", 0) + 1
                 run_disposition = "rejected_both"
                 shutil.rmtree(mdir, ignore_errors=True)
-            elif cv == "accepted":
-                stats["current_accepts"] = stats.get("current_accepts", 0) + 1
-                run_disposition = "current_accepts"
+            elif cv == "accepted" or rv == "accepted":
+                stats["checker_accepts"] = stats.get("checker_accepts", 0) + 1
+                if cv == "accepted":
+                    stats["current_accepts"] = stats.get("current_accepts", 0) + 1
+                if rv == "accepted":
+                    stats["route_accepts"] = stats.get("route_accepts", 0) + 1
+                run_disposition = "checker_accepts"
             else:
-                run_disposition = "current_rejects"
+                run_disposition = "neither_accepts"
                 shutil.rmtree(mdir, ignore_errors=True)
 
             append_tsv(
@@ -367,7 +371,7 @@ def main() -> int:
                     "mutation_kind": kind,
                     "mutant_path": (
                         str(mpath.relative_to(REPO))
-                        if run_disposition == "current_accepts"
+                        if run_disposition == "checker_accepts"
                         else ""
                     ),
                     "current_verdict": cv,
@@ -386,7 +390,7 @@ def main() -> int:
         if len(done) % 10 == 0:
             print(
                 f"progress {len(done)}/{len(fixtures)} "
-                f"current_accepts={stats.get('current_accepts',0)}"
+                f"checker_accepts={stats.get('checker_accepts',0)}"
             )
 
     print(json.dumps(stats, indent=2))

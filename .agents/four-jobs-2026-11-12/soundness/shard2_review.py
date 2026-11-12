@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lead-review helpers for soundness mutation shard confirmation."""
+"""Lead-review helpers for soundness mutation shard confirmation (fix3)."""
 from __future__ import annotations
 
 import difflib
@@ -16,31 +16,43 @@ ENV = {**dict(__import__("os").environ), "OMEGA_LIBRARY_ROOT": str(REPO / "sourc
 Q7_PATH = Path(__file__).with_name("q7_scan_ref.py")
 _q7_cache: dict[str, list] = {}
 
+ROUTE_ACCEPT = {"accepted"}
+ROUTE_REJECT = {
+    "rejected",
+    "incomplete",
+    "defect",
+    "outside",
+    "fallback",
+    "no-entry",
+    "unreached",
+    "error",
+    "unknown",
+}
+
+
+def accepted_by(current: str, route: str) -> str:
+    cur = current == "accepted"
+    ro = route == "accepted"
+    if cur and ro:
+        return "both"
+    if cur:
+        return "current"
+    if ro:
+        return "route"
+    return "neither"
+
 
 def parse_route_output(out: str) -> tuple[str, str]:
     current = route = "unknown"
     for line in out.splitlines():
         if not line.startswith("program"):
             continue
-        if "root=compilation" not in line and "root=machine:" not in line:
-            if "root=" in line and "root=compilation" not in line:
-                continue
         mc = re.search(r"[\s\t]current=(\S+)", line)
         mr = re.search(r"[\s\t]route=(\S+)", line)
-        if mc and "root=compilation" in line:
+        if mc:
             current = mc.group(1)
-        if mr and "root=compilation" in line:
+        if mr:
             route = mr.group(1)
-    if current == "unknown":
-        for line in out.splitlines():
-            if line.startswith("program"):
-                mc = re.search(r"[\s\t]current=(\S+)", line)
-                mr = re.search(r"[\s\t]route=(\S+)", line)
-                if mc:
-                    current = mc.group(1)
-                if mr:
-                    route = mr.group(1)
-                break
     return current, route
 
 
@@ -72,110 +84,93 @@ def run_checker_outputs(main: Path) -> dict:
 
 
 def requires_repeated_elsewhere(orig: str, removed: str) -> str | None:
-    """Quote a transition/other clause that restates the removed requires."""
     pred = removed.removeprefix("requires").strip().rstrip(";")
     if not pred:
         return None
     for line in orig.splitlines():
         s = line.strip()
         if s.startswith("requires") and s != removed.strip():
-            if pred in s or all(tok in s for tok in pred.split("&&") if tok.strip()):
+            if pred in s:
                 return s
-        if "reaches" in s and pred[:20] in s:
-            return s
     return None
 
 
 def removed_requires_clause(orig: str, mut: str) -> str | None:
     orig_lines = orig.splitlines()
     mut_lines = mut.splitlines()
-    for i, o in enumerate(orig_lines):
-        if o.strip().startswith("requires") and i < len(mut_lines):
-            if mut_lines[i].strip() != o.strip():
-                if i >= len(mut_lines) or not mut_lines[i].strip().startswith("requires"):
-                    return o.strip()
     sm = difflib.SequenceMatcher(None, orig_lines, mut_lines)
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag == "delete":
-            chunk = "\n".join(orig_lines[i1:i2])
-            if "requires" in chunk:
-                for line in orig_lines[i1:i2]:
-                    if line.strip().startswith("requires"):
-                        return line.strip()
+            for line in orig_lines[i1:i2]:
+                if line.strip().startswith("requires"):
+                    return line.strip()
     return None
 
 
 def drop_requires_failing_line(orig: str, mut: str, removed: str) -> str | None:
-    """Body line in mutant that relied on the removed requires predicate."""
-    req_vars = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", removed))
-    req_vars -= {"requires", "machine", "and", "or", "true", "false"}
+    """Body or ensures line in mutant that still relies on the removed requires fact."""
     m = re.search(r"requires\s+(.+)", removed)
     if not m:
         return None
     pred = m.group(1)
-    if "<" in pred or "<=" in pred:
-        var = pred.split("<")[0].strip().split()[-1]
-    else:
-        var = next(iter(req_vars), None)
-    machine_pat = re.compile(
-        r"machine\s+[^\n]+\n(?:\s*(?:requires|ensures|reaches|crashes|terminates)[^\n]*\n)*\s*\{",
-        re.MULTILINE,
-    )
-    mm = machine_pat.search(mut)
-    if not mm:
-        return None
-    body_start = mm.end()
-    body = mut[body_start:]
-    depth = 1
-    i = 0
-    while i < len(body) and depth:
-        if body[i] == "{":
-            depth += 1
-        elif body[i] == "}":
-            depth -= 1
-            if depth == 0:
-                body = body[:i]
-                break
-        i += 1
-    risky = re.compile(
-        r"(\[[^\]]+\]|/\s*[^/]|%\s*[^%]|<<|>>|\+\s*[^+]|-\s*[^-]|\*\s*[^\*])"
-    )
-    for line in body.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("//"):
+    tokens = {t for t in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", pred) if t not in ("requires", "and", "or", "true", "false")}
+    for line in mut.splitlines():
+        s = line.strip()
+        if not s or s.startswith("//") or s.startswith("ensures"):
             continue
-        if var and var not in line:
+        if not any(t in s for t in tokens):
             continue
-        if risky.search(line):
-            return stripped
-        if var and re.search(rf"\b{re.escape(var)}\b", line):
-            if any(op in line for op in ("/", "%", "[", "+", "*", "-")):
-                return stripped
+        if any(op in s for op in ("[", "]", "/", "%", "+", "*", "-", "<<", ">>", "as ")):
+            return s
+        if s.startswith("ensures"):
+            return s
+    for line in mut.splitlines():
+        if line.strip().startswith("ensures") and any(t in line for t in tokens):
+            return line.strip()
     return None
 
 
-def remove_mut_binding_and_line(orig: str, mut: str) -> tuple[str, str, bool] | None:
+def remove_mut_binding_and_line(orig: str, mut: str) -> tuple[str, str] | None:
     mo = re.search(r"\blet mut\s+([A-Za-z_][A-Za-z0-9_]*)", orig)
     if not mo:
         return None
     name = mo.group(1)
-    if f"let mut {name}" in mut:
-        return None
-    lines_mut = mut.splitlines()
     shadow = re.compile(rf"^\s*let\s+(?:mut\s+)?{re.escape(name)}\b")
-    for i, line in enumerate(lines_mut, 1):
+    for line in mut.splitlines():
         if shadow.match(line):
             return None
+    for line in mut.splitlines():
         stripped = line.strip()
         if re.search(rf"&\s*(?:mut|write)\s+{re.escape(name)}\b", line):
-            return name, stripped, False
+            return name, stripped
         if re.search(rf"^\s*{re.escape(name)}\.", line) or re.search(
             rf"^\s*{re.escape(name)}\[", line
         ):
             if any(op in line for op in ("=", "+=", "-=", "*=", "/=")):
-                return name, stripped, False
+                return name, stripped
         if re.search(rf"^\s*{re.escape(name)}\s*=", line) and "let " not in line:
-            return name, stripped, False
+            return name, stripped
+    return None
+
+
+def ref_mutation_obligation(orig: str, mut: str, kind: str) -> tuple[str, str] | None:
+    diff_lines = [
+        b
+        for a, b in zip(orig.splitlines(), mut.splitlines())
+        if a != b and ("&" in a or "&" in b)
+    ]
+    if not diff_lines:
+        return None
+    line = diff_lines[0].strip()
+    if kind == "ref_to_mut_ref":
+        return line, "&mut formed where the source only authorized shared `&`"
+    if kind == "mut_ref_to_ref":
+        if re.search(r"\.[A-Za-z_]+\s*=", mut) or re.search(r"\[[^\]]+\]\s*=", mut):
+            for wl in mut.splitlines():
+                if "=" in wl and "&" not in wl.split("=")[0][-3:]:
+                    if wl.strip() and not wl.strip().startswith("//"):
+                        return wl.strip(), "write through shared `&` where `&mut` was required"
+        return line, "downgraded `&mut` to `&` while exclusive use remains"
     return None
 
 
@@ -195,51 +190,125 @@ def load_q7_hits(main_path: Path) -> list:
     return hits
 
 
-def is_known_q7_gap(
-    fixture_main: Path, binding: str, obligation_line: str
-) -> tuple[bool, str]:
-    hits = load_q7_hits(fixture_main)
-    for h in hits:
-        if h.binding != binding:
-            continue
-        if binding not in obligation_line:
-            continue
-        return True, h.snippet
+def is_known_q7_gap(fixture_main: Path, binding: str, obligation_line: str) -> tuple[bool, str]:
+    if binding not in obligation_line:
+        return False, ""
+    for h in load_q7_hits(fixture_main):
+        if h.binding == binding:
+            return True, h.snippet
     return False, ""
 
 
-SPEC_QUOTES = {
-    "drop_machine_requires_arith": (
-        "wiki/spec/language/numeric_values.md",
-        "## Exact operations",
-        "`+`, `*`: Exact integer result, without numerical overflow.",
-    ),
-    "drop_machine_requires_index": (
-        "wiki/spec/language/domains.md",
-        "## Indexed domains",
-        "Indexed access requires a proof that the index lies in the domain established for that storage.",
-    ),
+SPEC_RULES = {
     "remove_mut": (
         "wiki/spec/language/ownership.md",
-        "## Owned local mutability",
+        "Owned local mutability",
         "modifying an established ordinary local's owned storage requires a `mut` binding",
     ),
-    "widen_requires_lt": (
+    "drop_requires_arith": (
+        "wiki/spec/language/numeric_values.md",
+        "Exact operations",
+        "Division or remainder by zero must be excluded before formation.",
+    ),
+    "drop_requires_bound": (
         "wiki/spec/language/state_contracts.md",
-        "## Requirement clauses",
-        "Machine | Entry obligations established at every invocation under exact actual-argument substitution.",
+        "Requirement clauses",
+        "Machine entry obligations are established at every invocation under exact actual-argument substitution.",
+    ),
+    "ref_to_mut_ref": (
+        "wiki/spec/language/ownership.md",
+        "Owned local mutability",
+        "formation of `&mut` or `&write` loans to owned places requires a `mut` binding on that carrier when lending owned storage",
+    ),
+    "mut_ref_to_ref": (
+        "wiki/spec/language/ownership.md",
+        "Borrowing",
+        "Exclusive mutation requires a `&mut` loan; shared `&` does not authorize writes to the referent",
+    ),
+    "widen_requires": (
+        "wiki/spec/language/state_contracts.md",
+        "Requirement clauses",
+        "Entry obligations must hold for every admitted invocation; widening `<` to `<=` admits values that violate the original bound.",
     ),
 }
 
 
-def pick_spec_quote(kind: str, obligation_line: str | None) -> tuple[str, str, str] | None:
-    if kind == "remove_mut":
-        return SPEC_QUOTES["remove_mut"]
+def read_mutant_validity(
+    orig: str, mut: str, kind: str, fixture_main: Path
+) -> tuple[bool, str, str, str, str]:
+    """
+    Return (is_invalid, one_line_reason, obligation_line, rule_path, rule_quote).
+    Validity from reading the mutant only (fix3-B).
+    """
+    if kind == "drop_machine_requires":
+        removed = removed_requires_clause(orig, mut)
+        if not removed:
+            return True, "requires removed but diff not parsed", "", "", ""
+        if requires_repeated_elsewhere(orig, removed):
+            return (
+                False,
+                f"removed `{removed}` is restated elsewhere in the original",
+                "",
+                "",
+                "",
+            )
+        fail = drop_requires_failing_line(orig, mut, removed)
+        if not fail:
+            return (
+                False,
+                "no body or ensures line in the mutant still depends on the removed requires",
+                "",
+                "",
+                "",
+            )
+        path, heading, quote = (
+            SPEC_RULES["drop_requires_arith"]
+            if any(c in fail for c in "/%+-*[]")
+            else SPEC_RULES["drop_requires_bound"]
+        )
+        return (
+            True,
+            f"body/ensures `{fail}` still uses facts only established by `{removed}`",
+            fail,
+            path,
+            quote,
+        )
+
     if kind == "widen_requires_lt":
-        return SPEC_QUOTES["widen_requires_lt"]
-    if kind == "drop_machine_requires" and obligation_line:
-        if any(x in obligation_line for x in ("/", "%", "+", "*", "-", "<<", ">>")):
-            return SPEC_QUOTES["drop_machine_requires_arith"]
-        if "[" in obligation_line:
-            return SPEC_QUOTES["drop_machine_requires_index"]
-    return None
+        fail = drop_requires_failing_line(orig, mut, "requires widened")
+        path, _, quote = SPEC_RULES["widen_requires"]
+        return (
+            True,
+            "widened bound admits calls that violate the original requires",
+            fail or "(widened requires clause)",
+            path,
+            quote,
+        )
+
+    if kind == "remove_mut":
+        ev = remove_mut_binding_and_line(orig, mut)
+        if not ev:
+            return False, "demoted `mut` does not pair with a write or &mut on that binding", "", "", ""
+        binding, line = ev
+        path, _, quote = SPEC_RULES["remove_mut"]
+        return (
+            True,
+            f"`{binding}` is used mutably without a `mut` binding at `{line}`",
+            line,
+            path,
+            quote,
+        )
+
+    if kind in ("ref_to_mut_ref", "mut_ref_to_ref"):
+        ev = ref_mutation_obligation(orig, mut, kind)
+        if not ev:
+            return False, "reference change is not tied to an exclusive-use obligation line", "", "", ""
+        line, reason = ev
+        key = kind
+        path, _, quote = SPEC_RULES[key]
+        return True, reason, line, path, quote
+
+    if kind == "drop_machine_ensures":
+        return False, "dropping ensures weakens the guarantee; program may remain spec-valid", "", "", ""
+
+    return False, f"{kind} not classified for validity read", "", "", ""
