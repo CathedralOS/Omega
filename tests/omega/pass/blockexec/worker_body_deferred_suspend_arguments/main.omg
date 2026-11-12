@@ -23,8 +23,14 @@ machine mix(arguments: Request) -> Token {
     Token { id: arguments.token.id ^ arguments.salt }
 }
 
+machine invoke_worker<T, Arguments, machine Target>(arguments: Arguments) -> T
+requires machine Target(arguments: Arguments) -> T suspends blocks;
+suspends blocks {
+    suspend block Target(arguments)
+}
+
 machine main() suspends blocks crashes Trap {
-    let result: Token = suspend block CheckedWorkerProvider::execute<Token, Token, identity>(Token { id: 7 });
+    let result: Token = suspend block invoke_worker<Token, Token, identity>(Token { id: 7 });
     transition result.id == 7 {
         true -> done()
         false -> bad()

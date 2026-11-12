@@ -5,7 +5,10 @@ suspension permission until selection. The original worker declaration was
 incorrectly pinned as rejecting even without a selected application. It is valid
 under [conditional suspension carry](../../../../../wiki/spec/language/effects.md#conditional-suspension-carry).
 
-This closed application passes a suspension-forbidden `Token` to the quiet
+The original boundary and conformer declarations remain checked. An ordinary
+helper with the same telescope and suspension call supplies the executable
+control without directly invoking a boundary conformer. Its closed application
+passes a suspension-forbidden `Token` to the quiet
 `identity` callback and returns its authored value. The [reject twin](../../../fail/blockexec/worker_body_requires_suspend_safe_arguments/main.omg)
 selects the otherwise identical public `may_pause` callback, whose published
 contract permits suspension. Only that selection changes admission. Both bodies
