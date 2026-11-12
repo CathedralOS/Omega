@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Descriptor facts retain the Cathedral port of Philipp Oppermann (2017).
 // Native admission control only: no installation assumptions and no runtime claim.
-use omega::language::core::assembly;
 use omega::language::core::assembly_model;
 use omega::language::core::interrupt;
-use omega::language::core::layout;
-use omega::language::core::representation;
+use omega::language::core::FieldEntry;
+use omega::language::core::FieldPlan;
+use omega::language::core::FixedLayout;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutPlan::place_private;
+use omega::language::core::LayoutStorage;
+use omega::language::core::LayoutTarget;
+use omega::language::core::PrivateCallbackSlot;
+use omega::language::core::Schema;
+use omega::language::core::OpaqueRepresentation;
 use omega::language::core::static_interrupt;
 use omega::language::core::task_register;
 use std::calling;

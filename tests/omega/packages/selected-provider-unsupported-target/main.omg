@@ -1,4 +1,6 @@
-use omega::language::core::float_operations;
+use omega::language::core::F64;
+use omega::language::core::F64::from_i32;
+use omega::language::core::F64::from_u32;
 
 public data Coordinates {
     x: f64;

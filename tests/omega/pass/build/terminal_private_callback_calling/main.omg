@@ -2,8 +2,31 @@
 // Calling executes against 33 exact inline private-slot paths. The checked
 // registrar exercises the callback's logical contract; this is not an oracle
 // for a foreign registrar loading and invoking a stored native pointer.
-use omega_language_std::calling;
-use omega::language::core::layout;
+use omega_language_std::AbiValueClass;
+use omega_language_std::BoundaryEntryPlan;
+use omega_language_std::BoundaryPlanResult;
+use omega_language_std::BoundarySignature;
+use omega_language_std::Calling;
+use omega_language_std::CallingConvention;
+use omega_language_std::CallingPolicy;
+use omega_language_std::CallingPolicyRejection;
+use omega_language_std::EntryControl;
+use omega_language_std::EntryStack;
+use omega_language_std::MachineRegime;
+use omega_language_std::MachineRegister;
+use omega_language_std::Preemption;
+use omega_language_std::ValueLocation;
+use omega::language::core::FieldEntry;
+use omega::language::core::FieldPlan;
+use omega::language::core::FixedLayout;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutPlan::place_private;
+use omega::language::core::LayoutStorage;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutTargetFacts;
+use omega::language::core::PrivateCallbackSlot;
+use omega::language::core::Schema;
+use omega::language::core::layout_target_facts;
 
 public data Payload [copy] { value: u64; }
 public boundary trait FixedCallback: Calling<SlotCalling> {

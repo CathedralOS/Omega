@@ -1,6 +1,20 @@
-use omega::language::core::extent;
-use omega::language::core::assembly;
-use omega_language_std::calling;
+use omega::language::core::ExtentRootProvider;
+use omega::language::core::ProgramStorageEntry;
+use omega_language_std::AbiValueClass;
+use omega_language_std::BoundaryEntryPlan;
+use omega_language_std::BoundaryPlanResult;
+use omega_language_std::BoundarySignature;
+use omega_language_std::Calling;
+use omega_language_std::CallingConvention;
+use omega_language_std::CallingPolicy;
+use omega_language_std::CallingPolicyRejection;
+use omega_language_std::EntryControl;
+use omega_language_std::EntryStack;
+use omega_language_std::IndirectPointerLocation;
+use omega_language_std::MachineRegime;
+use omega_language_std::MachineRegister;
+use omega_language_std::Preemption;
+use omega_language_std::ValueLocation;
 
 // Test-owned physical schema for selected-entry transport. Synthetic grants
 // exercise calling and custody only; this package claims no firmware backing.
