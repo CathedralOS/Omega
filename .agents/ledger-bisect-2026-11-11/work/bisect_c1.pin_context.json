@@ -1,0 +1,9 @@
+{
+  "witness": "pass/calls/runtime_constructed_borrowed_payload_arguments_exit",
+  "pin_commit": "51e8c45c793007f211d0d9baee7de16767172444",
+  "pin_status": "rejected",
+  "pin_first_diag": "state `read` receives `count` without an exact retained backing for its loan: the access has no unique completed operand",
+  "pin_diag_norm": "state `_` receives `_` without an exact retained backing for its loan: the access has no unique completed operand",
+  "ledger_expected_status": "checked",
+  "tier": "pass"
+}

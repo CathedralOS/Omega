@@ -1,0 +1,22 @@
+# bad: [51e8c45c793007f211d0d9baee7de16767172444] psi: check a body over a const value parameter once and carry its proofs (#2505)
+# good: [c7371d3dc42e638153d6fc31f7cca88e1be83f69] docs: record the answer on reusing proofs and remove its question (#2364)
+git bisect start '--first-parent' '51e8c45c793007f211d0d9baee7de16767172444' 'c7371d3dc42e638153d6fc31f7cca88e1be83f69'
+# bad: [7ef82816e98d26189f4cd0c1b5887051d9537e1e] psi: keep a generic record's concrete references beside its type-parameter fields (#2432)
+git bisect bad 7ef82816e98d26189f4cd0c1b5887051d9537e1e
+# bad: [cd15fb50987643cbc5ffc242fba7c14001770bb6] psi: let a requirement rule out the crash routes it contradicts (#2394)
+git bisect bad cd15fb50987643cbc5ffc242fba7c14001770bb6
+# bad: [58201e6868de36aa16e408e8ebd63a70f641dc79] psi: check a generic body once and re-verify its proofs in each specialization (#2378)
+git bisect bad 58201e6868de36aa16e408e8ebd63a70f641dc79
+# skip: [bb3bc091f552a23a7ec90488cfafdedc6fac491f] docs: ask about a Build-declared requirement's provider and kernel rules (#2376)
+git bisect skip bb3bc091f552a23a7ec90488cfafdedc6fac491f
+# bad: [dbe014f8595d7b6a3921016b070f80f3a5682465] psi: refuse obligation tables that differ from what the lowered form owes (#2382)
+git bisect bad dbe014f8595d7b6a3921016b070f80f3a5682465
+# bad: [09b5b7c84caac5167a313d9f9846f5a6d5654c54] repo: start workspace-clippy when a PR is retargeted to main or marked ready (#2372)
+git bisect bad 09b5b7c84caac5167a313d9f9846f5a6d5654c54
+# bad: [e265ffe735100cc7f93d13c627821ba74e8e483b] compiler: check a program's own package in full and the library only where reached (#2370)
+git bisect bad e265ffe735100cc7f93d13c627821ba74e8e483b
+# skip: [4b1cd067625a3e2579d463093854fe5b7ef6c756] docs: replace the lowered-form route's stop rule with a four-condition gate (#2371)
+git bisect skip 4b1cd067625a3e2579d463093854fe5b7ef6c756
+# bad: [7b3a04c7c5056b020dca66b45ab5cfd6184a4dce] psi: bound divide, remainder, shift and bitwise results on the lowered form (#2365)
+git bisect bad 7b3a04c7c5056b020dca66b45ab5cfd6184a4dce
+# first bad commit: [7b3a04c7c5056b020dca66b45ab5cfd6184a4dce] psi: bound divide, remainder, shift and bitwise results on the lowered form (#2365)

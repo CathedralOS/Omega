@@ -1,0 +1,345 @@
+   Compiling language-core v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/language-core)
+   Compiling evaluation-accounting v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/evaluation-accounting)
+   Compiling compiler v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/compiler)
+   Compiling symbols v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/symbols)
+   Compiling access-plans v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/access-plans)
+   Compiling syntax-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/syntax-trees)
+   Compiling language-semantics v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/language-semantics)
+   Compiling terminal-psi v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/terminal-psi)
+   Compiling flow-effects v0.1.0 (/agent/repos/omega/omega-rust/psi/foundation/flow-effects)
+   Compiling symbol-resolved-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/symbol-resolved-trees)
+   Compiling typed-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/typed-trees)
+   Compiling tokens-to-syntax-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees)
+   Compiling proof-admission v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/proof/admission)
+   Compiling calling-conventions v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/calling-conventions)
+mbx[progress]: 15s elapsed; 0 hits, 0 misses, 13 bypassed, 0 not looked up; ~0s compiler work saved
+   Compiling function-identity v0.1.0 (/agent/repos/omega/omega-rust/omega/foundation/function-identity)
+   Compiling installation-evidence v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/runtime/installation-evidence)
+   Compiling psi-work v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/terminal-psi/work)
+   Compiling syntax-trees-to-symbol-resolved-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees)
+   Compiling terminal-semantics v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/terminal-psi/semantics)
+   Compiling facts v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/checked-trees/facts)
+   Compiling representation-selections v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/validation/representation-planning/selections)
+mbx[progress]: 30s elapsed; 0 hits, 0 misses, 20 bypassed, 0 not looked up; ~0s compiler work saved
+   Compiling checked-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/checked-trees)
+   Compiling terminal-codec v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/terminal-psi/codec)
+   Compiling layout v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/layout)
+mbx[progress]: 45s elapsed; 0 hits, 0 misses, 23 bypassed, 0 not looked up; ~0s compiler work saved
+mbx[progress]: 1m elapsed; 0 hits, 0 misses, 23 bypassed, 0 not looked up; ~0s compiler work saved
+   Compiling validation v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/validation)
+   Compiling lowered-psi v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/lowered-psi)
+mbx[progress]: 1m 15s elapsed; 0 hits, 0 misses, 25 bypassed, 0 not looked up; ~0s compiler work saved
+   Compiling terminal-installation v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/validation/terminal-installation)
+   Compiling abstract-operations v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/abstract-operations)
+mbx[progress]: 1m 30s elapsed; 0 hits, 0 misses, 27 bypassed, 0 not looked up; ~0s compiler work saved
+   Compiling lowered-psi-to-lowered-psi v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi)
+   Compiling effects v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/plans/effects)
+   Compiling terminal-interpreter v0.1.0 (/agent/repos/omega/omega-rust/psi/interpreter/terminal-interpreter)
+   Compiling optimization-unit v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/abstract-operations/optimization-unit)
+mbx[progress]: 1m 45s elapsed; 0 hits, 0 misses, 31 bypassed, 0 not looked up; ~0s compiler work saved
+   Compiling task-plans v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/runtime/task-plans)
+   Compiling backend-plan v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/plans/backend-plan)
+   Compiling boundary-applications v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/artifacts/boundary-applications)
+   Compiling trust-model v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/realization/trust-model)
+   Compiling optimization-unit-semantics v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics)
+   Compiling component-description v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/artifacts/component-description)
+   Compiling target-operations v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/target-operations)
+mbx[progress]: 2m elapsed; 0 hits, 0 misses, 38 bypassed, 0 not looked up; ~0s compiler work saved
+   Compiling provider-selection v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/realization/provider-selection)
+   Compiling legalized-operations v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/target-operations/legalized-operations)
+   Compiling provider-admission v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/realization/provider-admission)
+   Compiling selected-instructions v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/selected-instructions)
+   Compiling proof v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/proof)
+   Compiling lowered-psi-to-terminal-psi v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/08_lowered-psi-to-terminal-psi)
+   Compiling checked-trees-to-lowered-psi v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi)
+   Compiling normalized-foreign-call-plan v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/instruction-set-architectures/normalized-foreign-call-plan)
+   Compiling register-homes v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/register-homes)
+   Compiling abstract-operations-to-target-operations v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations)
+   Compiling typed-trees-to-typed-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees)
+   Compiling isa-x86_64 v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/instruction-set-architectures/isa-x86_64)
+mbx[progress]: 3m elapsed; 0 hits, 0 misses, 50 bypassed, 0 not looked up; ~0s compiler work saved
+   Compiling isa-aarch64 v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/instruction-set-architectures/isa-aarch64)
+   Compiling physical-instructions v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/post-allocation-machine)
+   Compiling psi-terminal-production v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/psi-compiler/terminal-production)
+   Compiling typed-trees-to-checked-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees)
+   Compiling program-entry-plan v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/plans/program-entry-plan)
+   Compiling register-environment v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/register-environment)
+   Compiling machine-code v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/machine-code)
+   Compiling verified-optimization-input v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/abstract-operations/verified-input)
+   Compiling checked-interpreter v0.1.0 (/agent/repos/omega/omega-rust/psi/interpreter/checked-interpreter)
+   Compiling symbol-resolved-trees-to-typed-trees v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees)
+   Compiling selected-instruction-analyses v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/representations/selected-instructions/analyses)
+   Compiling resolved-layout-to-resolved-layout v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout)
+   Compiling post-allocation-machine-to-selected-form-encoding v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding)
+mbx[progress]: 4m elapsed; 0 hits, 0 misses, 63 bypassed, 0 not looked up; ~0s compiler work saved
+   Compiling selected-form-encoding-to-resolved-layout v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout)
+   Compiling register-homes-to-post-allocation-machine v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine)
+   Compiling selected-instructions-to-register-homes v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes)
+   Compiling build-time-evaluation v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/build-time-evaluation)
+   Compiling target-operations-to-selected-instructions v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions)
+   Compiling representation-planning v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/validation/representation-planning)
+   Compiling terminal-psi-to-abstract-operations v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations)
+mbx[progress]: 5m elapsed; 0 hits, 0 misses, 70 bypassed, 0 not looked up; ~0s compiler work saved
+   Compiling machine-emission v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/machine-emission)
+   Compiling selected-instructions-to-selected-instructions v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions)
+   Compiling abstract-operations-to-abstract-operations v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations)
+   Compiling psi-compiler v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/psi-compiler)
+   Compiling object-file v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/object/object-file)
+mbx[progress]: 6m elapsed; 0 hits, 0 misses, 75 bypassed, 0 not looked up; ~0s compiler work saved
+   Compiling build-declarations v0.1.0 (/agent/repos/omega/omega-rust/omega/packages/build-declarations)
+   Compiling image v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/images/image)
+   Compiling package-compilation v0.1.0 (/agent/repos/omega/omega-rust/omega/packages/package-compilation)
+   Compiling image-elf v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/images/image-elf)
+   Compiling image-macho v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/images/image-macho)
+   Compiling image-pe v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/images/image-pe)
+   Compiling provider-planning v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/realization/provider-planning)
+   Compiling image-emission v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/images/image-emission)
+   Compiling selected-dispatch v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/realization/selected-dispatch)
+   Compiling native-artifact v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/backend/artifacts/native-artifact)
+mbx[progress]: 7m elapsed; 0 hits, 0 misses, 85 bypassed, 0 not looked up; ~0s compiler work saved
+   Compiling native-provider-runtime v0.1.0 (/agent/repos/omega/omega-rust/omega/interpreter/native-provider-runtime)
+   Compiling compilation-products v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/products)
+   Compiling terminal-runtime v0.1.0 (/agent/repos/omega/omega-rust/omega/interpreter/terminal-runtime)
+   Compiling native-compiler v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/native-compiler)
+   Compiling package-evidence v0.1.0 (/agent/repos/omega/omega-rust/omega/packages/review-evidence)
+   Compiling build-settings v0.1.0 (/agent/repos/omega/omega-rust/omega/build-system/build-settings)
+   Compiling package-manager v0.1.0 (/agent/repos/omega/omega-rust/omega/packages/package-manager)
+   Compiling orchestration v0.1.0 (/agent/repos/omega/omega-rust/omega/build-system/orchestration)
+   Compiling omega v0.1.0 (/agent/repos/omega/omega-rust/omega/application/cli)
+    Finished `dev` profile [optimized] target(s) in 7m 49s
+mbx[cache]: 0 hits, 0 misses, 95 bypassed; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: rustc believes it compiled everything. it is down 2h 25m across 200 builds. let it believe.
+   Compiling terminal-check-tables v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/representations/terminal-psi/check-tables)
+   Compiling structure-elaboration v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/structure-elaboration)
+   Compiling lowered-discharge v0.1.0 (/agent/repos/omega/omega-rust/psi/compilation/pipeline/lowered-discharge)
+   Compiling compiler v0.1.0 (/agent/repos/omega/omega-rust/omega/compilation/compiler)
+mbx[progress]: 15s elapsed; 0 hits, 0 misses, 4 bypassed, 0 not looked up; ~0s compiler work saved
+    Finished `test` profile [optimized] target(s) in 16.51s
+  Executable tests/corpus_runner.rs (target/debug/build/compiler/beaa8c7355c9ba28/out/corpus_runner-beaa8c7355c9ba28)
+mbx[cache]: 0 hits, 0 misses, 4 bypassed; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 1790 compilations on file. the box remembers.
+corpus_runner: fixture-root-v1 2f6167656e742f7265706f732f6f6d656761
+corpus_runner: 1/1 done, 0 compile(s) in flight
+corpus_runner: library slices: 3 distinct, 3 computed
+good=c7371d3dc42e638153d6fc31f7cca88e1be83f69
+We are not bisecting.
+Bisecting: 64 revisions left to test after this (roughly 6 steps)
+[7ef82816e98d26189f4cd0c1b5887051d9537e1e] psi: keep a generic record's concrete references beside its type-parameter fields (#2432)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 31 revisions left to test after this (roughly 5 steps)
+[cd15fb50987643cbc5ffc242fba7c14001770bb6] psi: let a requirement rule out the crash routes it contradicts (#2394)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 15 revisions left to test after this (roughly 4 steps)
+[58201e6868de36aa16e408e8ebd63a70f641dc79] psi: check a generic body once and re-verify its proofs in each specialization (#2378)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 7 revisions left to test after this (roughly 3 steps)
+[bb3bc091f552a23a7ec90488cfafdedc6fac491f] docs: ask about a Build-declared requirement's provider and kernel rules (#2376)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 7 revisions left to test after this (roughly 3 steps)
+[dbe014f8595d7b6a3921016b070f80f3a5682465] psi: refuse obligation tables that differ from what the lowered form owes (#2382)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 6 revisions left to test after this (roughly 3 steps)
+[09b5b7c84caac5167a313d9f9846f5a6d5654c54] repo: start workspace-clippy when a PR is retargeted to main or marked ready (#2372)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 2 revisions left to test after this (roughly 2 steps)
+[e265ffe735100cc7f93d13c627821ba74e8e483b] compiler: check a program's own package in full and the library only where reached (#2370)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 0 revisions left to test after this (roughly 1 step)
+[4b1cd067625a3e2579d463093854fe5b7ef6c756] docs: replace the lowered-form route's stop rule with a four-condition gate (#2371)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 0 revisions left to test after this (roughly 1 step)
+[7b3a04c7c5056b020dca66b45ab5cfd6184a4dce] psi: bound divide, remainder, shift and bitwise results on the lowered form (#2365)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+7b3a04c7c5056b020dca66b45ab5cfd6184a4dce is the first bad commit
+commit 7b3a04c7c5056b020dca66b45ab5cfd6184a4dce
+Author: Jarod Castillo <43973221+Smotto@users.noreply.github.com>
+Date:   Wed Nov 11 07:18:36 2026 +0000
+
+    psi: bound divide, remainder, shift and bitwise results on the lowered form (#2365)
+    
+    The checker on the lowered form now knows how large the result of a
+    divide, a remainder, a shift, a bitwise and or a bitwise or can be, and
+    it accepts an obligation on a branch that the branch's own guard makes
+    unreachable. Before this, `value / 2` had no bound at all, so `ensures
+    result <= 9223372036854775807` on a `u64` halving was unproved, and
+    `count - 100` under `requires count >= 10` and the guard `count < 5` was
+    unproved although nothing executes it. Each such miss rejects a valid
+    program on this route, so they block agreement with the current checker.
+    This is the first slice of the integers, floats, casts and domains lane
+    of [check on the lowered
+    form](wiki/drafts/designs/check_on_lowered_form.md).
+    
+    Of the 12 programs that [route one
+    measures](wiki/drafts/designs/route_one_measures.md#2-verdict-agreement)
+    lists as prover gaps, 4 now agree with the current checker. The other 8
+    are classified below: 7 need a rule the proof kernel does not have, and
+    1 is not a prover gap. Nothing was worked around: every discharged
+    obligation still carries a certificate `proof/admission` accepted,
+    through the one prover.
+    
+    ## What changes
+    
+    All of it is in `lowered-discharge`; the proof kernel and the check
+    tables' contract are unchanged.
+    
+    - **Range propagation** (`src/prove/ranges.rs`, new). [Required
+    automatic
+    discharge](wiki/spec/proofs/contracts.md#required-automatic-discharge)
+    says "Each integer value defined by add, subtract, multiply, divide,
+    remainder, shift or cast receives bounds from its operands' bounds ...
+    by the arithmetic of `IntegerAffineBound`". The prover did this for add,
+    subtract and multiply only. For a divide, remainder, shift, bitwise and
+    or bitwise or it now builds the kernel's one-step endpoint chain: the
+    witness roots at the operand that is a value, cites the operation's
+    result equation as its only definition, and lands the other operand on
+    the earlier equation that fixes it to a literal. The kernel replays the
+    step on the root's bound (`map_integer_affine_bound`); the prover does
+    no endpoint arithmetic of its own. Both of the root's bounds are tried,
+    because a step can reverse the order (a negative divisor).
+    - **An unsigned remainder is below a positive divisor**, whatever the
+    divisor is: the kernel's relational remainder form gives `result <
+    divisor` from `0 < divisor`. It is used as an order step between two
+    values and as a bound through the divisor's bound.
+    - **Shift-left representability.** The safety goal of an exact `<<` was
+    never built (`"shift-left bound is not built"`). It now uses the
+    kernel's direct shift form, from the value's bound and the count's
+    literal or upper bound. A shift-left goal therefore has rules: a failure
+    on one is `NoDerivation`, no longer `NoRuleForGoalForm`.
+    - **Unreachable paths.** A goal still unproved after the direct search
+    and the case split is tried as a goal on an unreachable path: an order
+    fact known at the point is chained with the opposite order its
+    endpoints' bounds prove, which gives a closed false relation between
+    literals; its denotation is `Falsehood`, and the goal follows. This is
+    the derivation [integer
+    certificates](wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules)
+    describes ("closes an impossible arrival without pruning that arrival").
+    The prover already built it, but only for an alternative of a case
+    split.
+    
+    No program shape is recognized. The new bounds are one more source of a
+    value's bound, used wherever a bound is; the contradiction is one more
+    way to close any order or arithmetic goal.
+    
+    ## Measured agreement
+    
+    The 12 gap programs are refused as whole modules on `main` (`clause
+    names a value that is not a formal`, `invocation outside an operation`);
+    #2317, still open, is what lets them reach a verdict. So the comparison
+    ran on a local merge that was not pushed: this change at `0e4680d76`
+    (its tree then, on `main` `2df885a2a`) merged with #2317's head
+    `840f11357`, against #2317's head alone. Host: cloud VM, 4 CPUs,
+    `CARGO_PROFILE_DEV_OPT_LEVEL=1`, `route_one_comparison` one process per
+    fixture.
+    
+    | | #2317 alone | with this change |
+    | --- | ---: | ---: |
+    | Programs of the 12 on which both checkers agree | 0 | 4 |
+    | Unproved obligation rows in the 12 (published clauses included) | 29 |
+    19 |
+    
+    Newly agreeing:
+    `pass/arithmetic/runtime_signed_minimum_remainder_postcondition_exit`
+    (remainder by a literal) and
+    `pass/contracts/contradictory_branch_{call_admission,closes_obligation,result_guarantee}_exit`
+    (unreachable path). `runtime_full_width_unsigned_quotient_exit` goes
+    from 6 unproved rows to 2: `value / 2` and `value / MAX` are now
+    bounded, `value / divisor` is not.
+    
+    **The other 8, each read:**
+    
+    | Program | What it needs | Class |
+    | --- | --- | --- |
+    | `runtime_full_width_unsigned_quotient_exit` | `value / divisor <= MAX
+    / 2` from `divisor >= 2` | kernel has no rule: the chain replays a
+    divide only by a literal |
+    | `runtime_bounded_dividend_remainder_exit` | `value % divisor` within
+    the dividend's bounds, signed and unsigned | kernel has no rule for a
+    divisor that is not a literal beyond `result < divisor` |
+    | `run/contracts/scalar_crash_route_exit`, `_trap` | `value / 2 <=
+    value` | kernel has no rule relating a quotient to its dividend |
+    | `contradictory_relational_branch_exit` | `low <= high` against the
+    guard `high < low` | kernel has no rule: the chain gives `high < high`,
+    and only a relation between two literals denotes `Falsehood` |
+    | `bitwise_singleton_signed_and_unsigned_exit` | `-9 & 15 == 7`, `-9 ^
+    15 == -8` | kernel evaluates closed add, subtract, multiply and left
+    shift only; exclusive or has no rule |
+    | `nonlinear_square_positive_operand_exit` | `value * value >= value` |
+    beyond the floor ("nonlinear facts other than propagated ranges") |
+    | `pass/proofs/normal_return_expression_statement_sequence_exit` |
+    `forwarded` returns `finish(value)`, and nested `finish` publishes no
+    `ensures` | not a prover gap: it waits on Q6
+    (`callee-result-body-summary`), like the two programs the measures
+    already list there |
+    
+    The relational contradiction is the one of these the specification puts
+    in the floor ("contradiction of an unreachable path" among order atoms),
+    so it is a gap between the floor and the elementary rules, not a choice
+    of this prover. The seven kernel gaps are listed in the crate README
+    ("What the integer rules do not reach") and pinned by a test that states
+    the gap is not the intended verdict.
+    
+    A sweep of the lane's 872 `pass/` and `run/` fixtures with both checkers
+    is running on the same local merge; its counts will be added to the
+    lane's next PR and are not claimed here.
+    
+    ## Lane numbers
+    
+    - **Kernel-checked evidence:** every newly discharged obligation is a
+    certificate `verify_obligation` accepted. The three contradiction
+    certificates are accepted by the rule checker with the mathematical core
+    answering `Refused` (the discreteness step from a transported strict
+    guard, as #2305 describes); the range certificates are `Judged`.
+    - **Decisions keyed on text:** 0 added.
+    - **Silent drops:** 0 added. A witness the kernel refuses yields no
+    bound, and the goal ends `Unproved` with a cause.
+    - **Routes per obligation kind:** 1. Everything is inside
+    `Prover::prove`.
+    - **Lines:** `prove/ranges.rs` 259 (229 non-blank non-comment),
+    `prove.rs` +89 −18, tests 189.
+    
+    ## Validation
+    
+    At this head, on `main` `c7371d3dc`, cloud VM:
+    
+    - `mbx nextest run -p lowered-discharge -p terminal-check-tables
+    --no-fail-fast`: 88 passed. New tests (`src/tests/ranges.rs`), each with
+    its negative twin one unit past the bound: quotient by a literal;
+    remainder by a literal; unsigned remainder by a positive divisor, as a
+    bound and as a relation; mask and or; right and left shift by a literal
+    count; signed quotient by a negative literal; a subtraction on a branch
+    its guard rules out, with the reachable twins `a < 11` and no
+    `requires`; the relational contradiction, asserted unproved.
+    - `mbx clippy -p lowered-discharge -p terminal-check-tables
+    --all-targets -- -D warnings`: clean. `mbx xtask fmt --check`: clean.
+    
+    Not verified: any program on `main` alone changes verdict (none of the
+    12 lowers there); native execution; the default compile, which no router
+    sends through this route yet.
+    
+    Gate: RC-SOURCE-SEMANTICS | red rows: 0 | unlocks: range propagation
+    through divide, remainder, shift and bitwise results and
+    unreachable-path contradiction on the lowered form; 4 of route one's 12
+    prover-gap programs agree once #2317 lands
+    
+    Agent: Claude Code | Model: claude-fable-5-2 | Effort: high | Tokens:
+    44.87M in (44.64M cached), 92.8k out | Steps: 108 | Time: 23m45s |
+    Steers: 52
+    
+    ---
+    _Generated by [Claude
+    Code](https://claude.ai/code/session_01AAaT4geULytdKGzxGQTPaW)_
+    
+    Co-authored-by: Claude <noreply@anthropic.com>
+
+ .../pipeline/lowered-discharge/README.md           |  64 ++++-
+ .../pipeline/lowered-discharge/src/prove.rs        |  89 ++++++-
+ .../pipeline/lowered-discharge/src/prove/ranges.rs | 259 +++++++++++++++++++++
+ .../pipeline/lowered-discharge/src/tests.rs        |   2 +
+ .../pipeline/lowered-discharge/src/tests/ranges.rs | 189 +++++++++++++++
+ .../terminal-psi/check-tables/src/lib.rs           |   4 +-
+ 6 files changed, 589 insertions(+), 18 deletions(-)
+ create mode 100644 omega-rust/psi/compilation/pipeline/lowered-discharge/src/prove/ranges.rs
+ create mode 100644 omega-rust/psi/compilation/pipeline/lowered-discharge/src/tests/ranges.rs
+bisect found first bad commit
+Your branch is up to date with 'origin/work/ledger-bisect-part-26'.
+bisected pass/calls/runtime_constructed_borrowed_payload_arguments_exit 7b3a04c7c505 pr 2365

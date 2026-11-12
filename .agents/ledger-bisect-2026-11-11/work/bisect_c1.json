@@ -1,0 +1,41 @@
+{
+  "witness": "pass/calls/runtime_constructed_borrowed_payload_arguments_exit",
+  "good": "c7371d3dc42e638153d6fc31f7cca88e1be83f69",
+  "bad": "51e8c45c793007f211d0d9baee7de16767172444",
+  "anchor": "741270df60f7",
+  "breaking_commit": "7b3a04c7c5056b020dca66b45ab5cfd6184a4dce",
+  "pr": "2365",
+  "mechanism": "psi: bound divide, remainder, shift and bitwise results on the lowered form (#2365) \u2014  .../pipeline/lowered-discharge/README.md           |  64 ++++-; .../pipeline/lowered-discharge/src/prove.rs        |  89 ++++++-; .../pipeline/lowered-discharge/src/prove/ranges.rs | 259 +++++++++++++++++++++; .../pipeline/lowered-discharge/src/tests.rs        |   2 +; .../pipeline/lowered-discharge/src/tests/ra",
+  "status": "bisected",
+  "bisect_exit": 0,
+  "endpoints": {
+    "good": {
+      "results": [
+        125,
+        125,
+        125
+      ],
+      "expect": 0,
+      "flaky": true
+    },
+    "pin": {
+      "results": [
+        1,
+        1,
+        1
+      ],
+      "expect": 1,
+      "flaky": false
+    },
+    "anchor": {
+      "results": [
+        1,
+        1,
+        1
+      ],
+      "expect": 1,
+      "flaky": false
+    }
+  },
+  "pin_context_path": ".agents/ledger-bisect-2026-11-11/work/bisect_c1.pin_context.json"
+}
