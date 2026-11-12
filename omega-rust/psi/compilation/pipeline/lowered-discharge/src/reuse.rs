@@ -702,6 +702,12 @@ pub fn reverify_specialization(
     let rigid = generic.value_parameters.get(template).copied().unwrap_or(0);
     let instantiation = Instantiation::of(
         crate::terminal_machine(&generic.module.machines, template, specialization)?,
+        terminal_check_tables::row(
+            &generic.tables.machines,
+            template,
+            specialization,
+            Construct::Machine,
+        )?,
         rigid,
         lowered,
         tables,
@@ -783,6 +789,11 @@ pub fn reverify_specialization(
 /// (`authored` of them), then its value parameters; every value after those
 /// is the specialization's value that many places earlier.
 struct Instantiation {
+    /// The concrete type the specialization has for each type parameter the
+    /// generic body leaves rigid, read off the two machines' formals and
+    /// result: each formal of a rigid type there is a formal of this type
+    /// here, the same type at every one of them.
+    types: Vec<(terminal_check_tables::values::RigidType, ScalarType)>,
     authored: usize,
     /// The literal each value parameter is in the specialization, in
     /// declaration order; `None` for one neither contract mentions, which
@@ -800,6 +811,7 @@ impl Instantiation {
     /// not that body's contract at any value of its parameters.
     fn of(
         generic: &TerminalMachine,
+        generic_tables: &MachineTables,
         rigid: usize,
         specialization: &TerminalMachine,
         tables: &MachineTables,
@@ -818,9 +830,32 @@ impl Instantiation {
             return refuse("the specialization's formals are not the generic body's");
         }
         let mut found = Self {
+            types: Vec::new(),
             authored,
             bound: vec![None; rigid],
         };
+        // The type each rigid type parameter is here: the type of the
+        // specialization's value in the place of each value of it. Two
+        // values of one parameter must agree, or the specialization is not
+        // one application of the body.
+        for (value, theirs) in generic_tables.values.iter() {
+            let Some(parameter) = theirs.rigid else {
+                continue;
+            };
+            let Some(mine) = (match found.moved(value) {
+                Some(Moved::Value(mine)) => tables.values.get(mine),
+                Some(Moved::Literal(_)) | None => None,
+            }) else {
+                return refuse("a value of a type parameter has no value in the specialization");
+            };
+            match found.types.iter().find(|(bound, _)| *bound == parameter) {
+                None => found.types.push((parameter, mine.scalar_type)),
+                Some((_, scalar_type)) if *scalar_type == mine.scalar_type => {}
+                Some(_) => {
+                    return refuse("one type parameter is two types in the specialization");
+                }
+            }
+        }
         if rigid == 0 {
             return Ok(found);
         }
@@ -1020,6 +1055,28 @@ impl Carry<'_> {
         refusal(reason, self.specialization, concerns, detail)
     }
 
+    /// Whether the specialization's value row `mine` is the generic body's
+    /// row `theirs`. A value of a type parameter there is, here, a value of
+    /// the one concrete type the specialization has for that parameter
+    /// (`Instantiation::types`); every other row is the same row.
+    fn same_value(
+        &self,
+        theirs: &terminal_check_tables::values::ValueRow,
+        mine: &terminal_check_tables::values::ValueRow,
+    ) -> bool {
+        match theirs.rigid {
+            None => theirs == mine,
+            Some(rigid) => {
+                mine.rigid.is_none()
+                    && mine.origin == theirs.origin
+                    && mine.selects == theirs.selects
+                    && self.instantiation.types.iter().any(|(bound, scalar_type)| {
+                        *bound == rigid && *scalar_type == mine.scalar_type
+                    })
+            }
+        }
+    }
+
     /// The specialization has the generic body's values and calls, one for
     /// one, except the value parameters it has bound. Selecting a machine
     /// parameter changes only which machine a call names, and binding a
@@ -1033,7 +1090,11 @@ impl Carry<'_> {
             == self.template.values.len()
             && self.template.values.iter().all(|(value, theirs)| {
                 match self.instantiation.moved(value) {
-                    Some(Moved::Value(mine)) => self.tables.values.get(mine) == Some(theirs),
+                    Some(Moved::Value(mine)) => self
+                        .tables
+                        .values
+                        .get(mine)
+                        .is_some_and(|mine| self.same_value(theirs, mine)),
                     // A value parameter is a formal there, whether or not
                     // the contract mentions it.
                     Some(Moved::Literal(_)) | None => matches!(
@@ -1090,7 +1151,14 @@ impl Carry<'_> {
         let Callee::Machine(callee) = row.callee else {
             return Ok(None);
         };
-        if !self.generic.requirements.contains(&callee) {
+        // A generic machine applied at this body's type parameters is held
+        // to its own contract, which is the contract of the machine the
+        // specialization calls: nothing is selected for it, and what a
+        // proof cites of it is found in the specialization like any
+        // callee's.
+        if !self.generic.requirements.contains(&callee)
+            || self.generic.applications.contains(&callee)
+        {
             return Ok(None);
         }
         self.selections

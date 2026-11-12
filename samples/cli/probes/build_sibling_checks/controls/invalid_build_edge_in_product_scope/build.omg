@@ -3,6 +3,8 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_build_edge_in_product_scope");
-    Build::build_depend_as(builder, "kit", Source::Path { location: "../../sibling_a" });
+    let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../sibling_a" });
+    dependency::with_alias(&mut kit_dependency, "kit");
+    let kit_registration: DependencyRegistration = Build::build_dependency(builder, kit_dependency);
     builder.freestanding = true;
 }

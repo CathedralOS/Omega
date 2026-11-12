@@ -2,7 +2,9 @@ use omega::language::core::static_interrupt;
 machine build(builder: &mut Build) {
     Build::application(builder, "installed_arrival_without_context");
     builder.freestanding = true;
-    Build::depend_as(builder, "std", Source::Path { location: "../../../../../source/library/std" });
+    let mut std_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../../../../source/library/std" });
+    dependency::with_alias(&mut std_dependency, "std");
+    let std_registration: DependencyRegistration = Build::dependency(builder, std_dependency);
     Build::select_representation<InterruptAcknowledgement, CathedralAcknowledgementRepresentation>(builder);
     Build::select_representation<StaticInterruptCompletionPermit, StaticInterruptCompletionPermitRepresentation>(builder);
     Build::select_provider<BootstrapInterruptRegistrar, CheckedBootstrapInterruptRegistrar>(builder, linux_x86_64);

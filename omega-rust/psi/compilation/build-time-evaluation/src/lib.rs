@@ -919,9 +919,7 @@ pub use checked_interpreter::{
 };
 pub use const_evaluation::const_domain_facts::evaluate_const_domain_facts;
 pub use const_evaluation::const_generic_calls::evaluate_const_generic_calls;
-pub use const_evaluation::const_lengths::{
-    evaluate_const_array_lengths, evaluate_zero_argument_machine,
-};
+pub use const_evaluation::const_lengths::evaluate_const_array_lengths;
 pub use const_evaluation::data_layout_queries::{
     LayoutApplicationTargetInput, LayoutQueryMeasurements, LayoutQueryProvider,
 };
@@ -930,7 +928,6 @@ pub use const_evaluation::selected_constants::SelectedConstantEvaluationRequest;
 pub use evaluation_accounting::MeasuredEvaluation;
 pub use layouts::access_lifecycles::{admit_access_lifecycle_plans, retain_access_lifecycle_plans};
 pub use layouts::access_views::{AccessViewRecord, desugar_access_views};
-pub use layouts::layout_plans::compute_native_layout_plan_for_machine;
 pub use layouts::plan_laid::{
     FixedLayoutTargetScope, evaluate_fixed_layout_applications, has_fixed_layout_applications,
 };

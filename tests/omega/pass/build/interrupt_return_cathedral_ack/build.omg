@@ -1,8 +1,12 @@
 use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "timer_borrowed_gate_probe");
-    Build::depend_as(builder, "std", Source::Path { location: "../../../../../source/library/std" });
-    Build::depend_as(builder, "facts", Source::Path { location: "facts" });
+    let mut std_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../../../../source/library/std" });
+    dependency::with_alias(&mut std_dependency, "std");
+    let std_registration: DependencyRegistration = Build::dependency(builder, std_dependency);
+    let mut facts_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "facts" });
+    dependency::with_alias(&mut facts_dependency, "facts");
+    let facts_registration: DependencyRegistration = Build::dependency(builder, facts_dependency);
     Build::select_representation<InterruptAcknowledgement, isa::x86_64::interrupts::entry::CathedralAcknowledgementRepresentation>(builder);
     Build::select_provider<GatePreparation, CheckedGatePreparation>(builder, linux_x86_64);
     Build::bind(builder, linux_x86_64::ProgramEntry, start);

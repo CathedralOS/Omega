@@ -4,7 +4,7 @@
 // runtime payload, leaving bit requirements to the materialization judgment.
 
 use crate::evaluated_via_bindings::MATERIALIZER_SCHEMA_VERSION;
-use build_time_evaluation::{BuildTimeValue, CURRENT_EVALUATION_SEMANTICS};
+use build_time_values::BuildTimeValue;
 use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{
@@ -117,6 +117,7 @@ fn stable_source_digest(source: &SourceFile) -> Result<[u8; 32], String> {
 pub(crate) fn evaluation_digest(
     target: TargetProfile,
     closure: EvaluatedBindingProducerClosureDigest,
+    evaluation_semantics_marker: u32,
     usage: BuildEvaluationUsage,
     value: &BuildTimeValue,
 ) -> EvaluatedBindingEvaluationDigest {
@@ -127,7 +128,7 @@ pub(crate) fn evaluation_digest(
     );
     hash.bytes(target.identity().as_str().as_bytes());
     hash_field(&mut hash, &closure.as_bytes());
-    hash.raw(&CURRENT_EVALUATION_SEMANTICS.marker().to_le_bytes());
+    hash.raw(&evaluation_semantics_marker.to_le_bytes());
     encode_usage(&mut hash, usage);
     encode_value(&mut hash, value);
     EvaluatedBindingEvaluationDigest::from_bytes(hash.finish())

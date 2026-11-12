@@ -946,8 +946,9 @@ pub(crate) mod machine {
         }
 
         for contract in lowerer.source_trees.machine_contracts(machine) {
-            let contract =
-                crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
+            let contract = lowerer.admitting_contract_policy_operators(|lowerer| {
+                crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)
+            })?;
             lowerer
                 .typed_trees
                 .push_machine_contract(&mut typed_machine, contract);
@@ -1661,8 +1662,9 @@ pub(crate) mod state {
         )?;
 
         for contract in lowerer.source_trees.signature_contracts(state.contracts) {
-            let contract =
-                crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
+            let contract = lowerer.admitting_contract_policy_operators(|lowerer| {
+                crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)
+            })?;
             lowerer
                 .typed_trees
                 .push_state_contract(&mut typed_state, contract);

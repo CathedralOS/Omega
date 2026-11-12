@@ -9,7 +9,9 @@ use generator::main;
 
 machine build(builder: &mut Build) {
     Build::package(builder, "custody_kernel");
-    Build::build_depend_as(builder, "generator", Source::Path { location: "../generator" });
+    let mut generator_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../generator" });
+    dependency::with_alias(&mut generator_dependency, "generator");
+    let generator_registration: DependencyRegistration = Build::build_dependency(builder, generator_dependency);
     let answer: i32 = generation_value();
     transition answer == 7 {
         true -> generate(builder)

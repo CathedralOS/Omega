@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "static_service_exclusion_invoked");
-    Build::depend(builder, Source::Path { location: "../../../packages/logger-kit" });
+    let logger_kit_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../packages/logger-kit" }));
     Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, linux_arm64);
     Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, linux_x86_64);
     Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, macos_arm64);
