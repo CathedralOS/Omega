@@ -2,54 +2,57 @@
 
 Measured PIN: `51e8c45c793007f211d0d9baee7de16767172444`
 
-Bisect uses fixed `/tmp/ledger-bisect-pin/corpus_outcomes.txt` (from PIN) and per-witness PIN observation JSON; each step uses a fresh `/tmp/omega-target-bisect-<sha>` tree. Ledger-only commits (`tests/omega/corpus_outcomes.txt`, `*.md` only) exit 125.
+Bisect uses fixed `/tmp/ledger-bisect-pin/corpus_outcomes.txt` and per-witness PIN observation JSON; each step uses fresh `/tmp/omega-target-bisect-<sha>`. Ledger-only commits exit 125.
 
-## Prior-report slice (cluster index % 40 == 1)
+## Cross-part conflict (`borrowed_slot_swap` witness)
 
-| prior idx | rows @741270 | witness | members recovered | fixed @PIN | broken @PIN |
-| ---: | ---: | --- | ---: | ---: | ---: |
-| 1 | 70 | `pass/facts/foreign_nested_record_backing_call_result` | 74 (`foreign_nested_record_backing_*` + `foreign_retained_*` in sweep list) | 72 | 2 |
-| 41 | 4 | `pass/slices/runtime_indexed_store_captures_selector_before_rhs_exit` | 4 (full in report) | 0 | 4 |
-| 81 | 2 | `fail/proofs/field_view_index_missing_bound` | 2 | 2 | 0 |
-| 121 | 1 | `pass/facts/target_family_callback_guarantee/parameter` | 1 | 1 | 0 |
-| 161 | 1 | `pass/borrows/runtime_forwarded_reference_array_bounded_read_exit` | 1 | 0 | 1 |
-| 201 | 1 | `pass/constants/direct_named_implementation_initializer_exit` | 1 | 1 | 0 |
+Witness: `pass/facts/foreign_retained_shared_borrow_borrowed_slot_swap`. Three PIN-fixed runs per commit (`conflict_borrowed_slot_swap_3x4.log`).
 
-**Slice totals:** 83 fixtures measured; 75 fixed on main, 8 still broken (4 PIN diagnostic clusters).
+| commit (full SHA) | role | run RCs | status | first diagnostic |
+| --- | --- | --- | --- | --- |
+| `f2c75870ebaf890328b787fa6d8ed50e868edbb8` | `4faf6413^` (#1672) | 125,125,125 | rejected | statement 12 mutates `second_buffer.value` while local borrow `second` is still active… |
+| `4faf6413467dd7a7f6cf7e62ba77d1c607591f18` | part 32 first-bad (#1718) | 125,125,125 | rejected | same mutation diagnostic |
+| `2ab64136c02d7879635a92e3e078d7374bec7590` | `0aeed111^` (#1811) | 1,1,1 | rejected | machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation |
+| `0aeed1114ae3d056f78113e377f10b7126b1e75e` | prior part-1 claim (#1896) | 1,1,1 | rejected | same `swap_pending` backing diagnostic |
 
-## PIN clusters (still broken, re-grouped by first diagnostic @PIN)
+**Verdict:** Part 32’s `4faf6413` is the first-parent edge where the witness **fails the ledger** with the **mutation-while-borrow** class (rc=125 under the PIN harness — not the ledger’s pinned expectation class). `#1896` is **not** the first good→bad edge for the **current** PIN diagnostic: `0aeed111^` already shows rc=1 with the `swap_pending` class. The row is **good → bad (mutation class) → stays worse with PIN-class diagnostic**; **latest** rc=1 `swap_pending` first-parent introduction in the probed window is `1bb9690b80851e6b149c9a414b3317439183a882` (#1819) with witness (1,1,1) at that commit but **first parent `96ecfb7c12877f0a60fe20c62334f4a1fd973d4a` is not (0,0,0)** (rc=125, different diagnostic). Fixture introduction good remains `3bbd06849b998f4fef4ccdffb8ef1f6059c07def` (rc=0).
 
-| rows | kind | diagnostic (sample) | witness | breaking commit | PR | mechanism | status |
-| ---: | --- | --- | --- | --- | ---: | --- | --- |
-| 4 | pass/run rejected | cannot prove requires contract for call middle … `start <= end && end <= bytes.len` | `pass/slices/runtime_indexed_store_captures_selector_before_rhs_exit` | `2e3a14463a8255c4e25ef4e3a60edc2d4c3ba3a9` | 1007 | Retained scoped lifetimes through selected callbacks changed slice indexed-store call `requires` proof | bisected |
-| 2 | pass/run rejected | machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation | `pass/facts/foreign_retained_shared_borrow_borrowed_slot_swap` | `0aeed1114ae3d056f78113e377f10b7126b1e75e` | 1896 | Placed-field accessor admission in scalar computations regressed foreign retained slot-swap backing | bisected |
-| 1 | pass/run rejected | cannot prove requires contract for call require_cell_value … `value >= 0 && value <= 100` | `pass/borrows/runtime_forwarded_reference_array_bounded_read_exit` | `643ff5441c148ce34a0e391b42e7b389de6380e5` | 2397 | Lowered-form invariant-window judging no longer establishes cell bounds on forwarded reference reads | bisected |
-| 1 | pass/run rejected | statement 8 mutates `first_buffer.value` while local borrow `first` is still active | `pass/facts/foreign_retained_shared_borrow_persistent_retention` | `ade0aabb979920eea0ab13135fa2a86ca116acaa` | 2442 | Retained custody / `checks_borrows` tightened shared persistent retention borrow end | bisected |
+## Prior-report slice reconcile (`% 40 == 1`)
 
-Stability: 3× PIN-end and 3× good-end reruns were deterministic (rc=1 at PIN, rc=0 at good) for clusters 0–1 and 3; cluster 2 witness deterministic at PIN and at `ade0aabb979`.
+Measured slice totals (name-sweep expanded idx 1): **83 / 75 / 8**.
 
-### Cluster members @PIN
+| prior idx | members (measured) | fixed @PIN | broken @PIN |
+| ---: | ---: | ---: | ---: |
+| 1 | 74 | 71 | 3 |
+| 41 | 4 | 0 | 4 |
+| 81 | 2 | 2 | 0 |
+| 121 | 1 | 1 | 0 |
+| 161 | 1 | 0 | 1 |
+| 201 | 1 | 1 | 0 |
+| **total** | **83** | **75** | **8** |
 
-**PIN-0:** `pass/slices/runtime_indexed_store_captures_selector_before_rhs_exit`, `pass/slices/runtime_indexed_store_operand_effect_order_exit`, `pass/slices/runtime_namespace_range_contract_exit`, `pass/slices/runtime_returned_range_extent_contract_exit`
+Prior-report idx **1** table rows **70**; idx **1** name-sweep measures **74** in `regressed_fixtures.txt`. **`persistent_retention`** is **not** its own prior-report index — it is in the idx-1 `foreign_retained_*` sweep and is **PIN cluster 3** (mutation diagnostic), distinct from PIN cluster 1 (`swap_pending` / `persistent_restore`).
 
-**PIN-1:** `pass/facts/foreign_retained_shared_borrow_borrowed_slot_swap`, `pass/facts/foreign_retained_shared_borrow_persistent_restore`
+### Idx-1 sweep extras (outside report-70 totals)
 
-**PIN-2:** `pass/borrows/runtime_forwarded_reference_array_bounded_read_exit`
+| fixture | @PIN |
+| --- | --- |
+| `pass/facts/foreign_nested_record_backing_repeated_child_type` | fixed |
+| `pass/facts/foreign_retained_mutable_borrow_mixed_issuers` | fixed |
+| `pass/facts/foreign_retained_mutable_borrow_reverse_completion` | fixed |
+| `pass/facts/foreign_retained_shared_borrow_enclosing_allocation` | fixed |
 
-**PIN-3:** `pass/facts/foreign_retained_shared_borrow_persistent_retention`
+## PIN clusters (still broken @ PIN)
 
-### Fixed on main (slice)
+Witness stability (`cluster_witness_stability_v2.log`, `pinclass_edge_verify.log`):
 
-Listed in `part-1.tsv` with `class=fixed_on_main` (includes 72/74 prior idx=1 `foreign_*` rows plus idx 81/121/201 singles).
+| PIN | witness | first-bad (full SHA) | parent (full SHA) | bad runs | parent runs |
+| --- | --- | --- | --- | --- | --- |
+| 0 | `pass/slices/runtime_indexed_store_captures_selector_before_rhs_exit` | `2e3a14463a8255c4e25ef4e3a60edc2d4c3ba3a9` | `2be2bd0442046813713c68acbdf6da8b35b8b85e` | pending | pending |
+| 1 | `pass/facts/foreign_retained_shared_borrow_borrowed_slot_swap` | `1bb9690b80851e6b149c9a414b3317439183a882` | `96ecfb7c12877f0a60fe20c62334f4a1fd973d4a` | 1,1,1 | 125,125,125 |
+| 2 | `pass/borrows/runtime_forwarded_reference_array_bounded_read_exit` | `643ff5441c15ea62815109514a8047194d7397a0` | `8e7394363d14aca7dae993adeb86fc348c0d2c7e` | 1,1,1 | 1,1,1 |
+| 3 | `pass/facts/foreign_retained_shared_borrow_persistent_retention` | `ade0aabb979920eea0ab13135fa2a86ca116acaa` | `028f2b1a70750c30a23802aece64c370b9bd7ace` | 1,1,1 | 125,125,125 |
 
-## Commands
+Member matrix: `cluster_members_matrix.log` (in progress, tmux `part1-members`). Cluster 0 @ bad: all four slice members broken.
 
-```bash
-cp tests/omega/corpus_outcomes.txt /tmp/ledger-bisect-pin/
-python3 .agents/ledger-bisect-2026-11-11/tools/prepare_pin_snapshots.py <witnesses...>
-mbx test -p compiler --test corpus_runner --no-run  # via run_slice_direct.sh / bisect_witness.sh
-git bisect start --first-parent <PIN> <good> && git bisect run .agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh
-# plus first_bad_binary.sh where git bisect stalled on 125-skips
-```
-
-Host: linux x86_64, `OMEGA_CORPUS_JOBS=1`, `MBX_SCHEDULER_CPUS=4`.
+Mechanism hunks: `mechanism_hunks.txt` (quoted `git show` for #1007, #1718, #1819, #2397, #2442).
