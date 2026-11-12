@@ -92,8 +92,7 @@
         "pass/memory/runtime_linear_native_allocation_exit"
       ],
       "bisect": {
-        "status": "propagated",
-        "reason": "no good first-parent ancestor"
+        "status": "pending"
       }
     },
     {
@@ -110,8 +109,7 @@
         "pass/facts/open_const_implementation_statement_saved_output_exit"
       ],
       "bisect": {
-        "status": "propagated",
-        "reason": "no good first-parent ancestor"
+        "status": "pending"
       }
     },
     {
@@ -126,8 +124,7 @@
         "pass/borrows/runtime_reassigned_view_capture_exit"
       ],
       "bisect": {
-        "status": "propagated",
-        "reason": "no good first-parent ancestor"
+        "status": "pending"
       }
     },
     {
@@ -142,8 +139,7 @@
         "pass/facts/open_const_implementation_private_record_package_exit"
       ],
       "bisect": {
-        "status": "propagated",
-        "reason": "no good first-parent ancestor"
+        "status": "pending"
       }
     },
     {
@@ -158,8 +154,7 @@
         "pass/borrows/runtime_shared_reference_array_cohort_restoration_exit"
       ],
       "bisect": {
-        "status": "propagated",
-        "reason": "no good first-parent ancestor"
+        "status": "pending"
       }
     }
   ]

@@ -50,6 +50,14 @@ pin_rc=$(witness_rc)
 }
 
 good=""
+fixture_path="tests/omega/${WITNESS}"
+intro=$(git log --diff-filter=A --format=%H -1 -- "$fixture_path" 2>/dev/null || true)
+if [[ -n "$intro" ]]; then
+  git checkout -q "$intro"
+  rc=$(witness_rc)
+  [[ "$rc" -eq 0 ]] && good="$intro"
+fi
+
 cur="$PIN"
 for _ in $(seq 1 20000); do
   cur=$(git rev-parse --verify "${cur}^@" 2>/dev/null) || break
@@ -59,8 +67,13 @@ for _ in $(seq 1 20000); do
     good="$cur"
     break
   fi
-  # 125 = missing fixture or ambiguous outcome; keep walking for a definite good.
-  [[ "$rc" -eq 125 ]] && continue
+  # 125 = build/transient skip; retry once before walking further.
+  if [[ "$rc" -eq 125 ]]; then
+    sleep 5
+    rc=$(witness_rc)
+    [[ "$rc" -eq 0 ]] && good="$cur" && break
+    [[ "$rc" -eq 125 ]] && continue
+  fi
 done
 git checkout -q "$PIN"
 [[ -n "$good" ]] || {
