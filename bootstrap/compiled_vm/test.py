@@ -321,7 +321,7 @@ def omega_control_customer(work, timeout):
         stamp(tape, executable)
         assert execute(executable) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
-    print(f"Omega runtime control: seven emitted executables, actual lexer boundaries, parallel transfers, short circuit, explicit domain casts and 25 refusals passed; {time.monotonic()-started:.3f}s", flush=True)
+    print(f"Omega runtime control: seven emitted executables, actual lexer boundaries, parallel transfers, short circuit, explicit domain casts and 26 refusals passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
 def main():

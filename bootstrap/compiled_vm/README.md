@@ -336,7 +336,7 @@ returned Epsilon exit 90. The whole 9,063-byte observation has SHA-256
 `4253b9bb07f6debeb0f1db968f55ce7fe699667aafc222be23b21708139f4bbe`.
 Elapsed time was 2,644.870 seconds, including roughly 208 seconds paused to
 avoid exceeding the shared 32 GiB memory budget; it is not a benchmark.
-The exact positive is retained while the shared parser path is repaired.
+The exact positive was retained while the shared parser path was repaired.
 
 Separately, the 35-invocation parser customer reached its complete `A` marker
 before the legacy batch stopped at an unchanged leading-`!1` refusal witness.
@@ -345,4 +345,38 @@ That 677,942-byte Epsilon source has SHA-256
 the failed batch took 623.514 seconds and returned Epsilon exit 2 plus `A`.
 The repaired parser routes statement-leading unary prefixes through the shared
 expression machinery. Neither failed batch is promoted to evidence for later
-source bytes; focused execution of the final repairs remains required.
+source bytes; the following focused observations establish the final repairs.
+
+
+The repaired parser and legacy acceptance batch passed in 2,011.789 seconds:
+37 parser invocations and 65 bootstrap compiler invocations completed with
+native and Epsilon exit 0 and empty stderr. It used the 644,910-byte compiler
+`5609861565dfbc77b8fb5586189f8dee2d490b267627b1bb9d35520ecbd682f7`
+and a 686,637-byte complete Epsilon source,
+`887c48bba803aeb7f08670a56c2eaf3b193b5b075d15864e57b497ac615fb5fd`.
+The original parser, runtime prefix/public checks and baseline/legacy fixture
+bodies were bound to Git `6710c426bccfff359e4f283d42d2e739c2547c6e`.
+Its 728-byte observation has SHA-256
+`b58537980b677917b92bbac2ca570ffc2c6aef1823086b955543c46d6880c44b`.
+All nine emitted programs executed without output: the terminal-prefix and
+skipped-loop program exited 43, the public/plain transition-call program exited
+47, and all seven baseline/legacy reset tapes exited 42. The public checks also
+covered transitive Trap ceilings, refusal coordinates, retired visibility syntax
+and reuse after refusal. This was focused validation of the repaired paths,
+not a rerun of the earlier complete boundary matrix.
+
+A final refusal-classification repair distinguishes an unsupported visible
+global terminal target from a genuinely missing target. The current 645,486-byte
+compiler has SHA-256
+`ec5caf34674af271f408e03bdbe77608b445c306956a0dc1064a41792141f377`.
+Its three-invocation focused customer passed in 166.294 seconds: the visible
+global target returned Incomplete, the missing target returned Reject, both
+retained exact target coordinates and empty/unfinalized tape, then the reused
+compiler emitted a 22-byte program that actually exited 49 without output.
+The 647,792-byte complete Epsilon source has SHA-256
+`cd0bad694b6a6c4622c2dc8578b1faa2ae930ec0b647ed640038bf1523b7a299`;
+the tape has SHA-256
+`5d6986842b024c50356357ef47eb431838ba94157e40091d2b998e7046db3373`.
+The retained runtime fixture now includes that refusal as its 26th case. Earlier
+full and focused observations retain their own compiler identities; they are
+not reported as reruns on these final bytes.

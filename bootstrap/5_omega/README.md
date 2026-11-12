@@ -43,10 +43,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 18,156 lines / 644,910 bytes with SHA-256
-`5609861565dfbc77b8fb5586189f8dee2d490b267627b1bb9d35520ecbd682f7`.
+manifest materializes 18,166 lines / 645,486 bytes with SHA-256
+`ec5caf34674af271f408e03bdbe77608b445c306956a0dc1064a41792141f377`.
 The manifest itself is 1,339 bytes, SHA-256
-`67cfb05eea13f6f490999f1b35354e42dba84655755a7452017b26c6ad241f70`;
+`3f8cc706fb78c155affb98a4ce8aa42f1cb9bea79762b07a07deeff6040d24c1`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -83,6 +83,8 @@ boundaries. Nested declarations use canonical `machine`; the retired `state`
 alias is no longer accepted. The spelling `state` remains an ordinary identifier.
 Callable-name hiding refuses until lexical resolution can support it completely;
 a nested declaration never silently falls through to a same-named global.
+A terminal transfer naming a visible global is `Incomplete` in this same-owner
+subset; only an absent target is reported as missing.
 
 Anonymous constant arithmetic retains its mathematical meaning. The bounded
 folder supports integral `+`, `-`, `*`, and `/` when every intermediate lies in

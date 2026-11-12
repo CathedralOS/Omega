@@ -50,6 +50,7 @@ machine Main::main(&mut self) {
         assert self.compiler.outcome_space == 4;
         assert self.compiler.outcome_coordinate == 80;
         self.positive("machine word(x: u32 in Trapping) -> u32 in Trapping { x } machine main() -> u8 { let small: u8 = 42; let plain: u32 = small as u32; let qualified: u32 in Trapping = plain as +Trapping; let copied: u32 in Trapping = word(qualified); let restored: u32 = copied as -Trapping; transition restored == small { true -> yes() _ -> no() } machine yes() -> u8 { 46 } machine no() -> u8 { 1 } }", 46, 16);
+        self.refusal("machine target() -> u8 { 42 } machine main() -> u8 { transition { _ -> target() } }", 2, 65);
         self.refusal("public machine compare(value: u32 in Trapping) -> bool { value == 0 } machine main() -> u8 { 42 }", 2, 61);
         assert self.compiler.outcome_space == 4;
         assert self.compiler.outcome_coordinate == 0;

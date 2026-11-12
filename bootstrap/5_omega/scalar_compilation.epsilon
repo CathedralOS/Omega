@@ -1464,6 +1464,15 @@ machine OmegaScalarCompiler::check_transition_target(
         let target: i32 = self.resolve_state(source, owner, row.target.start, row.target.end);
         transition target >= 0 {
             true -> signature(row, target)
+            _ -> outside_owner(row)
+        }
+    }
+    // Ordinary terminal calls may name globals, but this static-cell slice
+    // only emits transfers within one owner. A visible global is outside
+    // coverage, not a missing machine; do not misreport a valid terminal call.
+    state outside_owner(row: OmegaTransitionStatementSyntax) {
+        transition self.resolve_machine(source, row.target.start, row.target.end) >= 0 {
+            true -> unsupported(row.target.start)
             _ -> reject(row.target.start)
         }
     }
@@ -1482,6 +1491,7 @@ machine OmegaScalarCompiler::check_transition_target(
         }
     }
     state retain(target: i32) { self.transition_targets[row_index] = target; return 1; }
+    state unsupported(coordinate: i32) { self.record_incomplete(4, coordinate); return 0; }
     state reject(coordinate: i32) { self.record_reject(-1, 4, coordinate); return 0; }
 }
 
