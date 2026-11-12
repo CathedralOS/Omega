@@ -291,7 +291,16 @@ as static branch conditions: a branch with established `T == u32` may use that
 equality to check its operations and values as u32. On leaving the branch, only
 facts common to its surviving predecessors remain. An unspecialized body checks
 every admitted alternative; one consumer cannot authorize an otherwise invalid
-generic body. Type parameters remain static even when their admissible set has
+generic body.
+
+Outside such a branch, an operation on a value of type `T` is well-typed when
+every alternative the body admits supports it, and its obligations are owed for
+every alternative: `requires T == u32 || T == u64` with `{ left + right }`
+checks the addition as `u32` and as `u64`, whichever a caller uses. Checking the
+body once per listed alternative, each with `T` fixed to that type, satisfies
+this rule for a finite family; the list is closed, so those checks cover every
+admissible use. An open `T` has no such list and uses only what its bounds
+promise. Type parameters remain static even when their admissible set has
 several alternatives. No runtime type objects or RTTI are introduced.
 
 A [case-dependent default domain](data_and_literals.md#case-constraints) can
