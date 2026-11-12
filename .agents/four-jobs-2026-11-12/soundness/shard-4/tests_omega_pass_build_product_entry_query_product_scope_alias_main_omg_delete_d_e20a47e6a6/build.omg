@@ -1,0 +1,14 @@
+// Product-purpose control for product_entry_query_build_scope_alias.
+machine build(builder: &mut Build) {
+    Build::application(builder, "product_entry_query_scope");
+    let mut support_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "helper" });
+    dependency::with_alias(&mut support_dependency, "support");
+    let support_registration: DependencyRegistration = Build::dependency(builder, support_dependency);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry(builder, "windows_x86_64::ProgramEntry"));
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry(builder, "linux_x86_64::ProgramEntry"));
+    Build::bind(builder, macos_arm64::ProgramEntry, entry(builder, "macos_arm64::ProgramEntry"));
+    Build::bind(builder, linux_arm64::ProgramEntry, entry(builder, "linux_arm64::ProgramEntry"));
+}
+machine entry(builder: &mut Build, slot: &[u8]) -> ProductEntryRef {
+    BuildProduct::entry(&builder.product, "support::setup::launch", slot)
+}

@@ -1,0 +1,8 @@
+{
+  "mutants_attempted": 3650,
+  "mutants_generated": 3650,
+  "mutants_logged_tsv": 161,
+  "mutants_run": 161,
+  "mutants_not_applicable": 0,
+  "mutant_total_accounted": 3650
+}

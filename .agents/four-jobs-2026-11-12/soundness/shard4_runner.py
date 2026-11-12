@@ -10,8 +10,10 @@ import shutil
 import subprocess
 import sys
 import time
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+import json
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
@@ -21,6 +23,7 @@ OUT_DIR = REPO / ".agents/four-jobs-2026-11-12/soundness"
 MUT_ROOT = OUT_DIR / f"shard-{SHARD}"
 TSV = OUT_DIR / f"shard-{SHARD}.tsv"
 PROGRESS = OUT_DIR / f"shard-{SHARD}.progress"
+STATS = OUT_DIR / f"shard-{SHARD}.stats.json"
 OMEGA = REPO / "target/debug/omega"
 ROUTE = REPO / "target/debug/examples/route_one_comparison"
 CHECK_TIMEOUT = 90
@@ -95,6 +98,37 @@ def parse_route(output: str, code: int) -> str:
                 if p.startswith("route="):
                     return p.split("=", 1)[1].split()[0]
     return "error"
+
+
+def parse_route_reason(output: str, code: int) -> str:
+    if code == -1:
+        return "timeout"
+    for line in output.splitlines():
+        if not line.startswith("program\t"):
+            continue
+        m = re.search(r"\broute=(\S+)\s*(.*)", line)
+        if m:
+            tail = m.group(2).strip()
+            if tail:
+                return one_line(tail)
+            verdict = m.group(1)
+            if verdict in ("rejected", "fallback", "incomplete"):
+                break
+    for line in output.splitlines():
+        if line.startswith("diagnostic\t") or line.startswith("fallback\t"):
+            parts = line.split("\t")
+            if len(parts) >= 6:
+                return one_line(parts[-1])
+    for line in output.splitlines():
+        if line.startswith("program\t"):
+            m = re.search(r"\broute=(\S+)", line)
+            if m:
+                return m.group(1)
+    return ""
+
+
+def one_line(text: str) -> str:
+    return re.sub(r"[\t\n]+", " ", text)[:400]
 
 
 def check_pair(main_omg: Path) -> Verdicts:
@@ -239,8 +273,22 @@ def ensure_tsv_header() -> None:
     if not TSV.exists():
         TSV.write_text(
             "fixture\ttier\tstage\tmutation_kind\tmutant_path\tcurrent_verdict\t"
-            "route_verdict\tseconds\thand_check\tspec_rule_file\tspec_quote\n"
+            "route_verdict\troute_rejection_reason\tseconds\thand_check\t"
+            "spec_rule_file\tspec_quote\tbucket\tobligation_line\n"
         )
+
+
+STATS_COUNTERS: Counter = Counter()
+
+
+def bump_stat(key: str, n: int = 1) -> None:
+    with _IO_LOCK:
+        STATS_COUNTERS[key] += n
+
+
+def flush_stats() -> None:
+    with _IO_LOCK:
+        STATS.write_text(json.dumps(dict(STATS_COUNTERS), indent=2) + "\n")
 
 
 def log_tsv(row: list[str]) -> None:
@@ -291,8 +339,11 @@ def process_fixture(fixture: Path) -> int:
             "",
             v.current,
             "",
+            "",
             f"{v.seconds:.2f}",
             "baseline",
+            "",
+            "",
             "",
             "",
         ]
@@ -302,14 +353,17 @@ def process_fixture(fixture: Path) -> int:
         return 0
     kept = 0
     text = fixture.read_text()
-    for kind in applicable_kinds(text):
+    kinds_possible = list(MUTATION_KINDS)
+    for kind in kinds_possible:
         mk = f"{key}:{kind}"
         if prog.seen(mk):
             continue
         mutated = apply_mutation(text, kind)
         if mutated is None:
+            bump_stat("mutants_not_applicable")
             prog.mark(mk)
             continue
+        bump_stat("mutants_generated")
         dst = mutant_dir(fixture, kind)
         copy_fixture(fixture, dst)
         (dst / "main.omg").write_text(mutated)
@@ -317,25 +371,49 @@ def process_fixture(fixture: Path) -> int:
             ["timeout", str(CHECK_TIMEOUT), str(OMEGA), "--check", str(dst / "main.omg")]
         )
         cur_v = parse_current(c_out, c_code)
+        bump_stat("mutants_run")
+        route_reason = ""
         if cur_v == "rejected":
+            bump_stat("mutants_current_rejected")
+            bump_stat("mutants_logged_tsv")
+            log_tsv(
+                [
+                    rel,
+                    tier,
+                    "mutant",
+                    kind,
+                    str(dst.relative_to(REPO)),
+                    cur_v,
+                    "",
+                    "",
+                    "0",
+                    "discarded-both-reject",
+                    "",
+                    "",
+                    "discarded-both-reject",
+                    "",
+                ]
+            )
+            prog.mark(mk)
+            continue
+        if cur_v in ("timeout", "error"):
+            bump_stat("mutants_failed_run")
             prog.mark(mk)
             continue
         t0 = time.monotonic()
-        if cur_v == "accepted":
-            r_code, r_out = run_checker(
-                ["timeout", str(CHECK_TIMEOUT), str(ROUTE), str(dst / "main.omg")]
-            )
-            route_v = parse_route(r_out, r_code)
-        else:
-            route_v = "timeout" if cur_v == "timeout" else "error"
-            r_code = -1 if cur_v == "timeout" else 1
+        r_code, r_out = run_checker(
+            ["timeout", str(CHECK_TIMEOUT), str(ROUTE), str(dst / "main.omg")]
+        )
+        route_v = parse_route(r_out, r_code)
+        route_reason = parse_route_reason(r_out, r_code)
         mv = Verdicts(cur_v, route_v, time.monotonic() - t0)
         hand, sfile, squote = hand_check(kind, mutated, mv.current, mv.route)
-        interesting = (
-            disagrees(mv.current, mv.route)
-            or (hand == "pending-spec" and (accepts(mv.current) or accepts(mv.route)))
+        log_drop_requires = kind == "drop_requires" and accepts(cur_v)
+        interesting = log_drop_requires or accepts(mv.current) or (
+            judicial_route(mv.route) and disagrees(mv.current, mv.route)
         )
         if interesting:
+            bump_stat("mutants_logged_tsv")
             log_tsv(
                 [
                     rel,
@@ -345,10 +423,13 @@ def process_fixture(fixture: Path) -> int:
                     str(dst.relative_to(REPO)),
                     mv.current,
                     mv.route,
+                    route_reason,
                     f"{mv.seconds:.2f}",
                     hand,
                     sfile,
                     squote,
+                    "",
+                    "",
                 ]
             )
             kept += 1
@@ -393,6 +474,7 @@ def main() -> int:
                 total_kept += fut.result()
             except Exception as exc:
                 print(f"fixture error: {exc}", flush=True)
+    flush_stats()
     print(f"Done. candidates_logged={total_kept}", flush=True)
     return 0
 

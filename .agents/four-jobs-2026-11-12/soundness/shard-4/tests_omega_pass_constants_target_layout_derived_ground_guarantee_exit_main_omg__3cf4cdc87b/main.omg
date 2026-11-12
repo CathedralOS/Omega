@@ -1,0 +1,7 @@
+// Expected exit: 0.
+// Soundness control: a closed true return guarantee checks even when its machine is unused.
+machine incorrect() -> u64 ensures result >= 5u64 {
+    let value: u64 = 5u64;
+    value
+}
+machine main() {}
