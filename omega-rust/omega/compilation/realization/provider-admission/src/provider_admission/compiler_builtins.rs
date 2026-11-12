@@ -805,6 +805,15 @@ mod selected_completion_contract_tests {
             "Boundary::invoke<First>"
         ));
         let mut changed = plan.clone();
+        std::sync::Arc::make_mut(&mut changed.schema.declaration)
+            .methods
+            .clear();
+        assert!(!boundary_contract_matches_selected_schema(
+            &original,
+            &changed,
+            "Boundary::invoke<First>"
+        ));
+        let mut changed = plan.clone();
         let surface = std::sync::Arc::make_mut(&mut changed.schema.declaration);
         surface.methods.push(surface.methods[0].clone());
         assert!(!boundary_contract_matches_selected_schema(
