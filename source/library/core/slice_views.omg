@@ -1,4 +1,4 @@
-module core::slice_views;
+module slice_views;
 
 machine element<T [copy]>(items: &[T], index: u64) -> T
 requires index < items.len {

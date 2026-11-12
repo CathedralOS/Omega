@@ -607,6 +607,8 @@ pub(crate) mod domain {
                 semantic_identity = format!("package:{digest}:{scope}::{semantic_identity}");
             } else if owner.origin == source::SourceOrigin::Toolchain {
                 semantic_identity = format!("toolchain:{scope}::{semantic_identity}");
+            } else if owner.origin == source::SourceOrigin::ToolchainContract {
+                semantic_identity = format!("toolchain-contract:{scope}::{semantic_identity}");
             } else {
                 semantic_identity = format!("unmanaged:{scope}::{semantic_identity}");
             }

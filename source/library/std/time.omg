@@ -28,9 +28,12 @@
 
 // The raw per-OS boundary (`TimeHost`) is declared once in the sibling std
 // module; the `Time` capability below wraps it (the filesystem.omg layering).
-use time_host;
-use omega::language::core::math;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u64_to_u32_exact;
+use omega::language::core::narrow_u64_to_u32_saturating;
+use omega::language::core::widen_u32_to_u64;
+use omega::language::core::narrow_u64_to_i64_exact;
+use omega::language::core::narrow_u64_to_i64_wrapping;
+use omega::language::core::narrow_i64_to_u64_wrapping;
 
 public data Ordering [copy] {
     case Less;

@@ -1,10 +1,3 @@
-use psi::checking::checker;
-use psi::checking::evaluation;
-use psi::checking::zone;
-use psi::integers::integers;
-use psi::syntax::syntax;
-use psi::types::types;
-
 // Facts a Boolean expression establishes when it is known to hold, or known
 // to fail: a selected guard arm, the left operand on the right of `&&`, a
 // state's `requires`. An integer comparison between linear terms is a
@@ -15,11 +8,11 @@ use psi::types::types;
 // equality of other non-integers establishes nothing. The tree has been evaluated,
 // so its nodes' values are known; the walk keeps its own stack of
 // (handle, holds) pairs, each packed as `handle * 2 + holds`.
-public machine Checker::assume(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, holds: bool)
+public machine assume(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, holds: bool)
 crashes Trap
 {
     checker.assumption_count = 0;
-    Checker::push_assumption(checker, root, holds);
+    push_assumption(checker, root, holds);
     transition { _ -> next(checker, syntax) }
 
     machine next(checker: &mut Checker, syntax: &SyntaxTrees) {
@@ -30,10 +23,10 @@ crashes Trap
     }
 
     machine pop(checker: &mut Checker, syntax: &SyntaxTrees) {
-        let packed: u64 in Trapping = Checker::pop_assumption(checker);
+        let packed: u64 in Trapping = pop_assumption(checker);
         let handle: u64 in Trapping = packed / 2;
         let holds: bool = packed % 2 == 1;
-        let expression: Expression = SyntaxTrees::expression(syntax, handle);
+        let expression: Expression = syntax_trees_expression(syntax, handle);
         transition expression.kind {
             ExpressionKind::Binary -> binary(checker, syntax, expression, holds)
             ExpressionKind::Unary -> unary(checker, syntax, expression, holds)
@@ -44,11 +37,11 @@ crashes Trap
 
     // value - truth <= 0 and truth - value <= 0.
     machine truth(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, holds: bool) {
-        let value: Value = Checker::value_at(checker, handle);
-        let expected: Value = Value::truth(holds);
+        let value: Value = value_at(checker, handle);
+        let expected: Value = value_truth(holds);
         let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
-        Checker::constrain_difference(checker, value, expected, zero);
-        Checker::constrain_difference(checker, expected, value, zero);
+        constrain_difference(checker, value, expected, zero);
+        constrain_difference(checker, expected, value, zero);
         transition { _ -> next(checker, syntax) }
     }
 
@@ -60,7 +53,7 @@ crashes Trap
     }
 
     machine negated(checker: &mut Checker, syntax: &SyntaxTrees, operand: u64 in Trapping, holds: bool) {
-        Checker::push_assumption(checker, operand, holds);
+        push_assumption(checker, operand, holds);
         transition { _ -> next(checker, syntax) }
     }
 
@@ -79,9 +72,9 @@ crashes Trap
     }
 
     machine binary(checker: &mut Checker, syntax: &SyntaxTrees, expression: Expression, holds: bool) {
-        let left: Value = Checker::value_at(checker, expression.left);
-        let right: Value = Checker::value_at(checker, expression.right);
-        let operator: OperatorKind = Checker::polarized(expression.operator, holds);
+        let left: Value = value_at(checker, expression.left);
+        let right: Value = value_at(checker, expression.right);
+        let operator: OperatorKind = polarized(expression.operator, holds);
         transition operator {
             OperatorKind::And -> both(checker, syntax, expression, holds)
             OperatorKind::Or -> both(checker, syntax, expression, holds)
@@ -104,22 +97,22 @@ crashes Trap
     }
 
     machine pushed(checker: &mut Checker, syntax: &SyntaxTrees, expression: Expression, holds: bool) {
-        Checker::push_assumption(checker, expression.left, holds);
-        Checker::push_assumption(checker, expression.right, holds);
+        push_assumption(checker, expression.left, holds);
+        push_assumption(checker, expression.right, holds);
         transition { _ -> next(checker, syntax) }
     }
 
     // `lesser < greater` is `lesser - greater <= -1`; `<=` bounds it by 0.
     machine related(checker: &mut Checker, syntax: &SyntaxTrees, lesser: Value, greater: Value, strict: bool) {
-        let bound: ExactInteger = Checker::slack(strict);
-        Checker::constrain_difference(checker, lesser, greater, bound);
+        let bound: ExactInteger = slack(strict);
+        constrain_difference(checker, lesser, greater, bound);
         transition { _ -> next(checker, syntax) }
     }
 
     machine equal(checker: &mut Checker, syntax: &SyntaxTrees, left: Value, right: Value) {
         let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
-        Checker::constrain_difference(checker, left, right, zero);
-        Checker::constrain_difference(checker, right, left, zero);
+        constrain_difference(checker, left, right, zero);
+        constrain_difference(checker, right, left, zero);
         transition { _ -> next(checker, syntax) }
     }
 
@@ -130,8 +123,8 @@ crashes Trap
     // point unreachable.
     machine unequal(checker: &mut Checker, syntax: &SyntaxTrees, left: Value, right: Value) {
         let below: ExactInteger = ExactInteger { negative: true, magnitude: 1 };
-        let at_least: bool = Checker::proves_at_most(checker, right, left);
-        let at_most: bool = Checker::proves_at_most(checker, left, right);
+        let at_least: bool = proves_at_most(checker, right, left);
+        let at_most: bool = proves_at_most(checker, left, right);
         transition at_least {
             true -> raised(checker, syntax, left, right, at_most, below)
             _ -> lowered(checker, syntax, left, right, at_most, below)
@@ -139,7 +132,7 @@ crashes Trap
     }
 
     machine raised(checker: &mut Checker, syntax: &SyntaxTrees, left: Value, right: Value, at_most: bool, below: ExactInteger) {
-        Checker::constrain_difference(checker, right, left, below);
+        constrain_difference(checker, right, left, below);
         transition { _ -> lowered(checker, syntax, left, right, at_most, below) }
     }
 
@@ -151,14 +144,14 @@ crashes Trap
     }
 
     machine capped(checker: &mut Checker, syntax: &SyntaxTrees, left: Value, right: Value, below: ExactInteger) {
-        Checker::constrain_difference(checker, left, right, below);
+        constrain_difference(checker, left, right, below);
         transition { _ -> next(checker, syntax) }
     }
 
     machine done() {}
 }
 
-machine Checker::slack(strict: bool) -> ExactInteger {
+machine slack(strict: bool) -> ExactInteger {
     transition strict {
         true -> below()
         _ -> zero()
@@ -175,7 +168,7 @@ machine Checker::slack(strict: bool) -> ExactInteger {
 
 // The comparison a failed `operator` establishes: its complement. `&&` and
 // `||` keep their spelling; `both` reads the polarity.
-public machine Checker::polarized(operator: OperatorKind, holds: bool) -> OperatorKind {
+public machine polarized(operator: OperatorKind, holds: bool) -> OperatorKind {
     transition holds {
         true -> kept(operator)
         _ -> complement(operator)
@@ -205,7 +198,7 @@ public machine Checker::polarized(operator: OperatorKind, holds: bool) -> Operat
 // Establish `left - right <= bound` for two integer values: a difference of
 // their subjects when both are linear terms, otherwise a bound on the one
 // that is, from the other's interval.
-public machine Checker::constrain_difference(checker: &mut Checker, left: Value, right: Value, bound: ExactInteger)
+public machine constrain_difference(checker: &mut Checker, left: Value, right: Value, bound: ExactInteger)
 crashes Trap
 {
     transition left.known && right.known {
@@ -215,10 +208,10 @@ crashes Trap
 
     // (l + a) - (r + b) <= c gives l - r <= c - a + b.
     machine terms(checker: &mut Checker, left: Value, right: Value, bound: ExactInteger) {
-        let shifted: ExactResult = ExactInteger::subtract(bound, left.offset);
-        let moved: ExactResult = ExactInteger::add(shifted.value, right.offset);
+        let shifted: ExactResult = exact_integer_subtract(bound, left.offset);
+        let moved: ExactResult = exact_integer_add(shifted.value, right.offset);
         let finite: bool = shifted.valid && moved.valid;
-        Zone::constrain(&mut checker.zone, right.subject, left.subject, Bound { finite: finite, value: moved.value });
+        constrain(&mut checker.zone, right.subject, left.subject, Bound { finite: finite, value: moved.value });
     }
 
     machine one_side(checker: &mut Checker, left: Value, right: Value, bound: ExactInteger) {
@@ -230,12 +223,12 @@ crashes Trap
 
     // l + a <= c + right gives l <= c + ceiling(right) - a.
     machine left_term(checker: &mut Checker, left: Value, right: Value, bound: ExactInteger) {
-        let exact: Bound = Bound::exactly(bound);
-        let limit: Bound = Bound::add(exact, right.ceiling);
-        let negated: ExactInteger = ExactInteger::negate(left.offset);
-        let shift: Bound = Bound::exactly(negated);
-        let upper: Bound = Bound::add(limit, shift);
-        Zone::constrain(&mut checker.zone, 0, left.subject, upper);
+        let exact: Bound = exactly(bound);
+        let limit: Bound = bound_add(exact, right.ceiling);
+        let negated: ExactInteger = exact_integer_negate(left.offset);
+        let shift: Bound = exactly(negated);
+        let upper: Bound = bound_add(limit, shift);
+        constrain(&mut checker.zone, 0, left.subject, upper);
     }
 
     machine right_side(checker: &mut Checker, left: Value, right: Value, bound: ExactInteger) {
@@ -247,20 +240,20 @@ crashes Trap
 
     // left - (r + b) <= c gives -r <= c + floor(left) + b.
     machine right_term(checker: &mut Checker, left: Value, right: Value, bound: ExactInteger) {
-        let exact: Bound = Bound::exactly(bound);
-        let limit: Bound = Bound::add(exact, left.floor);
-        let shift: Bound = Bound::exactly(right.offset);
-        let lower: Bound = Bound::add(limit, shift);
-        Zone::constrain(&mut checker.zone, right.subject, 0, lower);
+        let exact: Bound = exactly(bound);
+        let limit: Bound = bound_add(exact, left.floor);
+        let shift: Bound = exactly(right.offset);
+        let lower: Bound = bound_add(limit, shift);
+        constrain(&mut checker.zone, right.subject, 0, lower);
     }
 
     machine done() {}
 }
 
-machine Checker::push_assumption(checker: &mut Checker, handle: u64 in Trapping, holds: bool)
+machine push_assumption(checker: &mut Checker, handle: u64 in Trapping, holds: bool)
 crashes Trap
 {
-    let polarity: u64 in Trapping = Checker::polarity(holds);
+    let polarity: u64 in Trapping = checker_polarity(holds);
     let packed: u64 in Trapping = handle * 2 + polarity;
     transition checker.assumption_count < 128 {
         true -> push(checker, checker.assumption_count, packed)
@@ -285,7 +278,7 @@ crashes Trap
     machine full() {}
 }
 
-machine Checker::polarity(holds: bool) -> u64 in Trapping {
+machine checker_polarity(holds: bool) -> u64 in Trapping {
     transition holds {
         true -> one()
         _ -> zero()
@@ -300,7 +293,7 @@ machine Checker::polarity(holds: bool) -> u64 in Trapping {
     }
 }
 
-machine Checker::pop_assumption(checker: &mut Checker) -> u64 in Trapping
+machine pop_assumption(checker: &mut Checker) -> u64 in Trapping
 crashes Trap
 {
     transition checker.assumption_count > 0 && checker.assumption_count <= 128 {
@@ -326,11 +319,11 @@ crashes Trap
 // both failures, `!` swaps, and a disjunction (or a failed conjunction)
 // needs one of its sides to be a comparison or literal that proves. Goals
 // keep the assumption stack's packing, `handle * 2 + holds`.
-public machine Checker::proves(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping) -> bool
+public machine proves(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping) -> bool
 crashes Trap
 {
     checker.assumption_count = 0;
-    Checker::push_assumption(checker, root, true);
+    push_assumption(checker, root, true);
     transition { _ -> next(checker, syntax) }
 
     machine next(checker: &mut Checker, syntax: &SyntaxTrees) -> bool {
@@ -341,10 +334,10 @@ crashes Trap
     }
 
     machine goal(checker: &mut Checker, syntax: &SyntaxTrees) -> bool {
-        let packed: u64 in Trapping = Checker::pop_assumption(checker);
+        let packed: u64 in Trapping = pop_assumption(checker);
         let handle: u64 in Trapping = packed / 2;
         let holds: bool = packed % 2 == 1;
-        let expression: Expression = SyntaxTrees::expression(syntax, handle);
+        let expression: Expression = syntax_trees_expression(syntax, handle);
         let logical: bool = expression.kind == ExpressionKind::Binary
             && (expression.operator == OperatorKind::And || expression.operator == OperatorKind::Or);
         let negation: bool = expression.kind == ExpressionKind::Unary && expression.operator == OperatorKind::Not;
@@ -364,14 +357,14 @@ crashes Trap
     }
 
     machine both(checker: &mut Checker, syntax: &SyntaxTrees, expression: Expression, holds: bool) -> bool {
-        Checker::push_assumption(checker, expression.left, holds);
-        Checker::push_assumption(checker, expression.right, holds);
+        push_assumption(checker, expression.left, holds);
+        push_assumption(checker, expression.right, holds);
         transition { _ -> next(checker, syntax) }
     }
 
     machine either(checker: &mut Checker, syntax: &SyntaxTrees, expression: Expression, holds: bool) -> bool {
-        let left: bool = Checker::proves_atom(checker, syntax, expression.left, holds);
-        let right: bool = Checker::proves_atom(checker, syntax, expression.right, holds);
+        let left: bool = proves_atom(checker, syntax, expression.left, holds);
+        let right: bool = proves_atom(checker, syntax, expression.right, holds);
         transition left || right {
             true -> next(checker, syntax)
             _ -> unproved()
@@ -386,12 +379,12 @@ crashes Trap
     }
 
     machine negated(checker: &mut Checker, syntax: &SyntaxTrees, operand: u64 in Trapping, holds: bool) -> bool {
-        Checker::push_assumption(checker, operand, holds);
+        push_assumption(checker, operand, holds);
         transition { _ -> next(checker, syntax) }
     }
 
     machine atom(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, holds: bool) -> bool {
-        let proved: bool = Checker::proves_atom(checker, syntax, handle, holds);
+        let proved: bool = proves_atom(checker, syntax, handle, holds);
         transition proved {
             true -> next(checker, syntax)
             _ -> unproved()
@@ -411,10 +404,10 @@ crashes Trap
 // false) wherever the zone does, or any other Boolean's value is 1 (or 0).
 // Two values of one place are equal however little the zone knows of it, a
 // Boolean's included.
-public machine Checker::proves_atom(checker: &Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, holds: bool) -> bool
+public machine proves_atom(checker: &Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, holds: bool) -> bool
 crashes Trap
 {
-    let expression: Expression = SyntaxTrees::expression(syntax, handle);
+    let expression: Expression = syntax_trees_expression(syntax, handle);
     transition expression.kind {
         ExpressionKind::Binary -> comparison(checker, expression, holds)
         ExpressionKind::Boolean -> literal(expression.flag == holds)
@@ -422,22 +415,22 @@ crashes Trap
     }
 
     machine truth(checker: &Checker, handle: u64 in Trapping, holds: bool) -> bool {
-        let value: Value = Checker::value_at(checker, handle);
-        let expected: Value = Value::truth(holds);
-        let at_most: bool = Checker::proves_at_most(checker, value, expected);
-        let at_least: bool = Checker::proves_at_most(checker, expected, value);
+        let value: Value = value_at(checker, handle);
+        let expected: Value = value_truth(holds);
+        let at_most: bool = proves_at_most(checker, value, expected);
+        let at_least: bool = proves_at_most(checker, expected, value);
         transition { _ -> literal(at_most && at_least) }
     }
 
     machine comparison(checker: &Checker, expression: Expression, holds: bool) -> bool {
-        let left: Value = Checker::value_at(checker, expression.left);
-        let right: Value = Checker::value_at(checker, expression.right);
-        let operator: OperatorKind = Checker::polarized(expression.operator, holds);
-        let less: bool = Checker::proves_less(checker, left, right);
-        let greater: bool = Checker::proves_less(checker, right, left);
+        let left: Value = value_at(checker, expression.left);
+        let right: Value = value_at(checker, expression.right);
+        let operator: OperatorKind = polarized(expression.operator, holds);
+        let less: bool = proves_less(checker, left, right);
+        let greater: bool = proves_less(checker, right, left);
         let same: bool = left.place > 0 && left.place == right.place;
-        let at_most: bool = same || Checker::proves_at_most(checker, left, right);
-        let at_least: bool = same || Checker::proves_at_most(checker, right, left);
+        let at_most: bool = same || proves_at_most(checker, left, right);
+        let at_least: bool = same || proves_at_most(checker, right, left);
         transition operator {
             OperatorKind::Less -> literal(less)
             OperatorKind::LessEqual -> literal(at_most)

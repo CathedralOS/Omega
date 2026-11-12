@@ -998,12 +998,14 @@ pub mod selection_authority {
         if source_file.origin == SourceOrigin::Toolchain {
             return Ok(None);
         }
-        let requester = source_file.package_identity.ok_or_else(|| {
-        format!(
-            "authored declaration selection in {} has no reconciled requesting package identity",
-            source_file.path.display()
-        )
-    })?;
+        let requester = if source_file.origin == SourceOrigin::User {
+            Some(source_file.package_identity.ok_or_else(|| format!(
+                "authored declaration selection in {} has no reconciled requesting package identity",
+                source_file.path.display()
+            ))?)
+        } else {
+            None
+        };
         let selected = match selection.target() {
             AuthoredDeclarationSelectionTarget::Intrinsic(_) => return Ok(None),
             AuthoredDeclarationSelectionTarget::LateBound(binding) => {
@@ -1029,6 +1031,31 @@ pub mod selection_authority {
         {
             return Ok(None);
         }
+        if source_file.origin == SourceOrigin::ToolchainContract {
+            let local = program
+                .symbols
+                .symbol_provenance_source_span(selected)
+                .is_some_and(|declaration| {
+                    program
+                        .symbols
+                        .same_source_package(source_span, declaration)
+                        && program
+                            .symbols
+                            .source_reference_can_see_symbol(source_span, selected)
+                });
+            return if local
+                || program.symbols.symbol_source_origin(selected) == Some(SourceOrigin::Toolchain)
+            {
+                Ok(None)
+            } else {
+                Err(
+                    "closed contract selects a declaration outside its checked owner or core"
+                        .into(),
+                )
+            };
+        }
+        let requester =
+            requester.ok_or("declaration selection lost its requesting package custody")?;
         let selected_kind = program.symbols.get(selected).kind;
         if typed_trees::visibility::requires_declaration_visibility(selected_kind) {
             let visibility = typed_trees::visibility::authored_selection_visibility(
@@ -1062,6 +1089,10 @@ pub mod selection_authority {
         }
         match program.symbols.symbol_source_origin(selected) {
             Some(SourceOrigin::Toolchain) => Ok(None),
+            Some(SourceOrigin::ToolchainContract) => Err(
+                "package source cannot select a closed toolchain contract without package custody"
+                    .into(),
+            ),
             Some(SourceOrigin::User) => Err(format!(
                 "selected user declaration `{}` has no reconciled owning package identity",
                 program.symbols.display_path(selected, "::")
@@ -1118,7 +1149,7 @@ pub mod selection_authority {
                 authority,
                 sources
                     .selected_files()
-                    .filter(|file| file.origin != source::SourceOrigin::Toolchain)
+                    .filter(|file| !file.origin.is_toolchain())
                     .filter_map(|file| file.package_identity),
             )
         }
@@ -1134,7 +1165,7 @@ pub mod selection_authority {
                     .symbols
                     .source_file(site)
                     .ok_or("retained pending invocation has no source custody")?;
-                if file.origin != source::SourceOrigin::Toolchain
+                if !file.origin.is_toolchain()
                     && let Some(requester) = file.package_identity
                 {
                     requesters.insert(requester);

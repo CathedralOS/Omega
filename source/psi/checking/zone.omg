@@ -1,5 +1,3 @@
-use psi::integers::integers;
-
 // Difference bounds over a body's integer subjects: the one relational
 // engine checking uses for live integer facts
 // (wiki/spec/language/state_contracts.md#mutation-and-subject-identity).
@@ -17,25 +15,25 @@ public data Bound [copy] {
     value: ExactInteger;
 }
 
-public machine Bound::none() -> Bound {
+public machine bound_none() -> Bound {
     Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } }
 }
 
-public machine Bound::exactly(value: ExactInteger) -> Bound {
+public machine exactly(value: ExactInteger) -> Bound {
     Bound { finite: true, value: value }
 }
 
 // The bound on a sum of two differences. A sum beyond the magnitude range is
 // weakened, never tightened: a positive overflow bounds nothing, and a
 // negative one is clamped to the least representable value.
-public machine Bound::add(left: Bound, right: Bound) -> Bound {
+public machine bound_add(left: Bound, right: Bound) -> Bound {
     transition left.finite && right.finite {
         true -> finite(left.value, right.value)
         _ -> unbounded()
     }
 
     machine finite(left: ExactInteger, right: ExactInteger) -> Bound {
-        let sum: ExactResult = ExactInteger::add(left, right);
+        let sum: ExactResult = exact_integer_add(left, right);
         transition sum.valid {
             true -> exact(sum.value)
             _ -> overflowed(left.negative)
@@ -63,7 +61,7 @@ public machine Bound::add(left: Bound, right: Bound) -> Bound {
 }
 
 // Whether `left` is at least as tight as `right`.
-public machine Bound::at_most(left: Bound, right: Bound) -> bool {
+public machine bound_at_most(left: Bound, right: Bound) -> bool {
     transition right.finite {
         true -> finite(left, right.value)
         _ -> always()
@@ -77,7 +75,7 @@ public machine Bound::at_most(left: Bound, right: Bound) -> bool {
     }
 
     machine compared(left: ExactInteger, right: ExactInteger) -> bool {
-        let ordered: bool = ExactInteger::at_most(left, right);
+        let ordered: bool = exact_integer_at_most(left, right);
         ordered
     }
 
@@ -91,7 +89,7 @@ public machine Bound::at_most(left: Bound, right: Bound) -> bool {
 }
 
 // Whether a bound is below zero: a cycle through it is contradictory.
-public machine Bound::negative(bound: Bound) -> bool {
+public machine bound_negative(bound: Bound) -> bool {
     bound.finite && bound.value.negative
 }
 
@@ -102,7 +100,7 @@ public data Zone [copy] {
 }
 
 // An unconstrained zone over `count` subjects, the zero subject included.
-public machine Zone::open(zone: &mut Zone, count: u64 in Trapping)
+public machine zone_open(zone: &mut Zone, count: u64 in Trapping)
 crashes Trap
 {
     transition count <= 64 {
@@ -156,7 +154,7 @@ crashes Trap
 }
 
 // The bound on `to - from`.
-public machine Zone::bound(zone: &Zone, from: u64 in Trapping, to: u64 in Trapping) -> Bound
+public machine zone_bound(zone: &Zone, from: u64 in Trapping, to: u64 in Trapping) -> Bound
 crashes Trap
 {
     transition from < 64 && to < 64 {
@@ -183,11 +181,11 @@ crashes Trap
 }
 
 // Tighten the bound on `to - from` to `bound` when that is tighter.
-machine Zone::tighten(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound)
+machine tighten(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound)
 crashes Trap
 {
-    let current: Bound = Zone::bound(zone, from, to);
-    let tighter: bool = Bound::at_most(current, bound);
+    let current: Bound = zone_bound(zone, from, to);
+    let tighter: bool = bound_at_most(current, bound);
     transition tighter {
         true -> done()
         _ -> store(zone, from * 64 + to, bound)
@@ -214,7 +212,7 @@ crashes Trap
 }
 
 // Whether the zone implies `to - from <= value`.
-public machine Zone::implies(zone: &Zone, from: u64 in Trapping, to: u64 in Trapping, value: ExactInteger) -> bool
+public machine implies(zone: &Zone, from: u64 in Trapping, to: u64 in Trapping, value: ExactInteger) -> bool
 crashes Trap
 {
     transition zone.infeasible {
@@ -223,9 +221,9 @@ crashes Trap
     }
 
     machine compared(zone: &Zone, from: u64 in Trapping, to: u64 in Trapping, value: ExactInteger) -> bool {
-        let known: Bound = Zone::bound(zone, from, to);
-        let wanted: Bound = Bound::exactly(value);
-        let implied: bool = Bound::at_most(known, wanted);
+        let known: Bound = zone_bound(zone, from, to);
+        let wanted: Bound = exactly(value);
+        let implied: bool = bound_at_most(known, wanted);
         implied
     }
 
@@ -239,12 +237,12 @@ crashes Trap
 // is already closed. Every row uses the new edge's own bound: the row of
 // `from` stores it only when its turn comes, and no row can tighten the
 // edge further, since the cycle through it is non-negative.
-public machine Zone::constrain(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound)
+public machine constrain(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound)
 crashes Trap
 {
-    let back: Bound = Zone::bound(zone, to, from);
-    let cycle: Bound = Bound::add(bound, back);
-    let contradictory: bool = Bound::negative(cycle);
+    let back: Bound = zone_bound(zone, to, from);
+    let cycle: Bound = bound_add(bound, back);
+    let contradictory: bool = bound_negative(cycle);
     transition bound.finite && !zone.infeasible {
         true -> feasible(zone, from, to, bound, contradictory)
         _ -> done()
@@ -269,8 +267,8 @@ crashes Trap
     }
 
     machine through(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound, first: u64 in Trapping) {
-        let into: Bound = Zone::bound(zone, first, from);
-        let through: Bound = Bound::add(into, bound);
+        let into: Bound = zone_bound(zone, first, from);
+        let through: Bound = bound_add(into, bound);
         transition { _ -> column(zone, from, to, bound, through, first, 0) }
     }
 
@@ -298,9 +296,9 @@ crashes Trap
         first: u64 in Trapping,
         second: u64 in Trapping
     ) {
-        let out: Bound = Zone::bound(zone, to, second);
-        let path: Bound = Bound::add(through, out);
-        Zone::tighten(zone, first, second, path);
+        let out: Bound = zone_bound(zone, to, second);
+        let path: Bound = bound_add(through, out);
+        tighten(zone, first, second, path);
         transition { _ -> column(zone, from, to, bound, through, first, second + 1) }
     }
 
@@ -313,7 +311,7 @@ crashes Trap
 
 // Forget everything known about `subject`, as when it is overwritten. The
 // rest of a closed zone stays closed.
-public machine Zone::forget(zone: &mut Zone, subject: u64 in Trapping)
+public machine zone_forget(zone: &mut Zone, subject: u64 in Trapping)
 crashes Trap
 {
     transition { _ -> other(zone, subject, 0) }
@@ -333,9 +331,9 @@ crashes Trap
     }
 
     machine unbound(zone: &mut Zone, subject: u64 in Trapping, index: u64 in Trapping) {
-        let none: Bound = Bound::none();
-        Zone::set(zone, subject, index, none);
-        Zone::set(zone, index, subject, none);
+        let none: Bound = bound_none();
+        zone_set(zone, subject, index, none);
+        zone_set(zone, index, subject, none);
         transition { _ -> other(zone, subject, index + 1) }
     }
 
@@ -343,7 +341,7 @@ crashes Trap
 }
 
 // Overwrite the bound on `to - from`.
-machine Zone::set(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound)
+machine zone_set(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound)
 crashes Trap
 {
     transition from < 64 && to < 64 {
@@ -373,7 +371,7 @@ crashes Trap
 // pair is the looser of the two. Joining with an infeasible zone changes
 // nothing; joining an infeasible zone takes the other. Whether `zone`
 // changed. The pointwise loosening of two closed zones is closed.
-public machine Zone::join(zone: &mut Zone, other: &Zone) -> bool
+public machine zone_join(zone: &mut Zone, other: &Zone) -> bool
 crashes Trap
 {
     transition other.infeasible {
@@ -420,7 +418,7 @@ crashes Trap
     {
         let mine: Bound = zone.bounds[index];
         let theirs: Bound = other.bounds[index];
-        let covered: bool = Bound::at_most(theirs, mine);
+        let covered: bool = bound_at_most(theirs, mine);
         transition covered {
             true -> entry(zone, other, index + 1, loosened)
             _ -> loosen(zone, other, index, theirs)
@@ -452,7 +450,7 @@ crashes Trap
 // settle after finitely many rounds. Each remaining entry is still a valid
 // bound, so the zone stays sound; it is not re-closed, which could undo the
 // widening.
-public machine Zone::widen(zone: &mut Zone, before: &Zone)
+public machine zone_widen(zone: &mut Zone, before: &Zone)
 crashes Trap
 {
     transition before.infeasible || zone.infeasible {
@@ -472,7 +470,7 @@ crashes Trap
     {
         let now: Bound = zone.bounds[index];
         let then: Bound = before.bounds[index];
-        let stable: bool = Bound::at_most(now, then);
+        let stable: bool = bound_at_most(now, then);
         transition stable {
             true -> entry(zone, before, index + 1)
             _ -> drop(zone, before, index)

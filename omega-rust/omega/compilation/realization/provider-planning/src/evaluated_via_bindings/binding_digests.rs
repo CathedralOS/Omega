@@ -12,7 +12,7 @@ use effects::provider_plan::{
     EvaluatedBindingProducerClosureDigest,
 };
 use evaluation_accounting::BuildEvaluationUsage;
-use source::{SourceFile, SourceOrigin, SourceSpan};
+use source::{SourceFile, SourceSpan};
 use std::path::Path;
 use symbols::SymbolHandle;
 use target::TargetProfile;
@@ -76,7 +76,7 @@ pub(crate) fn producer_closure_digest(
 }
 
 fn stable_source_digest(source: &SourceFile) -> Result<[u8; 32], String> {
-    if source.origin == SourceOrigin::Toolchain {
+    if source.origin.is_toolchain() {
         return package_compilation::toolchain_source_identity_digest(source).map_err(
             |diagnostics| {
                 diagnostics

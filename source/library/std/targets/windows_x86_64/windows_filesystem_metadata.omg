@@ -4,14 +4,8 @@
 // does not freeze concurrent writes to that object or grant new access rights.
 // Capture each query error before releasing the pin. Cleanup cannot replace
 // that primary failure, but a failed close cannot become a successful query.
-use windows_filesystem_host;
-use filesystem_host;
-use omega::language::core::filesystem_authority;
-use omega::language::core::numeric_conversion;
-use targets::windows_x86_64::windows_filesystem_impl;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_metadata_native;
-use targets::windows_x86_64::windows_filesystem_paths;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::narrow_u64_to_i64_wrapping;
 
 machine windows_metadata_error() -> WindowsMetadataResult {
     let code: u32 = WindowsFilesystemNativeProvider::last_error();

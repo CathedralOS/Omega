@@ -1,9 +1,3 @@
-use psi::checking::checker;
-use psi::integers::integers;
-use psi::resolution::resolution;
-use psi::syntax::syntax;
-use psi::types::types;
-
 // Owned places (wiki/spec/language/ownership.md): which places a body owns,
 // how two of them overlap, and what multiplicity a type carries. A body's
 // owned places are its by-value parameters, its locals and its pattern
@@ -15,13 +9,13 @@ use psi::types::types;
 // slice view copies; data has its declared multiplicity, linear when a type
 // argument is declared linear; an array has its element's and a generic
 // parameter its bound's.
-public machine Checker::multiplicity(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> DataMultiplicity
+public machine checker_multiplicity(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> DataMultiplicity
 crashes Trap
 {
     transition { _ -> level(syntax, typing, handle, 0) }
 
     machine level(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> DataMultiplicity {
-        let row: TypeRow = TypeTable::row(&typing.types, handle);
+        let row: TypeRow = type_table_row(&typing.types, handle);
         transition row.kind {
             TypeKind::Data -> data(syntax, typing, row)
             TypeKind::Array -> array(syntax, typing, row, depth)
@@ -38,13 +32,13 @@ crashes Trap
     }
 
     machine generic(syntax: &SyntaxTrees, row: TypeRow) -> DataMultiplicity {
-        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, row.item);
+        let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, row.item);
         transition { _ -> answer(parameter.bounds) }
     }
 
     machine data(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow) -> DataMultiplicity {
-        let item: DataItem = SyntaxTrees::data_item(syntax, row.item);
-        let linear: bool = Checker::linear_argument(syntax, typing, row, 0);
+        let item: DataItem = syntax_trees_data_item(syntax, row.item);
+        let linear: bool = linear_argument(syntax, typing, row, 0);
         transition linear {
             true -> answer(DataMultiplicity::Linear)
             _ -> answer(item.multiplicity)
@@ -58,7 +52,7 @@ crashes Trap
 
 // Whether a type argument of data row `row`, from `offset`, is declared
 // linear (data, an array of it, or a generic parameter bound linear).
-machine Checker::linear_argument(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, offset: u64 in Trapping) -> bool
+machine linear_argument(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, offset: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> next(syntax, typing, row, offset) }
@@ -71,8 +65,8 @@ crashes Trap
     }
 
     machine argument(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, offset: u64 in Trapping) -> bool {
-        let handle: u64 in Trapping = TypeTable::argument(&typing.types, row.first_argument + offset);
-        let declared: bool = Checker::declared_linear(syntax, typing, handle);
+        let handle: u64 in Trapping = type_table_argument(&typing.types, row.first_argument + offset);
+        let declared: bool = declared_linear(syntax, typing, handle);
         transition declared {
             true -> answer(true)
             _ -> next(syntax, typing, row, offset + 1)
@@ -86,13 +80,13 @@ crashes Trap
 
 // Whether a type is declared linear on its own: linear data, an array of
 // it, or a generic parameter bound linear.
-machine Checker::declared_linear(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
+machine declared_linear(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> level(syntax, typing, handle, 0) }
 
     machine level(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> bool {
-        let row: TypeRow = TypeTable::row(&typing.types, handle);
+        let row: TypeRow = type_table_row(&typing.types, handle);
         transition row.kind {
             TypeKind::Data -> data(syntax, row)
             TypeKind::Array -> array(syntax, typing, row, depth)
@@ -109,13 +103,13 @@ crashes Trap
     }
 
     machine data(syntax: &SyntaxTrees, row: TypeRow) -> bool {
-        let item: DataItem = SyntaxTrees::data_item(syntax, row.item);
+        let item: DataItem = syntax_trees_data_item(syntax, row.item);
         let linear: bool = item.multiplicity == DataMultiplicity::Linear;
         transition { _ -> answer(linear) }
     }
 
     machine generic(syntax: &SyntaxTrees, row: TypeRow) -> bool {
-        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, row.item);
+        let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, row.item);
         let linear: bool = parameter.bounds == DataMultiplicity::Linear;
         transition { _ -> answer(linear) }
     }
@@ -127,24 +121,24 @@ crashes Trap
 
 // The owned root of a place expression: its root, unless a reference lies
 // on its path.
-public machine Checker::place_root(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+public machine place_root(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    Checker::path_root(syntax, resolution, typing, handle, false)
+    path_root(syntax, resolution, typing, handle, false)
 }
 
 // The root of a place expression, as a key: a local's statement, a
 // parameter or a pattern binder, reached through fields (a field selecting
 // `.len` is no place) and indexes, and through references when `through`
 // holds. Zero for any other expression.
-public machine Checker::path_root(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, through: bool) -> u64 in Trapping
+public machine path_root(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, through: bool) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> step(syntax, resolution, typing, handle, through, 0) }
 
     machine step(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
-        let expression: Expression = SyntaxTrees::expression(syntax, node);
-        let field: bool = Checker::field_place(typing, node, expression);
+        let expression: Expression = syntax_trees_expression(syntax, node);
+        let field: bool = field_place(typing, node, expression);
         transition expression.kind {
             ExpressionKind::Name -> named(resolution, node)
             ExpressionKind::Index -> base(syntax, resolution, typing, expression.left, through, depth)
@@ -157,7 +151,7 @@ crashes Trap
     // A recast views its operand's storage: `&place as &T` roots at the
     // place, and a recast reference value at the reference's place.
     machine recast(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
-        let operand: Expression = SyntaxTrees::expression(syntax, expression.left);
+        let operand: Expression = syntax_trees_expression(syntax, expression.left);
         let borrow: bool = operand.kind == ExpressionKind::Unary
             && (operand.operator == OperatorKind::Borrow || operand.operator == OperatorKind::BorrowMutable
                 || operand.operator == OperatorKind::BorrowWrite);
@@ -190,8 +184,8 @@ crashes Trap
     }
 
     machine base(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, base: u64 in Trapping, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
-        let base_type: u64 in Trapping = Typing::expression_type(typing, base);
-        let row: TypeRow = TypeTable::row(&typing.types, base_type);
+        let base_type: u64 in Trapping = typing_expression_type(typing, base);
+        let row: TypeRow = type_table_row(&typing.types, base_type);
         let stops: bool = (row.kind == TypeKind::Reference && !through) || depth >= 64;
         transition stops {
             true -> answer(0)
@@ -200,7 +194,7 @@ crashes Trap
     }
 
     machine named(resolution: &NameResolution, node: u64 in Trapping) -> u64 in Trapping {
-        let binding: ValueBinding = NameResolution::value_binding(resolution, node);
+        let binding: ValueBinding = value_binding(resolution, node);
         transition binding {
             ValueBinding::Local { statement } -> answer(statement * 4 + 1)
             ValueBinding::Parameter { parameter } -> answer(parameter * 4 + 2)
@@ -215,10 +209,10 @@ crashes Trap
 }
 
 // Whether a field expression selects a field, a place, rather than `.len`.
-public machine Checker::field_place(typing: &Typing, node: u64 in Trapping, expression: Expression) -> bool
+public machine field_place(typing: &Typing, node: u64 in Trapping, expression: Expression) -> bool
 crashes Trap
 {
-    let selection: Selection = Typing::selection(typing, node);
+    let selection: Selection = typing_selection(typing, node);
     let projected: bool = expression.kind == ExpressionKind::Field;
     transition selection {
         Selection::Field { field } -> answer(projected)
@@ -231,13 +225,13 @@ crashes Trap
 }
 
 // How many index steps a place expression takes from its root.
-public machine Checker::index_steps(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
+public machine index_steps(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> step(syntax, handle, 0, 0) }
 
     machine step(syntax: &SyntaxTrees, node: u64 in Trapping, steps: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
-        let expression: Expression = SyntaxTrees::expression(syntax, node);
+        let expression: Expression = syntax_trees_expression(syntax, node);
         transition walked < 64 && (expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index) {
             true -> inner(syntax, expression, steps, walked)
             _ -> answer(steps)
@@ -258,13 +252,13 @@ crashes Trap
 
 // How many field steps lie between a place expression and its root; an
 // index is transparent.
-public machine Checker::place_depth(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
+public machine place_depth(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> step(syntax, handle, 0, 0) }
 
     machine step(syntax: &SyntaxTrees, node: u64 in Trapping, depth: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
-        let expression: Expression = SyntaxTrees::expression(syntax, node);
+        let expression: Expression = syntax_trees_expression(syntax, node);
         transition walked < 64 && (expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index) {
             true -> inner(syntax, expression, depth, walked)
             _ -> answer(depth)
@@ -285,13 +279,13 @@ crashes Trap
 
 // The place `steps` field steps above `handle` toward its root, past
 // indexes.
-machine Checker::place_ancestor(syntax: &SyntaxTrees, handle: u64 in Trapping, steps: u64 in Trapping) -> u64 in Trapping
+machine place_ancestor(syntax: &SyntaxTrees, handle: u64 in Trapping, steps: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> step(syntax, handle, steps, 0) }
 
     machine step(syntax: &SyntaxTrees, node: u64 in Trapping, remaining: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
-        let expression: Expression = SyntaxTrees::expression(syntax, node);
+        let expression: Expression = syntax_trees_expression(syntax, node);
         transition remaining > 0 && walked < 64 {
             true -> inner(syntax, node, expression, remaining, walked)
             _ -> answer(node)
@@ -315,14 +309,14 @@ crashes Trap
 // field at every step and alike indexes, down to the same root, which a
 // reference may lie above when `through` holds. Indexes are alike unless
 // both are integer literals of different values.
-machine Checker::same_field_path(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping, through: bool) -> bool
+machine same_field_path(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping, through: bool) -> bool
 crashes Trap
 {
     transition { _ -> step(syntax, resolution, typing, left, right, through, 0) }
 
     machine step(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping, through: bool, walked: u64 in Trapping) -> bool {
-        let left_expression: Expression = SyntaxTrees::expression(syntax, left);
-        let right_expression: Expression = SyntaxTrees::expression(syntax, right);
+        let left_expression: Expression = syntax_trees_expression(syntax, left);
+        let right_expression: Expression = syntax_trees_expression(syntax, right);
         let both_indexes: bool = left_expression.kind == ExpressionKind::Index && right_expression.kind == ExpressionKind::Index;
         transition both_indexes && walked < 64 {
             true -> indexes(syntax, resolution, typing, left_expression, right_expression, through, walked)
@@ -339,7 +333,7 @@ crashes Trap
         through: bool,
         walked: u64 in Trapping
     ) -> bool {
-        let distinct: bool = Checker::distinct_indexes(syntax, typing, left_expression.right, right_expression.right);
+        let distinct: bool = distinct_indexes(syntax, typing, left_expression.right, right_expression.right);
         transition distinct {
             true -> answer(false)
             _ -> step(syntax, resolution, typing, left_expression.left, right_expression.left, through, walked + 1)
@@ -347,10 +341,10 @@ crashes Trap
     }
 
     machine unindexed(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping, through: bool, walked: u64 in Trapping) -> bool {
-        let left_node: u64 in Trapping = Checker::skip_indexes(syntax, left);
-        let right_node: u64 in Trapping = Checker::skip_indexes(syntax, right);
-        let left_expression: Expression = SyntaxTrees::expression(syntax, left_node);
-        let right_expression: Expression = SyntaxTrees::expression(syntax, right_node);
+        let left_node: u64 in Trapping = skip_indexes(syntax, left);
+        let right_node: u64 in Trapping = skip_indexes(syntax, right);
+        let left_expression: Expression = syntax_trees_expression(syntax, left_node);
+        let right_expression: Expression = syntax_trees_expression(syntax, right_node);
         let both_fields: bool = left_expression.kind == ExpressionKind::Field && right_expression.kind == ExpressionKind::Field;
         transition both_fields && walked < 64 {
             true -> fields(syntax, resolution, typing, left_node, right_node, left_expression, right_expression, through, walked)
@@ -369,8 +363,8 @@ crashes Trap
         through: bool,
         walked: u64 in Trapping
     ) -> bool {
-        let left_field: u64 in Trapping = Checker::selected_field(typing, left_node);
-        let right_field: u64 in Trapping = Checker::selected_field(typing, right_node);
+        let left_field: u64 in Trapping = selected_field(typing, left_node);
+        let right_field: u64 in Trapping = selected_field(typing, right_node);
         transition left_field == right_field {
             true -> step(syntax, resolution, typing, left_expression.left, right_expression.left, through, walked + 1)
             _ -> answer(false)
@@ -378,10 +372,10 @@ crashes Trap
     }
 
     machine roots(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left_node: u64 in Trapping, right_node: u64 in Trapping, through: bool) -> bool {
-        let left_root: u64 in Trapping = Checker::path_root(syntax, resolution, typing, left_node, through);
-        let right_root: u64 in Trapping = Checker::path_root(syntax, resolution, typing, right_node, through);
-        let left_expression: Expression = SyntaxTrees::expression(syntax, left_node);
-        let right_expression: Expression = SyntaxTrees::expression(syntax, right_node);
+        let left_root: u64 in Trapping = path_root(syntax, resolution, typing, left_node, through);
+        let right_root: u64 in Trapping = path_root(syntax, resolution, typing, right_node, through);
+        let left_expression: Expression = syntax_trees_expression(syntax, left_node);
+        let right_expression: Expression = syntax_trees_expression(syntax, right_node);
         let same: bool = left_expression.kind == ExpressionKind::Name && right_expression.kind == ExpressionKind::Name
             && left_root > 0 && left_root == right_root;
         transition { _ -> answer(same) }
@@ -393,11 +387,11 @@ crashes Trap
 }
 
 // Whether two index operands are integer literals of different values.
-public machine Checker::distinct_indexes(syntax: &SyntaxTrees, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping) -> bool
+public machine distinct_indexes(syntax: &SyntaxTrees, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping) -> bool
 crashes Trap
 {
-    let left_expression: Expression = SyntaxTrees::expression(syntax, left);
-    let right_expression: Expression = SyntaxTrees::expression(syntax, right);
+    let left_expression: Expression = syntax_trees_expression(syntax, left);
+    let right_expression: Expression = syntax_trees_expression(syntax, right);
     let literals: bool = left_expression.kind == ExpressionKind::Integer && right_expression.kind == ExpressionKind::Integer;
     transition literals {
         true -> compared(typing, left, right)
@@ -405,10 +399,10 @@ crashes Trap
     }
 
     machine compared(typing: &Typing, left: u64 in Trapping, right: u64 in Trapping) -> bool {
-        let left_value: ExactInteger = Typing::value(typing, left);
-        let right_value: ExactInteger = Typing::value(typing, right);
-        let below: bool = ExactInteger::at_most(left_value, right_value);
-        let above: bool = ExactInteger::at_most(right_value, left_value);
+        let left_value: ExactInteger = typing_value(typing, left);
+        let right_value: ExactInteger = typing_value(typing, right);
+        let below: bool = exact_integer_at_most(left_value, right_value);
+        let above: bool = exact_integer_at_most(right_value, left_value);
         let distinct: bool = !(below && above);
         transition { _ -> answer(distinct) }
     }
@@ -419,13 +413,13 @@ crashes Trap
 }
 
 // The node below any indexes at `handle`.
-machine Checker::skip_indexes(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
+machine skip_indexes(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> step(syntax, handle, 0) }
 
     machine step(syntax: &SyntaxTrees, node: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
-        let expression: Expression = SyntaxTrees::expression(syntax, node);
+        let expression: Expression = syntax_trees_expression(syntax, node);
         transition expression.kind == ExpressionKind::Index && walked < 64 {
             true -> step(syntax, expression.left, walked + 1)
             _ -> answer(node)
@@ -438,10 +432,10 @@ crashes Trap
 }
 
 // The field a field expression selects, plus one; zero for any other.
-machine Checker::selected_field(typing: &Typing, node: u64 in Trapping) -> u64 in Trapping
+machine selected_field(typing: &Typing, node: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    let selection: Selection = Typing::selection(typing, node);
+    let selection: Selection = typing_selection(typing, node);
     transition selection {
         Selection::Field { field } -> answer(field + 1)
         _ -> answer(0)
@@ -461,15 +455,15 @@ public data PlaceRelation [copy] {
 }
 
 // How a used place relates to a moved one, owned roots only.
-public machine Checker::place_relation(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, used: u64 in Trapping, moved: u64 in Trapping) -> PlaceRelation
+public machine place_relation(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, used: u64 in Trapping, moved: u64 in Trapping) -> PlaceRelation
 crashes Trap
 {
-    Checker::path_relation(syntax, resolution, typing, used, moved, false)
+    path_relation(syntax, resolution, typing, used, moved, false)
 }
 
 // How two places relate, their roots reached through references when
 // `through` holds.
-public machine Checker::path_relation(
+public machine path_relation(
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
     typing: &Typing,
@@ -479,10 +473,10 @@ public machine Checker::path_relation(
 ) -> PlaceRelation
 crashes Trap
 {
-    let used_root: u64 in Trapping = Checker::path_root(syntax, resolution, typing, used, through);
-    let other_root: u64 in Trapping = Checker::path_root(syntax, resolution, typing, other, through);
-    let used_depth: u64 in Trapping = Checker::place_depth(syntax, used);
-    let other_depth: u64 in Trapping = Checker::place_depth(syntax, other);
+    let used_root: u64 in Trapping = path_root(syntax, resolution, typing, used, through);
+    let other_root: u64 in Trapping = path_root(syntax, resolution, typing, other, through);
+    let used_depth: u64 in Trapping = place_depth(syntax, used);
+    let other_depth: u64 in Trapping = place_depth(syntax, other);
     transition used_root > 0 && used_root == other_root {
         true -> rooted(syntax, resolution, typing, used, other, used_depth, other_depth, through)
         _ -> answer(PlaceRelation::Apart)
@@ -513,8 +507,8 @@ crashes Trap
         steps: u64 in Trapping,
         through: bool
     ) -> PlaceRelation {
-        let ancestor: u64 in Trapping = Checker::place_ancestor(syntax, used, steps);
-        let same: bool = Checker::same_field_path(syntax, resolution, typing, ancestor, other, through);
+        let ancestor: u64 in Trapping = place_ancestor(syntax, used, steps);
+        let same: bool = same_field_path(syntax, resolution, typing, ancestor, other, through);
         transition same {
             true -> answer(PlaceRelation::Inside)
             _ -> answer(PlaceRelation::Apart)
@@ -530,8 +524,8 @@ crashes Trap
         steps: u64 in Trapping,
         through: bool
     ) -> PlaceRelation {
-        let ancestor: u64 in Trapping = Checker::place_ancestor(syntax, other, steps);
-        let same: bool = Checker::same_field_path(syntax, resolution, typing, used, ancestor, through);
+        let ancestor: u64 in Trapping = place_ancestor(syntax, other, steps);
+        let same: bool = same_field_path(syntax, resolution, typing, used, ancestor, through);
         transition same {
             true -> answer(PlaceRelation::Encloses)
             _ -> answer(PlaceRelation::Apart)
@@ -548,17 +542,17 @@ crashes Trap
 // Whether a place is, or is reached through, a write-only reference: the
 // place itself, or a field (a `.len` selection reads metadata, not the
 // referent) or element base along its path, of type `&write T`.
-public machine Checker::through_write_only(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
+public machine through_write_only(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> step(syntax, typing, handle, 0) }
 
     machine step(syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, walked: u64 in Trapping) -> bool {
-        let expression: Expression = SyntaxTrees::expression(syntax, node);
-        let node_type: u64 in Trapping = Typing::expression_type(typing, node);
-        let row: TypeRow = TypeTable::row(&typing.types, node_type);
+        let expression: Expression = syntax_trees_expression(syntax, node);
+        let node_type: u64 in Trapping = typing_expression_type(typing, node);
+        let row: TypeRow = type_table_row(&typing.types, node_type);
         let write_only: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::WriteOnly;
-        let field: bool = Checker::field_place(typing, node, expression);
+        let field: bool = field_place(typing, node, expression);
         let projected: bool = field || expression.kind == ExpressionKind::Index;
         transition write_only {
             true -> answer(true)
@@ -578,13 +572,13 @@ crashes Trap
     }
 }
 
-public machine Checker::borrowed_place(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
+public machine borrowed_place(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> step(syntax, typing, handle, 0) }
 
     machine step(syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, walked: u64 in Trapping) -> bool {
-        let expression: Expression = SyntaxTrees::expression(syntax, node);
+        let expression: Expression = syntax_trees_expression(syntax, node);
         let projected: bool = expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index;
         transition projected && walked < 64 {
             true -> base(syntax, typing, expression.left, walked)
@@ -593,8 +587,8 @@ crashes Trap
     }
 
     machine base(syntax: &SyntaxTrees, typing: &Typing, base: u64 in Trapping, walked: u64 in Trapping) -> bool {
-        let base_type: u64 in Trapping = Typing::expression_type(typing, base);
-        let row: TypeRow = TypeTable::row(&typing.types, base_type);
+        let base_type: u64 in Trapping = typing_expression_type(typing, base);
+        let row: TypeRow = type_table_row(&typing.types, base_type);
         transition row.kind == TypeKind::Reference {
             true -> answer(true)
             _ -> step(syntax, typing, base, walked + 1)
@@ -608,7 +602,7 @@ crashes Trap
 
 // Whether two place expressions name one place: one root, one depth and the
 // same field at every step.
-public machine Checker::same_owned_place(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping) -> bool
+public machine same_owned_place(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping) -> bool
 crashes Trap
 {
     transition left == right {
@@ -617,9 +611,9 @@ crashes Trap
     }
 
     machine compared(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping) -> bool {
-        let relation: PlaceRelation = Checker::place_relation(syntax, resolution, typing, left, right);
-        let left_depth: u64 in Trapping = Checker::place_depth(syntax, left);
-        let right_depth: u64 in Trapping = Checker::place_depth(syntax, right);
+        let relation: PlaceRelation = place_relation(syntax, resolution, typing, left, right);
+        let left_depth: u64 in Trapping = place_depth(syntax, left);
+        let right_depth: u64 in Trapping = place_depth(syntax, right);
         let same: bool = relation == PlaceRelation::Inside && left_depth == right_depth;
         transition { _ -> answer(same) }
     }

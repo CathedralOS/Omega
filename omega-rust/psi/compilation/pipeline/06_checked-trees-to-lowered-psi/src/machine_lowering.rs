@@ -825,7 +825,9 @@ pub(crate) mod debug_map {
                 id,
                 origin: match source_file.origin {
                     source::SourceOrigin::User => DebugSourceOrigin::User,
-                    source::SourceOrigin::Toolchain => DebugSourceOrigin::Toolchain,
+                    source::SourceOrigin::Toolchain | source::SourceOrigin::ToolchainContract => {
+                        DebugSourceOrigin::Toolchain
+                    }
                 },
                 byte_len: u64::try_from(source_file.source.len())
                     .map_err(|_| LoweringError::DebugSourceLengthOverflow)?,

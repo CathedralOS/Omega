@@ -8,6 +8,7 @@
 // `Build` capture to a sealed `Product` owner via `seal_product_owner` or
 // `join_package_inputs` and recreating fresh consumer cohorts via `reselect_current_sources`.
 
+use super::LogicalSourceDiscovery as _;
 use arena::Arena;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -29,15 +30,16 @@ pub(crate) struct SourceStorage {
     default_package_identity: Option<PackageKeyIdentity>, // Bound `PackageKeyIdentity` (`None` while an anonymous Build is unbound).
     anonymous_capture: Option<std::sync::Arc<source::CapturedSourceTree>>, // Unbound standalone source capture tree.
     anonymous_core_capture: Option<(PathBuf, std::sync::Arc<source::CapturedSourceTree>)>, // Captured `core` dependency tree for standalone owner derivation.
-    package_roots: Vec<RegisteredPackageRoot>, // Reconciled package roots sorted longest-first.
-    toolchain_root: Option<PathBuf>,           // Bundled toolchain root (`omega` or `core`).
+    pub(crate) package_roots: Vec<RegisteredPackageRoot>, // Dense registered source-owner rows; inventories belong to their exact capture.
+    toolchain_root: Option<PathBuf>, // Bundled toolchain root (`omega` or `core`).
     pub toolchain_contract_custody: ToolchainContractCustody, // Closed toolchain contract roots and directories.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-struct RegisteredPackageRoot {
-    root: PathBuf,
-    identity: Option<PackageKeyIdentity>,
+pub(crate) struct RegisteredPackageRoot {
+    pub(crate) root: PathBuf,
+    pub(crate) identity: Option<PackageKeyIdentity>,
+    pub(crate) logical_inventory: Option<super::logical::LogicalSourceInventory>,
 }
 
 impl SourceStorage {
@@ -150,6 +152,32 @@ impl SourceStorage {
         &self.default_package_root
     }
 
+    /// Ordinary Product units share declarations with their authored module's
+    /// siblings. Build roots stay on their staged import continuation; compiler-
+    /// issued contract roots share only their own logical module cohort.
+    pub(crate) fn logical_siblings(
+        &mut self,
+        path: &Path,
+        scope: source::DependencyScope,
+    ) -> Result<Vec<(PathBuf, source::DependencyScope)>, Vec<Diagnostic>> {
+        if scope != source::DependencyScope::Product {
+            return Ok(Vec::new());
+        }
+        let (root, _, origin) = self.source_metadata(path, None);
+        if origin == source::SourceOrigin::Toolchain {
+            return Ok(Vec::new());
+        }
+        let excluded = self
+            .package_roots
+            .iter()
+            .filter(|package| package.root != root && package.root.starts_with(&root))
+            .map(|package| package.root.clone())
+            .collect();
+        self.package_roots
+            .siblings(&root, path, &self.filesystem, excluded)
+            .map(|paths| paths.into_iter().map(|path| (path, scope)).collect())
+    }
+
     pub fn prepare(
         root_path: &Path,
         package_inputs: Option<&crate::PackageCompilationInputs>,
@@ -248,17 +276,16 @@ impl SourceStorage {
             .validate_unbound_source_join(&self.default_package_root, capture)
             .map_err(refuse)?;
         let mut filesystem = inputs.source_filesystem().clone();
-        if let Some((root, tree)) = &self.anonymous_core_capture
-            && *root != self.default_package_root
-        {
-            filesystem
-                .add_capture(root.clone(), tree.clone())
-                .map_err(|error| {
-                    refuse(format!(
-                        "cannot retain Build core capture at Product join: {error}"
-                    ))
-                })?;
-        }
+        self.require_disjoint_contract_packages(inputs)?;
+        // A resumed Build retains the exact core and closed-contract snapshots
+        // it already consumed. Source availability does not grant package edges.
+        filesystem
+            .join_captures(&self.filesystem)
+            .map_err(|error| {
+                refuse(format!(
+                    "cannot retain source captures at Product join: {error}"
+                ))
+            })?;
         for file in self
             .sources
             .selected_files()
@@ -455,19 +482,88 @@ impl SourceStorage {
         self.register_package_source(package_root, Some(identity));
     }
 
+    pub(crate) fn capture_toolchain_contract(
+        &mut self,
+        root: &Path,
+    ) -> Result<PathBuf, Vec<Diagnostic>> {
+        let refuse = |error| {
+            vec![Diagnostic::error(format!(
+                "cannot capture closed toolchain contract {}: {error}",
+                root.display()
+            ))]
+        };
+        let root = self
+            .filesystem
+            .canonicalize(root)
+            .map_err(|error| refuse(error.to_string()))?;
+        let overlaps = |package: &Path| root.starts_with(package) || package.starts_with(&root);
+        if (!self.default_package_root.as_os_str().is_empty()
+            && overlaps(&self.default_package_root))
+            || self
+                .package_roots
+                .iter()
+                .any(|package| package.identity.is_some() && overlaps(&package.root))
+        {
+            return Err(refuse(
+                "closed contract root overlaps an authored package owner".to_owned(),
+            ));
+        }
+        if self.filesystem.has_captured_namespace(&root) {
+            if !self.filesystem.is_dir(&root) {
+                return Err(refuse(
+                    "retained contract root is not a directory".to_owned(),
+                ));
+            }
+            return Ok(root);
+        }
+        let capture = package_source::local::operations::capture_local_source_input(
+            root,
+            package_source::LocalSourceLimits::default(),
+        )
+        .map_err(|error| refuse(error.to_string()))?;
+        let root = capture.canonical_live_root().to_path_buf();
+        self.filesystem
+            .add_capture(root.clone(), capture.tree().clone())
+            .map_err(|error| refuse(error.to_string()))?;
+        Ok(root)
+    }
+
+    pub(crate) fn require_disjoint_contract_packages(
+        &self,
+        inputs: &crate::PackageCompilationInputs,
+    ) -> Result<(), Vec<Diagnostic>> {
+        for (_, package) in inputs.packages() {
+            for contract in self
+                .toolchain_contract_custody
+                .roots
+                .values()
+                .chain(self.toolchain_contract_custody.dirs.iter())
+            {
+                if package.starts_with(contract) || contract.starts_with(package) {
+                    return Err(vec![Diagnostic::error(format!(
+                        "package source {} overlaps already-issued closed contract {}",
+                        package.display(),
+                        contract.display()
+                    ))]);
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn register_toolchain_contract_root(
         &mut self,
         path: PathBuf,
         contract_root: PathBuf,
     ) {
-        self.toolchain_contract_custody.roots.insert(
-            normalize_directory(path),
-            normalize_directory(contract_root),
-        );
+        // These coordinates were issued by the retained source namespace;
+        // reopening a changed host symlink would replace that custody.
+        self.toolchain_contract_custody
+            .roots
+            .insert(path, contract_root);
     }
 
     pub(crate) fn register_toolchain_contract_dir(&mut self, root: PathBuf) {
-        let root = normalize_directory(root);
         if !self.toolchain_contract_custody.dirs.contains(&root) {
             self.toolchain_contract_custody.dirs.push(root);
             self.toolchain_contract_custody
@@ -491,11 +587,18 @@ impl SourceStorage {
                 .canonicalize(&package_root)
                 .unwrap_or(package_root),
             identity,
+            logical_inventory: None,
         };
-        if !self.package_roots.contains(&package_root) {
+        if let Some(owner) = self
+            .package_roots
+            .iter_mut()
+            .find(|owner| owner.root == package_root.root)
+        {
+            if owner.identity.is_none() {
+                owner.identity = identity;
+            }
+        } else {
             self.package_roots.push(package_root);
-            self.package_roots
-                .sort_by_key(|registered| std::cmp::Reverse(registered.root.components().count()));
         }
     }
 
@@ -548,7 +651,11 @@ impl SourceStorage {
         origin_override: Option<SourceOrigin>,
     ) -> (PathBuf, Option<PackageKeyIdentity>, SourceOrigin) {
         if let Some(contract_root) = self.toolchain_contract_custody.root_for(path) {
-            return (contract_root.to_path_buf(), None, SourceOrigin::Toolchain);
+            return (
+                contract_root.to_path_buf(),
+                None,
+                SourceOrigin::ToolchainContract,
+            );
         }
         if let Some(toolchain_root) = &self.toolchain_root
             && path.starts_with(toolchain_root)
@@ -583,7 +690,8 @@ impl SourceStorage {
         let package = self
             .package_roots
             .iter()
-            .find(|package| path.starts_with(&package.root));
+            .filter(|package| path.starts_with(&package.root))
+            .max_by_key(|package| package.root.components().count());
         match package {
             Some(package) => (package.root.clone(), package.identity, SourceOrigin::User),
             None => (
@@ -806,6 +914,139 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn issued_contract_roots_keep_their_role_and_only_expand_product_siblings() {
+        use source::{CapturedSourceNode, CapturedSourceTree, SourceFileSystem};
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("contract-test-capture");
+        let entry = root.join("entry.omg");
+        let mut entries = std::collections::BTreeMap::new();
+        for (name, body) in [
+            ("entry.omg", "public data Entry {}"),
+            ("sibling.omg", "data PrivateSibling {}"),
+            ("other.omg", "module other; public data Other {}"),
+            ("build.omg", "machine build() {}"),
+        ] {
+            entries.insert(
+                PathBuf::from(name),
+                CapturedSourceNode::File {
+                    bytes: Arc::from(body.as_bytes()),
+                    executable: false,
+                },
+            );
+        }
+        let mut filesystem = SourceFileSystem::new();
+        filesystem
+            .add_capture(
+                root.clone(),
+                Arc::new(CapturedSourceTree::new(entries).unwrap()),
+            )
+            .unwrap();
+        let mut storage = SourceStorage {
+            filesystem,
+            ..SourceStorage::default()
+        };
+        storage.register_toolchain_contract_dir(root.clone());
+        assert_eq!(
+            storage.source_metadata(&entry, None),
+            (root.clone(), None, SourceOrigin::ToolchainContract)
+        );
+        assert_eq!(
+            storage
+                .source_metadata(&entry, Some(SourceOrigin::Toolchain))
+                .2,
+            SourceOrigin::ToolchainContract
+        );
+        assert!(
+            storage
+                .logical_siblings(&entry, DependencyScope::Build)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            storage
+                .logical_siblings(&entry, DependencyScope::Product)
+                .unwrap(),
+            vec![
+                (entry, DependencyScope::Product),
+                (root.join("sibling.omg"), DependencyScope::Product),
+            ]
+        );
+    }
+
+    #[test]
+    fn product_join_retains_closed_contract_capture_and_refuses_owner_shadowing() {
+        use crate::{BuildDeclarationKind, PackageCompilationInputs, PackageSourceBinding};
+        use source::{CapturedSourceNode, CapturedSourceTree};
+        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("contract-join-capture");
+        let application = base.join("application");
+        let contract = base.join("std");
+        let tree = |text: &str| {
+            Arc::new(
+                CapturedSourceTree::new([(
+                    PathBuf::from("main.omg"),
+                    CapturedSourceNode::File {
+                        bytes: Arc::from(text.as_bytes()),
+                        executable: false,
+                    },
+                )])
+                .unwrap(),
+            )
+        };
+        let authored = tree("machine main() {}");
+        let closed = tree("public data Original {}");
+        let identity = semantic_vocabulary::PackageKeyIdentity::from_digest([97; 32]).unwrap();
+        let graph = |root: PathBuf, source: Arc<CapturedSourceTree>| {
+            PackageCompilationInputs::new(
+                identity,
+                BuildDeclarationKind::Package,
+                vec![
+                    PackageSourceBinding::new(identity, "fixture", root)
+                        .with_captured_source(source)
+                        .unwrap(),
+                ],
+                Vec::new(),
+            )
+            .unwrap()
+        };
+        let mut storage = SourceStorage {
+            default_package_root: application.clone(),
+            anonymous_capture: Some(authored.clone()),
+            ..SourceStorage::default()
+        };
+        storage
+            .filesystem
+            .add_capture(application.clone(), authored.clone())
+            .unwrap();
+        storage
+            .filesystem
+            .add_capture(contract.clone(), closed.clone())
+            .unwrap();
+        storage.register_toolchain_contract_dir(contract.clone());
+        for conflicting in [base, contract.clone(), contract.join("nested")] {
+            assert!(
+                storage
+                    .require_disjoint_contract_packages(&graph(conflicting, closed.clone()))
+                    .is_err()
+            );
+        }
+        storage
+            .join_package_inputs(&graph(application.clone(), authored))
+            .unwrap();
+        assert!(storage.capture_toolchain_contract(&application).is_err());
+        assert_eq!(
+            storage
+                .filesystem
+                .read_to_string(&contract.join("main.omg"))
+                .unwrap()
+                .as_ref(),
+            "public data Original {}"
+        );
+        assert_eq!(
+            storage.source_metadata(&contract.join("main.omg"), None).2,
+            SourceOrigin::ToolchainContract
+        );
     }
 
     #[test]

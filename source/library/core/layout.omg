@@ -16,8 +16,6 @@
 // carriers remain only where a value is genuinely signed or an explicitly
 // retained sentinel requires one.
 
-use omega::language::core::option;
-use omega::language::core::extent;
 
 // One field of a schema, target-resolved by the compiler: byte size,
 // alignment, shape, and declared identity (-1 in the numeric mirror when

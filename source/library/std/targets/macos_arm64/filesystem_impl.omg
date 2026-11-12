@@ -2,12 +2,9 @@
 // values follow the SDK's sys/stat.h, sys/fcntl.h and sys/dirent.h; the
 // complete raw provider supplies negative errno, never retained libc state.
 // Application data holds no carrier; callers invoke `FilesystemService` requirements directly.
-use omega::language::core::filesystem_authority;
-use omega::language::core::layout;
-use omega::language::core::numeric_conversion;
-use filesystem;
-use posix_filesystem_adapter;
-use targets::macos_arm64::filesystem_abi;
+use omega::language::core::widen_u32_to_u64;
+use omega::language::core::narrow_i32_to_u32_wrapping;
+use omega::language::core::narrow_i64_to_u64_exact;
 
 // Indexed byte recasts retain the enclosing 144-byte region; the target
 // footprint is checked against that complete backing, including padding.

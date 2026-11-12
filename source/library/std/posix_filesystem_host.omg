@@ -1,4 +1,9 @@
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 // The raw POSIX filesystem service: one boundary trait for the operating
 // systems whose filesystem is the POSIX descriptor surface (Linux, macOS).
 // Platform services (wiki/spec/build/platform_services.md) give every
@@ -19,11 +24,7 @@ use omega::language::core::filesystem_authority;
 //   so no provider keeps error state between calls and there is no separate
 //   `errno` operation. Flag and mode values are the target's own constants,
 //   passed through unchanged.
-use filesystem_host;
 
-use targets::macos_arm64::posix_filesystem_impl;
-use targets::linux_x86_64::posix_filesystem_impl;
-use targets::linux_arm64::posix_filesystem_impl;
 
 // The native provider: one nominal type whose target-scoped bodies realize
 // the service on each POSIX target.

@@ -17,8 +17,8 @@
 // x86-64 sibling waits with `poll` and a signed millisecond count — exactly
 // the split the two `clock_impl.omg` files already make.
 //
-use omega::language::core::numeric_conversion;
-use time_host;
+use omega::language::core::widen_u32_to_i64;
+use omega::language::core::narrow_i64_to_u64_saturating;
 
 // The kernel's 64-bit timespec, in declaration order; both fields are signed.
 // One record serves the read out-parameter and the sleep in-parameter.

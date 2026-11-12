@@ -2,8 +2,6 @@
 // borrowed formal: pointer then extent occupy two consecutive native words.
 // Scalar and sized-reference formals occupy one word. This policy is opt-in;
 // it neither changes the default slice ABI nor grants access beyond the view.
-use calling;
-use darwin_calling;
 
 public LinuxArm64ByteViewCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {

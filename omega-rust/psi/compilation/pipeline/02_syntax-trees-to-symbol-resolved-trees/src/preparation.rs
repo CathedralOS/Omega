@@ -320,18 +320,7 @@ pub(crate) mod declaration_selection {
                 {
                     continue;
                 }
-                let module = self.symbols.symbol_module(symbol);
-                let exposed = !module.is_valid()
-                    || self.symbols.source_module(reference.source_id) == module
-                    || self
-                        .symbols
-                        .source_module_import_paths(reference.source_id)
-                        .any(|path| {
-                            matches!(
-                                self.symbols.source_module_import_target(reference.source_id, path),
-                                Some(target) if target == symbol || target == module
-                            )
-                        });
+                let exposed = self.symbols.source_domain_is_exposed(reference, symbol);
                 if !exposed {
                     continue;
                 }
@@ -400,14 +389,16 @@ pub(crate) mod declaration_selection {
             if selects_family(&address) {
                 return Some(address);
             }
-            let module = self.symbols.symbol_module(first);
             for path in self.symbols.source_module_import_paths(reference.source_id) {
                 let target = self
                     .symbols
                     .source_module_import_target(reference.source_id, path);
                 let address = if target == Some(first) {
                     path.to_owned()
-                } else if module.is_valid() && target == Some(module) {
+                } else if self
+                    .symbols
+                    .source_import_exposes_domain(reference, path, first)
+                {
                     format!("{path}::{leaf}")
                 } else {
                     continue;

@@ -1,12 +1,13 @@
 // Linux x86-64 ABI facts; the POSIX algorithms live in the shared adapter.
-use omega::language::core::filesystem_authority;
-use omega::language::core::layout;
-use omega::language::core::numeric_conversion;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
+use omega::language::core::narrow_i64_to_u64_exact;
 
-use filesystem;
-use posix_filesystem_adapter;
-use posix_filesystem_host;
-use filesystem_host;
 
 StatLayout satisfies FixedLayout<StatRecord> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan

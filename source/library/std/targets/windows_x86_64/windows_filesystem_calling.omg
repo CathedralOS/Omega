@@ -4,7 +4,6 @@
 // low DWORD equals the complete semantic extent, without a truncating ABI.
 // Handle, count-output pointer and null OVERLAPPED retain their ordered slots.
 // This plan supplies representation, never storage authority or completion.
-use calling;
 
 public WindowsFilesystemTransferCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {

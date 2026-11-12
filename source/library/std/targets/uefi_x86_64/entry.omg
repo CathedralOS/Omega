@@ -1,6 +1,5 @@
-use omega::language::core::extent;
-use omega::language::core::program_image;
-use calling;
+use omega::language::core::ProgramStorageEntry;
+use omega::language::core::ProgramImage;
 
 // Target-owned UEFI x86-64 physical contract. Source-owned firmware calls
 // obtain Loaded Image geometry; an application explicitly selects its checked

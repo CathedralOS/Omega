@@ -306,6 +306,7 @@ mod modules {
         pub(super) path: Arc<str>,
         package_prefix_members: usize,
         exact_source: bool,
+        logical_selection: bool,
     }
 
     impl SourceScopedTopLevelBinding {
@@ -328,9 +329,37 @@ mod modules {
                     path: Arc::from(authored_path),
                     package_prefix_members,
                     exact_source: true,
+                    logical_selection: false,
                 }),
                 producer: super::BindingProducer::Loader,
             }
+        }
+    }
+
+    impl SourceScopedTopLevelBinding {
+        /*
+            A logical import selects declarations across the admitted units of
+            one checked package. The loader supplies an anchor for that package;
+            its filename grants neither a namespace nor unqualified exposure.
+        */
+        pub fn logical_module_import(
+            reference_source: SourceId,
+            declaration_source: SourceId,
+            authored_path: &str,
+            package_prefix_members: usize,
+        ) -> Self {
+            let mut binding = Self::module_import(
+                reference_source,
+                declaration_source,
+                authored_path,
+                package_prefix_members,
+            );
+            binding
+                .module_import
+                .as_mut()
+                .expect("module import")
+                .logical_selection = true;
+            binding
         }
     }
 
@@ -462,8 +491,9 @@ mod modules {
         }
 
         /*
-            An imported source with an authored module must supply the exact
-            logical namespace or declaration requested by the import.
+            An authored logical import must select a unique declaration or
+            namespace in its certified checked package, including module-less
+            siblings. Exact-file inputs retain their existing file admission.
         */
         pub fn validate_source_module_import(
             &self,
@@ -488,6 +518,16 @@ mod modules {
                     continue;
                 }
                 selected_import = true;
+                if import.logical_selection {
+                    if !self.binding_imports_package_root(binding)
+                        && self.logical_import_targets(binding).is_empty()
+                    {
+                        return Err(format!(
+                            "import `{path}` does not select one declaration, callable family, or module in its checked package"
+                        ));
+                    }
+                    continue;
+                }
                 let module = self.source_module(binding.declaration_source);
                 if !module.is_valid() {
                     continue;
@@ -521,14 +561,31 @@ mod modules {
         }
 
         /*
-            Return the declaration selected by a validated module import. Legacy
-            file imports have no independently selected namespace declaration.
+            Return the declaration selected by a validated import. A package
+            root is a namespace, not a fabricated declaration. Exact-file inputs
+            likewise have no independently selected namespace declaration.
         */
         pub fn source_module_import_target(
             &self,
             reference_source: SourceId,
             path: &str,
         ) -> Option<SymbolHandle> {
+            unique(
+                self.source_module_import_targets(reference_source, path)
+                    .into_iter(),
+            )
+        }
+
+        /*
+            An imported callable name retains every overload, not an arbitrary
+            representative. Each member receives ordinary declaration custody;
+            call-site typing still selects its complete normalized signature.
+        */
+        pub fn source_module_import_targets(
+            &self,
+            reference_source: SourceId,
+            path: &str,
+        ) -> Vec<SymbolHandle> {
             for binding in self.source_scoped_bindings_for(reference_source) {
                 let Some(import) = &binding.module_import else {
                     continue;
@@ -536,9 +593,12 @@ mod modules {
                 if import.path.as_ref() != path {
                     continue;
                 }
+                if import.logical_selection {
+                    return self.logical_import_targets(binding);
+                }
                 if import.exact_source && !self.source_module(binding.declaration_source).is_valid()
                 {
-                    return None;
+                    return Vec::new();
                 }
                 let logical = logical_import_path(import);
                 return unique(
@@ -550,9 +610,63 @@ mod modules {
                             self.import_owner_matches(binding, *candidate)
                                 && self.indexed_display_path(*candidate) == logical.as_str()
                         }),
-                );
+                )
+                .into_iter()
+                .collect();
             }
-            None
+            Vec::new()
+        }
+
+        fn binding_imports_package_root(&self, binding: &SourceScopedTopLevelBinding) -> bool {
+            binding.module_import.as_ref().is_some_and(|import| {
+                import.logical_selection
+                    && import.package_prefix_members != 0
+                    && logical_import_path(import).is_empty()
+                    && self.source_binding_is_selected(binding)
+                    && self.sources.as_deref().is_some_and(|sources| {
+                        let span = source::Span::new(0, 1);
+                        sources.reference_can_see_declaration(
+                            SourceSpan::new(binding.reference_source, span),
+                            SourceSpan::new(binding.declaration_source, span),
+                        )
+                    })
+            })
+        }
+
+        fn logical_import_targets(
+            &self,
+            binding: &SourceScopedTopLevelBinding,
+        ) -> Vec<SymbolHandle> {
+            let Some(import) = &binding.module_import else {
+                return Vec::new();
+            };
+            let logical = logical_import_path(import);
+            if logical.is_empty() || !self.source_binding_is_selected(binding) {
+                return Vec::new();
+            }
+            let index = self.module_scope_index();
+            let Some(entries) = index.by_path.get(logical.as_str()) else {
+                return Vec::new();
+            };
+            let mut candidates = entries
+                .iter()
+                .filter_map(|(_, candidate)| {
+                    self.import_owner_matches(binding, *candidate)
+                        .then_some(*candidate)
+                })
+                .collect::<Vec<_>>();
+            candidates.dedup();
+            if candidates.len() > 1
+                && !candidates.iter().all(|candidate| {
+                    matches!(
+                        self.get(*candidate).kind,
+                        SymbolKind::Machine | SymbolKind::Operator
+                    )
+                })
+            {
+                return Vec::new();
+            }
+            candidates
         }
 
         pub fn source_module(&self, source: SourceId) -> SymbolHandle {
@@ -566,10 +680,16 @@ mod modules {
             &self,
             binding: &SourceScopedTopLevelBinding,
         ) -> bool {
-            self.sources.as_deref().is_none_or(|sources| {
-                sources.source_is_selected(binding.reference_source)
-                    && sources.source_is_selected(binding.declaration_source)
-            })
+            match self.sources.as_deref() {
+                Some(sources) => {
+                    sources.source_is_selected(binding.reference_source)
+                        && sources.source_is_selected(binding.declaration_source)
+                }
+                None => !binding
+                    .module_import
+                    .as_ref()
+                    .is_some_and(|import| import.logical_selection),
+            }
         }
 
         /*
@@ -615,8 +735,8 @@ mod modules {
             authored carrier to resolve to the exact carrier the declaring context
             attached the domain to -- importing the carrier type, an ordinary
             sibling declaration, or merely loading another source exposes nothing.
-            Unmoduled domains keep root scope; generated references carry no
-            lexical module and select only qualified or unmoduled domains.
+            Module-less domains belong to their checked package's root module;
+            merely loading a foreign root does not expose its domains.
             Resolution-stratum and package visibility stay with the caller.
         */
         pub fn domain_name_reaches(
@@ -627,7 +747,15 @@ mod modules {
         ) -> bool {
             let qualified = self.indexed_display_path(domain);
             if qualified.as_ref() == authored {
-                return true;
+                return if authored.contains("::") {
+                    self.find_top_level_by_name_and_kinds_from_source(
+                        authored,
+                        &[SymbolKind::Domain],
+                        reference,
+                    ) == Some(domain)
+                } else {
+                    self.source_domain_is_exposed(reference, domain)
+                };
             }
             let domain_name = self.name(domain);
             let domain_module = self.symbol_module(domain);
@@ -663,7 +791,8 @@ mod modules {
                 }
             }
             if !domain_module.is_valid() {
-                return same_semantic_name(domain_name, authored);
+                return same_semantic_name(domain_name, authored)
+                    && self.source_domain_is_exposed(reference, domain);
             }
             if reference.span.start == reference.span.end {
                 return false;
@@ -698,8 +827,7 @@ mod modules {
             authored: &str,
             reference: SourceSpan,
         ) -> bool {
-            let domain_module = self.symbol_module(domain);
-            if !domain_module.is_valid() || reference.span.start == reference.span.end {
+            if reference.span.start == reference.span.end {
                 return false;
             }
             let Some((declared_carrier, declared_leaf)) = self.name(domain).rsplit_once("::")
@@ -738,13 +866,7 @@ mod modules {
             {
                 return false;
             }
-            self.source_module_import_paths(reference.source_id)
-                .any(|path| {
-                    matches!(
-                        self.source_module_import_target(reference.source_id, path),
-                        Some(target) if target == domain || target == domain_module
-                    )
-                })
+            self.source_domain_is_exposed(reference, domain)
         }
 
         /*
@@ -769,9 +891,10 @@ mod modules {
                     let Some(import) = &binding.module_import else {
                         return false;
                     };
-                    (binding.declaration_source == declaration.source_id
+                    (self.import_owner_matches(binding, symbol)
                         && self.indexed_display_path(symbol) == logical_import_path(import))
                         || (import.exact_source
+                            && !import.logical_selection
                             && !self.source_module(declaration.source_id).is_valid()
                             && self.exact_import_exposes_source(
                                 binding.declaration_source,
@@ -809,6 +932,88 @@ mod modules {
                         SourceSpan::new(imported_source, declaration.span),
                     )
                 })
+        }
+
+        /*
+            Loading a package unit does not expose its domains. This shared
+            predicate follows the importing file's exact selection: a domain,
+            its declaring module, or the module-less package root. Visibility
+            and the attached carrier's authority remain checked at the use site.
+        */
+        pub fn source_import_exposes_domain(
+            &self,
+            reference: SourceSpan,
+            path: &str,
+            domain: SymbolHandle,
+        ) -> bool {
+            self.get(domain).kind == SymbolKind::Domain
+                && self.source_reference_can_see_symbol(reference, domain)
+                && self
+                    .source_scoped_bindings_for(reference.source_id)
+                    .iter()
+                    .any(|binding| {
+                        binding
+                            .module_import
+                            .as_ref()
+                            .is_some_and(|import| import.path.as_ref() == path)
+                            && self.binding_exposes_member(binding, domain)
+                    })
+        }
+
+        pub fn source_domain_is_exposed(
+            &self,
+            reference: SourceSpan,
+            domain: SymbolHandle,
+        ) -> bool {
+            if !self.source_reference_can_see_symbol(reference, domain) {
+                return false;
+            }
+            let module = self.symbol_module(domain);
+            let local = self
+                .symbol_provenance_source_span(domain)
+                .is_some_and(|span| {
+                    self.same_source_package(reference, span)
+                        && self.source_module(reference.source_id) == module
+                });
+            local
+                || (!module.is_valid() && self.is_ambient_toolchain_symbol(domain))
+                || self
+                    .source_module_import_paths(reference.source_id)
+                    .any(|path| self.source_import_exposes_domain(reference, path, domain))
+        }
+
+        pub(super) fn binding_exposes_member(
+            &self,
+            binding: &SourceScopedTopLevelBinding,
+            symbol: SymbolHandle,
+        ) -> bool {
+            let Some(import) = &binding.module_import else {
+                return false;
+            };
+            if !self.import_owner_matches(binding, symbol) {
+                return false;
+            }
+            if import.logical_selection {
+                if self.binding_imports_package_root(binding) {
+                    return !self.symbol_module(symbol).is_valid();
+                }
+                return self
+                    .logical_import_targets(binding)
+                    .into_iter()
+                    .any(|target| {
+                        target == symbol
+                            || (self.get(target).kind == SymbolKind::Module
+                                && self.symbol_module(symbol) == target)
+                    });
+            }
+            let module = self.source_module(binding.declaration_source);
+            if import.exact_source && !module.is_valid() {
+                return true;
+            }
+            let logical = logical_import_path(import);
+            self.indexed_display_path(symbol) == logical.as_str()
+                || (self.symbol_module(symbol).is_valid()
+                    && self.indexed_display_path(self.symbol_module(symbol)) == logical.as_str())
         }
 
         pub fn symbol_module(&self, symbol: SymbolHandle) -> SymbolHandle {
@@ -907,9 +1112,10 @@ mod modules {
 
         pub(super) fn has_namespace_context(&self, reference: SourceSpan) -> bool {
             self.source_file(reference).is_some_and(|file| {
-                file.origin == source::SourceOrigin::User
-                    && file.resolution_stratum
-                        != source::SourceResolutionStratum::CurrentActivationExtension
+                file.origin.is_toolchain()
+                    || (file.origin == source::SourceOrigin::User
+                        && file.resolution_stratum
+                            != source::SourceResolutionStratum::CurrentActivationExtension)
             }) || self.source_binding_index().has_selected_module
                 || self
                     .source_lookup_scope(reference.source_id)
@@ -969,6 +1175,7 @@ mod modules {
                         }
                         self.indexed_display_path(*candidate) == logical.as_str()
                             || (import.exact_source
+                                && !import.logical_selection
                                 && self.name(*candidate) == name
                                 && !self.source_module(binding.declaration_source).is_valid()
                                 && self.symbol_provenance_source_span(*candidate).is_some_and(
@@ -1004,7 +1211,7 @@ mod modules {
                 .filter(|candidate| {
                     self.name(*candidate) == name
                         && !self.symbol_module(*candidate).is_valid()
-                        && self.symbol_source_origin(*candidate) != Some(source::SourceOrigin::User)
+                        && self.is_ambient_toolchain_symbol(*candidate)
                 })
                 .collect()
         }
@@ -1017,6 +1224,20 @@ mod modules {
             let Some(import) = &binding.module_import else {
                 return false;
             };
+            if import.logical_selection {
+                let Some(declaration) = self.symbol_provenance_source_span(candidate) else {
+                    return false;
+                };
+                return self.source_binding_is_selected(binding)
+                    && self.same_source_package(
+                        declaration,
+                        SourceSpan::new(binding.declaration_source, declaration.span),
+                    )
+                    && self.source_reference_can_see_symbol(
+                        SourceSpan::new(binding.reference_source, declaration.span),
+                        candidate,
+                    );
+            }
             if !import.exact_source {
                 return self
                     .symbol_provenance_source_span(candidate)
@@ -1152,7 +1373,7 @@ mod modules {
                     && !is_module
                     && !self.symbol_module(candidate).is_valid()
                     && self.name(candidate) == name
-                    && self.symbol_source_origin(candidate) != Some(source::SourceOrigin::User);
+                    && self.is_ambient_toolchain_symbol(candidate);
                 let imported_path = import_bindings.iter().any(|scope| {
                     let binding = &source_scope.bindings[scope.binding_position];
                     let import = binding
@@ -1187,7 +1408,27 @@ mod modules {
                             && self.name(candidate) == name;
                     }
                     if candidate_path.as_deref() == Some(name) {
-                        return true;
+                        if !import.logical_selection {
+                            return true;
+                        }
+                        // A carrier spelling or raw module path does not supply
+                        // the dependency qualifier omitted by this occurrence.
+                        if candidate_kind == SymbolKind::Domain
+                            && !self.symbol_module(candidate).is_valid()
+                        {
+                            return self
+                                .carrier_qualified_domain_reaches(candidate, name, reference);
+                        }
+                        return self.binding_exposes_member(binding, candidate)
+                            || self
+                                .logical_import_targets(binding)
+                                .into_iter()
+                                .any(|target| {
+                                    self.get(target).kind == SymbolKind::Module
+                                        && name
+                                            .strip_prefix(logical)
+                                            .is_some_and(|suffix| suffix.starts_with("::"))
+                                });
                     }
                     if let Some(short) = logical.rsplit("::").next()
                         && name
@@ -1750,6 +1991,16 @@ mod source_queries {
                 return false;
             };
             sources.same_checked_instance(left, right)
+        }
+
+        // Installed core declarations and source-free builtin symbols are ambient.
+        // Loading a closed contract cohort grants its siblings local scope only.
+        pub(super) fn is_ambient_toolchain_symbol(&self, symbol: SymbolHandle) -> bool {
+            match self.symbol_source_origin(symbol) {
+                Some(SourceOrigin::Toolchain) => true,
+                None => self.symbol_provenance_source_span(symbol).is_none(),
+                Some(SourceOrigin::User | SourceOrigin::ToolchainContract) => false,
+            }
         }
 
         /*
@@ -3215,7 +3466,13 @@ impl SymbolTable {
             || self
                 .source_scoped_bindings_for(reference.source_id)
                 .iter()
-                .any(|binding| binding.declaration_source == declaration.source_id)
+                .any(|binding| {
+                    if binding.module_import.is_some() {
+                        self.binding_exposes_member(binding, symbol)
+                    } else {
+                        binding.declaration_source == declaration.source_id
+                    }
+                })
     }
 
     pub fn find_descendant_by_path<'name>(

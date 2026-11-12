@@ -3,10 +3,14 @@
 // 32-bit fields, unlike x86-64. Its reserved tail is not a birth timestamp.
 // Source: Linux v6.12 include/uapi/asm-generic/{stat,fcntl,errno-base,errno}.h;
 // glibc's AArch64 libc.abilist assigns these three imports GLIBC_2.17.
-use omega::language::core::layout;
-use omega::language::core::numeric_conversion;
-use filesystem;
-use posix_filesystem_adapter;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
+use omega::language::core::narrow_i64_to_u64_exact;
 
 data LinuxArm64StatRecord {
     dev: u64;

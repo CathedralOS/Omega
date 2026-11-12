@@ -1,11 +1,3 @@
-use psi::checking::checker;
-use psi::checking::evaluation;
-use psi::checking::facts;
-use psi::checking::flow;
-use psi::resolution::resolution;
-use psi::syntax::syntax;
-use psi::types::types;
-
 // Alias metadata follows the same branch lifetime as its zone. At a join
 // only associations valid on both reachable paths survive.
 public data AliasTable [copy] {
@@ -28,11 +20,11 @@ public data AliasTable [copy] {
 // The caller proves replayable before binding: evaluation changed no
 // storage, and the destination does not overwrite a read of this condition.
 // Later writes still retire aliases through forget_aliases below.
-public machine Checker::record_alias(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, place: u64 in Trapping, root: u64 in Trapping, value: Value, replayable: bool)
+public machine record_alias(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, place: u64 in Trapping, root: u64 in Trapping, value: Value, replayable: bool)
 crashes Trap
 {
-    let type_handle: u64 in Trapping = Typing::expression_type(typing, root);
-    let expression: Expression = SyntaxTrees::expression(syntax, root);
+    let type_handle: u64 in Trapping = typing_expression_type(typing, root);
+    let expression: Expression = syntax_trees_expression(syntax, root);
     transition replayable && place > 0 && type_handle == typing.boolean {
         true -> condition(checker, place, root, expression, value)
         _ -> done()
@@ -50,11 +42,11 @@ crashes Trap
     }
 
     machine own(checker: &mut Checker, place: u64 in Trapping, root: u64 in Trapping) {
-        Checker::add_alias(checker, place, root);
+        add_alias(checker, place, root);
     }
 
     machine copied(checker: &mut Checker, place: u64 in Trapping, value: Value) {
-        let condition: u64 in Trapping = Checker::alias_condition(checker, value.place);
+        let condition: u64 in Trapping = alias_condition(checker, value.place);
         transition condition > 0 {
             true -> chained(checker, place, condition - 1)
             _ -> done()
@@ -62,7 +54,7 @@ crashes Trap
     }
 
     machine chained(checker: &mut Checker, place: u64 in Trapping, condition: u64 in Trapping) {
-        Checker::add_alias(checker, place, condition);
+        add_alias(checker, place, condition);
     }
 
     machine done() {}
@@ -71,10 +63,10 @@ crashes Trap
 // At a statement-level dispatch or guard (never inside a tree, where the
 // replay would evaluate over it), a Boolean place, or its negation, assumed
 // to hold (or fail) assumes its alias's condition the same way.
-public machine Checker::assume_alias(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, holds: bool)
+public machine assume_alias(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, holds: bool)
 crashes Trap
 {
-    let expression: Expression = SyntaxTrees::expression(syntax, root);
+    let expression: Expression = syntax_trees_expression(syntax, root);
     let negated: bool = expression.kind == ExpressionKind::Unary && expression.operator == OperatorKind::Not;
     let fails: bool = !holds;
     transition negated {
@@ -83,8 +75,8 @@ crashes Trap
     }
 
     machine placed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, holds: bool) {
-        let value: Value = Checker::value_at(checker, node);
-        let condition: u64 in Trapping = Checker::alias_condition(checker, value.place);
+        let value: Value = value_at(checker, node);
+        let condition: u64 in Trapping = alias_condition(checker, value.place);
         transition condition > 0 {
             true -> aliased(checker, syntax, resolution, typing, condition - 1, holds)
             _ -> done()
@@ -92,8 +84,8 @@ crashes Trap
     }
 
     machine aliased(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, condition: u64 in Trapping, holds: bool) {
-        Checker::replay_tree(checker, syntax, resolution, typing, condition);
-        Checker::assume(checker, syntax, condition, holds);
+        replay_tree(checker, syntax, resolution, typing, condition);
+        assume(checker, syntax, condition, holds);
     }
 
     machine done() {}
@@ -101,7 +93,7 @@ crashes Trap
 
 // A Boolean subject's `true`/`false` arm assumes the subject's alias held or
 // failed as its literal says.
-public machine Checker::assume_subject_alias(
+public machine assume_subject_alias(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -112,7 +104,7 @@ public machine Checker::assume_subject_alias(
 )
 crashes Trap
 {
-    let written: Expression = SyntaxTrees::expression(syntax, arm.pattern);
+    let written: Expression = syntax_trees_expression(syntax, arm.pattern);
     let holds: bool = written.flag == chosen;
     transition arm.kind == ArmPatternKind::Literal && written.kind == ExpressionKind::Boolean {
         true -> literal(checker, syntax, resolution, typing, subject, holds)
@@ -120,14 +112,14 @@ crashes Trap
     }
 
     machine literal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, holds: bool) {
-        Checker::assume_alias(checker, syntax, resolution, typing, subject, holds);
+        assume_alias(checker, syntax, resolution, typing, subject, holds);
     }
 
     machine done() {}
 }
 
 // The condition `place` stands for, plus one; zero when it has none.
-public machine Checker::alias_condition(checker: &Checker, place: u64 in Trapping) -> u64 in Trapping
+public machine alias_condition(checker: &Checker, place: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition place > 0 {
@@ -161,10 +153,10 @@ crashes Trap
 
 // Bind `place` to `condition`, replacing its alias; a full table keeps
 // none, which only forgets facts.
-machine Checker::add_alias(checker: &mut Checker, place: u64 in Trapping, condition: u64 in Trapping)
+machine add_alias(checker: &mut Checker, place: u64 in Trapping, condition: u64 in Trapping)
 crashes Trap
 {
-    Checker::drop_aliases(checker, place, 0);
+    drop_aliases(checker, place, 0);
     transition checker.aliases.count < 16 {
         true -> write(checker, place, condition, checker.aliases.count)
         _ -> done()
@@ -184,15 +176,15 @@ crashes Trap
 
 // A written place forgets every alias it is, and every alias formed while it
 // existed, whose condition may read it.
-public machine Checker::forget_aliases(checker: &mut Checker, place: u64 in Trapping)
+public machine forget_aliases(checker: &mut Checker, place: u64 in Trapping)
 crashes Trap
 {
-    Checker::drop_aliases(checker, place, place);
+    drop_aliases(checker, place, place);
 }
 
 // Drop each alias of `place`, and with `older` nonzero each alias formed
 // while place `older` existed.
-machine Checker::drop_aliases(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping)
+machine drop_aliases(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping)
 crashes Trap
 {
     transition { _ -> next(checker, place, older, 0) }
@@ -243,23 +235,23 @@ crashes Trap
 // Copy only an existing, still-valid predicate association. This does not
 // turn an effectful expression into a replayable condition. Ordinary writes
 // retire the copied alias through its original live-place dependencies.
-public machine Checker::copy_alias(checker: &mut Checker, source: u64 in Trapping, target: u64 in Trapping)
+public machine copy_alias(checker: &mut Checker, source: u64 in Trapping, target: u64 in Trapping)
 crashes Trap
 {
-    let condition: u64 in Trapping = Checker::alias_condition(checker, source);
+    let condition: u64 in Trapping = alias_condition(checker, source);
     transition source != target && target > 0 && condition > 0 {
         true -> copied(checker, target, condition - 1)
         _ -> done()
     }
     machine copied(checker: &mut Checker, target: u64 in Trapping, condition: u64 in Trapping) {
-        Checker::add_alias(checker, target, condition);
+        add_alias(checker, target, condition);
     }
     machine done() {}
 }
 
 // Intersect associations by identity; an unreachable predecessor contributes
 // no constraint. Taking the larger limit remains conservative for later writes.
-public machine AliasTable::join(table: &mut AliasTable, other: &AliasTable, current_live: bool, other_live: bool)
+public machine alias_table_join(table: &mut AliasTable, other: &AliasTable, current_live: bool, other_live: bool)
 crashes Trap
 {
     transition other_live {

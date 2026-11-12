@@ -2886,4 +2886,163 @@ mod primitive_family_binding_tests {
             );
         }
     }
+
+    fn scoped_sources(
+        units: &[(&str, &str, source::DependencyScope, source::SourceOrigin)],
+    ) -> Result<symbol_resolved_trees::SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
+        let mut sources = source::SourceMap::default();
+        let mut syntax = syntax_trees::SyntaxTrees::default();
+        for (path, text, scope, origin) in units {
+            let path = std::path::PathBuf::from(path);
+            let root = path.parent().unwrap().to_path_buf();
+            let source = sources
+                .add_checked_instance(
+                    path,
+                    *text,
+                    root,
+                    None,
+                    *origin,
+                    source::SourceResolutionStratum::Base,
+                    *scope,
+                )
+                .source_id;
+            let tokens = Lexer::new(text).tokenize().unwrap();
+            let unit = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+            syntax.extend_from(&unit);
+        }
+        resolve(ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+    }
+
+    #[test]
+    fn domain_token_homes_keep_distinct_build_and_product_instances() {
+        use source::{DependencyScope, SourceOrigin};
+        let text = "domain<T, const U: u64> T::Quantity<U>;\n\
+            machine + Quantity::add(left: u32 in Quantity<1>, right: u32 in Quantity<1>) \
+            -> u32 in Quantity<1> { left }";
+        let program = scoped_sources(&[
+            (
+                "core/units.omg",
+                text,
+                DependencyScope::Build,
+                SourceOrigin::Toolchain,
+            ),
+            (
+                "core/units.omg",
+                text,
+                DependencyScope::Product,
+                SourceOrigin::Toolchain,
+            ),
+        ])
+        .unwrap();
+        let domains = program.domain_definitions.iter().collect::<Vec<_>>();
+        assert_eq!(domains.len(), 2);
+        assert_ne!(domains[0].symbol, domains[1].symbol);
+        for domain in domains {
+            assert_eq!(
+                domain.semantic_roles.denotation_dimension,
+                Some(domain.semantic_id)
+            );
+        }
+    }
+
+    #[test]
+    fn inactive_retained_token_bindings_do_not_rejoin_a_product_frontier() {
+        use source::{DependencyScope, SourceOrigin};
+        let text = "domain<T, const U: u64> T::Quantity<U>;\n\
+            machine + Quantity::add(left: u32 in Quantity<1>, right: u32 in Quantity<1>) \
+            -> u32 in Quantity<1> { left }";
+        let mut program = scoped_sources(&[
+            (
+                "core/units.omg",
+                text,
+                DependencyScope::Build,
+                SourceOrigin::Toolchain,
+            ),
+            (
+                "core/units.omg",
+                text,
+                DependencyScope::Product,
+                SourceOrigin::Toolchain,
+            ),
+        ])
+        .unwrap();
+        let mut sources = program.symbols.source_map().unwrap().as_ref().clone();
+        sources.retain_selected_sources(|file| file.dependency_scope == DependencyScope::Product);
+        program.symbols = program
+            .symbols
+            .begin_source_activation(std::sync::Arc::new(sources), Vec::new())
+            .unwrap()
+            .finish();
+        assert_eq!(
+            program
+                .machines
+                .iter()
+                .filter(|machine| program.symbols.symbol_source_is_selected(machine.symbol))
+                .count(),
+            1
+        );
+        super::reject_duplicate_direct_token_bindings(&program).unwrap();
+
+        // A newly selected binding still has to name its semantic home. The
+        // retained inactive copy must neither reject the valid twin nor supply
+        // missing qualification to the invalid one.
+        for qualified in [true, false] {
+            let suffix = if qualified { " in Quantity<1>" } else { "" };
+            let text = format!(
+                "machine - Quantity::subtract(left: u32{suffix}, right: u32{suffix}) -> u32{suffix} {{ left }}"
+            );
+            let mut sources = program.symbols.source_map().unwrap().as_ref().clone();
+            let source = sources
+                .add_checked_instance(
+                    "core/current.omg".into(),
+                    text.clone(),
+                    "core".into(),
+                    None,
+                    SourceOrigin::Toolchain,
+                    source::SourceResolutionStratum::Base,
+                    DependencyScope::Product,
+                )
+                .source_id;
+            let tokens = Lexer::new(&text).tokenize().unwrap();
+            let syntax =
+                tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+            let result = resolve(ResolutionRequest {
+                syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+                retained_base: Some(std::sync::Arc::new(program.clone())),
+            });
+            if qualified {
+                result.unwrap();
+            } else {
+                let errors = result.unwrap_err();
+                assert!(
+                    errors
+                        .iter()
+                        .any(|error| error.message.contains("no operand names the carrier of")),
+                    "{errors:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_unimported_same_leaf_domain_does_not_supply_an_operand_home() {
+        use source::{DependencyScope, SourceOrigin};
+        let errors = scoped_sources(&[
+            ("foreign/domain.omg", "public domain u32::Mine;", DependencyScope::Product, SourceOrigin::User),
+            ("requester/main.omg", "boundary machine - Comparison::subtract(left: u32 in Mine, right: u32 in Mine) -> u32;", DependencyScope::Product, SourceOrigin::User),
+        ]).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains(PRIMITIVE_FAMILY)),
+            "{errors:?}"
+        );
+    }
 }

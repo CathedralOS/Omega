@@ -49,7 +49,7 @@ public data InvocationGraph {
     node_cyclic: [bool; 10240];
 }
 
-public machine InvocationTarget::same(left: InvocationTarget, right: InvocationTarget) -> bool {
+public machine invocation_target_same(left: InvocationTarget, right: InvocationTarget) -> bool {
     transition left {
         InvocationTarget::Machine { machine } -> concrete(right, machine)
         InvocationTarget::Binder { parameter } -> opaque(right, parameter)
@@ -68,7 +68,7 @@ public machine InvocationTarget::same(left: InvocationTarget, right: InvocationT
     }
 }
 
-public machine InvocationGraph::initialize(graph: &mut InvocationGraph, nodes: u64 in Trapping, expressions: u64 in Trapping)
+public machine invocation_graph_initialize(graph: &mut InvocationGraph, nodes: u64 in Trapping, expressions: u64 in Trapping)
 crashes Trap
 {
     graph.complete = nodes <= 10240 && expressions <= 131072;
@@ -116,7 +116,7 @@ crashes Trap
     machine done() {}
 }
 
-public machine InvocationGraph::record(graph: &mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget) -> bool
+public machine invocation_graph_record(graph: &mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget) -> bool
 crashes Trap
 {
     transition graph.complete && owner < graph.node_count && owner < 10240 && expression < graph.expression_count && expression < 131072 {
@@ -142,7 +142,7 @@ crashes Trap
     requires index < 32768
     {
         let retained: InvocationEdge = graph.edges[index];
-        let same: bool = InvocationTarget::same(retained.target, target);
+        let same: bool = invocation_target_same(retained.target, target);
         transition retained.owner == owner && same {
             true -> true
             false -> invalid(graph)
@@ -211,7 +211,7 @@ crashes Trap
 // Complete components before any consumer grants summary or rank authority.
 // Marking on push and advancing each frame's edge cursor before descent makes
 // the explicit stack bounded by declarations, including diamonds and cycles.
-public machine InvocationGraph::seal(graph: &mut InvocationGraph) -> bool
+public machine invocation_graph_seal(graph: &mut InvocationGraph) -> bool
 crashes Trap
 {
     graph.sealed = true;
@@ -453,7 +453,7 @@ crashes Trap
 
 // Component handles and edge handles use zero only for an unavailable query.
 // They never turn an invalid/incomplete graph into an acyclic declaration.
-public machine InvocationGraph::component(graph: &InvocationGraph, node: u64 in Trapping) -> u64 in Trapping
+public machine invocation_graph_component(graph: &InvocationGraph, node: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition graph.complete && graph.sealed && node < graph.node_count && node < 10240 {
@@ -467,7 +467,7 @@ crashes Trap
     }
 }
 
-public machine InvocationGraph::edge_handle(graph: &InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping) -> u64 in Trapping
+public machine edge_handle(graph: &InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition graph.complete && graph.sealed && expression < graph.expression_count && expression < 131072 {
@@ -497,7 +497,7 @@ crashes Trap
 // An occurrence can be visited under several feasible contexts. Certification
 // is the conjunction of all observations: a preserving visit cannot inherit a
 // different visit's strict decrease, and one unknown comparison stays unknown.
-public machine InvocationGraph::observe_rank(graph: &mut InvocationGraph, handle: u64 in Trapping, non_increasing: bool, strict: bool) -> bool
+public machine observe_rank(graph: &mut InvocationGraph, handle: u64 in Trapping, non_increasing: bool, strict: bool) -> bool
 crashes Trap
 {
     transition graph.complete && graph.sealed && handle > 0 && handle <= graph.edge_count && handle <= 32768 {
@@ -538,7 +538,7 @@ crashes Trap
 // terminates exactly when its residual non-strict graph is acyclic. Kahn's
 // elimination examines every cycle, independent of declaration/DFS order.
 // Unvisited occurrences and incomplete graphs never acquire a certificate.
-public machine InvocationGraph::certify_ranking(graph: &mut InvocationGraph) -> bool
+public machine certify_ranking(graph: &mut InvocationGraph) -> bool
 crashes Trap
 {
     graph.work_count = 0;
@@ -622,7 +622,7 @@ crashes Trap
         }
     }
     machine enqueue_root(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool {
-        let queued: bool = InvocationGraph::rank_queue(graph, node);
+        let queued: bool = rank_queue(graph, node);
         transition queued {
             true -> roots(graph, node + 1)
             false -> invalid(graph)
@@ -697,7 +697,7 @@ crashes Trap
         }
     }
     machine enqueue_successor(graph: &mut InvocationGraph, cursor: u64 in Trapping, next: u64 in Trapping, target: u64 in Trapping) -> bool {
-        let queued: bool = InvocationGraph::rank_queue(graph, target);
+        let queued: bool = rank_queue(graph, target);
         transition queued {
             true -> successor(graph, cursor, next)
             false -> invalid(graph)
@@ -727,7 +727,7 @@ crashes Trap
     machine invalid(graph: &mut InvocationGraph) -> bool { graph.complete = false; false }
 }
 
-machine InvocationGraph::rank_queue(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool
+machine rank_queue(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool
 crashes Trap
 {
     transition node < 10240 && graph.work_count < 10240 {

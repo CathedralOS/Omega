@@ -4,11 +4,8 @@
 // mode query. It never escapes the private transfer/close flow. This records
 // the native completion premise; it is not numeric ownership or a promise
 // that an arbitrary copied HANDLE remains valid after release.
-use calling;
-use omega::language::core::filesystem_authority;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_calling;
-use targets::windows_x86_64::windows_filesystem_transfer;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
 
 // Zero is the failed acquisition. Only nonzero classified values may enter I/O.
 domain i64::WindowsSynchronousFileOrAbsent
