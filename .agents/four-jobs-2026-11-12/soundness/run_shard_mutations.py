@@ -17,7 +17,12 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
-from mutant_classify import BUCKETS, SPEC_RULES, classify_mutant  # noqa: E402
+from mutant_classify import (  # noqa: E402
+    BUCKETS,
+    SPEC_RULES,
+    classify_mutant,
+    minimal_mutant_diff,
+)
 
 REPO = Path(__file__).resolve().parents[3]
 PIN = "0835b3aaf803ed97f905be42d94727ff58459263"
@@ -476,6 +481,17 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
     buckets = bucket_counts_from_rows(rows)
     mutants_run = len(rows)
     bucket_sum = sum(buckets.get(b, 0) for b in BUCKETS)
+    rows_by_fixture: dict[str, list[MutantRecord]] = {}
+    for row in rows:
+        rows_by_fixture.setdefault(row.original_fixture, []).append(row)
+    mutated_fixtures = len(rows_by_fixture)
+    shard_fixtures = meta.get("fixtures", mutated_fixtures)
+    no_mutation = max(shard_fixtures - mutated_fixtures, 0)
+    multi_row = [
+        (fixture, len(items))
+        for fixture, items in sorted(rows_by_fixture.items())
+        if len(items) > 1
+    ]
     confirmed = [row for row in rows if row.disposition == "confirmed-hole"]
     by_kind: dict[str, int] = {}
     by_accepted: dict[str, int] = {}
@@ -507,6 +523,32 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
             f"- Fixtures in shard: {meta.get('fixtures', 0)}",
             f"- Fixtures processed: {meta.get('fixtures_processed', 0)}",
             f"- Mutants generated: {meta.get('mutants_generated', mutants_run)}",
+            "",
+            "## Fixture reconcile",
+            "",
+            f"- Fixtures in shard: {shard_fixtures}",
+            f"- Fixtures with ≥1 mutant row: {mutated_fixtures}",
+            f"- Fixtures with no mutant rows (yet): {no_mutation}",
+            f"- Mutant rows total: {mutants_run}",
+            (
+                f"- Avg mutants / mutated fixture: {mutants_run / mutated_fixtures:.2f}"
+                if mutated_fixtures
+                else "- Avg mutants / mutated fixture: n/a"
+            ),
+            "",
+            "### Fixtures with more than one mutant row",
+            "",
+        ]
+    )
+    if multi_row:
+        for fixture, count in multi_row[:50]:
+            lines.append(f"- `{fixture}`: {count} rows")
+        if len(multi_row) > 50:
+            lines.append(f"- … and {len(multi_row) - 50} more")
+    else:
+        lines.append("_None yet._")
+    lines.extend(
+        [
             "",
             "## Mutant total accounting",
             "",
@@ -610,6 +652,9 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
         lines.append("_None._")
     else:
         for index, row in enumerate(confirmed, 1):
+            original = read_text(REPO / row.original_fixture)
+            mutant = read_text(Path(row.mutant_path))
+            diff = minimal_mutant_diff(original, mutant)
             lines.extend(
                 [
                     f"### {index}. `{row.original_fixture}` — `{row.mutation_kind}`",
@@ -619,11 +664,17 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
                     f"- Obligation: `{row.obligation_line}`",
                     f"- Accepted by: **{row.accepted_by}**",
                     f"- Validity note: `{row.validity_note}`",
-                    f"- Route reason (hint): `{row.route_reason}`",
+                    f"- Route reason (hint only): `{row.route_reason}`",
                     "",
-                    f"**{row.spec_path}** — *{row.spec_heading}*:",
+                    f"**{row.spec_path}** — *{row.spec_heading}* (check-time proof obligation):",
                     "",
                     f"> {row.spec_quote}",
+                    "",
+                    "**Minimal mutant diff:**",
+                    "",
+                    "```diff",
+                    diff or "(no line diff)",
+                    "```",
                     "",
                 ]
             )

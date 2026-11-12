@@ -68,10 +68,15 @@ SPEC_RULES: dict[str, SpecRule] = {
     ),
 }
 
+ROUTE_OUTSIDE = frozenset(
+    {"no-entry", "unreached", "outside", "fallback", "incomplete", "defect", "stopped"}
+)
+
 BUCKETS = (
     "confirmed-hole",
     "known-gap-q7-mut",
     "disagreement-valid",
+    "valid-route-outside",
     "discarded-valid",
     "rejected-both",
     "timeout",
@@ -306,8 +311,54 @@ def route_accepts(verdict: str) -> bool:
     return verdict == "accepted"
 
 
+def route_rejects(verdict: str) -> bool:
+    return verdict == "rejected"
+
+
+def route_outside(verdict: str) -> bool:
+    return verdict in ROUTE_OUTSIDE
+
+
 def current_accepts(verdict: str) -> bool:
     return verdict == "accepted"
+
+
+def likely_runtime_trapped(mutant: str) -> bool:
+    """Heuristic: violation may only be caught on a crash/transition path."""
+    return bool(
+        re.search(
+            r"\bbad\(\)|crashes\b|machine\s+\w+\s*\(\)\s*\{\s*\}\s*$|->\s*bad\(\)",
+            mutant,
+            re.MULTILINE,
+        )
+    )
+
+
+def compile_time_obligation(kind: str, validity: Validity) -> bool:
+    """Owner fix4: hole must be about check-time proof, not runtime trap."""
+    if kind in ("remove_mut_binding", "demote_mut_ref_to_shared", "promote_shared_ref_to_mut",
+                "mut_ref_instead_of_shared", "shared_instead_of_mut"):
+        return True
+    if kind in ("drop_requires_line", "tighten_requires_equality", "corrupt_literal_callee_argument"):
+        return True
+    return bool(validity.spec)
+
+
+def minimal_mutant_diff(original: str, mutant: str) -> str:
+    orig_lines = original.splitlines()
+    mut_lines = mutant.splitlines()
+    chunks: list[str] = []
+    for index, (left, right) in enumerate(zip(orig_lines, mut_lines)):
+        if left != right:
+            chunks.append(f"- {left}")
+            chunks.append(f"+ {right}")
+    if len(mut_lines) > len(orig_lines):
+        for extra in mut_lines[len(orig_lines) :]:
+            chunks.append(f"+ {extra}")
+    elif len(orig_lines) > len(mut_lines):
+        for gone in orig_lines[len(mut_lines) :]:
+            chunks.append(f"- {gone}")
+    return "\n".join(chunks[:40])
 
 
 def classify_mutant(
@@ -355,7 +406,17 @@ def classify_mutant(
                 "",
                 note,
             )
-        if cur_ok != route_ok:
+        if route_outside(route):
+            return ClassifyResult(
+                "valid-route-outside",
+                "valid-route-outside",
+                None,
+                validity.obligation_line,
+                route_reason,
+                "",
+                note,
+            )
+        if (cur_ok and route_rejects(route)) or (route_ok and not cur_ok):
             return ClassifyResult(
                 "disagreement-valid",
                 "disagreement-valid",
@@ -397,6 +458,30 @@ def classify_mutant(
         accepted_by = "route"
 
     if accepted_by and validity.spec and validity.obligation_line:
+        if not compile_time_obligation(kind, validity):
+            return ClassifyResult(
+                "discarded-valid",
+                "runtime-trap-or-non-proof-spec",
+                validity.spec,
+                validity.obligation_line,
+                route_reason,
+                accepted_by,
+                "spec obligation may be runtime-only",
+            )
+        if likely_runtime_trapped(mutant) and kind not in (
+            "remove_mut_binding",
+            "demote_mut_ref_to_shared",
+            "promote_shared_ref_to_mut",
+        ):
+            return ClassifyResult(
+                "discarded-valid",
+                "runtime-trap-present",
+                validity.spec,
+                validity.obligation_line,
+                route_reason,
+                accepted_by,
+                "mutant retains explicit crash/bad route",
+            )
         return ClassifyResult(
             "confirmed-hole",
             "confirmed-hole",

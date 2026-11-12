@@ -1,0 +1,83 @@
+// Fact: A mutable foreign registration retains exclusive access to the exact original Buffer backing until completion consumes Pending; completion writes 73 while an earlier copied value remains 37.
+// Expected exit: 0. Completion changes the original cell to 73; prior copied value stays 37.
+use omega::language::core::content;
+use omega::language::core::drop;
+use omega::language::core::external_binding;
+public data ByteUnit {}
+public data Buffer [linear] dropped by drop_buffer { value: u64; }
+machine drop_buffer(buffer: &mut mut Buffer) {}
+public domain Buffer::Owned;
+machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
+satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+public data Pending<'source> [linear] { slot: u64; }
+public domain Pending::Retained established by Writer::register, Reader::register;
+machine Retained::content<'source>(pending: &Pending<'source>) -> CountedQuantity<ByteUnit>
+satisfies Content<Pending<'source>, CountedQuantity<ByteUnit>>::project {
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+public data Capacity [linear] { token: u64; }
+public domain Capacity::Available established by Writer::acquire, Writer::complete;
+public boundary trait Writer {
+    machine acquire() -> Capacity reaches ensures result in Capacity::Available crashes Trap;
+    machine register<'source>(capacity: Capacity in Capacity::Available, buffer: &'source mut Buffer in Buffer::Owned) -> Pending<'source>
+    reaches
+    ensures result in Pending::Retained, buffer in Buffer::Owned crashes Trap;
+    machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: &mut u64) -> Capacity
+    reaches
+    ensures result in Capacity::Available crashes Trap;
+    machine release(capacity: Capacity in Capacity::Available) reaches crashes Trap;
+}
+
+public data SharedCapacity [linear] { token: u64; }
+public domain SharedCapacity::Available established by Reader::acquire, Reader::complete;
+public boundary trait Reader {
+    machine acquire() -> SharedCapacity reaches ensures result in SharedCapacity::Available crashes Trap;
+    machine register<'source>(capacity: SharedCapacity in SharedCapacity::Available, buffer: &'source Buffer in Buffer::Owned) -> Pending<'source>
+    reaches
+    ensures result in Pending::Retained crashes Trap;
+    machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: &mut u64) -> SharedCapacity
+    reaches
+    ensures result in SharedCapacity::Available crashes Trap;
+    machine release(capacity: SharedCapacity in SharedCapacity::Available) reaches crashes Trap;
+}
+
+machine forward<'a>(pending: Pending<'a> in Pending::Retained) -> Pending<'a>
+ensures result in Pending::Retained { pending }
+data Envelope<'a> { pending: Pending<'a> in Pending::Retained; }
+data Main {}
+machine Main::main(main: &mut Main) reaches Reader, Writer crashes Trap {
+    let shared_capacity: SharedCapacity in SharedCapacity::Available = Reader::acquire();
+    let mutable_capacity: Capacity in Capacity::Available = Writer::acquire();
+    let shared_buffer: Buffer in Buffer::Owned = Buffer { value: 37 };
+    let mut mutable_buffer: Buffer in Buffer::Owned = Buffer { value: 37 };
+    let original: u64 = mutable_buffer.value;
+    let shared_pending: Pending = Reader::register(shared_capacity, &shared_buffer);
+    let shared_forwarded: Pending in Pending::Retained = forward(shared_pending);
+    let shared_envelope: Envelope = Envelope { pending: shared_forwarded };
+    let shared_routed: Pending in Pending::Retained = shared_envelope.pending;
+    let mutable_pending: Pending = Writer::register(mutable_capacity, &mut mutable_buffer);
+    let mutable_forwarded: Pending in Pending::Retained = forward(mutable_pending);
+    let mutable_envelope: Envelope = Envelope { pending: mutable_forwarded };
+    let mutable_routed: Pending in Pending::Retained = mutable_envelope.pending;
+    let readable: u64 = shared_buffer.value;
+    let mut shared_observed: u64 = 0;
+    let mut mutable_observed: u64 = 0;
+    let mutable_returned: Capacity in Capacity::Available = Writer::complete(mutable_routed, &mut mutable_observed);
+    Writer::release(mutable_returned);
+    let shared_returned: SharedCapacity in SharedCapacity::Available = Reader::complete(shared_routed, &mut shared_observed);
+    Reader::release(shared_returned);
+    let current: u64 = mutable_buffer.value;
+    drop(shared_buffer);
+    drop(mutable_buffer);
+    transition readable == 37 && shared_observed == 37 && mutable_observed == 73 && current == 73 && original == 37 {
+        true -> done() _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine entry_start() reaches Reader, Writer crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

@@ -1,0 +1,112 @@
+// An explicitly installed private Registers allocation lends its exact exclusive placed view, reading status 41 and writing transmit 9 into the same backing before handback.
+// Expected exit: 0
+// Place: match_join.
+use omega::language::core::layout;
+
+public data Registers {
+    status: u32;
+    transmit: u8;
+}
+
+public data RegPlacement {}
+
+machine RegPlacement::plan(schema: Schema) -> AccessPlan {
+    let entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        representation: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        representation: FieldPlan::At { offset: 4 },
+    };
+    let layout: LayoutPlan = LayoutPlan {
+            entries: entries,
+            entry_count: 2,
+            size_fixed: 8,
+            size_is_dynamic: false,
+            align: 4,
+        };
+    let access: AccessPlan = AccessPlan::inaccessible(layout);
+    transition { _ -> place_status(schema, access) }
+
+    machine place_status(
+        schema: Schema,
+        access: AccessPlan
+    ) -> AccessPlan {
+        let status_key: u64 = schema.fields[0].key;
+        transition { _ -> place_transmit(
+            schema,
+            AccessPlan::with(
+                access,
+                status_key,
+                FieldAccess::External {
+                    read: ExternalRead::Read,
+                    write: false,
+                    exposure: Exposure::Exported,
+                },
+            )) }
+    }
+
+    machine place_transmit(
+        schema: Schema,
+        access: AccessPlan
+    ) -> AccessPlan {
+        transition { _ -> finish(
+            AccessPlan::with(
+                access,
+                schema.fields[1].key,
+                FieldAccess::External {
+                    read: ExternalRead::None,
+                    write: true,
+                    exposure: Exposure::Exported,
+                },
+            )) }
+    }
+
+    machine finish(
+        access: AccessPlan
+    ) -> AccessPlan {
+        let mut services: [u64; 32];
+        services[0] = 7;
+        AccessPlan::with_reach(
+            access,
+            BoundaryReach {
+                services: services,
+                service_count: 0,
+            }
+        )
+    }
+}
+
+
+machine finish(view: &mut Access<RegPlacement, Registers>, code: u8) requires code == 9u8 crashes Trap {
+    let observed: u32 = view.status.read(&view.status);
+    transition observed == 41u32 { true -> write(view, code) _ -> bad() }
+    machine write(view: &mut Access<RegPlacement, Registers>, code: u8) requires code == 9u8 {
+        view.transmit.write(&mut view.transmit, code);
+    }
+    machine bad() { crash Trap; }
+}
+data Selection { code: u8; branch_tag: u8; }
+
+machine write_selected(view: &mut Access<RegPlacement, Registers>, flag: bool, expected_tag: u8) crashes Trap {
+    let selected: Selection = match flag {
+        true -> Selection { code: 9u8, branch_tag: 11u8 },
+        _ -> Selection { code: 9u8, branch_tag: 13u8 },
+    };
+    finish(view, selected.code);
+    transition selected.branch_tag == expected_tag {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+
+machine start(view: &mut Access<RegPlacement, Registers>) crashes Trap {
+    let first_status: u32 = view.status.read(&view.status);
+    write_selected(view, first_status == 41u32, 11u8);
+    let second_status: u32 = view.status.read(&view.status);
+    write_selected(view, second_status != 41u32, 13u8);
+}
