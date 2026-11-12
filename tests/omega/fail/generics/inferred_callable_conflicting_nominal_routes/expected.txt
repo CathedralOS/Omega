@@ -1,0 +1,6 @@
+inferred callable parameter `Selected`
+different nominal requirement types
+one parameter carries one nominal route
+inferred callable parameter `Typed`
+conflicting substituted nominal arguments
+published [u32], required by this use [u64]
