@@ -1,0 +1,16 @@
+pass/borrows/returned_slice_record_reference_custody_exit	still-broken	returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source	c1
+pass/borrows/runtime_returned_stored_view_reborrow_exit	still-broken	returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source	c1
+pass/slices/runtime_mutable_slice_result_whole_forward_exit	still-broken	returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source	c1
+pass/wire/wire_preserving_decode_relay_exit	still-broken	returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source	c1
+fail/borrows/returned_stored_view_reborrow_parent_write_rejected	fixed-on-main		
+fail/slices/returned_inclusive_window_extent_mismatch	fixed-on-main		
+fail/slices/window_extent_does_not_establish_bounds	fixed-on-main		
+fail/wire/returned_preserving_remainder_input_write	fixed-on-main		
+fail/build/explicit_provider_scalar_budget	fixed-on-main		
+fail/build/explicit_provider_storage_extent	fixed-on-main		
+fail/arithmetic/exact_overflow_value_call_hint	fixed-on-main		
+fail/borrows/returned_stored_view_reborrow_local_escape_rejected	fixed-on-main		
+pass/borrow/owned_capture_replaced_reference	fixed-on-main		
+pass/facts/target_family_callback_guarantee/field	fixed-on-main		
+pass/build/explicit_provider_storage_extent_exit	still-broken	anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value	c2
+pass/termination/runtime_named_state_remainder_endpoint_exit	still-broken	terminating machine walk reaches recursive component `iterate`, which has no `terminates by` ranking	c3

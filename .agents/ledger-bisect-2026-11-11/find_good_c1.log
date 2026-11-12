@@ -1,0 +1,30 @@
+{
+  "witness": "pass/borrows/returned_slice_record_reference_custody_exit",
+  "expected_status": "checked",
+  "pin_broken_status": "rejected",
+  "pin_first_diagnostic": "returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source; source Handle { arena_index: 115, generation: 46 } in main::entry statement 14: no exact invocation access supplies this descriptor; carrier Some(\"ref-mut(slice(named(name(nominal\\\\\\\\(package-owner\\\\\\\\(32:4c8e1c3e8c9c876b42fe70e705388e317e8d794d28b60c79bc1d15cba602ed38\\\\\\\\)\\\\\\\\,path\\\\\\\\(Pair\\\\\\\\)\\\\\\\\)))))\"), expected None, path [] (0 segments); source Handle { arena_index: 116, generation: 46 } in main::entry statement 14: saved descriptor capture is unresolved; carrier Some(\"ref-mut(slice(named(name(nominal\\\\\\\\(package-owner\\\\\\\\(32:4c8e1c3e8c9c876b42fe70e705388e317e8d794d28b60c79bc1d15cba602ed38\\\\\\\\)\\\\\\\\,path\\\\\\\\(Pair\\\\\\\\)\\\\\\\\)))))\"), expected None, path [] (0 segments)",
+  "pin_diag_norm": "returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source; source Handle { arena_index: N, generation:"
+}
+FLOOR=9573b10f35b795cabc5b12283687576b14564097 span=4935
+PIN[51e8c45c7930] exit=125
+exp[1] e2e7876a03e4 exit=125
+exp[2] dfece9ee0666 exit=125
+exp[4] 182a33b423f5 exit=125
+exp[8] a24aae8c0d70 exit=125
+exp[16] 4561f923e688 exit=125
+exp[32] 3bbe5c131a15 exit=125
+exp[64] d14bba6d178e exit=125
+exp[128] 7b3a04c7c505 exit=125
+exp[256] ca85a279ff09 exit=1
+exp[512] c417f61c95ba exit=1
+exp[1024] a48219f5cf97 exit=0
+bin[768] 13856e94bb55 exit=1
+bin[896] 4f3360c7e2e3 exit=0
+bin[832] 0453b646704c exit=125
+bin[864] 9a479478d07f exit=0
+bin[848] dafa4ce0765e exit=0
+bin[840] 9302f4719bc4 exit=0
+bin[836] cbdd8380d796 exit=0
+bin[834] 5d473f3d55ef exit=125
+bin[835] 576c5c9433a9 exit=0
+GOOD=576c5c9433a95c1f4dcb4f18197f408afbfe92cd

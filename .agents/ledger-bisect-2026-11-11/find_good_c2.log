@@ -1,0 +1,17 @@
+{
+  "witness": "pass/build/explicit_provider_storage_extent_exit",
+  "expected_status": "checked",
+  "pin_broken_status": "rejected",
+  "pin_first_diagnostic": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+  "pin_diag_norm": "anonymous address value cannot prove fit in `_` in machine `_` state `_` return value"
+}
+FLOOR=a12a1b1a6240424968aeee6728e024554cd7c6cd span=1675
+PIN[51e8c45c7930] exit=125
+exp[1] e2e7876a03e4 exit=125
+exp[2] dfece9ee0666 exit=125
+exp[4] 182a33b423f5 exit=125
+exp[8] a24aae8c0d70 exit=125
+exp[16] 4561f923e688 exit=125
+exp[32] 3bbe5c131a15 exit=125
+exp[64] d14bba6d178e exit=125
+exp[128] 7b3a04c7c505 exit=125
