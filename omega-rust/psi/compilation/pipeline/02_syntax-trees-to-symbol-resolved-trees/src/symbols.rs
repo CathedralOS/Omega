@@ -2377,6 +2377,95 @@ mod measures {
         }
     }
 }
+mod repeated_locals {
+    /*
+        Refuse a `let` that declares a name its body already declares.
+
+        A local name is declared at most once in a machine body, and parameters
+        and locals share that namespace (`wiki/spec/language/state_contracts.md`,
+        "Bindings"): "Refusal compares declared binder identities, not spellings
+        rendered as text." This is where each binder gets its identity, so the
+        rule is applied here, once, for both checkers: a body that breaks it
+        never reaches typing. Each binder is compared by the name its
+        declaration gave its symbol, so two binders are never merged and no
+        expression rendering is read. The binders are the state's parameters
+        and the runtime bindings among its statements, the same set the rule
+        covered when Psi 05 applied it.
+    */
+
+    use diagnostics::Diagnostic;
+    use symbol_resolved_trees::SymbolResolvedTrees;
+    use symbol_resolved_trees::statement::Statement;
+    use symbols::SymbolHandle;
+
+    pub(super) fn reject_repeated_local_names(
+        program: &SymbolResolvedTrees,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let symbols = &program.symbols;
+        let declarations = &program.tables.declarations;
+        let mut diagnostics = Vec::new();
+        for (_, state) in declarations.machine_states.iter() {
+            if !state.symbol.is_valid() {
+                continue;
+            }
+            let parameters: Vec<SymbolHandle> = declarations
+                .state_parameters
+                .span_or_empty(state.parameters)
+                .iter()
+                .map(|parameter| parameter.symbol)
+                .filter(|symbol| symbol.is_valid())
+                .collect();
+            let mut locals: Vec<SymbolHandle> = Vec::new();
+            for statement in declarations.state_statements.span_or_empty(state.statements) {
+                let Statement::LocalData(local) = statement else {
+                    continue;
+                };
+                if !local.role.is_runtime_binding() || !local.symbol.is_valid() {
+                    continue;
+                }
+                let name = symbols.name(local.symbol);
+                let rule = if parameters
+                    .iter()
+                    .any(|parameter| symbols.name(*parameter) == name)
+                {
+                    Some("conflicts with an existing name")
+                } else if locals.iter().any(|earlier| symbols.name(*earlier) == name) {
+                    Some("duplicate")
+                } else {
+                    None
+                };
+                locals.push(local.symbol);
+                let Some(rule) = rule else {
+                    continue;
+                };
+                let machine = symbols.name(symbols.get(state.symbol).parent);
+                let state_name = symbols.name(state.symbol);
+                let message = if rule == "duplicate" {
+                    format!(
+                        "machine `{machine}` state `{state_name}` has duplicate local data `{name}`: \
+                         a local name is declared at most once in a machine body"
+                    )
+                } else {
+                    format!(
+                        "machine `{machine}` state `{state_name}` local data `{name}` conflicts \
+                         with an existing name: parameters and locals share one namespace"
+                    )
+                };
+                let diagnostic = Diagnostic::error(message);
+                diagnostics.push(match symbols.symbol_source_span(local.symbol) {
+                    Some(span) => diagnostic.with_source_span(span),
+                    None => diagnostic,
+                });
+            }
+        }
+        if diagnostics.is_empty() {
+            Ok(())
+        } else {
+            Err(diagnostics)
+        }
+    }
+}
+
 mod private_nested_calls {
     /*
         Refuse a qualified call into another machine's nested helper.
@@ -5580,7 +5669,8 @@ pub(crate) fn assign_body_symbols(
         &lowerer.pending_outcome_specific_contracts,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    private_nested_calls::reject_private_nested_calls(&lowerer.symbol_resolved_trees)
+    private_nested_calls::reject_private_nested_calls(&lowerer.symbol_resolved_trees)?;
+    repeated_locals::reject_repeated_local_names(&lowerer.symbol_resolved_trees)
 }
 
 pub(crate) fn assign_lexical_inputs(
