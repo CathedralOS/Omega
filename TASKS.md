@@ -72,7 +72,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 ## Pipeline route
 
 - **PIPELINE-ARCHITECTURE-ENFORCEMENT.** Enforce the single-pass Psi (`00–07`) + Build + per-target Omega (`00–09`) [pipeline](omega-rust/pipeline.md) in `target_batch.rs`.
-  - Admit dependency contexts ([scoped_execution.md](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)), run `build.omg` and Psi `00–07` once, clear `FIREWALL_ALLOWANCES` in `tools/check_native_boundary.py`, and drop 256 MiB stacks (source depth is bounded only by memory and time, per [compiler_request.md](wiki/spec/build/compiler_request.md)).
+  - Admit dependency contexts ([scoped_execution.md](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)), run `build.omg` and Psi `00–07` once, clear `FIREWALL_ALLOWANCES` in `tools/check_native_boundary.py`, store recursive terms as flat tables in memory ([pipeline](omega-rust/pipeline.md)), and drop 256 MiB stacks (source depth is bounded only by memory and time, per [compiler_request.md](wiki/spec/build/compiler_request.md)).
   Acceptance: two-target builds run Psi `00–07` and Build once and Omega `00–09` once per target with clean boundary guards.
 
 - **VALIDATION-SUBJECTS.** Implement [validation subjects](wiki/drafts/designs/validation_subjects.md): check the selected packages in full and dependencies only through their required semantic closure.
