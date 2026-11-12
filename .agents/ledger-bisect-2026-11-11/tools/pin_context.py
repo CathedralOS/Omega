@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
+_REPO = os.environ.get("LEDGER_BISECT_ROOT")
+REPO = Path(_REPO) if _REPO else Path(__file__).resolve().parents[3]
 PIN = "51e8c45c793007f211d0d9baee7de16767172444"
 CTX = Path("/tmp/ledger-bisect-pin-context.json")
 LEDGER_COPY = Path("/tmp/ledger-bisect-corpus_outcomes.txt")
