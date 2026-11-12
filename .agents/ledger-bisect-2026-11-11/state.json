@@ -126,7 +126,8 @@
         "pass/borrows/runtime_reassigned_view_capture_exit"
       ],
       "bisect": {
-        "status": "pending"
+        "status": "propagated",
+        "reason": "no good first-parent ancestor"
       }
     },
     {
