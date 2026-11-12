@@ -489,12 +489,14 @@ fn same_type_arguments(
             }
             (TypeReference::Slice(left), TypeReference::Slice(right)) => pending.push((
                 program
-                    .declarations()
+                    .tables
+                    .declarations
                     .child_type_references
                     .get(left.element_type)
                     .clone(),
                 program
-                    .declarations()
+                    .tables
+                    .declarations
                     .child_type_references
                     .get(right.element_type)
                     .clone(),
@@ -507,12 +509,14 @@ fn same_type_arguments(
                 }
                 pending.push((
                     program
-                        .declarations()
+                        .tables
+                        .declarations
                         .child_type_references
                         .get(left.referee)
                         .clone(),
                     program
-                        .declarations()
+                        .tables
+                        .declarations
                         .child_type_references
                         .get(right.referee)
                         .clone(),
@@ -534,12 +538,14 @@ fn same_type_arguments(
                 }
                 pending.push((
                     program
-                        .declarations()
+                        .tables
+                        .declarations
                         .child_type_references
                         .get(left.element_type)
                         .clone(),
                     program
-                        .declarations()
+                        .tables
+                        .declarations
                         .child_type_references
                         .get(right.element_type)
                         .clone(),
