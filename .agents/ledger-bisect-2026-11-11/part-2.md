@@ -15,7 +15,7 @@ PIN `51e8c45c793007f211d0d9baee7de16767172444`. PIN-fixed ledger + observation; 
 
 - **Diagnostic:** data `Locator` literal cannot prove the default domain: a `requires` fact is not established by the values observed at t
 - **Witness:** `pass/facts/static_callback_reach_through_field`
-- **Status:** pending
+- **Status:** no_good_on_first_parent
 - **Members:** `pass/domains/private_case_payload_construction`, `pass/facts/static_callback_reach_through_field`
 
 ## Cluster 2 (1 rows)
