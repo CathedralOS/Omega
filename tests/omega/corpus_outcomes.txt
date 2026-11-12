@@ -22140,8 +22140,7 @@ pass/drops/runtime_selected_case_mutation_complement_exit checked 9940ms check-t
 pass/drops/runtime_selected_linear_residual_death_exit incomplete 41387ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
 	`main` calls `scenario`; `scenario` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural value: operand custody)); in state `scenario::entry`, statement 1
 pass/drops/runtime_selected_nominal_owner_cleanup_exit checked 26089ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/runtime_selected_partial_owner_cleanup_exit rejected 4324ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d25b32be7ef5
-	terminal-artifact production failed: Lowering(InvalidCleanupPartition { reason: "cleanup partition actions are interleaved or reordered" })
+pass/drops/runtime_selected_partial_owner_cleanup_exit checked 21890ms check-target:macos_arm64 @3f4b4f40af40
 pass/drops/runtime_selected_projected_sibling_cleanup_exit checked 38175ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_selected_projected_state_cleanup_exit checked 32250ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_selected_transfer_fieldwise_construction_exit checked 19772ms check-target:macos_arm64 @ee4dbb4b2d56
