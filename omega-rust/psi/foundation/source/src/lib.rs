@@ -1323,6 +1323,23 @@ impl SourceMap {
         self.files.iter()
     }
 
+    /*
+        This map with every unselected file's path and text removed. Two
+        compiles whose selected files, identities and routing agree have equal
+        views, whatever else the invocation's catalogue holds.
+    */
+    pub fn selection_view(&self) -> Self {
+        let mut view = self.clone();
+        for file in &mut view.files {
+            if !self.selection.includes(file.source_id) {
+                file.path = PathBuf::new();
+                file.package_root = PathBuf::new();
+                file.source = Arc::from("");
+            }
+        }
+        view
+    }
+
     pub fn selected_files(&self) -> impl Iterator<Item = &SourceFile> {
         self.files
             .iter()
