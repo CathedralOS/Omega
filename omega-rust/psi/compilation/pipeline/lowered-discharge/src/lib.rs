@@ -46,11 +46,12 @@ Per machine it does five things:
   prover (`prove`), which emits a certificate, and asks the kernel to decide
   it.
 
-Kinds outside `OperationSafety`, `CallRequirement`, `NormalGuarantee` and
-`DataDomain` are refused as `Unsupported`; elaboration mints none of them
-yet.
+A loop head's invariant, the `requires` of the machine lowered beneath it, is
+proved on every arrival (`ArrivalInvariant`) and known from the head's entry
+on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 */
 
+mod arrivals;
 mod crashes;
 mod describe;
 mod graph;
@@ -90,7 +91,7 @@ use terminal_check_tables::{
     UnprovedCause,
 };
 use terminal_codec::ObligationEvidenceSeal;
-use terminal_psi::{TerminalMachine, Terminator};
+use terminal_psi::{ScalarBlockInvariant, TerminalMachine, Terminator};
 
 use graph::Graph;
 
@@ -346,6 +347,7 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
             &module.machines,
             &module.structural_types,
             &elaboration.domains,
+            &module.scalar_block_invariants,
             id,
             tables,
             knowledge,
@@ -391,6 +393,7 @@ fn machine(
     machines: &[TerminalMachine],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
+    invariants: &[ScalarBlockInvariant],
     id: MachineId,
     tables: &mut MachineTables,
     knowledge: Knowledge,
@@ -420,10 +423,29 @@ fn machine(
     )?;
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
-    // Join predicates first: each is checked on every arrival before it may
-    // justify anything downstream.
+    // Declared block invariants (a loop head's, the `requires` of the
+    // machine lowered beneath it) and inferred join predicates are one kind
+    // of row: each is known from its block's entry on and is proved on every
+    // arrival before it may justify anything downstream (fact_validity.md:
+    // "Every arrival must check before the destination predicate can justify
+    // downstream obligations."). A declared one holds because every arrival
+    // proves it, and the closure is accepted only when every obligation is
+    // discharged (`judge`).
+    let mut declared = Vec::new();
+    for invariant in invariants.iter().filter(|row| row.machine == id) {
+        arrivals::admit(id, lowered, tables, invariant)?;
+        push_knowledge(
+            tables,
+            invariant.predicate.clone(),
+            ProgramPoint::BlockEntry(invariant.header),
+            Justification::BlockInvariant {
+                block: invariant.header,
+            },
+        );
+        declared.push(invariant.header);
+    }
     if knowledge == Knowledge::All {
-        joins::infer(lowered, id, tables, &graph, &context)?;
+        joins::infer(lowered, id, tables, &graph, &context, &declared)?;
     }
     let weakened_joins = joins::check(
         &joins::Machine {
@@ -435,6 +457,7 @@ fn machine(
             graph: &graph,
             context: &context,
             relations: knowledge != Knowledge::LiteralIntervals,
+            declared: &declared,
         },
         tables,
         &mut decided,

@@ -56,6 +56,7 @@ fn lowered(machines: Vec<Shape>, contracts: &[u64]) -> structure_elaboration::El
             requires: machine.requires,
             ensures: machine.ensures,
             crashes: CrashCeiling::DeclaredNone,
+            termination: structure_elaboration::Termination::Silent,
         });
     }
     let contracts: Vec<MachineId> = contracts.iter().map(|raw| id(*raw)).collect();

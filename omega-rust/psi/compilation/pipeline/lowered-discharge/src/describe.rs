@@ -112,8 +112,10 @@ pub(crate) fn unproved(
             u64::from(clause) + 1,
             owner(names, site)
         ),
-        ObligationKind::ArrivalInvariant { .. } => {
-            format!("cannot prove block invariant in {}", owner(names, site))
+        ObligationKind::ArrivalInvariant { edge } => {
+            head_arrival(elaboration, machine, tables, edge, site).unwrap_or_else(|| {
+                format!("cannot prove block invariant in {}", owner(names, site))
+            })
         }
         ObligationKind::CrashCoverage { site: crash, cause } => {
             crash_coverage(elaboration, tables, names, crash, cause, site)
@@ -132,6 +134,75 @@ pub(crate) fn unproved(
             )
         }
     }
+}
+
+/// An arrival into a loop head is a call of the head's member, and the
+/// head's invariant is that member's `requires`
+/// (`wiki/spec/language/state_contracts.md`: "Machine `requires` applies at
+/// every invocation, including terminal and recursive calls."). It is stated
+/// as the current checker states that call's requirement: the clauses over
+/// the call's actuals, then as the member wrote them, and the calling
+/// machine's state. The calling machine is the one whose names record a
+/// call at the arrival's site. `None` for a join, whose predicate the
+/// checker inferred, and for the entry's jump, which no call made.
+fn head_arrival(
+    elaboration: &Elaboration,
+    machine: MachineId,
+    tables: &MachineTables,
+    edge: semantic_vocabulary::EdgeId,
+    site: SourceOrigin,
+) -> Option<String> {
+    let terminal_check_tables::edges::Destination::Block(head) =
+        tables.edges.get(edge)?.destination
+    else {
+        return None;
+    };
+    let member = elaboration
+        .sources
+        .get(machine)?
+        .heads
+        .iter()
+        .find(|(block, _)| *block == head)?
+        .1;
+    let callee = elaboration.names.get(member)?;
+    let SourceOrigin::Authored(span) = site else {
+        return None;
+    };
+    let (caller, arguments) = elaboration
+        .names
+        .iter()
+        .find_map(|(_, names)| Some((names, names.arguments(span)?)))?;
+    if callee.requires.is_empty() {
+        return None;
+    }
+    let over_actuals: Vec<String> = callee
+        .requires
+        .iter()
+        .map(|clause| {
+            clause.render(&|position| {
+                arguments
+                    .get(position)
+                    .or_else(|| callee.formals.get(position))
+                    .cloned()
+                    .unwrap_or_else(|| String::from("?"))
+            })
+        })
+        .collect();
+    let authored: Vec<String> = callee
+        .requires
+        .iter()
+        .map(|clause| callee.authored(clause))
+        .collect();
+    Some(format!(
+        "cannot prove requires contract for call {} from {}: {} (needs fact `{}` here; \
+         establish it before the call via a prior contract guarantee, domain membership, or \
+         guard) in state `{}`",
+        callee.machine,
+        caller.machine,
+        over_actuals.join(" && "),
+        authored.join(" && "),
+        caller.state
+    ))
 }
 
 /// The current checker's statement of an uncovered crash (Psi 05,
