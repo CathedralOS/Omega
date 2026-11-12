@@ -13,6 +13,17 @@ name: Corpus gate
 # Required status: `corpus-gate` (the last job). It reports success when the
 # plan skips (a pull request that changes only ledgers and Markdown) and fails
 # when any shard fails or does not finish.
+#
+# A merge-queue entry runs only that last job, which reports success without
+# planning or checking rows: the pull request's own run already judged the
+# same diff. On 2026-11-12 the queue built eight groups at once and each one
+# started a plan and eight shards, so this check, which is not required, held
+# the few hosted runners while the required `compiler-check` and
+# `workspace-clippy` waited about an hour each and nothing merged for four
+# hours. The trigger stays so the `corpus-gate` status is still reported in
+# the queue if it is ever made required. What the queue no longer catches is a
+# row broken only by the combination with what main gained after the pull
+# request's run; post-merge smoke and the nightly sweep see those.
 
 on:
   pull_request:
@@ -34,7 +45,10 @@ jobs:
   plan:
     # A draft is still being written; the gate starts when it is marked ready
     # so draft pushes do not take the runners the required checks need.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    # A merge-queue entry does not plan or run rows; see the header.
+    if: >-
+      github.event_name != 'merge_group' &&
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     outputs:
@@ -132,7 +146,12 @@ jobs:
           SKIP: ${{ needs.plan.outputs.skip }}
           SHARDS: ${{ needs.shard.result }}
           DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
+          QUEUE: ${{ github.event_name == 'merge_group' }}
         run: |
+          if [ "$QUEUE" = true ]; then
+            echo "Merge-queue entry: the pull request's own corpus gate run judged this diff."
+            exit 0
+          fi
           if [ "$DRAFT" = true ]; then
             echo "Draft pull request: the corpus gate runs when it is marked ready."
             exit 0
