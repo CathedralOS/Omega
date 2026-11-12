@@ -28,6 +28,7 @@ run_test_at() {
 echo "find_good from $PIN" >&2
 GOOD=""
 cur="$(git rev-parse "${PIN}^1")"
+set +e
 while [[ -n "$cur" ]]; do
   run_test_at "$cur"
   rc=$?
@@ -38,23 +39,27 @@ while [[ -n "$cur" ]]; do
   fi
   cur="$(git rev-parse "${cur}^1" 2>/dev/null)" || break
 done
+set -e
 git checkout --detach "$START_SHA" >/dev/null 2>&1
 [[ -n "$GOOD" ]] || {
   echo "ERROR: no good first-parent ancestor for $WITNESS" >&2
   exit 2
 }
 
+set +e
 run_test_at "$PIN"
 pin_rc=$?
 run_test_at "$GOOD"
 good_rc=$?
-git checkout --detach "$START_SHA" >/dev/null 2>&1
+set -e
+git checkout work/ledger-bisect-part-2 >/dev/null 2>&1
 [[ "$good_rc" -eq 0 && "$pin_rc" -eq 1 ]] || {
   echo "ERROR: endpoints good=$good_rc($GOOD) pin=$pin_rc($PIN)" >&2
   exit 2
 }
 
 STABLE=1
+set +e
 for _ in 1 2; do
   run_test_at "$GOOD"
   g=$?
@@ -62,7 +67,8 @@ for _ in 1 2; do
   p=$?
   [[ "$g" -eq 0 && "$p" -eq 1 ]] || STABLE=0
 done
-git checkout --detach "$START_SHA" >/dev/null 2>&1
+set -e
+git checkout work/ledger-bisect-part-2 >/dev/null 2>&1
 
 git bisect reset 2>/dev/null || true
 git bisect start --first-parent "$PIN" "$GOOD"
