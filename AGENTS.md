@@ -39,40 +39,6 @@ remain required. Use bootstrap compiler and Omega compiler as public names.
 Record unresolved changes outside the mandate in
 [OWNER_QUESTIONS_BOOTSTRAP.md](OWNER_QUESTIONS_BOOTSTRAP.md), not the product queue.
 
-## Spec first, land first
-
-Subject to the Bootstrap mandate above, these rules override longer validation
-advice elsewhere in this file or in the skills.
-
-- **Read the spec, then implement it once.** Before editing, read the governing
-  page in `wiki/spec/` and implement what it says. No exploratory trial patches,
-  no redesign of a mechanism the spec already fixes. If the spec does not decide
-  the question, record it in `OWNER_QUESTIONS.md` and move to other work.
-- **Validate only what you touched.** One focused `mbx xtask corpus --filter`
-  over the rows and samples the change targets, plus the crate's unit tests and
-  Clippy. No broad family sweeps, no before/after comparisons against main, and
-  no ledger edits: pull requests do not touch `corpus_outcomes.txt`.
-- **Land, then verify.** Squash-merge the PR yourself as soon as the focused
-  run passes (never a merge commit). Main is verified after merge; repair what
-  that finds afterwards.
-- **One PR per capability.** Do not open one-row re-pin or ledger-only PRs;
-  fold them into the PR that touches those rows.
-
-### CI right now (2026-11-12)
-
-The old workflows, the merge queue and the branch rules were removed after
-they held every merge for four hours. Until the replacement in
-[CI rebuild plan](wiki/drafts/designs/ci_rebuild_plan.md) is in place:
-
-- There is no merge queue and no `cargo xtask land`. Squash-merge your own PR.
-- The only pre-merge check is `admission` (rules and formatting, about a
-  minute). `compiler-check`, `workspace-clippy`, `corpus-gate` and Post-merge
-  smoke no longer exist; do not wait for them, re-run them or dispatch them.
-- Nothing lints or tests for you before merge. Run Clippy on the crates you
-  touched and your one focused corpus run locally, then merge.
-- Do not add workflows or required checks; CI changes follow the plan.
-- **Report only landings and blockers** to a coordinator; no progress updates.
-
 ## Explain the change
 
 Use an inverted pyramid in PR descriptions, commit bodies, progress/final
@@ -130,22 +96,22 @@ reason to investigate and persist, not to abandon the work or redefine done.
 Follow the river to its end: carry the capability through every necessary
 compiler, library, and prerequisite repair in your isolated worktree. Do not
 divide work into stage-only tasks or wait for another session to finish missing
-functionality. Checkpoints, archives, or JSON reports preserve evidence; none
-completes the work. The one exception is a cluster report under framing rule 6
-below: declining the wrong repair is a finished result, not abandonment.
+functionality. A report describes a bug; it doesn't remove one. The work is
+done when the program runs.
 
-Ownership of open PRs survives session changes. At startup or resumption, check
-PRs you opened in earlier sessions against retained worktree and claim records;
-keep each URL, submitted head, remaining failure/acceptance and next action in
-its claim note. Carry authorized work through verified merge using the landing
-roles below. Close a PR only for a recorded withdrawal or supersession, not age.
+The spec is the answer key. Read the governing page in `wiki/spec/`, build
+what it says, and you will get it right the first time. Check what you
+changed, then land it; `main` is checked after every merge.
+
+An open PR is unfinished work sitting in the way of everyone else's. If you
+are the one looking at it, it is yours: finish it or close it.
 
 ### Decision-making framing for compiler completion
 
 1. **Drive the six release gates by root-cause cluster, never 1-off wins:**
    Choose work by the rows it can move and fix the mechanism the spec names,
    so every row sharing that cause turns green. Validate the rows you already
-   know share it (see [Spec first, land first](#spec-first-land-first)); do not
+   know share it ; do not
    run broad sweeps to discover more before landing.
 2. **Fail-closed semantics over permissive fallbacks:** Never make a positive
    program pass by weakening a proof obligation, returning `true` when a
@@ -170,12 +136,10 @@ roles below. Close a PR only for a recorded withdrawal or supersession, not age.
    `tests/omega/corpus_outcomes.txt` in a pull request: the post-merge check
    measures main and writes the ledger. Change code, fixtures and
    `expected.txt` only.
-6. **Stop rule: decline the patch that would add another carrier.** If your fix
-   would add another carrier, case or per-place branch for a mechanism that
-   already has one, stop. Write a cluster report in the claim note and your
-   final message: the rows that share the cause, the mechanism, and the general
-   fix you propose. That report is a complete result. You do not need permission
-   to decline a patch, and a correct patch in the wrong place is not progress.
+6. **Fix the mechanism, not the case.** When a fix wants a second carrier,
+   case or per-place branch, that is the compiler telling you where its
+   mechanism is too narrow. That is the best kind of bug to find: one general
+   fix closes the whole family. Make it, in the same PR.
 
 ## The sample loop
 
@@ -190,6 +154,9 @@ diagnostic, and the finite `tests/omega` facts fixture, is a photograph of that
 object. Done means the compiler still holds that same object. Changing the fact,
 the bound, or the operation so a place passes is repainting that photograph:
 a different object, and a green check on it does not count.
+
+The corpus already remembers every placement that works. Your job is the
+placement you changed; the post-merge check guards the rest.
 
 ### No new `samples/cli/facts` folder bloat
 
@@ -277,6 +244,9 @@ mbx clippy -p <crate> --all-targets -- -D warnings
 mbx xtask check-boundary
 ```
 
+The only pre-merge check is `admission` (rules and formatting, about a
+minute); `main` is checked after every merge.
+
 Never run an unfiltered corpus sweep locally (`mbx xtask corpus` enforces a
 200-fixture local selection budget).
 
@@ -327,23 +297,13 @@ refuses a second build or corpus run while one is active.
 
 ## Sessions and subagents
 
-- **Division of labor (Coordinator vs. Worker):**
-  - **Coordinator owns triage and review; workers own investigation and implementation:**
-    Subagents exist so each capability outcome or diagnostic cluster gets its
-    own isolated worktree and clean context window for compiler reading and
-    root-cause tracing. When running with subagents, the coordinator selects
-    outcomes from `TASKS.md` and `tests/omega/corpus_outcomes.txt` (by board
-    item and diagnostic cluster, without reading `omega-rust/` source files to
-    pre-diagnose the bug), creates the worktrees and claims, and dispatches
-    workers immediately. Workers execute Steps 2–5 of `/advance`, push their
-    branch, open a **draft** PR (`gh pr create --draft`), and stop
-    (`candidate_ready`). Workers never mark a PR ready or run `cargo xtask land`
-    themselves. The coordinator audits `gh pr diff <pr>` with
-    [.agents/skills/coordinator-review/SKILL.md](.agents/skills/coordinator-review/SKILL.md)
-    before running `cargo xtask land <pr> --expected-head <sha>`.
-  - **Standalone single-agent session:** One agent executes Steps 1–5 of
-    `/advance`, self-reviews against `coordinator-review`, and runs
-    `cargo xtask land <pr> --expected-head <sha>`.
+- **Coordinator and workers:** The coordinator chooses work and starts
+  workers, each in its own worktree. You are trusted with your task end to
+  end: review your own diff the way a careful reviewer would
+  ([coordinator-review](.agents/skills/coordinator-review/SKILL.md)), then
+  squash-merge it when `admission` passes. Waiting for permission you already
+  have only slows the project down. A coordinator may look at any diff; workers
+  do not wait for it. A single-agent session works the same way.
 - **Reactive wakeup only:** Never poll in loops, `sleep`, or schedule periodic
   timers waiting on subagents or background tasks; end the turn and let completion
   notifications wake the session.
