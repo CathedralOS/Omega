@@ -5,8 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [[ -d /tmp/ledger-bisect-tools ]]; then
   SCRIPT_DIR=/tmp/ledger-bisect-tools
 fi
-ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || git rev-parse --show-toplevel)"
-cd "$ROOT"
+ROOT="${REPO_ROOT:-/agent/repos/omega}"
+if [[ -d "$ROOT/.git" ]]; then
+  cd "$ROOT"
+else
+  ROOT="$(git rev-parse --show-toplevel)"
+  cd "$ROOT"
+fi
 export OMEGA_REPO="$ROOT"
 export BISECT_PIN_LEDGER="${BISECT_PIN_LEDGER:-/tmp/ledger_bisect_corpus_outcomes.txt}"
 export BISECT_PIN_WITNESS_JSON="${BISECT_PIN_WITNESS_JSON:-/tmp/ledger_bisect_witness_pin.json}"
