@@ -14,6 +14,18 @@ The [compiled VM peer](compiled_vm/README.md) constructs a Gamma compiler from
 source, then emits independent Alpha tapes for successor implementations. Its
 README records the construction route, trust boundary, and executable checks.
 
+Both source routes start from an audited native Alpha seed and the separately
+admitted [1,773-byte Beta compiler tape](1_beta/AUDIT.md). Rebuilding it from its readable
+source verifies identity; it does not eliminate the initial tape as a trust
+input. The compiled peer additionally constructs a Gamma compiler and obtains
+identical tapes through two successive self-rebuilds. Its separate Python
+compiler is a disclosed development accelerator, not part of that source route.
+
+The demonstrated upper edge compiles exercised Omega programs and executes
+their emitted tapes. Constructing the Omega compiler from `source/{psi,omega}`
+and rebuilding it with itself remain unfinished in both peers. The Gamma
+compiler's fixed point does not establish the Omega compiler's fixed point.
+
 The existing interpreted source owners are:
 
 ```text
