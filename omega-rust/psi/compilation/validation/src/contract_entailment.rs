@@ -17730,9 +17730,8 @@ pub(crate) mod law_conformance {
                     judge.judge_explicit_identity(required_term.clone(), provided_term.clone(), 0);
                 if std::env::var_os("OMEGA_ENTAILMENT_TRACE").is_some() {
                     eprintln!(
-                        "CORRESP values required={required_expression:?} provided={provided_expression:?} gate=identity judgment={judgment:?} required_query={} provided_query={}",
-                        judge.diagnostic_identity_query(required_term),
-                        judge.diagnostic_identity_query(provided_term)
+                        "CORRESP values required={required_expression:?} provided={provided_expression:?} gate=identity judgment={judgment:?} pair={}",
+                        judge.diagnostic_identity_pair(required_term, provided_term)
                     );
                 }
                 matches!(judgment, super::super::StructuralJudgment::Proven)
@@ -50461,6 +50460,86 @@ pub(crate) mod structural_judgment {
             }
 
             // Temporary exact-payload diagnostic, removed before landing.
+            pub(crate) fn diagnostic_identity_pair(
+                &self,
+                left: StructuralTerm,
+                right: StructuralTerm,
+            ) -> String {
+                let mut original_remaining = IDENTITY_QUERY_WORK_LIMIT;
+                let original = self.exact_identity_congruence(
+                    left.clone(),
+                    right.clone(),
+                    1,
+                    &mut original_remaining,
+                );
+                let arguments = match (&left, &right) {
+                    (
+                        StructuralTerm::Application {
+                            target: left_target,
+                            arguments: left_arguments,
+                            ..
+                        },
+                        StructuralTerm::Application {
+                            target: right_target,
+                            arguments: right_arguments,
+                            ..
+                        },
+                    ) => {
+                        let verdicts = left_arguments
+                            .iter()
+                            .zip(right_arguments)
+                            .map(|(left, right)| {
+                                let mut remaining = IDENTITY_QUERY_WORK_LIMIT;
+                                let verdict = self.judge_identity_with_budget(
+                                    left.clone(),
+                                    right.clone(),
+                                    2,
+                                    &mut remaining,
+                                );
+                                (verdict, remaining)
+                            })
+                            .collect::<Vec<_>>();
+                        format!(
+                            "arity={:?}/{:?}, actuals={}/{}, verdicts={verdicts:?}",
+                            self.identity_application_arity(*left_target),
+                            self.identity_application_arity(*right_target),
+                            left_arguments.len(),
+                            right_arguments.len()
+                        )
+                    }
+                    _ => "not applications".to_owned(),
+                };
+                let mut remaining = IDENTITY_QUERY_WORK_LIMIT;
+                let normalized = match self.normalize_identity_values(
+                    [left.clone(), right.clone()],
+                    1,
+                    &mut remaining,
+                ) {
+                    Err(reason) => format!("refused={reason}, remaining={remaining}"),
+                    Ok(IdentityNormalization::Proven) => format!("Proven, remaining={remaining}"),
+                    Ok(IdentityNormalization::Values([normalized_left, normalized_right])) => {
+                        let verdict = self.exact_identity_congruence(
+                            normalized_left.clone(),
+                            normalized_right.clone(),
+                            1,
+                            &mut remaining,
+                        );
+                        format!(
+                            "Values, changed={}/{}, congruence={verdict:?}, remaining={remaining}, left={}, right={}",
+                            !left.same_resolution_payload(&normalized_left),
+                            !right.same_resolution_payload(&normalized_right),
+                            self.diagnostic_identity_term(&normalized_left, 0),
+                            self.diagnostic_identity_term(&normalized_right, 0)
+                        )
+                    }
+                };
+                format!(
+                    "original={original:?}, remaining={original_remaining}, {arguments}, normalized={normalized}, left_query={}, right_query={}",
+                    self.diagnostic_identity_query(left),
+                    self.diagnostic_identity_query(right)
+                )
+            }
+
             pub(crate) fn diagnostic_identity_query(&self, value: StructuralTerm) -> String {
                 let mut remaining = 64;
                 let forms = self.data_identity_forms(value.clone(), 2, &mut remaining);
