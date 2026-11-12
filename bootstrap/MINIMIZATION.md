@@ -39,6 +39,15 @@ source-specific recognizers and manufactured output do not count as compilation.
 
 ## Retention test
 
+The Omega-written compiler should follow the structure of
+[`omega-rust`](../omega-rust) as closely as practical: corresponding pipeline
+stages, Psi/Omega ownership boundaries, representations and core mechanisms.
+This is a structural reference, not a requirement for line-by-line translation.
+Reasonable simplifications and improvements are welcome. Keep the implementation
+within a deliberate subset of the language it implements so that this structural
+correspondence does not force every product-language facility into the bootstrap
+compiler. Required source semantics and safety checks remain binding.
+
 Every retained language feature, runtime mechanism, tool and sidecar must serve
 an actual successor compiler or necessary invocation/validation. Compare deletion,
 consolidation and a source refactor before adding machinery. Additional language
