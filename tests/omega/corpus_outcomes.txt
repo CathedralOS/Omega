@@ -4406,7 +4406,7 @@ fail/data/record_pattern_missing_field rejected 27301ms expected @911f6617ba9e
 	record pattern in machine `Main::main` state `main` does not mention field `z` of `Point` -- record patterns are exhaustive by law: bind it, rename it with `as`, or waive it with `as _`
 fail/data/recursive_data_infinite_size rejected 10889ms expected @ccdb99ca2214
 	machine `Main::main` state `main` parameter `main` mentions proof-only `Main`, which has no runtime layout
-fail/data/reference_local_store_breaks_collection_predicate rejected 2357ms expected @dd36590272d6
+fail/data/reference_local_store_breaks_collection_predicate rejected 2523ms expected @34b2a9beedab
 	cannot complete return from machine `poke` state `entry`: this write left the `requires` facts of `b` (data `B`) unproved; restore them first
 fail/data/struct_literal_duplicate_field_rejected rejected 14472ms expected @ccdb99ca2214
 	data `Point` literal has duplicate field `x`
@@ -21786,6 +21786,7 @@ pass/data/property_carry_declared checked 2918ms @ccdb99ca2214
 pass/data/qualified_record_pattern_exit checked 3434ms check-target:macos_arm64 @ccdb99ca2214
 pass/data/record_pattern_let_exit checked 60193ms check-target:macos_arm64 @911f6617ba9e
 pass/data/record_snapshot_finish checked 4242ms @d352d5e8e77e
+pass/data/reference_local_store_keeps_collection_predicate_exit checked 23464ms check-target:macos_arm64 @34b2a9beedab
 pass/data/runtime_case_payload_call_result_window_exit checked 33919ms check-target:macos_arm64 @a91a8de86514+wt
 pass/data/runtime_case_reassignment_exit checked 11352ms check-target:macos_arm64 @ccdb99ca2214
 pass/data/runtime_constructor_observation_exit checked 52782ms check-target:macos_arm64 @911f6617ba9e
