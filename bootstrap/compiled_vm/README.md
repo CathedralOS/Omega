@@ -165,15 +165,20 @@ bytes; executing that tape exited 42 with empty stdout and stderr. The first
 95.329 seconds. This demonstrates an accelerated construction through a real
 Omega executable. No Omega compiler self-rebuild has been demonstrated here.
 
-The existing `tests/bootstrap/omega-executable/controls_b.epsilon` customer also
+The then-current `tests/bootstrap/omega-executable/controls_b.epsilon` customer also
 passed through compiled Epsilon with the complete bootstrap compiler (575,227
-source bytes). It checks six changed modulo, shift, and bitwise programs,
+source bytes). It then accepted six changed modulo, shift, and bitwise programs,
 rejects the out-of-range literal 256 while asserting an unfinalized empty tape,
 then successfully recompiles 42 on the same compiler instance. The published
 observation matched the existing expected `C` plus 22-byte Alpha tape exactly;
 that tape also executed with exit 42 and no output. This eight-invocation run
-completed in 159.692 seconds under a 300-second allowance. It checks source
-generality, failure publication, and compiler reset. The default Omega watchdog
+completed in 159.692 seconds under a 300-second allowance. Later review found
+that those anonymous operator acceptances were wrong Omega semantics; this
+historical passing observation is not correctness evidence for them. The current
+compiler refuses those forms, and its corrected customer passed in 139.663
+seconds through source-built Epsilon with the same exact reset artifact and
+exit 42. That observation used bootstrap compiler SHA-256
+`f765c26d704c41552739e32fc592232edcf814f5d57ee3990e92660aacb6152f`. The default Omega watchdog
 is now 1,800 seconds; `--omega-timeout` retains an explicit experimental override.
 
 ## Source compiler implementation and evidence
@@ -234,3 +239,44 @@ comparative benchmarks.
 Completing the bootstrap compiler's needed Omega coverage and obtaining
 reproducible Omega compiler self-rebuilds remain delivery work. The Gamma
 compiler fixed point does not establish an Omega compiler fixed point.
+
+The parameter/local/call customer can be requested with
+`python3 bootstrap/compiled_vm/source_test.py --omega-values`. It executes the
+current manifested bootstrap compiler, verifies source-owned refusals and
+executes the actual emitted tapes. The older modulo/shift/bitwise observation
+above is historical only: those anonymous forms lacked the required carrier
+meaning and are now explicit coverage refusals. It is not evidence that the
+older compiler preserved their Omega semantics.
+
+An earlier values-customer snapshot ran through the source-built Epsilon tape in
+1,050.206 seconds. Nine emitted Alpha executables returned the expected values;
+30 source-owned refusals checked empty, unfinalized publication and reset.
+The complete Epsilon customer was 601,461 bytes, SHA-256
+`0465ac3c9ee18d7f59b62a4cf1ca7d8323a5c0324e9ac7f6fdeaea76cad64c32`.
+The separately reconstructed Epsilon tape retains SHA-256
+`5f12d53066179df5e92929ab7a41933a2ed3c0234400d9c7b3cda8718a469c12`.
+These are functional observations under concurrent machine load, not controlled
+performance comparisons. The bootstrap compiler still cannot construct the
+Omega compiler source closure or demonstrate its self-rebuild.
+
+The changed legacy `controls`, `controls_c`, and `controls_d` bodies completed
+with their exact reset tapes in a shared invocation (603,476-byte customer,
+SHA-256 `64f98ca7aff4e1f651a3a347ea4cc3f955d74795b50370d2eb0088fa43e75a36`).
+Each emitted tape executed with exit 42. That invocation then exposed the
+previously unsupported ungrouped terminal call in `controls_i`; it was not a
+successful complete batch. The repaired parser reused call-expression retention
+instead of changing that witness. The unchanged `controls_i` body, four
+structural-overload/duplicate refusals, a bare nested parameterized call and
+reset then passed in 420.248 seconds. This 604,432-byte customer had SHA-256
+`601f5013b8ff23c35f934fe5da184ea85e10ed4af187b4439f609b29754adf41`;
+its three emitted artifacts executed with exits 42, 47, 43.
+
+After restoring each body's diagnostic anchor following declaration census,
+the final 598,333-byte compiler closure has SHA-256
+`0c402370392af73910cf6caa05b0198dd7ccf0820397e26b85367a1dfcec9f72`.
+Its focused early-body refusal checked canonical source coordinate 0 and empty
+publication, then reset and emitted an actual executable returning 43. That
+600,677-byte customer, SHA-256
+`20ffacd689a6712f78070ccde506f14a4abe5f9edaaa3f4f9189893b05a620ed`,
+passed in 76.013 seconds. The older observations above retain their own input
+identities; the entire matrix was not rerun after this diagnostic-only repair.

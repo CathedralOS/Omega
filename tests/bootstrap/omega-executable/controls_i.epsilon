@@ -12,16 +12,13 @@ data Main {
 
 machine Main::main(&mut self) {
     self.compiler.compile("machine answer() -> u8 { 85 / 2 }", "answer");
-    self.complete(22);
-    assert self.compiler.tape.bytes[13] == 42;
+    self.incomplete();
 
     self.compiler.compile("machine answer() -> u8 { 20 + 1 << 1 }", "answer");
-    self.complete(22);
-    assert self.compiler.tape.bytes[13] == 42;
+    self.incomplete();
 
     self.compiler.compile("machine answer() -> u8 { 8 | 40 ^ 2 }", "answer");
-    self.complete(22);
-    assert self.compiler.tape.bytes[13] == 42;
+    self.incomplete();
 
     self.compiler.compile("machine helper() -> u8 { 7 } machine answer() -> u8 { helper() }", "answer");
     self.complete(32);

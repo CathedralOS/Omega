@@ -12,10 +12,10 @@ data Main {
 
 machine Main::main(&mut self) {
     self.compiler.compile("machine answer() -> u8 { 1 << 8 }", "answer");
-    self.rejected();
+    self.incomplete();
 
     self.compiler.compile("machine answer() -> u8 { 100 << 2 }", "answer");
-    self.rejected();
+    self.incomplete();
 
     self.compiler.compile("machine answer() -> u8 { 1 } machine answer() -> u8 { 2 }", "answer");
     self.rejected();
@@ -27,7 +27,7 @@ machine Main::main(&mut self) {
     self.rejected();
 
     self.compiler.compile("machine answer() -> u8 { missing }", "answer");
-    self.incomplete();
+    self.rejected();
 
     self.compiler.compile("machine answer() -> u8 { missing + 1 }", "answer");
     self.incomplete();
