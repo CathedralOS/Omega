@@ -47,7 +47,7 @@ machine Main::main(main: &mut Main) {
         signed32: [-2147483648i32, 2147483647i32],
         trailing: 7u32
     };
-    let decoded: ExtremeValues = ExtremeValues {
+    let mut decoded: ExtremeValues = ExtremeValues {
         minimum: 0i64, maximum: 0i64, signed32: [0i32, 0i32], trailing: 0u32
     };
     Extremes::encode(&value, &mut main.buffer, &mut main.written);

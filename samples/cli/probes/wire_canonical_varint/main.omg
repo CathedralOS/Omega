@@ -40,7 +40,7 @@ machine Main::main(main: &mut Main) {
     // Era 0, tag 0, then zero encoded with two groups
     // instead of one.
     let overlong_payload: [u8; 4] = [0, 0, 128, 0];
-    let overlong: ScalarValue = ScalarValue { value: 7 };
+    let mut overlong: ScalarValue = ScalarValue { value: 7 };
     Scalar::decode(
         &mut overlong,
         &overlong_payload,
@@ -49,7 +49,7 @@ machine Main::main(main: &mut Main) {
     );
     // Payload bits beyond u64's range in the tenth group.
     let overflow_payload: [u8; 12] = [0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 3, 0];
-    let overflow: ScalarValue = ScalarValue { value: 7 };
+    let mut overflow: ScalarValue = ScalarValue { value: 7 };
     Scalar::decode(
         &mut overflow,
         &overflow_payload,
@@ -58,7 +58,7 @@ machine Main::main(main: &mut Main) {
     );
     // Canonical u64::MAX: ten 7-bit groups, MSB group 1.
     let good_payload: [u8; 12] = [0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 1, 0];
-    let good: ScalarValue = ScalarValue { value: 7 };
+    let mut good: ScalarValue = ScalarValue { value: 7 };
     Scalar::decode(
         &mut good,
         &good_payload,

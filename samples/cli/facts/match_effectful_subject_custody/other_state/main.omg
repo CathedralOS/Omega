@@ -20,7 +20,7 @@ machine refill<'c>(slot: &mut Token<'c>, counter: &'c mut Counter, flag: bool) -
 }
 
 machine exercise(a: &mut Counter, b: &mut Counter, c: &mut Counter, flag: bool) -> u64 {
-    let slot: Token = Token { counter: a, mark: 11 };
+    let mut slot: Token = Token { counter: a, mark: 11 };
     let other: Token = Token { counter: b, mark: 13 };
     transition { _ -> pick(slot, other, c, flag) }
 

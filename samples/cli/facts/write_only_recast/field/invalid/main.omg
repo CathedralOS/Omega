@@ -4,7 +4,7 @@ data Original { value: u32; }
 data Viewed { value: u32; }
 data Envelope { view: &mut Viewed; }
 machine overwrite(storage: &write Original) {
-    let envelope: Envelope = Envelope { view: storage as &mut Viewed };
+    let mut envelope: Envelope = Envelope { view: storage as &mut Viewed };
     envelope.view.value = 73;
 }
 machine main() crashes Trap {
