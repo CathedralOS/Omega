@@ -1753,6 +1753,31 @@ def machine_form_cases(program: str) -> None:
              expression_count=9)
 
 
+def token_record_cases(program: str) -> None:
+    """Every token kind keeps its authored span through the live parser.
+
+    The contextual requires word follows a cooked string: recognizing it also
+    depends on retaining the correct decoded-arena range for later identifiers.
+    Parser observation tags and framing remain the existing public protocol.
+    """
+    body = (b'machine f() -> u8 { emit(0x2a, 1.25e+2, "A\\x42", true, false); 42 }\n'
+            b'machine next() -> u8 requires true { 7 }')
+    expected = ((b'emit', 1), (b'0x2a', 3), (b'1.25e+2', 14),
+                (b'"A\\x42"', 5), (b'true', 4), (b'false', 4))
+    for prefix in (b'', b' /* shifted token custody */\n'):
+        source = prefix + body
+        status, payload = run(program, source)
+        assert status == 0, ('token-record-parser', status)
+        actual = decode(payload)
+        assert actual.accepted and len(actual.machines) == 2
+        for spelling, kind in expected:
+            location = span(source, spelling)
+            rows = [row for row in actual.expressions if row[-3:] == location]
+            assert len(rows) == 1 and rows[0][0] == kind, (spelling, rows)
+        assert len(actual.clauses) == 1, actual.clauses
+        assert run(program, source) == (status, payload), 'token-record observation changed on repeat'
+
+
 def expression_form_cases(program: str) -> None:
     """Memberships, value-position matches and renamed pattern fields."""
     MEMBERSHIP, MATCH = 15, 16
@@ -4002,6 +4027,7 @@ def main() -> None:
     root_declaration_cases(program)
     machine_form_cases(program)
     expression_form_cases(program)
+    token_record_cases(program)
 
     repeat_source = (
         b"use repeated::observation; data Stable [linear] { "
