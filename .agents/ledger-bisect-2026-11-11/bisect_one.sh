@@ -4,7 +4,8 @@ set -euo pipefail
 WITNESS="${1:?witness}"
 PIN="${BISECT_BAD:-51e8c45c793007f211d0d9baee7de16767172444}"
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
-SCRIPT="$ROOT/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh"
+bash "$ROOT/.agents/ledger-bisect-2026-11-11/install_bisect_tools.sh"
+SCRIPT="${BISECT_TOOLS_ROOT:-/tmp/ledger_bisect_tools}/bisect_witness.sh"
 OUT_DIR="$ROOT/.agents/ledger-bisect-2026-11-11/bisect_results"
 MEASURE="${BISECT_MEASURE:-$ROOT/.agents/ledger-bisect-2026-11-11/slice_2_pin_measure.txt}"
 mkdir -p "$OUT_DIR"
@@ -19,7 +20,8 @@ python3 "$ROOT/.agents/ledger-bisect-2026-11-11/tools/pin_snapshot.py" "$WITNESS
 run_test_at() {
   local rev="$1"
   git -c submodule.recurse=false checkout --detach "$rev" >/dev/null 2>&1 || return 125
-  nice -n 19 "$SCRIPT" 2>/dev/null
+  export BISECT_TOOLS_ROOT="/tmp/ledger_bisect_tools"
+  nice -n 19 "$SCRIPT"
 }
 
 echo "find_good from $PIN" >&2

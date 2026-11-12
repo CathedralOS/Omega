@@ -2,10 +2,10 @@
 # git bisect run helper: 0 = good (PIN ledger expected), 1 = bad (PIN regression), 125 = skip
 set -euo pipefail
 WITNESS="${BISECT_WITNESS:?}"
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+TOOLS="${BISECT_TOOLS_ROOT:-/tmp/ledger_bisect_tools}"
+ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
-# Skip ledger-only first-parent commits (cannot change compiler behaviour).
 if parent=$(git rev-parse --verify HEAD^1 2>/dev/null); then
   mapfile -t files < <(git diff --name-only "$parent" HEAD 2>/dev/null || true)
   if ((${#files[@]} > 0)); then
@@ -31,4 +31,4 @@ export OMEGA_CORPUS_ROOT="$ROOT" OMEGA_LIBRARY_ROOT="$ROOT/source/library"
 export OMEGA_CORPUS_FIXTURE_FILTER="$WITNESS" OMEGA_CORPUS_RECORDS="/tmp/bisect_one_${SHORT}.txt"
 rm -f "/tmp/bisect_one_${SHORT}.txt"
 nice -n 19 "$RUNNER" < /dev/null >/dev/null 2>&1 || true
-python3 "$(dirname "$0")/bisect_test.py" "$WITNESS" "/tmp/bisect_one_${SHORT}.txt"
+python3 "$TOOLS/bisect_test.py" "$WITNESS" "/tmp/bisect_one_${SHORT}.txt"

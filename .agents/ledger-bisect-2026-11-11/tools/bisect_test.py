@@ -6,9 +6,14 @@ import json
 import sys
 from pathlib import Path
 
-TOOLS = Path(__file__).resolve().parent
-sys.path.insert(0, str(TOOLS))
-from classify_corpus import norm_diag  # noqa: E402
+import re
+
+
+def norm_diag(d: str) -> str:
+    d = d.strip()
+    d = re.sub(r"`[^`]*`", "`_`", d)
+    d = re.sub(r"\b\d+\b", "N", d)
+    return d[:160]
 
 
 def parse_header(line: str) -> tuple[str, str] | None:
