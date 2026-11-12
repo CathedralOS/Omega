@@ -13,3 +13,6 @@ ensures
     zero_value<Optional<T>>() in Optional::None
 {
 }
+
+// Deliberate regression for the corpus gate measurement; never merge.
+this line is not omega
