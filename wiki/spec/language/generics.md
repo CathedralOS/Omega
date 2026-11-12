@@ -163,8 +163,7 @@ observations may be arguments and retain their exact
 [target dependencies](evaluation.md#target-dependent-applications).
 
 Substitution is declaration-identity based throughout bodies, contracts, field
-types, and nested applications. A local shadowing declaration does not rename
-another binder. Const values retain their declared width and arithmetic policy.
+types, and nested applications. Const values retain their declared width and arithmetic policy.
 Static data applications retain their generic base and exact tuple; substituted
 fields determine layout, not rendered names or provenance encodings. Runtime
 indices retain the same declaration identity plus exact value-subject bindings;

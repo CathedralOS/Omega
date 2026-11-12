@@ -107,6 +107,10 @@ declaration order and flattening. Both ordinary and terminal calls invoke the
 selected machine with ordinary explicit parameters. Context records and their
 borrows are supplied like other arguments; no receiver or enclosing activation
 is retained or rebound implicitly.
+A local name is declared at most once in a machine body: a second `let` of the
+same name in the same body is rejected, whether or not the first is still in
+use. Parameters and locals share that namespace. Refusal compares declared
+binder identities, not spellings rendered as text.
 An ordinary terminal value, explicit return, or permitted implicit Unit
 completion ends the invocation and owes its declared result/return contract.
 
