@@ -1330,6 +1330,7 @@ impl PartialEq for ProgramIdentity {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+#[record(write_scope = crate::type_identity::write_under_own_numbering)]
 pub struct TypedTrees {
     pub identity: ProgramIdentity,
     pub product_declaration_frontier: Option<std::sync::Arc<TypedTrees>>,
