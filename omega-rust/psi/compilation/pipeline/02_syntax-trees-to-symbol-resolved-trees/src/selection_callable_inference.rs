@@ -403,6 +403,31 @@ fn same_type_arguments(
         return Ok(false);
     }
     while let Some((left, right)) = pending.pop() {
+        let owner = |reference: &TypeReference| -> Result<Option<SymbolHandle>, Diagnostic> {
+            let owner = reference.supplied_operand_owner();
+            if !owner.is_valid() {
+                return Ok(None);
+            }
+            let declaration = program
+                .tables
+                .types
+                .operand_lifetime_owners
+                .get(owner)
+                .declaration;
+            if !declaration.is_valid() {
+                return Err(error(
+                    source,
+                    "an inferred nominal type operand lost its supplied lifetime owner",
+                ));
+            }
+            Ok(Some(declaration))
+        };
+        if owner(&left)? != owner(&right)? {
+            return Err(error(
+                source,
+                "comparing distinct supplied lifetime contexts during callable type inference is not implemented",
+            ));
+        }
         match (left, right) {
             (TypeReference::AliasUse { expansion, .. }, right) => pending.push((*expansion, right)),
             (left, TypeReference::AliasUse { expansion, .. }) => pending.push((left, *expansion)),
@@ -422,6 +447,12 @@ fn same_type_arguments(
             }
             (TypeReference::Unit, TypeReference::Unit) => {}
             (TypeReference::Generic(left), TypeReference::Generic(right)) => {
+                if !left.base_symbol.is_valid() || !right.base_symbol.is_valid() {
+                    return Err(error(
+                        source,
+                        "an inferred nominal type application has no exact selected declaration",
+                    ));
+                }
                 if !left.lifetime_arguments.is_empty() || !right.lifetime_arguments.is_empty() {
                     return Err(error(
                         source,
@@ -446,6 +477,12 @@ fn same_type_arguments(
                     ..
                 },
             ) => {
+                if !left.is_valid() || !right.is_valid() {
+                    return Err(error(
+                        source,
+                        "an inferred dynamic type argument has no exact selected trait",
+                    ));
+                }
                 if left != right || !span(&mut pending, program, left_arguments, right_arguments) {
                     return Ok(false);
                 }
