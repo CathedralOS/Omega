@@ -952,6 +952,7 @@ pass/capabilities/transitive_effect_inference checked 2228ms @5f668826adf3+wt
 pass/capabilities/uses_caller_folder checked 1857ms @5f668826adf3+wt
 pass/capabilities/win64_large_aggregate_result_import_compile built 2265ms @5f668826adf3+wt
 pass/capabilities/win64_pointer_length_vs_descriptor_compile built 2116ms @5f668826adf3+wt
+pass/capabilities/windows_applied_requirement_import_exit built 34005ms exit:70 interpreter-exit:70 interpreter:agrees @2504707001a3
 pass/capabilities/windows_provides_import_exit built 7448ms exit:70 @5f668826adf3+wt
 	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
 pass/cases/arm_field_placement checked 2484ms @5f668826adf3+wt
