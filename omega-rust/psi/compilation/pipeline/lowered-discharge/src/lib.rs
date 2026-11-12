@@ -57,6 +57,7 @@ mod describe;
 mod entry_inputs;
 mod graph;
 mod joins;
+mod known;
 mod minted;
 mod places;
 mod prove;

@@ -15,7 +15,6 @@ storage cannot become callee identities. A written boundary stops caller
 inference, while its own declared facts can justify calls within its body.
 */
 
-use proof_admission::check_value_equality_denotation;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IdTable, InvocationSite, MachineId, PlaceId, Proposition,
     ScalarTerm, ScalarType, StructuralCaseId, ValueId,
@@ -350,24 +349,23 @@ fn describe(
             flatten(row.justification, proposition, &mut available);
         }
     }
-    // Entry clauses can relate a Boolean formal to its scalar inputs too.
-    // Unfold those definitions and known Boolean results before projecting
-    // the facts into the actual inputs. Numeric
-    // operation results keep their own identities, rather than becoming
-    // invented equations about the callee's inputs.
-    let equations: Vec<&Proposition> = available
+    // Use the same equality transport as proof search. In particular, a taken
+    // result such as `(condition == true) == true` establishes `condition`'s
+    // literal value before caller-only Boolean identities are projected away.
+    let mut assumptions = Vec::new();
+    let mut axioms = Vec::new();
+    for (why, proposition) in &available {
+        if matches!(why, Justification::OperationSemantics(_)) {
+            axioms.push((*proposition).clone());
+        } else {
+            assumptions.push((*proposition).clone());
+        }
+    }
+    let known = crate::known::Known::new(context, &assumptions, &axioms, &tables.values);
+    let equations: Vec<_> = known
+        .equations
         .iter()
-        .filter_map(|(_, proposition)| {
-            matches!(proposition,
-                Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition)
-                    if match definition {
-                        ScalarTerm::Boolean(_) => true,
-                        ScalarTerm::Integer { .. } => true,
-                        _ => subject.scalar_type() == ScalarType::Boolean,
-                    }
-            )
-            .then_some(*proposition)
-        })
+        .map(|(proposition, _)| proposition)
         .collect();
     let definitions: Vec<_> = equations
         .iter()
@@ -395,14 +393,12 @@ fn describe(
             parts.push(equality);
         }
     }
-    for (why, proposition) in available {
-        if matches!(why, Justification::OperationSemantics(_)) {
-            continue;
-        }
-        let denotation =
-            check_value_equality_denotation(context, proposition, equations.iter().copied())
-                .unwrap_or_else(|_| proposition.clone());
-        parts.push(joins::project(&denotation, &mut |atom| {
+    for fact in known.facts.iter().filter(|fact| fact.axiom.is_none()) {
+        let proposition = &fact.proposition;
+        // The shared closure retains both the original and normalized facts.
+        // Projection can weaken the former; the latter still carries every
+        // relation established before crossing the input boundary.
+        parts.push(joins::project(proposition, &mut |atom| {
             substitute(atom, &mut bindings).ok()
         }));
     }

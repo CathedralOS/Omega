@@ -53,6 +53,8 @@ use terminal_check_tables::values::ValueRow;
 
 mod ranges;
 
+use crate::known::{Fact, is_branch_fact};
+
 /// Why no certificate was built. Diagnostic only.
 pub(crate) type Unproven = &'static str;
 
@@ -142,15 +144,6 @@ enum Slot {
     Unknown,
     InProgress,
     Done(Option<Bound>),
-}
-
-/// One hypothesis or one conjunct of it, with the node that yields it.
-struct Fact {
-    proposition: Proposition,
-    proof: ProofNode,
-    /// The semantic axiom index when this fact is a whole axiom, which the
-    /// definition-bound rules cite.
-    axiom: Option<usize>,
 }
 
 #[cfg(test)]
@@ -292,67 +285,6 @@ fn ex_falso(absurd: ProofNode, goal: &Proposition) -> ProofNode {
     )
 }
 
-/// The facts transport may substitute: `v == t` for a Boolean value `v` (an
-/// operation result equation, a callee guarantee or a block invariant's
-/// definition of a join parameter) or for any value defined as a literal.
-/// A Boolean literal on the right is a branch fact, not a definition. The
-/// kernel keeps the first definition of each subject, as this does.
-fn definitions(facts: &[Fact]) -> Vec<(Proposition, ProofNode)> {
-    facts
-        .iter()
-        .filter(|fact| match &fact.proposition {
-            Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition) => {
-                match definition {
-                    ScalarTerm::Boolean(_) => fact.axiom.is_some(),
-                    ScalarTerm::Integer { .. } => true,
-                    _ => subject.scalar_type() == ScalarType::Boolean,
-                }
-            }
-            _ => false,
-        })
-        .map(|fact| (fact.proposition.clone(), fact.proof.clone()))
-        .collect()
-}
-
-/// `c == true` or `c == false` for a Boolean value `c`.
-fn is_branch_fact(proposition: &Proposition) -> bool {
-    matches!(
-        proposition,
-        Proposition::Equal(
-            ScalarTerm::Value {
-                scalar_type: ScalarType::Boolean,
-                ..
-            },
-            ScalarTerm::Boolean(_),
-        )
-    )
-}
-
-fn flatten(
-    proposition: &Proposition,
-    proof: ProofNode,
-    axiom: Option<usize>,
-    facts: &mut Vec<Fact>,
-) {
-    if let Proposition::Conjunction(parts) = proposition {
-        for (conjunct, part) in parts.iter().enumerate() {
-            let eliminated = node(
-                part.clone(),
-                ProofRule::ConjunctionElimination {
-                    conjunction: Box::new(proof.clone()),
-                    conjunct,
-                },
-            );
-            flatten(part, eliminated, None, facts);
-        }
-    }
-    facts.push(Fact {
-        proposition: proposition.clone(),
-        proof,
-        axiom,
-    });
-}
-
 impl<'a> Prover<'a> {
     pub(crate) fn new(
         context: &'a PropositionContext,
@@ -363,70 +295,8 @@ impl<'a> Prover<'a> {
     ) -> Self {
         #[cfg(test)]
         SEARCHES.with(|searches| searches.set(searches.get() + 1));
-        let mut facts = Vec::new();
-        for (index, assumption) in assumptions.iter().enumerate() {
-            let proof = node(assumption.clone(), ProofRule::Assumption { index });
-            flatten(assumption, proof, None, &mut facts);
-        }
-        for (index, axiom) in axioms.iter().enumerate() {
-            let proof = node(axiom.clone(), ProofRule::SemanticAxiom { index });
-            flatten(axiom, proof, Some(index), &mut facts);
-        }
-        // A branch fact `c == true` says what `c`'s comparison says. Transport
-        // it through the definitions of Boolean values and constants, so
-        // integer values stay values and their bounds stay findable; the
-        // kernel recomputes the same transport (`ValueEqualityTransport`).
-        let mut equations = definitions(&facts);
-        // A taken Boolean result with no defining equation (notably a join
-        // parameter) can specialize the predicates that describe it. Keep
-        // operation/entry definitions first so ordinary comparison guards
-        // still unfold to their scalar relations.
-        let mut defined = values.map(|_, _| false);
-        for (equation, _) in &equations {
-            if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = equation
-                && let Some(defined) = defined.get_mut(*id)
-            {
-                *defined = true;
-            }
-        }
-        for fact in facts
-            .iter()
-            .filter(|fact| is_branch_fact(&fact.proposition))
-        {
-            if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = &fact.proposition
-                && let Some(defined) = defined.get_mut(*id)
-                && !std::mem::replace(defined, true)
-            {
-                equations.push((fact.proposition.clone(), fact.proof.clone()));
-            }
-        }
-        if !equations.is_empty() {
-            let premises: Vec<(Proposition, ProofNode)> = facts
-                .iter()
-                .filter(|fact| fact.axiom.is_none())
-                .map(|fact| (fact.proposition.clone(), fact.proof.clone()))
-                .collect();
-            for (premise, proof) in premises {
-                let Ok(transported) = check_value_equality_denotation(
-                    context,
-                    &premise,
-                    equations.iter().map(|(equation, _)| equation),
-                ) else {
-                    continue;
-                };
-                if transported == premise {
-                    continue;
-                }
-                let proof = node(
-                    transported.clone(),
-                    ProofRule::ValueEqualityTransport {
-                        premise: Box::new(proof),
-                        equalities: equations.iter().map(|(_, proof)| proof.clone()).collect(),
-                    },
-                );
-                flatten(&transported, proof, None, &mut facts);
-            }
-        }
+        let crate::known::Known { facts, equations } =
+            crate::known::Known::new(context, assumptions, axioms, values);
         Self {
             context,
             assumptions,
@@ -492,7 +362,6 @@ impl<'a> Prover<'a> {
         .map(|()| primitive(proposition, PrimitiveJudgment::ClosedIntegerRelation))
     }
 
-    /// A certificate whose conclusion is exactly `goal`.
     /// A certificate whose conclusion is exactly `goal`: directly, or by a
     /// case split over a disjunctive fact.
     pub(crate) fn prove(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {

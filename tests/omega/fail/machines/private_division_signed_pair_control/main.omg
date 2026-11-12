@@ -1,5 +1,5 @@
-// Expected exit: 0
-machine quotient(left: i64, right: i64) -> i64 {
+// A complete input contract admits MIN / -1; the nonzero guard does not exclude it.
+machine quotient(left: i64, right: i64) -> i64 requires true {
  transition right != 0 { true -> divided(left, right) false -> (0) }
  machine divided(left: i64, right: i64) -> i64 { left / right }
 }
