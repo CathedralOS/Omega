@@ -41,11 +41,24 @@ the skills.
   Clippy. No broad family sweeps, no before/after comparisons against main, no
   re-recording rows you did not change.
 - **Land, then verify.** Squash-merge the PR yourself as soon as the focused
-  run passes (never a merge commit). Main-wide verification is the nightly sweep's job;
-  repair what it finds afterwards.
+  run passes (never a merge commit). Main is verified after merge; repair what
+  that finds afterwards.
 - **One PR per capability.** Do not open one-row re-pin or ledger-only PRs;
-  fold them into the PR that touches those rows. Every PR costs a merge-queue
-  slot and hosted-runner time.
+  fold them into the PR that touches those rows.
+
+### CI right now (2026-11-12)
+
+The old workflows, the merge queue and the branch rules were removed after
+they held every merge for four hours. Until the replacement in
+[CI rebuild plan](wiki/drafts/designs/ci_rebuild_plan.md) is in place:
+
+- There is no merge queue and no `cargo xtask land`. Squash-merge your own PR.
+- The only pre-merge check is `admission` (rules and formatting, about a
+  minute). `compiler-check`, `workspace-clippy`, `corpus-gate` and Post-merge
+  smoke no longer exist; do not wait for them, re-run them or dispatch them.
+- Nothing lints or tests for you before merge. Run Clippy on the crates you
+  touched and your one focused corpus run locally, then merge.
+- Do not add workflows or required checks; CI changes follow the plan.
 - **Report only landings and blockers** to a coordinator; no progress updates.
 
 ## Explain the change
@@ -248,8 +261,8 @@ mbx xtask corpus --record --filter <fixtures> < /dev/null
 # Run focused sample native + Psi gate:
 mbx xtask sample-gate --filter <sample_path> < /dev/null
 
-# Run repository rules, formatting, lint, and boundary gates. CI fails a landing on
-# any Clippy warning, so lint every crate you touched before you push:
+# Run repository rules, formatting, lint, and boundary gates. Nothing lints for
+# you before merge, so lint every crate you touched before you push:
 mbx xtask check-rules --base origin/main --title "<lane>: <subject>"
 mbx xtask fmt --check
 mbx clippy -p <crate> --all-targets -- -D warnings
@@ -368,7 +381,7 @@ reads the allowed lanes from this table:
   `samples/cli/facts/` or `tests/omega/{pass,fail,run}/facts/`, and never add
   more than 6 `.omg` files in a PR.
 - **No direct pushes to `main` and no chasing `main`:** Land only through
-  reviewed PRs and `cargo xtask land`. Rebase only on actual conflicts or
+  squash-merged PRs. Rebase only on actual conflicts or
   needed prerequisites.
 - **Claims are informational (`cargo xtask claims`):** Register claims
   before editing shared paths; reconcile overlapping edits at rebase.
