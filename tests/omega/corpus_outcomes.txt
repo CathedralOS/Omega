@@ -18290,6 +18290,8 @@ fail/recast/returned_exclusive_view_capture_duplicates rejected 1753ms expected 
 	statement 2 creates local borrow `again` while local borrow `child` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
 	statement 2 reads `view` while local borrow `child` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
 	statement 3 mutates `again.left` while local borrow `child` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+fail/recast/returned_qualified_reference_unproved_domain rejected 1949ms expected @a9583c79243f
+	machine `retain` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
 fail/recast/returned_recast_requires_declared_access rejected 731ms expected @ccdb99ca2214
 	machine `widen` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
 	machine `widen` state `entry` terminal expression expects `&mut Header`, got `cast expression`
@@ -27858,10 +27860,8 @@ pass/recast/recast_view_forward_compile checked 2451ms @ccdb99ca2214
 pass/recast/reference_view_helper_backing_write_exit checked 3164ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/reference_view_shared_call_backing_exit checked 3487ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/reference_view_shared_primitive_neighbor_exit checked 3655ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/returned_qualification_preserves_representation_exit incomplete 7084ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete input origins)); in state `main::entry`, statement 3
-pass/recast/returned_qualified_reference_exit incomplete 7176ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete input origins)); in state `main::entry`, statement 1
+pass/recast/returned_qualification_preserves_representation_exit checked 5770ms check-target:macos_arm64 @a9583c79243f
+pass/recast/returned_qualified_reference_exit checked 5778ms check-target:macos_arm64 @a9583c79243f
 pass/recast/returned_same_type_view_capture_exit checked 4483ms check-target:macos_arm64 @3e93aa449723
 pass/recast/returned_view_state_and_record_composition_exit checked 3840ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 23386ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
