@@ -746,9 +746,7 @@ pub(crate) mod access_lifecycles {
                 (AccessLifecycleOwner::Extent, None, parameter.type_reference)
             };
             let extent = definition(program, extent_reference)?;
-            if !validation::is_extent_declaration(program, extent.symbol)
-                || program.symbols.name(extent.symbol) != "Extent"
-            {
+            if !validation::is_core_extent(program, extent.symbol) {
                 return Err(Diagnostic::error(
                     "placement storage is not the core extent",
                 ));
@@ -763,17 +761,13 @@ pub(crate) mod access_lifecycles {
             ))
             .collect::<Vec<_>>();
             let domain = |name: &str| {
-                let mut matches =
-                    domains
-                        .iter()
-                        .filter(|row| {
-                            validation::is_extent_declaration(program, row.domain_symbol)
-                                && program.domain_definition(row.domain_symbol).is_some_and(
-                                    |domain| domain.name.as_str().rsplit("::").next() == Some(name),
-                                )
-                        })
-                        .map(|row| row.semantic_domain)
-                        .collect::<Vec<_>>();
+                let mut matches = domains
+                    .iter()
+                    .filter(|row| {
+                        validation::is_core_extent_domain(program, row.domain_symbol, name)
+                    })
+                    .map(|row| row.semantic_domain)
+                    .collect::<Vec<_>>();
                 matches.sort_unstable_by_key(|domain| domain.0);
                 matches.dedup();
                 match matches.as_slice() {

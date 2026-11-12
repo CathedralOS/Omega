@@ -838,24 +838,21 @@ pub mod product_entries {
                 "target semantic arrival has no requirement owner",
             ));
         };
-        let mut declarations = typed
-            .symbols
-            .source_files()
-            .filter(|file| {
-                file.origin == source::SourceOrigin::Toolchain
-                    && file.dependency_scope == source::DependencyScope::Product
-                    && file.path.strip_prefix(&file.package_root).ok()
-                        == Some(std::path::Path::new("extent.omg"))
-            })
-            .flat_map(|file| {
-                typed.traits().iter().filter(move |definition| {
-                    typed
-                        .symbols
-                        .symbol_source_span(definition.symbol)
-                        .is_some_and(|span| span.source_id == file.source_id)
-                        && definition.name.as_str() == owner
-                })
-            });
+        /*
+            The arrival requirement's owner must be the core `ProgramStorageEntry`
+            trait, declared in the product-scope toolchain source. A target that
+            names any other owner finds no declaration and is refused.
+        */
+        let mut declarations = typed.traits().iter().filter(|definition| {
+            definition.name.as_str() == owner
+                && typed.symbols.core_vocabulary(definition.symbol)
+                    == Some(language_core::core_vocabulary::CoreVocabulary::ProgramStorageEntry)
+                && typed
+                    .symbols
+                    .symbol_source_span(definition.symbol)
+                    .and_then(|span| typed.symbols.source_file(span))
+                    .is_some_and(|file| file.dependency_scope == source::DependencyScope::Product)
+        });
         let Some(definition) = declarations.next() else {
             return Err(Diagnostic::error(format!(
                 "target semantic arrival `{requirement}` has no exact core declaration"
@@ -1888,7 +1885,8 @@ pub use value_custody::recasts::{
     validate_literal_indexed_recast_footprint, validate_runtime_indexed_recast_source,
 };
 pub use value_custody::resident_content::{
-    ResidentOwnerQualifications, is_extent_declaration, resident_owner_qualifications,
+    ResidentOwnerQualifications, is_core_extent, is_core_extent_domain,
+    resident_owner_qualifications,
 };
 pub use value_custody::type_references::normalize_open_index_expressions;
 pub use value_custody::type_references::{

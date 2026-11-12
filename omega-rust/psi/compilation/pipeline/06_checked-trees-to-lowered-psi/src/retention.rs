@@ -505,9 +505,7 @@ pub(crate) mod access_lifecycles {
         LoweringError,
     > {
         let typed = &checked.typed;
-        if !validation::is_extent_declaration(typed, extent)
-            || typed.symbols.name(extent) != "Extent"
-        {
+        if !validation::is_core_extent(typed, extent) {
             return unsupported("placement storage is not the core extent");
         }
         let data = typed

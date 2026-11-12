@@ -9011,7 +9011,7 @@ pub mod resident_content {
         else {
             return None;
         };
-        if !is_extent_declaration(program, *extent) || program.symbols.name(*extent) != "Extent" {
+        if !is_core_extent(program, *extent) {
             return None;
         }
         let domains = crate::value_custody::field_domains::declared_domain_constraint_records(
@@ -9019,10 +9019,9 @@ pub mod resident_content {
         );
         let canonical_domain = |name| {
             let mut matching = domains.iter().copied().filter(|domain| {
-            is_extent_declaration(program, domain.symbol)
+            is_core_extent_domain(program, domain.symbol, name)
                 && program.domain_definition(domain.symbol).is_some_and(|definition| {
-                    definition.name.as_str().rsplit("::").next() == Some(name)
-                        && matches!(
+                    matches!(
                             program.type_reference_table.type_reference(
                                 program.type_reference_table.peeled_type_reference(definition.target_type)
                             ),
@@ -9052,16 +9051,22 @@ pub mod resident_content {
         })
     }
 
-    pub fn is_extent_declaration(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> bool {
+    /// Whether `symbol` is core `extent.omg`'s `Extent` data.
+    pub fn is_core_extent(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> bool {
+        program.symbols.core_vocabulary(symbol)
+            == Some(language_core::core_vocabulary::CoreVocabulary::Extent)
+    }
+
+    /// Whether `symbol` is the `extent.omg` domain declared with member `name`.
+    pub fn is_core_extent_domain(
+        program: &dyn crate::CheckingInput,
+        symbol: SymbolHandle,
+        name: &str,
+    ) -> bool {
         program
             .symbols
-            .symbol_source_span(symbol)
-            .and_then(|span| program.symbols.source_file(span))
-            .is_some_and(|file| {
-                file.origin == source::SourceOrigin::Toolchain
-                    && file.path.strip_prefix(&file.package_root).ok()
-                        == Some(std::path::Path::new("extent.omg"))
-            })
+            .core_vocabulary(symbol)
+            .is_some_and(|vocabulary| vocabulary.is_extent_domain_named(name))
     }
 }
 

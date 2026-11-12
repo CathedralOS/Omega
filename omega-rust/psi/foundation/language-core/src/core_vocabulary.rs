@@ -40,6 +40,31 @@ pub enum CoreVocabulary {
     StaticInterruptCompletionPermit,
     /// A reflection operation or result type in core `reflect.omg`.
     Reflection(ReflectionDeclaration),
+    /// Core `extent.omg`'s linear `Extent` storage data.
+    Extent,
+    /// One of `Extent`'s declared domains in `extent.omg`.
+    ExtentDomain(ExtentDomain),
+    /// The `ProgramStorageEntry` arrival trait in `extent.omg`.
+    ProgramStorageEntry,
+}
+
+/// The domains `extent.omg` declares over `Extent`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExtentDomain {
+    Vacant,
+    Resident,
+    Granted,
+}
+
+impl ExtentDomain {
+    /// The domain's declared member name, as checking spells it.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Vacant => "Vacant",
+            Self::Resident => "Resident",
+            Self::Granted => "Granted",
+        }
+    }
 }
 
 /// The `reflect.omg` declarations reflection elaboration is written against.
@@ -76,6 +101,12 @@ impl ReflectionDeclaration {
 }
 
 impl CoreVocabulary {
+    /// Whether this is the `extent.omg` domain declared with member `name`.
+    /// Names `extent.omg` does not declare never match.
+    pub fn is_extent_domain_named(self, name: &str) -> bool {
+        matches!(self, Self::ExtentDomain(domain) if domain.name() == name)
+    }
+
     /// Whether this is one of `reflect.omg`'s field-visiting operations.
     pub const fn is_reflection_field_visitor(self) -> bool {
         matches!(self, Self::Reflection(declaration) if declaration.is_field_visitor())
@@ -126,6 +157,7 @@ const TASK_REGISTER: &[u8] = core_source!("task_register.omg");
 const INTERRUPT: &[u8] = core_source!("interrupt.omg");
 const STATIC_INTERRUPT: &[u8] = crate::static_interrupts::CORE_DECLARATIONS;
 const REFLECT: &[u8] = core_source!("reflect.omg");
+const EXTENT: &[u8] = core_source!("extent.omg");
 
 const fn row(
     file: &'static str,
@@ -312,6 +344,33 @@ const ROWS: &[CoreVocabularyRow] = &[
         REFLECT,
         CoreVocabulary::Reflection(ReflectionDeclaration::VisitActiveFieldsMut),
     ),
+    row("extent.omg", "Extent", EXTENT, CoreVocabulary::Extent),
+    row(
+        "extent.omg",
+        "Extent::Vacant",
+        EXTENT,
+        CoreVocabulary::ExtentDomain(ExtentDomain::Vacant),
+    ),
+    // The generic domain `Extent::Resident<P, T>` is declared under its own
+    // namespace, so its symbol's path is the bare member name.
+    row(
+        "extent.omg",
+        "Resident",
+        EXTENT,
+        CoreVocabulary::ExtentDomain(ExtentDomain::Resident),
+    ),
+    row(
+        "extent.omg",
+        "Extent::Granted",
+        EXTENT,
+        CoreVocabulary::ExtentDomain(ExtentDomain::Granted),
+    ),
+    row(
+        "extent.omg",
+        "ProgramStorageEntry",
+        EXTENT,
+        CoreVocabulary::ProgramStorageEntry,
+    ),
 ];
 
 pub struct CoreVocabularyCatalog;
@@ -374,6 +433,10 @@ mod tests {
         assert_eq!(
             CoreVocabularyCatalog::classify(site("assembly.omg", "MachineControl", b"edited")),
             None
+        );
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("extent.omg", "Resident", EXTENT)),
+            Some(CoreVocabulary::ExtentDomain(ExtentDomain::Resident))
         );
         // `reflect.omg` declares `module core::reflect`: rows use the full
         // package path, and the bare name matches nothing.

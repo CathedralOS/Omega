@@ -218,17 +218,6 @@ pub(crate) mod access_borrow_factory {
         schema: symbols::SymbolHandle,
     ) -> Option<typed::expression::AccessBorrowBacking> {
         use resolved::types::{TypeConstraint, TypeReference};
-        let sealed_extent_declaration = |symbol| {
-            program
-                .symbols
-                .symbol_source_span(symbol)
-                .and_then(|span| program.symbols.source_file(span))
-                .is_some_and(|source| {
-                    source.origin == source::SourceOrigin::Toolchain
-                        && source.path.strip_prefix(&source.package_root).ok()
-                            == Some(std::path::Path::new("extent.omg"))
-                })
-        };
         let TypeReference::Constrained(qualified) = program.child_type_reference(source) else {
             return None;
         };
@@ -237,13 +226,17 @@ pub(crate) mod access_borrow_factory {
         else {
             return None;
         };
-        if !sealed_extent_declaration(*extent) || program.symbols.name(*extent) != "Extent" {
+        if program.symbols.core_vocabulary(*extent)
+            != Some(language_core::core_vocabulary::CoreVocabulary::Extent)
+        {
             return None;
         }
         let domain = |name: &str| {
             let mut definitions = program.domain_definitions.iter().filter(|definition| {
-            sealed_extent_declaration(definition.symbol)
-                && definition.name.as_str().rsplit("::").next() == Some(name)
+            program
+                .symbols
+                .core_vocabulary(definition.symbol)
+                .is_some_and(|vocabulary| vocabulary.is_extent_domain_named(name))
                 && matches!(&definition.target_type, TypeReference::Named { symbol, .. } if symbol == extent)
         });
             let definition = definitions.next()?;
