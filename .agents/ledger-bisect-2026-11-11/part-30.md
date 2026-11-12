@@ -18,7 +18,7 @@ Re-clustered still-broken at PIN (by first diagnostic): 4 clusters below (in pro
 
 | Rows | Kind | Diagnostic on PIN | Witness | Breaking commit | PR | Mechanism | Status |
 | ---: | --- | --- | --- | --- | ---: | --- | --- |
-| 6 | pass/run rejected (incomplete) | `main` calls `repair`; `repair` has no executable body… | `pass/facts/recoverable_replacement_window_through_const_name_exit` | pending | | pending | bisecting |
+| 6 | pass/run rejected (incomplete) | `main` calls `repair`; `repair` has no executable body… | `pass/facts/recoverable_replacement_window_through_const_name_exit` | `22f215eb3e7d` | 2078 | psi: preserve common fields when matching case values: .../runtime/runtime-abi/src/descriptor_io.rs, .../src/execution/host_imports/descriptor_io.rs, .../src/bodies_and_transitions.rs | bisected |
 | 1 | pass/run rejected (incomplete) | `AddressBridgeProvider::classified_make` has no executable body… | `pass/facts/opaque_independent_inherited_result_through_local_exit` | `60cb5e1f79dd` | 1721 | psi: allow safe array writes in selected functions: .github/workflows/compiler-pilot.yml, .../build-settings/src/calling_policy_execution.rs, .../src/provider_admission/provider_supply.rs | bisected |
 | 1 | pass/run rejected (incomplete) | `CellReading::Reading::observed` has no executable body… | `pass/traits/runtime_qualified_owned_requirement_calls_exit` | pending | | pending | queued |
 | 1 | pass/run rejected | `machine pace` omits `invokes DarwinClock` from its published synchronous-invocation ceiling… | `pass/effects/gui_semantic_services` | pending | | pending | queued |
