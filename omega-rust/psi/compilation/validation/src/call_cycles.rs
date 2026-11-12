@@ -3759,7 +3759,8 @@ fn build_machine_call_graph(
 /// every body is non-recursive. Each edge runs from a machine to a machine its
 /// contracts (machine and state contracts, including calls reached through the
 /// propositions, definitions and requirements a contract names) call; bodies
-/// add no edges, so only contract-to-contract cycles are reported.
+/// add no edges, so only contract-to-contract cycles are reported. A contract
+/// that calls its own machine is the one-machine cycle.
 fn validate_contract_call_cycles(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
@@ -3780,6 +3781,10 @@ fn validate_contract_call_cycles(
                 &mut pending,
             );
         }
+        let entry_state = program
+            .machine_states(machine)
+            .first()
+            .map_or(SymbolHandle::invalid(), |state| state.symbol);
         let mut expanded = Vec::new();
         while let Some(symbol) = pending.pop() {
             if expanded.contains(&symbol) {
@@ -3787,7 +3792,11 @@ fn validate_contract_call_cycles(
             }
             expanded.push(symbol);
             if let Some(callee) = runtime_ranking::target_machine(program, symbol) {
-                if callee != caller {
+                // A call of the machine itself (its symbol or its entry state)
+                // is the shortest cycle. A later state of the same machine (a
+                // contract naming a sibling state) resolves to the caller too,
+                // but is not a self-call.
+                if callee != caller || symbol == machine.symbol || symbol == entry_state {
                     edges[caller].push(callee);
                 }
             } else if let Some((_, dependencies)) = declaration_call_dependencies(program, symbol) {
@@ -3798,7 +3807,7 @@ fn validate_contract_call_cycles(
         edges[caller].dedup();
     }
     for mut members in strongly_connected_components(&edges) {
-        if members.len() < 2 {
+        if members.len() == 1 && !edges[members[0]].contains(&members[0]) {
             continue;
         }
         members.sort_unstable();
@@ -3807,10 +3816,14 @@ fn validate_contract_call_cycles(
             .map(|member| machines[*member].name.as_str())
             .collect::<Vec<_>>()
             .join("`, `");
+        let relation = if members.len() == 1 {
+            format!("contract of `{names}` calls `{names}` itself")
+        } else {
+            format!("contracts of `{names}` call each other")
+        };
         diagnostics.push(Diagnostic::error(format!(
-            "contract call cycle: the `requires`/`ensures` contracts of `{names}` call each \
-             other; contracts may not form a cycle even when the bodies are not recursive; \
-             state the fact directly instead"
+            "contract call cycle: the `requires`/`ensures` {relation}; contracts may not form \
+             a cycle even when the bodies are not recursive; state the fact directly instead"
         )));
     }
 }
