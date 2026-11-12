@@ -99,12 +99,9 @@ def main() -> None:
             lines.append(f"- `{f}` — still broken: {d[:140]}")
         lines.append("")
 
+    lines += ["", "## Fixed on main (PIN)", ""]
     for f in sorted(cls["fixed"]):
-        lines.append(f"- `{f}`" if lines[-1] == "## Fixed on main (PIN)" else None)
-    if "## Fixed" not in "".join(lines):
-        lines += ["", "## Fixed on main (PIN)", ""]
-        for f in sorted(cls["fixed"]):
-            lines.append(f"- `{f}`")
+        lines.append(f"- `{f}`")
     for f in sorted(cls["fixed"]):
         tsv.append(f"{f}\tfixed\t\tfixed")
     for i, (_, members) in enumerate(ranked):
