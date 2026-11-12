@@ -15,7 +15,12 @@ Member recovery: 20 of 24 report rows located in `regressed_fixtures.txt` + repo
 
 | Rows | Kind | Diagnostic | Witness | Breaking commit | PR | Mechanism | Status |
 | ---: | --- | --- | --- | --- | ---: | --- | --- |
-| 3 | pass/run incomplete | `` `main` calls `forward`; `forward` has no executable body `` (returned reference sources) | `pass/borrows/runtime_returned_nonzero_nested_window_exit` | `2476d1be220` | 1604 | #1604 changes selected-call crash/checked routing so returned-reference transition lowering no longer completes for the witness family | bisected |
+| 3 | pass/run incomplete | `` `main` calls `forward`; `forward` has no executable body `` (returned reference sources) | `pass/borrows/runtime_returned_nonzero_nested_window_exit` | `2476d1be220` | 1604 | #1604 extends reference-result custody / captured-return validation so returned-reference machine transitions stop lowering | bisected |
+| 1 | pass/run rejected | `terminal-artifact production failed: Lowering(ConflictingStructuralValueHome` | `pass/ownership/runtime_match_nested_observation_cleanup_exit` | `22f215eb3e7` | 2078 | #2078 reshapes case-value matching so match-observation cleanup lowers two owned homes into one structural value | bisected |
+
+### Members (`ConflictingStructuralValueHome`)
+
+- `pass/ownership/runtime_match_nested_observation_cleanup_exit`
 
 ### Members (`returned-reference-sources incomplete`)
 
@@ -23,7 +28,11 @@ Member recovery: 20 of 24 report rows located in `regressed_fixtures.txt` + repo
 - `pass/facts/matched_field_windows_through_other_state_exit`
 - `pass/slices/runtime_returned_nested_array_window_home_exit`
 
-**Bisect:** `git bisect start --first-parent` bad=`51e8c45c7930` good=`c15929193d39` (nearest good on first-parent walk with fixed PIN ledger snapshot). Stability: PIN 3/3 exit 1; good anchor 22f12808 3/3 exit 0 (deterministic). Prior ledger-at-revision bisect (`f3612364` / #2228) rejected as ledger-only false positive per lead correction #2.
+**Bisect methodology (lead #2):** Fixed copies at `/tmp/ledger_bisect_corpus_outcomes.txt` and `/tmp/ledger_bisect_witness_pin.json` from PIN; `bisect_test.py` compares runtime outcome/diagnostic to PIN (not per-revision ledger). `bisect_witness.sh` skips ledger-only commits (exit 125). Good commit from first-parent walk/binary search toward PIN. Tooling copied to `/tmp/ledger-bisect-tools` so historical checkouts keep scripts.
+
+**Cluster returned-reference:** bad=`51e8c45c7930`, good=`c15929193d39`. Stability: PIN deterministic bad; `22f12808` deterministic good.
+
+**Cluster conflicting-home:** bad=`51e8c45c7930`, good=`5fe672430bea`.
 
 ## Prior-report slice rows now fixed on PIN
 

@@ -1,0 +1,312 @@
+GOOD=5fe672430be9a1c5560d74bb5102f4f70ddfba68
+Bisecting: 303 revisions left to test after this (roughly 8 steps)
+[f65e94028388e906e48a208d893d4fafcb7305a4] docs: spell the callback result relation as F::ensures (#2173)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 303 revisions left to test after this (roughly 8 steps)
+[157ac65f9319622dfc4e7fbb3059c8937ff9cbd8] tests: record fifty-seven rows whose outcomes already moved on main (#2457)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 284 revisions left to test after this (roughly 8 steps)
+[672d963e81463ca0a5bdc875f623183abb9ae187] psi: consolidate and document 00, 01, 03, 04, 07, and 08 pipeline stages (#2154)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 142 revisions left to test after this (roughly 7 steps)
+[d4c99a57caee9ce706fc3c481d5ed4f015bd9c14] tests: re-record nine float rows that main already checks or rejects as expected (#2303)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 142 revisions left to test after this (roughly 7 steps)
+[d6aa1dd8aecf0922087621d841ab62350ddca310] psi: let an erased record supply its field contracts without a runtime argument (#2235)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 89 revisions left to test after this (roughly 7 steps)
+[3dcf37d73246dcf1cfac92257097a1f948ef6e9e] psi: unify call-result projections under generic projection terms (#2196)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 45 revisions left to test after this (roughly 6 steps)
+[0ee11cf0b75b2c267d136bdec02cc593d321738d] docs: spell task calls by trait path and state the stack backing policies (#2199)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 45 revisions left to test after this (roughly 6 steps)
+[a322653a0b527bfad361134b5f3d2807d97377ff] samples: select fact target-body invalid twins through Build rows (#2222)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 36 revisions left to test after this (roughly 5 steps)
+[20c38ff7e7a3f35d9fd3409e3eb8f20796e1a3df] samples: complete conversion agreement host coverage (#2190)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 36 revisions left to test after this (roughly 5 steps)
+[94b287abf8ac1c38df12813958f297a39fbaf07f] psi: preserve guarantees on fields of returned references (#2200)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 24 revisions left to test after this (roughly 5 steps)
+[06af8fee3fe1183a2d61f3b3488b359e6e6fcdb7] samples: record Linux coverage for representation agreement (#2179)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 24 revisions left to test after this (roughly 5 steps)
+[3b1bea08cf25446d473ccebc4c517d83eed8f2b0] docs: keep public crash contracts authored under binder dependencies (#2191)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 24 revisions left to test after this (roughly 5 steps)
+[ef881f76a7a0af46e65464a0f52427afb50244c8] tools: retain ownership when a worktree moves (#2178)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 12 revisions left to test after this (roughly 4 steps)
+[1b8908ee3cb2347261aad2bb4a4c8c6b13557949] docs: say when a property belongs in a named domain (#2188)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 12 revisions left to test after this (roughly 4 steps)
+[ea617d7eb96f5cac32059fe0d90bb73779a39cec] tools: fail when one more machine or lemma call costs more in a bigger program (#2181)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 10 revisions left to test after this (roughly 4 steps)
+[85b866f0b578b2fd904bbb13eb98e62018584196] psi: compile array sizes alongside identity contracts (#2192)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 3 steps)
+[abdc825246c2e4a55669f283a469f62d276b5dc9] docs: say why one package instance per closure is the policy (#2186)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 3 steps)
+[9ed8c1bf17a31cd1b618bee68691f9ad2adcdc71] samples: record macOS ARM64 representation agreement coverage (#2185)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 3 steps)
+[23ada24f408aae8000afaa61fe2de656e44a8e6f] psi: retain cases without payloads in mathematical definitions (#2183)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[22f215eb3e7d9814cb3e29f42856e56bb57e60ed] psi: preserve common fields when matching case values (#2078)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[d25889014d5e1a5f3770dacd77612125f046e372] psi: answer state-owner and machine-symbol lookups from the declaration index (#2182)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+22f215eb3e7d9814cb3e29f42856e56bb57e60ed is the first bad commit
+commit 22f215eb3e7d9814cb3e29f42856e56bb57e60ed
+Author: BrilliantWasp <brilliantwasp@proton.me>
+Date:   Sun Nov 8 20:35:58 2026 +0000
+
+    psi: preserve common fields when matching case values (#2078)
+    
+    A match on a record with case fields could lose its common fields and
+    field constraints, or evaluate a saved producer again. This preserves
+    the same value through checking, borrowed calls and execution. It also
+    updates the affected patterns to the current syntax. The original
+    programs, inputs and expected results are preserved.
+    
+    [The host program and rejection
+    control](https://github.com/CathedralOS/Omega/actions/runs/42517029267)
+    passed: native and Psi both exited 0 with exact I/O, and the invalid
+    borrow rejected. [Admission checks and eight existing interpreter
+    tests](https://github.com/CathedralOS/Omega/actions/runs/42518845745)
+    passed on `810ed6d0`. The host compiler is `7531da20`. Later edits only
+    narrow Rust helper visibility, move an unchanged test block and record
+    existing fixture measurements; independent review confirmed that the
+    successful executions still apply. Required PR checks validate the final
+    source.
+    
+    Two programs covering [case-field
+    stores](https://github.com/CathedralOS/Omega/tree/810ed6d0b0f760f0c1172608f8432e9b020450a8/tests/omega/pass/structs/case_field_type_store_shapes)
+    and [composed payload
+    reads](https://github.com/CathedralOS/Omega/tree/810ed6d0b0f760f0c1172608f8432e9b020450a8/tests/omega/pass/structs/runtime_composed_case_payload_reads_exit)
+    passed checking but were refused by native borrow validation in the
+    earlier run. Their status on the current candidate is unverified, and
+    this PR does not claim to fix them. They remain outside this landing and
+    are not counted as successes.
+    
+    [Earlier
+    execution](https://github.com/CathedralOS/Omega/actions/runs/42463003477)
+    produced native/Psi agreement for 23 of 25 programs. [Earlier source
+    checking](https://github.com/CathedralOS/Omega/actions/runs/42460884915)
+    checked 28 of 29 positive programs and all 18 intended invalid controls.
+    These are historical results from optimized compiler `9af3eb51`, not
+    executions of the current integrated compiler.
+    
+    [Three supplemental diagnostic-pin mismatches also occur on
+    main](https://github.com/CathedralOS/Omega/actions/runs/42445244680).
+    Those programs reject, but the three unchanged pins remain unsatisfied
+    and are excluded from passing counts.
+    
+    The parent scalar migration remains open. Claim:
+    `0f80365597144c0a93cb4136e1c4e7d0`.
+    
+    The provenance below covers a shared coordinating-session window, not an
+    exclusive cost for this PR.
+    
+    Agent: Codex | Model: gpt-6.1-sol | Effort: high | Tokens: 82.69M in
+    (81.86M cached), 151.0k out | Steps: 334 | Time: 1h54m | Steers: 14
+    
+    ---------
+    
+    Co-authored-by: Zachary Canann <zcanann@Zacharys-Mac-mini.local>
+
+ .../runtime/runtime-abi/src/descriptor_io.rs       |   24 +-
+ .../src/execution/host_imports/descriptor_io.rs    |   37 +-
+ .../src/bodies_and_transitions.rs                  |    7 +-
+ .../01_tokens-to-syntax-trees/src/expressions.rs   |    3 +
+ .../src/type_syntax_and_patterns.rs                |   60 +-
+ .../src/lowering.rs                                |    4 +
+ .../src/symbols_expression_paths.rs                |   23 +-
+ .../src/symbols_expressions.rs                     |    2 +
+ .../src/call_and_product_selections.rs             |    3 +
+ .../src/expression_lowering.rs                     |  132 +-
+ .../src/body_cloning_and_rewriting.rs              |    2 +
+ .../src/data_and_product_operands.rs               |    4 +
+ .../src/selection_and_reflection.rs                |   34 +-
+ .../05_typed-trees-to-checked-trees/src/checks.rs  |  149 +-
+ .../src/checks_multiplicity.rs                     |  289 +-
+ .../checks_multiplicity_cleanup_dispositions.rs    |   65 +-
+ .../src/checks_multiplicity_linear_validation.rs   |   46 +-
+ .../src/checks_multiplicity_permission_events.rs   |    4 +-
+ .../src/execution.rs                               |  410 +--
+ .../src/execution_scalar_computations.rs           | 1202 ++++++--
+ .../src/execution_terminal_unit.rs                 |  237 +-
+ .../src/execution_terminal_unit_calls.rs           |  105 +-
+ .../src/execution_terminal_unit_cleanup.rs         |  368 ++-
+ .../src/execution_terminal_unit_control.rs         | 1413 ++++++++-
+ ...ion_terminal_unit_control_statement_sequence.rs |   26 +-
+ .../src/execution_terminal_unit_state_graph.rs     |  587 +++-
+ .../src/execution_terminal_unit_types.rs           |    6 +-
+ .../05_typed-trees-to-checked-trees/src/flow.rs    |  464 ++-
+ .../src/flow_exits.rs                              |   35 +-
+ .../src/flow_expression.rs                         |  332 +-
+ .../src/flow_transfers.rs                          |   60 +-
+ .../src/published_facts.rs                         |    1 +
+ .../05_typed-trees-to-checked-trees/src/values.rs  |   47 +-
+ .../src/attached_unit.rs                           |  347 ++-
+ .../src/expression_bindings.rs                     |  182 +-
+ .../src/expression_preparation.rs                  |   37 +-
+ .../src/scalar_computations.rs                     | 1259 +++++---
+ .../src/scalar_lowering.rs                         |  100 +-
+ .../06_checked-trees-to-lowered-psi/src/shared.rs  |   31 +
+ .../06_checked-trees-to-lowered-psi/src/unit.rs    |    1 +
+ .../src/unit_arguments.rs                          |  504 ++-
+ .../src/unit_composed_control.rs                   | 3258 ++++++++++++--------
+ .../src/unit_operation_frame.rs                    |  150 +-
+ .../src/unit_structural_values.rs                  |  700 +++--
+ .../representations/checked-trees/src/flow.rs      |   73 +-
+ .../checked-trees/src/flow_ownership_and_roots.rs  |  168 +-
+ .../checked-trees/src/flow_terminal.rs             |  171 +-
+ .../checked-trees/src/flow_terminal_units.rs       |  333 +-
+ .../representations/checked-trees/src/lib.rs       |    5 +-
+ .../checked-trees/src/values_and_views.rs          |  189 ++
+ .../symbol-resolved-trees/src/values.rs            |    5 +
+ .../representations/syntax-trees/src/copies.rs     |    3 +
+ .../representations/syntax-trees/src/inspection.rs |    9 +
+ .../representations/syntax-trees/src/lib.rs        |    2 +
+ .../syntax-trees/src/values_and_types.rs           |    5 +
+ .../src/declaration_tables_and_index.rs            |   23 +
+ .../typed-trees/src/evidence_and_inspection.rs     |   14 +
+ .../typed-trees/src/type_identity.rs               |   47 +-
+ .../representations/typed-trees/src/values.rs      |  189 +-
+ .../validation/src/arithmetic_domains.rs           |  518 +++-
+ omega-rust/psi/compilation/validation/src/calls.rs |  617 +++-
+ .../validation/src/contract_entailment.rs          |  498 ++-
+ .../validation/src/domains_and_predicates.rs       |    2 +
+ .../validation/src/expression_types_and_fields.rs  |  159 +-
+ omega-rust/psi/compilation/validation/src/lib.rs   |   46 +
+ .../validation/src/literals_and_struct_literals.rs |    9 +
+ .../psi/compilation/validation/src/places.rs       |    6 +-
+ .../validation/src/program_validation.rs           |    8 +-
+ .../validation/src/proof_contracts_core.rs         |   49 +-
+ .../validation/src/reference_result_custody.rs     |  184 +-
+ .../validation/src/structural_call_custody.rs      |    2 +
+ omega-rust/psi/foundation/language-core/src/lib.rs |    2 +-
+ .../language-core/src/source_semantics.rs          |   12 +
+ .../src/declaration_selection.rs                   |    3 +
+ .../language-semantics/src/type_identity.rs        |   15 +-
+ .../terminal-interpreter/src/boundary_effects.rs   |    9 +-
+ .../terminal-interpreter/src/boundary_inputs.rs    |   17 +-
+ .../terminal-interpreter/src/engine_custody.rs     |   53 +-
+ .../terminal-interpreter/src/engine_terminators.rs |   51 +-
+ samples/cli/probes/carry_packet/main.omg           |    6 +-
+ samples/cli/probes/case_store_shapes/main.omg      |    6 +-
+ tests/omega/corpus_outcomes.txt                    |   74 +-
+ .../unit_match_terminal_bad_cast/expected.txt      |    2 +
+ .../unit_match_terminal_bad_cast/main.omg          |   12 +
+ .../expected.txt                                   |    1 +
+ .../main.omg                                       |   44 +
+ .../expected.txt                                   |    1 +
+ .../main.omg                                       |   11 +
+ .../guarded_case_keeps_linear_payload/expected.txt |    1 +
+ .../guarded_case_keeps_linear_payload/main.omg     |   17 +
+ .../main.omg                                       |    6 +-
+ .../runtime_mixed_common_atomic_cell_exit/main.omg |    6 +-
+ .../main.omg                                       |    6 +-
+ .../calls/mixed_value_forwarding_exit/main.omg     |    6 +-
+ .../main.omg                                       |    8 +-
+ .../main.omg                                       |    8 +-
+ tests/omega/pass/cases/mixed_record_cases/main.omg |   10 +-
+ .../build.omg                                      |    7 +
+ .../expected_interpreter_exit.txt                  |    1 +
+ .../expected_native_exit.txt                       |    1 +
+ .../main.omg                                       |   45 +
+ .../main.omg                                       |   18 +-
+ .../main.omg                                       |   21 +-
+ .../main.omg                                       |    6 +-
+ .../main.omg                                       |    6 +-
+ .../pass/data/runtime_mixed_shape_exit/main.omg    |    8 +-
+ .../main.omg                                       |   12 +-
+ .../main.omg                                       |    6 +-
+ .../main.omg                                       |   18 +-
+ .../main.omg                                       |   32 +-
+ .../runtime_mixed_generic_erased_sum_exit/main.omg |    6 +-
+ .../build.omg                                      |   24 +
+ .../byte_view_calling.omg                          |  347 +--
+ .../main.omg                                       |   47 +-
+ .../omega/pass/proofs/case_call_premises/main.omg  |    6 +-
+ .../large_zero_initialized_local_exit/main.omg     |    6 +-
+ .../structs/case_field_type_store_shapes/main.omg  |   24 +-
+ .../main.omg                                       |   24 +-
+ .../runtime_mixed_common_field_store_exit/main.omg |    6 +-
+ .../runtime_state_local_whole_store_exit/main.omg  |    6 +-
+ .../main.omg                                       |   18 +-
+ .../runtime_inline_byte_case_values_exit/main.omg  |   24 +-
+ .../wire/reflection_active_mutation_exit/main.omg  |    6 +-
+ .../scalar_common_case_fields.json                 |   45 +
+ tools/stage06_shape_gates.txt                      |    8 +-
+ tools/stage06_source_context.txt                   |    4 +-
+ 126 files changed, 13124 insertions(+), 4129 deletions(-)
+ create mode 100644 tests/omega/fail/arithmetic/unit_match_terminal_bad_cast/expected.txt
+ create mode 100644 tests/omega/fail/arithmetic/unit_match_terminal_bad_cast/main.omg
+ create mode 100644 tests/omega/fail/cases/borrowed_case_component_cannot_recover_common_fields/expected.txt
+ create mode 100644 tests/omega/fail/cases/borrowed_case_component_cannot_recover_common_fields/main.omg
+ create mode 100644 tests/omega/fail/generics/erased_generic_field_ambiguous_constructor/expected.txt
+ create mode 100644 tests/omega/fail/generics/erased_generic_field_ambiguous_constructor/main.omg
+ create mode 100644 tests/omega/fail/ownership/guarded_case_keeps_linear_payload/expected.txt
+ create mode 100644 tests/omega/fail/ownership/guarded_case_keeps_linear_payload/main.omg
+ create mode 100644 tests/omega/pass/cases/runtime_case_component_borrow_identity_exit/build.omg
+ create mode 100644 tests/omega/pass/cases/runtime_case_component_borrow_identity_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/cases/runtime_case_component_borrow_identity_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/cases/runtime_case_component_borrow_identity_exit/main.omg
+ create mode 100644 tools/ci/qualification_plans/scalar_common_case_fields.json
+bisect found first bad commit
+# bad: [51e8c45c793007f211d0d9baee7de16767172444] psi: check a body over a const value parameter once and carry its proofs (#2505)
+# good: [5fe672430be9a1c5560d74bb5102f4f70ddfba68] psi: retain computed array-size inputs during declaration checking (#1839)
+git bisect start '--first-parent' '51e8c45c793007f211d0d9baee7de16767172444' '5fe672430be9a1c5560d74bb5102f4f70ddfba68'
+# skip: [f65e94028388e906e48a208d893d4fafcb7305a4] docs: spell the callback result relation as F::ensures (#2173)
+git bisect skip f65e94028388e906e48a208d893d4fafcb7305a4
+# bad: [157ac65f9319622dfc4e7fbb3059c8937ff9cbd8] tests: record fifty-seven rows whose outcomes already moved on main (#2457)
+git bisect bad 157ac65f9319622dfc4e7fbb3059c8937ff9cbd8
+# good: [672d963e81463ca0a5bdc875f623183abb9ae187] psi: consolidate and document 00, 01, 03, 04, 07, and 08 pipeline stages (#2154)
+git bisect good 672d963e81463ca0a5bdc875f623183abb9ae187
+# skip: [d4c99a57caee9ce706fc3c481d5ed4f015bd9c14] tests: re-record nine float rows that main already checks or rejects as expected (#2303)
+git bisect skip d4c99a57caee9ce706fc3c481d5ed4f015bd9c14
+# bad: [d6aa1dd8aecf0922087621d841ab62350ddca310] psi: let an erased record supply its field contracts without a runtime argument (#2235)
+git bisect bad d6aa1dd8aecf0922087621d841ab62350ddca310
+# bad: [3dcf37d73246dcf1cfac92257097a1f948ef6e9e] psi: unify call-result projections under generic projection terms (#2196)
+git bisect bad 3dcf37d73246dcf1cfac92257097a1f948ef6e9e
+# skip: [0ee11cf0b75b2c267d136bdec02cc593d321738d] docs: spell task calls by trait path and state the stack backing policies (#2199)
+git bisect skip 0ee11cf0b75b2c267d136bdec02cc593d321738d
+# bad: [a322653a0b527bfad361134b5f3d2807d97377ff] samples: select fact target-body invalid twins through Build rows (#2222)
+git bisect bad a322653a0b527bfad361134b5f3d2807d97377ff
+# skip: [20c38ff7e7a3f35d9fd3409e3eb8f20796e1a3df] samples: complete conversion agreement host coverage (#2190)
+git bisect skip 20c38ff7e7a3f35d9fd3409e3eb8f20796e1a3df
+# bad: [94b287abf8ac1c38df12813958f297a39fbaf07f] psi: preserve guarantees on fields of returned references (#2200)
+git bisect bad 94b287abf8ac1c38df12813958f297a39fbaf07f
+# skip: [06af8fee3fe1183a2d61f3b3488b359e6e6fcdb7] samples: record Linux coverage for representation agreement (#2179)
+git bisect skip 06af8fee3fe1183a2d61f3b3488b359e6e6fcdb7
+# skip: [3b1bea08cf25446d473ccebc4c517d83eed8f2b0] docs: keep public crash contracts authored under binder dependencies (#2191)
+git bisect skip 3b1bea08cf25446d473ccebc4c517d83eed8f2b0
+# good: [ef881f76a7a0af46e65464a0f52427afb50244c8] tools: retain ownership when a worktree moves (#2178)
+git bisect good ef881f76a7a0af46e65464a0f52427afb50244c8
+# skip: [1b8908ee3cb2347261aad2bb4a4c8c6b13557949] docs: say when a property belongs in a named domain (#2188)
+git bisect skip 1b8908ee3cb2347261aad2bb4a4c8c6b13557949
+# good: [ea617d7eb96f5cac32059fe0d90bb73779a39cec] tools: fail when one more machine or lemma call costs more in a bigger program (#2181)
+git bisect good ea617d7eb96f5cac32059fe0d90bb73779a39cec
+# bad: [85b866f0b578b2fd904bbb13eb98e62018584196] psi: compile array sizes alongside identity contracts (#2192)
+git bisect bad 85b866f0b578b2fd904bbb13eb98e62018584196
+# skip: [abdc825246c2e4a55669f283a469f62d276b5dc9] docs: say why one package instance per closure is the policy (#2186)
+git bisect skip abdc825246c2e4a55669f283a469f62d276b5dc9
+# skip: [9ed8c1bf17a31cd1b618bee68691f9ad2adcdc71] samples: record macOS ARM64 representation agreement coverage (#2185)
+git bisect skip 9ed8c1bf17a31cd1b618bee68691f9ad2adcdc71
+# bad: [23ada24f408aae8000afaa61fe2de656e44a8e6f] psi: retain cases without payloads in mathematical definitions (#2183)
+git bisect bad 23ada24f408aae8000afaa61fe2de656e44a8e6f
+# bad: [22f215eb3e7d9814cb3e29f42856e56bb57e60ed] psi: preserve common fields when matching case values (#2078)
+git bisect bad 22f215eb3e7d9814cb3e29f42856e56bb57e60ed
+# good: [d25889014d5e1a5f3770dacd77612125f046e372] psi: answer state-owner and machine-symbol lookups from the declaration index (#2182)
+git bisect good d25889014d5e1a5f3770dacd77612125f046e372
+# first bad commit: [22f215eb3e7d9814cb3e29f42856e56bb57e60ed] psi: preserve common fields when matching case values (#2078)
+Previous HEAD position was d25889014d5 psi: answer state-owner and machine-symbol lookups from the declaration index (#2182)
+HEAD is now at 51e8c45c793 psi: check a body over a const value parameter once and carry its proofs (#2505)
