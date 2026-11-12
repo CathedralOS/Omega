@@ -94,6 +94,58 @@ pub struct AcceptedClosure {
     pub seals: Vec<ObligationEvidenceSeal>,
 }
 
+/// An accepted closure published as Terminal Psi: the canonical artifact of
+/// the module the route checked, and the evidence seals bound to that
+/// module's identity, which travel beside it in memory to Omega 00.
+#[derive(Debug)]
+pub struct RoutePublication {
+    pub artifact: terminal_codec::CanonicalTerminalArtifact,
+    pub seals: terminal_codec::EvidenceSeals,
+}
+
+/// Why an accepted closure could not be published.
+#[derive(Debug)]
+pub enum PublicationError {
+    /// The module names a requirement that stands in for a body: a generic
+    /// check form, which is never encoded (generics.md, "Generic bodies use
+    /// the abstract requirement envelope").
+    GenericCheckForm,
+    /// The module fails a structural check of Terminal semantics.
+    Semantic(String),
+    Artifact(terminal_codec::CanonicalTerminalArtifactError),
+    Seals(terminal_codec::CodecError),
+}
+
+impl AcceptedClosure {
+    /// Publishes the module the route checked, with no Psi optimization: the
+    /// artifact's execution record names the identity stage, so the module
+    /// the kernel judged is byte for byte the module that is encoded, and the
+    /// seals, bound to its identity, still name it. This is the same
+    /// publication Psi 08 performs (`finalize_terminal_program`), from the
+    /// route's module instead of Psi 06's.
+    pub fn publish(&self) -> Result<RoutePublication, PublicationError> {
+        if !self.elaboration.requirements.is_empty() {
+            return Err(PublicationError::GenericCheckForm);
+        }
+        let module = self.elaboration.module.clone();
+        terminal_semantics::activation_storage::validate_module(&module)
+            .map_err(|reason| PublicationError::Semantic(reason.to_owned()))?;
+        let identity =
+            terminal_codec::terminal_psi_identity(&module).map_err(PublicationError::Seals)?;
+        let record = terminal_codec::PsiOptimizationExecutionRecord::new(
+            optimization::PsiOptimizationSelections::default(),
+            identity,
+            identity,
+        )
+        .map_err(|error| PublicationError::Semantic(format!("{error:?}")))?;
+        let seals = terminal_codec::EvidenceSeals::for_module(&module, self.seals.clone())
+            .map_err(PublicationError::Seals)?;
+        let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None)
+            .map_err(PublicationError::Artifact)?;
+        Ok(RoutePublication { artifact, seals })
+    }
+}
+
 /// One obligation the prover could not discharge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnprovedObligation {

@@ -179,6 +179,12 @@ path = "tests/lowered_route_subjects.rs"
 name = "lowered_route_governance"
 path = "tests/lowered_route_governance.rs"
 
+# A program the lowered route accepts is published from the route's own
+# module, its seals reach Omega 00, and it runs.
+[[test]]
+name = "lowered_route_publication"
+path = "tests/lowered_route_publication.rs"
+
 # The lowered route's rejection messages contain each fixture's pinned
 # fragment.
 [[test]]
