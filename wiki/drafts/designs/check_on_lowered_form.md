@@ -329,6 +329,15 @@ that cannot fail cannot hold work back, and work went ahead
      from the route's own module. A fallback, an `Incomplete` verdict or a
      defect of the route leaves the current verdict. The four entry-contract
      programs below therefore stay rejected by the current checker.
+     A product is still built from the current checker's output. The first
+     piece of a product path from the route's own module landed in `#2666`:
+     `AcceptedClosure::publish` publishes exactly the module the route
+     checked as canonical Terminal Psi with its evidence seals, Omega 00
+     attaches them, Omega 01 fills each sealed obligation's
+     `proof_bundle_fingerprint`, and `run/calls/scalar_contract_route_exit`
+     runs from it to completion (`lowered_route_publication`). The compile
+     does not call it yet: product selection, the provider inventory, target
+     preparation and the program-entry receipt still read Psi 05's trees.
      `Build::validate` rows are not handled either; nothing implements them.
      The `fail/` sweep of 2026-11-12 shows what that costs: four programs
      the current checker rejects for their entry are accepted whole by the
@@ -405,10 +414,11 @@ that cannot fail cannot hold work back, and work went ahead
      abstract type
      ([what the lowered form does not carry](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#what-the-lowered-form-does-not-carry)); [lowered type generics](lowered_type_generics.md) proposes how it
      could be.
-   - The route is not the compile path. `omega run --both` runs the program
-     through the current pipeline; the generic check and the carried
-     certificates run in the `generic_certificate_carry` example on the same
-     typed trees.
+   - The route was not the compile path when this was measured. `omega run
+     --both` runs the program through the current pipeline; the generic check
+     and the carried certificates run in the `generic_certificate_carry`
+     example on the same typed trees. The default compile now judges the
+     generic forms (below, "In the default compile").
    - Whether this meets the condition is the owner's reading.
 
    <a id="condition-3-value-parameters"></a>
@@ -473,6 +483,19 @@ that cannot fail cannot hold work back, and work went ahead
    `u16` alternative. Limits, in the
    [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#finite-families):
    one type parameter listed by one clause of builtin scalar types.
+
+   **In the default compile, 2026-11-12.** Since `#2674` a subject's generic
+   machines no longer hand the compilation back. The router judges the
+   closure of the compilation's roots and, beside it, each generic machine
+   as its own check form (`lowered_discharge::judge_compilation`): once with
+   its parameters rigid, or once per alternative of a finite family, whether
+   or not the program applies it. A compilation is decided only when every
+   part is. An unused `bump<T>` over `u8 | u16` whose body can overflow is
+   rejected for both alternatives, which the current checker never checks
+   (`lowered_route_subjects`). Still open: the machines stage 04 generated
+   for the program's own applications are checked again by search as closed
+   machines; carrying the generic form's certificates into them
+   (`reverify_specialization`) is not wired into the compile.
 
 4. **For one fully supported scope, old code is retired and the result is
    measured.** A scope is fully supported when every program in it is governed
