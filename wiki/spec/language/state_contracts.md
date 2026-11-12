@@ -277,6 +277,12 @@ Tail-call lowering may remove unnecessary control state only while preserving
 all live backing, loans, custody and completion obligations. Recursive runtime
 calls still obey the no-accumulated-frames rule.
 
+A terminal call does not extend a loan. A caller-local loan carried into a
+terminal machine call closes at the last use of that loan and of every loan
+derived from it, even when that use is inside the callee's terminal chain, as
+[borrows and aliases](ownership.md#borrows-and-aliases) states for every loan.
+Reads and writes of the lent storage after that point are judged alike.
+
 Nested machine calls have no marker exemption. Their checked call envelope
 determines the required `suspend` and `block` acknowledgements, including in
 terminal position, even when lowering later implements the call with a jump.
