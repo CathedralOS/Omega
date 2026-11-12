@@ -25,7 +25,7 @@ Members: `pass/build/const_index_dependency_order_exit`, `pass/generics/runtime_
 | 2 | fail wrong reason | integer node `u8(300)` does not fit exact carrier `u8` | `fail/generics/const_data_argument_out_of_range` | `` |  | no first-parent good commit found (witness regressed at 759c80404428 and full good-depth w | propagated | unknown |
 Members: `fail/generics/const_data_argument_out_of_range`, `fail/generics/dependent_const_carrier_range`
 
-| 1 | fail wrong reason | anonymous operand `25/8` is not an integer in closed const argument; type an operand before division if intege | `fail/generics/grouped_decimal_const_fraction_rejected` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
+| 1 | fail wrong reason | anonymous operand `25/8` is not an integer in closed const argument; type an operand before division if intege | `fail/generics/grouped_decimal_const_fraction_rejected` | `` |  | no first-parent good commit found (witness regressed at 759c80404428 and full good-depth w | propagated | unknown |
 Members: `fail/generics/grouped_decimal_const_fraction_rejected`
 
 | 1 | fail wrong reason | cannot compare against payload-bearing case `Chain::Cons` with `==`: structural equality is synthesized only t | `fail/float/state_constructor_ieee_reflexivity` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
