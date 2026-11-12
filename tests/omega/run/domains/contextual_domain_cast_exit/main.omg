@@ -1,0 +1,34 @@
+// Expected exit: 0. Receiving types select carriers for explicit domain
+// additions through fields, locals, calls, returns, arrays and match arms.
+data Word [copy] { value: u32 in Trapping; }
+data Buffer { bytes: [u8; 4]; }
+
+machine read_word(value: u32 in Trapping) -> u32 { value as -Trapping }
+machine returned_word() -> u32 in Trapping { (70 + 7) as +Trapping }
+
+machine contextual_check() crashes Trap {
+    let local: u32 in Trapping = 77 as +Trapping;
+    let mut record: Word = Word { value: 77 as +Trapping };
+    record.value = 76 as +Trapping;
+    let mut buffer: Buffer;
+    buffer.bytes = "abcd";
+    let joined: u32 in Trapping = match true {
+        true -> 77 as +Trapping,
+        false -> 78 as +Trapping
+    };
+    let values: [u32 in Trapping; 2] = [77 as +Trapping, returned_word()];
+    transition (local as -Trapping) == 77
+        && (record.value as -Trapping) == 76
+        && buffer.bytes[0] == 97 && buffer.bytes[3] == 100
+        && (joined as -Trapping) == 77
+        && (values[0] as -Trapping) == 77
+        && (values[1] as -Trapping) == 77
+        && read_word(77 as +Trapping) == 77
+        && (nested_word() as -Trapping) == 77 {
+        true -> done()
+        false -> wrong()
+    }
+    machine nested_word() -> u32 in Trapping { ((77 as +Trapping) as -Trapping) as +Trapping }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
