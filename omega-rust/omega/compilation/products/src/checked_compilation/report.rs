@@ -264,29 +264,7 @@ impl CompileReportSettlement {
                 "produced report differs from the admitted product kind",
             ));
         }
-        // Selection checks the complete canonical map. Execution observations
-        // instead follow the finished product's exact operator coverage, which
-        // also retains operations inside selected checked bodies. Catalog rows
-        // that supplied no emitted operator are not observed realizations.
-        let coverage = report
-            .retained_terminal_artifact()
-            .and_then(|artifact| artifact.native_realization_proposal())
-            .map(|proposal| &proposal.boundary_applications().coverage)
-            .or_else(|| {
-                report
-                    .retained_native_artifact()
-                    .and_then(|artifact| artifact.boundary_application_coverage())
-            })
-            .or_else(|| {
-                report
-                    .retained_dynamic_elf_artifact()
-                    .and_then(|artifact| artifact.boundary_application_coverage())
-            });
-        let used = coverage
-            .into_iter()
-            .flat_map(|coverage| coverage.realizations().rows())
-            .map(|realization| *realization.selected_plan_digest())
-            .collect::<std::collections::HashSet<_>>();
+        let used = used_float_realization_plans(&report);
         let float_realizations = self
             .float_realizations
             .into_iter()
@@ -311,6 +289,74 @@ impl CompileReportSettlement {
 
 fn diagnostics(message: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(message)]
+}
+
+// Reports observe the finished native product, not the complete map admitted
+// during selection. Object attribution is replayed against exact selected
+// instruction provenance, including ordinary scalar boundary calls lowered
+// inline. Operator coverage supplies its separate checked-body/intrinsic plan
+// commitments. Both joins retain the actual emitted occurrence; neither makes
+// an unused canonical map entry into an execution demand.
+fn used_float_realization_plans(report: &CompileReport) -> std::collections::HashSet<[u8; 32]> {
+    let native = report
+        .retained_native_artifact()
+        .map(|artifact| {
+            (
+                artifact.object(),
+                artifact.psi_artifact(),
+                artifact.selected_provider_plans(),
+                artifact.boundary_application_coverage(),
+            )
+        })
+        .or_else(|| {
+            report.retained_dynamic_elf_artifact().map(|artifact| {
+                (
+                    artifact.object(),
+                    artifact.psi_artifact(),
+                    artifact.selected_provider_plans(),
+                    artifact.boundary_application_coverage(),
+                )
+            })
+        });
+    let Some((object, terminal, selected, coverage)) = native else {
+        return std::collections::HashSet::new();
+    };
+    let emitted = object
+        .semantic_code_attribution()
+        .iter()
+        .filter(|row| row.attribution.byte_count != 0)
+        .map(|row| (row.machine, row.attribution.site))
+        .collect::<std::collections::HashSet<_>>();
+    let module = terminal.semantic_module();
+    let mut operations = std::collections::HashSet::new();
+    let mut requirements = std::collections::HashSet::new();
+    for machine in &module.machines {
+        for operation in machine.operations() {
+            if !emitted.contains(&(machine.id, operation.id.into())) {
+                continue;
+            }
+            operations.insert(operation.id);
+            if let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind
+                && let Some(declaration) = module.boundary_machine(boundary)
+                && let Some(identity) = module.identities.text(declaration.identity)
+            {
+                requirements.insert(identity);
+            }
+        }
+    }
+    let mut used = coverage
+        .into_iter()
+        .flat_map(|coverage| coverage.realizations().rows())
+        .filter(|row| operations.contains(&row.terminal_operation()))
+        .map(|row| *row.selected_plan_digest())
+        .collect::<std::collections::HashSet<_>>();
+    used.extend(selected.iter().filter_map(|plan| {
+        plan.requirement_identities()
+            .iter()
+            .any(|identity| requirements.contains(identity.as_str()))
+            .then(|| *plan.plan_digest().as_bytes())
+    }));
+    used
 }
 
 // Capture descriptions against exact selected-plan identities while the
