@@ -56,6 +56,11 @@ pub(crate) struct Program<'t> {
     rigid: bool,
     /// The machines that are a requirement's contract with no body.
     pub requirements: Vec<MachineId>,
+    /// Entries and selected providers keep their declared input contract.
+    pub fixed_inputs: Vec<MachineId>,
+    /// Every declaration in these machines' verification subject is rooted;
+    /// reaching one dependency helper alone does not close its possible uses.
+    pub subject_machines: Vec<MachineId>,
     /// Every call through an implementation parameter read so far.
     pub selections: Vec<crate::Selected>,
     /// What each type parameter in scope stands for while one machine's
@@ -149,6 +154,8 @@ impl<'t> Program<'t> {
             names: IdTable::default(),
             rigid,
             requirements: Vec::new(),
+            fixed_inputs: Vec::new(),
+            subject_machines: Vec::new(),
             selections: Vec::new(),
             scope: Vec::new(),
             scopes: IdTable::default(),

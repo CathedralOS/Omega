@@ -6,7 +6,7 @@ the driver that reads one body statement by statement.
 
 use language_semantics::{TerminationGuarantee, TerminationInterface};
 use semantic_vocabulary::{MachineId, ValueId};
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolSet};
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
 use typed_trees::machine::{Machine, MachineBodyStatus, MachinePurpose};
@@ -25,6 +25,76 @@ use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
 use source::SourceSpan;
 
 impl<'t> Program<'t> {
+    /// Omission requests local inference; an authored clause remains complete
+    /// after normalization removes a literal `true`. Keep that distinction
+    /// from the declaration rather than guessing from an empty clause list.
+    /// Every subject declaration is read; a callable used as a value or an
+    /// unserved selection refuses the whole route. Only direct calls remain
+    /// for those helpers. A reached dependency need not include every caller,
+    /// so its helpers and static requirement implementations keep their envelope.
+    pub(crate) fn private_input_contracts(&self, entry: MachineId) -> Checked<Vec<MachineId>> {
+        let mut private = Vec::new();
+        for (id, symbol) in self.symbols.iter() {
+            if !self.subject_machines.contains(&id)
+                || id == entry
+                || self.fixed_inputs.contains(&id)
+                || self.requirements.contains(&id)
+                || self
+                    .selections
+                    .iter()
+                    .any(|selection| selection.implementation == id)
+            {
+                continue;
+            }
+            let Some(machine) = self.typed.machine_by_symbol(*symbol) else {
+                continue;
+            };
+            let contracts = span(
+                &self.typed.signature_contracts,
+                machine.contracts,
+                id,
+                "contract span",
+            )?;
+            if !machine.is_public
+                && !contracts.iter().any(|clause| {
+                    clause.kind == SignatureContractKind::Requires
+                        && clause.keyword_source_span.is_some()
+                })
+            {
+                private.push(id);
+            }
+        }
+        // Build/preparation code and declaration sidecars can refer to a
+        // subject helper without becoming one of this module's callers.
+        // Any such use keeps the input boundary open. A reached subset is
+        // never mistaken for the helper's complete possible-use set.
+        if private.is_empty() {
+            return Ok(private);
+        }
+        let mut targets = SymbolSet::default();
+        for id in &private {
+            let symbol = *terminal_check_tables::row(&self.symbols, *id, *id, Construct::Machine)?;
+            targets.insert(symbol);
+            let (_, state) = self.declaration(*id, symbol)?;
+            targets.insert(state.symbol);
+        }
+        let mut outside = OutsideInputUses {
+            lowered: &self.symbols,
+            targets,
+            referenced: SymbolSet::default(),
+        };
+        typed_trees::references::visit_program(self.typed, &mut outside);
+        private.retain(|id| {
+            let symbol = *self.symbols.get(*id).expect("candidate was read above");
+            let state = self
+                .declaration(*id, symbol)
+                .expect("candidate declaration was checked")
+                .1;
+            !outside.referenced.contains(&symbol) && !outside.referenced.contains(&state.symbol)
+        });
+        Ok(private)
+    }
+
     fn next_identity(&self) -> Checked<MachineId> {
         MachineId::new(self.symbols.len() as u64 + 1).ok_or_else(|| {
             refuse(
@@ -648,9 +718,10 @@ impl<'t> Program<'t> {
             }
             let facts = span(&typed.proof_facts, contract.facts, id, "fact span")?;
             match contract.kind {
-                // A clause that is the literal `true` states nothing: it
-                // asks nothing of a caller and promises nothing, so it adds
-                // no clause, as an absent `requires` or `ensures` adds none.
+                // A literal `true` asks nothing of a caller and promises
+                // nothing, so it adds no hypothesis. A written `requires`
+                // still fixes the complete input contract; the declaration
+                // marker is read separately by `private_input_contracts`.
                 // So does a clause closed type equations decide as true:
                 // `requires T == u32 || T == u64` in the machine generated
                 // for `u32`.
@@ -1134,6 +1205,30 @@ impl<'t> Program<'t> {
             slots: slots.iter().map(|slot| slot.value_type).collect(),
             statements: body,
         })
+    }
+}
+
+/// References outside the machines whose complete bodies the route read.
+/// Text and source locations do not decide whether an entry can be invoked.
+struct OutsideInputUses<'a> {
+    lowered: &'a semantic_vocabulary::IdTable<MachineId, SymbolHandle>,
+    targets: SymbolSet,
+    referenced: SymbolSet,
+}
+
+impl Extend<SymbolHandle> for OutsideInputUses<'_> {
+    fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+        self.referenced.extend(
+            symbols
+                .into_iter()
+                .filter(|symbol| self.targets.contains(symbol)),
+        );
+    }
+}
+
+impl typed_trees::references::TypedReferences for OutsideInputUses<'_> {
+    fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+        !self.lowered.values().any(|lowered| *lowered == symbol)
     }
 }
 
