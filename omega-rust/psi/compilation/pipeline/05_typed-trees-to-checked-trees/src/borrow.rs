@@ -5378,6 +5378,39 @@ mod loans {
             expression::ExpressionNode, machine::Machine, state::State, statement::StatementNode,
         };
 
+        /*
+            Whether some receiver on the projection path to `expression` is a
+            shared reference. Each member or index step reads its receiver's
+            stored value; once one step is shared, nothing below it is exclusive.
+        */
+        fn receiver_path_is_shared(
+            program: &dyn validation::CheckingInput,
+            state: symbols::SymbolHandle,
+            statement_index: usize,
+            expression: typed_trees::expression::ExpressionHandle,
+        ) -> bool {
+            let mut cursor = expression;
+            loop {
+                let receiver = match program.expression_table.expression(cursor) {
+                    ExpressionNode::Member(member) => member.receiver,
+                    ExpressionNode::Indexed(indexed) => indexed.collection,
+                    _ => return false,
+                };
+                if validation::expression_type_reference_in_state(
+                    program,
+                    state,
+                    statement_index,
+                    receiver,
+                )
+                .and_then(|receiver| super::types::reference_borrow_access_kind(program, receiver))
+                    == Some(checked_trees::BorrowAccessKind::Read)
+                {
+                    return true;
+                }
+                cursor = receiver;
+            }
+        }
+
         pub(in crate::borrow) fn prepare(
             program: &dyn validation::CheckingInput,
             machine: &Machine,
@@ -5415,6 +5448,21 @@ mod loans {
                         super::types::reference_borrow_access_kind(program, carrier_type)
                     else {
                         return;
+                    };
+                    // A pointer loaded through a shared receiver lends only shared
+                    // access: `&value.inner.value` under `value: &Outer` reads
+                    // through `value.inner: &mut Inner` but cannot hold it
+                    // exclusively.
+                    let kind = if kind == checked_trees::BorrowAccessKind::Mutable
+                        && receiver_path_is_shared(
+                            program,
+                            state.symbol,
+                            statement_index,
+                            expression,
+                        ) {
+                        checked_trees::BorrowAccessKind::Read
+                    } else {
+                        kind
                     };
                     let Some(source) = crate::published::places::place_at(
                         program,
