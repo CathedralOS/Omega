@@ -684,12 +684,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             // `target/`). A slot with a topic is still claimed by another session.
             let mut idle_slots: Vec<&WorktreeInfo> = items
                 .iter()
-                .filter(|w| {
-                    w.slot_index.is_some()
-                        && w.topic.is_none()
-                        && !w.open_pr
-                        && w.name != current_name
-                })
+                .filter(|w| w.slot_index.is_some() && w.topic.is_none() && !w.open_pr)
                 .collect();
             idle_slots.sort_by_key(|w| (!w.has_warm_target, w.slot_index.unwrap_or(usize::MAX)));
 
