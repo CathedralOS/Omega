@@ -3,7 +3,8 @@
 set -uo pipefail
 PIN="${1:?pin}"
 SCRIPT="${2:?witness script}"
-ROOT="$(git -C "$(dirname "$0")/../../.." rev-parse --show-toplevel)"
+ROOT="${BISECT_REPO_ROOT:-$(git rev-parse --show-toplevel)}"
+export BISECT_REPO_ROOT="$ROOT"
 cd "$ROOT"
 chmod -R u+w "$ROOT/target" 2>/dev/null || true
 find "$ROOT/target" -type f ! -writable -exec chmod u+w {} + 2>/dev/null || true
