@@ -295,7 +295,7 @@ machine Lexer::is_whitespace(scalar: u32 in Trapping) -> bool {
     }
 }
 
-machine Lexer::is_identifier_start(scalar: u32 in Trapping) -> bool {
+machine is_identifier_start(scalar: u32 in Trapping) -> bool {
     transition scalar == 95 {
         true -> true
         _ -> upper(scalar)
@@ -304,7 +304,7 @@ machine Lexer::is_identifier_start(scalar: u32 in Trapping) -> bool {
     machine lower(scalar: u32 in Trapping) -> bool { transition scalar >= 97 && scalar <= 122 { true -> true _ -> false } }
 }
 
-machine Lexer::is_identifier_continue(scalar: u32 in Trapping) -> bool {
+machine is_identifier_continue(scalar: u32 in Trapping) -> bool {
     transition scalar == 95 {
         true -> true
         _ -> upper(scalar)
@@ -472,7 +472,7 @@ machine Lexer::lex_identifier(lexer: &mut Lexer) {
 
     machine decode_next(lexer: &mut Lexer) {
         let decoded: DecodedScalar = Lexer::decode_scalar(&lexer.source, lexer.cursor);
-        let continues: bool = Lexer::is_identifier_continue(decoded.scalar);
+        let continues: bool = is_identifier_continue(decoded.scalar);
         transition continues {
             true -> advance(lexer, decoded.width)
             _ -> finish(lexer)
@@ -860,7 +860,7 @@ machine Lexer::consume_suffix(lexer: &mut Lexer) -> bool {
     }
     machine decode_first(lexer: &mut Lexer) -> bool {
         let decoded: DecodedScalar = Lexer::decode_scalar(&lexer.source, lexer.cursor);
-        let starts: bool = Lexer::is_identifier_start(decoded.scalar);
+        let starts: bool = is_identifier_start(decoded.scalar);
         transition starts {
             true -> consume(lexer, decoded.width)
             _ -> false
@@ -872,7 +872,7 @@ machine Lexer::consume_suffix(lexer: &mut Lexer) -> bool {
     }
     machine decode_next(lexer: &mut Lexer) -> bool {
         let decoded: DecodedScalar = Lexer::decode_scalar(&lexer.source, lexer.cursor);
-        let continues: bool = Lexer::is_identifier_continue(decoded.scalar);
+        let continues: bool = is_identifier_continue(decoded.scalar);
         transition continues { true -> consume(lexer, decoded.width) _ -> true }
     }
 }
@@ -899,7 +899,7 @@ machine Lexer::dot_starts_float(lexer: &mut Lexer) -> bool {
         }
     }
     machine identifier(scalar: u32 in Trapping) -> bool {
-        let starts: bool = Lexer::is_identifier_start(scalar);
+        let starts: bool = is_identifier_start(scalar);
         transition starts { true -> false _ -> true }
     }
 }
@@ -1304,7 +1304,7 @@ machine Lexer::lex_next(lexer: &mut Lexer) {
         }
     }
     machine raw(lexer: &mut Lexer) { Lexer::reject_raw_string_candidate(lexer); }
-    machine identifier_check(lexer: &mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { let starts: bool = Lexer::is_identifier_start(scalar); transition starts { true -> identifier(lexer) _ -> number_check(lexer, scalar, width) } }
+    machine identifier_check(lexer: &mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { let starts: bool = is_identifier_start(scalar); transition starts { true -> identifier(lexer) _ -> number_check(lexer, scalar, width) } }
     machine identifier(lexer: &mut Lexer) { Lexer::lex_identifier(lexer); }
     machine number_check(lexer: &mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { transition scalar >= 48 && scalar <= 57 { true -> number(lexer) _ -> leading_dot_check(lexer, scalar, width) } }
     machine leading_dot_check(lexer: &mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { let index1: u64 in Trapping = lexer.cursor + 1; transition scalar == 46 && index1 < lexer.source.length { true -> leading_dot_second(lexer, scalar, width, index1) _ -> string_check(lexer, scalar, width) } }

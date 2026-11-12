@@ -1,10 +1,10 @@
-# Complete-D parser customer
+# Bootstrap compiler parser customer
 
 This explicit slow gate checks and executes the complete manifested Epsilon
-Omega compiler
-closure plus one ordinary Epsilon `Main`. It reconstructs the existing Epsilon
-execution diagnostic through the selected Gamma-authored Delta compiler, then
-uses that receipt to check the customer and call D's real `OmegaParser::parse_view`.
+bootstrap compiler closure plus one ordinary Epsilon `Main`. It reconstructs
+the existing Epsilon execution diagnostic through the interpreted peer's
+Gamma-authored Delta compiler, then uses that receipt to check the customer
+and call the real `OmegaParser::parse_view`.
 No parser states are extracted, translated, or substituted by the host.
 
 Run from the repository root on macOS arm64, Linux x86-64, or Windows x64 in
@@ -62,11 +62,23 @@ returning `000000000041` with status 0 and empty stderr — now that
 Bash execution; the PE artifact is proven byte-exact under wine but the
 MINGW/MSYS shell route itself has not run on Windows hardware.
 
-The current customer reuses one parser across twenty invocations. Four header
-controls were added after the historical sixteen-invocation observations below:
+The current customer reuses one parser across thirty-seven invocations. Direct
+Boolean transition results retain ordinary expression rows; parameterized
+nested-machine transfers retain their argument rows. The retired `state`
+declaration spelling refuses, while `state` remains a usable identifier. A
+subsequent machine-target arm checks that result-target rows do not leak across
+invocations. Calls preserve surrounding operators, groups and prefixes across
+argument parsing, including transition subjects; static call arguments remain distinguishable from `<`
+comparisons. Statement-leading unary prefixes use that same expression frame.
+Explicit carrier casts and single `+Domain` / `-Domain` entries
+retain distinct tags. Retired whole-type domain casts and unsupported multi-entry
+casts refuse. These parser observations do not establish runtime execution of
+the parsed programs; that belongs to the executable compiler customers.
+
+Four header controls were added in the historical twenty-invocation customer:
 termination and reach clauses in both orders retain their exact ranges, and
 obsolete clause semicolons refuse without being consumed as separators.
-The bound twenty-invocation subject passed on macOS arm64 on 2026-10-31:
+That twenty-invocation subject passed on macOS arm64 on 2026-10-31:
 receipt reconstruction took 148.663 seconds and the complete customer took
 6,529.480 seconds, returning exact `000000000041` (`Exit(0)`, stdout `A`) with
 host status zero and empty stderr. The observed customer is the 584,640-byte
@@ -208,8 +220,8 @@ or proof evidence. No Windows profiling result is claimed.
 
 ## Bound customer entry
 
-The [customer](main.epsilon) entry is bound at 12,774 bytes, SHA-256
-`211bb77c96ae219dc6aa8abfd67cebb5b12e02e2464b3184bf31538b95009a56`. The customer is the bound compiler closure followed by this entry.
+The [customer](main.epsilon) entry is bound at 21,679 bytes, SHA-256
+`b01901def564a3629fbe546bb72ba167d451284a4bdc59fc8c0a7d3577d66be5`. The customer is the bound compiler closure followed by this entry.
 `tools/bootstrap/omega/compiler_env.sh` checks the entry identity before every
 packing and `tests/bootstrap/omega-identity.sh` covers the refusals. The same
 pins stand inline in `gate.py`; they are records of this one subject, not

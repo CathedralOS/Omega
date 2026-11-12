@@ -43,10 +43,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 17,140 lines / 598,333 bytes with SHA-256
-`0c402370392af73910cf6caa05b0198dd7ccf0820397e26b85367a1dfcec9f72`.
-The manifest itself is 1,338 bytes, SHA-256
-`52e9abb1d16f0e2d4bd4a308e2abed1010f18dbeeaac2f032104ddffdf6bdc90`;
+manifest materializes 18,166 lines / 645,486 bytes with SHA-256
+`ec5caf34674af271f408e03bdbe77608b445c306956a0dc1064a41792141f377`.
+The manifest itself is 1,339 bytes, SHA-256
+`3f8cc706fb78c155affb98a4ce8aa42f1cb9bea79762b07a07deeff6040d24c1`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -62,24 +62,29 @@ the complete OCREQ semantic admission phases remain unfinished as detailed below
 The direct `compile(source, entry)` boundary is an internal compilation customer,
 not a replacement public request protocol.
 
-The current emitted subset has a nullary `u8` entry, free machines with plain
-`u8` parameters/results, immutable initialized `u8` locals, resolved ordinary
-calls, and constant-selected transfers to states inside the same owner. Calls
-can appear as values or discarded statements. A complete argument may itself
-be a nested call; compound expressions around runtime calls remain unsupported.
-A declaration census runs before bodies can resolve calls. Unsupported overload
-families refuse explicitly; identical admitted signatures reject as duplicates
-regardless of parameter spelling. Every body is checked, including unreachable
-bodies and transfer arms. Clauses,
-receivers, mutable bindings, other runtime carriers, dynamic arithmetic and
-guards, parameterized states, and ordinary calls to nested declarations remain
-explicit coverage refusals. An inherited parser debt remains: it still accepts
-retired `state` as an alias for nested `machine`. Existing legacy controls retain
-that spelling; the new values customer uses canonical nested declarations.
-Removing that alias and migrating its positive witnesses belongs to the next
-runtime-control slice, alongside an explicit retired-spelling rejection.
-Callable-name hiding also refuses until lexical resolution can support it
-completely. Supported names never fall through to a same-named global when a nested declaration would take precedence.
+The emitted subset retains a nullary `u8` program entry. Free and nested
+machines may use plain `u8`, `u32`, `bool`, and `u32 in Trapping` parameters/results;
+immutable initialized locals use the same carriers and policy. Every admitted
+machine writes its own result annotation; an omitted nested result never inherits
+the enclosing machine's type. It supports
+resolved ordinary free calls, nested argument calls, scalar comparisons,
+short-circuit Boolean operations, and parameterized same-owner tail transfers.
+Boolean transition subjects may depend on runtime values, with Boolean or
+wildcard guards and either a machine transfer or a direct Boolean result.
+Constant transition subjects retain their specialized code path.
+
+A signature census runs before bodies resolve calls or transfers. Unsupported
+overload families refuse; identical admitted signatures reject as duplicates
+regardless of binder spelling. Every body and arm is checked, including those
+unreachable from the selected entry. Clauses, receivers, mutable bindings,
+other runtime carriers/policies, numeric runtime arithmetic, non-Boolean dynamic
+subjects, and ordinary calls to nested declarations remain explicit coverage
+boundaries. Nested declarations use canonical `machine`; the retired `state`
+alias is no longer accepted. The spelling `state` remains an ordinary identifier.
+Callable-name hiding refuses until lexical resolution can support it completely;
+a nested declaration never silently falls through to a same-named global.
+A terminal transfer naming a visible global is `Incomplete` in this same-owner
+subset; only an absent target is reported as missing.
 
 Anonymous constant arithmetic retains its mathematical meaning. The bounded
 folder supports integral `+`, `-`, `*`, and `/` when every intermediate lies in
@@ -91,15 +96,54 @@ also return `Incomplete`. Typed operations need their own checked lowering.
 A direct out-of-range `u8` literal and division by zero reject. Full rational
 folding, explicit landing, and typed runtime operations remain work.
 
-Private static storage separates parameter cells, local cells and pending
-argument cells in `[0x02000000, 0x02060000)`, beyond the maximum 16 MiB tape and
+Private static storage separates parameter, local, pending-argument and
+expression-scratch cells in `[0x02000000, 0x02080000)`, beyond the maximum 16 MiB tape and
 below Alpha's return stack. Each call evaluates arguments left to right into
-its own pending cells before copying them into callee parameters. This preserves
+its own pending cells before copying them into destination parameters, including
+same-state transfers. This preserves
 earlier arguments and caller locals across nested calls. A whole-owner call
 DAG, collecting calls from every state, rejects reentrant ordinary-call cycles;
 all admitted state transfers stay within the owner, so mixed transfer/call
 cycles cannot bypass the check. At most 4,096 source ordinary calls can be live.
-No admitted source operation exposes these private cell addresses.
+No admitted source operation exposes these private cell addresses. Numeric values
+are zero-extended Alpha words, so signed 64-bit comparisons correctly order all
+admitted `u32` values. Decimal literals cover `0..4294967295`; arithmetic in that
+carrier remains unsupported. Comparisons retain carrier/policy identity rather
+than treating every word as interchangeable. Ordinary arguments, locals and
+results never acquire or drop a domain implicitly: `as +Trapping` and
+`as -Trapping` express the supported domain changes. Core comparisons admit a
+plain peer of the same carrier, as specified by the policy-domain operator
+family; that does not qualify the peer. Carrier casts currently cover plain
+identity/anonymous landing and exact `u8` to `u32` widening. Other casts and
+context-dependent domain inference inside compound expressions refuse explicitly.
+
+This closed slice projects the primitive operators and the fixed core policy
+comparison family specified by [numeric values](../../wiki/spec/language/numeric_values.md#policy-domains);
+it does not claim general
+operator-declaration or package/core admission. Imports, custom operators and
+user domains remain unsupported. The core Trapping comparison family publishes
+`crashes Trap`, even though its emitted value computation is total. The compiler
+retains that conservative summary across all ordinary calls and nested states.
+Under [effect admission](../../wiki/spec/language/effects.md), private checked
+bodies infer it; public bodies that would need a crash clause
+refuse until those clauses are supported. No `NoTrap` claim or complete selected
+product effect admission follows from this internal source-to-tape customer.
+Visibility uses canonical `public`; retired `pub` is an ordinary identifier,
+not a declaration modifier.
+
+The `--omega-control` source-built customer extracts the exact canonical
+`is_identifier_start` and `is_identifier_continue` declarations from
+`source/psi/lex/lexer.omg`, adds the checked-in boundary-calling wrapper, compiles
+them with this bootstrap compiler, and executes the emitted tape. Its companion
+source-owned controls exercise parallel transfers, skipped looping operands,
+nested comparisons, type/arity/range/grammar refusals and reset behavior:
+
+```sh
+python3 bootstrap/compiled_vm/source_test.py --omega-control
+```
+
+Extraction and request framing supply bytes, not language meaning; no compiler
+path recognizes these helper names or source shapes.
 
 The source-owned `controls_values.epsilon` customer exercises parameter/local
 semantics, nested argument calls, caller preservation, forward calls, state
@@ -178,7 +222,7 @@ Epsilon cannot safely express a reusable validate-once source cursor: machines
 and fields are public, while immutable views cannot be stored in data. `D`'s
 parser therefore validates once and streams the same source through private
 states of one canonical invocation. Its retained slices sequence empty,
-trivia-only, ordinary `use path::member;`, basic `[pub] data`, and ordinary
+trivia-only, ordinary `use path::member;`, basic `[public] data`, and ordinary
 machine roots whose current bodies contain neutral path calls and simple
 assignments.
 The explicit slow [complete-D parser customer](../../tests/bootstrap/omega-parser/README.md)
