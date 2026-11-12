@@ -1100,101 +1100,6 @@ pub mod borrow_contracts {
             })
         }
 
-        #[cfg(test)]
-        mod frontier_tests {
-            use super::*;
-            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
-            use typed_trees::data::{DataDefinition, DataField, DataMember};
-
-            #[test]
-            fn symbolic_frontier_keeps_known_leaves_and_rejects_foreign_binders() {
-                let mut symbols = SymbolTableBuilder::new();
-                let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-                let declarations = symbols.insert_children(
-                    root,
-                    [
-                        (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
-                        (SymbolKind::TypeParameter, SymbolNameRef::Static("Foreign")),
-                        (SymbolKind::Data, SymbolNameRef::Static("Carrier")),
-                    ],
-                );
-                let parameter = declarations.handle_at(0);
-                let foreign = declarations.handle_at(1);
-                let carrier = declarations.handle_at(2);
-                let fields = symbols.insert_children(
-                    carrier,
-                    [
-                        (SymbolKind::Field, SymbolNameRef::Static("view")),
-                        (SymbolKind::Field, SymbolNameRef::Static("opaque")),
-                    ],
-                );
-                let mut program = typed_trees::TypedTrees {
-                    symbols: symbols.finish(),
-                    ..Default::default()
-                };
-                let opaque = program
-                    .type_reference_table
-                    .insert(TypeReferenceNode::Named {
-                        symbol: parameter,
-                        name: "T".into(),
-                    });
-                let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
-                let view = program
-                    .type_reference_table
-                    .insert(TypeReferenceNode::Reference {
-                        access: language_semantics::ReferenceAccess::Shared,
-                        lifetime: None,
-                        referee: unit,
-                    });
-                let members = program.data_members.insert_many([
-                    DataMember::Field(DataField {
-                        symbol: fields.handle_at(0),
-                        name: "view".into(),
-                        type_reference: view,
-                        ..Default::default()
-                    }),
-                    DataMember::Field(DataField {
-                        symbol: fields.handle_at(1),
-                        name: "opaque".into(),
-                        type_reference: opaque,
-                        ..Default::default()
-                    }),
-                ]);
-                program.push_data_definition(DataDefinition {
-                    symbol: carrier,
-                    name: "Carrier".into(),
-                    members,
-                    ..Default::default()
-                });
-                let carrier = program
-                    .type_reference_table
-                    .insert(TypeReferenceNode::Named {
-                        symbol: carrier,
-                        name: "Carrier".into(),
-                    });
-                let frontier = declaration_borrow_frontier(&program, carrier, &[parameter])
-                    .expect("known leaves beside an exact open binder");
-                assert!(frontier.template_dependent);
-                assert_eq!(
-                    frontier.owner_paths,
-                    vec![vec![BorrowOwnerSegment::Field(fields.handle_at(0))]]
-                );
-                assert!(declaration_borrow_frontier(&program, carrier, &[foreign]).is_none());
-                assert!(declaration_borrow_frontier(&program, opaque, &[]).is_none());
-                assert!(
-                    declaration_borrow_frontier(
-                        &program,
-                        TypeReferenceHandle::from_parts(1_000_000, 0),
-                        &[parameter]
-                    )
-                    .is_none()
-                );
-                let scalar = declaration_borrow_frontier(&program, unit, &[]).unwrap();
-                assert!(!scalar.template_dependent);
-                assert!(scalar.owner_paths.is_empty());
-            }
-        }
-
         pub(crate) fn carried_lifetimes(
             program: &dyn crate::CheckingInput,
             reference: TypeReferenceHandle,
@@ -2262,6 +2167,101 @@ pub mod borrow_contracts {
             let cyclic = visiting.pop().is_some_and(|visit| visit.cyclic);
             template.frontier = frontier;
             complete && (whole_elided_contract || !cyclic || output.len() == first_leaf)
+        }
+
+        #[cfg(test)]
+        mod frontier_tests {
+            use super::*;
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+            use typed_trees::data::{DataDefinition, DataField, DataMember};
+
+            #[test]
+            fn symbolic_frontier_keeps_known_leaves_and_rejects_foreign_binders() {
+                let mut symbols = SymbolTableBuilder::new();
+                let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                let declarations = symbols.insert_children(
+                    root,
+                    [
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("Foreign")),
+                        (SymbolKind::Data, SymbolNameRef::Static("Carrier")),
+                    ],
+                );
+                let parameter = declarations.handle_at(0);
+                let foreign = declarations.handle_at(1);
+                let carrier = declarations.handle_at(2);
+                let fields = symbols.insert_children(
+                    carrier,
+                    [
+                        (SymbolKind::Field, SymbolNameRef::Static("view")),
+                        (SymbolKind::Field, SymbolNameRef::Static("opaque")),
+                    ],
+                );
+                let mut program = typed_trees::TypedTrees {
+                    symbols: symbols.finish(),
+                    ..Default::default()
+                };
+                let opaque = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: parameter,
+                        name: "T".into(),
+                    });
+                let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+                let view = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Reference {
+                        access: language_semantics::ReferenceAccess::Shared,
+                        lifetime: None,
+                        referee: unit,
+                    });
+                let members = program.data_members.insert_many([
+                    DataMember::Field(DataField {
+                        symbol: fields.handle_at(0),
+                        name: "view".into(),
+                        type_reference: view,
+                        ..Default::default()
+                    }),
+                    DataMember::Field(DataField {
+                        symbol: fields.handle_at(1),
+                        name: "opaque".into(),
+                        type_reference: opaque,
+                        ..Default::default()
+                    }),
+                ]);
+                program.push_data_definition(DataDefinition {
+                    symbol: carrier,
+                    name: "Carrier".into(),
+                    members,
+                    ..Default::default()
+                });
+                let carrier = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: carrier,
+                        name: "Carrier".into(),
+                    });
+                let frontier = declaration_borrow_frontier(&program, carrier, &[parameter])
+                    .expect("known leaves beside an exact open binder");
+                assert!(frontier.template_dependent);
+                assert_eq!(
+                    frontier.owner_paths,
+                    vec![vec![BorrowOwnerSegment::Field(fields.handle_at(0))]]
+                );
+                assert!(declaration_borrow_frontier(&program, carrier, &[foreign]).is_none());
+                assert!(declaration_borrow_frontier(&program, opaque, &[]).is_none());
+                assert!(
+                    declaration_borrow_frontier(
+                        &program,
+                        TypeReferenceHandle::from_parts(1_000_000, 0),
+                        &[parameter]
+                    )
+                    .is_none()
+                );
+                let scalar = declaration_borrow_frontier(&program, unit, &[]).unwrap();
+                assert!(!scalar.template_dependent);
+                assert!(scalar.owner_paths.is_empty());
+            }
         }
     }
     pub(crate) mod lifetime_applications {
