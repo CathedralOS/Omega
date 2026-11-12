@@ -1,5 +1,5 @@
 #!/bin/bash
-# Bisect one witness: bad=PIN, good from ledger stamp (or $BISECT_GOOD).
+# Bisect one witness: fixed PIN ledger + first-parent good walk (methodology #2).
 set -euo pipefail
 WITNESS="${1:?witness}"
 OUT_JSON="${2:?output json}"
@@ -9,42 +9,66 @@ TOOL_SRC="$ROOT/.agents/ledger-bisect-2026-11-11/tools"
 TMP_TOOLS="/tmp/ledger-bisect-tools-7"
 rm -rf "$TMP_TOOLS"
 mkdir -p "$TMP_TOOLS"
-cp -a "$TOOL_SRC/bisect_witness.sh" "$TOOL_SRC/bisect_test.py" "$TMP_TOOLS/"
+cp -a "$TOOL_SRC/bisect_witness.sh" "$TOOL_SRC/bisect_test.py" "$TOOL_SRC/prepare_pin_snapshot.py" "$TMP_TOOLS/"
 chmod +x "$TMP_TOOLS/bisect_witness.sh"
-# bisect checkouts drop this branch's .agents tree; keep helpers outside the worktree.
 SCRIPT="$TMP_TOOLS/bisect_witness.sh"
 export BISECT_WITNESS="$WITNESS"
-if [[ -z "${BISECT_GOOD:-}" ]]; then
-  GOOD=$(python3 - "$WITNESS" <<'PY'
-import subprocess
-import sys
+export GIT_PAGER=cat
+cd "$ROOT"
 
-fix = sys.argv[1]
-stamp = None
-for line in open("tests/omega/corpus_outcomes.txt"):
-    if line.startswith(fix + " "):
-        for tok in line.split():
-            if tok.startswith("@"):
-                stamp = tok[1:]
-                break
-        break
-FALLBACK = "759c80404428e6d9922a8b67cce32daf7e41a02e"
-if stamp:
-    for cand in (stamp, stamp[:12], FALLBACK):
-        try:
-            print(subprocess.check_output(["git", "rev-parse", f"{cand}^{{commit}}"], text=True).strip())
-            raise SystemExit
-        except subprocess.CalledProcessError:
-            continue
-print(FALLBACK)
-PY
-)
+is_ledger_only_commit() {
+  local c="$1"
+  local -a files=()
+  mapfile -t files < <(git diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null || true)
+  [[ ${#files[@]} -eq 0 ]] && return 1
+  local f
+  for f in "${files[@]}"; do
+    [[ -z "$f" ]] && continue
+    [[ "$f" == tests/omega/corpus_outcomes.txt ]] && continue
+    [[ "$f" == *.md ]] && continue
+    return 1
+  done
+  return 0
+}
+
+git checkout -q work/ledger-bisect-part-7
+python3 "$TMP_TOOLS/prepare_pin_snapshot.py" "$WITNESS"
+export BISECT_PIN_LEDGER=/tmp/ledger-bisect-pin/corpus_outcomes.txt
+export BISECT_PIN_STATE=/tmp/ledger-bisect-pin/witness_state.json
+
+find_good_commit() {
+  local cur="$PIN"
+  local parent rc
+  while true; do
+    parent=$(git rev-parse "$cur^" 2>/dev/null) || break
+    if is_ledger_only_commit "$parent"; then
+      cur="$parent"
+      continue
+    fi
+    git checkout -q "$parent"
+    set +e
+    nice -n 19 "$SCRIPT"
+    rc=$?
+    set -e
+    if [[ "$rc" -eq 0 ]]; then
+      echo "$parent"
+      return 0
+    fi
+    cur="$parent"
+  done
+  echo ""
+  return 1
+}
+
+if [[ -z "${BISECT_GOOD:-}" ]]; then
+  GOOD=$(find_good_commit) || true
 else
   GOOD="$BISECT_GOOD"
 fi
-[[ -n "$GOOD" ]] || { echo "no good commit for $WITNESS" >&2; exit 2; }
-cd "$ROOT"
-export GIT_PAGER=cat
+git checkout -q work/ledger-bisect-part-7
+[[ -n "$GOOD" ]] || { echo "no good commit for $WITNESS (walk exhausted)" >&2; exit 2; }
+echo "GOOD=$GOOD for $WITNESS" >&2
+
 git bisect reset 2>/dev/null || true
 if ! git bisect start "$PIN" "$GOOD" --first-parent 2>/dev/null; then
   git bisect start
@@ -52,25 +76,33 @@ if ! git bisect start "$PIN" "$GOOD" --first-parent 2>/dev/null; then
   git bisect good "$GOOD"
 fi
 set +e
-export BISECT_WITNESS="$WITNESS"
 nice -n 19 git bisect run "$SCRIPT"
 RC=$?
 set -e
 BREAK=$(git rev-parse HEAD^{commit} 2>/dev/null || true)
 git bisect log >"${OUT_JSON%.json}.log" 2>/dev/null || true
 git bisect reset 2>/dev/null || true
-git checkout -f work/ledger-bisect-part-7 2>/dev/null || true
-cp -f "${OUT_JSON}.tmp" "$OUT_JSON" 2>/dev/null || true
+git checkout -q work/ledger-bisect-part-7 2>/dev/null || true
+
+ledger_only_break=0
+if [[ -n "$BREAK" ]] && is_ledger_only_commit "$BREAK"; then
+  ledger_only_break=1
+fi
+
 PR=""
 if [[ -n "$BREAK" ]]; then
   PR=$(git log -1 --format='%s' "$BREAK" 2>/dev/null | sed -n 's/.*#\([0-9][0-9]*\).*/\1/p' | head -1)
 fi
-python3 - "$OUT_JSON" "$WITNESS" "$BREAK" "$PR" "$RC" "$GOOD" <<'PY'
+python3 - "$OUT_JSON" "$WITNESS" "$BREAK" "$PR" "$RC" "$GOOD" "$ledger_only_break" <<'PY'
 import json, re, subprocess, sys
 
-out, witness, brk, pr, rc, good = sys.argv[1:7]
+out, witness, brk, pr, rc, good, ledger_only = sys.argv[1:8]
 mech = ""
-if brk:
+status = "propagated"
+if brk and ledger_only == "1":
+    mech = "invalid bisect: breaking commit touches only ledger/md"
+    status = "propagated"
+elif brk and int(rc) == 0:
     subj = subprocess.run(
         ["git", "log", "-1", "--format=%s", brk], capture_output=True, text=True
     ).stdout.strip()
@@ -85,8 +117,6 @@ if brk:
     if path_hint and path_hint not in subj:
         mech = f"{subj} ({path_hint})"
     mech = re.sub(r"\s+", " ", mech)[:500]
-status = "bisected" if rc == 0 and brk else "propagated"
-if brk and rc in (0, 1) and status == "propagated":
     status = "bisected"
 payload = {
     "witness": witness,
@@ -96,6 +126,7 @@ payload = {
     "mechanism": mech[:500],
     "status": status,
     "bisect_exit": int(rc),
+    "ledger_only_break": ledger_only == "1",
 }
 open(out, "w").write(json.dumps(payload, indent=2))
 open(out + ".tmp", "w").write(json.dumps(payload, indent=2))
