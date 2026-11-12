@@ -4,12 +4,17 @@ set -euo pipefail
 WITNESS="${1:?witness fixture}"
 OUT_JSON="${2:?output json}"
 ROOT="$(git -C "$(dirname "$0")/../../.." rev-parse --show-toplevel)"
+TOOLCACHE="/tmp/ledger-bisect-tools"
+mkdir -p "$TOOLCACHE"
+rsync -a "$ROOT/.agents/ledger-bisect-2026-11-11/tools/" "$TOOLCACHE/"
+chmod +x "$TOOLCACHE"/*.sh 2>/dev/null || true
 cd "$ROOT"
-SCRIPT="$ROOT/.agents/ledger-bisect-2026-11-11/tools/bisect_witness_full.sh"
-SETUP="$ROOT/.agents/ledger-bisect-2026-11-11/tools/pin_bisect_context.py"
+SCRIPT="$TOOLCACHE/bisect_witness_full.sh"
+SETUP="$TOOLCACHE/pin_bisect_context.py"
 PIN="${BISECT_PIN:-51e8c45c793007f211d0d9baee7de16767172444}"
 ANCHOR="${BISECT_ANCHOR:-741270df60f7}"
 export BISECT_WITNESS="$WITNESS"
+export BISECT_TOOLCACHE="$TOOLCACHE"
 BRANCH=work/ledger-bisect-part-26
 
 single_test() {
@@ -59,11 +64,11 @@ find_good_commit() {
   CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$ROOT/target" nice -n 19 mbx build -p omega < /dev/null
   CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$ROOT/target" nice -n 19 mbx test --no-run -p compiler --test corpus_runner < /dev/null
   export BISECT_WITNESS="$WITNESS"
-  "$ROOT/.agents/ledger-bisect-2026-11-11/tools/find_good_commit.sh" "$PIN" "$SCRIPT"
+  "$TOOLCACHE/find_good_commit.sh" "$PIN" "$SCRIPT"
 }
 
-git checkout -q "$BRANCH"
-git checkout -q "$PIN"
+git checkout -qf "$BRANCH"
+git checkout -qf "$PIN"
 export BISECT_PIN="$PIN"
 MEASURE="$ROOT/.agents/ledger-bisect-2026-11-11/work/pin_measure.txt"
 if [[ -f "$MEASURE" ]] && grep -q "^${WITNESS} " "$MEASURE"; then
@@ -86,13 +91,13 @@ if [[ "$(git rev-parse "$GOOD")" == "$(git rev-parse "$PIN")" ]]; then
   exit 2
 fi
 
-git checkout -q "$GOOD"
+git checkout -qf "$GOOD"
 GOOD_EP=$(trial_expect 0)
-git checkout -q "$PIN"
+git checkout -qf "$PIN"
 PIN_EP=$(trial_expect 1)
-git checkout -q "$ANCHOR"
+git checkout -qf "$ANCHOR"
 ANCHOR_EP=$(trial_expect 1)
-git checkout -q "$BRANCH"
+git checkout -qf "$BRANCH"
 
 export GIT_PAGER=cat
 git bisect reset 2>/dev/null || true
@@ -112,7 +117,7 @@ if [[ $BEXIT -eq 0 ]]; then
 elif [[ -f "${OUT_JSON}.log" ]]; then
   mapfile -t candidates < <(grep 'possible first bad commit:' "${OUT_JSON}.log" | sed -n 's/.*\[\([^]]*\)\].*/\1/p')
   for cand in "${candidates[@]}"; do
-    git checkout -q "$cand"
+    git checkout -qf "$cand"
     if is_ledger_only_commit; then
       continue
     fi
@@ -125,7 +130,7 @@ elif [[ -f "${OUT_JSON}.log" ]]; then
 fi
 git bisect log > "${OUT_JSON}.log" 2>/dev/null || true
 git bisect reset 2>/dev/null || true
-git checkout -q "$BRANCH"
+git checkout -qf "$BRANCH"
 
 PR=""
 MECH=""

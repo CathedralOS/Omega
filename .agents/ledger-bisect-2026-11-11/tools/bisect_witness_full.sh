@@ -30,4 +30,4 @@ export OMEGA_CORPUS_ROOT="$ROOT" OMEGA_LIBRARY_ROOT="$ROOT/source/library"
 export OMEGA_CORPUS_FIXTURE_FILTER="$WITNESS" OMEGA_CORPUS_RECORDS=/tmp/bisect_one_record.txt
 rm -f /tmp/bisect_one_record.txt
 nice -n 19 "$RUNNER" < /dev/null >/dev/null 2>&1 || true
-python3 "$(dirname "$0")/bisect_test.py" "$WITNESS" /tmp/bisect_one_record.txt
+python3 "${BISECT_TOOLCACHE:-$(dirname "$0)")}/bisect_test.py" "$WITNESS" /tmp/bisect_one_record.txt
