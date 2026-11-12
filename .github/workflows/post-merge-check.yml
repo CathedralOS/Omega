@@ -276,6 +276,12 @@ jobs:
       - name: Check this shard's rows against the ledger
         run: |
           cd /home/user/Omega
+          # The ledger the last run published; absent before the first
+          # publication, when the repository's file is compared instead.
+          mkdir -p build/corpus-ledger
+          curl -fsSL -o build/corpus-ledger/corpus_outcomes.txt \
+            "https://github.com/${{ github.repository }}/releases/download/corpus-ledger/corpus_outcomes.txt" ||
+            rm -f build/corpus-ledger/corpus_outcomes.txt
           CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
             mbx xtask corpus-gate check --plan build/corpus-gate/plan.json --shard "${{ matrix.shard }}" \
             --out build/corpus-gate/runs \

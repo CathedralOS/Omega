@@ -906,12 +906,26 @@ fn run_check(args: &[String]) -> Result<(), u8> {
     }
     fs::create_dir_all(&out).map_err(|e| infra(e.to_string()))?;
     let out = execution::reserve_directory(&out).map_err(infra)?;
-    let ledger = read_records(&root.join(LEDGER)).map_err(infra)?;
-    let base_ledger = git(&root, &["show", &format!("{}:{LEDGER}", plan.base)])
-        .ok()
-        .and_then(|text| corpus::parse_records(&text).ok())
-        .map(record_map)
-        .unwrap_or_default();
+    // The published ledger, when a copy was downloaded, is what the post-merge
+    // check last measured; the file in the repository is no longer edited by
+    // pull requests. No pull request rewrites a published row, so the base's
+    // ledger is the same one.
+    let published = corpus::published_ledger(&root);
+    let ledger = read_records(published.as_deref().unwrap_or(&root.join(LEDGER))).map_err(infra)?;
+    let base_ledger = match &published {
+        Some(path) => {
+            println!(
+                "corpus-gate: comparing with the published ledger {}",
+                path.display()
+            );
+            ledger.clone()
+        }
+        None => git(&root, &["show", &format!("{}:{LEDGER}", plan.base)])
+            .ok()
+            .and_then(|text| corpus::parse_records(&text).ok())
+            .map(record_map)
+            .unwrap_or_default(),
+    };
     // A row the pull request itself rewrote is judged against its new line
     // only; main's state of the old line cannot excuse it.
     let unchanged_by_pr = |fixture: &str| match (ledger.get(fixture), base_ledger.get(fixture)) {
