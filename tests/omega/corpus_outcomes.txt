@@ -18319,8 +18319,8 @@ fail/reflection/schema_runtime_operand rejected 1193ms expected @6b1e6a51ea70
 	semantic schema query accepts no runtime or evidence operands
 fail/relax/retired_relax_statement rejected 3ms expected @ccdb99ca2214
 	tests/omega/fail/relax/retired_relax_statement/main.omg:8:5: `relax` is retired: invariant windows (ch11) supersede it -- write plainly; a momentary violation opens a window that must close before any read, call, or terminal exit
-fail/relevance/erased_array_missing rejected 909ms expected @ccdb99ca2214
-	state `entry` expects 2 argument(s), got 1
+fail/relevance/erased_array_missing rejected 4297ms expected @8ae4ed44ee3e
+	state `keep` expects 2 argument(s), got 1
 fail/relevance/erased_array_runtime_read rejected 885ms expected @ccdb99ca2214
 	erased parameter `witness` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
 fail/relevance/erased_array_wrong_element rejected 711ms expected @ccdb99ca2214
@@ -18328,9 +18328,9 @@ fail/relevance/erased_array_wrong_element rejected 711ms expected @ccdb99ca2214
 	array literal element stores a boolean into a `i32` element, which holds a numeric value
 fail/relevance/erased_array_wrong_extent rejected 848ms expected @ccdb99ca2214
 	machine `Main::main` state `main` assigns an array literal with 1 element(s) to a `[_; 2]` place; a fixed-array literal must supply exactly 2 element(s)
-fail/relevance/erased_array_wrong_record rejected 840ms expected @ccdb99ca2214
-	argument `witness` for state `entry` expects `Proof`, got `struct literal`
-	argument `witness` for state `keep::entry` expects the `Proof` data type but got `Other` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
+fail/relevance/erased_array_wrong_record rejected 4984ms expected @8ae4ed44ee3e
+	argument `witness` for state `keep` expects `Proof`, got `struct literal`
+	argument `witness` for state `keep` expects the `Proof` data type but got `Other` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/relevance/erased_local_receiver_call rejected 1388ms expected @ccdb99ca2214
 	erased local `c` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
@@ -27450,7 +27450,8 @@ pass/proofs/builtin_unsigned_integer_ordering checked 2386ms @ccdb99ca2214
 pass/proofs/called_conjunction_requires checked 7448ms @a097987fd520
 pass/proofs/captured_entry_comparison_after_mutation checked 2621ms @ccdb99ca2214
 pass/proofs/captured_scalar_field_observations checked 3299ms check-target:macos_arm64 @ccdb99ca2214
-pass/proofs/case_call_premises checked 7444ms @9af3eb514e16
+pass/proofs/case_call_premises rejected 3830ms regressed-from:checked @8ae4ed44ee3e
+	cannot compare `Tree` values with `==`: structural equality is synthesized only through a named implementation -- declare `TreeEquality satisfies Equatable<Tree> { }` to synthesize structural equality, or use `core::Identity<Tree>(left, right)` for mathematical identity
 pass/proofs/cauchy_predicates_compile checked 3205ms @ccdb99ca2214
 pass/proofs/citation_requires_discharged checked 34415ms @4a802009dabd
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 49311ms @911f6617ba9e
@@ -27469,7 +27470,8 @@ pass/proofs/declaration_constructed_data_identity checked 11911ms @089c0a150e63
 pass/proofs/declaration_predicate_calls_exit checked 6410ms check-target:macos_arm64 @2e1278cd4d1c
 pass/proofs/declaration_synthesized_equality_value_context checked 14587ms check-target:macos_arm64 @089c0a150e63
 pass/proofs/declaration_view_call_requirement checked 3764ms check-target:macos_arm64 @ccdb99ca2214
-pass/proofs/defined_proposition_premises checked 3151ms @ccdb99ca2214
+pass/proofs/defined_proposition_premises rejected 4032ms regressed-from:checked @8ae4ed44ee3e
+	cannot compare `Point` values with `==`: structural equality is synthesized only through a named implementation -- declare `PointEquality satisfies Equatable<Point> { }` to synthesize structural equality, or use `core::Identity<Point>(left, right)` for mathematical identity
 pass/proofs/descriptor_bound_after_element_call rejected 1755ms regressed-from:checked @ccdb99ca2214
 	cannot prove ensures contract for exit from filter at statement 1: partition.count <= partition.records.len
 pass/proofs/descriptor_bound_call_after_element_call rejected 1751ms regressed-from:checked @ccdb99ca2214
