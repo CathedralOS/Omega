@@ -52,6 +52,41 @@ pub fn decode<T: Record>(bytes: &[u8], limits: RecordLimits) -> Result<T, Record
     Ok(value)
 }
 
+/*
+    Encodes `value` with every reference to `external` written as a reference
+    the reader resolves to a value it supplies, instead of `external`'s bytes.
+    Two compiles that share everything but a large ambient value, such as the
+    invocation's source map, then encode equally. A different value of the
+    same type inside `value` cannot be resolved that way, so it is an error
+    rather than an inline copy that would come back on another compile.
+*/
+pub fn encode_beside<T: Record, External: 'static>(
+    value: &T,
+    external: &std::sync::Arc<External>,
+    limits: RecordLimits,
+) -> Result<Vec<u8>, RecordError> {
+    let mut output = RecordWriter::new(limits);
+    let pointer = std::sync::Arc::as_ptr(external).cast::<()>() as usize;
+    output
+        .shared_values
+        .insert((TypeId::of::<External>(), pointer, 0), 1);
+    output.external = Some((TypeId::of::<External>(), pointer));
+    value.write(&mut output)?;
+    Ok(output.finish())
+}
+
+pub fn decode_beside<T: Record, External: Send + Sync + 'static>(
+    bytes: &[u8],
+    external: std::sync::Arc<External>,
+    limits: RecordLimits,
+) -> Result<T, RecordError> {
+    let mut input = RecordReader::<()>::new(bytes, limits)?;
+    input.shared_values.push(Some(Box::new(external)));
+    let value = T::read(&mut input)?;
+    input.finish()?;
+    Ok(value)
+}
+
 #[derive(Clone, Copy)]
 pub struct RecordLimits {
     pub bytes: usize,
@@ -95,6 +130,7 @@ pub struct RecordWriter {
     remaining_elements: usize,
     remaining_depth: usize,
     shared_values: HashMap<(TypeId, usize, usize), u64>,
+    external: Option<(TypeId, usize)>, // The one value of its type the reader supplies instead of the bytes.
 }
 
 impl RecordWriter {
@@ -104,6 +140,7 @@ impl RecordWriter {
             remaining_elements: limits.elements,
             remaining_depth: limits.depth,
             shared_values: HashMap::new(),
+            external: None,
             limits,
         }
     }
@@ -167,6 +204,12 @@ impl RecordWriter {
         let key = (TypeId::of::<T>(), pointer.cast::<()>() as usize, length);
         if let Some(identity) = self.shared_values.get(&key) {
             return Ok((*identity, false));
+        }
+        if self
+            .external
+            .is_some_and(|(external, _)| external == TypeId::of::<T>())
+        {
+            return Err(self.error("a second value of the externally supplied type"));
         }
         self.remaining_elements = self
             .remaining_elements
@@ -427,6 +470,46 @@ impl<'bytes, Context: Default> RecordReader<'bytes, Context> {
 mod tests {
     use crate::{Record, RecordLimits, decode, encode};
     use std::sync::Arc;
+
+    #[test]
+    fn an_external_value_is_supplied_by_the_reader_and_never_copied() {
+        #[derive(Debug, PartialEq, Eq, Record)]
+        struct Holder {
+            ambient: Arc<String>,
+            again: Arc<String>,
+            own: u64,
+        }
+        let limits = RecordLimits::default();
+        let ambient = Arc::new("first compile".to_owned());
+        let holder = Holder {
+            ambient: Arc::clone(&ambient),
+            again: Arc::clone(&ambient),
+            own: 7,
+        };
+        let bytes = crate::encode_beside(&holder, &ambient, limits).unwrap();
+        let other = Arc::new("second compile".to_owned());
+        let other_bytes = crate::encode_beside(
+            &Holder {
+                ambient: Arc::clone(&other),
+                again: Arc::clone(&other),
+                own: 7,
+            },
+            &other,
+            limits,
+        )
+        .unwrap();
+        assert_eq!(bytes, other_bytes);
+        let restored: Holder = crate::decode_beside(&bytes, Arc::clone(&other), limits).unwrap();
+        assert!(Arc::ptr_eq(&restored.ambient, &other) && Arc::ptr_eq(&restored.again, &other));
+
+        let stray = Holder {
+            ambient: Arc::clone(&ambient),
+            again: Arc::new("first compile".to_owned()),
+            own: 7,
+        };
+        assert!(crate::encode_beside(&stray, &ambient, limits).is_err());
+
+    }
 
     #[test]
     fn equal_hashed_collections_write_equal_bytes() {

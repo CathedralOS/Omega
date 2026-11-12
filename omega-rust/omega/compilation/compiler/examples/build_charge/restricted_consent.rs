@@ -92,6 +92,7 @@ machine build(builder: &mut Build) crashes Trap {
             sources: syntax.sources,
             top_level_bindings: syntax.source_scoped_top_level_bindings,
             selection_authority: None,
+            stored_typing: None,
         }
         .prepare(&mut psi_compiler::UnmeasuredProduction)
         .unwrap();

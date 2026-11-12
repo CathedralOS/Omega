@@ -712,6 +712,16 @@ pub struct SourceCompilationRequest {
     pub sources: Arc<source::SourceMap>,
     pub top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    /// Where typed library-only source sets are kept between compiles, if
+    /// anywhere. `None` types every source set afresh.
+    pub stored_typing: Option<StoredTyping>,
+}
+
+/// Permission for one typing request to use a checked-slice store.
+#[derive(Clone, Copy)]
+pub struct StoredTyping {
+    pub store: &'static dyn crate::CheckedSliceStore,
+    pub owner: crate::CheckedSliceOwner,
 }
 
 #[derive(Clone, compiler_storage::Record)]
@@ -762,6 +772,105 @@ impl PreparedSource {
     }
 }
 
+/*
+    Typed library-only source sets kept on local disk between compiles.
+
+    Typing the bundled library's source sets costs seconds in every compile,
+    and the result is a pure function of the request: its syntax, items, roots
+    and bindings, the selected sources, the declaration authority, the build
+    helper selection and the compiler. Under the same rule and key as checked
+    slices (`source_checking::checked_slice`), a fresh typing of sources that
+    are all library slice is stored, and a later request with the same key
+    loads it instead. The loaded input rejoins the live authority, which
+    validates the recorded one, and is retained in the frontends exactly as a
+    fresh typing is. A request that would extend a retained typing in this
+    process is not keyed, because its result depends on that retention.
+*/
+mod typed_slice {
+    use super::{SourceCompilationRequest, SourceCompletionInput, StoredTyping};
+    use crate::source_checking::checked_slice::{self, CheckedSliceReuse, SliceKey, LIMITS};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    const KEY_DOMAIN: &[u8] = b"omega-typed-slice-key-v1\0";
+    static LOADS: AtomicU64 = AtomicU64::new(0);
+    static SAVES: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn totals() -> (u64, u64) {
+        (LOADS.load(Ordering::Relaxed), SAVES.load(Ordering::Relaxed))
+    }
+
+    pub(super) fn record_load() {
+        LOADS.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn reuse(stored: StoredTyping, target: &str) -> CheckedSliceReuse<'_> {
+        CheckedSliceReuse {
+            store: stored.store,
+            target,
+            owner: stored.owner,
+        }
+    }
+
+    pub(super) fn key(
+        request: &SourceCompilationRequest,
+        stored: StoredTyping,
+    ) -> Option<(StoredTyping, SliceKey)> {
+        let sources = &request.sources;
+        let parts = [
+            compiler_storage::encode_beside(&request.syntax, sources, LIMITS).ok()?,
+            compiler_storage::encode_beside(&request.source_items, sources, LIMITS).ok()?,
+            compiler_storage::encode_beside(&request.root_sources, sources, LIMITS).ok()?,
+            compiler_storage::encode_beside(&request.top_level_bindings, sources, LIMITS).ok()?,
+        ];
+        let parts: Vec<&[u8]> = parts.iter().map(Vec::as_slice).collect();
+        let declarations = request
+            .selection_authority
+            .as_deref()
+            .map(|authority| authority as &dyn validation::DeclarationSelectionAuthority);
+        let key = checked_slice::slice_key(
+            KEY_DOMAIN,
+            &reuse(stored, request.build_helper_identity),
+            Arc::clone(sources),
+            declarations,
+            &parts,
+        )?;
+        Some((stored, key))
+    }
+
+    pub(super) fn load(
+        stored: StoredTyping,
+        key: &SliceKey,
+        target: &str,
+    ) -> Option<Arc<SourceCompletionInput>> {
+        let payload = checked_slice::load_payload(&reuse(stored, target), key)?;
+        compiler_storage::decode_beside::<SourceCompletionInput, _>(
+            &payload,
+            Arc::clone(&key.sources),
+            LIMITS,
+        )
+        .ok()
+        .map(Arc::new)
+    }
+
+    pub(super) fn save(
+        stored: StoredTyping,
+        key: &SliceKey,
+        target: &str,
+        input: &SourceCompletionInput,
+    ) {
+        if let Ok(payload) = compiler_storage::encode_beside(input, &key.sources, LIMITS) {
+            checked_slice::save_payload(&reuse(stored, target), key, &payload);
+            SAVES.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+}
+
+/// Typed source sets this process loaded from a store, and saved to one.
+pub fn typed_slice_totals() -> (u64, u64) {
+    typed_slice::totals()
+}
+
 impl SourceCompilationRequest {
     pub fn prepare(
         mut self,
@@ -775,6 +884,21 @@ impl SourceCompilationRequest {
             recorded_authority: None,
         };
         let activation = activation::select_retained_source(&self, &context, observer)?;
+        let typed_slice = match (&activation, self.stored_typing) {
+            (None, Some(stored)) => typed_slice::key(&self, stored),
+            _ => None,
+        };
+        if let Some((stored, key)) = typed_slice.as_ref()
+            && let Some(input) = typed_slice::load(*stored, key, self.build_helper_identity)
+            && let Ok(input) = input.rejoin_current_authority(self.selection_authority.clone())
+        {
+            self.frontends.retain(Arc::clone(&input))?;
+            typed_slice::record_load();
+            return Ok(SourceContinuation {
+                input,
+                completions: Default::default(),
+            });
+        }
         if let Some(activation) = &activation {
             activation.remove_retained_syntax(&mut self.syntax, &self.source_items);
         }
@@ -880,6 +1004,9 @@ impl SourceCompilationRequest {
             pending_pre_checks,
             context,
         });
+        if let Some((stored, key)) = typed_slice.as_ref() {
+            typed_slice::save(*stored, key, self.build_helper_identity, &input);
+        }
         self.frontends.retain(Arc::clone(&input))?;
         Ok(SourceContinuation {
             input,
