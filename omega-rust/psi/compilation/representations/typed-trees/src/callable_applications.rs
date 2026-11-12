@@ -4375,8 +4375,31 @@ pub(crate) mod requirement_instances {
                                 (
                                     static_applications::StaticMachineBindingValue::Machine(left),
                                     static_applications::StaticMachineBindingValue::Machine(right),
-                                )
-                                | (
+                                ) => {
+                                    let existing_owner = self
+                                        .static_machine_application(existing.application)
+                                        .lexical_owner;
+                                    left.const_literal == right.const_literal
+                                        && left.evidence_projection == right.evidence_projection
+                                        && type_identity::portable_applied_index_identity(
+                                            self,
+                                            type_identity::IndexIdentityArgument::StaticArgument(
+                                                left,
+                                            ),
+                                            existing_owner,
+                                            &[],
+                                        )
+                                        .zip(type_identity::portable_applied_index_identity(
+                                            self,
+                                            type_identity::IndexIdentityArgument::StaticArgument(
+                                                right,
+                                            ),
+                                            lexical_owner,
+                                            &[],
+                                        ))
+                                        .is_some_and(|(left, right)| left == right)
+                                }
+                                (
                                     static_applications::StaticMachineBindingValue::Conformance(
                                         left,
                                     ),
@@ -4649,6 +4672,97 @@ pub(crate) mod requirement_instances {
                     &[]
                 )
             );
+
+            // Intern the same real requirement twice through the two checked
+            // selections. Equality of printed keys alone would miss duplicate
+            // generated declarations that later lowering must refuse.
+            let receiver =
+                program
+                    .symbols
+                    .insert_generated_root_from(selected, SymbolKind::Trait, "Receiver");
+            let template = program
+                .symbols
+                .insert_generated_children(receiver, [(SymbolKind::State, "invoke")])
+                .start();
+            let binder = program
+                .symbols
+                .insert_generated_children(template, [(SymbolKind::MachineParameter, "Callback")])
+                .start();
+            let parameters = program
+                .data_type_parameters
+                .insert_many([data::TypeParameter {
+                    symbol: binder,
+                    name: Identifier::generated("Callback"),
+                    kind: data::TypeParameterKind::Machine {
+                        contract: data::MachineParameterContract::Structural(
+                            signature::StateSignature {
+                                return_type: unit,
+                                ..Default::default()
+                            },
+                        ),
+                    },
+                    ..Default::default()
+                }]);
+            let mut declaration = crate::trait_definition::TraitDefinition {
+                symbol: receiver,
+                name: Identifier::generated("Receiver"),
+                is_boundary: true,
+                ..Default::default()
+            };
+            program.push_trait_machine_signature(
+                &mut declaration,
+                signature::StateSignature {
+                    symbol: template,
+                    name: Identifier::generated("invoke"),
+                    type_parameters: parameters,
+                    return_type: unit,
+                    ..Default::default()
+                },
+            );
+            let environment =
+                crate::trait_definition::AppliedTraitScope::abstract_scope(&declaration)
+                    .environment();
+            program.push_trait_definition(declaration);
+            let mut close = |symbol| {
+                let actual = expression::StaticMachineArgument {
+                    symbol,
+                    path: Box::from([Identifier::from(program.symbols.name(symbol))]),
+                    ..Default::default()
+                };
+                let application = program.expression_table.retain_static_machine_application(
+                    template,
+                    Identifier::generated("invoke"),
+                    std::slice::from_ref(&actual),
+                );
+                let row = program
+                    .expression_table
+                    .static_machine_application_mut(application);
+                row.binding_declaration = template;
+                row.lexical_owner = selected;
+                program
+                    .expression_table
+                    .set_static_machine_application_bindings(
+                        application,
+                        &[static_applications::StaticMachineBinding {
+                            parameter: binder,
+                            value: static_applications::StaticMachineBindingValue::Machine(actual),
+                        }],
+                    );
+                program
+                    .expression_table
+                    .set_static_machine_application_lifetimes(application, template, &[]);
+                program
+                    .instantiate_requirement_application(&environment, template, &[], application)
+                    .unwrap()
+            };
+            let machine_instance = close(selected);
+            assert_eq!(
+                machine_instance,
+                close(states[0]),
+                "the entry spelling must reuse the SAME checked instance"
+            );
+            assert_ne!(machine_instance, close(states[1]));
+            assert_ne!(machine_instance, close(other));
         }
     }
 }
