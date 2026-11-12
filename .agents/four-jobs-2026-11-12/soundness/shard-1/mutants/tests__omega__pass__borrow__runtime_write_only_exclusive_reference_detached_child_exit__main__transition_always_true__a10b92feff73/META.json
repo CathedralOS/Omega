@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/borrow/runtime_write_only_exclusive_reference_detached_child_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__borrow__runtime_write_only_exclusive_reference_detached_child_exit__main__transition_always_true__a10b92feff73",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.81567008900015
+}

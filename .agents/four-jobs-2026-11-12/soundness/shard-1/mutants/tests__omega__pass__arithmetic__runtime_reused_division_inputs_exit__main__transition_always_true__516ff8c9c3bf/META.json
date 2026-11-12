@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/arithmetic/runtime_reused_division_inputs_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__arithmetic__runtime_reused_division_inputs_exit__main__transition_always_true__516ff8c9c3bf",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.037006490999943
+}

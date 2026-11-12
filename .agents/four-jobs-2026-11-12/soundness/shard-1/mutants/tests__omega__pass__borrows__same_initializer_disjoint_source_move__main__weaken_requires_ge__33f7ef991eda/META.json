@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/borrows/same_initializer_disjoint_source_move/main.omg",
+  "kind": "weaken_requires_ge",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__borrows__same_initializer_disjoint_source_move__main__weaken_requires_ge__33f7ef991eda",
+  "current": "accepted",
+  "route": "no-entry",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 2.970996568999908
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/control_flow/runtime_later_state_shared_array_loan/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__control_flow__runtime_later_state_shared_array_loan__main__transition_always_true__bfd60ebf111c",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.86052255300001
+}

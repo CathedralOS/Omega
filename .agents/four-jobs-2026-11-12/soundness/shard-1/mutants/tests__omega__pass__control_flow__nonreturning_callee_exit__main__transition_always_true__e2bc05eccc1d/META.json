@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/control_flow/nonreturning_callee_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__control_flow__nonreturning_callee_exit__main__transition_always_true__e2bc05eccc1d",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.885886346999996
+}

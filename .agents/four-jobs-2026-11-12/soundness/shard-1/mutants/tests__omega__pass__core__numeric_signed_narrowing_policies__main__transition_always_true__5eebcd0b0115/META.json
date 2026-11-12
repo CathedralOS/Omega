@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/core/numeric_signed_narrowing_policies/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__core__numeric_signed_narrowing_policies__main__transition_always_true__5eebcd0b0115",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.9276430610002535
+}

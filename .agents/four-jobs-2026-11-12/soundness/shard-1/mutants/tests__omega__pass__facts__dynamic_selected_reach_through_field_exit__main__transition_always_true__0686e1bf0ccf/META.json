@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/dynamic_selected_reach_through_field_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__dynamic_selected_reach_through_field_exit__main__transition_always_true__0686e1bf0ccf",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.977240334000271
+}

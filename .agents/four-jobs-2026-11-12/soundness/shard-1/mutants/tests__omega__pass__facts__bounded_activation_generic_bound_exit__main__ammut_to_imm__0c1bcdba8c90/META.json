@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/bounded_activation_generic_bound_exit/main.omg",
+  "kind": "ammut_to_imm",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__bounded_activation_generic_bound_exit__main__ammut_to_imm__0c1bcdba8c90",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.229360803999953
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/finite_family_input_index/parameter/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__finite_family_input_index__parameter__main__transition_always_true__cf2da530699e",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.201672974999383
+}

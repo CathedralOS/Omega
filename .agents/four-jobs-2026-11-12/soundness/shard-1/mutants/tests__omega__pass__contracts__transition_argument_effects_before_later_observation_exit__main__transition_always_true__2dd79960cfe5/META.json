@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/contracts/transition_argument_effects_before_later_observation_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__contracts__transition_argument_effects_before_later_observation_exit__main__transition_always_true__2dd79960cfe5",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.881029041999682
+}

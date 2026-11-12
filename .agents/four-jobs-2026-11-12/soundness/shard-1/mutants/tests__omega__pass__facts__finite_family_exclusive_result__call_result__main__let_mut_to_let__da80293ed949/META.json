@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/finite_family_exclusive_result/call_result/main.omg",
+  "kind": "let_mut_to_let",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__finite_family_exclusive_result__call_result__main__let_mut_to_let__da80293ed949",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.0969202460000815
+}

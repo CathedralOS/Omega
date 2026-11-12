@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/asm/atomic_release_disposition_returned_view_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__asm__atomic_release_disposition_returned_view_exit__main__transition_always_true__23844145904b",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.726203707999957
+}

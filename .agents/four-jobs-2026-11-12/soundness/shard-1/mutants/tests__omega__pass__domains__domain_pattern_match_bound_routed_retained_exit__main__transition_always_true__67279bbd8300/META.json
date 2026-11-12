@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/domains/domain_pattern_match_bound_routed_retained_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__domains__domain_pattern_match_bound_routed_retained_exit__main__transition_always_true__67279bbd8300",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.599503866999839
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/arithmetic/int_literal_suffixes/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__arithmetic__int_literal_suffixes__main__transition_always_true__72f81a0354b4",
+  "current": "accepted",
+  "route": "no-entry",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 3.2100559340000245
+}

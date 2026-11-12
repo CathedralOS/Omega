@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/domains/copied_array_domain_survives_original_mutation_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__domains__copied_array_domain_survives_original_mutation_exit__main__transition_always_true__22228bdd3ef3",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.884438618999866
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/fixed_array_twofiftysix_elem_index_bound_through_parameter_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__fixed_array_twofiftysix_elem_index_bound_through_parameter_exit__main__transition_always_true__7f2c049c0b78",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.68108699000004
+}

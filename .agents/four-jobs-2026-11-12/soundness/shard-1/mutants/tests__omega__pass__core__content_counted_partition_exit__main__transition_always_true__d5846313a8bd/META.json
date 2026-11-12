@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/core/content_counted_partition_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__core__content_counted_partition_exit__main__transition_always_true__d5846313a8bd",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.976325500999792
+}

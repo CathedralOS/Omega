@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/calls/structural_self_rooted_argument/main.omg",
+  "kind": "let_mut_to_let",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__calls__structural_self_rooted_argument__main__let_mut_to_let__5832c08149bc",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.3244242330001725
+}

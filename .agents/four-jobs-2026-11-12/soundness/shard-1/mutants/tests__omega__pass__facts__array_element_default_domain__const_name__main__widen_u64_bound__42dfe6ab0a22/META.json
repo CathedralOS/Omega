@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/array_element_default_domain/const_name/main.omg",
+  "kind": "widen_u64_bound",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__array_element_default_domain__const_name__main__widen_u64_bound__42dfe6ab0a22",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.93315556700054
+}

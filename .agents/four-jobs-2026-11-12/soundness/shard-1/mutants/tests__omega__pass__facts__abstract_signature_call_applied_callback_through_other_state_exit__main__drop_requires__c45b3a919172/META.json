@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/abstract_signature_call_applied_callback_through_other_state_exit/main.omg",
+  "kind": "drop_requires",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__abstract_signature_call_applied_callback_through_other_state_exit__main__drop_requires__c45b3a919172",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 7.537082577999172
+}

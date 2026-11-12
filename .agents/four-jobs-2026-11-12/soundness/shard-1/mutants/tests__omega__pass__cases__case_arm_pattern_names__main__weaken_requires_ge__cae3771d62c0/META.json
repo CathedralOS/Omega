@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/cases/case_arm_pattern_names/main.omg",
+  "kind": "weaken_requires_ge",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__cases__case_arm_pattern_names__main__weaken_requires_ge__cae3771d62c0",
+  "current": "accepted",
+  "route": "no-entry",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 3.295204797000224
+}

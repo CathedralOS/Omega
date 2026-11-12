@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/computed_nested_state_loan_through_other_state_exit/main.omg",
+  "kind": "widen_u64_bound",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__computed_nested_state_loan_through_other_state_exit__main__widen_u64_bound__6a7a6090b58b",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.714489640000465
+}

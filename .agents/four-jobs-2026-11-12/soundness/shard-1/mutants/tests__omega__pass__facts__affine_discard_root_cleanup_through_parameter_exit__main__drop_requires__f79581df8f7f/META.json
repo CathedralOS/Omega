@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/affine_discard_root_cleanup_through_parameter_exit/main.omg",
+  "kind": "drop_requires",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__affine_discard_root_cleanup_through_parameter_exit__main__drop_requires__f79581df8f7f",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.741752920999716
+}

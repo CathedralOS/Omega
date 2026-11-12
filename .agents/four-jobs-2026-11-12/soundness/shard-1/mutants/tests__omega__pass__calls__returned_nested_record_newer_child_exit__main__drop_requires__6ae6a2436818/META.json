@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/calls/returned_nested_record_newer_child_exit/main.omg",
+  "kind": "drop_requires",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__calls__returned_nested_record_newer_child_exit__main__drop_requires__6ae6a2436818",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.856107676999727
+}

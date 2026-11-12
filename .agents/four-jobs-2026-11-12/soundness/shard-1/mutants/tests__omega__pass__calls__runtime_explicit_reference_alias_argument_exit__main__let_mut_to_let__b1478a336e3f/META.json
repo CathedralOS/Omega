@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/calls/runtime_explicit_reference_alias_argument_exit/main.omg",
+  "kind": "let_mut_to_let",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__calls__runtime_explicit_reference_alias_argument_exit__main__let_mut_to_let__b1478a336e3f",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.591042846999699
+}

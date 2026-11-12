@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/borrows/runtime_computed_shared_view_reborrow_exit/main.omg",
+  "kind": "weaken_requires_ge",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__borrows__runtime_computed_shared_view_reborrow_exit__main__weaken_requires_ge__4b1da2242986",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.75391426200008
+}

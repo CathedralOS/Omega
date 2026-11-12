@@ -1,0 +1,19 @@
+domain u64::Positive requires 1 <= self;
+
+data Token dropped by drop_token { value: u64 in Positive; }
+data Pair { left: Token; right: Token; }
+
+machine drop_token(token: &mut Token)
+requires token.value == 42
+{
+    token.value = 1;
+}
+
+machine main() {
+    let pair: Pair;
+    // Only the right child becomes a value. The untouched left storage has
+    // no valid Token and must not receive either replacement or exit cleanup.
+    pair.right = Token { value: 42 };
+    transition { _ -> done() }
+    machine done() {}
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/calls/runtime_authored_numeric_names_exit/main.omg",
+  "kind": "drop_requires_and",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__calls__runtime_authored_numeric_names_exit__main__drop_requires_and__d32b583d66dc",
+  "current": "accepted",
+  "route": "accepted",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.840261975999965
+}

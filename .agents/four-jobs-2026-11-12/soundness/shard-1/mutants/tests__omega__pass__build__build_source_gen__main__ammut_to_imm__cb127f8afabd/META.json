@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/build/build_source_gen/main.omg",
+  "kind": "ammut_to_imm",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__build__build_source_gen__main__ammut_to_imm__cb127f8afabd",
+  "current": "accepted",
+  "route": "no-entry",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 4.0235472910001135
+}

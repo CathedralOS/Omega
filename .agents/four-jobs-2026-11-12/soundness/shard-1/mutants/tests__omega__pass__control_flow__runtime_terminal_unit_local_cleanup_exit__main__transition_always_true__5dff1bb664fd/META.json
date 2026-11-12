@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/control_flow/runtime_terminal_unit_local_cleanup_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__control_flow__runtime_terminal_unit_local_cleanup_exit__main__transition_always_true__5dff1bb664fd",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.786702150999645
+}

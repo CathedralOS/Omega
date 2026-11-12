@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/borrows/formed_mutable_slice_argument_completion_exit/main.omg",
+  "kind": "weaken_requires_ge",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__borrows__formed_mutable_slice_argument_completion_exit__main__weaken_requires_ge__b7776a391c9f",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.745296975999963
+}

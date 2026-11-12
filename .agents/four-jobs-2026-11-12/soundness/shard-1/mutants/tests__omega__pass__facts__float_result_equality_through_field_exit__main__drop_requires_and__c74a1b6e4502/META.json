@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/float_result_equality_through_field_exit/main.omg",
+  "kind": "drop_requires_and",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__float_result_equality_through_field_exit__main__drop_requires_and__c74a1b6e4502",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.6202483970000685
+}

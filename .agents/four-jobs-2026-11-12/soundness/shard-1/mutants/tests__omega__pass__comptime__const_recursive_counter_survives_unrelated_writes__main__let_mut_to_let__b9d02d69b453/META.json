@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/comptime/const_recursive_counter_survives_unrelated_writes/main.omg",
+  "kind": "let_mut_to_let",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__comptime__const_recursive_counter_survives_unrelated_writes__main__let_mut_to_let__b9d02d69b453",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 8.881260858000587
+}

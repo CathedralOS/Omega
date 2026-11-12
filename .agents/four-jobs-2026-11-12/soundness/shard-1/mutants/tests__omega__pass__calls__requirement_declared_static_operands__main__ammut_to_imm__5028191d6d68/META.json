@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/calls/requirement_declared_static_operands/main.omg",
+  "kind": "ammut_to_imm",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__calls__requirement_declared_static_operands__main__ammut_to_imm__5028191d6d68",
+  "current": "accepted",
+  "route": "no-entry",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 2.8527241599999797
+}

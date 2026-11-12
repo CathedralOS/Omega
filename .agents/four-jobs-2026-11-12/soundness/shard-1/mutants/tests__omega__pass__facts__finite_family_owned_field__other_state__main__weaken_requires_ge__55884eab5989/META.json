@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/finite_family_owned_field/other_state/main.omg",
+  "kind": "weaken_requires_ge",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__finite_family_owned_field__other_state__main__weaken_requires_ge__55884eab5989",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.050886164000076
+}

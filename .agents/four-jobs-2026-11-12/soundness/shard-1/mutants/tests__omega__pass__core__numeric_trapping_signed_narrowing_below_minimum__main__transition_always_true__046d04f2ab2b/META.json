@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/core/numeric_trapping_signed_narrowing_below_minimum/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__core__numeric_trapping_signed_narrowing_below_minimum__main__transition_always_true__046d04f2ab2b",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.931504930999836
+}

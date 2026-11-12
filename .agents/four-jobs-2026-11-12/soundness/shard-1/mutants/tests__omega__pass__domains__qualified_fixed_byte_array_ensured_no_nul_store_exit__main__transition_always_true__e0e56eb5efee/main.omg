@@ -1,0 +1,18 @@
+// A callee that promises `bytes in NoNul` at return may store a nonzero byte
+// into the lent array; the caller reads the stored byte and its neighbors.
+// Expected exit: 0.
+domain [u8; 4]::NoNul requires no_nul(self);
+machine mutate(bytes: &mut [u8; 4] in NoNul)
+ensures bytes in NoNul
+{ bytes[0] = 7u8; }
+
+machine main() crashes Trap {
+    let mut bytes: [u8; 4] in NoNul = "wxyz";
+    mutate(&mut bytes);
+    transition true {
+        true -> good()
+        _ -> bad()
+    }
+    machine good() {}
+    machine bad() { crash Trap; }
+}

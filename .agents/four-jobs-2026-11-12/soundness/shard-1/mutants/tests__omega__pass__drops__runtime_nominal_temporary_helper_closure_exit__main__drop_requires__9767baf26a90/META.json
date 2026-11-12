@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/drops/runtime_nominal_temporary_helper_closure_exit/main.omg",
+  "kind": "drop_requires",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__drops__runtime_nominal_temporary_helper_closure_exit__main__drop_requires__9767baf26a90",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.690988041999844
+}

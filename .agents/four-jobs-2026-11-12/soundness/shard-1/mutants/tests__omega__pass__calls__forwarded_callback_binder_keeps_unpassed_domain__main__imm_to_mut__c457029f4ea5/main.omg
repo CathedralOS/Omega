@@ -1,0 +1,36 @@
+// A boundary requirement that takes a callback machine can write only what its
+// parameters reach, whichever machine the caller forwards to it. A governed value
+// the call never receives keeps its domain, so it can still be stored where that
+// domain is required.
+public boundary trait Read {}
+public boundary trait Handler {
+    machine read() -> u64 reaches Read;
+}
+
+public boundary trait Registry {
+    machine register<machine Callback>(cell: &mutu64) -> u64
+    requires machine Callback satisfies Handler::read;
+    reaches
+    invokes Handler;
+}
+
+data Ticket { serial: u64; }
+domain Ticket::Issued
+requires self.serial != 0
+established by Ticket::issue;
+machine Ticket::issue(serial: u64) -> Ticket in Ticket::Issued
+requires serial != 0 {
+    Ticket { serial: serial }
+}
+data Receipt {
+    case Kept(ticket: Ticket in Ticket::Issued);
+}
+
+machine caller<machine Selected>(ticket: Ticket in Ticket::Issued, cell: &u64) -> Receipt
+requires machine Selected satisfies Handler::read;
+reaches Registry + Read
+invokes Registry
+{
+    let atom: u64 = Registry::register<Selected>(cell);
+    Receipt::Kept { ticket: ticket }
+}

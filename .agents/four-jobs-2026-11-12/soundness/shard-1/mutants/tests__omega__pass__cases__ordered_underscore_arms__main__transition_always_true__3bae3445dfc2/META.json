@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/cases/ordered_underscore_arms/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__cases__ordered_underscore_arms__main__transition_always_true__3bae3445dfc2",
+  "current": "accepted",
+  "route": "no-entry",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 2.961355523000293
+}

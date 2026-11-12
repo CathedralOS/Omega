@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/five_variant_enum_payload_bound_through_local_exit/main.omg",
+  "kind": "weaken_requires_ge",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__five_variant_enum_payload_bound_through_local_exit__main__weaken_requires_ge__4493ba882600",
+  "current": "accepted",
+  "route": "accepted",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 9.24661842200021
+}

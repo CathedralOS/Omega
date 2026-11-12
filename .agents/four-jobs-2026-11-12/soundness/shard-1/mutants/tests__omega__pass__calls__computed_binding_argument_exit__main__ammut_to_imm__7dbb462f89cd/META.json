@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/calls/computed_binding_argument_exit/main.omg",
+  "kind": "ammut_to_imm",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__calls__computed_binding_argument_exit__main__ammut_to_imm__7dbb462f89cd",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.941882201999761
+}

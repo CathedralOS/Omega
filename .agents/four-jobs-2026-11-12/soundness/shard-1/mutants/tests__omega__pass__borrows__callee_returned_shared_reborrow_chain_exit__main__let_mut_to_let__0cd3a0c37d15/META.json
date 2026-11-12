@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/borrows/callee_returned_shared_reborrow_chain_exit/main.omg",
+  "kind": "let_mut_to_let",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__borrows__callee_returned_shared_reborrow_chain_exit__main__let_mut_to_let__0cd3a0c37d15",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.830871075999994
+}

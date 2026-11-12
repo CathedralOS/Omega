@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/contracts/contract_declaration_boundary/main.omg",
+  "kind": "weaken_requires_ge",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__contracts__contract_declaration_boundary__main__weaken_requires_ge__9183f47d3cf4",
+  "current": "accepted",
+  "route": "no-entry",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 3.0311589050002112
+}

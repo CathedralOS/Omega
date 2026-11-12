@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__abi_multi_arg_spill_through_call_result_exit__main__transition_always_true__964ab45f6218",
+  "current": "accepted",
+  "route": "accepted",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.03671733900137
+}

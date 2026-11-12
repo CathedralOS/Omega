@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/concurrency/runtime_retained_reference_boundary_exit/main.omg",
+  "kind": "ammut_to_imm",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__concurrency__runtime_retained_reference_boundary_exit__main__ammut_to_imm__b5acbff700ae",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.851898081999934
+}

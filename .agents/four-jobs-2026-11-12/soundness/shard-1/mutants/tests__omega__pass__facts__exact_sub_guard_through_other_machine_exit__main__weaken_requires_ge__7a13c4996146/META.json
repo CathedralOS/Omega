@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/exact_sub_guard_through_other_machine_exit/main.omg",
+  "kind": "weaken_requires_ge",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__exact_sub_guard_through_other_machine_exit__main__weaken_requires_ge__7a13c4996146",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.888855449999937
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/borrow/stored_write_only_metadata/main.omg",
+  "kind": "imm_to_mut",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__borrow__stored_write_only_metadata__main__imm_to_mut__10959c7d0cfa",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.740387716999976
+}

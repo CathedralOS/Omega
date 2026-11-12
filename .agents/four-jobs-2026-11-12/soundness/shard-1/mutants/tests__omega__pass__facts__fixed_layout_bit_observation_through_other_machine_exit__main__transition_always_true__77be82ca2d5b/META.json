@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/fixed_layout_bit_observation_through_other_machine_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__fixed_layout_bit_observation_through_other_machine_exit__main__transition_always_true__77be82ca2d5b",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 7.77272627199909
+}

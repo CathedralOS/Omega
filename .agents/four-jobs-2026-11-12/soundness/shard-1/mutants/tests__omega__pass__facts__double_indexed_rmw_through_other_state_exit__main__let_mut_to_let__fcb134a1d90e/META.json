@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/double_indexed_rmw_through_other_state_exit/main.omg",
+  "kind": "let_mut_to_let",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__double_indexed_rmw_through_other_state_exit__main__let_mut_to_let__fcb134a1d90e",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.8100811559997965
+}

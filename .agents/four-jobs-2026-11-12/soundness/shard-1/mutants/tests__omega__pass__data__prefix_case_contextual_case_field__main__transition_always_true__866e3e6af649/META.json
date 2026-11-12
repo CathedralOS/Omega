@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/data/prefix_case_contextual_case_field/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__data__prefix_case_contextual_case_field__main__transition_always_true__866e3e6af649",
+  "current": "accepted",
+  "route": "accepted",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.693940735999604
+}

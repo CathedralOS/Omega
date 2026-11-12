@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/drops/callee_cleanup_write_preserves_sibling_fact/main.omg",
+  "kind": "let_mut_to_let",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__drops__callee_cleanup_write_preserves_sibling_fact__main__let_mut_to_let__370e32a83809",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.0604583809999895
+}

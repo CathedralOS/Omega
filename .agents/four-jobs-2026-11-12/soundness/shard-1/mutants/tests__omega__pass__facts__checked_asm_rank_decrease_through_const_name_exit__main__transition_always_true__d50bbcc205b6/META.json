@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/checked_asm_rank_decrease_through_const_name_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__checked_asm_rank_decrease_through_const_name_exit__main__transition_always_true__d50bbcc205b6",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.68911551400015
+}

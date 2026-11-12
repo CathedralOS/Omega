@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/borrows/runtime_scalar_reads_shared_result_exit/main.omg",
+  "kind": "ammut_to_imm",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__borrows__runtime_scalar_reads_shared_result_exit__main__ammut_to_imm__7c928c904c18",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.83521835800002
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/calls/attached_parameter_overload_bound/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__calls__attached_parameter_overload_bound__main__transition_always_true__1dbbb93d1c0a",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.119523015999675
+}

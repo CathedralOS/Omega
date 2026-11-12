@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/case_dependent_default_domain_through_field_exit/main.omg",
+  "kind": "let_mut_to_let",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__case_dependent_default_domain_through_field_exit__main__let_mut_to_let__03262a5b2e8b",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 14.684608728000057
+}

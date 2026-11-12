@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/captured_storage_bounds_through_match_join_exit/main.omg",
+  "kind": "drop_requires_and",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__captured_storage_bounds_through_match_join_exit__main__drop_requires_and__61bf1c877021",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.587483473999782
+}

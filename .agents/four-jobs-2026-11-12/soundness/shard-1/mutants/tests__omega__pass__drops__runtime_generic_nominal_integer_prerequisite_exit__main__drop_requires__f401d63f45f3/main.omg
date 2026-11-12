@@ -1,0 +1,16 @@
+data Token dropped by drop_token { value: u64; }
+
+machine drop_token(token: &mut Token)
+{
+    token.value = 0;
+}
+
+// Both generic invocations carry the owner's cleanup prerequisite. Neither
+// body may publish a new unconditional requirement about an unrelated value.
+machine retire<T>(value: T) {}
+machine forward<T>(value: T) { retire(value); }
+
+machine main() {
+    let token: Token = Token { value: 7 };
+    forward(token);
+}

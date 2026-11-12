@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/body_bearing_comparison_through_other_state_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__body_bearing_comparison_through_other_state_exit__main__transition_always_true__5aa3798403c7",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.794830083000306
+}

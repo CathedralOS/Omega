@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/borrows/opaque_incoming_nested_stored_byte_view_relay_exit/main.omg",
+  "kind": "drop_requires",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__borrows__opaque_incoming_nested_stored_byte_view_relay_exit__main__drop_requires__ce1c85b67cc0",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.8171644240001115
+}

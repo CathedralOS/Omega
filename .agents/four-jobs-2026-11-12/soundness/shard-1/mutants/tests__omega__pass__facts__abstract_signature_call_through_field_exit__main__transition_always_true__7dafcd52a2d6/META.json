@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/abstract_signature_call_through_field_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__abstract_signature_call_through_field_exit__main__transition_always_true__7dafcd52a2d6",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.448039093000261
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/calls/runtime_call_carrier_partition_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__calls__runtime_call_carrier_partition_exit__main__transition_always_true__7152f021f62a",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.029388905999895
+}

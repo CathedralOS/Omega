@@ -1,0 +1,34 @@
+// Expected exit: 0. Both generic calls must return their input with the guarantee required by the next helper.
+data Token { value: u64; }
+data Word {}
+data FirstRole {}
+data SecondRole {}
+data Outcome<T> { case Ready(ticket: T); }
+domain<P> Token::Issued<P> established by Supply::issue;
+boundary trait Supply<P> {
+    machine issue(value: u64) -> Token reaches ensures result in Issued<P>;
+}
+boundary trait Returning<P> {
+    machine get(value: u64) -> Outcome<Token in Issued<P>> reaches Supply;
+}
+Provider satisfies Supply<Word> {
+    machine issue(value: u64) -> Token { Token { value: value } }
+}
+Adapter<P, Role> satisfies Returning<P> {
+    machine get(value: u64) -> Outcome<Token in Issued<P>> reaches Supply {
+        Outcome::Ready { ticket: Supply<P>::issue(value) }
+    }
+}
+machine consume(value: Token in Issued<Word>) -> u64 { value.value }
+machine relay<Role>(value: u64) -> u64 reaches Supply {
+    transition true {
+        Outcome::Ready { ticket } -> finish(ticket)
+    }
+    machine finish(ticket: Token in Issued<Word>) -> u64 { consume(ticket) }
+}
+machine main() reaches Supply crashes Trap {
+    let first: u64 = relay<FirstRole>(29);
+    let second: u64 = relay<SecondRole>(37);
+    transition first == 29 && second == 37 { true -> {} false -> bad() }
+    machine bad() { crash Trap; }
+}

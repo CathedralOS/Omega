@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/aggregate_storage_address_identity_through_other_state_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__aggregate_storage_address_identity_through_other_state_exit__main__transition_always_true__5a3ba97b90f4",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.727789651999956
+}

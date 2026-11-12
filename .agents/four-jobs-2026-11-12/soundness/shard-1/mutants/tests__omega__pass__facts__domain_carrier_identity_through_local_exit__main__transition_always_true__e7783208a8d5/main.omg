@@ -1,0 +1,24 @@
+// Expected exit: 0
+// A u16 value is a member of the u16 domain Small (self <= 10) only on its own u16 carrier, so 10 - value is exact.
+
+domain u16::Small requires self <= 10;
+
+machine headroom(value: u16) -> u16 requires value in Small {
+    10 - value
+}
+
+machine main() crashes Trap {
+    let level: u16 = 7;
+    transition true {
+        true -> measured(level)
+        _ -> bad()
+    }
+    machine measured(level: u16) crashes Trap requires level in Small {
+        transition headroom(level) == 3 && headroom(2) == 8 {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/core/content_retained_custody_round_trip/main.omg",
+  "kind": "ammut_to_imm",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__core__content_retained_custody_round_trip__main__ammut_to_imm__09a14fcadcae",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 7.08274828399999
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/constants/lexical_const_shadow/main.omg",
+  "kind": "ammut_to_imm",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__constants__lexical_const_shadow__main__ammut_to_imm__6de5327ba905",
+  "current": "accepted",
+  "route": "no-entry",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 2.9227094359998773
+}

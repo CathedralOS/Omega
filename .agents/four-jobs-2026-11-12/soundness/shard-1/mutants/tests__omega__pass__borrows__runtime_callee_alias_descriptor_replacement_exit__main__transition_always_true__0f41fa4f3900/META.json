@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/borrows/runtime_callee_alias_descriptor_replacement_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__borrows__runtime_callee_alias_descriptor_replacement_exit__main__transition_always_true__0f41fa4f3900",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.653560377000076
+}

@@ -1,0 +1,24 @@
+// Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
+// Expected exit: 0
+public machine bounded(value: &i32) -> bool { value <= 60 }
+public data Counter<'storage> [copy] requires bounded(self.value) == true { before: i32; value: &'storage i32; after: i32; marker: i32; }
+machine read(value: &i32) -> i32 ensures result == value, { value }
+public data Backing [copy] requires self.value <= 60 { value: i32; }
+const HIGH: Backing = Backing { value: 60 };
+const LOW: Backing = Backing { value: -17 };
+public machine produce<'storage>(backing: &'storage Backing, marker: i32) -> Counter<'storage> {
+    Counter { before: 17, value: &backing.value, after: 53, marker: marker }
+}
+public machine compute(counter: &Counter) -> i32 {
+    let value: i32 = read(counter.value);
+    70 + value
+}
+machine main() crashes Trap {
+    let high: Backing = HIGH;
+    let low: Backing = LOW;
+    let mut first: Counter = produce(&high, 19);
+    let mut second: Counter = produce(&low, 23);
+    transition true { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

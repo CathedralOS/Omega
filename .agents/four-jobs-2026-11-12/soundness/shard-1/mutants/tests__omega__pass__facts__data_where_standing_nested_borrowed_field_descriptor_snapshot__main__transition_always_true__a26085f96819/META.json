@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/data_where_standing_nested_borrowed_field_descriptor_snapshot/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__data_where_standing_nested_borrowed_field_descriptor_snapshot__main__transition_always_true__a26085f96819",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.139526817999467
+}

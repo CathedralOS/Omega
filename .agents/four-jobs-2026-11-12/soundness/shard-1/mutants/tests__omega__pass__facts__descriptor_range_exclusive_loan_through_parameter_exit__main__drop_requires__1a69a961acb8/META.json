@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/descriptor_range_exclusive_loan_through_parameter_exit/main.omg",
+  "kind": "drop_requires",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__descriptor_range_exclusive_loan_through_parameter_exit__main__drop_requires__1a69a961acb8",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.67404794399954
+}

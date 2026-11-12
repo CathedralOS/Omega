@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/core/carry_permission_provider_adapter/main.omg",
+  "kind": "imm_to_mut",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__core__carry_permission_provider_adapter__main__imm_to_mut__c3d2f9a15ddc",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.819289553000544
+}

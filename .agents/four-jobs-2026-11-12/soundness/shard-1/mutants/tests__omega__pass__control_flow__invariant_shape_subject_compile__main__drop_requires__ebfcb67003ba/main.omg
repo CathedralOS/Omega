@@ -1,0 +1,25 @@
+// A `transition` subject may echo a `data where` invariant's own shape:
+// `main.margin.left >= main.margin.right` asks the same question the
+// record promises at construction — subjects can probe invariant edges.
+data Margin
+    left - right >= 2,
+{
+    left: u64;
+    right: u64;
+}
+
+data Main {
+    margin: Margin;
+    answer: u64;
+}
+
+machine Main::main(main: &mut Main) {
+    main.margin = Margin { left: 7, right: 3 };
+    transition main.margin.left >= main.margin.right {
+        true -> wide(main)
+        _ -> narrow(main)
+    }
+
+    machine wide(main: &mut Main) { main.answer = 70; }
+    machine narrow(main: &mut Main) { main.answer = 71; }
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/arithmetic/nonlinear_square_positive_operand_exit/main.omg",
+  "kind": "weaken_requires_ge",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__arithmetic__nonlinear_square_positive_operand_exit__main__weaken_requires_ge__9f9f61f2b4fb",
+  "current": "accepted",
+  "route": "rejected",
+  "disagree": true,
+  "either_accepts": true,
+  "seconds": 5.97631074200001
+}

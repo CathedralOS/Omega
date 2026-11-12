@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/drops/state_loan_restores_nominal_cleanup_prerequisite/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__drops__state_loan_restores_nominal_cleanup_prerequisite__main__transition_always_true__90d439b42bb0",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.458476020000489
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/contracts/disequality_disjoin/main.omg",
+  "kind": "ammut_to_imm",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__contracts__disequality_disjoin__main__ammut_to_imm__2e9da9b442b3",
+  "current": "accepted",
+  "route": "no-entry",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 2.92982084400046
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/build/component_borrowed_continuation/main.omg",
+  "kind": "let_mut_to_let",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__build__component_borrowed_continuation__main__let_mut_to_let__8caf7e0ac58a",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.964351125000121
+}

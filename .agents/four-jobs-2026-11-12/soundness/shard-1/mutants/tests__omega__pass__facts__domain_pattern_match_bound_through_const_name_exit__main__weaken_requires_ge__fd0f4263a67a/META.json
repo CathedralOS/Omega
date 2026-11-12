@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/domain_pattern_match_bound_through_const_name_exit/main.omg",
+  "kind": "weaken_requires_ge",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__domain_pattern_match_bound_through_const_name_exit__main__weaken_requires_ge__fd0f4263a67a",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.118001895000816
+}

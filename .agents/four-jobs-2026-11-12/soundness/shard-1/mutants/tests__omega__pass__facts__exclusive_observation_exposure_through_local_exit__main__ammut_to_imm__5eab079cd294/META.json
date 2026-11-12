@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/exclusive_observation_exposure_through_local_exit/main.omg",
+  "kind": "ammut_to_imm",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__exclusive_observation_exposure_through_local_exit__main__ammut_to_imm__5eab079cd294",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.890656083000067
+}

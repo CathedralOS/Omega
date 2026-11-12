@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/calls/forwarded_callback_binder_keeps_unpassed_domain/main.omg",
+  "kind": "drop_requires",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__calls__forwarded_callback_binder_keeps_unpassed_domain__main__drop_requires__cba642407928",
+  "current": "accepted",
+  "route": "no-entry",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 2.8503549420006493
+}

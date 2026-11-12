@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/capabilities/derives_through_helper/main.omg",
+  "kind": "ammut_to_imm",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__capabilities__derives_through_helper__main__ammut_to_imm__acdc508acd9a",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.285528588000034
+}

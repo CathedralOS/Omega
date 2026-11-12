@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/bounded_activation_through_other_state_exit/main.omg",
+  "kind": "let_mut_to_let",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__bounded_activation_through_other_state_exit__main__let_mut_to_let__8318a282eb4c",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.223278980999567
+}

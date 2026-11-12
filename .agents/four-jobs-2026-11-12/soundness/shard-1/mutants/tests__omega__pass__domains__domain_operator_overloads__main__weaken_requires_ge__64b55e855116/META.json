@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/domains/domain_operator_overloads/main.omg",
+  "kind": "weaken_requires_ge",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__domains__domain_operator_overloads__main__weaken_requires_ge__64b55e855116",
+  "current": "accepted",
+  "route": "no-entry",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 3.0245728700001564
+}

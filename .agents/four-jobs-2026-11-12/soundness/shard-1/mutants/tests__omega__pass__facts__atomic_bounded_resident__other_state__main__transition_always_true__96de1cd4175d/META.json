@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/atomic_bounded_resident/other_state/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__atomic_bounded_resident__other_state__main__transition_always_true__96de1cd4175d",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.627421819000119
+}

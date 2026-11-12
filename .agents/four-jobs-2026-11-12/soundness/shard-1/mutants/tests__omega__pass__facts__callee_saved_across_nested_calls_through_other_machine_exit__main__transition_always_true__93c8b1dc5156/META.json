@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/callee_saved_across_nested_calls_through_other_machine_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__callee_saved_across_nested_calls_through_other_machine_exit__main__transition_always_true__93c8b1dc5156",
+  "current": "accepted",
+  "route": "accepted",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.2532198400003836
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/control_flow/invariant_shape_subject_compile/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__control_flow__invariant_shape_subject_compile__main__transition_always_true__0cbf9f2ef588",
+  "current": "accepted",
+  "route": "no-entry",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 2.8828619939999953
+}

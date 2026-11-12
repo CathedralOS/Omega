@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/facts/descriptor_replacement_order_through_other_state_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__facts__descriptor_replacement_order_through_other_state_exit__main__transition_always_true__cb18cb2fe18c",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.985969608000232
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/calls/scalar_unit_call_state_forward_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__calls__scalar_unit_call_state_forward_exit__main__transition_always_true__a6eddeee0e25",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 6.222227938000287
+}

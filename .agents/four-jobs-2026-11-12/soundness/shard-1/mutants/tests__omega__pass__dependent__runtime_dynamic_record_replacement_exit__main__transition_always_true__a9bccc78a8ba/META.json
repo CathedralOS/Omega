@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/dependent/runtime_dynamic_record_replacement_exit/main.omg",
+  "kind": "transition_always_true",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__dependent__runtime_dynamic_record_replacement_exit__main__transition_always_true__a9bccc78a8ba",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.981115216000035
+}

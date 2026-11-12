@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/omega/pass/core/integer_query_reference_equation_exit/main.omg",
+  "kind": "drop_requires",
+  "mutant_dir": ".agents/four-jobs-2026-11-12/soundness/shard-1/mutants/tests__omega__pass__core__integer_query_reference_equation_exit__main__drop_requires__5d2760f91b45",
+  "current": "accepted",
+  "route": "error",
+  "disagree": false,
+  "either_accepts": true,
+  "seconds": 5.723402402999909
+}
