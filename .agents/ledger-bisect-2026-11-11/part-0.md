@@ -14,7 +14,8 @@ Members: `pass/memory/runtime_linear_native_allocation_call_result_exit` `pass/m
 Good: `c2bf4573a2ba`
 Members: `pass/facts/open_const_implementation_statement_const_result_exit` `pass/facts/open_const_implementation_statement_saved_output_exit`
 
-| 1 | pass/run rejected | cannot establish assignment invariants: source parent type is unavailable | `pass/borrows/runtime_reassigned_view_capture_exit` | `` |  |  | pending |
+| 1 | pass/run rejected | cannot establish assignment invariants: source parent type is unavailable | `pass/borrows/runtime_reassigned_view_capture_exit` | `7df8b4d92070` | 160 | psi: preserve selected progress origins and descriptor custody (#160) ({ omega-rust/psi/compilation/checking/src/machine_calls/reference_result_custody/captured_returns/presence.rs,omega-rust/psi/compilation/checking/src/machine_calls/reference_result_custody/source_paths.rs,omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/borrow/last_uses.rs }) | bisected |
+Good: `048ddee5ae40`
 Members: `pass/borrows/runtime_reassigned_view_capture_exit`
 
 | 1 | pass/run rejected | cannot prove ensures contract for exit from Selected::read at statement 0: result == Value | `pass/facts/open_const_implementation_private_record_package_exit` | `` |  |  | pending |

@@ -136,7 +136,13 @@
         "pass/borrows/runtime_reassigned_view_capture_exit"
       ],
       "bisect": {
-        "status": "pending"
+        "status": "bisected",
+        "good": "048ddee5ae40dcdd4531dca6e03517ca27f0e751",
+        "first_bad": "7df8b4d92070d83d357849fb2eb77e05c61f36a4",
+        "pr": "160",
+        "mechanism": "psi: preserve selected progress origins and descriptor custody (#160) ({ omega-rust/psi/compilation/checking/src/machine_calls/reference_result_custody/captured_returns/presence.rs,omega-rust/psi/compilation/checking/src/machine_calls/reference_result_custody/source_paths.rs,omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/borrow/last_uses.rs })",
+        "flaky_good": false,
+        "flaky_bad": false
       }
     },
     {
