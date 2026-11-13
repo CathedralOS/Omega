@@ -586,7 +586,7 @@ fn binary_expression(
         return Err(refuse(
             id,
             Construct::Machine,
-            Unserved::Expression("operator on a record"),
+            Unserved::Expression("operator on an operand that is not a plain or policy-qualified scalar"),
         ));
     };
     let policy = match (left_policy, right_policy) {

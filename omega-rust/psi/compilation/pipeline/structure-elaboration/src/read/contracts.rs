@@ -478,11 +478,16 @@ impl Program<'_> {
                 // project it, which the member arm below refuses.
                 // A policy-qualified formal is named as its stored value: a
                 // comparison of it compares that value whatever the policy.
-                let ValueType::Scalar(scalar_type, _) =
-                    scope.slots[slot].value_type
+                let ValueType::Scalar(scalar_type, qualification) = scope.slots[slot].value_type
                 else {
                     return unserved("record formal named whole in a clause");
                 };
+                // domains.md, "Operands": builtin operators and comparisons
+                // accept unqualified operands only, and "The rule is the
+                // same in executable code, `requires` and `ensures`".
+                if !qualification.domains.is_empty() {
+                    return unserved("formal that carries a declared domain named in a clause");
+                }
                 // A `mut` formal names two things by the end of the body:
                 // the argument the caller passed and whatever the body
                 // last assigned. An entry `requires` can only mean the

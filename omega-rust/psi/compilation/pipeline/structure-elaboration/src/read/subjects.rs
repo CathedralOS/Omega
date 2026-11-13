@@ -179,6 +179,19 @@ impl Program<'_> {
                 self.record(entry, data.symbol)?;
             }
         }
+        for domain in typed.domain_definitions() {
+            if self.owner(entry, domain.symbol, subjects, purpose)? == Owner::Subject
+                && !tag_only(typed, domain)
+            {
+                return Err(refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Declaration(
+                        "domain with predicates, routes, a policy, operators or parameters",
+                    ),
+                ));
+            }
+        }
         // One row per remaining declaration table of the typed trees' roots.
         // A subject declaration in any of them is outside what the route
         // judges.
@@ -190,10 +203,6 @@ impl Program<'_> {
             (
                 symbols_of(typed.type_aliases(), |row| row.symbol),
                 "type alias",
-            ),
-            (
-                symbols_of(typed.domain_definitions(), |row| row.symbol),
-                "domain",
             ),
             (symbols_of(typed.measures(), |row| row.symbol), "measure"),
             (symbols_of(typed.operators(), |row| row.symbol), "operator"),
@@ -254,6 +263,29 @@ fn names_only(data: &typed_trees::data::DataDefinition) -> bool {
         && data.quotient.is_none()
         && data.requires_facts.is_empty()
         && data.retired_identities.is_empty()
+}
+
+/// Whether a domain declaration is a tag and nothing else, `domain i32::Km;`:
+/// no predicate, establishment route, access policy, cleanup selection,
+/// operator, alias or parameter. domains.md: "A declaration with neither
+/// predicates nor establishment routes adds no predicate or issuer
+/// obligation". Such a declaration has nothing to prove, so as a subject it
+/// is passed over; a type that names it resolves it where the type is read
+/// (`declared_domain`). Every other domain declaration of a subject is
+/// refused until the checker judges what it declares.
+fn tag_only(
+    typed: &typed_trees::TypedTrees,
+    domain: &typed_trees::domain::DomainDefinition,
+) -> bool {
+    domain.alias.is_none()
+        && domain.access_policy.is_none()
+        && domain.establishment_routes.is_empty()
+        && domain.cleanup_selection.is_none()
+        && domain.facts.is_empty()
+        && domain.predicate_presence == language_semantics::DomainPredicatePresence::Absent
+        && domain.operators.is_empty()
+        && domain.index_arguments.is_empty()
+        && typed.domain_type_parameters(domain).is_empty()
 }
 
 fn symbols_of<T>(rows: &[T], symbol: impl Fn(&T) -> SymbolHandle) -> Vec<SymbolHandle> {

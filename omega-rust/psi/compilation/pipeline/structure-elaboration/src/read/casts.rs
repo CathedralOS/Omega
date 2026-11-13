@@ -92,7 +92,13 @@ impl Program<'_> {
         // domains.md, "Carrier casts": "The operand of a carrier cast must
         // carry no domain", and of a qualified value moved to another
         // carrier, "Rejected: each of these changes the carrier of a
-        // qualified value".
+        // qualified value". A declared domain is added and removed by an
+        // entry (`domain_entry`), never by this cast.
+        if !source_type.qualification().domains.is_empty()
+            || !target.qualification().domains.is_empty()
+        {
+            return unserved("carrier cast of or into a type that carries a declared domain");
+        }
         if source_type.policy().is_some() && source_type.scalar() != target.scalar() {
             return unserved("cast that changes the carrier of a policy-qualified integer");
         }
