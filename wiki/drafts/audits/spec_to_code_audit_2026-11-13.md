@@ -289,9 +289,10 @@ Two further shapes were searched and did not become findings.
   `proof/admission`'s `verify_obligation` is the kernel `lowered-discharge`
   calls, which is the single verdict the design record asks for.
 - **A shim that still builds a checked tree or an empty proof.** The
-  surviving connection points refuse. `require_source_owner` and the
-  carrier rows return `no product route yet` when the judgment or the
-  input shape is absent.
+  surviving checker connection points refuse. `require_source_owner` and
+  the carrier rows return `no product route yet` when the judgment or the
+  input shape is absent. A different shim, for an old snapshot directory
+  name, is OC-4.
 
 Names of the deleted crates in live Rust and Cargo files, outside `wiki/`,
 `samples/`, and `.agents/`, are 14 lines in six files (`rg -n` for the crate
@@ -396,6 +397,8 @@ implementation of a judgment the specification assigns to one stage.
 | Sidecar that is not an `X-to-Y` stage | TL-1, TL-2, OC-2, DOCS-1 |
 | Connection points | TL-3, dropped: the firewall strings are the guard, not a second implementation |
 | Second lowering, or a phase running on the wrong representation | PL-1, PL-2 |
+| A retired spelling is still the implementation | OC-3, TL-4, TL-5 |
+| A lookup that still accepts the previous address | OC-4 |
 
 The register is
 `wiki/drafts/audits/spec_to_code_audit_2026-11-13.tsv`. Line estimates use
@@ -511,10 +514,13 @@ The specification is silent; the comment cites the deleted test
 `checking_does_not_reopen_typed_preparation`. The scan runs on every
 `check-rules` pass (`rules.rs` line 1537).
 
-Simplification: drop the two missing roots. Keep the stage 04 root. If the
-rule is still about the checker, point it at `lowered-discharge` in a
-separate change after reading what mutable state that crate is allowed to
-hold. Validation: `mbx xtask check-rules --base origin/main --title "tools: drop deleted checker roots from the interior-state lint"`.
+Simplification: drop the two missing roots. Keep the stage 04 root. Do not
+add `lowered-discharge` in that edit. Its `src` contains `RefCell` in
+`reuse.rs` (the certificate transport at line 191 is not under
+`#[cfg(test)]`) and a `thread_local!` in `prove.rs` under `#[cfg(test)]`
+(line 245). The scan is a substring search, so those hits would fail
+admission before anyone decides whether the uses are allowed. Validation:
+`mbx xtask check-rules --base origin/main --title "tools: drop deleted checker roots from the interior-state lint"`.
 
 ### TL-3. Forbidden-edge strings still name the deleted crates
 
@@ -582,6 +588,16 @@ line 187 and `build_continuation.rs` line 266 pass it to the timer, and its
 output text is still "CheckedTrees (contains Psi 00-05)". That label is a
 rename, not a deletion. `git` history was not needed beyond the absence of
 callers.
+
+`record_preliminary_check` in `compile_timings/counters.rs` (lines 128–134)
+is the only Rust hit for that name. Nothing increments
+`PRELIMINARY_CHECK_CALLS`. `preliminary_check_totals` is still read by
+`package-manager` `review/candidate/passes.rs` `note_pass_accounting`, which
+prints `preliminary_checks`, and by `compiler/examples/build_session.rs`,
+which asserts the count rose by 2. With no writer, that note is always zero
+and the example assertion cannot succeed. The two functions and their
+statics are 19 lines. Deleting them includes updating those two readers.
+`CheckedTreeProductPruning` stays with OC-1.
 
 Validation: `mbx test -p artifacts --lib` and
 `mbx clippy -p artifacts --all-targets -- -D warnings`.
@@ -653,6 +669,107 @@ while `RouteScope::judge` calls both.
 Simplification: correct the sentences while touching the file for another
 reason. No standalone documentation pull request.
 
+### OC-3. The parser still implements the spellings the spec retired
+
+Pattern: a retired spelling is still the implementation. Category: likely
+unnecessary. Confidence: high. Owner: CLI. This is a retarget, not a line
+deletion. The three parser files are 394 lines (`wc -l` of
+`arguments/audit.rs` 130, `arguments/inspect.rs` 98, `arguments/packages.rs`
+166).
+
+[Command vocabulary](wiki/spec/build/command_line.md#command-vocabulary)
+says there is one public spelling for each operation, and that former flat
+install/update, action-first audit, and hyphenated inspection commands are
+not compatibility aliases. [Public Psi naming](wiki/spec/build/command_line.md#public-psi-naming)
+says the interpreted engine spelling is `--engine psi` and the inspection
+command is `psi inspect`. [Source rewriting](wiki/spec/build/command_line.md#source-rewriting)
+names `omega source rewrite`.
+
+`arguments/mod.rs` `parse` binds `install`, `update`, `audit`, and
+`inspect-terminal` (lines 77–86). `source` and `packages` occur only inside
+`parse_audit` (lines 134–142), so `omega packages install` and
+`omega source rewrite` are not commands. `arguments/run.rs` accepts
+`--engine terminal` (the field comment at line 11, and the errors at lines
+195 and 198). A search of `omega-rust/omega/application` Rust for
+`psi inspect`, `source rewrite`, `floor-only`, and `--engine psi` finds
+none of those spellings.
+
+The tests in the same files lock the retired spellings, including
+`help_succeeds_across_every_command_surface`. Replacing the parser without
+those tests would put the old tree back at the next edit.
+
+Follow-up: one change retargets `parse` to `packages install|update|audit`,
+`psi inspect`, `source rewrite`, and `--engine psi`, and updates the tests
+with it. Do not keep the retired spellings as aliases. Validation:
+`mbx test -p omega --bin omega` and
+`mbx clippy -p omega --all-targets -- -D warnings`.
+
+### OC-4. Local snapshot recovery still scans the previous directory name
+
+Pattern: a lookup that still accepts the previous address. Category: spec
+question. Confidence: medium. Owner: packages. Estimated deletion, if the
+old name is no longer required: 72 lines (`address.rs` 46–74 is 29,
+`recovery.rs` 126–166 is 41, `timings.rs` 75–76 is 2).
+
+Publication addresses are `source-v2-<digest>` (`local/mod.rs`,
+`snapshot/address.rs`). On a direct miss, `recover_bounded` in
+`local/recovery.rs` enumerates the snapshot directory and accepts a
+`source-<64 hex>` name when `is_legacy_snapshot_name` matches and
+`verify_selected_snapshot` succeeds. The specification pages for sources
+and resolver security do not name `source-<digest>` or `source-v2-`. The
+scan does re-verify before return, so it is not a bypass of custody
+checking.
+
+`wiki/spec/packages/locks.md` requires lock schemas 4 and 5 as historical
+consent. That requirement is not this directory name. If old
+`source-<digest>` snapshots are still an operational need, the scan stays.
+The question is whether they are.
+
+### TL-4. The testing guide still runs Python gates that are not in the tree
+
+Pattern: a retired spelling is still the documented procedure. Category:
+likely unnecessary. Confidence: high. Owner: tools. The full-baseline
+section is 78 lines (`sed -n '499,576p' tools/testing.md | wc -l`). Those
+are instructions, not an implementation.
+
+At this revision `tools/check_native_boundary.py`, `tools/fmt.py`,
+`tools/test_affected.py`, `tools/doctor.py`, and `tools/check_rules.py` are
+absent. `tools/testing.md` still tells a full baseline to run the first
+four, and the requirements section still runs `tools/test_affected.py` and
+describes `tools/doctor.py`. `AGENTS.md` already names the replacements:
+`mbx xtask check-rules`, `mbx xtask fmt --check`, `mbx xtask check-boundary`,
+and `mbx xtask doctor`. `rules.rs` still says a baseline was written by
+`python tools/check_rules.py` and points a source-read ratchet at
+`tools/check_native_boundary.py`. `check-rules` ignores `#` lines, so the
+false writer name does not change a count. No workflow runs the Python
+paths.
+
+Follow-up: point the guide at the xtask commands and delete the
+`test_affected.py` selector instructions. Retarget the two `rules.rs`
+sentences in the same change. The stage-coverage section of the same file
+stays with TL-1.
+
+### TL-5. The swarm slot scripts only see the abandoned pool
+
+Pattern: a retired spelling is still the implementation. Category: likely
+unnecessary. Confidence: high. Owner: tools. The three scripts are 107
+lines (`claim_slot.sh` 67, `free_slots.sh` 20, `assign_slot.sh` 20).
+
+`AGENTS.md` says the pool is `.agents/worktree/worker-N`, claimed with
+`cargo xtask worktree acquire`. The swarm skill names that same command.
+`claim_slot.sh`, `free_slots.sh`, and `assign_slot.sh` look only at
+`.codex/worktrees/slot-$i`. That directory is not in the tree.
+`tools/swarm/launch.py` is absent (removed in `#2086`,
+`e537a3b890a`). `tools/swarm/README.md`, `cloud.md`, `dispatch.md`, and
+`manifest.schema.json` still describe `launch.py`. No caller outside the
+three scripts references them (`rg` of the script names is their own usage
+comments). `binary_fresh.sh` does not use this pool, and `tools/testing.md`
+still calls it, so it stays.
+
+Follow-up: delete the three scripts and the sentences that only describe
+the missing launcher. Dispatch stays `cargo xtask worktree` and
+`cargo xtask claims`.
+
 ## 4. Independent review
 
 This pass re-read the callers of each finding above and tried to break the
@@ -661,10 +778,14 @@ simplification. It did not re-open the directory census.
 | Id | Verdict |
 | --- | --- |
 | TL-1 | Stands. `tools/testing.md` says CI does not call the command, and the three directories are gone. A zero column is not a regression guard worth a full instrumented compiler build. |
-| TL-2 | Stands, narrowed. The function is live because stage 04 is real. Only the two missing roots are dead. Leaving them makes a failed `read_dir` look like a clean scan. Retarget; do not delete the lint. |
-| TL-3 | Dropped. `boundary.rs` lists `checked-trees`, `representation-planning`, Psi 05, and Psi 07/08 as forbidden dependency edges, including the comment that retired Lowered Psi stages do not return through the Psi facade. The strings do not match a Cargo edge today. They are the guard that fires if those paths are recreated and depended on. Deleting them weakens the firewall the deletion just wrote down. |
+| TL-2 | Stands, narrowed. The function is live because stage 04 is real. Only the two missing roots are dead. Leaving them makes a failed `read_dir` look like a clean scan. Retarget; do not delete the lint, and do not add `lowered-discharge` in that edit. Its `RefCell` and test `thread_local!` would fail the substring scan. |
+| TL-3 | Dropped. `boundary.rs` lists `checked-trees`, `representation-planning`, Psi 05, and Psi 07/08 as forbidden dependency edges, including the comment that retired Lowered Psi stages do not return through the Psi facade. The strings do not match a Cargo edge today. They are the guard that fires if those paths are recreated and depended on. Deleting them weakens the firewall the deletion just wrote down. A missing directory does not erase a path dependency from `cargo metadata`: the match is the declared path. On this tree no `Cargo.toml` names those prefixes, so the gate sees nothing to flag. |
 | OC-1 | Stands as a spec question. The 10-line helper has no caller and can go. The tag-22 variant and the specification sentence cannot go in that same change: `OMGOPT` version 15 and `validate_optimization_rollback` still treat the phase as nameable. |
-| OC-2 | Stands for the two unread constants. `BUILD_AND_CHECKED_CONTINUATION` is passed from two live call sites, so the follow-up renames its text and does not delete the constant. |
+| OC-2 | Stands for the two unread constants and for `record_preliminary_check`, which has no caller. `BUILD_AND_CHECKED_CONTINUATION` is passed from two live call sites, so the follow-up renames its text and does not delete the constant. Deleting the preliminary-check counter includes the review note and the `build_session` example that still read it. |
+| OC-3 | Stands. `parse` binds the spellings `command_line.md` says are not aliases, and it does not bind `packages install`, `psi inspect`, `source rewrite`, or `--engine psi`. The change is a retarget of one parser, with its tests. |
+| OC-4 | Stands as a spec question. The legacy `source-<digest>` scan re-verifies before return. The spec does not say whether those directories are still required. |
+| TL-4 | Stands. The Python gates named in `tools/testing.md` are not in the tree. Point the guide at the xtask commands. |
+| TL-5 | Stands for the three slot scripts. They only look at `.codex/worktrees`, which is not the pool `AGENTS.md` names. `binary_fresh.sh` stays. |
 | FD-1 | Stands as a spec question. Tag 0 may already be stored in build records; this pass did not prove that no record uses it. The sponsor charge methods that refuse a `TerminalPsi` account are the fence `accounts.rs` tests. Do not delete that fence. |
 | DOCS-1 | Stands, and is not its own change. The comments do not affect compilation. The stage READMEs that say elaboration and discharge are unwired are stale relative to `RouteScope::judge`. |
 | PL-1 | Stands as a spec question. Publication refuses a nonempty Psi selection, native lowering excludes pre-terminal selections, and the catalog executor sits in the abstract-operations stage. Do not delete the passes to make the map look clean. |
@@ -678,10 +799,10 @@ live callers.
 ## 5. Ranking and follow-ups
 
 Rank is maintenance saved, then confidence, then how likely the change is to
-break a real reader. Confirmed duplication: 0. Likely unnecessary: 4
-(TL-1, TL-2, OC-2, DOCS-1). Unresolved spec questions: 4 (OC-1, FD-1, PL-1,
-PL-2). Dropped by review: 1 (TL-3). PL-1 and PL-2 are placement questions.
-They do not add to the line count below.
+break a real reader. Confirmed duplication: 0. Likely unnecessary: 7
+(TL-1, TL-2, OC-2, DOCS-1, OC-3, TL-4, TL-5). Unresolved spec questions: 5
+(OC-1, FD-1, PL-1, PL-2, OC-4). Dropped by review: 1 (TL-3). PL-1, PL-2,
+and OC-3 do not add to the line count below. OC-3 is a retarget.
 
 | Rank | Id | Why this order |
 | --- | --- | --- |
@@ -689,19 +810,26 @@ They do not add to the line count below.
 | 2 | OC-1 | The helper is dead, but the selection is still in the versioned vocabulary and in the specification. Ask before touching the tag. |
 | 3 | FD-1 | Schema 7 is still "current." Decoding and the refusal fence stay until the question is answered. |
 | 4 | TL-2 | The lint silently skips two roots on every rules run. The edit is small and the stage 04 scan stays. |
-| 5 | OC-2 | Four lines of unread constants, plus a stale label on a live timer. |
-| 6 | DOCS-1 | Stale sentences. No behavior. |
-| 7 | PL-1 | The Psi phase is missing before publication, and its catalog runs in the abstract-operations stage. A repair chooses a stage; it does not delete the passes. |
-| 8 | PL-2 | `TargetOperations` and `AbstractOperations` are selectable and then refused. Keep the refusal until the phase list changes. |
+| 5 | OC-3 | The public command tree is still the one the spec retired. One parser change, with its tests. |
+| 6 | OC-2 | Four lines of unread constants, the uncalled preliminary-check recorder, and a stale label on a live timer. |
+| 7 | TL-5 | Three scripts whose pool directory is gone. |
+| 8 | TL-4 | The testing guide runs Python files that are not in the tree. |
+| 9 | DOCS-1 | Stale sentences. No behavior. |
+| 10 | PL-1 | The Psi phase is missing before publication, and its catalog runs in the abstract-operations stage. A repair chooses a stage; it does not delete the passes. |
+| 11 | PL-2 | `TargetOperations` and `AbstractOperations` are selectable and then refused. Keep the refusal until the phase list changes. |
+| 12 | OC-4 | The legacy snapshot scan re-verifies. Ask whether `source-<digest>` directories are still required before deleting it. |
 
 Authored Rust that these follow-ups can remove, from the commands above:
 495 (`stage_coverage.rs`) plus the four `main.rs` lines, about 10 for
 `checked_tree_product_roots` if that helper is removed without the wire tag,
-4 for the unused timing constants, and 2 path strings. That is about 515
-authored lines. Generated, vendored, and fixture reduction from these
-follow-ups: 0. Documentation reduction is the stage-coverage section in
-`tools/testing.md` (lines 440–497, 58 lines) and the comment fixes in DOCS-1,
-which are rewrites rather than a measured deletion.
+4 for the unused timing constants, 19 for the uncalled preliminary-check
+recorder and its statics, and 2 path strings. The three swarm slot scripts
+add 107 lines. That is about 641 lines. Generated, vendored, and fixture
+reduction from these follow-ups: 0. OC-3 rewrites the parser rather than
+deleting it. Documentation reduction is the stage-coverage section in
+`tools/testing.md` (lines 440–497, 58 lines), the Python baseline commands
+in the same guide (TL-4), and the comment fixes in DOCS-1, which are
+rewrites rather than a measured deletion.
 
 ### Follow-up 1. Remove `stage-coverage`
 
