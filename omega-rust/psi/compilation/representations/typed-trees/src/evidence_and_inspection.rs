@@ -36,7 +36,7 @@ pub mod evidence {
             let domain = program.domain_definition(domain_symbol)?;
             if domain.alias.is_some()
                 || !domain.index_arguments.is_empty()
-                || !domain.establishment_routes.is_empty()
+                || domain.issuance() != crate::domain::DomainIssuance::Unrestricted
                 || !crate::domain::index_parameters(program, domain).is_empty()
             {
                 return None;

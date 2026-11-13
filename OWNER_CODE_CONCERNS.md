@@ -67,6 +67,19 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### Core's `AccessPlan` and `AccessPolicy` are the superseded layout-containing shape
+- Category: one idea, several implementations
+- Where: `source/library/core/layout.omg` (`AccessPlan`, `AccessPlan::inaccessible`, `AccessPolicy::plan(schema: Schema)`); `wiki/spec/resources/access.md`, "Plans and admitted supply"
+- Saw: the spec's plan is `AccessPlan::new(&schema, issuance)` over `reflect::TypeSchema` with `Issuance::Only`/`Unrestricted`, `allow_readers`, `allow_writers`, `IssuedBy` and `IssuedByAny`; core still declares a plan that contains a `LayoutPlan`, takes `layout::Schema`, and has no issuance at all, and `alloc/vec.omg` and `samples/cli/probes/layout_access_plan` are written against it
+- Cost: a domain's `access Policy` clause now reaches the typed trees, but no policy in the library can state an issuance, so every domain that selects one stays "planned" and nobody can be shown to issue it
+- Reported: 2026-11-13, Claude Code, while reading a domain's `access` clause
+
+### Typing refuses every program that writes `=D`, `-D` or `+D`
+- Category: a verdict with nothing behind it
+- Where: `omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs` (`domain_cast_accounting::account`)
+- Saw: the parser reads domain-cast entries, and typing then returns a whole-program "domain cast operand accounting" error for the first one it meets, in any declaration, reached or not; the accounting needs the operand's complete qualified type, which the deleted checker computed
+- Cost: no program holding a domain cast reaches the lowered-form checker, so the judgment of `as +D` cannot be built or tested there until accounting has an owner or the refusal moves onto the declaration as a deferred row
+- Reported: 2026-11-13, Claude Code, while reading a domain's `access` clause
 ### A record's stored byte view is declared in a form nothing downstream reads
 - Category: one idea, several implementations
 - Where: `structure-elaboration/src/lower/places.rs` (`declare_fields`: `StructuralFieldType::Structural` of a `StructuralTypeShape::ByteSequence` type); `terminal-psi/semantics/src/structural.rs` (`zeroed_declaration_graph`, `zeroed_byte_field`); `lowered-discharge/src/places.rs` (`field_shape`, `field_leaves`)

@@ -2504,6 +2504,11 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         }
         visit_proof_facts(program, retained, domain.facts);
         visit_domain_establishment_routes(retained, &domain.establishment_routes);
+        // A reached domain reaches the policy that states its issuance, as
+        // it reaches its routes.
+        if let Some(policy) = domain.access_policy {
+            retained.extend([policy.implementation]);
+        }
     }
 
     for application in &program.applied_domain_applications {

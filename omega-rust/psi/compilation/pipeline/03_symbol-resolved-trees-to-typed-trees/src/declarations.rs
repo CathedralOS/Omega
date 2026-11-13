@@ -450,7 +450,33 @@ pub(crate) mod domain {
             semantic_id: domain.semantic_id,
             semantic_roles: domain.semantic_roles,
             establishment_routes: domain.establishment_routes.clone(),
+            access_policy: domain.access_policy.as_ref().map(|policy| {
+                typed::domain::DomainAccessPolicy {
+                    implementation: policy.symbol,
+                    source_span: policy
+                        .path
+                        .last()
+                        .map(|name| name.source_span())
+                        .unwrap_or_default(),
+                }
+            }),
         };
+        // The policy's own static arguments are not resolved by any pass, so
+        // a domain that applies one holds a request nobody served.
+        if let Some(policy) = &domain.access_policy
+            && policy.application.is_some()
+        {
+            let source_span = policy
+                .path
+                .last()
+                .map(|name| name.source_span())
+                .unwrap_or_default();
+            lowerer.typed_trees.record_deferred_refusal(
+                domain.symbol,
+                typed_trees::deferred_refusals::DeferredRequest::AccessPolicyApplication,
+                source_span,
+            );
+        }
 
         typed_domain.type_parameters = crate::signatures::type_parameters::lower_type_parameters(
             lowerer,
