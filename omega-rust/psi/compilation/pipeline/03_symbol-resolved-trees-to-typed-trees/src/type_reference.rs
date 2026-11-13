@@ -826,47 +826,36 @@ pub(crate) mod const_arguments {
                     (bound.trait_symbol, bound.arguments.clone(), owner)
                 }));
             }
-            for (declaration, arguments, _owner) in applications {
-                let parameters = if let Some(data) =
-                    program.unique_data_definition_by_symbol(declaration)
-                {
-                    program.data_type_parameters(data).to_vec()
-                } else if let Some(interface) = program.trait_definition_by_symbol(declaration) {
-                    program.trait_type_parameters(interface).to_vec()
-                } else if program.symbols.get(declaration).kind == symbols::SymbolKind::Conformance
-                {
-                    let mut declarations = program
-                        .conformances()
-                        .iter()
-                        .filter(|definition| definition.symbol == declaration);
-                    let Some(definition) = declarations.next() else {
-                        continue;
-                    };
-                    if declarations.next().is_some() {
-                        continue;
+            for (declaration, arguments, owner) in applications {
+                let has_closed_demand = arguments.iter().any(|argument| {
+                    argument.arena_index() as usize > frontier
+                        && needs_admission(program, *argument)
+                });
+                let Some(parameters) = parameter_declarations(program, declaration)
+                    .filter(|parameters| parameters.len() == arguments.len())
+                else {
+                    if has_closed_demand {
+                        return Err(crate::unavailable_judgment(
+                            "closed const argument declaration custody",
+                        ));
                     }
-                    program.conformance_type_parameters(definition).to_vec()
-                } else if program.symbols.get(declaration).kind == symbols::SymbolKind::TypeAlias {
-                    let mut aliases = program
-                        .type_aliases()
-                        .iter()
-                        .filter(|alias| alias.symbol == declaration);
-                    let Some(alias) = aliases.next() else {
-                        continue;
-                    };
-                    if aliases.next().is_some() {
-                        continue;
-                    }
-                    program
-                        .tables
-                        .data_type_parameters
-                        .span_or_empty(alias.type_parameters)
-                        .to_vec()
-                } else {
                     continue;
                 };
-                if parameters.len() != arguments.len() {
-                    continue;
+                // This is retained supplying scope, not const admission. It
+                // also belongs to ordinary type arguments with no judgment.
+                for argument in &arguments {
+                    if argument.arena_index() as usize > frontier
+                        && owner.is_valid()
+                        && !program
+                            .type_reference_table
+                            .operand_lifetime_owner(*argument)
+                            .is_valid()
+                    {
+                        program
+                            .type_reference_table
+                            .retain_operand_lifetime_owner(*argument, owner)
+                            .map_err(Diagnostic::error)?;
+                    }
                 }
                 for (parameter, argument) in parameters.iter().zip(arguments.iter().copied()) {
                     if argument.arena_index() as usize <= frontier
@@ -874,24 +863,7 @@ pub(crate) mod const_arguments {
                     {
                         continue;
                     }
-                    let demanded = match program.type_reference_table.type_reference(argument) {
-                        TypeReferenceNode::ConstExpression(expression) => {
-                            !program.pending_const_range_endpoints.contains(expression)
-                                && typed_trees::domain::index_argument_is_closed(program, argument)
-                        }
-                        TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
-                            CanonicalConstValue::from_atom(name.as_str()).is_some_and(|value| {
-                                matches!(
-                                    value.decode_encoding(),
-                                    Some(
-                                        DecodedCanonicalConstValue::Record { .. }
-                                            | DecodedCanonicalConstValue::Variant { .. }
-                                    )
-                                )
-                            })
-                        }
-                        _ => false,
-                    };
+                    let demanded = needs_admission(program, argument);
                     if demanded {
                         return Err(crate::unavailable_judgment(
                             "closed const argument admission",
@@ -900,6 +872,81 @@ pub(crate) mod const_arguments {
                 }
             }
             Ok(())
+        }
+
+        fn parameter_declarations(
+            program: &TypedTrees,
+            declaration: symbols::SymbolHandle,
+        ) -> Option<Vec<typed_trees::data::TypeParameter>> {
+            fn unique<T>(mut rows: impl Iterator<Item = T>) -> Option<T> {
+                let row = rows.next()?;
+                rows.next().is_none().then_some(row)
+            }
+            if !declaration.is_valid() {
+                return None;
+            }
+            match program.symbols.get(declaration).kind {
+                symbols::SymbolKind::Data => {
+                    let data = program.unique_data_definition_by_symbol(declaration)?;
+                    Some(program.data_type_parameters(data).to_vec())
+                }
+                symbols::SymbolKind::Trait => {
+                    let interface = unique(
+                        program
+                            .traits()
+                            .iter()
+                            .filter(|row| row.symbol == declaration),
+                    )?;
+                    Some(program.trait_type_parameters(interface).to_vec())
+                }
+                symbols::SymbolKind::Conformance => {
+                    let implementation = unique(
+                        program
+                            .conformances()
+                            .iter()
+                            .filter(|row| row.symbol == declaration),
+                    )?;
+                    Some(program.conformance_type_parameters(implementation).to_vec())
+                }
+                symbols::SymbolKind::TypeAlias => {
+                    let alias = unique(
+                        program
+                            .type_aliases()
+                            .iter()
+                            .filter(|row| row.symbol == declaration),
+                    )?;
+                    program
+                        .tables
+                        .data_type_parameters
+                        .span(alias.type_parameters)
+                        .map(<[_]>::to_vec)
+                }
+                _ => None,
+            }
+        }
+
+        fn needs_admission(
+            program: &TypedTrees,
+            argument: typed_trees::types::TypeReferenceHandle,
+        ) -> bool {
+            match program.type_reference_table.type_reference(argument) {
+                TypeReferenceNode::ConstExpression(expression) => {
+                    !program.pending_const_range_endpoints.contains(expression)
+                        && typed_trees::domain::index_argument_is_closed(program, argument)
+                }
+                TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
+                    CanonicalConstValue::from_atom(name.as_str()).is_some_and(|value| {
+                        matches!(
+                            value.decode_encoding(),
+                            Some(
+                                DecodedCanonicalConstValue::Record { .. }
+                                    | DecodedCanonicalConstValue::Variant { .. }
+                            )
+                        )
+                    })
+                }
+                _ => false,
+            }
         }
 
         #[cfg(test)]
@@ -923,6 +970,75 @@ pub(crate) mod const_arguments {
             #[test]
             fn empty_const_admission_needs_no_unavailable_judgment() {
                 normalize(&mut TypedTrees::default(), 0).unwrap();
+            }
+
+            #[test]
+            fn ordinary_type_arguments_keep_their_exact_supplier_scope() {
+                let mut builder = SymbolTableBuilder::new();
+                let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                let children = builder.insert_children(
+                    root,
+                    symbols::builtin_type_symbols().into_iter().chain([
+                        (SymbolKind::TypeAlias, SymbolNameRef::Static("Alias")),
+                        (SymbolKind::Machine, SymbolNameRef::Static("supplier")),
+                    ]),
+                );
+                let alias = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
+                let supplier = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32 + 1);
+                let formal = builder
+                    .insert_children(
+                        alias,
+                        [(SymbolKind::TypeParameter, SymbolNameRef::Static("T"))],
+                    )
+                    .start();
+                let mut program = TypedTrees {
+                    symbols: builder.finish(),
+                    ..Default::default()
+                };
+                let argument = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: children.handle_at(symbols::BuiltinTypeAtom::U64.ordinal() as u32),
+                        name: Identifier::generated("u64"),
+                    });
+                let parameters = program.data_type_parameters.insert_many([TypeParameter {
+                    symbol: formal,
+                    name: Identifier::generated("T"),
+                    kind: TypeParameterKind::Type,
+                    ..Default::default()
+                }]);
+                program.push_type_alias_definition(TypeAliasDefinition {
+                    symbol: alias,
+                    name: Identifier::generated("Alias"),
+                    type_parameters: parameters,
+                    expansion: argument,
+                    ..Default::default()
+                });
+                let arguments = program
+                    .type_reference_table
+                    .insert_type_reference_handles([argument]);
+                let application = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Generic {
+                        base_symbol: alias,
+                        base_name: Identifier::generated("Alias"),
+                        arguments,
+                        lifetime_arguments: Vec::new(),
+                    });
+                program
+                    .type_reference_table
+                    .retain_operand_lifetime_owner(application, supplier)
+                    .unwrap();
+                normalize(&mut program, 0).unwrap();
+                assert_eq!(
+                    program
+                        .type_reference_table
+                        .operand_lifetime_owner(argument),
+                    supplier
+                );
+                assert!(
+                    matches!(program.type_reference_table.type_reference(argument), TypeReferenceNode::Named { symbol, .. } if *symbol == children.handle_at(symbols::BuiltinTypeAtom::U64.ordinal() as u32))
+                );
             }
 
             #[test]
@@ -1065,13 +1181,8 @@ pub(crate) mod const_arguments {
                             supplier,
                         )
                         .unwrap();
-                    let result = normalize(&mut program, 0);
-                    if header_count == 1 {
-                        let error = result.unwrap_err();
-                        assert!(error.message.contains("no product route yet"));
-                    } else {
-                        result.unwrap();
-                    }
+                    let error = normalize(&mut program, 0).unwrap_err();
+                    assert!(error.message.contains("no product route yet"));
                     assert_eq!(
                         program.type_reference_table.type_reference(argument),
                         &TypeReferenceNode::ConstExpression(value)
