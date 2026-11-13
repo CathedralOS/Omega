@@ -51,6 +51,7 @@ fn route_verdict(fixture: &str) -> (RouteVerdict, bool) {
             entries: &frontier.entries,
             subject: frontier.subject,
             selected: &frontier.selected,
+            bindings: &frontier.bindings,
         },
     ))
     .unwrap_or_else(|defect| panic!("{fixture}: the route must reach a verdict: {defect:?}"));
