@@ -1,6 +1,7 @@
 // Geometry alone cannot establish the explicitly routed vacancy claim.
 // No unrelated sibling domain or linear-carrier heuristic supplies this rule.
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
 
 machine exercise(extent: Extent) -> Extent {
     let forged: Extent in Vacant = extent as Extent in Vacant;

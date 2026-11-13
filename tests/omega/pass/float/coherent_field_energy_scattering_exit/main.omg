@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 use physics::model;
 
 // The complete private scattering module reproduces the application's exact

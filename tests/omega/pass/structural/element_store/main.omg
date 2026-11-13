@@ -6,7 +6,7 @@
 // Previously every index-ended path declined at the checked-trees window
 // place map ("all-Field path"), so the machine was omitted outright.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Fmt [copy] {
     case Decimal;

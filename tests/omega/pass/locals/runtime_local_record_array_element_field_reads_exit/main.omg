@@ -6,7 +6,7 @@
 // wrong element, or the record instead of its element, cannot pass. Exits 70
 // only when every element holds what was written to it.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Tally { count: u64 in Wrapping; flag: u64; open: bool; }
 

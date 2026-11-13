@@ -13,7 +13,7 @@
 //
 // Reduced from `samples/cli/collections/matrix_multiply`, whose `dot` state
 // reads `main.a[i][k]` in the same successor-argument position.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     flat: [i32 in Wrapping; 3];

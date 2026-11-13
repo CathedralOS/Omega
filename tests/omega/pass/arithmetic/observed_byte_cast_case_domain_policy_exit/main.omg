@@ -1,6 +1,6 @@
 // An unsigned byte widened to i32 retains 0..255 in a selected-case construction.
 // Expected exit: 0
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i32_to_u8_wrapping;
 data Read [copy] requires (self in Read::Empty) || ((self in Read::Byte) && self.value >= 0 && self.value <= 255) {
     case Empty;
     case Byte(value: i32);

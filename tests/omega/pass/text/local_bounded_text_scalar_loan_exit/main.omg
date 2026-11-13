@@ -6,8 +6,8 @@ requires
 domain [u8; 3]::Utf8
 requires
     valid_utf8(self);
-use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega_language_std::Console;
+use omega::language::core::widen_u8_to_i32;
 
 machine digit_sum(text: &[u8; 3] in Utf8) -> i32 in Wrapping {
     transition {

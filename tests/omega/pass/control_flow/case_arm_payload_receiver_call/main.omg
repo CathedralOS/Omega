@@ -5,7 +5,7 @@
 // payload's own case dispatch must lower under that borrowed receiver.
 // Exits 70 only when the payload receiver call lowers and dispatches.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Payload {
     case Leaf(value: u64);

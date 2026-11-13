@@ -1,8 +1,11 @@
 // Each fused cancellation retains a positive residual; multiply-then-add
 // rounds the product first and yields zero. Reusing the residual in another
 // FMA also exercises ordinary runtime operand transport, not constant folding.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::multiply_then_add;
+use omega::language::core::F64::multiply_then_add;
+use omega::language::core::F32::fused_multiply_add;
+use omega::language::core::F64::fused_multiply_add;
+use omega_language_std::Console;
 
 machine repeated_fma(value: f64) -> f64 {
     F64::fused_multiply_add(value, 1.0, 0.0)

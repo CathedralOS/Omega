@@ -4,7 +4,7 @@
 // retired. One member, the other member, every member, and every element
 // of an owned array are moved here, from the entry machine and from a
 // helper that returns a value. Exit 0 means every path completed.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Token { raw: u64; }
 data Pair { left: Token; right: Token; }

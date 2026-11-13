@@ -2,8 +2,10 @@
 // Expected exit: 0
 // Place: other_machine.
 
-use omega::language::core::float_meaning;
-use omega::language::core::float_operations;
+use omega::language::core::FloatMeaning;
+use omega::language::core::F32::meaning;
+use omega::language::core::FloatSemantics::minimum;
+use omega::language::core::F32::minimum;
 
 machine forward(left: f32, right: f32) -> f32
 ensures core::Identity<FloatMeaning>(

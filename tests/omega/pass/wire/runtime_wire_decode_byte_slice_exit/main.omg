@@ -1,4 +1,14 @@
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::EncodedField;
+use omega::language::core::EncodeContext;
+use omega::language::core::CompactBinary::encode;
+use omega::language::core::ScalarSlot;
+use omega::language::core::ScalarPlanContext;
+use omega::language::core::FrameRead;
+use omega::language::core::CompactBinary::read_record;
+use omega::language::core::CompactBinary::bytes_field;
+use omega::language::core::CompactBinary::plan_payload;
 use omega::language::core::reflect;
 // Wire stage 2 (#43), borrowed `&[u8]` ZERO-COPY decode. `decode` reads a
 // byte-LENGTH varint, bounds-checks it, then stores a fat `{ptr, len}`
@@ -12,7 +22,7 @@ use omega::language::core::reflect;
 // then 0x48 0x69). Exits 70 when ok, read = 5, and the re-encoded content
 // matches.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Blob {
     #0 bytes: &[u8];

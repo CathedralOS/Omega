@@ -1,7 +1,6 @@
 // Plain IEEE field reads retain their format and field offset through calls
 // and ordered dispatch. The full computed-subject customer is match_float_subjects.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Narrow { left: f32; right: f32; }
 data Wide { left: f64; right: f64; }

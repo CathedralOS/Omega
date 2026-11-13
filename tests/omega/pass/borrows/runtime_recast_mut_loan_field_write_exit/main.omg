@@ -1,7 +1,7 @@
 // A member write through a recast `as &mut T` loan of owned bytes lands in the
 // original storage: `borrowed.tag = 9` writes the first byte of `main.buf`,
 // and the caller observes it after the loan ends.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Desc {
     tag: u32;

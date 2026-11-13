@@ -1,8 +1,8 @@
 // Expected exit: 0
 // The application-selected Clock leaves elapsed time below 250 milliseconds;
 // the package default's requested 500 milliseconds must fail this oracle.
-use omega_language_std::clock;
-use omega_language_std::time_host;
+use omega_language_std::Clock;
+use omega_language_std::TimeHost;
 NoWaitClock satisfies Clock {
     machine sleep(milliseconds: u32) reaches Clock {}
 }

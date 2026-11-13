@@ -1,4 +1,3 @@
-use omega::language::core::slice;
 
 data Entry { value: i32; }
 data Main { entries: [Entry; 4]; }

@@ -5,7 +5,7 @@
 // immutable parameter. The parser accumulates under Exact arithmetic and
 // stops before `value * 10 + digit` could leave `u64`.
 // Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

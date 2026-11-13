@@ -2,7 +2,6 @@
 // Place: another state (invalid twin). Reading index 3 exceeds the guarded length bound of 3 elements.
 // Expected diagnostic: slice index out of bounds
 
-use omega::language::core::slice;
 
 machine read_guarded(view: &[u64]) -> i32
     requires view.len >= 3

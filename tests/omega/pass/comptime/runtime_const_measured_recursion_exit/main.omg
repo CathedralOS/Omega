@@ -8,7 +8,7 @@
 // remaining_steps and the array length lands as an ordinary literal (triangle(4)
 // = 10, so buf[9] is the last legal slot). Proof-stratum machines ride
 // the same evaluator; the remaining_steps cap is the defense-in-depth ceiling.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // The remaining triangular sum is part of the arrival invariant. Independent
 // bounds on n and acc would permit triangle(100, 5050), whose next accumulator

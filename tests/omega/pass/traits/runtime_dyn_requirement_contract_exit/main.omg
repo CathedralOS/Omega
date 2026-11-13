@@ -5,7 +5,7 @@
 // `9 - shrunk` needs no runtime check.
 // TrimOne::shrink(9) == 8 and TrimThree::shrink(9) == 6:
 // (9 - 8) + (9 - 6) == 4 -> exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Shrink<T> {
     machine shrink(scale: &T, value: u64) -> u64

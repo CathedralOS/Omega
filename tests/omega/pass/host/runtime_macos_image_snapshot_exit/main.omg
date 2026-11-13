@@ -1,10 +1,17 @@
 // Expected exit: 0
 // The production snapshot owns a complete copy of a non-square pixel view.
 // Native readback happens only after mutation and the source activation ends.
-use omega_language_std::console;
-use omega::language::core::layout;
-use omega_language_std::macos_image;
-use omega_language_std::macos_gui;
+use omega_language_std::Console;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::FixedLayout;
+use omega_language_std::MacosImageData;
+use omega_language_std::MacosImageObjects;
+use omega_language_std::macos_image_snapshot;
+use omega_language_std::CoreGraphics;
 
 public data DataRange {
     location: i64;

@@ -4,7 +4,7 @@
 // same declared `Score`. Both writes land in the caller's own storage, so the
 // final read sees 30 + 40. Exits 70 only when both loans updated the local.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Score { points: i32 in Wrapping; }
 

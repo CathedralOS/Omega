@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine first(calls: &mut u64 in Wrapping) -> u64
 ensures result >= 1 && result <= 1 {

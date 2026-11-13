@@ -5,7 +5,7 @@
 // new meaning -- the CompleteMigration demand must reject rather than admit
 // the route.
 
-use omega::language::core::format_lineage;
+use omega::language::core::FormatMigration;
 
 data ArchiveStore {
 }

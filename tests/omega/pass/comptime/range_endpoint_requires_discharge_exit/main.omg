@@ -4,7 +4,7 @@
 // same instantiated judgment that refutes the false direction. An argument
 // that violates the clause (513) or a premise on a nested callee the caller
 // never proved still rejects at checking.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine bounded(value: u64) -> u64
 requires value <= 512

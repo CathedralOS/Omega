@@ -1,7 +1,7 @@
 // Runtime indexed field update under a dominating read of unchanged storage.
 // Both observations select the same element and retain its declared range;
 // the guard permits incrementing 4 to 5, which produces exit 1.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Cell requires v >= 0 && v <= 9 {
     v: i32;
 }

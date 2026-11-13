@@ -1,6 +1,5 @@
 // `offset` arrives from the caller unknown: neither the guard nor `run`'s
 // requirement establishes that the window's start is non-negative.
-use omega::language::core::float_operations;
 data Context { residuals: [f64; 8]; offset: i32; count: i32; }
 machine shifted(values: &mut [f64], amount: f64) {
     transition { _ -> scan(values, amount, 0) }

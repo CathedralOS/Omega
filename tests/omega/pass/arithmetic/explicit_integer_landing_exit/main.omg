@@ -4,7 +4,7 @@
 // where typed `7u64 / 2 * 2` would give 6. The implicit twin is
 // fail/arithmetic/implicit_fractional_integer_landing.
 // Expected exit: 70 when every landing yields 7; otherwise 71.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 const SEVEN: u64 = ((7 / 2) * 2) as u64;
 

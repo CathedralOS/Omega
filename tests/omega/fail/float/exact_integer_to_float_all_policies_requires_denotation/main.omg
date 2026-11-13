@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 machine main() {
     let quiet: f32 = 16777217i32 as f32;

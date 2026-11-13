@@ -3,7 +3,7 @@
 // cell and the zero spelling of its scalar payload fields. Elided scalar
 // members in a partially-authored literal establish their declared type's
 // zero as the field's scalar value.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data RegionAlignment {
     case Unaligned(offset: u64);

@@ -4,7 +4,7 @@
 // a SCALAR const feeding guard-proven arithmetic, and a STRUCT const
 // constructed into a field and read back. 60 + 10 == 70 on both engines.
 // Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Limits [copy] requires ceiling >= 0 && ceiling <= 100 {
     ceiling: i32;

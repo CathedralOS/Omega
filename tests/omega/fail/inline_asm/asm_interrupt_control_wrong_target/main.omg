@@ -1,2 +1,1 @@
-use omega::language::core::assembly;
 machine main() reaches MachineControl { asm { cli } }

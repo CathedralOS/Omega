@@ -2,9 +2,21 @@
 // Zero File storage is absent; a real POSIX descriptor 0 is handle 1. Closing
 // child stdin makes the next acquisition exercise that distinction on the OS.
 // Zero OpenOptions must reopen read-only without truncation or write access.
-use omega_language_std::filesystem;
-use omega_language_std::posix_filesystem_host;
-use omega_language_std::console;
+use omega_language_std::File;
+use omega_language_std::ErrorKind;
+use omega_language_std::OpenResult;
+use omega_language_std::IoResult;
+use omega_language_std::UnitResult;
+use omega_language_std::OpenOptions;
+use omega_language_std::Filesystem;
+use omega_language_std::Filesystem::create;
+use omega_language_std::Filesystem::read;
+use omega_language_std::Filesystem::write;
+use omega_language_std::Filesystem::close;
+use omega_language_std::Filesystem::remove;
+use omega_language_std::Filesystem::open_with;
+use omega_language_std::PosixFilesystemHost;
+use omega_language_std::Console;
 
 data Main {
     filesystem: Filesystem;

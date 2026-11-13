@@ -23,9 +23,27 @@
 // requirement, and the retained closure carries each heir's row under its
 // own selected provider plan.
 
-use omega::language::core::interrupt;
-use omega::language::core::assembly_model;
-use omega_language_std::calling;
+use omega::language::core::InterruptMaskGuard;
+use omega::language::core::InterruptAcknowledgement;
+use omega::language::core::InterruptMaskGuard::Active;
+use omega::language::core::InterruptMaskControl;
+use omega::language::core::InterruptAcknowledgement::Pending;
+use omega::language::core::InterruptEntry;
+use omega::language::core::InterruptAcknowledgementCompletion;
+use omega::language::core::model_specific_written;
+use omega_language_std::AbiValueClass;
+use omega_language_std::BoundarySignature;
+use omega_language_std::ValueLocation;
+use omega_language_std::CallingConvention;
+use omega_language_std::EntryControl;
+use omega_language_std::MachineRegime;
+use omega_language_std::EntryStack;
+use omega_language_std::Preemption;
+use omega_language_std::BoundaryEntryPlan;
+use omega_language_std::CallingPolicyRejection;
+use omega_language_std::BoundaryPlanResult;
+use omega_language_std::CallingPolicy;
+use omega_language_std::Calling;
 
 // The acknowledgement's physical carrier: five aligned u64 cells hold the
 // physical-root, execution, invocation, policy, and acknowledgement words

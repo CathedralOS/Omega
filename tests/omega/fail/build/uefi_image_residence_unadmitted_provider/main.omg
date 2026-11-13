@@ -1,12 +1,16 @@
-use omega::language::core::extent;
-use omega::language::core::representation;
-use omega::language::core::program_image;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::OpaqueRepresentation;
+use omega::language::core::ProgramImage;
 
 // Matching a signature and trait does not confer the toolchain intrinsic identity.
 public data UnadmittedImageProvider {}
 public uefi_x86_64 boundary machine UnadmittedImageProvider::retained_suffix_start() -> addr
 satisfies ProgramImage::retained_suffix_start;
-use std::targets::uefi_x86_64::entry;
+use std::EfiImageHandle;
+use std::EfiSystemTable;
+use std::EfiStatus;
+use std::UefiPhysicalEntry;
 
 data SystemTableHeader {
     signature: u64;

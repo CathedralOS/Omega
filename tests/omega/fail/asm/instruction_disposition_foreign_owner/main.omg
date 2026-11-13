@@ -1,6 +1,5 @@
-use omega::language::core::assembly;
-use omega::language::core::assembly_model;
-use omega::language::core::interrupt;
+use omega::language::core::model_specific_written;
+use omega::language::core::InterruptAcknowledgement;
 boundary trait ForeignCompletion {
     machine finish(token: InterruptAcknowledgement) reaches MachineControl;
 }

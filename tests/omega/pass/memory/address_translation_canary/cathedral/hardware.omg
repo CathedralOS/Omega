@@ -21,7 +21,6 @@
 // interrupt obligations use (source/library/core/interrupt.omg): callers must
 // declare the reach, and the provider selection behind the trait is what
 // admits the realization.
-use omega::language::core::assembly;
 use cathedral::tables;
 
 public boundary trait TranslationHardware {

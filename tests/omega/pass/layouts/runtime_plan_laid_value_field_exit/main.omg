@@ -1,4 +1,10 @@
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 // PLAN-LAID VALUE TYPES (wiki/spec/layouts/plans.md):
 // `gdt: LayoutStorage<Gdtish, Spread16>` applies a layout POLICY to a schema in TYPE
 // position. The policy here is deliberately NOT the native packing rule --
@@ -10,7 +16,7 @@ use omega::language::core::layout;
 // zeros from the padding gaps and the program exits 71. Exits 70 only when
 // every value written through the plan placement survives the copy and reads
 // back intact.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Spread16State {
     index: u64 in Wrapping;

@@ -1,4 +1,9 @@
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::EncodedField;
+use omega::language::core::EncodeContext;
+use omega::language::core::CompactBinary::encode;
+use omega::language::core::CompactBinary::bytes_field;
 use omega::language::core::reflect;
 domain [u8]::Utf8
 requires
@@ -19,7 +24,7 @@ requires
 // written = 5; the canary checks the five bytes + the written count in-language
 // and exits 70 when byte-exact.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Blob {
     #0 bytes: &[u8];

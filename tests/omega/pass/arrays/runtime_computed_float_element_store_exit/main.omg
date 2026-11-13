@@ -1,8 +1,8 @@
 // An indexed scalar replacement carries the same computed-value root as a
 // record field: selected IEEE operations complete before storage is written.
 // Challenge both record-backed f64 elements and borrowed local f32 elements.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F64::from_i64;
+use omega_language_std::Console;
 
 data Main {
     levels: [f64; 2];

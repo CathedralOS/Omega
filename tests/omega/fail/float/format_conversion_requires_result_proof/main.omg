@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::from_f64;
 
 data Reading { amount: f32 in Finite; }
 machine huge() -> f64 in Finite { 1.0e100 }

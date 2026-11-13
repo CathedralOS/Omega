@@ -1,5 +1,5 @@
 // Expected exit: 0.
-use omega::language::core::option;
+use omega::language::core::Optional;
 
 data Input { values: [i32; 4]; }
 data Record { value: i32; }

@@ -1,9 +1,10 @@
 // Rejected: the sibling never acquired Ready.
 // The complete return contract preserves a routed claim on a bare carrier.
 // This is numeric custody, not an admission of physical memory backing.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 use omega::language::core::drop;
-use omega::language::core::nat;
+use omega::language::core::Nat;
 
 data Ticket [linear] dropped by drop_ticket { amount: u64; }
 domain Ticket::Owned established by issue;

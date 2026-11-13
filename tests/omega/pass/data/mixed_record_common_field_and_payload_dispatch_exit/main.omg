@@ -10,7 +10,7 @@
 // Element 2 is `Mark(B)` starting at 30, element 3 a `Word` ending at 25 and
 // element 4 `Mark(A)` ending at 15; each takes its own arm and the three
 // coordinates sum to 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Kind [copy] { case A; case B; }
 data Token [copy] requires start <= 100, end <= 100 {

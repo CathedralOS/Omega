@@ -1,7 +1,7 @@
 // A selector stored in a record field is an ordinary value: storing it
 // borrows nothing, and dispatch through the field reads the stored selection.
 // The stored `Triple` triples 7 -> 21 -> exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Scale<T> {
     machine scale(value: &T) -> i32;

@@ -1,15 +1,36 @@
 // Select new code and data descriptors from the exact retained GDT.
 // The CPU harness checks selectors, accessed bits, FS/GS bases and neighbors.
 // Hosted main is never executed; the harness owns the table until shutdown.
-use std::calling;
-use omega::language::core::layout;
-use omega::language::core::process_exit;
+use std::AbiValueClass;
+use std::AbiValueShape;
+use std::BoundarySignature;
+use std::MachineRegister;
+use std::ValueLocation;
+use std::CallingConvention;
+use std::EntryControl;
+use std::MachineRegime;
+use std::EntryStack;
+use std::Preemption;
+use std::BoundaryEntryPlan;
+use std::CallingPolicyRejection;
+use std::BoundaryPlanResult;
+use std::CallingPolicy;
+use std::Calling;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::PrivateCallbackSlot;
+use omega::language::core::LayoutPlan::place_private;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
+use omega::language::core::ProcessExit;
 
 
-use omega::language::core::assembly;
-use omega::language::core::assembly_model;
-use omega::language::core::code_segment;
-use omega::language::core::data_segment;
+use omega::language::core::CodeSegmentControl;
+use omega::language::core::DataSelectors;
+use omega::language::core::DataSegmentControl;
 
 // The admitted caller runs at CPL0 with interrupts masked and no asynchronous
 // arrivals, debugging, firmware calls or concurrent GDTR/table changes.

@@ -2,7 +2,7 @@
 // distance from cell 0 to cell 24 is 16. Main owns only its Console binding;
 // one local workspace owns the arrays and queue, while states pass iteration
 // values explicitly. Neighbour coordinates and indexed reads are locals.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

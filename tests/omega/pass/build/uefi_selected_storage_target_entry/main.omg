@@ -1,7 +1,9 @@
 // Native UEFI probe: debug port 0xe9 emits A only after both root geometries match.
 // Synthetic input grants pin transport, not real firmware ownership.
-use omega::language::core::extent;
-use omega::language::core::assembly;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::ProgramStorageEntry;
+use omega::language::core::ExtentRootProvider;
 use entry_support::targets::uefi_x86_64::entry;
 
 TestRoots satisfies ExtentRootProvider {

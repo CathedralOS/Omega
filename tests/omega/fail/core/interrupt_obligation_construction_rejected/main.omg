@@ -1,4 +1,5 @@
-use omega::language::core::interrupt;
+use omega::language::core::InterruptAcknowledgement;
+use omega::language::core::InterruptAcknowledgement::Pending;
 
 machine settle(acknowledgement: InterruptAcknowledgement in Pending)
 reaches PortIo

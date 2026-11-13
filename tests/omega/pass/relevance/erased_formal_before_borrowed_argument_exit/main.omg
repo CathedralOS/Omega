@@ -3,7 +3,7 @@
 // the forwarded argument must name `values`, not a slot counted past the
 // erased `witness`. The trailing erased formal must not disturb it either.
 // Native run: exit 70 = the callee read the forwarded record; 71 = it did not.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Proof {
     tag: i32;

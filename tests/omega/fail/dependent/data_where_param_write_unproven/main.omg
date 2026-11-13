@@ -3,7 +3,7 @@
 // burden. The parameter arrives domain-VALID but with UNKNOWN field
 // values, so `count = 99` cannot prove `count <= len` and refuses
 // (before this rung the write bypassed the net entirely).
-use omega_language_std::console;
+use omega_language_std::Console;
 data Tally
 requires
     count <= len,

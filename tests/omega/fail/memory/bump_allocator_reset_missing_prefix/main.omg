@@ -1,4 +1,6 @@
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Granted;
 use alloc::bump;
 // A matching base does not discharge an outstanding allocation's capacity.
 machine invalid(strategy: Bump, retired: Extent in Granted & Vacant) -> Bump

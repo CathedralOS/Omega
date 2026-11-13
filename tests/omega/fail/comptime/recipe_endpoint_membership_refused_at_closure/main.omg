@@ -3,7 +3,7 @@
 // 9 must be at most `limit()`, and the target closure, which runs the
 // selected provider body to 7, refuses the call instead of admitting an
 // unbounded parameter.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait Math {
     machine remainder(left: u64, right: u64) -> u64 reaches terminates;

@@ -1,6 +1,6 @@
 // An owned record arriving through a state edge is the next call's actual
 // value, not an alias of the record's earlier establishing operation.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Amount [copy] { value: i32; }
 

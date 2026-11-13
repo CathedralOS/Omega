@@ -1,6 +1,6 @@
 // The first unconditional arm ends selection. Earlier guards still execute;
 // later guards and destinations must not, including an effectful operand.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { calls: u32 in Wrapping; }
 

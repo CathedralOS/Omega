@@ -2,7 +2,7 @@
 // Predicate-only qualification preserves the exact fixed-array carrier.
 // A qualified field stored through a write-only loan copies to a bare array.
 // domains.md: qualified-fixed-byte-array-carrier.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain [u8; 8]::Utf8
 requires

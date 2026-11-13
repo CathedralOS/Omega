@@ -1,6 +1,10 @@
 // Expected exit: 0. Structural classification survives a call result and a
 // later match, with signs retained for both IEEE interchange formats.
-use omega::language::core::float_operations;
+use omega::language::core::FloatClass;
+use omega::language::core::F32::negate;
+use omega::language::core::F64::negate;
+use omega::language::core::F32::classify;
+use omega::language::core::F64::classify;
 
 machine classify32(value: f32) -> FloatClass { F32::classify(value) }
 machine classify64(value: f64) -> FloatClass { F64::classify(value) }

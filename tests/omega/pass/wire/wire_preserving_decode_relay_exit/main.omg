@@ -2,8 +2,12 @@
 // Finite checks do not establish a general codec agreement proof or Derived trust.
 // Encoder failure reports written=0. Capacity failure may leave a partial output;
 // codec identity failure is checked before the first output write.
-use omega_language_std::console;
-use omega::language::core::wire;
+use omega_language_std::Console;
+use omega::language::core::DecodeResult;
+use omega::language::core::OpaqueWireRemainder;
+use omega::language::core::Relayed;
+use omega::language::core::Encode;
+use omega::language::core::PreservingDecode;
 
 data PreservePolicy {
 }

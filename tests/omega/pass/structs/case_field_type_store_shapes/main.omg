@@ -32,7 +32,7 @@
 // (`pass/domains/case_payload_predicate_domain_member_exit`), and an
 // interval-domained plain record member
 // (`pass/domains/record_interval_domain_member_exit`).
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain i32::Ten requires 0 <= self && self <= 10;
 

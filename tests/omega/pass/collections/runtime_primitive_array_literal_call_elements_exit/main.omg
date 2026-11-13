@@ -1,7 +1,7 @@
 // A closed primitive array literal may compute its elements with calls. Each
 // element call runs once, in increasing index order, and lands in its own
 // slot: the program exits 70 only when the three slots hold 2, 4 and 6.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine twice(value: i32 in Wrapping) -> i32 in Wrapping {
     value + value

@@ -1,5 +1,5 @@
 // An indexed call result is an ordinary scalar actual beside a shared loan.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell { value: u64 in Wrapping; }
 data Main requires position < 4 { cells: [Cell; 4]; position: u64; }

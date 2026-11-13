@@ -1,5 +1,4 @@
 // Expected exit: 0. Exact decimal input lies below the binary32 midpoint.
-use omega::language::core::float_operations;
 machine identity(value: f32) -> f32 { value }
 machine route(positive: bool) -> f32 {
  transition positive {

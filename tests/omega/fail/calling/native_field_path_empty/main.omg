@@ -1,4 +1,4 @@
-use omega_language_std::calling;
+use omega_language_std::NativePlace;
 
 machine main() {
     let path: [u64; 16];

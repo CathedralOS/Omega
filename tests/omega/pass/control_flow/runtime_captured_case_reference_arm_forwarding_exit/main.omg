@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Choice { case Full(n: u64 in Wrapping); case Empty; }
 data Main requires selected <= 1 {

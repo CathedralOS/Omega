@@ -1,7 +1,6 @@
 // Digit grouping changes spelling, never the exact value or its landing.
 // The grouped precision witness also distinguishes one exact rounding to f32
 // from an intermediate f64 rounding. Every check must return normally; a mismatch traps.
-use omega::language::core::float_operations;
 
 data Main {
     expected: f32;

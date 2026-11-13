@@ -2,7 +2,7 @@
 // target's body wraps with a different multiplier, so the value the entry
 // compares against shows which body ran and that its operations wrapped:
 // 4000000000 * 31 and 4000000000 * 33 both leave `u32`.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 boundary trait SelectedMix {

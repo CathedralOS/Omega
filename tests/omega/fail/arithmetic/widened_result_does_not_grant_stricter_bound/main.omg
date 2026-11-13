@@ -1,4 +1,4 @@
-use omega::language::core::numeric_conversion;
+use omega::language::core::widen_u8_to_u16;
 
 machine consume(value: u16) requires value <= 254 {}
 machine widen_and_consume(value: u8) {

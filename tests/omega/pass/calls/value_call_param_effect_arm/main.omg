@@ -7,7 +7,7 @@
 // their storage across state transitions, and the composed scalar call
 // rejoins the authored position of the projected receiver actual
 // (`main.picker`). Exit 1 proves `hi` ran once against the caller's Tally.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Tally { count: i32 in Wrapping; }
 data Picker {}

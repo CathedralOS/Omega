@@ -2,7 +2,7 @@
 // carrier. Each machine breaks that rule one way: two different carriers, a
 // float, a wholly anonymous calculation, a generic carrier, and a shift count
 // that carries a domain.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 machine mismatched(a: u32, b: u64) -> u32 { a +% b }

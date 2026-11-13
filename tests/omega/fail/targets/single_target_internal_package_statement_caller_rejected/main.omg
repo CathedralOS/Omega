@@ -10,7 +10,7 @@
 // The package also ships `Helper::paradigm_caller`, a `uefi_x86_64` caller of
 // a `uefi_x86_64` callee: it goes inert alongside it, so the golden records
 // exactly ONE diagnostic -- the exemption holds inside the dependency.
-use omega_language_std::console;
+use omega_language_std::Console;
 use paradigm_internals::paradigm;
 
 data Main { helper: Helper; }

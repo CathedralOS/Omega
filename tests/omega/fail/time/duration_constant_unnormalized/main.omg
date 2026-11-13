@@ -1,4 +1,4 @@
-use omega_language_std::time;
+use omega_language_std::Duration;
 
 const INVALID: Duration = Duration { seconds: 0, subsecond_nanoseconds: 1000000000 };
 data Main {}

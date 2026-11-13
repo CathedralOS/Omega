@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 // `main.line.text = "Room " + main.room.label` materializes the concat into the
 // `write_line`s it. The nested fields `main.room.label` / `main.line.text` have
 // their declared `in Utf8` domain forwarded through the multi-level field-path

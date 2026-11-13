@@ -1,8 +1,8 @@
 // Expected exit: 70
 // libc returns an IPv4 address record and consumes the same record by value.
-use omega_language_std::console;
+use omega_language_std::Console;
 
-use omega::language::core::representation;
+use omega::language::core::OpaqueRepresentation;
 public boundary data InternetAddress;
 public data AddressWord { address: u32; }
 public data AddressCarrier<T> { payload: T; }

@@ -1,4 +1,6 @@
-use omega::language::core::atomic;
+use omega::language::core::Atomic;
+use omega::language::core::FenceOrdering;
+use omega::language::core::Atomic::fence;
 machine fence_stale(incoming: FenceOrdering) {
     let mut ordering: FenceOrdering = FenceOrdering::Publish;
     ordering = incoming;

@@ -1,6 +1,9 @@
 // Named semantic constants need no payload bits when only classification is used.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::square_root;
+use omega::language::core::F64::square_root;
+use omega::language::core::F32::is_nan;
+use omega::language::core::F64::is_nan;
+use omega_language_std::Console;
 
 const NAN32: f32 = F32::square_root(-1.0f32);
 const NAN64: f64 = F64::square_root(-1.0f64);

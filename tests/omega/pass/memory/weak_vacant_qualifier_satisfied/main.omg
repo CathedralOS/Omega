@@ -2,7 +2,9 @@
 // `Granted & Vacant` value carries the dormant-content qualification into a
 // `Vacant`-qualified field, so the construction is admitted. Only the
 // qualifier-free source shape is an implicit strengthening.
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Granted;
 
 data Held {
     e: Extent in Granted & Vacant;

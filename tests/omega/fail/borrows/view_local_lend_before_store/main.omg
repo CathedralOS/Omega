@@ -1,6 +1,6 @@
 // A declared view local holds no descriptor until a store establishes it:
 // lending it to a call first names no backing and must reject.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

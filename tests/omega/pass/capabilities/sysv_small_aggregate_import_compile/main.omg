@@ -4,7 +4,6 @@
 // The binding is an evaluated typed locator: `aggregate_binding` returns the
 // compiler-owned `ForeignBinding::DllImport` value carrying one exact versioned-ELF
 // import, so raw foreign bytes stay data.
-use omega::language::core::external_binding;
 
 public data Pair {
     first: u64;

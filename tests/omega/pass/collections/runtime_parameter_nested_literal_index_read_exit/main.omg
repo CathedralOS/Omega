@@ -6,7 +6,7 @@
 // between its selectors. Exits 70 only when both helpers read the elements
 // their runtime stores updated.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Row { tag: i32 in Wrapping; data: [i32 in Wrapping; 2]; }
 

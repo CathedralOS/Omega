@@ -1,8 +1,14 @@
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 // PLAN-LAID VALUE TYPES, the value-type gate: a policy whose plan is DYNAMIC
 // cannot appear in type position -- values need offsets, bytes need mints
 // (wiki/spec/layouts/plans.md). The rejection must name the policy.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 
 Streamy satisfies FixedLayout<Pairish> {

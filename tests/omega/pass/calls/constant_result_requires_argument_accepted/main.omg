@@ -4,7 +4,7 @@
 // the same instantiated judgment that refutes the false direction. The
 // positive channel proves only what the terms themselves decide; a mutable
 // or unresolvable argument still rides the bound/guard channels.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine echo(scale: u64) -> u64
 requires scale <= 5

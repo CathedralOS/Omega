@@ -1,4 +1,8 @@
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::VacantExtentParts;
+use omega::language::core::split_vacant_extent;
+use omega::language::core::Extent::Granted;
 
 // Empty content does not justify inventing a different prefix address. The
 // split's scalar contract preserves the actual base even when no bytes remain.

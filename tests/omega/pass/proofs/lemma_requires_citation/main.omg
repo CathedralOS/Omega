@@ -4,7 +4,8 @@
 // proves it, then `minus_swap`'s injected ensures settles the goal.
 // `minus` is unlicensed — the library's `add_zero_right` is package-private (gap: proof lemmas can't be cited cross-package); a user-authored axiom supplies it here, and the lemma's ensures links
 // `minus(x,z)` to `minus(y,z)`.
-use omega::language::core::nat;
+use omega::language::core::Nat;
+use omega::language::core::add;
 boundary machine unit_right(a: Nat) -> Nat
 ensures
     core::Identity<Nat>(a, add(a, Nat::Zero {}));

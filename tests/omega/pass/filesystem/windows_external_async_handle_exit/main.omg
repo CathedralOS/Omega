@@ -3,10 +3,13 @@
 // retain a shared cursor and never consume the caller's original HANDLE.
 // Locks also refuse asynchronous objects before borrowing request storage;
 // every acquisition mode is tried on a free file, avoiding a blocking oracle.
-use omega_language_std::windows_filesystem_host;
-use omega_language_std::console;
-use omega::language::core::filesystem_authority;
-use omega::language::core::numeric_conversion;
+use omega_language_std::WindowsFilesystemHost;
+use omega_language_std::Console;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
+use omega::language::core::narrow_i64_to_u64_wrapping;
 
 domain [u16; 16]::ExternalNativePath requires self[15] == 0;
 

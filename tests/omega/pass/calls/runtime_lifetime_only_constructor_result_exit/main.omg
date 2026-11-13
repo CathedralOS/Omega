@@ -1,6 +1,6 @@
 // Lifetime arguments are erased regions, so a factory result and the
 // bare nominal local must retain the same runtime carrier identity.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Input { value: u64; }
 data Output<'region> { value: u64; }

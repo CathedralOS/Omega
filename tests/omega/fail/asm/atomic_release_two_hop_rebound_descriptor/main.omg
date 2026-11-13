@@ -1,5 +1,5 @@
 // REFUSE: rebinding the first descriptor of a two-hop path does not move the prior store.
-use omega::language::core::assembly_model;
+use omega::language::core::atomic_release_written;
 data Cell { value: AtomicU64; }
 data Holder { word: &Cell; }
 data Envelope { holder: &Holder; }

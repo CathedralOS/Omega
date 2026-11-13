@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // Element view write across a named edge: `release` establishes an
 // exclusive `&mut [i32]` view of the bag's cells and stores through it,

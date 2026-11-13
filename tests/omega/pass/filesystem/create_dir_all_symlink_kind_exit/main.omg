@@ -1,7 +1,20 @@
 // Expected exit: 0. Recursive directory creation follows a directory link,
 // rejects file and dangling links, and leaves the links and targets intact.
-use omega_language_std::filesystem;
-use omega_language_std::console;
+use omega_language_std::File;
+use omega_language_std::ErrorKind;
+use omega_language_std::UnitResult;
+use omega_language_std::FileKind;
+use omega_language_std::Metadata;
+use omega_language_std::MetadataResult;
+use omega_language_std::Filesystem;
+use omega_language_std::Filesystem::write_all;
+use omega_language_std::Filesystem::metadata_path;
+use omega_language_std::Filesystem::remove;
+use omega_language_std::Filesystem::create_dir;
+use omega_language_std::Filesystem::remove_dir;
+use omega_language_std::Filesystem::create_dir_all;
+use omega_language_std::Filesystem::symlink;
+use omega_language_std::Console;
 data Main { filesystem: Filesystem; }
 machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let result: UnitResult = block Filesystem::write_all(&mut main.filesystem, "file_target", "keep");

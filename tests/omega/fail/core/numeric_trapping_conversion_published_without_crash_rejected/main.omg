@@ -2,8 +2,8 @@
 // cause forbids it. Calling a trapping conversion from a `public` machine
 // therefore needs `crashes Trap`, unlike a private body, whose crash ceiling
 // is inferred.
-use omega::language::core::numeric_conversion;
-use omega_language_std::console;
+use omega::language::core::narrow_u16_to_u8_trapping;
+use omega_language_std::Console;
 
 public machine narrow(value: u16) -> u8 {
     narrow_u16_to_u8_trapping(value)

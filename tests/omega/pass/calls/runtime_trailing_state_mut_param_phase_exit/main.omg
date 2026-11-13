@@ -4,7 +4,7 @@
 // mutations made before its own authored phase: the outer guard sees 2 calls
 // and the trailing guard sees 3. Exits 71/72 distinguish an outer/trailing
 // guard evaluated against a stale or flattened phase.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Rng { seed: u64 in Wrapping; calls: u32 in Wrapping; }
 data Main { rng: Rng; }

@@ -1,8 +1,7 @@
 // A zero-storage establishment still owns its source position and logical cost.
 // Native ABI marshaling may carry that charge before the exact completion edge;
 // it must not turn the constructor into the foreign invocation's owner.
-use omega::language::core::process_exit;
-use omega_language_std::process_exit;
+use omega::language::core::ProcessExit;
 
 data Marker {}
 data Main { }

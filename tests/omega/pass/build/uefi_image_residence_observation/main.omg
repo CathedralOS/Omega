@@ -1,8 +1,12 @@
-use omega::language::core::extent;
-use omega::language::core::representation;
-use omega::language::core::program_image;
-use omega::language::core::code_layout;
-use std::targets::uefi_x86_64::entry;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::OpaqueRepresentation;
+use omega::language::core::ProgramImage;
+use omega::language::core::CodeLayout;
+use std::EfiImageHandle;
+use std::EfiSystemTable;
+use std::EfiStatus;
+use std::UefiPhysicalEntry;
 
 data SystemTableHeader {
     signature: u64;

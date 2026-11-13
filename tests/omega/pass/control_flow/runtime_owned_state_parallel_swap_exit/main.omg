@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // A back edge reuses both arrival homes. All bytes of both inputs must be
 // snapshotted before either destination changes, including the narrow tail.

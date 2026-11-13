@@ -1,4 +1,6 @@
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Resident;
+use omega::language::core::Extent::Granted;
 data First {}
 data Second {}
 data Value { number: u64; }

@@ -2,7 +2,7 @@
 // of existing BagView descriptors; exit demands its negation. This
 // unproved exit obligation must reject.
 
-use omega::language::core::seq;
+use omega::language::core::BagView;
 
 machine false_bag_distinct(before: BagView, items: BagView)
 requires

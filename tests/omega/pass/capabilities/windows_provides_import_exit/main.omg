@@ -10,7 +10,7 @@
 // discipline throughout (main.v arg, main.m result): host-call operands that
 // are frame LOCALS fail under multi-dispatch selection (the parked
 // pending/host/host_local_operand_dual_dispatch face -- catalog ops too).
-use omega_language_std::console;
+use omega_language_std::Console;
 public boundary trait Beeper { machine beep(value: i32) -> i32 reaches; }
 data Main { m: i32; v: i32; }
 machine Main::main(main: &mut Main) reaches Beeper + Console {

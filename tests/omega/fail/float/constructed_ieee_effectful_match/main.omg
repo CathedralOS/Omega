@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 data Plain {value:f64;}
 machine admit(value:f64)->f64 requires value>=0.0 && value<=0.5 {value}
 machine change(value:&mut Plain)->bool {value.value=0.75;true}

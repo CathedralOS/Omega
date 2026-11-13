@@ -2,7 +2,8 @@
 // its remaining owned subtree after capturing the result. A fully consumed
 // local has no second cleanup: each note prints exactly once.
 use omega::language::core::drop;
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 // The fixture-local console assumes finite normal byte writes, as the
 // existing nominal-cleanup fixtures do; it does not strengthen std::Console.
 public boundary trait Console {

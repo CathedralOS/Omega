@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f32;
 // A typed local selects the Saturating slot without changing its denotation.
 machine saturating_integer(value: f32) -> i32 in Saturating {
     let converted: i32 in Saturating = I32::from_f32(value);

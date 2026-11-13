@@ -2,7 +2,7 @@
 // `Nat::IncreasingTo(16)` rank the cursor's distance below a constant: the
 // guard `index < 8` keeps the cursor below the bound, and the bound has no
 // parameter to thread through the cycle.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

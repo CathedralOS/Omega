@@ -1,7 +1,9 @@
 // A named boundary call in a constant must retain its selected declaration,
 // evaluate through the ordinary checked route, and materialize the result.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::square_root;
+use omega::language::core::F64::square_root;
+use omega::language::core::F32::is_nan;
+use omega_language_std::Console;
 
 public const ROOT: f32 = F32::square_root(4.0f32);
 public const ROOT64: f64 = F64::square_root(9.0f64);

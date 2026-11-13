@@ -1,7 +1,7 @@
 // The mutable initializer occurs after another statement and evaluates a
 // nested argument before the foreign call. A later call and reassignment
 // must observe and replace the same established scalar storage.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait Magnitude {
     machine absolute(value: i32) -> i32 reaches;

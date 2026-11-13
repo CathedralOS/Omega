@@ -1,4 +1,5 @@
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
+use omega::language::core::I8::from_f32;
 
 machine main() crashes Trap {
     let narrow: i8 = I8::from_f32(1.0f32);

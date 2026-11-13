@@ -1,5 +1,5 @@
 // Borrow through two stored references, without replacing either carrier by its origin.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell { stamp: i32; value: i32; }
 data Message { stamp: i32; body: &Cell; }

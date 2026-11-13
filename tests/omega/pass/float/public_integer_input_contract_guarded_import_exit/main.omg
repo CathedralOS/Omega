@@ -1,4 +1,6 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::from_i32;
+use omega::language::core::F32::classify;
+use omega::language::core::F32::is_nan;
 
 // Both return paths import the selected slot's normal-result guarantee.
 machine rounded(value: i32, first: bool) -> f32

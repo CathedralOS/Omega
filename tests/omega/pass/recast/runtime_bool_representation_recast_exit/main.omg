@@ -10,7 +10,7 @@
 // canonical target is an unconstrained `&mut u8`, which could store 2 into
 // the Boolean; `fail/recast/recast_mut_bool_as_unconstrained_byte` pins that
 // rejection instead.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main
 requires

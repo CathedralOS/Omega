@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 data Reading { value: f64; peer: f64; }
 data Envelope { reading: Reading; }
 machine same(reading: &Reading) -> f64

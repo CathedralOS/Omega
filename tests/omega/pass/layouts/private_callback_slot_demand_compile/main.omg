@@ -5,7 +5,15 @@
 // Retained placement custody binds hermetic source identities, so the
 // fixture is a `Build::package` root; the same source compiled standalone is
 // `fail/layouts/private_callback_slot_standalone_source_rejected`.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::PrivateCallbackSlot;
+use omega::language::core::LayoutPlan::place_private;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 
 boundary trait WindowProcedure {
     machine call(message: u64) -> u64 reaches;

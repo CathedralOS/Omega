@@ -1,5 +1,5 @@
 // An owned state arrival lends its nested array and observes the same backing.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Samples { items: [i32; 4]; }
 data Packet { samples: Samples; marker: i32; }

@@ -1,4 +1,11 @@
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::IntegerInterpretation;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 // A runtime selection preserves each reference's endpoint and physical codec.
 // The same helper writes a canonical i64 and a one-byte encoded i64 loan.
 

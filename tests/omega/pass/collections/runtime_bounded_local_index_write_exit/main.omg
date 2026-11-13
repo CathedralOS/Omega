@@ -2,7 +2,7 @@
 // `top` is `depth - 1` behind the guard `depth > 0`, and the data `where`
 // bounds `depth` by 4, so `items[top]` is in range for both the store and the
 // load. Exits 70 when the written top is read back as the last pushed value.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Stack
 requires

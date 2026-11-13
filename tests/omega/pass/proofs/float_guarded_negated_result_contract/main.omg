@@ -1,4 +1,8 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::meaning;
+use omega::language::core::F64::meaning;
+use omega::language::core::FloatSemantics::negate;
+use omega::language::core::F32::negate;
+use omega::language::core::F64::negate;
 
 // A false Boolean guard is an observed fact, not failure to prove it true.
 // The selected branch returns the exact input, including NaNs and both zeros.

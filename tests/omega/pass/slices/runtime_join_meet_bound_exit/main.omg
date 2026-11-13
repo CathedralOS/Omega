@@ -6,7 +6,7 @@
 //
 // arr[2] == 30 -> exit 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     arr: [i32; 4];

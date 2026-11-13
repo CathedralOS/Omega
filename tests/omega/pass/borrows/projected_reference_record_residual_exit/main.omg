@@ -1,5 +1,5 @@
 // Moving one field leaves the unrelated owned sibling for exit cleanup.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data View { body: &mut i32; }
 data Token { code: i32; }

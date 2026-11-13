@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 data Cell { position: f64; velocity: f64; count: i32 in Wrapping; }
 data Cells { values: [Cell; 2]; }

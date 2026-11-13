@@ -1,7 +1,7 @@
 // Expected exit: 0.
 // The application invokes only its portable requirement. Its selected checked
 // provider retains the raw requirement as a static dependency, not source data.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait RawMeasure {
     machine measure(value: i32) -> i32 reaches;

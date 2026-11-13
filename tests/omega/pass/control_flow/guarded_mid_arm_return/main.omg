@@ -5,7 +5,7 @@
 // This is the ScanResultsSetPropertyRequest::field_namespace_is shape:
 // `transition len_matches { true -> each; false -> (false); _ -> (false) }`.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Probe {
     enabled: bool;

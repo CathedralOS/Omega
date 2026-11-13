@@ -1,6 +1,8 @@
 module indexed_float_store;
-use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
+use omega::language::core::F64::from_i32;
+use omega::language::core::I32::from_f64;
 
 public data Main { values: [f64; 2]; }
 

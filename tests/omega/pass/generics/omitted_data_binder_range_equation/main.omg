@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // A `where` type equation recovers an omitted trailing data binder from the
 // supplied argument's canonical type structure, and an explicit tuple must

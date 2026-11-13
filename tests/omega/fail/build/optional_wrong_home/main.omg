@@ -1,5 +1,5 @@
 // Expected rejection: zero storage cannot establish the payload-bearing Some case.
-use omega::language::core::option;
+use omega::language::core::Optional;
 data Envelope { before: u64; some: Optional<u64>; none: Optional<u64>; after: u64; }
 machine default_is_none()
 ensures zero_value<Optional<u64>>() in Optional::Some

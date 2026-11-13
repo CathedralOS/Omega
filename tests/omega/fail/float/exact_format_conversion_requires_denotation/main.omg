@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 machine lossy(value: f64) -> f32 requires value == 0.1f64 { value as f32 }
 machine lossy_literal() -> f32 { 0.1f64 as f32 }

@@ -12,7 +12,7 @@
 // those very cells and reads them back. A second round that skipped the
 // establishment would observe the first round's writes instead of zero.
 // Exit 70 on success; 71-76 name the failed observation.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Mark [copy] {
     start: u64;

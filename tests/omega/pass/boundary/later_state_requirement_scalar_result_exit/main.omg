@@ -8,9 +8,10 @@
 // returned 0 after at least 20,000,000 nanoseconds, 71 when it returned
 // early, and 72 on a nonzero result or a clock that went backwards.
 // Expected exit: 70.
-use omega_language_std::console;
-use omega_language_std::clock;
-use omega::language::core::numeric_conversion;
+use omega_language_std::Console;
+use omega_language_std::Clock;
+use omega::language::core::narrow_u32_to_i32_wrapping;
+use omega::language::core::narrow_i64_to_u64_saturating;
 
 data TimedWait { }
 

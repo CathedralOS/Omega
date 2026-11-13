@@ -1,6 +1,5 @@
 // Compile only: privileged interrupt control is never executed on the host.
 // Both directions must survive helper calls and ordinary state transitions.
-use omega::language::core::assembly;
 
 machine disable() reaches MachineControl { asm { cli } }
 machine enable() reaches MachineControl { asm { sti } }

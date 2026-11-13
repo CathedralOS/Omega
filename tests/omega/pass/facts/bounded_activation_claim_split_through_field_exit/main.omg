@@ -4,7 +4,16 @@
 // and committed 4 covers that claim with two nonempty children. Merging those
 // children restores the same claim; the byte written before the split is still
 // at the same index because the backing does not move.
-use omega::language::core::activation;
+use omega::language::core::Activation;
+use omega::language::core::ActivationClaim;
+use omega::language::core::ActivationClaimAttempt;
+use omega::language::core::Activation::try_claim;
+use omega::language::core::ActivationClaim::bytes;
+use omega::language::core::ActivationClaim::release;
+use omega::language::core::ActivationClaimSplit;
+use omega::language::core::ActivationClaim::split;
+use omega::language::core::ActivationClaimMerge;
+use omega::language::core::ActivationClaim::merge;
 
 data Holder { claim: ActivationClaim; }
 

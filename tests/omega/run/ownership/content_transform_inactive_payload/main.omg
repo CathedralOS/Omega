@@ -1,7 +1,8 @@
 // Expected exit: 0
 // Proving the payload absent discharges its conditional custody, including
 // obligations inside a closed generic field. Missing tag evidence cannot.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 use omega::language::core::drop;
 data Units {}
 data Ticket dropped by drop_ticket { value: u64; }

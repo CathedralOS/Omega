@@ -1,7 +1,7 @@
 // A body of a non-selected target is checked on every host: a type error in
 // a `demo_target` body rejects the compile even though `demo_target` resolves
 // to no real target and nothing portable calls the body.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Helper { seed: i32; }
 

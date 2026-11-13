@@ -1,6 +1,6 @@
 // Completed view-bearing record elements retain both image-backed byte loans.
 domain [u8]::Utf8 requires valid_utf8(self);
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Tag { label: &[u8] in Utf8; weight: i32; }
 data Envelope { elements: [Tag; 2]; }

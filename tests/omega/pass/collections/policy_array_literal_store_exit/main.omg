@@ -4,7 +4,7 @@
 // Wrapping`), and one runtime row of a nested Wrapping array. Each literal is
 // one primitive store per element; the policy qualifies arithmetic on the
 // stored values, never their storage. One element of each reads back: exit 52.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main
 requires
     i <= 1,

@@ -14,7 +14,7 @@
 // is pinned separately: admitting it would make the rule "a typed value
 // keeps its arithmetic policy" rather than "keeps its type", and would
 // silently reintroduce the widening the carrier rules exclude.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { small: u8; wide: u16; }
 machine Main::main(main: &mut Main) {
     main.small = 7;

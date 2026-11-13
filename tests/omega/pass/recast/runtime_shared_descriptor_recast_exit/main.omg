@@ -1,5 +1,5 @@
 // Expected exit: 0
-use omega_language_std::console;
+use omega_language_std::Console;
 machine inspect(pixels: &[i32]) -> bool
 requires pixels.len == 6
 {

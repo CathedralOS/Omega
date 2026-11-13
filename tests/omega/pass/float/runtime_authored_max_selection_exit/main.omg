@@ -1,8 +1,8 @@
-use omega::language::core::math;
+use omega::language::core::abs_f64;
 
-use omega_language_std::console;
-use omega::language::core::float_operations;
-use authored;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
+use omega::language::core::F64::from_i32;
 data Main {value:f64;}
 machine Main::main(main:&mut Main) reaches Console {
  let byte:ByteRead=block Console::read_byte();

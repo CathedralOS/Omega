@@ -1,6 +1,6 @@
 // Compile-only hardware-model proof. Never execute port I/O on the host.
-use omega::language::core::assembly;
-use omega::language::core::assembly_model;
+use omega::language::core::port_written;
+use omega::language::core::model_specific_written;
 proposition reported(port: u16, byte: u8) = port_written(port + 0, byte);
 proposition model_set(marker: u64) = model_specific_written(2059, 0);
 data Main { port: u16; byte: u8; }

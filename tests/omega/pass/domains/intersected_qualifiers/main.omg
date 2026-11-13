@@ -1,4 +1,6 @@
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Granted;
 // `Extent in Granted & Vacant` — intersected qualifiers carry the
 // dormant-content qualification into a `Vacant`-qualified field; the
 // construction is admitted. `held.e as Extent` strips the qualifier set

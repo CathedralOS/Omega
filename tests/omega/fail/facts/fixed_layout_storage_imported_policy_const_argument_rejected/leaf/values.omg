@@ -1,5 +1,10 @@
 module values;
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::FixedLayout;
 public domain u64::Delivered requires self >= 42u64 && self <= 42u64;
 public data Pair [copy] { lo: u64 in Delivered; hi: u64; }
 public PairLayout<const Marker: u64> satisfies FixedLayout<Pair> {

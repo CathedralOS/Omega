@@ -6,9 +6,14 @@
 // established, never one the restatement chose. The pass-side sibling
 // (`tests/omega/pass/memory/bump_allocator_canary`,
 // `exercise_resident_restated`) restates under the same instance.
-use omega::language::core::extent;
-use omega::language::core::content;
-use omega::language::core::nat;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Resident;
+use omega::language::core::Vacant::content;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Granted::content;
+use omega::language::core::IntervalSet;
+use omega::language::core::Nat;
 
 public data Split {
     taken: Extent in Granted & Vacant;

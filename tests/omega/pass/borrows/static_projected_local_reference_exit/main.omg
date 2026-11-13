@@ -1,5 +1,5 @@
 // Returned loans retain distinct projected backing within one local owner.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Node { value: i32; }
 data Holder { node: Node; }

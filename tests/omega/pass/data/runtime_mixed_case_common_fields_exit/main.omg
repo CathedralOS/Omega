@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70). A mixed-shape case literal establishes its common
 // fields beside the selected payload: a named common field keeps its value and
 // an unnamed one reads zero, whatever case is active.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Event {
     consumed: bool;

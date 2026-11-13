@@ -1,7 +1,7 @@
 // A completed u8 call result widened into an i32 case payload keeps the
 // call's 0..=255 range when the case constraint is checked at construction.
 // Expected exit: 0
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i32_to_u8_wrapping;
 
 data ByteRead
     requires (self in ByteRead::Eof) || ((self in ByteRead::Byte) && (self.value >= 0 && self.value <= 255))

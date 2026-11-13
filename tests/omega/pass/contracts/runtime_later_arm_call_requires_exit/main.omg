@@ -3,7 +3,7 @@
 // `index + 1` after `index >= 4 ->` is refuted, and `step`'s
 // `requires count < 10 && count >= 1` holds for `count` once `count == 0`
 // and `count >= 10` are refuted.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { values: [u32; 4]; }
 

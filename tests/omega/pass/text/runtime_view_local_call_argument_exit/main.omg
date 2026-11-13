@@ -1,6 +1,6 @@
 // A reassigned borrowed-view local lends its current descriptor to an
 // ordinary call: the callee observes the second view's extent, not the first.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

@@ -1,4 +1,6 @@
-use omega::language::core::layout;
+use omega::language::core::Access;
+use omega::language::core::Access::view_mut;
+use omega::language::core::read;
 use vendor::main;
 
 machine ignore<A, machine Step>(field: &A) -> u64

@@ -1,6 +1,10 @@
 // Duration projections use an explicit shared parameter and invocation-local data.
-use omega_language_std::time;
-use omega_language_std::console;
+use omega_language_std::Duration;
+use omega_language_std::Duration::as_seconds;
+use omega_language_std::Duration::subsecond_milliseconds;
+use omega_language_std::Duration::subsecond_microseconds;
+use omega_language_std::Duration::is_zero;
+use omega_language_std::Console;
 
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {

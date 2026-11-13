@@ -2,9 +2,8 @@
 // Argument construction runs, but no following effect runs after the canonical
 // domain-ending invocation. A nominally owned temporary supplies its status.
 use omega::language::core::drop;
-use omega::language::core::process_exit;
-use omega_language_std::process_exit;
-use omega_language_std::console;
+use omega::language::core::ProcessExit;
+use omega_language_std::Console;
 data Note dropped by drop_note { status: i32; }
 machine drop_note(note: &mut Note) {
     note.status = 99;

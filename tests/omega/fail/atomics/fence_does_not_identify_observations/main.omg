@@ -1,4 +1,6 @@
-use omega::language::core::atomic;
+use omega::language::core::Atomic;
+use omega::language::core::FenceOrdering;
+use omega::language::core::Atomic::fence;
 data Cell { value: AtomicU32; }
 machine same(before: u32 in Wrapping, after: u32 in Wrapping)
 requires before == after {}

@@ -1,6 +1,12 @@
 // Expected rejection: arithmetic cannot prove that Value + 1 fits u64.
-use omega::language::core::layout;
-use omega::language::core::numeric_conversion;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
+use omega::language::core::widen_u8_to_u64;
 data Payload [copy] { first: u64; value: u64; }
 Policy<const Marker: u64> satisfies FixedLayout<Payload> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {

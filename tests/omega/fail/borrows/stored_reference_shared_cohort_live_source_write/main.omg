@@ -1,5 +1,5 @@
 // Shared leaves retire separately; backing mutation waits for the complete cohort.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell requires value >= 0 && value <= 100 { value: i32; ready: bool; }
 data Message { first: &Cell; prefix: i32; second: &Cell; stamp: i32; }

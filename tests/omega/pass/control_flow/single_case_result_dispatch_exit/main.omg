@@ -4,7 +4,7 @@
 // parameter, and an immutable local whose arm renames its payload reads. The
 // helper builds the sum on two runtime paths, so no dispatch folds away.
 // Exits 70 when left = 9 + 1 + 101 = 111 and right = 1 + 2 = 3 arrive.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Pair {
     case Both(left: u64 in Wrapping, right: i32 in Wrapping);

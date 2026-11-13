@@ -1,4 +1,7 @@
-use omega::language::core::math;
+use omega::language::core::min_i32;
+use omega::language::core::max_i32;
+use omega::language::core::clamp_i32;
+use omega::language::core::abs_i32;
 
 data Counter requires value >= -1 && value <= 1 {
     calls: u32 in Wrapping;

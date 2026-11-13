@@ -4,7 +4,7 @@
 // arrival certificates that make `acc + remaining` provably in range — so
 // the exact-arithmetic obligation (decision 17) rejects the contract and the
 // backedge argument before any guarantee transport is attempted.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

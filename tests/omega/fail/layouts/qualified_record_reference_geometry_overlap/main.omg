@@ -1,6 +1,12 @@
 // Expected exit: 0
 // Domain qualification preserves record geometry, directly and through arrays.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 
 data Word { value: u64; }
 domain Word::Tagged;

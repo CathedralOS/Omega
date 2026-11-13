@@ -2,7 +2,7 @@
 // A callee's shared parameter receives a shared presentation of a checked
 // mutable source loan. Exercise boundary and ordinary calls through fields,
 // parameters and local backing, then write again after every call completes.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait Observe { machine read(bytes: &[u8]) -> u8 reaches; }
 data Observer { }

@@ -1,6 +1,6 @@
 // Expected exit: 0
 // A bodyless nominal domain retains its exact issuer without a numeric predicate.
-use omega_language_std::console;
+use omega_language_std::Console;
 domain u64::IssuedIndex established by issue;
 machine issue(value: u64) -> u64 in IssuedIndex { value }
 machine replace(row: &mut u64 in IssuedIndex) {

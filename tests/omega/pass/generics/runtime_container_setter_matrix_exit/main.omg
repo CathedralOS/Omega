@@ -2,7 +2,7 @@
 // preserving an independent Wrapping counter field. Two setter calls verify
 // state across calls; the getter alone needs a copy bound on the element.
 // Invocation-local cells cross states through explicit shared borrows.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Cell<T> {
     value: T;
     touched: i32 in Wrapping;

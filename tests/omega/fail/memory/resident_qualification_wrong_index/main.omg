@@ -1,6 +1,8 @@
 // A checked nested qualification cannot replace the exact resident placement
 // instance with another instance at the next completed operand occurrence.
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Resident;
+use omega::language::core::Extent::Granted;
 data Native {}
 data Network {}
 data Payload [copy] { value: u64; }

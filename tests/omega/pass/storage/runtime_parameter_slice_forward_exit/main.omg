@@ -1,6 +1,6 @@
 // A caller-backed mutable view keeps one referent across two state transfers.
 // The caller observes both writes and untouched sibling fields after return.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Counter { n: i32 in Wrapping; tag: i32; }
 data Room { exits: [Counter; 2]; }

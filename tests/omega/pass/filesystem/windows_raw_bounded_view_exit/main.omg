@@ -1,8 +1,11 @@
 // Expected Windows exit: 70. A two-byte read into an offset five-byte view
 // writes only that prefix. Zero/oversized requests preserve the shared cursor.
-use omega_language_std::windows_filesystem_host;
-use omega_language_std::console;
-use omega::language::core::filesystem_authority;
+use omega_language_std::WindowsFilesystemHost;
+use omega_language_std::Console;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 
 data Main { buffer: [u8; 8]; handle: u64; }
 machine Main::main(main: &mut Main)

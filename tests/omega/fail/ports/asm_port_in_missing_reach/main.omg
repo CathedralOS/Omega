@@ -1,7 +1,6 @@
 // A port read must be declared where it is emitted: this is the
 // asm_port_in_immediate program with an explicitly empty reach ceiling on the
 // machine that performs `in`, so checking must refuse it.
-use omega::language::core::assembly;
 
 data Main {
     byte: u8;

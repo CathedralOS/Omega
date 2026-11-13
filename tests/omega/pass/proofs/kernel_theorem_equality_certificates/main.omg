@@ -12,7 +12,7 @@
 // identities as proof metadata; `omega-rust/.../proof_kernel_canaries.rs`
 // interprets, natively runs, and cross-compiles this fixture to exit 70.
 // False twin: fail/proofs/kernel_theorem_equality_false_twin.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 machine equal_symmetric(a: u64, b: u64)

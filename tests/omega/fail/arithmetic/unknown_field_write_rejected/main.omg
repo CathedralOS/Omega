@@ -5,7 +5,7 @@
 // targets against the machine's top-level data fields; nested / local / versioned
 // targets are left to the writable-roots and version-access diagnostics.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     count: i32 in Wrapping;

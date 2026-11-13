@@ -1,8 +1,6 @@
 // In the which == 0 arm, [0..which + 2] has length 2; hold preserves that
 // extent in its returned Held.values, through which write_pair writes the backing.
 // Expected exit: 0
-use omega::language::core::float_operations;
-use omega::language::core::numeric_conversion;
 
 data Held<'samples> { values: &'samples mut [f64]; }
 machine select_window<'samples>(samples: &'samples mut [f64; 4], which: i64) -> &'samples mut [f64]

@@ -1,6 +1,7 @@
 // Unqualified geometry owns no grant, but its linear custody still cannot vanish.
-use omega::language::core::content;
-use omega::language::core::extent;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
+use omega::language::core::Extent;
 data Units {}
 data Envelope [linear] {
     quantity: u64;

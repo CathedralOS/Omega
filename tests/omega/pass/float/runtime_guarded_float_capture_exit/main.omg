@@ -1,6 +1,5 @@
 // A saved conjunction and captured array selector retain the same value.
 // The true upper comparison excludes NaN even after the negated lower bound.
-use omega::language::core::float_operations;
 
 machine select(values: &[f64; 2], index: u64) -> f64
 requires

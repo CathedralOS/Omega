@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // RUN CANARY (exit 77, differential) -- F2d per-operation binary32 rounding.
 // At 2^24, adding 1.0f32 rounds back to 2^24. Rounding EACH addition therefore
@@ -9,7 +8,7 @@ use omega::language::core::float_operations;
 // f32 format metadata through static-local substitution and nested native value
 // operands. The third uses a field-backed chain, pinning the interpreter's
 // expression-width propagation and per-op rounding against native runtime f32.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     value: f32;

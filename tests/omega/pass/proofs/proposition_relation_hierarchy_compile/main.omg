@@ -4,7 +4,10 @@
 // proposition, so every realizer proves its law from exactly the premises its
 // requirement grants; a realizer may not add premises the requirement does
 // not imply.
-use omega::language::core::relation;
+use omega::language::core::Reflexive;
+use omega::language::core::Symmetric;
+use omega::language::core::Transitive;
+use omega::language::core::Antisymmetric;
 
 data Carrier {
 }

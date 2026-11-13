@@ -4,7 +4,7 @@
 // so the call demands a body the target does not have and rejects, naming the
 // provider as the caller. `pass/targets/unreached_foreign_body_caller_exit`
 // keeps the same provider shape unselected.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Helper { seed: i32; }
 

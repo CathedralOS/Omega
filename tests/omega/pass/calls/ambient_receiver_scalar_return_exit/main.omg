@@ -8,7 +8,7 @@
 // Mirrors Squalr's `main.reader.read_bytes(&main.info, 0, &mut main.buf)`
 // field-receiver scalar calls carrying byte-view arguments.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Probe {
     base: u64;

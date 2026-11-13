@@ -1,7 +1,6 @@
-use omega::language::core::math;
+use omega::language::core::abs_f64;
 
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 data Storage { weights: [f64; 4]; }
 data Main { storage: Storage; }
 machine amplitude(storage: &Storage) -> f64 {

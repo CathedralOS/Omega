@@ -4,7 +4,7 @@
 // ISA byte mutation and native contention probes also cover 8/16-bit forms,
 // which do not yet have AtomicU8/AtomicU16 source types. Exit 70 proves all
 // six priors and both final residents, including bits above the 32-bit lane.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     cell32: AtomicU32;

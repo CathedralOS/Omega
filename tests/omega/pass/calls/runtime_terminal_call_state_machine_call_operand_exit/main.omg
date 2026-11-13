@@ -8,7 +8,7 @@
 // is now identified by its resolved entry state. The entry state and an
 // internal state each complete through such a call; exit 70 when both
 // nearest candidates are selected (6 and 8).
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine nearer(current: u64, candidate: u64, best: u64, positive: bool) -> u64 {
     transition positive { true -> forward(current, candidate, best) _ -> backward(current, candidate, best) }

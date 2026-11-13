@@ -1,7 +1,14 @@
 // A requirement call stores 200 into a signed eight-bit field through a
 // type-generic implementation. Its open template body has no concrete write
 // type to judge, so Psi refuses rather than accepting an unchecked store.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::IntegerInterpretation;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 
 
 SignedByte satisfies FixedLayout<PortableByte> {

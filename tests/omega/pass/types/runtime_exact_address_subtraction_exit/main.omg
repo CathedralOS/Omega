@@ -1,6 +1,6 @@
 // Exact address offsets and distances retain their carriers; address order is unsigned.
 // This uses static calls and receiver-free states. Exit 70 is the authored oracle.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {

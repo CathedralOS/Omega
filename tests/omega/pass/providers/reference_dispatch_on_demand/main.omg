@@ -1,7 +1,6 @@
 // Expected exit: 0.
 // A selected checked provider and implicit IEEE match use their exact execution
 // bindings in each engine; ordinary production needs no checked-oracle table.
-use omega::language::core::float_operations;
 
 boundary trait Reading { machine value() -> f64 reaches; }
 

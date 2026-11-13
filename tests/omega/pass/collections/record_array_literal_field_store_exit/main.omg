@@ -2,7 +2,7 @@
 // each record is established from its own scalar fields, then replaces its
 // element window, and each displaced old record dies on the statement's
 // continuation. Reads of three stored fields agree: exit 25.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Point {
     x: i32;
     y: i32;

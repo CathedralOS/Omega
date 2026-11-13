@@ -1,5 +1,5 @@
 // Aggregate construction cannot create two live exclusive loans of one field.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell requires value >= 0 && value <= 100 { stamp: i32; value: i32; ready: bool; }
 data Main requires index <= 1 {

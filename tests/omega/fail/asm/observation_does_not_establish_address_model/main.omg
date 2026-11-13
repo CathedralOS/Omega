@@ -1,5 +1,4 @@
 // A register observation supplies no relationship between addr and u64.
-use omega::language::core::assembly;
 data Geometry { base: addr; }
 data Mapping { tables: Geometry; }
 data Profile { control: u64; }

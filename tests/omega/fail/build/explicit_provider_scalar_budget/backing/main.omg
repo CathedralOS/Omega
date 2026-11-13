@@ -1,4 +1,4 @@
-use omega::language::core::program_image;
+use omega::language::core::ProgramImage;
 
 data Pair { left: u64; right: u64; }
 machine identity(value: u64) -> u64 { value }

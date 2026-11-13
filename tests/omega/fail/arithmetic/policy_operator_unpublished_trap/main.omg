@@ -3,7 +3,7 @@
 // in a public machine, without the guard that rules the overflow out. A `!`
 // operation is its own Trap site, so a public machine that publishes no
 // `crashes Trap` route rejects.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 public machine guarded_sum(left: u64, right: u64) -> u64 {

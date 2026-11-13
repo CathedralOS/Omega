@@ -15,7 +15,7 @@
 // the counter's own monotonicity rather than an authored lower bound.
 //
 // "HELLO" shifted by 3 is "KHOOR"; the exit code is `out[0]`, 'K' = 75.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain [u8; 5]::Utf8
 requires

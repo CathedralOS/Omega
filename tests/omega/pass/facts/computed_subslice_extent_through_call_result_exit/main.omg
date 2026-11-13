@@ -1,6 +1,5 @@
 // Given can_window(items, low) == true, the captured view items[low + 0 .. low + 2] has extent 2, and reading offset 1 observes original backing items[low + 1].
 // Expected exit: 0
-use omega::language::core::slice;
 machine can_window(items: &[u8], low: u64) -> bool { items.len == 4 && low <= 2 }
 machine window<'a>(items: &'a [u8], low: u64) -> &'a [u8]
 requires can_window(items, low) == true
