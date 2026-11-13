@@ -1572,7 +1572,8 @@ fn affine_residual_replay_rejects_a_wrong_subtree_type() {
     assert!(
         matches!(
             terminal_semantics::plain_affine::verify(&array.machines[0], &array.structural_types),
-            Err(terminal_semantics::plain_affine::Error::Malformed(_))
+            Err(terminal_semantics::plain_affine::Error::Malformed(detail))
+                if detail.contains("exceeds its output")
         ),
         "a short supplied roster must bound reconstruction before array enumeration"
     );
@@ -1634,6 +1635,73 @@ fn affine_cleanup_does_not_allocate_up_to_an_untrusted_edge_identity() {
         .is_ok()
     );
     assert!(judge(Ok(elaboration)).is_err());
+}
+
+#[test]
+fn affine_terminal_boundaries_transfer_custody_once() {
+    let mut exiting = elaborate_over(
+        vec![Shaped {
+            parameters: vec![point()],
+            locals: Vec::new(),
+            result: u32_type().into(),
+            requires: Vec::new(),
+            statements: vec![returns(unsigned(0))],
+        }],
+        &affine_records(),
+    );
+    let argument =
+        terminal_psi::StructuralArgument::whole(id(1), terminal_psi::StructuralAccess::Owned);
+    exiting.module.machines[0].blocks[0].terminator = terminal_psi::Terminator::InvokeNoNormal {
+        edge: id(1),
+        static_reach_binding: None,
+        callee: id(1),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: vec![argument.clone(), argument],
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let plan = terminal_semantics::plain_affine::plan(
+        &exiting.module.machines[0],
+        &exiting.module.structural_types,
+    )
+    .unwrap();
+    assert_eq!(
+        plan.unavailable.len(),
+        1,
+        "a no-normal consumer cannot receive the same affine value twice"
+    );
+
+    let mut borrowed = elaborate_over(
+        vec![Shaped {
+            parameters: vec![point()],
+            locals: Vec::new(),
+            result: point(),
+            requires: Vec::new(),
+            statements: vec![returns(place(0, point()))],
+        }],
+        &affine_records(),
+    );
+    let machine = &mut borrowed.module.machines[0];
+    machine.structural_parameters[0].access = terminal_psi::StructuralAccess::SharedBorrow;
+    machine.structural_parameters[0].multiplicity =
+        terminal_psi::StructuralMultiplicity::Unrestricted;
+    machine.structural_places.truncate(2);
+    machine.blocks.truncate(1);
+    machine.blocks[0].operations.clear();
+    machine.blocks[0].terminator = terminal_psi::Terminator::ReturnStructural {
+        edge: id(1),
+        source: id(1),
+        returned_claims: Vec::new(),
+        cleanup_actions: Vec::new(),
+    };
+    assert!(
+        matches!(terminal_semantics::plain_affine::plan(machine, &borrowed.module.structural_types),
+        Err(terminal_semantics::plain_affine::Error::Unsupported(detail)) if detail.contains("borrowed storage")),
+        "a borrowed affine referent cannot escape as an owned result"
+    );
 }
 
 fn elaborate_over(

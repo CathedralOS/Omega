@@ -143,7 +143,13 @@ struct Root {
     parameter: bool,
 }
 
-type State = Vec<Option<Region>>;
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct State {
+    regions: Vec<Option<Region>>,
+    // Establishment order of the currently allocated owned homes. Normal-edge
+    // disposal walks this frontier, not every root ever produced by the body.
+    active: Vec<PlaceId>,
+}
 
 struct Analysis<'a> {
     types: &'a [StructuralTypeDeclaration],
@@ -492,7 +498,7 @@ fn analyze(
         }
     }
     let live = live_entries(machine)?;
-    let initial: State = roots
+    let regions = roots
         .iter()
         .map(|root| {
             root.as_ref()
@@ -500,6 +506,18 @@ fn analyze(
                 .map(|_| Region::new(true))
         })
         .collect();
+    let active = roots
+        .iter()
+        .enumerate()
+        .filter(|(_, root)| {
+            root.as_ref()
+                .is_some_and(|root| root.parameter && root.owned)
+        })
+        .map(|(slot, _)| {
+            PlaceId::new(slot as u64 + 1).ok_or(Error::Malformed("place identity overflow"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let initial = State { regions, active };
     let mut entering: Vec<Option<State>> = vec![None; machine.blocks.len()];
     // Keep an entry snapshot only while another predecessor may still need
     // comparison. Straight-line continuations move their frontier rather than
@@ -567,13 +585,24 @@ fn analyze(
                 )?;
             }
             Terminator::ReturnStructural { source, .. } => {
-                analysis.read(&state, *source, &[], site)?;
+                analysis.argument(
+                    &mut state,
+                    &StructuralArgument::whole(*source, StructuralAccess::Owned),
+                    site,
+                    true,
+                )?;
             }
             Terminator::Jump {
                 structural_arguments,
                 ..
+            } => {
+                for argument in structural_arguments {
+                    if analysis.root(argument.place)?.is_some() {
+                        return Err(Error::Unsupported("affine block successor arguments"));
+                    }
+                }
             }
-            | Terminator::InvokeNoNormal {
+            Terminator::InvokeNoNormal {
                 structural_arguments,
                 ..
             }
@@ -582,7 +611,7 @@ fn analyze(
                 ..
             } => {
                 for argument in structural_arguments {
-                    analysis.argument(&mut state, argument, site, false)?;
+                    analysis.argument(&mut state, argument, site, true)?;
                 }
             }
             Terminator::Conditional {
@@ -592,7 +621,9 @@ fn analyze(
             } => {
                 for edge in [when_true, when_false] {
                     for argument in &edge.structural_arguments {
-                        analysis.argument(&mut state, argument, Site::Edge(edge.edge), false)?;
+                        if analysis.root(argument.place)?.is_some() {
+                            return Err(Error::Unsupported("affine block successor arguments"));
+                        }
                     }
                 }
             }
@@ -611,15 +642,20 @@ fn analyze(
         }
         if let Terminator::ReturnStructural { source, .. } = &block.terminator {
             if analysis.root(*source)?.is_some() {
-                state[index(source.get())?] = None;
+                state.regions[index(source.get())?] = None;
             }
         }
         // Edge IDs are machine-wide and untrusted here. Index only the
         // actual local successors, never allocate up to a serialized raw ID.
         let mut targets = block.terminator.successor_edges();
         targets.sort_by_key(|(edge, _)| *edge);
-        for (edge, _) in block.terminator.cleanup_rosters() {
-            let mut outgoing = state.clone();
+        let rosters = block.terminator.cleanup_rosters().collect::<Vec<_>>();
+        for (ordinal, (edge, _)) in rosters.iter().copied().enumerate() {
+            let mut outgoing = if ordinal + 1 == rosters.len() {
+                std::mem::take(&mut state)
+            } else {
+                state.clone()
+            };
             let target = targets
                 .binary_search_by_key(&edge, |(edge, _)| *edge)
                 .ok()
@@ -628,20 +664,20 @@ fn analyze(
                 .map(|target| index(target.get()).map(|index| &live[index]))
                 .transpose()?;
             let mut actions = Vec::new();
-            for raw in (0..outgoing.len()).rev() {
-                let Some(info) = &analysis.roots[raw] else {
-                    continue;
-                };
-                let place = PlaceId::new(raw as u64 + 1)
-                    .ok_or(Error::Malformed("place identity overflow"))?;
-                if !info.owned || needed.is_some_and(|needed| needed.contains(place)) {
-                    continue;
-                }
-                if let Some(region) = &outgoing[raw] {
-                    actions.extend(analysis.dispose(place, region)?);
-                    outgoing[raw] = None;
+            let mut retained = Vec::new();
+            for place in std::mem::take(&mut outgoing.active).into_iter().rev() {
+                let raw = index(place.get())?;
+                if let Some(region) = &outgoing.regions[raw] {
+                    if needed.is_some_and(|needed| needed.contains(place)) {
+                        retained.push(place);
+                    } else {
+                        actions.extend(analysis.dispose(place, region)?);
+                        outgoing.regions[raw] = None;
+                    }
                 }
             }
+            retained.reverse();
+            outgoing.active = retained;
             if !actions.is_empty() {
                 cleanup.push((edge, actions));
             }
@@ -747,9 +783,9 @@ impl Analysis<'_> {
                 if self.root(*destination)?.is_some() {
                     let mut path = self.canonical(*destination, path)?;
                     path.push(Segment::Field(*field));
-                    if state[index(destination.get())?].is_none() {
+                    if state.regions[index(destination.get())?].is_none() {
                         self.read(state, *destination, &path, site)?;
-                    } else if !state[index(destination.get())?]
+                    } else if !state.regions[index(destination.get())?]
                         .as_ref()
                         .is_some_and(|region| region.available(&path))
                     {
@@ -789,9 +825,9 @@ impl Analysis<'_> {
                     if let Some(field) = field {
                         path.push(Segment::Field(*field));
                     }
-                    if state[index(destination.get())?].is_none() {
+                    if state.regions[index(destination.get())?].is_none() {
                         self.read(state, *destination, &path, site)?;
-                    } else if let Some(region) = &mut state[index(destination.get())?] {
+                    } else if let Some(region) = &mut state.regions[index(destination.get())?] {
                         match disposition {
                             terminal_psi::StructuralStoreDisposition::Vacant
                                 if !region.vacant(&path) =>
@@ -827,7 +863,12 @@ impl Analysis<'_> {
         if let Some(result) = operation.result.as_structural()
             && self.root(result.place)?.is_some()
         {
-            state[index(result.place.get())?] = Some(Region::new(!matches!(
+            if self.root(result.place)?.is_some_and(|root| root.owned)
+                && state.regions[index(result.place.get())?].is_none()
+            {
+                state.active.push(result.place);
+            }
+            state.regions[index(result.place.get())?] = Some(Region::new(!matches!(
                 operation.kind,
                 Op::EstablishStructuralLocal {}
             )));
@@ -928,6 +969,7 @@ impl Analysis<'_> {
             return Ok(());
         }
         if !state
+            .regions
             .get(index(place.get())?)
             .and_then(Option::as_ref)
             .is_some_and(|region| region.available(path))
@@ -958,7 +1000,7 @@ impl Analysis<'_> {
             if !owned {
                 return Err(Error::Unsupported("owned extraction from borrowed storage"));
             }
-            if let Some(region) = &mut state[index(argument.place.get())?] {
+            if let Some(region) = &mut state.regions[index(argument.place.get())?] {
                 region.set(&path, false);
             }
         }

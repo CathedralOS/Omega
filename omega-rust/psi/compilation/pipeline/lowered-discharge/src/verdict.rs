@@ -471,7 +471,8 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
                 machine: machine.id,
                 at,
                 site: Some(source_of(sources, machine.id, at)?),
-                detail: "owned storage is used after its value was transferred or ended".to_owned(),
+                detail: "owned storage is used after its value was transferred or consumed"
+                    .to_owned(),
                 declared: None,
             });
         }

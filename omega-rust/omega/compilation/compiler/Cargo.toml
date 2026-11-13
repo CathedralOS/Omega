@@ -209,3 +209,9 @@ path = "tests/executed_fixture_discovery.rs"
 [[test]]
 name = "filesystem_receiver"
 path = "tests/filesystem_receiver.rs"
+
+# Plain affine transfers, local homes and cleanup govern real source and the
+# accepted module executes after publication rather than relying on fallback.
+[[test]]
+name = "lowered_route_ownership"
+path = "tests/lowered_route_ownership.rs"
