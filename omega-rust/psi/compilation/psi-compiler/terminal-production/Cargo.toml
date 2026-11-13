@@ -11,8 +11,6 @@ compiler-storage = { path = "../../../foundation/compiler-storage" }
 language-semantics = { path = "../../../foundation/language-semantics" }
 typed-trees = { path = "../../representations/typed-trees" }
 checked-trees = { path = "../../representations/checked-trees" }
-lowered-psi-to-lowered-psi = { path = "../../pipeline/07_lowered-psi-to-lowered-psi" }
-lowered-psi-to-terminal-psi = { path = "../../pipeline/08_lowered-psi-to-terminal-psi" }
 optimization = { path = "../../../foundation/optimization" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }

@@ -63,9 +63,6 @@
 4 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection_authored.rs
 1 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs
 1 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_top_level.rs
-29 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/control_flow_and_retention.rs
-1 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/lib.rs
-19 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/scalar_and_value_passes.rs
 5 omega-rust/psi/compilation/proof/admission/src/bounded_denotation.rs
 2 omega-rust/psi/compilation/proof/admission/src/integer_rules.rs
 1 omega-rust/psi/compilation/proof/admission/src/lib.rs

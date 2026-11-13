@@ -157,9 +157,8 @@ impl AcceptedClosure {
     /// Publishes the module the route checked, with no Psi optimization: the
     /// artifact's execution record names the identity stage, so the module
     /// the kernel judged is byte for byte the module that is encoded, and the
-    /// seals, bound to its identity, still name it. This is the same
-    /// publication Psi 08 performs (`finalize_terminal_program`), from the
-    /// route's module instead of Psi 06's.
+    /// seals, bound to its identity, still name it. Canonical artifact admission
+    /// belongs to the codec; no intermediate source-side carrier is published.
     pub fn publish(&self) -> Result<RoutePublication, PublicationError> {
         self.validate_publication()?;
         let module = self.elaboration.module.clone();
