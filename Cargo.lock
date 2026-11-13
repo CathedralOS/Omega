@@ -2463,7 +2463,6 @@ dependencies = [
  "arena",
  "compiler-storage",
  "diagnostics",
- "facts",
  "language-core",
  "language-semantics",
  "numerics",
@@ -2472,7 +2471,6 @@ dependencies = [
  "symbols",
  "syntax-trees-to-symbol-resolved-trees",
  "typed-trees",
- "validation",
 ]
 
 [[package]]
