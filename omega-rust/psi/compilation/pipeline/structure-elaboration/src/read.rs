@@ -516,14 +516,28 @@ mod tests {
         let remainder = binary(&mut typed, seven, BinaryOperator::Modulo, two);
         let mut program = Program::new(&typed, false);
         let read = |program: &mut Program<'_>, handle| {
-            program.expression(machine(), &[], handle, Some(ValueType::Scalar(i32_type)))
+            program.expression(
+                machine(),
+                &[],
+                handle,
+                Some(ValueType::Scalar(
+                    i32_type,
+                    crate::body::Qualification::NONE,
+                )),
+            )
         };
         let landed = read(&mut program, exact).unwrap();
         assert!(matches!(
             landed.kind,
             ExpressionKind::Integer(IntegerValue::Signed(value)) if value == i128::from(i32::MAX)
         ));
-        assert_eq!(landed.result, Some(ValueType::Scalar(i32_type)));
+        assert_eq!(
+            landed.result,
+            Some(ValueType::Scalar(
+                i32_type,
+                crate::body::Qualification::NONE
+            ))
+        );
         for (handle, expected) in [
             (half, "expression fractional anonymous value"),
             (
@@ -662,7 +676,7 @@ mod tests {
         let value = ValueId::new(1).unwrap();
         let slot = |assignable| Slot {
             symbol: formal,
-            value_type: ValueType::Scalar(u32_type),
+            value_type: ValueType::Scalar(u32_type, crate::body::Qualification::NONE),
             assignable,
             homed: false,
             erased: false,
@@ -852,7 +866,10 @@ mod tests {
         let value = typed.expression_table.insert(ExpressionNode::Boolean(true));
         let slots = [Slot {
             symbol: local,
-            value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
+            value_type: ValueType::Record(
+                StructuralTypeId::new(1).unwrap(),
+                crate::body::Qualification::NONE,
+            ),
             assignable: true,
             homed: false,
             erased: false,
@@ -874,7 +891,10 @@ mod tests {
         // A binding that is not `mut` is neither replaced nor stored into.
         let frozen = [Slot {
             symbol: local,
-            value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
+            value_type: ValueType::Record(
+                StructuralTypeId::new(1).unwrap(),
+                crate::body::Qualification::NONE,
+            ),
             assignable: false,
             homed: false,
             erased: false,
@@ -1046,7 +1066,10 @@ mod tests {
         ]);
         let slots = [Slot {
             symbol: local,
-            value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
+            value_type: ValueType::Record(
+                StructuralTypeId::new(1).unwrap(),
+                crate::body::Qualification::NONE,
+            ),
             assignable: false,
             homed: false,
             erased: false,
@@ -1280,7 +1303,7 @@ mod tests {
         let u8_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
         let slot = |symbol| Slot {
             symbol,
-            value_type: ValueType::Scalar(u8_type),
+            value_type: ValueType::Scalar(u8_type, crate::body::Qualification::NONE),
             assignable: false,
             homed: false,
             erased: false,

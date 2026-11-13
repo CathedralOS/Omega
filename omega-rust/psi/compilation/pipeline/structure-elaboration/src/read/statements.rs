@@ -194,11 +194,11 @@ impl Program<'_> {
                 ValueType::Rigid(_) => return unserved("local of a rigid type"),
                 // Its home would be declared with the identity of a
                 // primitive type the lowered form has no row for.
-                ValueType::Qualified(..) => {
-                    return unserved("uninitialized local of a policy-qualified type");
+                ValueType::Scalar(_, qualification) if !qualification.is_none() => {
+                    return unserved("uninitialized local of a qualified type");
                 }
-                ValueType::Record(_) => None,
-                ValueType::Scalar(_) => Some(
+                ValueType::Record(_, _) => None,
+                ValueType::Scalar(..) => Some(
                     self.typed
                         .normalized_type_identity_text(local.type_reference),
                 )

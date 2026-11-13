@@ -67,7 +67,7 @@ fn nowhere() -> SourceOrigin {
 fn expression(kind: ExpressionKind, result: Option<ScalarType>) -> Expression {
     Expression {
         kind,
-        result: result.map(ValueType::Scalar),
+        result: result.map(ValueType::plain),
         source: nowhere(),
     }
 }
@@ -170,7 +170,7 @@ fn lower(machines: Vec<Machine>) -> Checked<structure_elaboration::Elaboration> 
     for machine in machines {
         let parameters: Vec<ValueType> = machine.parameters.into_iter().map(Into::into).collect();
         let mut slots = parameters.clone();
-        slots.extend(machine.locals.into_iter().map(ValueType::Scalar));
+        slots.extend(machine.locals.into_iter().map(ValueType::plain));
         bodies.push(Body {
             slots,
             statements: machine.statements,
@@ -1277,11 +1277,11 @@ use terminal_check_tables::{ExactPlaceId, MachineTables};
 use terminal_psi::{Operation, OperationKind, OperationResult};
 
 fn point() -> ValueType {
-    ValueType::Record(id(1))
+    ValueType::record(id(1))
 }
 
 fn line() -> ValueType {
-    ValueType::Record(id(2))
+    ValueType::record(id(2))
 }
 
 fn records() -> IdTable<StructuralTypeId, RecordType> {
@@ -1295,8 +1295,8 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         copyable: true,
         identity: String::from("Point"),
         shape: structure_elaboration::StorageShape::Record(vec![
-            field(1, "x", ValueType::Scalar(u32_type())),
-            field(2, "y", ValueType::Scalar(u32_type())),
+            field(1, "x", ValueType::plain(u32_type())),
+            field(2, "y", ValueType::plain(u32_type())),
         ]),
         requires: Vec::new(),
     });
@@ -2964,11 +2964,11 @@ fn every_use_of_storage_has_exactly_one_verdict() {
         shape: structure_elaboration::StorageShape::Record(vec![RecordField {
             id: id(5),
             identity: String::from("v"),
-            value_type: ValueType::Scalar(u32_type()),
+            value_type: ValueType::plain(u32_type()),
         }]),
         requires: vec![Proposition::LessOrEqual(number(1), field_of_self(5))],
     });
-    let gated = ValueType::Record(id(3));
+    let gated = ValueType::record(id(3));
     let taker = Shaped {
         parameters: vec![point()],
         locals: Vec::new(),
@@ -3089,11 +3089,11 @@ const BOXED: usize = 2;
 const EMPTY: usize = 3;
 
 fn shape() -> ValueType {
-    ValueType::Record(id(2))
+    ValueType::record(id(2))
 }
 
 fn holder() -> ValueType {
-    ValueType::Record(id(3))
+    ValueType::record(id(3))
 }
 
 fn sums() -> IdTable<StructuralTypeId, RecordType> {
@@ -3107,7 +3107,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         identity: spelled.to_owned(),
         fields,
     };
-    let scalar = ValueType::Scalar(u32_type());
+    let scalar = ValueType::plain(u32_type());
     let mut records = IdTable::default();
     records.push(RecordType {
         copyable: true,
@@ -3713,7 +3713,7 @@ const GATED: u64 = 5;
 const PAIRED: u64 = 6;
 
 fn data(raw: u64) -> ValueType {
-    ValueType::Record(id(raw))
+    ValueType::record(id(raw))
 }
 
 /// The `u32` field of `self` a data clause names by the field identities
@@ -3754,7 +3754,7 @@ fn self_is(case: u64) -> Proposition {
 /// - `Gated { v } requires 1 <= v`, which zero does not satisfy
 /// - `Paired { neighbor, value } requires value <= 255, 1 <= value`
 fn constrained() -> IdTable<StructuralTypeId, RecordType> {
-    let scalar = ValueType::Scalar(u32_type());
+    let scalar = ValueType::plain(u32_type());
     let field = |raw, spelled: &str, value_type| RecordField {
         id: id(raw),
         identity: spelled.to_owned(),
@@ -5280,7 +5280,7 @@ fn a_store_to_a_sibling_field_does_not_close_a_window_of_another_clause() {
 /// - `Half { a, b } requires 1 <= a`, type 8, gated
 /// - `Limits { a, b } requires a <= 5, 1 <= b`, type 9
 fn windowed() -> IdTable<StructuralTypeId, RecordType> {
-    let scalar = ValueType::Scalar(u32_type());
+    let scalar = ValueType::plain(u32_type());
     let field = |raw, spelled: &str| RecordField {
         id: id(raw),
         identity: spelled.to_owned(),

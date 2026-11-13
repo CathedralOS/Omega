@@ -168,8 +168,8 @@ fn whole_owned_transfers_consume_their_homes_once() {
         T::new(raw).unwrap()
     }
     let source = SourceOrigin::Unpositioned(Unpositioned::SpanAbsent);
-    let record = ValueType::Record(id(1));
-    let scalar = ValueType::Scalar(ScalarType::Integer(
+    let record = ValueType::record(id(1));
+    let scalar = ValueType::plain(ScalarType::Integer(
         IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
     ));
     let expression = |kind, result| Expression {
@@ -365,13 +365,13 @@ mod transferred_on_one_path {
     const SOURCE: SourceOrigin = SourceOrigin::Unpositioned(Unpositioned::SpanAbsent);
 
     fn number() -> ValueType {
-        ValueType::Scalar(ScalarType::Integer(
+        ValueType::plain(ScalarType::Integer(
             IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
         ))
     }
 
     fn boolean() -> ValueType {
-        ValueType::Scalar(ScalarType::Boolean)
+        ValueType::plain(ScalarType::Boolean)
     }
 
     /// `Inner { number: u64 }`, record 1, and `Pair { a: Inner, b: Inner }`,
@@ -393,8 +393,8 @@ mod transferred_on_one_path {
             copyable: false,
             identity: "Pair".into(),
             shape: structure_elaboration::StorageShape::Record(vec![
-                field(1, "a", ValueType::Record(id(1))),
-                field(2, "b", ValueType::Record(id(1))),
+                field(1, "a", ValueType::record(id(1))),
+                field(2, "b", ValueType::record(id(1))),
             ]),
             requires: Vec::new(),
         });
@@ -453,7 +453,7 @@ mod transferred_on_one_path {
                     ),
                 )],
             },
-            Some(ValueType::Record(id(1))),
+            Some(ValueType::record(id(1))),
         )
     }
 
@@ -465,8 +465,8 @@ mod transferred_on_one_path {
         whole: bool,
         result: Expression,
     ) -> Result<RouteVerdict, terminal_check_tables::Refusal> {
-        let owned_type = ValueType::Record(id(if whole { 1 } else { 2 }));
-        let inner_type = ValueType::Record(id(1));
+        let owned_type = ValueType::record(id(if whole { 1 } else { 2 }));
+        let inner_type = ValueType::record(id(1));
         let moved = if whole {
             slot(0, owned_type)
         } else {
@@ -618,14 +618,14 @@ mod transferred_on_one_path {
         carried_through(judged(true, constant()));
         assert!(a_use_after_transfer(judged(
             true,
-            field(slot(0, ValueType::Record(id(1))), 0, number())
+            field(slot(0, ValueType::record(id(1))), 0, number())
         )));
     }
 
     #[test]
     fn a_field_moved_on_one_path_is_discarded_on_the_other_and_its_sibling_stays_owned() {
-        let pair = || slot(0, ValueType::Record(id(2)));
-        let inner_type = ValueType::Record(id(1));
+        let pair = || slot(0, ValueType::record(id(2)));
+        let inner_type = ValueType::record(id(1));
         let module = carried_through(judged(
             false,
             field(field(pair(), 1, inner_type), 0, number()),

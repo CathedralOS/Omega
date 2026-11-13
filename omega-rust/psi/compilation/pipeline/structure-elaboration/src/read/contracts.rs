@@ -5,6 +5,7 @@ read into propositions over the formals, and the identity of the reserved
 with `self` and its fields as the names in scope (`ClauseScope::subject`).
 */
 
+use crate::body::Qualification;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerMathLiteral, IntegerMathTerm, MachineId, PlaceId,
     Proposition, ScalarTerm, ScalarType, StructuralCaseSubject, StructuralTypeId, ValueId,
@@ -104,7 +105,7 @@ fn formal_place(id: MachineId, slots: &[Slot], slot: usize) -> Checked<PlaceId> 
     let earlier = slots[..slot]
         .iter()
         .filter(|formal| {
-            formal.borrowed.is_some() || matches!(formal.value_type, ValueType::Record(_))
+            formal.borrowed.is_some() || matches!(formal.value_type, ValueType::Record(_, _))
         })
         .count();
     PlaceId::new(earlier as u64 + 1).ok_or_else(|| {
@@ -212,7 +213,7 @@ impl Program<'_> {
             if scope.subject.is_none() {
                 return unserved("case membership");
             }
-            let Some((root, path, ValueType::Record(sum))) =
+            let Some((root, path, ValueType::Record(sum, _))) =
                 self.projected(id, scope, binary.left)?
             else {
                 return unserved("case test of something that is not a sum");
@@ -450,7 +451,9 @@ impl Program<'_> {
                     if !scope.formal_fields {
                         return unserved("clause that names a borrowed formal outside requires");
                     }
-                    let ValueType::Scalar(scalar_type) = scope.slots[slot].value_type else {
+                    let ValueType::Scalar(scalar_type, Qualification::NONE) =
+                        scope.slots[slot].value_type
+                    else {
                         return unserved("record formal named whole in a clause");
                     };
                     let root = formal_place(id, scope.slots, slot)?;
@@ -477,11 +480,16 @@ impl Program<'_> {
                 // project it, which the member arm below refuses.
                 // A policy-qualified formal is named as its stored value: a
                 // comparison of it compares that value whatever the policy.
-                let (ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) =
-                    scope.slots[slot].value_type
+                let ValueType::Scalar(scalar_type, qualification) = scope.slots[slot].value_type
                 else {
                     return unserved("record formal named whole in a clause");
                 };
+                // domains.md, "Operands": builtin operators and comparisons
+                // accept unqualified operands only, and "The rule is the
+                // same in executable code, `requires` and `ensures`".
+                if !qualification.domains.is_empty() {
+                    return unserved("formal that carries a declared domain named in a clause");
+                }
                 // A `mut` formal names two things by the end of the body:
                 // the argument the caller passed and whatever the body
                 // last assigned. An entry `requires` can only mean the
@@ -783,24 +791,28 @@ impl Program<'_> {
         };
         match value_type {
             ValueType::Rigid(_) => unserved("field of a rigid type in a clause"),
-            ValueType::Scalar(ScalarType::Integer(scalar_type))
-            | ValueType::Qualified(ScalarType::Integer(scalar_type), _) => Ok((
-                ScalarTerm::IntegerField {
-                    root,
-                    path,
-                    scalar_type,
-                },
-                ScalarType::Integer(scalar_type),
-            )),
-            ValueType::Scalar(ScalarType::Boolean) => {
+            ValueType::Scalar(ScalarType::Integer(scalar_type), qualification)
+                if qualification.domains.is_empty() =>
+            {
+                Ok((
+                    ScalarTerm::IntegerField {
+                        root,
+                        path,
+                        scalar_type,
+                    },
+                    ScalarType::Integer(scalar_type),
+                ))
+            }
+            ValueType::Scalar(ScalarType::Boolean, Qualification::NONE) => {
                 Ok((ScalarTerm::BooleanField { root, path }, ScalarType::Boolean))
             }
-            ValueType::Scalar(ScalarType::IeeeFloat(_)) => unserved("float field in a clause"),
-            // A policy is carried by an integer only (`qualified_type`).
-            ValueType::Qualified(ScalarType::Boolean | ScalarType::IeeeFloat(_), _) => {
-                unserved("policy-qualified field that is not an integer")
+            ValueType::Scalar(ScalarType::IeeeFloat(_), Qualification::NONE) => {
+                unserved("float field in a clause")
             }
-            ValueType::Record(_) => unserved("data value compared whole in a clause"),
+            // domains.md, "Operands": a builtin comparison takes
+            // unqualified operands, in `requires` and `ensures` too.
+            ValueType::Scalar(..) => unserved("field that carries a declared domain in a clause"),
+            ValueType::Record(_, _) => unserved("data value compared whole in a clause"),
         }
     }
 
@@ -844,17 +856,21 @@ impl Program<'_> {
                         return Ok(None);
                     }
                     let slot = self.slot_of(id, scope.slots, path)?;
-                    let ValueType::Record(record) = scope.slots[slot].value_type else {
+                    let ValueType::Record(record, _) = scope.slots[slot].value_type else {
                         return Ok(None);
                     };
                     let root = formal_place(id, scope.slots, slot)?;
-                    return Ok(Some((root, Vec::new(), ValueType::Record(record))));
+                    return Ok(Some((
+                        root,
+                        Vec::new(),
+                        ValueType::Record(record, Qualification::NONE),
+                    )));
                 };
                 if subject.symbol.is_valid() && path.symbol == subject.symbol {
                     return Ok(Some((
                         subject.root,
                         Vec::new(),
-                        ValueType::Record(subject.record),
+                        ValueType::Record(subject.record, Qualification::NONE),
                     )));
                 }
                 // A field named bare is that field of `self`.
@@ -864,7 +880,7 @@ impl Program<'_> {
                 if !member.member_symbol.is_valid() {
                     return Err(spelling("clause member without a field symbol"));
                 }
-                let Some((root, base, ValueType::Record(record))) =
+                let Some((root, base, ValueType::Record(record, _))) =
                     self.projected(id, scope, member.receiver)?
                 else {
                     return Err(refuse(
@@ -1003,7 +1019,7 @@ impl Program<'_> {
                 }
                 let mut alternatives: Vec<Vec<ValueType>> = Vec::new();
                 for scalar_type in listed {
-                    let alternative = vec![ValueType::Scalar(scalar_type)];
+                    let alternative = vec![ValueType::Scalar(scalar_type, Qualification::NONE)];
                     if !alternatives.contains(&alternative) {
                         alternatives.push(alternative);
                     }

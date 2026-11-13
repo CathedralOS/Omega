@@ -19,7 +19,10 @@ use structure_elaboration::Policy;
 use terminal_psi::OperationKind;
 
 fn qualified(policy: Policy) -> ValueType {
-    ValueType::Qualified(u32_type(), policy)
+    ValueType::Scalar(
+        u32_type(),
+        structure_elaboration::Qualification::of_policy(policy),
+    )
 }
 
 fn plain() -> ValueType {

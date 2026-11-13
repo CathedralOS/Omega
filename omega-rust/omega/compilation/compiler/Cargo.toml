@@ -166,6 +166,13 @@ path = "tests/domain_access_policy.rs"
 name = "domain_casts"
 path = "tests/domain_casts.rs"
 
+# The lowered-form checker reads `T in D` as a carrier and its domains: a
+# value keeps them through parameters, calls, results and cast entries, and
+# a plain value for a qualified place is not accepted.
+[[test]]
+name = "domain_qualified_types"
+path = "tests/domain_qualified_types.rs"
+
 # The checker on the lowered form judges every declaration a check claims: a
 # defect in a machine the entry never calls is rejected or handed back, never
 # accepted.
