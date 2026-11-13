@@ -114,6 +114,12 @@ libc = { version = "0.2.186", features = ["extra_traits"] }
 name = "terminal_decode_once"
 path = "tests/terminal_decode_once.rs"
 
+# A Build script cannot make, keep or take apart the compiler-owned Build value:
+# the real prelude's seal refuses each twin before the script runs.
+[[test]]
+name = "build_value_protection"
+path = "tests/build_value_protection.rs"
+
 # A source compile publishes Psi without a separate core supplier activation.
 [[test]]
 name = "core_build_activation"
