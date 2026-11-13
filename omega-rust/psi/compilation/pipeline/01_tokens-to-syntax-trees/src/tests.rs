@@ -1756,7 +1756,7 @@ pub(crate) mod definitions_and_contracts {
             .iter_expressions()
             .filter_map(|(handle, node)| {
                 let ExpressionNode::Name {
-                    members: path,
+                    members: _,
                     application: path_application,
                 } = node
                 else {
@@ -1774,7 +1774,7 @@ pub(crate) mod definitions_and_contracts {
             let copy = copied.copy_expression_from(&parsed, operand);
             assert_eq!(copied.display_expression_name(copy), expected);
             let ExpressionNode::Name {
-                members: path,
+                members: _,
                 application: path_application,
             } = copied.expressions.expression(copy)
             else {
@@ -1826,7 +1826,7 @@ pub(crate) mod definitions_and_contracts {
 
         let ExpressionNode::Name {
             members: path,
-            application: path_application,
+            application: None,
         } = parsed.expressions.expression(*expression)
         else {
             panic!("explicit parameter must remain an ordinary name");
@@ -3123,7 +3123,7 @@ pub(crate) mod domains_and_transitions {
             super::root_domain(trees, "domain");
             for name in ["self", "player"] {
                 assert_eq!(trees.expressions.iter_expressions().filter(|(_, node)| {
-                let ExpressionNode::Name { members: path, application: path_application } = node else { return false; };
+                let ExpressionNode::Name { members: path, application: None } = node else { return false; };
                 matches!(trees.expressions.identifier_path_members(path.to_owned()), [member] if member.as_str(trees) == name)
             }).count(), 1, "logical and ordinary subjects remain separate through copying");
             }
@@ -3139,7 +3139,7 @@ pub(crate) mod domains_and_transitions {
         let parsed = parse_syntax_trees(&tokens).expect("parse indexed logical subject");
         for name in ["self", "Limit"] {
             assert!(parsed.expressions.iter_expressions().any(|(_, node)| {
-            let ExpressionNode::Name { members: path, application: path_application } = node else { return false; };
+            let ExpressionNode::Name { members: path, application: None } = node else { return false; };
             matches!(parsed.expressions.identifier_path_members(path.to_owned()), [member] if member.as_str(&parsed) == name)
         }));
         }
@@ -5246,7 +5246,7 @@ pub(crate) mod items_and_selections {
                 if target == "other.next" {
                     let ExpressionNode::Name {
                         members: receiver,
-                        application: receiver_application,
+                        application: None,
                     } = parsed.expressions.expression(call.receiver)
                     else {
                         panic!("direct receiver identity lost");
@@ -5677,7 +5677,7 @@ pub(crate) mod items_and_selections {
         ));
         let ExpressionNode::Name {
             members: mode,
-            application: mode_application,
+            application: None,
         } = parsed.expressions.expression(*mode)
         else {
             panic!("composition mode remains one ordinary name expression")
@@ -6149,7 +6149,7 @@ pub(crate) mod mathematical_definitions {
         match parsed.expressions.expression(handle) {
             ExpressionNode::Name {
                 members: path,
-                application: path_application,
+                application: None,
             } => parsed
                 .expressions
                 .identifier_path_members(path.to_owned())
