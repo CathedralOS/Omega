@@ -161,6 +161,29 @@ impl ValueShape {
         Some(Self::integer(u32::from(bytes), bytes))
     }
 
+    /// A standalone integer scalar of any width, rounded up to a power-of-two
+    /// byte size for alignment, with alignment capped at 8.
+    ///
+    /// The spec leaves integer alignment to the target's layout selection, so
+    /// the caps (8 here, 16 for [`Self::field_integer`]) are placeholders that
+    /// every structural walk must share; they live only in this pair.
+    pub fn standalone_integer(integer: IntegerType) -> Self {
+        Self::rounded_integer(integer, 8)
+    }
+
+    /// The same integer as a structural record field: alignment capped at 16.
+    pub fn field_integer(integer: IntegerType) -> Self {
+        Self::rounded_integer(integer, 16)
+    }
+
+    fn rounded_integer(integer: IntegerType, alignment_cap: u16) -> Self {
+        let bytes = integer.bits().div_ceil(8);
+        Self::integer(
+            u32::from(bytes),
+            bytes.next_power_of_two().min(alignment_cap),
+        )
+    }
+
     pub fn for_scalar(scalar_type: ScalarType) -> Option<Self> {
         match scalar_type {
             ScalarType::Boolean => Some(Self::integer(1, 1)),
@@ -734,4 +757,33 @@ macro_rules! register_or_stack_pair_pattern {
         $crate::ValueLocation::Register { $($fields)* }
             | $crate::ValueLocation::Stack { $($fields)* }
     };
+}
+
+#[cfg(test)]
+mod integer_shape_tests {
+    use super::ValueShape;
+    use semantic_vocabulary::{IntegerSign, IntegerType};
+
+    fn unsigned(bits: u16) -> IntegerType {
+        IntegerType::new(IntegerSign::Unsigned, bits).expect("test width is valid")
+    }
+
+    #[test]
+    fn standalone_and_field_integers_differ_only_in_the_alignment_cap() {
+        for (bits, size, standalone, field) in
+            [(8, 1, 1, 1), (24, 3, 4, 4), (64, 8, 8, 8), (128, 16, 8, 16)]
+        {
+            let integer = unsigned(bits);
+            assert_eq!(
+                ValueShape::standalone_integer(integer),
+                ValueShape::integer(size, standalone),
+                "standalone u{bits}"
+            );
+            assert_eq!(
+                ValueShape::field_integer(integer),
+                ValueShape::integer(size, field),
+                "field u{bits}"
+            );
+        }
+    }
 }
