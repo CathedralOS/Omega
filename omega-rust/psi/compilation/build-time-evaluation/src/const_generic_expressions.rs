@@ -2353,16 +2353,16 @@ pub(crate) mod lexical_selection {
         let reference = authored.target.source_span();
         let qualified_reference = match syntax.expressions.expression(authored.receiver) {
             ExpressionNode::Name {
-                members: path,
-                application: path_application,
-            } if path_application.is_some() => {
+                application: Some(_),
+                ..
+            } => {
                 return Err(
                     "machine index call receiver requires an unapplied declaration path".to_owned(),
                 );
             }
             ExpressionNode::Name {
                 members: path,
-                application: path_application,
+                application: None,
             } => syntax
                 .expressions
                 .identifier_path_members(path.to_owned())
@@ -5806,7 +5806,7 @@ pub(crate) fn evaluate(
                     );
             }
             let expression = syntax.expressions.insert(ExpressionNode::Name {
-                members: members,
+                members,
                 application: None,
             });
             syntax.expressions.set_source_span(expression, reference);

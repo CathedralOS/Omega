@@ -3319,11 +3319,29 @@ pub(crate) mod access_views {
                 | ExpressionNode::ZeroValue(reference) => {
                     visit_type(syntax, *reference, binders, deferred);
                 }
+                ExpressionNode::Name {
+                    application: Some(application),
+                    ..
+                } => {
+                    // A declaration description keeps the same type inputs as
+                    // a static call, including its selected member's arguments.
+                    visit_static_arguments(syntax, &application.arguments, binders, deferred);
+                    if let Some(member) = syntax.expressions.static_member(application.member) {
+                        visit_static_arguments(
+                            syntax,
+                            std::slice::from_ref(member),
+                            binders,
+                            deferred,
+                        );
+                    }
+                }
                 ExpressionNode::Boolean(_)
                 | ExpressionNode::Float(_)
                 | ExpressionNode::UndeterminedNaN(_)
                 | ExpressionNode::Integer(_)
-                | ExpressionNode::Name(_)
+                | ExpressionNode::Name {
+                    application: None, ..
+                }
                 | ExpressionNode::String(_) => {}
             }
         }
