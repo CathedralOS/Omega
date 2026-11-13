@@ -935,9 +935,7 @@ impl<'t> Program<'t> {
             result: ResultTerm::Absent("result in an entry clause"),
             subject: None,
             formal_fields: false,
-            mathematical: MathematicalTerms::Refused(
-                "mathematical comparison in a crash route guard",
-            ),
+            mathematical: MathematicalTerms::Served,
         };
         // Only an entry `requires` may project a record formal.
         let required = ClauseScope {

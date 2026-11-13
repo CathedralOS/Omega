@@ -61,11 +61,9 @@ pub(super) struct ClauseScope<'s> {
 }
 
 /// Whether a clause may compare mathematical integers. A machine's
-/// `requires` and `ensures` may: the checker states either over a call's or
-/// a return's values by the one substitution it has for every clause. A
-/// crash route guard and a data `requires` may not yet, because each is
-/// restated by a substitution of its own that knows only scalar comparisons
-/// (`canonical::substitute`, and the checker's data-domain goal).
+/// `requires`, `ensures` and crash guards may: elaboration and the checker
+/// restate them using the same checked semantic substitution. A data
+/// `requires` still needs its own mathematical domain-establishment goals.
 #[derive(Clone, Copy)]
 pub(super) enum MathematicalTerms {
     Served,

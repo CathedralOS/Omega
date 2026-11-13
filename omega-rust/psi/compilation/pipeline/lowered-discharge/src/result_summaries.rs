@@ -162,6 +162,7 @@ struct Returned<'a> {
 }
 
 impl Bindings for Returned<'_> {
+    type Error = Unbound;
     fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
         if self
             .lowered

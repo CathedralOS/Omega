@@ -155,6 +155,37 @@ machine entry() -> u32 crashes none {{ Probe::read({actual}) }}
     );
 }
 
+/// Both total carrier arithmetic and mathematical arithmetic are restated at
+/// the call, rather than rejected by a narrower crash-only term reader.
+#[test]
+fn source_crash_guards_substitute_total_operations_at_the_call() {
+    for guard in ["value +% 1 == 0", "embed(value) + 1 == 4294967296"] {
+        let call = |actual| {
+            invocation(typed(&format!(
+                r#"
+boundary trait Probe {{
+    machine read(value: u32) -> u32
+    reaches none
+    crashes Trap {guard};
+}}
+machine entry() -> u32 crashes none {{ Probe::read({actual}) }}
+"#
+            )))
+        };
+        let accepted = judge(call(1)).unwrap();
+        let RouteVerdict::Accepted(accepted) = accepted else {
+            panic!("{guard}: {accepted:?}");
+        };
+        accepted.publish_invocation().unwrap();
+        let rejected = judge(call(u32::MAX)).unwrap();
+        assert!(
+            matches!(rejected, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CrashCoverage { .. }))),
+            "{guard}: {rejected:?}"
+        );
+    }
+}
+
 /// A boundary requirement has no body to infer a crash ceiling from and no
 /// static selection to defer to, so one that writes no `crashes` clause is
 /// refused where it is called, and the same call with `crashes none` written
