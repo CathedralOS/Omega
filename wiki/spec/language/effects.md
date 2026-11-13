@@ -882,6 +882,12 @@ See [Terminal suspension](../terminal-psi/calls_and_outcomes.md#suspension).
 
 ## Guarded crashes
 
+By-value parameter names in a declared crash-route guard denote the immutable
+[contract inputs](state_contracts.md#contract-inputs-and-working-values), even
+when the body reassigns their working bindings. A derived crash-site condition
+instead reflects the actual operation and current body facts; coverage must
+prove its relationship to the published input-based guard.
+
 Each `crashes` clause names one cause (`Trap` or `Abort`); its route guards are
 alternatives, and an empty route list means `true`. Guards are total proof
 expressions. Trapping runtime arithmetic cannot execute inside a guard to create

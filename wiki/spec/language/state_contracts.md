@@ -117,7 +117,7 @@ of the same name is rejected, whether or not the first is still in use. The
 check compares resolved identifiers, not rendered text. Pattern bindings in
 different arms of one match may reuse a name; within one arm they follow the
 same rule.
-An ordinary terminal value, explicit return, or permitted implicit Unit
+An ordinary terminal value or permitted implicit Unit
 completion ends the invocation and owes its declared result/return contract.
 
 A transition explicitly supplies the target machine's arguments. Executable uses
@@ -145,6 +145,46 @@ omitted to preserve a convenient invariant. A join merges facts; predecessors
 supplying one value agree on its exact declared domain set under
 [literals and expected types](domains.md#literals-and-expected-types). A minimum collection length is not
 an exact extent, and declaration initializers are not recurring loop invariants.
+
+## Contract inputs and working values
+
+Named decision: `mutable-parameter-contract-name`, settled 2026-11-13.
+
+Contract parameter bindings are immutable logical inputs. Executable parameter
+bindings are local working values initialized from those inputs. In `requires`,
+`ensures` and declared crash-route guards, a by-value parameter name denotes the
+supplied input, not the value last assigned to its working binding. Declaring
+the parameter `mut`, assigning it, or passing its owned storage to a writable
+helper does not rebind the contract input. Executable expressions and guards
+inside the body still observe the current working value.
+
+For example, a promise `result == position + step` relates the result to the
+supplied position and step even if the body increments its mutable position
+parameter. Inputs 3 and 2 returning 5 satisfy that promise. Using a separate
+mutable local instead must not change the promise's meaning. `old(position)`
+in that postcondition is also permitted for the by-value scalar and denotes
+the same input; no additional snapshot is required.
+
+A reference input retains the identity of the supplied referent, not a deep
+snapshot of everything reachable through it. A postcondition's ordinary read
+through that reference observes the referent at normal completion;
+`old(...)` requests its entry-state observation under the existing validity
+and observation rules. The distinction also applies to references held inside
+owned input records. Inline owned fields describe the original input value;
+reads through contained references remain dependent on the observed storage
+revision. Capturing a reference never makes its contents permanently stable.
+
+Logical input subjects require no runtime copy and duplicate no ownership,
+loan, access or issuance authority. Consuming an input does not erase facts
+about its original value, but those facts cannot resurrect the value or make
+an otherwise invalid read or authority use legal. Existing fact dependencies,
+loan lifetimes and total contract-formation obligations still apply.
+
+Every ordinary, recursive, nested and terminal invocation establishes fresh
+logical inputs from its own evaluated arguments. Call substitution and body
+checking use those same inputs. A terminal call's result must satisfy the
+enclosing invocation's postcondition against the enclosing original inputs;
+the callee's new inputs do not replace them.
 
 ## Local call summaries
 
