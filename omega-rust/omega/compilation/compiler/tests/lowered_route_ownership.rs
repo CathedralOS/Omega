@@ -54,6 +54,7 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
             entries: &frontier.entries,
             subject: frontier.subject,
             selected: &frontier.selected,
+            bindings: &frontier.bindings,
         },
     )
     .into_iter();
@@ -123,6 +124,7 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
             entries: &frontier.entries,
             subject: frontier.subject,
             selected: &frontier.selected,
+            bindings: &frontier.bindings,
         },
     );
     let mut unestablished = Vec::new();

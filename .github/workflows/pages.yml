@@ -1,10 +1,7 @@
 name: Pages
 
-# The site holds the Omega book (wiki/learn) and the corpus ledger the
-# post-merge check measured, at corpus/corpus_outcomes.txt. GitHub Pages
-# replaces the whole site on every deploy, so every deploy stages both: the
-# post-merge check calls this workflow with its new ledger, and a deploy for a
-# book change carries over the ledger the site already serves.
+# The site holds the Omega book (wiki/learn). GitHub Pages replaces the whole
+# site on every deploy.
 on:
   push:
     branches: [main]
@@ -12,14 +9,6 @@ on:
       - "wiki/learn/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
-  workflow_call:
-    inputs:
-      ledger-artifact:
-        description: >-
-          Name of an artifact of the calling run that holds a new
-          corpus_outcomes.txt to publish. Empty keeps the published ledger.
-        type: string
-        default: ''
 
 permissions:
   contents: read
@@ -28,9 +17,7 @@ permissions:
 
 jobs:
   deploy:
-    # One deploy at a time, and none cancelled: a cancelled ledger deploy would
-    # drop that run's measurements, and a queued deploy reads the ledger only
-    # after the one before it is live.
+    # One deploy at a time, and none cancelled.
     concurrency:
       group: pages
       cancel-in-progress: false
@@ -52,34 +39,6 @@ jobs:
             cp -r "wiki/learn/$item" "_site/$item"
             cp -r "wiki/learn/$item" "_site/learn/$item"
           done
-          mkdir -p _site/corpus
-      - name: Take the new corpus ledger
-        if: inputs.ledger-artifact != ''
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: ${{ inputs.ledger-artifact }}
-          path: _site/corpus
-      - name: Carry over the published corpus ledger
-        if: inputs.ledger-artifact == ''
-        env:
-          SITE: ${{ steps.pages.outputs.base_url }}
-          RELEASE_LEDGER: https://github.com/${{ github.repository }}/releases/download/corpus-ledger/corpus_outcomes.txt
-        run: |
-          # Only a ledger that is absent may be skipped. Any other failure
-          # stops the deploy, so a network error never publishes a site
-          # without the ledger and resets what the post-merge check builds on.
-          fetch() {
-            code=$(curl -sSL --retry 3 -o _site/corpus/corpus_outcomes.txt -w '%{http_code}' "$1") || exit 1
-            case "$code" in
-              200) return 0 ;;
-              404) rm -f _site/corpus/corpus_outcomes.txt; return 1 ;;
-              *) echo "Fetching $1 returned HTTP $code." >&2; exit 1 ;;
-            esac
-          }
-          # Before the first ledger deploy, the ledger is still the release
-          # asset the post-merge check used to publish.
-          fetch "$SITE/corpus/corpus_outcomes.txt" || fetch "$RELEASE_LEDGER" ||
-            echo "No corpus ledger is published yet; deploying the book alone."
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

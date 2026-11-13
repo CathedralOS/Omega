@@ -12,10 +12,16 @@ Older qualification procedures below do not reinstate retired checks.
 
 ## Validation scope
 
-Terminal corpus execution defaults to one million work units. A long fixture may
-author one positive `u64` in `psi_work_budget.txt` to raise its budget
-for ordinary interpretation and target-installation observations. Exhaustion
-remains a failed execution oracle; the budget changes no program semantics.
+Prove the thing you built with tests on the changed code, then a very small
+area around it. If that is fine, land. If it is not, investigate that failure.
+There is no fixture corpus to run and no ledger: everything that ran or
+recorded the corpus under `tests/omega/` (`corpus_runner`, `cargo xtask corpus`,
+`cargo xtask corpus-gate`, the post-merge row measurement and the published
+ledger) was removed on the owner's ruling of 2026-11-13, and the fixtures
+themselves are retired with it.
+[tests/README.md](../tests/README.md) says how to read a deleted fixture from
+history. A program a test reads is kept beside the tests, under
+`omega-rust/omega/compilation/compiler/tests/fixtures/`.
 
 Iteration uses focused behavioral feedback; landing establishes the scoped
 change and attributes affected failures; release runs the full release matrix.
@@ -38,14 +44,13 @@ run source audits only when their actual input rules are affected. No Rust build
 is required merely to edit workflow prose.
 
 A bug fix needs a witnessed regression and checks for affected behavior. Reuse
-successful results when their inputs are unchanged. Full workspace/corpus runs
+successful results when their inputs are unchanged. Full workspace runs
 are user-triggered baseline, health or release work. Keep ordinary repairs on
-the affected rows and crates.
+the affected tests and crates.
 An unverified base alone does not force a routine task to establish a full baseline.
 
 Attribute unexpected failures from the actual diagnostic, dependencies and
-source readers. The checked-in ledger can include other lanes' drift and cannot
-by itself attribute a failure to this change. Do not add before/after runs
+source readers. Do not add before/after runs
 against moving main. Confirmed unrelated failures do not block landing a
 scoped change: retain the command, revision, and evidence, and report them without
 repairing them in the same task. New or unexplained failures in affected behavior
@@ -53,8 +58,8 @@ must be resolved before landing. Do not repeat broad suites to attribute one tes
 
 ### Merge validation budget
 
-Run the affected crates' unit tests and Clippy locally, with one focused corpus
-run over the known affected rows and samples. Reuse a verified warm producer
+Run the affected crates' unit tests and Clippy locally, with the tests that
+read the same mechanism and the known affected samples. Reuse a verified warm producer
 when its inputs still apply. A filter matching no executed tests supplies no
 evidence. Compiler-program acceptance still needs its actual engine observations.
 If resources obstruct the necessary run, identify that concrete blocker rather
@@ -83,7 +88,7 @@ Routine merge validation should take minutes. If a planned run exceeds about
 15 minutes, or another repair expands the plan, reassess its scope before
 launching more work. Include compilation cost: seven seconds of selected tests
 can still require a 25-minute build. Reuse a verified warm producer, select the
-affected crate/fixtures, or use an existing hosted check where it establishes
+affected crate and tests, or use an existing hosted check where it establishes
 the required behavior. A genuinely necessary slow check can run; state which
 changed obligation requires it. This checkpoint introduces no permission gate
 and never turns an unexecuted check into a pass.
@@ -91,8 +96,7 @@ and never turns an unexecuted check into a pass.
 Full Product compilation, self-hosting, bootstrap reconstruction, broad runtime
 cohorts and release qualification are not routine progress-PR prerequisites.
 Run them for an explicitly assigned acceptance that needs them. Unfiltered
-workspace/corpus/full-baseline runs remain user-triggered only, as required by
-[AGENTS.md](../AGENTS.md#commands). Discovering a compiler performance problem
+workspace and full-baseline runs remain user-triggered only. Discovering a compiler performance problem
 during an additional run does not automatically attach that repair and another
 complete validation chain to an independently complete PR. Record its actual
 failure and remaining work separately; preserve affected-behavior failures as
@@ -121,74 +125,31 @@ explains those original records, including replay plans and SDK-specific control
 
 ### Current Rust qualification
 
-`mbx xtask qualify` runs a bounded, explicit selection through the existing corpus
-harness and ordinary CLI sample gate. Use `--corpus tier/group/name,...` for
-checking, `--runtime tier/group/name,...` for native/Psi execution, and
-`--samples samples/project,...` for ordinary CLI execution. Name a new output
-directory with `--output`; an existing directory refuses rather than mixing runs.
-The total selection is limited to 200 programs. These are exact paths, not search
-fragments. Selection and authored oracles are checked before compiler preparation.
-Discovery and execution use the same exact roster, so selecting
-`pass/build/native_component_reuse` excludes `native_component_reuse_foreign`.
-Ordinary `xtask corpus --filter` remains a substring search. Qualification passes
-the exact list through `OMEGA_CORPUS_FIXTURE_PATHS`; its bounded substring filter
-also remains present for older retained runners, whose extra matches still fail
-the observed-roster check.
-Qualification leaves verbose compiler check-site tracing disabled and clears an
-inherited `OMEGA_COMPILER_CHECK_SITES`. Ordinary compiler diagnostics remain in
-the captured runner output; use `xtask corpus --check-sites` for an explicit
-diagnostic replay. The trace switch prints successful internal queries too and
-can otherwise dominate the bounded observation.
-An existing numeric `Expected exit` header is the fallback when no explicit exit
-file exists; target-specific and portable files keep their precedence.
-
-For example:
+`mbx xtask qualify` runs a bounded, explicit selection of sample programs
+through the ordinary CLI sample gate and retains the evidence. Name the
+programs with `--samples samples/project,...` and a new output directory with
+`--output`; an existing directory refuses rather than mixing runs. The
+selection is limited to 200 programs. These are exact paths, not search
+fragments, and each program's authored oracle is checked before compiler
+preparation.
 
 ```sh
 mbx xtask qualify \
-  --corpus fail/contracts/scalar_reference_unit_completion_overwritten \
-  --runtime pass/contracts/scalar_reference_unit_completion_exit \
   --samples samples/cli/facts/length/local \
   --output build/qualification-local
 ```
 
-Use the local command on the matching authorized host and retain its output
-directory even on failure. Runtime acceptance requires actual native and Psi
-exits at the authored values, agreement, and any
-output oracle. A rejection counts only with the fixture's intended diagnostic.
-Missing, duplicate, extra, incomplete, unchecked, or wrong-reason rows fail even
-when a historical golden would consider them unchanged. Check-only or unrunnable
-CLI projects cannot count as runtime acceptance.
+Use the command on the matching authorized host and retain its output
+directory even on failure. Acceptance requires actual native and Psi exits at
+the authored values, agreement, and any output oracle. A rejection counts only
+with the sample's intended diagnostic.
 
 The directory contains the exact request, source revision/tree and a standard Git
-ZIP source archive (each file compresses independently),
-original runner rows, per-command stdout/stderr and exit receipts, parsed outcomes,
+ZIP source archive, per-command stdout/stderr and exit receipts, parsed outcomes,
 producer Cargo artifacts and fingerprints, binary digests, relevant build inputs,
-and before/after source identities. Ordinary CLI evidence also retains the accepted
-review decisions and consumed project/dependency locks with their paths and timestamps.
-Those copied lock bytes are replay inputs for their original checkout; they do not
-grant acceptance to another checkout. Keep these original files together; a summary
-or a golden file does not replace them. Never commit the raw directory. A failed
-summary is unfinished qualification, with the original source/compiler or workflow
-failure preserved for diagnosis. Records and source revisions stay attached to the
-producer that actually emitted them.
-
-The optional `--runtime-controls tools/xtask/qualification/representation-wrong-branch.json`
-adds the existing three wrong-branch controls after the requested good programs
-pass. Include all three plan fixtures in `--runtime`. One prepared compiler
-remains unchanged through good,
-weak and strong source phases. The weak source must execute with exit 0 in both
-engines; the strong source must build and reach the intended native Trap and Psi
-trap while its authored exit-0 oracle remains unchanged. Those private rows stay
-outside golden recording. Exact source substitutions and all six original files
-are checked before compiler preparation. Backups retain original bytes, modes and
-access/modified times; restoration also runs on ordinary errors and unwinding.
-A hard interruption leaves the complete backup and recovery metadata in the
-retained output directory. Source is authenticated again immediately before each
-change, and unexpected edits are preserved before restoration. Each plan source
-explicitly names its fixture or mirror association. Each phase records its actual
-source hashes and separates the intended control outcome from the authored
-exit-0 oracle. Each control adds two executions to the 200-program budget.
+and before/after source identities, with the accepted review decisions and
+consumed project/dependency locks. Never commit the raw directory. A failed
+summary is unfinished qualification.
 
 ### Optimized validation compilers
 
@@ -196,15 +157,14 @@ Current gates prepare executables through `mbx` for their source checkout. They
 bind each actual image digest to Cargo's optimized artifact profile and its
 matching fingerprint, including effective Rust flags. Effective optimization
 level 0, hidden response-file flags, missing fingerprints, changed image bytes,
-or changed source during preparation refuse. The corpus harness is type-checked
-before optimized code generation. CLI-only requests do not prepare the harness.
+or changed source during preparation refuse.
 Relevant toolchain, host, jobs, flags and profile inputs are retained; credentials
 and the full process environment are never captured.
 
 Rust compiler preparation has no wall-clock time cap: waiting for shared mbx
 capacity is not compiler failure. Receipts retain elapsed time and use a null
-`timeout_ms` for unlimited preparation and corpus observation. Other commands
-retain their explicit/default limits; fixture, native execution and Psi work
+`timeout_ms` for unlimited preparation. Other commands
+retain their explicit/default limits; native execution and Psi work
 budgets are unchanged.
 
 Every shared command reuses `bounded-process`'s native owner through its trusted
@@ -218,65 +178,6 @@ container identity and cleanup errors; a cleanup failure cannot become a pass.
 `timeout_cleanup.reaped` records reaping the owned command, not a claim that
 every orphaned Unix descendant was adopted by this process. The same cleanup
 is recorded as `container_cleanup` for non-timeout completion.
-
-`--cli` and `--runner` cannot authenticate an arbitrary supplied executable and
-therefore refuse. Use the current-source builder. Cargo/mbx may reuse compatible
-objects, but it still checks the current source and emits the artifact receipts.
-Do not probe `corpus_runner` with `--build-profile`: current runners ignore argv
-and can start a sweep. Historical producer/profile receipts remain historical;
-they do not establish execution by the current Rust route.
-
-### The false-success class
-
-A check that cannot see the thing it certifies reports clean, and that is this
-toolchain's most expensive failure mode: the report reads as acceptance, so
-nobody re-measures. The instances below were all measured here, and each names
-what it hid.
-
-- **A key-presence count over destroyed content.** `LOST 0` counts fixture keys;
-  the sorted re-render above kept every key while 42 of 79 diagnostic lines were
-  destroyed and 37 continuations detached. Guard the content, not the keys
-  ([splicing a golden](#splicing-a-golden-the-content-guard)).
-- **A record wrapper that reads only the goldens afterwards.**
-  `tools/swarm/safe_record.sh` pipes `corpus_gate.py --record` through `tail -5`
-  and then inspects the goldens, so a gate that failed before measuring
-  (`runner exited 2`, or a filter that matched nothing) used to leave the
-  goldens byte-identical while the wrapper printed `OK: no timeout rows,
-  LOST 0`. It now reads the gate's status through `PIPESTATUS` (refusing its
-  usage and infrastructure exits) and refuses when neither golden's bytes
-  changed, which also catches a `--record` the gate refused outright. Read the
-  producer's own exit status; a pipeline's `$?` is its last command's.
-- **A census keyed on substrings.** `tools/swarm/fact_status.sh` matched a fact
-  name as a substring, so `length` also counted unrelated `_length_` and `bound`
-  families and a nine-place row read as 27 pass fixtures; it now matches exact
-  path components, because both directions of a substring filter are wrong.
-- **A golden row as current evidence.** Rows are history: five fixtures in the
-  2026-10 migration wave had rows reading `checked` while the check route
-  refused them, and a false green carries no diagnostic to grep
-  ([which instrument decides a fixture](#which-instrument-decides-a-fixture)).
-- **A missing instrument.** An evicted `target/debug/omega` prints nothing, and a
-  shell reading a pipeline's status reports success, so an absent binary is
-  indistinguishable from an accepted fixture
-  ([build cache placement](#build-cache-placement)).
-- **A healthy-looking cache or copy.** `.mbx.toml` records `mbx doctor` and
-  `mbx cache verify` reporting healthy for cached build-script bytes that are
-  hash-consistent with what was stored and wrong; macOS `openrsync` rejects
-  GNU-only flags by printing usage and copying nothing (124 MB of 19 GB in the
-  wave's case) while a pipeline reported exit 0.
-- **A tautological runtime oracle or unobservable cleanup in a fact witness.**
-  A `match` witness that tests only the boundary input where the matched arm and
-  the `_` fallback evaluate to the same number (for example, `Cell { value: 73 }`
-  against `Cell::Ready -> cell.value, _ -> 73`, then `selected - 73 == 0`) exits
-  0 even if `Psi 06–08` or `Omega 00–09` inverts the branch or always takes `_`.
-  Likewise, a `Resource::drop` witness that mutates only `resource.valid = 0` on
-  the dying local or drops a plain scalar struct exits 0 even if the backend
-  never emits the cleanup call. Fact witnesses must exercise both matching and
-  fallback paths with distinct runtime outcomes and observe cleanup or
-  restoration in caller-visible state ([requirements and evidence](../AGENTS.md#requirements-and-evidence)).
-
-The rule: when a check reports clean, ask what it structurally cannot see, and
-measure that thing separately. Every instance above was found by adding the
-second measurement, never by repeating the first.
 
 ### Execution evidence and replay inputs
 
@@ -414,891 +315,15 @@ A crate's own tests run by package and name filter:
 mbx nextest run -p isa-x86_64 encode
 ```
 
-Language behavior is tested end to end: a fixture under
-`tests/omega/{pass,fail,run}` is the test, and the corpus gate below runs it.
-Add a fixture, not a Rust test. A Rust test belongs only to a unit with no
-Omega source input — an encoder, a table, a graph algorithm, the proof
-kernel — and never pins a compiler-internal custody, replay or forgery
-check. The front-end, checking, lowering, Terminal, optimizer, realization
-and package crates carry no behavior tests; do not add them back. A test that
-scans a crate's own sources as an architecture guard is the one exception. The `compiler`
-crate's only test target is `corpus_runner`; see
-`omega-rust/omega/compilation/compiler/tests/README.md`.
-
-## Corpus outcome gate
-
-`tools/corpus_gate.py` is the compiler's end-to-end test. It runs the
-`corpus_runner` binary (a `harness = false` test target that
-compiles every `tests/omega/{pass,fail,run}` fixture through the compile and
-checked-compile routes) and diffs per-fixture outcome records —
-checked/rejected, diagnostic messages, expected-fragment satisfaction, and
-per-fixture compile time — against `tests/omega/corpus_outcomes.txt`. A diff
-means observable behavior moved; `--record` re-pins the golden when the
-movement is intended.
-
-Pull requests no longer edit that file. The post-merge check publishes the
-ledger it measured on the project site, at
-<https://cathedralos.github.io/Omega/corpus/corpus_outcomes.txt>,
-with `measured.txt` beside it naming the commit it was measured at. When a copy is at `build/corpus-ledger/corpus_outcomes.txt`,
-`cargo xtask corpus` compares with it and says so; otherwise it compares with
-the file in the repository. `--record` and `--golden` are unaffected. Fetch
-the copy with:
-
-```bash
-curl -fsSL --create-dirs -o build/corpus-ledger/corpus_outcomes.txt https://cathedralos.github.io/Omega/corpus/corpus_outcomes.txt
-```
-
-```bash
-mbx xtask corpus --filter facts/saved_observation_snapshot   # one fact: 105 fixtures
-mbx xtask corpus --filter fail/contracts/scalar_copy_guard  # one behavior
-```
-
-An unfiltered run covers every fixture and takes a long time. It is a manual
-trigger: only the user starts it, never an agent. Agents filter to the
-fixtures their change can move, named by fact or behavior, and count the
-selection before running it. A whole domain is a sweep: `facts/` selects
-nearly 14,000 fixtures and `fail/` about 11,000. See
-[validate with witnesses](../AGENTS.md#commands). The gate counts the
-selection's fixture directories before any build and refuses more than 200
-(unfiltered runs included) unless `--sweep` or `OMEGA_CORPUS_SWEEP=1` says the
-user, the full baseline, `native_watch.py` or CI's cohort run started it.
-
-`--runner PATH` may reuse an immutable compiler built in another checkout.
-The gate supplies `OMEGA_CORPUS_ROOT` so fixture sources, oracles and discovery
-belong to the measured checkout; the runner's compiled-in path is only the
-default for direct invocation. The SDK follows `OMEGA_LIBRARY_ROOT`, preserving
-an explicit library override. Prebuilt runners must report their effective
-fixture root through `fixture-root-v1`; missing or mismatched reports refuse
-recording. Historical `--compare` runners freshly built in their measured
-checkout remain supported. Qualification still binds the compiler artifact and
-immutable source/oracle bytes.
-
-`--filter` matches comma-separated `tier/group/name` fragments (also
-`OMEGA_CORPUS_FIXTURE_FILTER`); `--shard k/N` selects a
-deterministic hash slice for splitting the run across sessions. Shards count
-from zero: `k` runs from `0` to `N-1`, and the gate rejects anything else,
-because the runner ignores a shard it cannot use and would run every fixture.
-`OMEGA_CORPUS_JOBS` overrides the worker count, which defaults to the CPU
-count -- cap it when several sessions measure at once, since N concurrent runs
-otherwise request N times the machine.
-
-Every compile, the corpus runner and the sample gate included, keeps the checked
-result of a dependency's Build program on local disk and loads it when a later
-compile checks exactly the same input
-([validation subjects](../wiki/spec/build/validation_subjects.md#what-this-rule-does-not-do)).
-The records live in `CathedralOS/Omega/checked-slices/v1` under the per-user
-cache directory, at most 4 GiB, oldest removed first; a rebuilt compiler starts
-them over. One record serves every fixture whose dependency Build program
-matches, so after the first such fixture the rest skip that check. `OMEGA_CHECKED_SLICE_CACHE=off` checks everything afresh, and an
-absolute path moves the records, which is how to measure a cold run.
-
-### The corpus in CI
-
-Pull requests run `admission`, which checks rules and formatting. Authors run
-their focused corpus selection before merging. The current `post-merge-check`
-workflow builds and checks main, measures the selected corpus rows, and
-publishes its ledger. Read the actual workflow result before claiming those
-rows passed; admission alone supplies no corpus evidence. Replacement CI work
-follows the [CI rebuild plan](../wiki/drafts/designs/ci_rebuild_plan.md).
-
-### Re-recording the whole ledger
-
-A whole-ledger re-record measures every fixture at one commit, so that the
-ledger says what the compiler does today. Only the user starts one. From a
-clean checkout of that commit on a test VM:
-
-```bash
-~/omega-agent/bin/vm-heavy ledger-sweep sh tools/ledger_sweep.sh ~/omega-agent/ledger-sweep 40
-```
-
-Name the tiers in `--filter` (`pass/,fail/,run/`), as the script does: with an
-empty filter the gate passes every fixture name to the runner in one
-environment string, which Linux refuses. Before 2026-11-11 each invocation
-spent about six minutes rebuilding the runner (see the freshness paragraph
-below); an unchanged tree now reuses it in under a second. A corpus run has no
-time limit and prints each fixture as it finishes; shards exist to spread the work,
-and forty shards of about 440 fixtures is the size the sweep uses. On the
-two test VMs that is about 22 minutes a shard. To split the work, give each
-host its own `todo.txt` and merge the ledgers by taking each fixture's block
-from the host that stamped it with the new commit. The script's header carries
-the measurements behind these numbers, and the
-[host build budget](build_slot.md#on-the-test-vms) the rule for sharing a VM.
-
-Golden history distance is optional reporting metadata. Each ancestry lookup
-has a two-second budget; unavailable or slow history is reported as an
-unavailable distance. This does not change fixture results, expected refusals,
-oracle checks, corpus comparisons or their verdicts.
-
-For retained direct-native artifacts, the corpus explicitly audits the
-target-operation input before publication. Instruction construction consumes
-those rows directly;
-its independent source/target and reference-custody checks run here, not as a
-second compiler phase in the default compile path.
-
-A run outlasts a shell, so wait on **what the gate prints**, not on whether a
-process exists:
-
-```bash
-until grep -qE "corpus_gate: (clean|[0-9]+ structural)" "$LOG"; do sleep 30; done
-```
-
-Do not wait with `until ! pgrep -f "corpus_gate.py"`. `pgrep -f` matches full
-command lines, and the waiting shell's own command line contains the pattern as
-the `pgrep` argument, so the condition is never false and the loop never exits.
-`pgrep` excludes itself but not its parent shell. Sessions have lost hours to
-this, and the symptom is several identical waiters stacked on one target because
-each earlier one never returned. If you must match a process, bracket the
-pattern so it cannot match itself (`pgrep -f "[c]orpus_gate.py"`), or capture
-the PID and poll `kill -0`.
-
-Pipe a long run through `tee`, never `tail`: `tail` buffers until EOF, so a
-30-minute run shows nothing until it ends.
-
-Exit codes are the gate's verdict: 0 clean, 1 moved (structural or perf
-moves, no regression), 2 usage error, 3 regressed (a fixture verdict of
-`regressed`, or a failed authored exit, `expected_stdout.txt` or
-`expected_stderr.txt` oracle — including the
-`--record` refusal), 4 infrastructure failure (runner build failed, no
-binary, runner exited nonzero, unreadable records). `--bisect` remaps for
-`git bisect run`: regressed -> 1 (bad), infrastructure -> 125 (skip),
-anything else -> 0 (good), usage -> 255 (abort). A diagnostics-only move
-on a fixture whose status did not change is `moved`, not `regressed`, so
-`--bisect` reports it good; bisect that class with a probe that greps the
-runner's record for the new diagnostic text. Before bisecting, `python
-tools/jev_attribute.py --signature "<failing test or diagnostic>" --window
-BASE..HEAD --with-diff 60 --paths <implicated files>` ranks the window's
-commits by whose added lines literally show the failure's evidence (SUSPECT
-rows first; exit 2 when no key is configured, silent under
-`OMEGA_JEV_OFFLINE=1`). `--paths` restricts each excerpt to the implicated
-files so a large commit's deciding hunk does not fall outside the
-`--with-diff` cap; a window of thousands of commits must first be narrowed
-with a path filter — `--window "$(git log --first-parent --format=%h
-BASE..HEAD -- <owning directory> | paste -sd,)"` — and the tool batches what
-remains under the API's payload limit. The question is literal: a commit
-that enables a diagnostic without adding its text ranks `absent`, as the
-2026-10-08 dogfood in the typesafe-experiments record shows, so an
-all-`absent` ranking means bisect, not "outside the window". Describe the
-observation only in the signature; naming a suspected file or commit steers
-the answer toward it. `--json PATH` writes the
-full per-fixture verdict document on every outcome, including
-infrastructure failure and record refusal. Diagnostics compare against the
-golden after prefix normalization (`corpus_records.DIAGNOSTIC_PREFIX_ALIASES`),
-so renaming a diagnostic's wording is not a move; golden rows stamped
-`@<revision>` report how many commits behind HEAD each measurement is.
-
-### Which instrument decides a fixture
-
-A pass fixture's own source check is meaningful:
-`./target/debug/omega --check <fixture>/main.omg` answers whether the source is
-accepted, once the binary is proven present and fresh. A fail twin's acceptance
-is not: the CLI's check product never continues a fail fixture into native
-production, while `corpus_runner` does exactly that when the fixture's own
-`build.omg` binds a program entry -- which is where a provider-plan refusal such
-as ``no provider is selected for boundary requirement `Reading::read`, which the
-program entry reaches on target `windows_x86_64` `` is produced. `omega --check`
-therefore exits 0 for twins the gate correctly reports as `rejected`; measured
-on `fail/providers/applied_entry_nested_binding_wrong_receiver` and
-`fail/providers/nested_binding_missing_establishment` on 2026-10-20. A clean CLI
-check on a twin proves nothing about the obligation, and the family's acceptance
-is the gate's own line: `0 rejected without their expected fragment` and `0 fail
-fixtures that did not reject` -- both name their fixtures, because a count alone
-is unactionable.
-
-Neither instrument makes a golden row authoritative. A row records what some
-previous run measured, so it goes stale in both directions: five fixtures in the
-2026-10 migration wave had rows reading `checked` while the check route refused
-them, and a row can also claim a stronger success than the route now produces.
-Re-measure with `--filter` before relying on a row, and use `--write-moves` to
-read what a run actually observed.
-
-A sample probe is judged by the oracle in its own README, not by a uniform run.
-`samples/cli/probes/progress_provider` documents that its trait's requirements
-admit calls at `--check` and declares no program entry, so `omega run` on it
-fails with `native artifact identity physical pipeline failed:
-FunctionRelativeRealization(Encoding(ArtifactMismatch))` -- a real failure of a
-native route the probe never claimed, not a defect it pins. Measured on
-2026-10-20; judging such a probe by a native run invents a failure exactly as a
-CLI check on a twin invents a success.
-
-A sweep for a retired spelling must separate code from prose. A comment that
-records the retirement ("The former `Binding<Character>` carrier lane is gone")
-contains the spelling and is not residue, and a grep cannot tell the two apart.
-Classify each match by the line it sits on and fail only on code, or the sweep
-fails on its own documentation.
-
-### One golden, every host
-
-`tests/omega/corpus_outcomes.txt` is a single checked-in file shared by
-Linux, macOS and Windows developers, so a row whose recorded verdict depends
-on the recording host can never be clean everywhere -- and, worse, is clean
-on the host that recorded it, which makes it invisible. Reading a
-Linux-recorded row beside a Darwin-recorded one manufactures contradictions
-reproducible on neither host.
-
-The check leg's realization of entry-binding fixtures is where a
-target-scoped verdict enters an otherwise target-neutral row, so the runner
-takes its realization target from the fixture's own `build.omg` -- the first
-of `macos_arm64`, `linux_x86_64`, `windows_x86_64` that the fixture binds,
-else its first declared target -- and never from the recording host. The row
-names the result as a `check-target:<target>` fact, so a realized row says
-which target it is a verdict about and a reintroduced host dependence shows
-up as a per-row diff rather than a silent false green. A row with no
-`check-target:` fact realized nothing and is target-neutral.
-
-Three rules follow. A target-scoped verdict belongs in that target's own
-golden, `tests/omega/corpus_native_<target>.txt`, not here: when the
-`linux_x86_64` filesystem provider table makes `pass/filesystem/native_close`
-build on Linux and refuse on macOS, the check row records the refusal for the
-target it names while `corpus_native_linux_x86_64.txt` records `built` and
-`corpus_native_macos_arm64.txt` records `rejected`. Do not pin a fixture
-whose diagnostic names the realized target, and watch for the indirect form:
-a fixture that reaches a provider only some targets supply. And do not teach
-the check leg to prefer the recording host the way the native leg does --
-`pass_realization_target` prefers the host because its records go to that
-host's own golden; `check_leg_realization_target` must not, and the two
-choosers stay separate for that reason.
-
-### Stamp provenance: a row's revision must stay inspectable
-
-A row's `@<sha>` stamp is a provenance claim: the observation was made at that
-revision. The claim is only checkable while the revision stays inspectable, and
-`measurement_stamp` in `tools/corpus_gate.py` wrote the **recording checkout's
-local `HEAD[:12]`** with no check that the revision was in published history. A
-record taken on an unlanded candidate, or on a branch later rebased or deleted,
-therefore left a row whose revision no reader can resolve.
-
-Measured at `9ed829f6e62` with `origin/main` at `747588dad54` (2026-10-20) on a
-full clone: `git rev-parse --is-shallow-repository` prints `false`, and there is
-no partial-clone filter, promisor or alternates, so an unreachable stamp is
-genuinely absent rather than unfetched by this checkout. **331 of 646 distinct
-stamps (51%) are not inspectable in published history**, covering **2533 of
-10468 rows (24%)**: 279 stamps (1996 rows) resolve nowhere at all, and 52 stamps
-(537 rows) resolve only in the recording clone's object store. An earlier
-disposition measured "272 of 642 (42%) over 1869 of 10227 rows" by asking only
-whether the object resolves locally, which cannot see the second class at all.
-Every number moves as the golden grows, so the command is the record and the
-digits are not:
-
-```bash
-python3 - <<'PY'
-import re, subprocess
-key = [l for l in open('tests/omega/corpus_outcomes.txt', encoding='utf-8').read().splitlines()
-       if l.strip() and not l[0].isspace() and not l.startswith('#')]
-rows = [(l, m) for l in key for m in [re.search(r'@([0-9a-f]{12})(\+wt)?', l)] if m]
-shas = sorted({m.group(1) for _, m in rows})
-status = {l.split()[0]: l.split()[1] for l in subprocess.run(
-    ['git', 'cat-file', '--batch-check'], input='\n'.join(shas), capture_output=True,
-    text=True, check=True).stdout.splitlines()}
-def reachable(sha):
-    return subprocess.run(['git', 'merge-base', '--is-ancestor', sha, 'origin/main'],
-                          capture_output=True).returncode == 0
-absent = {s for s in shas if status.get(s) == 'missing'}
-local = {s for s in shas if s not in absent and not reachable(s)}
-for label, group in (('unresolvable', absent), ('only in this clone', local)):
-    print(label, len(group), 'stamps,',
-          sum(1 for _, m in rows if m.group(1) in group), 'rows')
-print('not inspectable', len(absent | local), 'of', len(shas), 'stamps')
-PY
-```
-
-For a commit outside known published main history, `--record` retains it in
-`refs/corpus-observations/<full-sha>` and an immutable Git bundle at
-`build/corpus-source/<full-sha>.bundle` before writing rows. Publish the bundle
-with PR evidence and preserve it with the run receipts through squash and branch
-cleanup. The bundle excludes only a locally known published ancestor; restore it
-in a clone containing that prerequisite with `git bundle unbundle FILE.bundle`.
-No ancestry on moving main or postlanding compiler run is required. A bundle
-failure refuses recording, and an existing bundle must verify and bind the exact
-stamped commit. This retains source provenance; it does not qualify behavior.
-
-A clean stamp still requires each measured fixture in that commit. `+wt` still
-means the working tree differs: retain its source patch, untracked sources and
-replay inputs with the existing run evidence, rather than treating the base as
-those changed bytes. Never move HEAD back to a published base to relabel a run.
-Historical unresolvable stamps are not mass re-recorded: that could turn a
-regression into a baseline. Scoped recording still requires the
-[two-part golden guard](#splicing-a-golden-the-content-guard), actual engine
-observations, optimized producer checks and all authored oracles.
-
-### Attributing a move
-
-The printed summary cuts each field at 300 columns, which is usually exactly
-where the diagnostic that moved is. `--write-moves` gives you every moved
-fixture's before and after records as JSON, untruncated, in the same pass:
-
-```bash
-python3 tools/corpus_gate.py --write-moves build/moves.json
-python3 -c "import json; [print(r['fixture'], r['after']['diagnostics']) \
-    for r in json.load(open('build/moves.json'))]"
-```
-
-Then rerun ONLY the moved names against the base you suspect
-(`--filter <comma list>` from a worktree detached at that commit). A row that
-moves there too is not yours. Attribute every row before re-pinning any of
-them: a bulk `--record` pins whatever another lane broke as expected. Adding
-`--jev` to the same diffing invocation asks the advisory `record_safe`
-verdict, which names suspect rows through the causal "could this commit
-produce this diff" question — advisory only; it does not replace
-attributing each row. The advisory needs a Typesafe key
-(`TYPESAFE_API_KEY`, `build/typesafe.env.txt` or
-`~/.config/typesafe/typesafe.env.txt`); with no key it says so on stderr and
-produces no advisory, so an absent line means "not asked", never "asked and
-clean". `OMEGA_JEV_OFFLINE=1` suppresses it deliberately and also says so.
-Reading a silent `--jev` as approval is how a bulk `--record` proceeds
-without any advisory at all. `python tools/corpus_pin_audit.py` lists fixtures
-whose expected fragment matches many other fixtures' diagnostics (a pin
-that cannot tell its rule from any rejection) and fixtures whose extra
-diagnostics trip a sibling's pinned rule; tighten those pins before
-relying on `expected` at --record time. Every gate run also prints how
-many golden rows are pinned in a status their tier contradicts (a pass
-fixture recorded `rejected`). `python3 tools/corpus_gate.py
---list-pinned-regressions` reads the selected golden and names those rows without
-building a runner, executing fixtures or rewriting results. It accepts `--golden`
-and the native/interpreter target-selection flags; measurement options such as
-`--record`, `--filter`, `--shard`, `--compare` and `--json` are rejected. Exit 0
-means the stored roster was read, even when it contains regressions; missing or
-malformed goldens exit 4. This query makes no claim about the current compiler.
-That count is the honest size of the pinned backlog whether or not the
-rows carry `regressed-from:`.
-
-Two measurement hazards, both of which have produced a wrong mechanism here.
-The compiler caches resolved package snapshots under its user cache
-directory, so a probe COUNTING how many times a front-end pass runs answers
-about the cache, not the program — probe what a later stage observes, and
-alternate the two versions rather than running each once. And `--record`
-restamps `millis` on every row it touches, so after a filtered re-record,
-restore the previous timing on any row whose status, expected-fragment
-verdict, facts and diagnostics are unchanged; otherwise a four-row movement
-lands as a forty-row diff in a file every lane edits.
-
-The same user cache retains checked source graphs, and environment-gated
-traces and knockout switches are not part of the compiler identity that keys
-them. On a warm cache, the same binary replays its earlier judgment, so a
-trace prints nothing and a knockout reports the verdict recorded without it.
-Give each run that relies on such a switch an empty `HOME` (`LOCALAPPDATA` on
-Windows, `XDG_CACHE_HOME` on Linux). Different builds never share records:
-`omega-rust/omega/compilation/compiler/build.rs` digests every `.rs`, `.toml`
-and `.omg` file under `omega-rust/` and `source/library/`, the workspace Cargo
-files, `rustc -vV` and the profile and flags. The selected library's content
-joins that digest, which names each record and is checked again in its header.
-
-**A full run can exceed the harness background cap, and the way through is
-slices, not detaching.** At six concurrent sessions on a 10-cpu host a full
-`--record` took 19 minutes of runner build plus over 100 minutes of
-fixtures and did not finish inside a 2-hour cap; `nohup`/`disown` is not a way
-around it, and killing a gate's parent leaves its `corpus_runner` executing
-against a dead pipe. Compare in several `--filter <group>/` slices instead:
-`--compare` caches the base commit's rows per fixture, so each slice adds to the
-same cache and compares only the fixtures that ran. Use the trailing slash on each group -- a bare substring
-like `time` matches 510 fixtures, some already red, and their unmet exit
-promises abort the run before the golden diff.
-
-The following comparison internals explain historical measurements. Current
-author validation uses one focused selection against the fixed candidate;
-do not start paired main/head runs or dispatch the retired Compiler queue pilot.
-Use retained source-reader and dependency evidence to attribute a failure.
-
-The current authenticated `corpus-gate build --at <revision>` and automated
-`corpus-gate check` base attribution lease an isolated detached `worker-N` pool
-slot at the exact baseline commit. Builds use that slot's own `target/`, even
-with an inherited `CARGO_TARGET_DIR`; prebuilt base runners still read fixtures
-and library sources there and must match its clean revision, tree and bytes.
-The caller's HEAD and files stay in place on success and failure. The tool
-releases only its own topic/Git lock after verification and keeps the source
-and cache for normal safe pool reuse; an interrupted lease remains protected.
-See [the current CI implementation](ci/README.md#post-merge-check). The older
-comparison cache layout below is historical.
-
-The base is built from its commit in a separate worktree
-(`build/compare-bases/<sha>`) with its own build directory, so neither uncommitted edits nor artifacts from
-this tree can leak into it. That worktree and the base's cached rows live in the
-`build/` beside the common git directory, shared by every worktree of the
-checkout: one session at a time measures a commit, and the next finds its runner
-and rows. The newest three base worktrees are kept. An already built immutable base can be reused with
-`--baseline-runner <binary>` alongside `--compare <revision>`. The gate still
-checks the exact baseline checkout revision, optimized profile, and fixture-root
-protocol, but does not invoke a Rust build. Retain the executable digest and its
-source/build provenance: the option itself cannot establish that provenance.
-This permits bounded runtime-only comparison slices after the build phase has
-released its resource hold. A run exits 1 when any fixture loses its outcome, its
-expected fragments or an execution fact such as `exit:70`, and prints every
-loss and gain. Name the base explicitly: comparing against a newer `main` than
-your series sits on attributes other lanes' movement to you. Compare directly
-against the recorded base commit of your worktree; do not chase main or rebase
-merely because main moved. Edits made to this tree while its
-own runner links still change what the head side measured, so finish edits
-before starting a run.
-
-**Build the runner from the tree you are measuring.** `--runner <binary>`
-reuses a prebuilt runner, which is a real saving and a real hazard: a stale
-binary records the *previous* compiler's verdicts against the current tree, and
-the `@<sha>` stamp names the tree rather than the binary, so the rows look
-freshly measured and attribute verdicts to a commit that cannot produce them.
-One re-record pinned fifteen rows to a diagnostic removed eleven commits
-earlier, and it was caught only because the text contradicted a landed change.
-Reuse a runner only within one tree state.
-
-`--compare` builds its base with its own `CARGO_TARGET_DIR`; keep any other
-baseline and candidate builds in separate target directories the same way. A successful Cargo invocation against a shared target
-directory can retain another worktree's artifacts when timestamp freshness sees
-the candidate sources as older than those artifacts. Rebuilding the runner alone
-does not establish that its linked compiler dependencies came from the candidate.
-An isolated target directory avoids that ambiguity without deleting peer caches.
-
-Every Cargo command in the repository uses content (checksum) freshness:
-`.cargo/config.toml` sets `unstable.checksum-freshness` and
-`build.fingerprint = "content"`, and the corpus producer sets the same values
-through `CARGO_UNSTABLE_CHECKSUM_FRESHNESS` and `CARGO_BUILD_FINGERPRINT`. Do not
-override either for one command. Cargo stores the method in each unit's
-fingerprint and rebuilds a unit whose method changed, so one timestamp-fresh
-build dirties everything above it. Before the shared setting, `mbx xtask`
-rebuilt xtask's proc-macro dependencies under timestamp freshness on every
-invocation, and the producer then rebuilt the runner graph (126 of its 212
-units on an unchanged warm tree, all 212 after a CLI build): about eleven
-minutes per `cargo xtask corpus` run on a 4-core container. Content
-freshness also keeps a reused runner tied to the measured tree, because a unit
-is fresh only when its source bytes match. See
-[Cargo's checksum freshness contract](https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#checksum-freshness).
-
-The runner also shares the compiler units an ordinary `mbx build -p omega`
-produced, because `corpus_runner`'s dev-dependencies enable no extra features on
-crates the CLI links. A dev-dependency feature on such a crate (for example a
-`test-support` feature on `package-compilation`) gives it and every crate above
-it a second build; only the runner's own test-only crates should compile after
-a CLI build.
-
-For bounded rebuild diagnosis on the pinned Cargo, set
-`CARGO_LOG=cargo::compiler::fingerprint=trace` and retain the actual dirty reasons
-with the command's source, profile and environment evidence. Bound the command's
-time, memory and log size as for other local runs; use its recorded reasons to
-distinguish source changes from freshness-method changes.
-
-Profile admission also requires a regular executable image (ELF, Mach-O or PE)
-with host execution permission. A matching Cargo profile receipt alone does
-not admit a damaged linker or strip output: `rust-objcopy` can report a disk
-write failure as a warning while Cargo exits successfully. Preserve that failed
-build's records and rebuild its executable after recovering disk headroom.
-
-**A directly invoked `target/debug/omega` can predate the commit you are
-judging, and it reports failures the tree does not have.** The same hazard as a
-stale `--runner` applies to hand-run CLI baselines, and it is easier to hit
-when no producer receipt binds the binary to its source inputs. A pathname or
-mtime does not establish that binding. It is easy to read a result as a property
-of the checked-out source, and the
-`--check` output names the fixture path rather than the compiler that judged it.
-A worktree `git worktree add` shares the repository but not `target/`, so a
-worktree has no binary at all until it builds one; the *main checkout's*
-`target/debug/omega` is the one that goes stale while other lanes land commits,
-and it can be built from a different checkout root entirely (a relocated
-repository leaves that absolute path compiled in, visible as
-`missing Omega toolchain library at <other path>`). Two facts make a wrong
-baseline survive review: the failure text is a plausible language diagnostic
-rather than a toolchain complaint once `OMEGA_LIBRARY_ROOT` is set, and an
-unrecorded host may have no golden row to contradict a mis-measured result.
-
-Before judging a current baseline, verify the immutable producer's source/build
-receipt and effective library inputs, or build from the exact tree under test.
-Commit and executable timestamps are triage hints; a newer mtime alone does not
-establish matching compiler dependencies or source identity:
-
-```bash
-git log -1 --format=%cd --date=iso HEAD   # commit time
-ls -l target/debug/omega                # inspect age; verify the producer receipt
-OMEGA_LIBRARY_ROOT=$PWD/source/library ./target/debug/omega --check <root.omg>
-```
-
-For one contract's citation and identity diagnostics, set
-`OMEGA_STRUCT_TRACE='contract=cauchy_at_reflexive'`. This selects the exact
-machine declaration name and suppresses the global structural/store trace.
-It reports the existing citation predicates, identity operands, computed
-normalization results and call/unfold refusals without repeating a judgment.
-The name is not a globally unique qualified identity, source-classification
-records may still appear, and events whose owner changes to a callee can be
-filtered out. Missing output alone does not prove a missing computation. Keep
-the ordinary output/resource guard. Other values retain the full structural
-trace behavior and the whole-call selector described below.
-
-When the compiler cannot prove a call's precondition, this trace reports which
-check stopped it and the values available then. `Requires` clauses declare those
-preconditions. Each checked alternative has an `observation` ID that connects its
-arguments, the values used in place of the callee's parameters, the check's
-result, and the same alternative's stored values and known equalities (called
-retained equations). Join records by these IDs rather than adjacent lines.
-
-Select the call with the existing structural trace switch:
-`OMEGA_STRUCT_TRACE='caller::path->callee::path@root_index:root_generation'`.
-Use the machine names and retained Symbol-root handle from that compiler's own
-trace; these identities can change between compilations. Ordinary values such
-as `1` keep the existing structural trace without selecting these additional
-`STRUCT call-consumer` records.
-
-A `phase=begin` record precedes the attempt to obtain the call's argument values.
-The `stage` records distinguish an early failure, a precondition proved from
-static types, and a reached precondition judgment. If no call entry was formed,
-its stored-value snapshot is labeled `source=pre-entry entry=none`. When there
-are several entries to check, each additional entry has a fresh ID linked by
-`parent_observation` and `entry_index`; its arguments, result and stored values
-use that ID. Selection covers complete authored `Requires` clauses for a
-specific callee state. Checks that stop before `CallRequirement::observe`,
-alternatives already marked unproven before `observe`, and unmatched or inherited
-preconditions remain outside this trace.
-
-The additional records are limited to 16 observations, 32 stored-value or
-equation rows per collection, and 4096 characters per record. Truncation is
-explicit, and `root_present=false` means the selected stored root was absent.
-Only equations that directly contain an observed argument or a retained value
-of the selected root are included. This is a subset of the known equalities;
-it does not follow indirect chains of equalities. Missing or clipped rows do
-not establish a missing fact.
-
-The trace reuses the original results without repeating a judgment, projection
-or preservation query, and it does not change the program's proof outcome.
-Retain the compiler and input identities and use the existing bounded runner;
-the ordinary structural trace is emitted alongside these records.
-
-An unbound or different producer cannot establish the current baseline. Earlier
-verified results retain their original producer and may remain applicable under
-main-change validation; binary age alone neither validates nor invalidates them. One wave
-assigned four fact folders from a baseline taken with a binary built over an
-hour before the launch commit; the reported red places did not exist on the
-base, and two of the four facts needed no compiler repair at all. Rebuild when
-the tested compiler inputs differ or their identity cannot be established.
-
-The opposite misreading is just as costly: a *fresh* binary over a sample
-project whose accepted review was recorded by an older compiler. The
-package-manager compares the accepted occurrence's `compiler_identity` against
-the current one and fails with ``accepted package `<name>` compiler identity
-changed; run `omega update` for fresh review before compiling``, so every place
-of a fact exits 1 and looks like a regression the rebuild introduced. It is a
-stale accepted-review state, so prepare a fresh replay project or refresh the
-generated review/lock inputs through normal `omega update` outside active
-captures. Preserve historical accepted snapshots unchanged. Fresh corpus
-directories avoid inheriting this state, but a sample/corpus disagreement still
-requires comparing producer, library, target and project inputs before assigning
-a cause. Rebuilding a compiler and refreshing a sample's accepted review are
-separate steps.
-
-The gate defaults `OMEGA_LIBRARY_ROOT` to the measured checkout's
-`source/library`, preserving an explicit caller override. Shared Cargo caches
-can retain a different worktree's development library path; a fresh runner can
-otherwise read that old library and falsely reject exact bundled entry contracts.
-Direct runner or CLI invocations should select the matching library explicitly
-when sharing build artifacts across checkouts. Release library validation still
-checks the selected content; this does not waive compiler or package identity.
-
-`--compare` caches the base under the shared, ignored
-`build/corpus_baselines/<sha>[-leg].txt`; a native leg names its target. Use it when the checked-in golden
-disagrees with your checkout over another lane's in-flight movement, which is
-the usual case: a run against the shared golden cannot separate that drift from
-yours, and re-recording the shared golden would pin their regression as
-expected. A subset diff compares only the fixtures that ran; a subset
-`--record` splices the rows it measured into the golden's existing text and
-leaves every other row, comment and context line byte-for-byte, so sessions
-recording different fixtures rebase without golden conflicts. The unfiltered
-corpus is scheduled-workload cost,
-not loop cost — keep it out of routine iteration.
-
-The default run checks fixtures only. `--native` realizes each pass and run
-fixture that binds a program-entry root in its own `build.omg`, executes the
-run tier, `*_exit` fixtures and fixtures with `expected_native_exit.txt` in a
-temporary directory (stdin from `input.txt`, stdout/stderr compared independently
-with `expected_stdout.txt`/`expected_stderr.txt`), and diffs against
-that host's golden `tests/omega/corpus_native_<target>.txt`; records gain
-`exit:<code>` and the authored `stdout:match|differs|unavailable` or
-`stderr:match|differs|unavailable` facts. Use it with `--filter` for
-backend-visible changes.
-
-Native mode, including `--both`, omits fail-tier rejection controls. The focused
-corpus plan names those omitted controls; its mode counts precede shard filtering
-when a shard is selected. A clean native/Psi result verifies only the observed rows.
-Run the same selection and shard in ordinary checking mode (without `--native`,
-`--native-target`, `--interpret` or `--both`) to check the selected negative
-diagnostic pins.
-`--interpret` alone retains those checking controls.
-
-`expected_source_locations.txt` can accompany a diagnostic fixture. Each
-nonempty line contains a relative path suffix, a one-based line, and a one-based
-column, separated by whitespace. Each row must match a compiler diagnostic's
-resolved source location; message text containing the location is insufficient.
-The runner combines this oracle with `expected.txt` fragment satisfaction.
-
-A build-only pass fixture can separately require native publication to refuse
-with `expected_native_rejection.txt`: each nonempty line is a required diagnostic
-fragment, and the observed status must be `rejected`. This oracle is independent
-of Source acceptance. It cannot coexist with native exit or stream oracles,
-the run tier or the `*_exit` convention. A matching refusal records
-`native-rejection:match`; it is an accepted publication test, never a built or
-executed program. Wrong diagnostics, another status or execution facts make
-`--record` refuse the row. Use this only for an authored publication refusal,
-not for missing implementation in a program intended to run.
-
-`expected_native_rejection.<target>.txt` overrides the portable refusal file.
-Source rows use their actual `check-target`, while native rows use the target
-being realized. A control may therefore require refusal on three hosted targets
-and an ordinary exit on the fourth. The pilot keeps that control on the same
-product path and validates the refusal without counting an engine execution.
-
-For an ordinary sample whose source is valid, declare its normal `program` role
-in `sample.json` when a control-folder name would infer `intended-invalid`.
-The native sample gate completes normal package review, checks the source, then
-compiles without launching and requires exit 1 plus every target refusal fragment.
-A source error, unrelated refusal, panic or successful build cannot satisfy it.
-The result records `native-rejection:match` separately from executions. Existing
-source-invalid controls keep their checking-only path.
-
-`expected_native_exit.txt` holds one decimal process exit code or `trap`.
-The latter requires SIGTRAP for ARM64, SIGILL for Unix x86-64, or
-STATUS_ILLEGAL_INSTRUCTION for Windows x86-64. Missing execution, timeout,
-segmentation faults and ordinary exits cannot satisfy a trap expectation.
-An `expected_stdout.txt` or `expected_stderr.txt` independently requires completed
-native execution with the corresponding `stdout:match` or `stderr:match`, even
-when no exit oracle is authored. Both pipes drain concurrently and comparisons
-preserve arbitrary bytes, normalizing only CRLF to LF. Wrong or missing
-output and incomplete execution cannot be recorded as the expected result.
-Duplicate execution-fact keys are malformed runner evidence and fail as
-infrastructure errors rather than overwriting an earlier observation.
-These native oracles are enforced before golden comparison or `--record`, so
-re-recording cannot bless a wrong runtime result. Bind the host in `build.omg`
-when providing an oracle. Without an oracle, the existing observation-only
-golden behavior is unchanged. `--both` also attempts the admitted Terminal
-program/instance core, sharing the native report's exact artifact/profile for
-identical targets without replaying Build. `interpreter:trapped` requires the
-core's typed Trap outcome; decline, exhaustion and host signals cannot satisfy
-the interpreted trap oracle. Missing entry/import provisions remain explicit
-runtime-driver dependencies, not synthetic exits.
-When `--interpret` or `--both` is requested, each authored stream oracle
-also requires completed interpreter execution and its own
-`interpreter-stdout:match` or `interpreter-stderr:match`.
-Matching exit codes cannot excuse missing or different output, and `--record`
-refuses that result before changing the golden.
-
-The interpreted and combined defaults name `corpus_interpreted.txt` and
-`corpus_both_<target>.txt`; an absent golden is a usage error. The repository's
-bounded migration replay explicitly compares with `corpus_outcomes.txt`, leaves
-new runtime facts visible as moves, and uses the exact reviewed
-`tests/omega/interpreter_migration.json` designation. Unimplemented interpreter
-debt stays nonzero and never exempts a wrong native result. The bounded replay
-command is in [the corpus tests guide](../omega-rust/omega/compilation/compiler/tests/README.md#reviewed-interpreter-migration-debt).
-
-It realizes for the target the fixture declares, preferring the host when the
-fixture binds it so the product can also run; a fixture binding only foreign
-targets is still realized, because target lowering and emission are most of
-what the leg measures. A fixture that binds no root is not realized at all
-and stays on the check route, recording `checked`. Both rules matter for
-reading a result: before them the leg built everything for the host, so a
-fixture with no entry answered "native-artifact production requires one exact
-selected program entry" and one binding only `windows_x86_64` answered
-"selected target `<host>` has no bound required root slot" -- 13 of 28
-rejections in one sample were the harness choosing for the fixture rather
-than the fixture's own behavior.
-
-```bash
-python3 tools/corpus_gate.py --native --filter providers/
-```
-
-### Splicing a golden: the content guard
-
-A filtered `--record` splices: each measured fixture replaces its own row block
-in place, and every other row, comment and context line stays byte-for-byte.
-The guard for that splice is two-part, and which part applies depends on what
-the record is for, because a key-presence check cannot see content loss:
-
-- a row **addition**: `git diff <base>..<HEAD> --numstat -- <golden>` shows
-  0 deletions;
-- a **re-record**, or any splice that legitimately replaces a key line: no
-  continuation line deleted, no fixture key lost, the diagnostic-line count not
-  falling, and no continuation line left detached from a key line. Key-line
-  replacement is legitimate here; content loss is not.
-
-The ordering rule is file-specific: `corpus_outcomes.txt` is sorted by key,
-`corpus_native_<target>.txt` is not. `build/swarm/w33/lane2_golden_guard.sh` is
-the reference implementation of both forms — two revisions and the golden paths,
-detached-continuation detection, and an `ALLOW_REMOVED_KEYS` list that prints
-each specification-authorized retirement as `AUTHORIZED removal` instead of
-letting it pass silently. It was proven both ways: it catches the sorted
-re-render below (79 continuation deletions, diagnostics 79 -> 37, 37 detached)
-and it passes a real re-record (+8/-7 with the diagnostic count rising).
-
-Why both forms exist, measured 2026-10-20: a conflict resolution that
-re-rendered the native golden in sorted key order kept every key and moved all
-37 diagnostic continuation lines off their rows, collapsing repeated text — 42
-of 79 diagnostic lines destroyed, with 236 insertions and 269 deletions in a
-commit whose own body reported `LOST 0` and no timeouts. A guard that counts
-keys cannot detect lost content; count the content.
-
-### Fixtures whose obligation the specification retires
-
-A language change can retire the very obligation a twin pins: the construct it
-was written about stops existing. The test is not "does the fixture still
-reject", because a fixture whose import no longer resolves rejects for a reason
-its directory cannot justify. Ask instead whether the rule still exists and is
-still enforced; three answers need three responses.
-
-- **Retired obligation** — the rule itself is gone with the construct
-  (source-visible `Binding<R>` fabrication, `component_publication.md:198`).
-  Delete the twin's fixture, `expected.txt` and fixture-specific README, and
-  name the retired obligation, specification citation and affected rows in the
-  commit body. Leave ledger publication to post-merge verification. Show that
-  the rule family is still pinned wherever it survives. Never re-author a
-  retired obligation into invented semantics.
-- **Obligation survives, enforcement survives** — migrate the twin to the
-  surviving construct: same obligation, new subject.
-- **Obligation survives, enforcement is gone** — a well-formed invalid control
-  now accepts. That is a regression, not a retirement: freeze the source, record
-  the acceptance, repair the enforcement, and keep the twin. Deleting it hides a
-  live rule behind a green corpus. Measured case:
-  `fail/providers/private_binding_authority_contract`, whose direct selection of
-  a private boundary trait compiled and ran with no diagnostic while the
-  public-slot rule still stood.
-
-Never leave a twin rejecting for the wrong reason (`expected_satisfied` False,
-reported as `rejected without its expected fragment`): a corpus that reports a
-rejection it cannot justify is worse than a smaller corpus.
-
-### Recording a regression without pinning it
-
-A status column says what the compiler did today; it cannot also say what the
-fixture used to do. So a native row that stops building reads exactly like one
-that never built on this host, and until this was separated `--record` could
-not write the loss down at all: an unmet authored oracle refused the whole
-write, which is right about blessing and wrong about silence. Eight macOS rows
-went on claiming `built`, six of them with an authored exit, for fixtures whose
-check leg had started refusing.
-
-Two different facts about the program now get two different answers.
-
-- The fixture produced no result at all -- it rejects, is incomplete, is
-  sanctioned `unimplemented:` debt or timed out. Nothing contradicts the
-  oracle, and today's row cannot be read as the promise being met, so
-  `--record` writes the observation plus a
-  `regressed-from:<status>[+fact]*` token naming the last success the row
-  recorded and that success's execution facts. The run still prints the unmet
-  promise and still exits `regressed` (3), with the verdict document reading
-  `recorded_regression` and counting `lost_successes`.
-- The fixture ran and contradicted the author -- a different exit, different
-  output, a trap that did not fire. That row is success-shaped: every reader
-  that counts successes counts it, so `--record` refuses it outright, names
-  the fixture, and leaves the golden alone.
-
-The token is provenance the gate derives when it replaces a row, never a
-runner observation. It never joins `facts`, so nothing counting executions
-sees it and the row diff ignores it. It maintains itself in both directions: a
-row that keeps failing carries the *original* success forward rather than
-re-pointing at yesterday's refusal, and a fixture that builds again drops the
-token, which is what makes the repair a visible move. A row that merely drops
-to a weaker success (`built` to `checked`) carries no token, because its own
-status column already says that.
-
-Read a golden with `corpus_scoreboard.py`, whose lead line now carries a
-`regressed` count and which names each row and the outcome it lost. That
-count, unlike `rejected`, distinguishes a standing loss this host remembers
-from a fixture that has never run here, from one file and without a `--base`
-diff.
-
-Comparing the per-host native golden against `corpus_outcomes.txt` is the
-cheap detector for the rows this is about, and costs one file read: a fixture
-the native golden calls `built` while the check golden refuses is a native
-verdict outliving a check-leg regression. Compare against every non-success
-check status, not `rejected` alone -- one of the eight was `incomplete`. A
-detector reading diagnostics cannot find these at all, because a false green
-carries no diagnostic.
-
-```bash
-python3 tools/corpus_scoreboard.py --cross-golden   # exits 1 on a stale success
-```
-
-### Who may record a regression
-
-Post-merge verification publishes the corpus ledger. Authors report actual
-focused outcomes in the PR and claim; they do not edit the ledger, run
-`corpus --record`, or open a ledger-only PR to get around that boundary.
-
-Keep regressions visible: a valid positive that refuses, a negative that
-accepts or loses its intended diagnostic, and a runtime result that contradicts
-its oracle all remain failures. The PR's `Gate:` line states the expected
-change, which main verification measures after merge. Recording a failure
-does not make it accepted behavior.
-
-The recorder format described above explains retained observations and the
-post-merge publisher; it is not an author landing procedure.
-
-`python3 tools/corpus_scoreboard.py` reports the golden as a scoreboard —
-`macos_arm64 native: 64 authored / 172 executed / 746 fixtures` — where
-"authored" means executed with a matching `expected_native_exit.txt`
-oracle. `--base <rev>` diffs two goldens and lists `lost` authored runs as
-regressions. Wave reports follow [Explain the change](../AGENTS.md#explain-the-change):
-explain which programs now run or fail before giving these counts, and keep
-regressions visible in that summary. A `regressed` count in the scoreboard's
-summary line is the standing loss the golden itself remembers -- see
-[recording a regression](#recording-a-regression-without-pinning-it).
-
-The scoreboard reads the golden, which moves only for fixtures a lander ran;
-routine validation filters, so rows go stale — 71 were re-recorded on
-2026-09-29 — and a fixture that goes red outside every lander's filter
-stays green on paper. `python3 tools/native_watch.py` is the scheduled
-full native run that catches it: it snapshots `origin/main` in a scratch
-checkout, runs every fixture natively against an empty golden, and diffs
-the result against its previous snapshot under ignored
-`build/native_watch/`. It exits 1 on a regression the rule below does not
-sanction, bisecting each to its first bad commit (`--no-bisect` to skip),
-and writes `build/native_watch/report-<sha>.md` listing regressions,
-sanctioned `unimplemented:` debt, fixtures that arrived red, and fixtures
-that turned green. It edits no golden or board; the report is for whoever
-files the item. Run it every few hours on each host that has a native
-golden — the scratch checkout and its mbx cache are removed after each run:
-
-**Shard the leg now that the corpus is over ten thousand fixtures.** One
-invocation does not fit this class of host: on 2026-10-20 a monolithic run on a
-10-core, 16 GB machine spent 119 minutes, its runner's RSS climbed
-1.25 → 2.80 → 3.83 → 4.05 → 6.83 GB, and the 4 GB safety bound killed it. The
-gate writes its verdict document once, at the end, so that kill lost every
-fixture outcome and the baseline stayed three weeks stale — a partial
-measurement is only possible if the leg is divided before it starts. `--shards N`
-runs N hash slices (`corpus_gate.py --shard k/N`, disjoint and stable across
-fixture additions), persists each finished shard as
-`build/native_watch/shard-<revision>-<k>of<N>.json`, and merges them into the
-same snapshot the diff reads; re-running with the same `--shards` resumes from
-the finished shards. Pass `--minimum-fixtures <count>` so an incomplete shard
-set is refused instead of written as a composite snapshot. Shards run one at a
-time under the host's corpus-slot discipline, and a shard that dies costs one
-shard, not the leg.
-
-```bash
-# macOS: every 4 hours via launchd (~/Library/LaunchAgents/dev.omega.native-watch.plist)
-#   ProgramArguments: /usr/bin/python3 <repo>/tools/native_watch.py --shards 12 --minimum-fixtures 10298
-#   WorkingDirectory: <repo>   StartInterval: 14400
-launchctl load ~/Library/LaunchAgents/dev.omega.native-watch.plist
-```
-
-```powershell
-# Windows: every 4 hours via Task Scheduler
-schtasks /Create /SC HOURLY /MO 4 /TN OmegaNativeWatch /TR "python <repo>\tools\native_watch.py"
-```
-
-The native watch covers the corpus only. The Windows x86-64 development host
-also runs the full programs-only sample gate once a day, at night, from a
-dedicated clean worktree (`<gate-worktree>`) that it moves to `origin/main`
-first; no agent session starts this run. A sample that passed in the previous
-full record under `build/sample-gate-runs/` and fails in the new one is a main
-regression, owned like any other.
-
-```powershell
-# Windows: daily at 03:00 via Task Scheduler, 4 jobs to leave CPU for other work
-schtasks /Create /SC DAILY /ST 03:00 /TN OmegaSampleGate /TR "cmd /c cd /d <gate-worktree> && git fetch -q origin main && git checkout -q --detach origin/main && python tools\sample_native_gate.py --programs-only --jobs 4 < NUL"
-```
-
-Large structural moves (deleting a mechanism, rewriting a seam) may land while
-some fixtures stop compiling, under one rule. A regressed pass or run fixture
-must reject with a diagnostic whose message starts `unimplemented:` and names
-the missing piece; the PR reports the affected rows and observed movement,
-leaving ledger publication to post-merge verification. `grep -c "unimplemented:"` over the goldens is the
-debt to burn down. Never allowed: a fail fixture that stops rejecting
-(unsound acceptance), a crash, or a native program that builds and exits
-differently from its golden. Those block landing.
+Compiler behavior is tested by a Rust test on the changed code. When the test
+needs an Omega program, keep that program beside the tests under
+`omega-rust/omega/compilation/compiler/tests/fixtures/<tier>/<group>/<name>/` and name it from
+the test; see `omega-rust/omega/compilation/compiler/tests/README.md`. Keep
+the few programs a test reads, never a matrix.
 
 ## Sample check gate
 
-`tools/sample_gate.py` is the samples' cheap counterpart to the corpus gate.
+`tools/sample_gate.py` is the samples' cheap check.
 `tools/sample_native_gate.py` builds and runs applicable samples against their
 native oracles, which is the release gate; this one runs `omega --check` over
 each positive `samples/**` project and validates intended-invalid source controls
@@ -1379,9 +404,8 @@ lists, apart, samples whose README cites `OWNER_QUESTIONS.md` (waiting on that
 decision) and programs with no oracle (nothing defines them running). `--all`
 adds probes and invalid controls and therefore requires a full gate record.
 
-The corpus gate executes fixtures with `input.txt` as stdin (absent means an
-empty stream); the sample gate does the same for a project carrying
-`input.txt` beside its entry and then scores the authored
+The sample gate executes a project carrying `input.txt` beside its entry with
+that file as stdin (absent means an empty stream) and then scores the authored
 `expected_native_exit[.<target>].txt`, `expected_stdout.txt` and
 `expected_stderr.txt` files exactly where present, falling back to the
 header oracle for channels without a file. Samples without `input.txt` run
@@ -1421,8 +445,8 @@ gate; nothing in CI calls it. Use it to compare a program against another, or
 one commit against another, when deciding what a change to the checker removes.
 
 ```bash
-mbx xtask stage-coverage tests/omega/pass/build/conditional_root_binding < /dev/null
-mbx xtask stage-coverage --list fixtures.txt --json report.json < /dev/null
+mbx xtask stage-coverage samples/cli/facts/length/local < /dev/null
+mbx xtask stage-coverage --list programs.txt --json report.json < /dev/null
 ```
 
 A program is a `main.omg` or a fixture directory holding one; `--list` reads
@@ -1434,7 +458,7 @@ lines run by any of them:
 | Lines | Exit | Psi 05 | validation | Psi 06 | All three |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Instrumented | | ... | ... | ... | ... |
-| Run by `tests/omega/pass/build/conditional_root_binding/main.omg` | 1 | ... | ... | ... | ... |
+| Run by `samples/cli/facts/length/local/main.omg` | 1 | ... | ... | ... | ... |
 ```
 
 How to read it:
@@ -1482,7 +506,6 @@ focused checks under [validation scope](#validation-scope) instead.
 python tools/check_native_boundary.py
 python tools/fmt.py --check
 mbx clippy --workspace --all-targets -- -D warnings
-python tools/corpus_gate.py
 mbx check --workspace --all-targets
 mbx nextest run --workspace --lib --no-fail-fast
 ```
@@ -1580,12 +603,10 @@ main changes rather than using a merge-base. Invalid references fail.
 A change under a `PATH_CANDIDATES` prefix in `test_affected.py` also runs that
 catalog candidate, reported under `path_candidates`: `tools/` runs the tools
 unit tests, `tools/release/` the release-record plan, `tools/bootstrap/` and
-`bootstrap/` the chain-hygiene check, `omega-rust/` the fmt check, and
-`tests/omega/<tier>/<group>/` the corpus gate filtered to the touched groups
-(a golden-only edit selects no gate). Changes under
+`bootstrap/` the chain-hygiene check, and `omega-rust/` the fmt check. Changes under
 `source/library/` run `std_package_check` (`omega --check
-source/library/std/main.omg`, about 2.5 minutes on a debug build): a corpus
-fixture compiles only the std bodies its program reaches, so only a whole-package
+source/library/std/main.omg`, about 2.5 minutes on a debug build): a
+program compiles only the std bodies it reaches, so only a whole-package
 check observes a std body that fails checking.
 
 Mixed documentation/Rust changes retain the Rust dependency closure. Library

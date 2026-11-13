@@ -13,7 +13,7 @@ This guide covers coordinating concurrent in-session subagents in an Antigravity
    - Use `invoke_subagent` with `TypeName: "self"`, `Model: "inherit"`, and `Workspace: "inherit"`.
    - Do **not** pass tiered model aliases (`"flash"`, `"pro"`, `"flash_lite"`) when `PlatformClient` is unconfigured in the remote agent container (`PlatformClient is nil`); `"inherit"` uses the active session's model directly.
    - Branched or shared workspace modes are unsupported in the container; isolation comes from each worker operating exclusively inside its assigned `.agents/worktree/<short-name>` directory.
-3. **Symptom-level dispatch:** Give each worker its worktree path, remote ref (`work/<short-name>`), and assigned `TASKS.md` outcome or `tests/omega/corpus_outcomes.txt` failure cluster immediately after preflight so workers perform all `omega-rust/` reading and root-cause tracing in parallel.
+3. **Symptom-level dispatch:** Give each worker its worktree path, remote ref (`work/<short-name>`), and assigned `TASKS.md` outcome immediately after preflight so workers perform all `omega-rust/` reading and root-cause tracing in parallel.
 
 ## 2. Verify Compiler Execution Access
 

@@ -20,10 +20,10 @@ wrong.
 1. **Look up the form.** Open the guide chapter or spec file for the topic (see
    below) and read its current spelling. Do not rely on an earlier read in
    another session; the files move.
-2. **Find a passing instance.** Search `tests/omega/pass/` and `samples/` for a
-   fixture that uses the form, and confirm its row in
-   `tests/omega/corpus_outcomes.txt` is passing. Copy from that file verbatim
-   and adapt as little as possible.
+2. **Find a passing instance.** Search `samples/` and the kept fixtures under
+   `omega-rust/omega/compilation/compiler/tests/fixtures/pass/` for a
+   program that uses the form. Copy from that file verbatim and adapt as
+   little as possible; step 3 says whether it still compiles.
 3. **Prove it.** Run the example through the current compiler, built from the
    current `main` (see `AGENTS.md` Commands; `mbx` is mandatory). Command
    spellings are defined in `wiki/spec/build/command_line.md`; use them as
@@ -41,7 +41,7 @@ plainly. Do not invent a middle spelling.
    tutorial that shows the common forms and links to the rules; where it is
    silent, the specification decides. Start at `wiki/README.md`.
 2. **What works today:** the compiler built from current `main`.
-3. **Evidence, not authority:** `tests/omega/`, `samples/`, `source/library/`.
+3. **Evidence, not authority:** `samples/`, `source/library/`, the kept fixtures.
    These lag the wiki during migrations. Before copying a spelling, check
    `samples/README.md` and `TASKS.md` for an active migration that retires it,
    and check the spelling against the wiki.
@@ -59,8 +59,8 @@ plainly. Do not invent a middle spelling.
 - **Bundled library APIs:** `source/library/` (`name.omg` or `name/mod.omg`).
 - **Whole programs:** `samples/` (each `main.omg` header states its expected
   exit or output) and `samples/README.md`.
-- **Focused behaviors and their diagnostics:** `tests/omega/{pass,fail,run}/`,
-  with `tests/omega/README.md` and `tests/omega/corpus_outcomes.txt`.
-- **Known compiler gaps:** pinned regressions
-  (`mbx xtask corpus --list-pinned-regressions`) and `TASKS.md`. Search there
-  for the diagnostic you hit before working around it.
+- **Focused behaviors and their diagnostics:** the kept fixtures under
+  `omega-rust/omega/compilation/compiler/tests/fixtures/{pass,fail,run}/`. The
+  former corpus is in history only; `tests/README.md` says how to read it.
+- **Known compiler gaps:** `TASKS.md`. Search there for the diagnostic you hit
+  before working around it.

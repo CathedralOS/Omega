@@ -202,7 +202,7 @@ mod tests {
         assert_eq!(
             unit_target(&[
                 json!({"kind": ["bin"], "name": "cli"}),
-                json!({"kind": ["test"], "name": "corpus_runner"})
+                json!({"kind": ["test"], "name": "integration"})
             ])
             .unwrap(),
             ["--bin", "cli"]
@@ -214,6 +214,6 @@ mod tests {
             ])
             .is_err()
         );
-        assert!(unit_target(&[json!({"kind": ["test"], "name": "corpus_runner"})]).is_err());
+        assert!(unit_target(&[json!({"kind": ["test"], "name": "integration"})]).is_err());
     }
 }

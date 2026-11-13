@@ -329,6 +329,29 @@ fn stage_json(lines: StageLines) -> serde_json::Value {
     object.into()
 }
 
+/// The commit the report was measured at, marked `+wt` when tracked files differ.
+fn current_stamp(root: &Path) -> String {
+    let git = |arguments: &[&str]| {
+        Command::new("git")
+            .args(arguments)
+            .current_dir(root)
+            .stdin(Stdio::null())
+            .output()
+            .ok()
+            .filter(|output| output.status.success())
+            .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+    };
+    let revision =
+        git(&["rev-parse", "--short=12", "HEAD"]).unwrap_or_else(|| "unknown".to_owned());
+    let dirty = git(&["status", "--porcelain", "--untracked-files=no"])
+        .is_some_and(|changes| !changes.is_empty());
+    if dirty {
+        format!("{revision}+wt")
+    } else {
+        revision
+    }
+}
+
 fn measure(root: &Path, options: &Options) -> Result<(), String> {
     let tools = llvm_tools(root)?;
     let binary = build_instrumented(root, &options.target_dir)?;
@@ -384,7 +407,7 @@ fn measure(root: &Path, options: &Options) -> Result<(), String> {
         None
     };
 
-    let stamp = crate::corpus::current_stamp(root);
+    let stamp = current_stamp(root);
     let command = format!("omega {}", options.omega_arguments.join(" "));
     println!("stage-coverage: `{command} <program>` at {stamp}; lines with a non-zero counter\n");
     println!("| Lines | Exit | Psi 05 | validation | Psi 06 | All three |");
