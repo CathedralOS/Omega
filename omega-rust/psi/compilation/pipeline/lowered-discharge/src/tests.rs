@@ -1230,6 +1230,24 @@ fn the_prover_has_rules_for_integer_goals_and_not_for_other_forms() {
         at_most(1, 10),
         Proposition::Equal(flag, ScalarTerm::boolean(true)),
     ])));
+    // A clause may state a Wrapping or Saturating operation directly
+    // (`requires left +% right == 3`). The rules say nothing of what one
+    // computes, at any depth of the compared term, so a goal over one has no
+    // rule, as a goal over the value a body computes by one has none.
+    let ScalarType::Integer(carrier) = u32_type() else {
+        unreachable!()
+    };
+    let wrapped =
+        ScalarTerm::wrapping_integer_add(carrier, value.clone(), formal(2, u32_type())).unwrap();
+    let three = bound(u32_type(), IntegerValue::Unsigned(3));
+    assert!(!crate::has_rules_for(&Proposition::Equal(
+        wrapped.clone(),
+        three.clone()
+    )));
+    assert!(!crate::has_rules_for(&Proposition::LessOrEqual(
+        three,
+        ScalarTerm::saturating_integer_subtract(carrier, wrapped, value).unwrap(),
+    )));
 }
 
 #[test]

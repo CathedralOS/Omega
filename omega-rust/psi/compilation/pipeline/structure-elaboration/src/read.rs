@@ -616,7 +616,7 @@ mod tests {
             values: &[],
             bound: &[],
             owner,
-            result: ResultTerm::Named(result, u32_type),
+            result: ResultTerm::Named(result, u32_type, None),
         };
         let entry = ClauseScope {
             result: ResultTerm::Absent("result in an entry clause"),

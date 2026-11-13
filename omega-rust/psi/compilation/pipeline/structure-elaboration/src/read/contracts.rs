@@ -5,7 +5,7 @@ read into propositions over the formals, and the identity of the reserved
 with `self` and its fields as the names in scope (`ClauseScope::subject`).
 */
 
-use crate::body::Qualification;
+use crate::body::{Policy, Qualification};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerMathLiteral, IntegerMathTerm, MachineId, PlaceId,
     Proposition, ScalarTerm, ScalarType, StructuralCaseSubject, StructuralTypeId, ValueId,
@@ -86,8 +86,9 @@ pub(super) struct DataSubject {
 
 #[derive(Clone, Copy)]
 pub(super) enum ResultTerm {
-    /// The result pseudo-value's identity and type.
-    Named(ValueId, ScalarType),
+    /// The result pseudo-value's identity and stored type, and the
+    /// arithmetic policy the declared result type carries.
+    Named(ValueId, ScalarType, Option<Policy>),
     /// Why this clause cannot name `result`.
     Absent(&'static str),
 }
@@ -412,7 +413,7 @@ impl Program<'_> {
                     return unserved("result of another callable");
                 }
                 match scope.result {
-                    ResultTerm::Named(id, scalar_type) => {
+                    ResultTerm::Named(id, scalar_type, _) => {
                         Ok((ScalarTerm::Value { id, scalar_type }, scalar_type))
                     }
                     ResultTerm::Absent(why) => unserved(why),
@@ -555,18 +556,23 @@ impl Program<'_> {
             ExpressionNode::Boolean(value) => {
                 Ok((ScalarTerm::Boolean(*value), ScalarType::Boolean))
             }
-            // Carrier arithmetic computes, so it owes its formation
-            // condition before the clause can use it (contracts.md, "Total
-            // arithmetic": "Exact operations discharge representability
-            // before formation", and a suffixed operator "whose selected
-            // meaning can transfer control cannot form a proof term"). No
-            // slice states that obligation yet.
-            ExpressionNode::Binary(binary)
-                if binary.policy == numerics::arithmetic::ArithmeticDomain::Exact =>
-            {
-                unserved("carrier arithmetic in a clause term")
-            }
-            ExpressionNode::Binary(_) => unserved("policy operator in a clause term"),
+            ExpressionNode::Binary(binary) => match crate::policy::suffix(binary.policy) {
+                // Exact carrier arithmetic computes, so it owes its
+                // formation condition before the clause can use it
+                // (contracts.md, "Total arithmetic": "Exact operations
+                // discharge representability before formation"). No slice
+                // states that obligation yet.
+                crate::policy::Suffix::Unwritten => unserved("carrier arithmetic in a clause term"),
+                // "An arithmetic operation whose selected meaning can
+                // transfer control cannot form a proof term. It is not
+                // silently read as Exact or mathematical arithmetic."
+                crate::policy::Suffix::Trapping => unserved(
+                    "Trapping policy operator in a clause, where an operation that can crash forms no term",
+                ),
+                crate::policy::Suffix::Total(policy) => {
+                    self.suffixed_term(id, scope, binary, policy, expected)
+                }
+            },
             ExpressionNode::Cast(_) => unserved("cast in a clause term"),
             // An `embed` is a mathematical integer, which only a
             // mathematical comparison holds (`mathematical_term`).
@@ -575,6 +581,106 @@ impl Program<'_> {
             }
             ExpressionNode::Call(_) => unserved("call in a clause term"),
             _ => unserved("term other than a formal, a literal or an embedded integer"),
+        }
+    }
+
+    /// `left <op><suffix> right` in a clause: the value the operator computes
+    /// under `policy`, as a term.
+    ///
+    /// The operator means here what it means in a body (`crate::policy`):
+    /// both operands are unqualified integers of one carrier, an anonymous
+    /// operand lands in its partner's carrier, a shift's count keeps its own
+    /// type, and the result is the bare carrier. contracts.md, "Total
+    /// arithmetic": "Wrapping and Saturating discharge primitive definedness
+    /// not resolved by their overflow policy, such as a nonzero divisor." A
+    /// divide or remainder therefore owes a condition before it forms a term;
+    /// no slice states that obligation for a clause yet, so both are refused
+    /// by name, as Exact arithmetic is.
+    fn suffixed_term(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        binary: &typed_trees::expression::TableBinaryExpression,
+        policy: Policy,
+        expected: Option<ScalarType>,
+    ) -> Checked<(ScalarTerm, ScalarType)> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let operation = crate::policy::suffixed(binary.operator).map_err(unserved)?;
+        let anonymous = (
+            self.wholly_anonymous(binary.left),
+            self.wholly_anonymous(binary.right),
+        );
+        if anonymous == (true, true) {
+            return Err(unserved(crate::policy::WHOLLY_ANONYMOUS));
+        }
+        for operand in [binary.left, binary.right] {
+            if self.named_policy(id, scope, operand)?.is_some() {
+                return Err(unserved(crate::policy::QUALIFIED_OPERAND));
+            }
+        }
+        // The operand that has a type is read first; the anonymous one lands
+        // in it, as the literal in `total +% 1` does.
+        let ((left, left_type), (right, right_type)) = if anonymous.0 {
+            let right = self.term(id, scope, binary.right, expected)?;
+            (self.term(id, scope, binary.left, Some(right.1))?, right)
+        } else {
+            let left = self.term(id, scope, binary.left, expected)?;
+            let right = self.term(id, scope, binary.right, Some(left.1))?;
+            (left, right)
+        };
+        let (ScalarType::Integer(carrier), ScalarType::Integer(_)) = (left_type, right_type) else {
+            return Err(unserved(crate::policy::QUALIFIED_OPERAND));
+        };
+        if !crate::policy::shifts(operation) && left_type != right_type {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("policy operator operand types differ"),
+            ));
+        }
+        match crate::policy::term(operation, policy, carrier, left, right) {
+            Some(term) => Ok((term, left_type)),
+            None => Err(unserved(
+                "policy operator in a clause term that owes a condition before it is total",
+            )),
+        }
+    }
+
+    /// The arithmetic policy carried by the declared type of what
+    /// `expression` names: a formal, the result, or a field. A term is the
+    /// stored value and forgets it, and a suffixed operator's operands must
+    /// carry none. An expression that names nothing has no declared type: a
+    /// literal is anonymous, and a suffixed operator's result is "the bare
+    /// carrier with no policy qualification".
+    fn named_policy(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+    ) -> Checked<Option<Policy>> {
+        if !expression.is_valid() {
+            return Ok(None);
+        }
+        match self.typed.expression_table.expression(expression) {
+            ExpressionNode::Name(path) if path.reserved_result_of.is_valid() => {
+                Ok(match scope.result {
+                    ResultTerm::Named(_, _, policy) => policy,
+                    ResultTerm::Absent(_) => None,
+                })
+            }
+            ExpressionNode::Name(path)
+                if scope.subject.is_none()
+                    && path.symbol.is_valid()
+                    && !path.static_application.is_valid()
+                    && !scope.bound.iter().any(|(symbol, _)| *symbol == path.symbol) =>
+            {
+                let slot = self.slot_of(id, scope.slots, path)?;
+                Ok(scope.slots[slot].value_type.policy())
+            }
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) => Ok(self
+                .projected(id, scope, expression)?
+                .and_then(|(_, _, value_type)| value_type.policy())),
+            _ => Ok(None),
         }
     }
 
@@ -675,7 +781,8 @@ impl Program<'_> {
     ///
     /// Refused by name: `/` and `%`, whose mathematical meaning is rational
     /// division or a named quotient and remainder (contracts.md: "Its result
-    /// is always `Rat`"); shifts and bitwise operators; a suffixed operator;
+    /// is always `Rat`"); shifts and bitwise operators; a suffixed operator
+    /// applied to mathematical integers, which have no carrier;
     /// a call other than `embed`; a cast; and a runtime value or typed
     /// literal that is not embedded, since no promotion of one into the
     /// mathematical integers is implied.
@@ -749,8 +856,15 @@ impl Program<'_> {
                 }
             }
             ExpressionNode::Binary(binary) => {
-                if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact {
-                    return unserved("policy operator in a mathematical term");
+                // A policy operator takes carrier operands, and a
+                // mathematical integer has no carrier to wrap or clamp at.
+                // `embed(a +% b)` is the wrapped sum, embedded: "embedding
+                // a wrapped sum does not turn it into unbounded addition".
+                if !matches!(
+                    crate::policy::suffix(binary.policy),
+                    crate::policy::Suffix::Unwritten
+                ) {
+                    return unserved("policy operator on mathematical integers");
                 }
                 let operation: fn(Box<IntegerMathTerm>, Box<IntegerMathTerm>) -> IntegerMathTerm =
                     match binary.operator {

@@ -67,6 +67,20 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### A clause the specification rejects can only be reported as not supported yet
+- Category: a verdict with nothing behind it
+- Where: `omega-rust/psi/compilation/representations/terminal-psi/check-tables/src/lib.rs` (`RefusalReason`); `structure-elaboration/src/read/contracts.rs` (`term`, the `Trapping` arm)
+- Saw: `ensures result == left +! right` is an error of the program (`wiki/spec/proofs/contracts.md`, "Total arithmetic": an operation that can transfer control "cannot form a proof term"), but the reader's only negative result that is not a storage or ownership judgment is `Unsupported`, so the clause is refused with the same outcome as a construct nobody has built yet. A wholly anonymous `7 +% 1` and a suffix on a qualified operand are reported the same way
+- Cost: the author is told the compiler cannot judge a program that the language forbids, and a test cannot tell a rule of the language from a gap in the checker
+- Reported: 2026-11-13, Claude Code, while reading suffixed operators in contracts
+
+### A crash route guard and a call cycle restate a clause with a substitution that knows two term forms
+- Category: one idea, several implementations
+- Where: `omega-rust/psi/compilation/pipeline/structure-elaboration/src/canonical.rs` (`substitute`, `substitute_term`); `terminal-psi/semantics/src/substitution.rs` (`substitute_proposition_values`)
+- Saw: Terminal semantics has the substitution of values in any proposition; the reader keeps one of its own for route guards and for a cycle member's `requires`, which accepts a formal or a literal and refuses every other term. A route guard over a field, a mathematical comparison or a suffixed operator is refused by name where a call restates it (`route guard term outside formals and literals`), while the same clause is served as a `requires` or an `ensures`
+- Cost: each new term a clause may hold is served in two clause kinds and refused in the third until someone widens the second substitution by hand
+- Reported: 2026-11-13, Claude Code, while reading suffixed operators in contracts
+
 ### `Console::exit_process` ends the process without publishing `reaches ProcessExit`
 - Category: a verdict with nothing behind it
 - Where: `source/library/std/console.omg:66` (the requirement, `reaches Console`) and `:96` (its provider); `omega-rust/psi/compilation/representations/typed-trees/src/declarations.rs` (`exact_process_exit_requirement` with `console_adapter`, `nominate_source_completion`)
@@ -87,13 +101,6 @@ own to defend. Say what you saw, not what you would build.
 - Saw: the seam was built so a harness could run a second checker beside the old one; the old one is deleted, so "the current checker's verdict" it returns is the lowered-form checker's own, and the two examples compare that checker with itself over a corpus that no longer exists. The tests that only read what the checker concludes left the seam in this change; `lowered_route_governance`, `lowered_route_publication` and two tests of `lowered_route_ownership` still use it to read what the product compile reports
 - Cost: the names say there are two checkers; an agent reading `current=accepted route=rejected` output or `FixtureFrontierCheck::Rejected` will look for the one that is gone
 - Reported: 2026-11-13, Claude Code, while moving the lowered-form checker's tests off the Build
-
-### Suffixed policy operators are read in executable code only
-- Category: one idea, several implementations
-- Where: `omega-rust/psi/compilation/pipeline/structure-elaboration/src/read/contracts.rs` (`policy operator in a clause term`, `policy operator in a mathematical term`); `read/expressions.rs` (`suffixed_expression`)
-- Saw: typed preparation used to rewrite `a +% b` into casts and the Wrapping add for bodies and contracts alike; that pass was deleted with the old checker (#2823) and every program with a suffixed operator was refused. The body reader now reads the suffix itself; the two contract readers still refuse it, and `+!` is refused everywhere because no type on the route carries `Trapping`
-- Cost: a `requires` or `ensures` that writes `+%` (accepted before #2823, `wiki/spec/proofs/contracts.md`, "Total arithmetic") is refused by name, and the clause readers and the body reader each decide what an operator means
-- Reported: 2026-11-13, Claude Code, while restoring `+%` in machine bodies
 
 ### Nothing makes a new reader site ask before it looks inside a qualified data value
 - Category: a verdict with nothing behind it
