@@ -399,6 +399,10 @@ choice. A requirement can also state the end state,
 caller. That postcondition permits a write between entry and return and
 re-establishes value facts only, under
 [restored values](state_contracts.md#restoring-a-saved-scalar-value).
+Here the observation is through a reference: bare field reads describe final
+contents, while `old(...)` describes entry contents. This does not make a
+by-value parameter's contract name denote its final local working value; see
+[contract inputs](state_contracts.md#contract-inputs-and-working-values).
 
 Invalidate flow refinements atom by atom on overlapping written places; exact
 outcome guarantees may restore them or preserve untouched paths. Default-domain

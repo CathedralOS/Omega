@@ -12,6 +12,7 @@ use typed_trees::statement::{
     StatementNode, TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
+use super::authority::Access;
 use super::expressions::{case_condition, case_test_of, same_computation};
 use super::{Program, Slot, crash_cause};
 use crate::body::{Expression, ExpressionKind, Statement, Target, ValueType};
@@ -167,8 +168,8 @@ impl Program<'_> {
                     if pattern.pattern.head.is_valid() =>
                 {
                     let read = self.expression(id, slots, pattern.subject, None)?;
-                    let (ExpressionKind::Slot(_), Some(ValueType::Record(record, _))) =
-                        (&read.kind, read.result)
+                    let (ExpressionKind::Slot(_), Some(record)) =
+                        (&read.kind, self.opened(id, read.result, Access::Read)?)
                     else {
                         return Err(unserved("case arm whose subject is not a data local"));
                     };

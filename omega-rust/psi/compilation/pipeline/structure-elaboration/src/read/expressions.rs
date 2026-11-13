@@ -12,6 +12,7 @@ use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, UnaryOperator,
 };
 
+use super::authority::Access;
 use super::{Program, Slot, symbol_kind};
 use crate::body::{Expression, ExpressionKind, Policy, Strict, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
@@ -365,7 +366,7 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         let subject = self.expression(id, slots, matched.subject, None)?;
-        let Some(ValueType::Record(record, _)) = subject.result else {
+        let Some(record) = self.opened(id, subject.result, Access::Read)? else {
             return Err(unserved("match on a scalar subject"));
         };
         if !names_storage(&subject) {

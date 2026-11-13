@@ -16,6 +16,7 @@ use typed_trees::closed_numeric;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
+use super::authority::Access;
 use super::places::Member;
 use super::{Program, Slot};
 use crate::body::ValueType;
@@ -213,9 +214,10 @@ impl Program<'_> {
             if scope.subject.is_none() {
                 return unserved("case membership");
             }
-            let Some((root, path, ValueType::Record(sum, _))) =
-                self.projected(id, scope, binary.left)?
-            else {
+            let Some((root, path, tested)) = self.projected(id, scope, binary.left)? else {
+                return unserved("case test of something that is not a sum");
+            };
+            let Some(sum) = self.opened(id, Some(tested), Access::Read)? else {
                 return unserved("case test of something that is not a sum");
             };
             let case = self.case_position(id, sum, case)?;
@@ -856,7 +858,11 @@ impl Program<'_> {
                         return Ok(None);
                     }
                     let slot = self.slot_of(id, scope.slots, path)?;
-                    let ValueType::Record(record, _) = scope.slots[slot].value_type else {
+                    // A clause that names a field of a formal reads inside
+                    // the formal's value, as a body does.
+                    let Some(record) =
+                        self.opened(id, Some(scope.slots[slot].value_type), Access::Read)?
+                    else {
                         return Ok(None);
                     };
                     let root = formal_place(id, scope.slots, slot)?;
@@ -880,14 +886,19 @@ impl Program<'_> {
                 if !member.member_symbol.is_valid() {
                     return Err(spelling("clause member without a field symbol"));
                 }
-                let Some((root, base, ValueType::Record(record, _))) =
-                    self.projected(id, scope, member.receiver)?
-                else {
-                    return Err(refuse(
+                let not_data = || {
+                    refuse(
                         id,
                         Construct::Machine,
                         Unserved::Contract("member of something that is not data"),
-                    ));
+                    )
+                };
+                let Some((root, base, receiver)) = self.projected(id, scope, member.receiver)?
+                else {
+                    return Err(not_data());
+                };
+                let Some(record) = self.opened(id, Some(receiver), Access::Read)? else {
+                    return Err(not_data());
                 };
                 (root, base, record, member.member_symbol)
             }

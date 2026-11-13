@@ -24,6 +24,7 @@ serve is refused when it is set, never ignored.
 */
 
 mod arrays;
+mod authority;
 mod bytes;
 mod calls;
 mod casts;

@@ -81,6 +81,13 @@ own to defend. Say what you saw, not what you would build.
 - Cost: a `requires` or `ensures` that writes `+%` (accepted before #2823, `wiki/spec/proofs/contracts.md`, "Total arithmetic") is refused by name, and the clause readers and the body reader each decide what an operator means
 - Reported: 2026-11-13, Claude Code, while restoring `+%` in machine bodies
 
+### Nothing makes a new reader site ask before it looks inside a qualified data value
+- Category: a verdict with nothing behind it
+- Where: `structure-elaboration/src/read/` (`authority.rs`, and every `ValueType::Record(record, _)` pattern in `places.rs`, `expressions.rs`, `transitions.rs`, `arrays.rs`, `contracts.rs`, `statements.rs`)
+- Saw: a type is a carrier and its domains, and about thirty sites match the carrier and discard the domains with `_`. The sites that take a value apart now call `authority::opened`, but the pattern still compiles anywhere, and two sites were typing a literal with whatever qualified type its context expected until this change (`arrays.rs` array literal, `places.rs` record literal). A store's destination is also read through the expression reader, so it asks read authority where only write authority is owed.
+- Cost: the next site that projects, compares or constructs a record with `_` silently ignores a domain's reader, writer or issuer rule, and no test fails until someone writes the twin for that exact site
+- Reported: 2026-11-13, Claude Code, while reading declared domains on data carriers
+
 ### Core's `AccessPlan` and `AccessPolicy` are the superseded layout-containing shape
 - Category: one idea, several implementations
 - Where: `source/library/core/layout.omg` (`AccessPlan`, `AccessPlan::inaccessible`, `AccessPolicy::plan(schema: Schema)`); `wiki/spec/resources/access.md`, "Plans and admitted supply"
@@ -575,6 +582,13 @@ own to defend. Say what you saw, not what you would build.
 - Saw: the old checker's deletion left each admission as a function that takes the typed program and the Build activation, ignores both, and either refuses or returns an empty list. Until 2026-11-13 each refused any program whose Build ran at all, so six unrelated refusals stood between every project and its Product; the callers still prepare operands and thread results as if producers existed.
 - Cost: nobody can tell from the code which Build operations work; the unused parameters and the result types (`AdmittedProductDeclarations`, `NativeBindingSelection`) describe a design that has no implementation and will drift from whatever replaces it
 - Reported: 2026-11-13, Claude Code, while taking the witness's finished Build to its Product
+
+### Selected-provider custody is a data model whose "nothing" cannot be constructed
+- Category: a verdict with nothing behind it
+- Where: `selected-dispatch/src/selected_execution.rs` (`SelectedExecution`), `provider-planning/src/provider_settlement.rs` (`ProviderSettlement`), `provider-planning/src/service_declarations.rs`, `provider-planning/src/target_machines/prepared_providers.rs`, `psi-compiler/terminal-production/src/external_providers.rs`
+- Saw: the old checker's deletion kept about thirty retained fields that every product consumer reads (`compiler/src/terminal/terminal_artifact.rs`, `product_execution.rs`, `package_review.rs`), but removed their producers. `ServiceDeclarations` and `ProviderPublicationCatalog` have private fields and no constructor at all; `PreparedExternalProviderDeclarations::prepare` always refuses. So even a program that reaches no boundary requirement cannot be handed on after its providers settle to none.
+- Cost: provider settlement can decide a program's supply and still has nowhere to put the answer; rebuilding the producers field by field would restore the old shape, while the consumers only need the plans, the entry and the calling program of the accepted artifact
+- Reported: 2026-11-13, Claude Code, while rebuilding target preparation and provider settlement on the accepted Terminal module
 
 ### Boundary requirements must write `crashes`, and 390 of the library's 401 do not
 - Category: a verdict with nothing behind it

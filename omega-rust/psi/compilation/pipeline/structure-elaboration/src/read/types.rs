@@ -505,14 +505,6 @@ impl Program<'_> {
         if definition.alias.is_some() {
             return unserved("constrained by a domain alias");
         }
-        // domains.md, "Governed subjects and operations": "Reading stored
-        // contents, including discriminants, comparisons, codecs, and
-        // runtime reflection, requires read authority." Who may read or
-        // write is in the policy's plan, which nothing evaluates, and no
-        // reader of a value asks, so a governed domain is refused whole.
-        if definition.access_policy.is_some() {
-            return unserved("constrained by a domain governed by an access policy");
-        }
         if !typed.domain_type_parameters(definition).is_empty()
             || !definition.index_arguments.is_empty()
         {
@@ -525,15 +517,6 @@ impl Program<'_> {
             .any(|membership| membership.domain_symbol != domain)
         {
             return unserved("constrained by a domain that refines another domain");
-        }
-        // domains.md, "Governed subjects and operations": a qualified whole
-        // record "protects its contained fields", and reading or changing
-        // them needs the authority its domain's policy grants. Nothing in
-        // the reader asks that where a data value is taken apart (a member,
-        // a pattern, a case test, a field write), so a declared domain on a
-        // data carrier is refused until each of those asks.
-        if matches!(carrier, ValueType::Record(..)) {
-            return unserved("declared domain on a data type");
         }
         let Some(plain) = carrier.qualified(crate::body::Qualification::NONE) else {
             return unserved("domain on a type parameter");

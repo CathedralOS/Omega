@@ -109,8 +109,8 @@ fn a_standalone_program_is_judged_without_its_build() {
 ///
 /// The Wrapping and Saturating adds are total, so both are accepted. A
 /// policy "does not license a zero divisor": `/%` with nothing known about
-/// the divisor is rejected. The result carries no policy, so the bare `+`
-/// after a `+%` is still Exact and still owes its range. `+!` is its own
+/// the divisor is rejected. A suffix excuses no other operation: the bare
+/// `+` beside a `+%` is still Exact and still owes its range. `+!` is its own
 /// crash site, which no type on this route carries yet: refused by name.
 #[test]
 fn an_operator_suffix_chooses_the_policy_of_one_operation() {
@@ -123,8 +123,8 @@ fn an_operator_suffix_chooses_the_policy_of_one_operation() {
         ("saturating_add", "left +| right", "accepted"),
         ("wrapping_divide", "left /% right", "rejected"),
         (
-            "exact_after_wrapping",
-            "let wrapped: u32 = left +% right; wrapped + right",
+            "exact_beside_wrapping",
+            "let wrapped: u32 = left +% right; left + right",
             "rejected",
         ),
         ("trapping_add", "left +! right", "not-supported"),

@@ -218,6 +218,10 @@ fn signature(program: &mut TypedTrees, generic: &Generic) -> (HandleSpan<TypePar
 }
 
 fn source() -> Source {
+    source_named("relay")
+}
+
+fn source_named(relay_name: &'static str) -> Source {
     let mut builder = SymbolTableBuilder::new();
     let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
     let top = builder.insert_children(
@@ -227,7 +231,7 @@ fn source() -> Source {
             (SymbolKind::BuiltinType, SymbolNameRef::Static("bool")),
             (SymbolKind::BuiltinType, SymbolNameRef::Static("u64")),
             (SymbolKind::Machine, SymbolNameRef::Static("forward")),
-            (SymbolKind::Machine, SymbolNameRef::Static("relay")),
+            (SymbolKind::Machine, SymbolNameRef::Static(relay_name)),
             (SymbolKind::Machine, SymbolNameRef::Static("sized")),
             (SymbolKind::Machine, SymbolNameRef::Static("main")),
             (SymbolKind::Machine, SymbolNameRef::Static("counted")),
@@ -307,7 +311,7 @@ fn source() -> Source {
     push_machine(
         &mut program,
         relay.machine,
-        "relay",
+        relay_name,
         type_parameters,
         contracts,
         state,
@@ -351,7 +355,7 @@ fn source() -> Source {
             &mut program,
             main,
             relay.state,
-            "relay",
+            relay_name,
             argument(applied, spelled),
             operand,
         );
@@ -526,6 +530,34 @@ fn a_closed_type_application_enters_one_generated_machine_per_argument_tuple() {
         panic!("one formal");
     };
     assert_eq!(named_symbol(&program, item.type_reference), relay.parameter);
+    assert!(program.deferred_refusal(main).is_none());
+}
+
+#[test]
+fn a_query_name_without_query_identity_still_specializes() {
+    let Source {
+        mut program,
+        relay,
+        main,
+        ..
+    } = source_named("schema");
+    assert_eq!(program.symbols.name(relay.machine), "schema");
+    assert!(program.core_vocabulary(relay.machine).is_none());
+    prepare(&mut program).expect("the ordinary generic call is served");
+    let selected = calls(&program, main);
+    assert_eq!(selected.len(), 3);
+    for call in selected {
+        assert!(call.machine_arguments.is_empty());
+        assert_eq!(
+            program.symbols.get(call.target_symbol).generated_from,
+            relay.state
+        );
+        let generated = program.symbols.get(call.target_symbol).parent;
+        assert_eq!(
+            program.executable_application_template(generated).unwrap(),
+            Some(relay.machine)
+        );
+    }
     assert!(program.deferred_refusal(main).is_none());
 }
 
