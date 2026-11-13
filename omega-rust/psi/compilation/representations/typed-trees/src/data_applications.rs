@@ -45,7 +45,6 @@ impl TypedTrees {
 
 struct ApplicationPreparation<'source> {
     source: &'source mut TypedTrees,
-    closed: Vec<Option<bool>>,
     active_references: Vec<TypeReferenceHandle>,
     active_declarations: Vec<SymbolHandle>,
 }
@@ -53,7 +52,6 @@ struct ApplicationPreparation<'source> {
 impl<'source> ApplicationPreparation<'source> {
     fn new(source: &'source mut TypedTrees) -> Self {
         Self {
-            closed: vec![None; source.type_reference_table.type_reference_count()],
             source,
             active_references: Vec::new(),
             active_declarations: Vec::new(),
@@ -68,23 +66,12 @@ impl<'source> ApplicationPreparation<'source> {
         {
             return Err("data application refers to a missing type reference".into());
         }
-        let position = reference.arena_index() as usize;
-        self.closed.resize(
-            self.source.type_reference_table.type_reference_count(),
-            None,
-        );
-        if let Some(closed) = self.closed[position] {
-            return Ok(closed);
-        }
         if self.active_references.contains(&reference) {
             return Err("data application has a cyclic type-reference graph".into());
         }
         self.active_references.push(reference);
         let result = self.form(reference);
         self.active_references.pop();
-        if let Ok(closed) = result {
-            self.closed[position] = Some(closed);
-        }
         result
     }
 
@@ -167,7 +154,6 @@ impl<'source> ApplicationPreparation<'source> {
             return Ok(false);
         }
         let mut substitutions = Vec::with_capacity(parameters.len());
-        let mut closed = true;
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if !self
                 .source
@@ -185,8 +171,27 @@ impl<'source> ApplicationPreparation<'source> {
                     "data application has a foreign or duplicated declaration binder".into(),
                 );
             }
-            closed &= self.reference(argument)?;
+            if !self
+                .source
+                .type_reference_table
+                .contains_type_reference(argument)
+            {
+                return Err("data application refers to a missing type reference".into());
+            }
             substitutions.push((parameter.symbol, argument));
+        }
+        // Normalized source references remain immutable while this owner
+        // appends their views. Reuse that exact association, not a second
+        // whole-program scratch table for each receiving occurrence.
+        if let Some(retained) = self.source.data_application_definition(reference) {
+            if retained.symbol != owner || retained.generic_instance != Some(reference) {
+                return Err("data application view belongs to another source occurrence".into());
+            }
+            return Ok(self.source.data_application_is_closed(reference));
+        }
+        let mut closed = true;
+        for (_, argument) in &substitutions {
+            closed &= self.reference(*argument)?;
         }
         let mut definition = template.clone();
         definition.type_parameters = HandleSpan::empty();

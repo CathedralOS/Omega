@@ -65,6 +65,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         .find(|data| data.name.as_str() == "Optional")
         .unwrap();
     let mut open_applications = 0;
+    let mut open_reference = None;
     for (reference, node) in typed.type_reference_table.type_reference_rows_from(0) {
         let typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } = node else {
             continue;
@@ -80,6 +81,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         assert_eq!(view.generic_instance, Some(reference));
         assert!(typed.closed_data_definition(reference).is_none());
         open_applications += 1;
+        open_reference = Some(reference);
     }
     assert!(
         open_applications > 0,
@@ -96,6 +98,25 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         })
         .collect();
     assert_eq!(fields.len(), 3);
+    let mut prepared_again = typed.clone();
+    let retained_members = prepared_again.data_members.len();
+    let retained_payloads = prepared_again.data_payload_fields.len();
+    for reference in &fields {
+        assert!(
+            prepared_again
+                .prepare_data_application_view(*reference)
+                .unwrap()
+        );
+    }
+    assert!(
+        !prepared_again
+            .prepare_data_application_view(
+                open_reference.expect("the parsed generic wrap application")
+            )
+            .unwrap()
+    );
+    assert_eq!(prepared_again.data_members.len(), retained_members);
+    assert_eq!(prepared_again.data_payload_fields.len(), retained_payloads);
     for reference in &fields {
         let retained = typed
             .closed_data_definition(*reference)
