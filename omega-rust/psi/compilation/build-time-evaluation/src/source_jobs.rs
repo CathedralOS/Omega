@@ -675,7 +675,11 @@ mod tests {
                 .program()
                 .source_records()
                 .iter()
-                .filter(|row| row.application.reference == operand.type_reference)
+                .filter(|row| {
+                    row.application
+                        .as_ref()
+                        .is_some_and(|application| application.reference == operand.type_reference)
+                })
                 .collect::<Vec<_>>();
             let [row] = rows.as_slice() else {
                 panic!("the same query registers one exact actual application")
