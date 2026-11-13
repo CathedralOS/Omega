@@ -1236,6 +1236,7 @@ pub(crate) mod construction_destinations {
     ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
         let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle, SymbolHandle)>::new();
         let mut calls = Vec::new();
+        let mut constructors = Vec::new();
 
         for (handle, expression) in program.expression_table.expression_entries() {
             if usize::try_from(handle.arena_index()).is_ok_and(|index| index <= expression_frontier)
@@ -1243,17 +1244,7 @@ pub(crate) mod construction_destinations {
                 continue;
             }
             match expression {
-                ExpressionNode::StructLiteral(literal) => {
-                    for field in program.expression_table.struct_fields(literal.fields) {
-                        let field_type = selected_construction_field_type(
-                            program,
-                            handle,
-                            literal,
-                            field.field_symbol,
-                        )?;
-                        destinations.push((field.value, field_type, literal.type_symbol));
-                    }
-                }
+                ExpressionNode::StructLiteral(_) => constructors.push(handle),
                 ExpressionNode::Call(call) => {
                     let arguments = program.expression_table.expression_handles(call.arguments);
                     if program
@@ -1424,6 +1415,53 @@ pub(crate) mod construction_destinations {
                 &mut cast_destinations,
             )?;
         }
+        // A child constructor may get its complete application from an
+        // enclosing field. Land explicit receiving contexts first; querying
+        // every child before its parent would discard that application.
+        for value in constructors {
+            let ExpressionNode::StructLiteral(literal) =
+                program.expression_table.expression(value).clone()
+            else {
+                continue;
+            };
+            let known_application = [
+                program
+                    .expression_table
+                    .construction_required_type_reference(value),
+                program
+                    .expression_table
+                    .constructed_value_type_reference(value),
+                literal.application_type,
+            ]
+            .into_iter()
+            .any(|reference| reference.is_valid());
+            let monomorphic = program
+                .unique_data_definition_by_symbol(literal.type_symbol)
+                .is_some_and(|data| {
+                    data.type_parameters.is_empty() && data.generic_instance.is_none()
+                });
+            if !known_application && !monomorphic {
+                // Keep the unresolved constructor intact. The checked reader
+                // refuses it if demanded without an exact receiving tuple;
+                // its payload cannot infer a different application here.
+                continue;
+            }
+            let fields = program
+                .expression_table
+                .struct_fields(literal.fields)
+                .to_vec();
+            for field in fields {
+                let field_type =
+                    selected_construction_field_type(program, value, &literal, field.field_symbol)?;
+                land_one(
+                    program,
+                    field.value,
+                    field_type,
+                    literal.type_symbol,
+                    &mut cast_destinations,
+                )?;
+            }
+        }
         Ok(cast_destinations)
     }
 
@@ -1524,11 +1562,9 @@ pub(crate) mod construction_destinations {
         if let ExpressionNode::StructLiteral(literal) =
             program.expression_table.expression(value).clone()
         {
-            // An application with a runtime value index is not final here.
-            // Stage 04 snapshots a computed operand into its own local and
-            // replaces a specialized one, then records the application it
-            // produced. Recording the authored application now would leave
-            // the literal checked against operands that no longer exist.
+            // Runtime value indices still need their actual source argument
+            // materialization. This type-only landing does not snapshot or
+            // invent those values and grants no construction premise.
             let exact_template = matches!(program.type_reference_table.type_reference(carrier),
             TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == literal.type_symbol)
                 && !program
@@ -1558,6 +1594,13 @@ pub(crate) mod construction_destinations {
             } else {
                 carrier
             };
+            // Normalization is complete before landing. Reuse its exact view;
+            // only a fresh receiving occurrence needs another metadata row.
+            if program.data_application_definition(carrier).is_none() {
+                program
+                    .prepare_data_application_view(carrier)
+                    .map_err(Diagnostic::error)?;
+            }
             if !prior.is_valid() {
                 expression_table_mut(program)
                     .set_construction_required_type_reference(value, carrier);

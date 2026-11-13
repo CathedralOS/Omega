@@ -167,6 +167,7 @@ impl<'source> ApplicationPreparation<'source> {
             return Ok(false);
         }
         let mut substitutions = Vec::with_capacity(parameters.len());
+        let mut closed = true;
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if !self
                 .source
@@ -184,9 +185,7 @@ impl<'source> ApplicationPreparation<'source> {
                     "data application has a foreign or duplicated declaration binder".into(),
                 );
             }
-            if !self.reference(argument)? {
-                return Ok(false);
-            }
+            closed &= self.reference(argument)?;
             substitutions.push((parameter.symbol, argument));
         }
         let mut definition = template.clone();
@@ -226,22 +225,25 @@ impl<'source> ApplicationPreparation<'source> {
         definition.members = self.source.tables.data_members.insert_many(members);
         // Keep the authored member symbols, requirements, storage properties
         // and source origins. Only the type telescope is applied here.
+        closed &= children
+            .iter()
+            .all(|child| crate::domain::index_argument_is_closed(self.source, *child));
         self.source
-            .retain_data_application_definition(reference, definition, true);
+            .retain_data_application_definition(reference, definition, closed);
         if self.active_declarations.contains(&owner) {
             // Repeated declarations through their member definitions may
             // describe recursive storage. Retain this exact shallow view;
             // do not expand an unbounded family or grant it a finite layout.
             // Actual type arguments were prepared before entering the owner,
             // so finite nested applications still retain all their views.
-            return Ok(true);
+            return Ok(closed);
         }
         self.active_declarations.push(owner);
         let prepared = (|| {
             for child in children {
                 self.reference(child)?;
             }
-            Ok(true)
+            Ok(closed)
         })();
         self.active_declarations.pop();
         prepared

@@ -14,6 +14,9 @@ public data Optional<T> {{
     #0 case None;
     #1 case Some(value: T);
 }}
+machine wrap<T>(item: T) -> Optional<T> {{
+    Optional::Some {{ value: item }}
+}}
 data Applied {{
     small: Optional<u32>;
     identity: Optional<u64>;
@@ -61,6 +64,27 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         .iter()
         .find(|data| data.name.as_str() == "Optional")
         .unwrap();
+    let mut open_applications = 0;
+    for (reference, node) in typed.type_reference_table.type_reference_rows_from(0) {
+        let typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } = node else {
+            continue;
+        };
+        if *base_symbol != optional.symbol
+            || typed_trees::domain::index_argument_is_closed(&typed, reference)
+        {
+            continue;
+        }
+        let view = typed
+            .data_application_definition(reference)
+            .expect("an open receiving application still retains its substituted field metadata");
+        assert_eq!(view.generic_instance, Some(reference));
+        assert!(typed.closed_data_definition(reference).is_none());
+        open_applications += 1;
+    }
+    assert!(
+        open_applications > 0,
+        "the generic wrap source retains an open tuple"
+    );
     let fields: Vec<_> = typed
         .data_members(applied)
         .iter()
