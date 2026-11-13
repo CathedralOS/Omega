@@ -300,7 +300,7 @@ crashes Trap
         let lender: u64 in Trapping = path_root(syntax, resolution, typing, place, true);
         let inherited: bool = copy_holder_loans(checker, syntax, resolution, typing, handle, holder, lender);
         let owner: u64 in Trapping = place_root(syntax, resolution, typing, place);
-        let owned: bool = lends_owned(syntax, handle, owner);
+        let owned: bool = lends_owned(syntax, typing, handle, owner);
         let kept: bool = add_loan(&mut checker.ownership, holder, place, exclusive, owned);
         extend_uses(&mut checker.ownership, lender, holder);
         transition kept {
@@ -612,7 +612,7 @@ crashes Trap
         let lender: u64 in Trapping = path_root(syntax, resolution, typing, place, true);
         let inherited: bool = copy_holder_loans(checker, syntax, resolution, typing, handle, holder, lender);
         let owner: u64 in Trapping = place_root(syntax, resolution, typing, place);
-        let owned: bool = lends_owned(syntax, handle, owner);
+        let owned: bool = lends_owned(syntax, typing, handle, owner);
         let kept: bool = add_loan(&mut checker.ownership, holder, place, exclusive, owned);
         extend_uses(&mut checker.ownership, lender, holder);
         transition kept {
@@ -695,17 +695,28 @@ crashes Trap
     machine written(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, role: UseRole) -> Hold {
         transition expression.kind {
             ExpressionKind::Unary -> borrowed(typing, handle, expression, role)
-            ExpressionKind::Cast -> recast(syntax, typing, expression, role)
+            ExpressionKind::Cast -> recast(syntax, typing, handle, expression, role)
             _ -> passed(typing, handle, expression, role)
         }
     }
 
-    // A recast `operand as &T` lends what its operand lends, as a value.
-    machine recast(syntax: &SyntaxTrees, typing: &Typing, expression: Expression, role: UseRole) -> Hold {
-        let operand: Expression = syntax_trees_expression(syntax, expression.left);
+    // Chained reference views retain the original borrow's loan. A cast
+    // whose result is a scalar captures a value and retains no reference.
+    machine recast(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, role: UseRole) -> Hold {
+        let result_type: u64 in Trapping = typing_expression_type(typing, handle);
+        let row: TypeRow = type_table_row(&typing.types, result_type);
+        transition row.kind == TypeKind::Reference {
+            true -> reference_cast(syntax, typing, handle, role)
+            _ -> answer(Hold::Released)
+        }
+    }
+
+    machine reference_cast(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, role: UseRole) -> Hold {
+        let origin: u64 in Trapping = reference_cast_source(syntax, typing, handle);
+        let operand: Expression = syntax_trees_expression(syntax, origin);
         transition operand.kind == ExpressionKind::Unary {
-            true -> borrowed(typing, expression.left, operand, role)
-            _ -> passed(typing, expression.left, operand, UseRole::Value)
+            true -> borrowed(typing, origin, operand, role)
+            _ -> passed(typing, origin, operand, UseRole::Value)
         }
     }
 
@@ -975,7 +986,7 @@ crashes Trap
     ) {
         let owner: u64 in Trapping = place_root(syntax, resolution, typing, place);
         let backed: bool = holds_owned_loan(checker, syntax, resolution, typing, place);
-        let borrowed: bool = lends_owned(syntax, handle, owner);
+        let borrowed: bool = lends_owned(syntax, typing, handle, owner);
         transition borrowed || backed {
             true -> escaped(checker, syntax, handle)
             _ -> node(checker, syntax, resolution, typing, root, handle + 1)
@@ -992,11 +1003,14 @@ crashes Trap
 
 // Whether a lending node borrows storage the body owns: a borrow or range
 // slice of an owned place. A reference passed on whole lends its referent,
-// which the body does not own.
-machine lends_owned(syntax: &SyntaxTrees, handle: u64 in Trapping, owner: u64 in Trapping) -> bool
+// which the body does not own. Reference policy views keep the lending
+// node's provenance; the outer cast cannot turn an owned borrow into a
+// reference that merely passes through the body.
+machine lends_owned(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, owner: u64 in Trapping) -> bool
 crashes Trap
 {
-    let expression: Expression = syntax_trees_expression(syntax, handle);
+    let origin: u64 in Trapping = reference_cast_source(syntax, typing, handle);
+    let expression: Expression = syntax_trees_expression(syntax, origin);
     let borrow: bool = expression.kind == ExpressionKind::Unary;
     let slice: bool = expression.kind == ExpressionKind::Index;
     transition owner > 0 && (borrow || slice) {

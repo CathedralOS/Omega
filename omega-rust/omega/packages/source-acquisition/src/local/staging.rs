@@ -8,11 +8,12 @@
 // and executable bits so landing the edit produces the identical content pin),
 // and publishes the candidate snapshot into the retained storage lane.
 
+use filesystem_authority::SourceCaptureRequest;
 use std::path::{Path, PathBuf};
 
 use super::resolution_observations::ResolvedLocalSource;
 use super::snapshot::{
-    publish_local_tree_in_lane, verify_live_source_unchanged, verify_requested_local_root,
+    publish_local_tree_in_lane, verify_requested_local_root, verify_selected_live_source_unchanged,
 };
 use crate::SourceResolveError;
 use crate::error::{local_source_changed, too_many_bytes};
@@ -20,7 +21,7 @@ use crate::identity::SourceRelativePath;
 use crate::limits::{CANONICAL_DIRECTORY_MODE, LocalSourceLimits};
 use crate::storage::RetainedStorageLane;
 use crate::tree::capture::{
-    CapturedLocalEntryKind, CapturedLocalTree, SourceTreePolicy, capture_local_source,
+    CapturedLocalEntryKind, CapturedLocalTree, SourceTreePolicy, capture_selected_local_source,
 };
 use crate::tree::identity::SourceIdentityHasher;
 
@@ -33,9 +34,14 @@ pub struct StagedLocalSnapshot {
     replacement_path: SourceRelativePath,
     expected_sha256: [u8; 32],
     replacement_sha256: [u8; 32],
+    selected: SourceCaptureRequest,
 }
 
 impl StagedLocalSnapshot {
+    pub const fn selection(&self) -> &SourceCaptureRequest {
+        &self.selected
+    }
+
     pub fn requested_root(&self) -> &Path {
         &self.requested_root
     }
@@ -70,7 +76,7 @@ impl StagedLocalSnapshot {
 
     pub fn verify_live_source_unchanged(&self) -> Result<(), SourceResolveError> {
         verify_requested_local_root(&self.requested_root, &self.original.root)?;
-        verify_live_source_unchanged(&self.original, self.limits)
+        verify_selected_live_source_unchanged(&self.original, self.limits, &self.selected)
     }
 }
 
@@ -82,9 +88,30 @@ pub fn stage_local_source_replacement_in_lane(
     lane: &RetainedStorageLane,
     limits: LocalSourceLimits,
 ) -> Result<StagedLocalSnapshot, SourceResolveError> {
+    stage_selected_local_source_replacement_in_lane(
+        root,
+        relative_path,
+        expected_sha256,
+        replacement,
+        lane,
+        limits,
+        &SourceCaptureRequest::entire_tree(),
+    )
+}
+
+pub fn stage_selected_local_source_replacement_in_lane(
+    root: &Path,
+    relative_path: &SourceRelativePath,
+    expected_sha256: &[u8; 32],
+    replacement: &[u8],
+    lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+    selected: &SourceCaptureRequest,
+) -> Result<StagedLocalSnapshot, SourceResolveError> {
     let limits = limits.compiler_bounded();
     lane.verify_path_identity()?;
-    let mut captured = capture_local_source(root, limits, SourceTreePolicy::LocalPackage)?;
+    let mut captured =
+        capture_selected_local_source(root, limits, SourceTreePolicy::LocalPackage, selected)?;
     let original = captured.normalized.clone();
     replace_file(
         &mut captured,
@@ -102,6 +129,7 @@ pub fn stage_local_source_replacement_in_lane(
         replacement_path: relative_path.clone(),
         expected_sha256: *expected_sha256,
         replacement_sha256: crate::digest_encoder::content_identity(replacement),
+        selected: selected.clone(),
     })
 }
 

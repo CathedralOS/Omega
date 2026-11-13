@@ -96,10 +96,18 @@ completeness is not a proof of cross-operation laws, matching allocators, or a
 shared implementation identity. Such relationships must be stated and proved.
 Static trait guarantees do not appear on a record that does not carry them.
 A trait's [schema](conformances.md#implementations-are-operation-records) has
-selected callable fields for its machine requirements, ordinary values for its
-explicitly typed evidence fields, and validity obligations for its constraints.
+requirement-bound callable fields for its machine requirements, ordinary values
+for its explicitly typed fields (including structural callables and evidence),
+and validity obligations for its constraints.
 Construction checks each according to its declared type. No resultless machine
 member is silently converted into proof-irrelevant evidence.
+
+Forwarding a requirement-bound selection into a structural callable field
+preserves its original invocation route; it does not acquire a requirement
+identity from the destination record or field name. This is ordinary value
+construction, not `satisfies` rebinding or a new executable wrapper. Runtime
+selection alone needs no additional state record: explicit state arguments are
+needed only when the operation itself requires state.
 
 Callable addresses do not automatically supply executable equality, ordering,
 hashing, or proof identity. Ordinary conformance synthesis needs its published

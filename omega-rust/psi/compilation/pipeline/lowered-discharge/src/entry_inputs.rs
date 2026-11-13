@@ -37,7 +37,11 @@ use crate::{
 /// Callers precede helpers. The lowering of terminal call components already
 /// turns their internal calls into block arrivals; an unresolved dependency
 /// here supplies no inferred condition and still faces ordinary discharge.
-pub(crate) fn infer(elaboration: &mut Elaboration, knowledge: Knowledge) -> Checked<()> {
+pub(crate) fn infer(
+    elaboration: &mut Elaboration,
+    knowledge: Knowledge,
+    unreached: &mut crate::Unreached,
+) -> Checked<()> {
     if elaboration.private_inputs.is_empty() {
         return Ok(());
     }
@@ -67,7 +71,7 @@ pub(crate) fn infer(elaboration: &mut Elaboration, knowledge: Knowledge) -> Chec
                 }
             }
         }
-        describe_calls(elaboration, id, knowledge, &sites, &mut incoming)?;
+        describe_calls(elaboration, id, knowledge, &sites, &mut incoming, unreached)?;
         for &site in terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)? {
             let callee = sites.arrivals[site].callee;
             let remaining = machine_row_mut(&mut waiting, callee, id)?;
@@ -86,6 +90,7 @@ fn describe_calls(
     knowledge: Knowledge,
     sites: &CallSites,
     incoming: &mut IdTable<MachineId, Vec<Proposition>>,
+    unreached: &mut crate::Unreached,
 ) -> Checked<()> {
     let original =
         terminal_check_tables::row(&elaboration.tables.machines, id, id, Construct::Machine)?;
@@ -126,6 +131,8 @@ fn describe_calls(
     let mut decided = (0..tables.obligations.len())
         .map(|_| None)
         .collect::<Vec<_>>();
+    let beyond = unreached.values(lowered, &tables);
+    let relations = knowledge != Knowledge::LiteralIntervals;
     joins::check(
         &joins::Machine {
             machines: &elaboration.module.machines,
@@ -135,8 +142,9 @@ fn describe_calls(
             types: &prepared.types,
             graph: &prepared.graph,
             context: &prepared.context,
-            relations: knowledge != Knowledge::LiteralIntervals,
+            relations,
             declared: &declared,
+            unreached: &beyond,
         },
         &mut tables,
         &mut decided,
@@ -170,6 +178,29 @@ fn describe_calls(
                 target,
             },
         )?;
+        // What the caller derives of an integer actual without holding it
+        // as a fact: the interval of a sum of bounded values, of a call's
+        // result, of a cast. The helper's body may need exactly that
+        // (`preserved - 100` after `step(total)`), and the arrival proves
+        // it like every other part of the inferred condition.
+        let derived = derived(
+            &tables,
+            &prepared.graph,
+            &prepared.context,
+            id,
+            site.before,
+            &crossing,
+            relations,
+            &beyond,
+        )?;
+        // What the helper learns of such a formal describes an operation
+        // the integer rules do not reach, in the caller.
+        for formal in derived.unreached {
+            unreached.mark_formal(callee, formal);
+        }
+        let mut parts = derived.bounds;
+        parts.push(predicate);
+        let predicate = joins::connective(parts, true);
         incoming
             .get_mut(callee)
             .ok_or_else(|| {
@@ -334,6 +365,79 @@ fn machine_row_mut<T>(
             "machine identity is past the end of an entry-inference table",
         )
     })
+}
+
+/// What `derived` finds for the actuals of one arrival.
+struct Derived {
+    /// The literal bounds the prover derives for each integer actual, stated
+    /// of its formal.
+    bounds: Vec<Proposition>,
+    /// The formals whose actual the integer rules do not reach.
+    unreached: Vec<ValueId>,
+}
+
+/// The interval machine `id` derives at `point` for each value that crosses
+/// to a callee's formal, and which of those values the integer rules do not
+/// reach (`prove::reach`).
+#[allow(clippy::too_many_arguments)]
+fn derived(
+    tables: &MachineTables,
+    graph: &Graph,
+    context: &semantic_vocabulary::PropositionContext,
+    id: MachineId,
+    point: ProgramPoint,
+    crossing: &[(ScalarTerm, ValueId)],
+    relations: bool,
+    beyond: &[ValueId],
+) -> Checked<Derived> {
+    let mut assumptions = Vec::new();
+    let mut axioms = Vec::new();
+    for (_, row) in tables.knowledge.iter() {
+        if graph.dominates(row.available_from, point)? {
+            let proposition = terminal_check_tables::row(
+                &tables.propositions,
+                row.proposition,
+                id,
+                Construct::Machine,
+            )?;
+            if matches!(row.justification, Justification::OperationSemantics(_)) {
+                axioms.push(proposition.clone());
+            } else {
+                assumptions.push(proposition.clone());
+            }
+        }
+    }
+    let mut prover =
+        crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values, relations);
+    let mut found = Derived {
+        bounds: Vec::new(),
+        unreached: Vec::new(),
+    };
+    for (name, here) in crossing {
+        if let ScalarTerm::Value { id: formal, .. } = name
+            && prover.value_beyond_rules(*here, beyond)
+        {
+            found.unreached.push(*formal);
+        }
+        let ScalarType::Integer(integer) = name.scalar_type() else {
+            continue;
+        };
+        if tables.values.get(*here).map(|row| row.scalar_type) != Some(name.scalar_type()) {
+            continue;
+        }
+        let (lower, upper) = prover.literal_bounds(*here);
+        if let Some(literal) = lower.and_then(|lower| ScalarTerm::integer(integer, lower).ok()) {
+            found
+                .bounds
+                .push(Proposition::LessOrEqual(literal, name.clone()));
+        }
+        if let Some(literal) = upper.and_then(|upper| ScalarTerm::integer(integer, upper).ok()) {
+            found
+                .bounds
+                .push(Proposition::LessOrEqual(name.clone(), literal));
+        }
+    }
+    Ok(found)
 }
 
 /// What machine `id` knows at `point` about the values that cross a contract

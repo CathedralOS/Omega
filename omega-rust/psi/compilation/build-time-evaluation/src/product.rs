@@ -3324,53 +3324,6 @@ pub mod provider_declarations {
         product_operands: bool,
     }
 
-    pub fn collect_executed_provider_selections(
-        context: ProviderPlanningContext<'_>,
-        executed: &[checked_interpreter::ExecutedBuildSelection],
-    ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
-        let typed = context.typed;
-        if context.scope != DependencyScope::Product {
-            return Err(vec![Diagnostic::error(
-                "executed provider selections require the Product planning context",
-            )]);
-        }
-        let requests = executed
-        .iter()
-        .filter(|row| row.operation == language_semantics::declaration_selection::BuildOperation::ProviderSelection)
-        .map(|row| {
-            let handle = row.expression;
-            let request = match typed.expression_table.expression(handle) {
-                ExpressionNode::Call(call)
-                    if language_semantics::declaration_selection::is_unresolved_provider_selection_call(
-                        call.target.as_str(),
-                        call.target_symbol,
-                    ) =>
-                {
-                    Some(ProviderSelectionCall {
-                        target: call.target.as_str(),
-                        arguments: &call.machine_arguments,
-                        value_arguments: typed.expression_table.expression_handles(call.arguments),
-                        source_span: provider_selection_expression_source_span(typed, handle),
-                        machine: row.machine,
-                        composition_case: Some(row.composition_case),
-                        product_operands: true,
-                    })
-                }
-                _ => None,
-            };
-            request.ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "executed provider selection did not rejoin its admitted call",
-                )]
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-        collect_provider_selections(
-            ProviderPlanningContext::new(typed.product_declarations(), DependencyScope::Product),
-            requests,
-        )
-    }
-
     fn provider_selection_expression_source_span(
         typed: &TypedTrees,
         expression: checked_trees::typed_trees::expression::ExpressionHandle,

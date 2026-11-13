@@ -111,7 +111,7 @@ changed, then land it; `main` is checked after every merge.
 **The old checker is frozen for deletion (owner ruling, 2026-11-12).** The
 lowered-form checker's verdict is the only verdict of a compilation. Psi 05
 (`typed-trees-to-checked-trees`), `validation`, Psi 06
-(`checked-trees-to-lowered-psi`), `checked-trees`, `checked-interpreter`,
+(`checked-trees-to-lowered-psi`), `checked-trees`,
 `facts` and `representation-{planning,selections}` are being removed now: no
 pull request edits them except to delete code or to move a still-needed item
 into the crate that survives. Build what a program needs in the lowered-form

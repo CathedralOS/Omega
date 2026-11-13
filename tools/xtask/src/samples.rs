@@ -23,6 +23,7 @@ pub struct SampleProject {
     pub rel_path: String,
     pub entry: Option<PathBuf>,
     pub role: String,
+    pub source_inputs: Vec<String>, // Explicit root inventory; absence retains ordinary caller default.
     pub rejection: Vec<String>,
     pub rejection_any: Vec<String>,
     pub rejection_casefold: bool,
@@ -164,6 +165,36 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
+    let source_inputs = match meta.get("source_inputs") {
+        None => Vec::new(),
+        Some(value) => {
+            let paths = value
+                .as_array()
+                .filter(|paths| !paths.is_empty())
+                .ok_or_else(|| {
+                    format!(
+                        "{}: source_inputs requires a nonempty array of relative files/subtrees",
+                        meta_path.display()
+                    )
+                })?;
+            paths
+                .iter()
+                .map(|value| {
+                    value
+                        .as_str()
+                        .filter(|path| !path.is_empty())
+                        .map(str::to_owned)
+                        .ok_or_else(|| {
+                            format!(
+                                "{}: source_inputs contains a missing path",
+                                meta_path.display()
+                            )
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        }
+    };
+
     let native_rejection = fs::read_to_string(directory.join(NATIVE_REJECTION_FILE))
         .ok()
         .map(|text| fragment_lines(&text));
@@ -173,6 +204,7 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         rel_path,
         entry,
         role,
+        source_inputs,
         rejection,
         rejection_any,
         rejection_casefold,
@@ -276,18 +308,32 @@ fn retain_accepted_inputs(sample_dir: &Path, evidence: &Path) -> Result<(), Stri
     )
 }
 
+fn with_source_inputs<'command>(
+    command: &'command mut Command,
+    inputs: &[String],
+) -> &'command mut Command {
+    for path in inputs {
+        command.args(["--build-input", path]);
+    }
+    command
+}
+
 fn settle_review(
     cli: &Path,
     sample_dir: &Path,
     target: &str,
     evidence: &Path,
+    source_inputs: &[String],
 ) -> Result<(), String> {
     let out = execution::output(
-        Command::new(cli)
-            .args(["update", "--project"])
-            .arg(sample_dir)
-            .args(["--target", target])
-            .stdin(Stdio::null()),
+        with_source_inputs(
+            Command::new(cli)
+                .args(["update", "--project"])
+                .arg(sample_dir)
+                .args(["--target", target])
+                .stdin(Stdio::null()),
+            source_inputs,
+        ),
         evidence,
         "update",
     )?;
@@ -352,15 +398,19 @@ fn verify_native_rejection(
     target: &str,
     fragments: &[String],
     evidence: &Path,
+    source_inputs: &[String],
 ) -> Result<String, String> {
     if fragments.is_empty() {
         return Err(format!("{NATIVE_REJECTION_FILE} pins no fragment"));
     }
     let check = execution::output(
-        Command::new(cli)
-            .arg("--check")
-            .arg(entry)
-            .stdin(Stdio::null()),
+        with_source_inputs(
+            Command::new(cli)
+                .arg("--check")
+                .arg(entry)
+                .stdin(Stdio::null()),
+            source_inputs,
+        ),
         evidence,
         "check",
     )?;
@@ -372,10 +422,13 @@ fn verify_native_rejection(
         ));
     }
     let build = execution::output(
-        Command::new(cli)
-            .args(["--target", target])
-            .arg(entry)
-            .stdin(Stdio::null()),
+        with_source_inputs(
+            Command::new(cli)
+                .args(["--target", target])
+                .arg(entry)
+                .stdin(Stdio::null()),
+            source_inputs,
+        ),
         evidence,
         "compile",
     )?;
@@ -484,10 +537,13 @@ pub fn verify_sample(
             );
         }
         let out = execution::output(
-            Command::new(cli)
-                .args(["--check", "--target", target])
-                .arg(entry)
-                .stdin(Stdio::null()),
+            with_source_inputs(
+                Command::new(cli)
+                    .args(["--check", "--target", target])
+                    .arg(entry)
+                    .stdin(Stdio::null()),
+                &project.source_inputs,
+            ),
             evidence,
             "check",
         )?;
@@ -541,18 +597,34 @@ pub fn verify_sample(
         return Ok("not-host-runnable".to_owned());
     }
 
-    settle_review(cli, &project.directory, target, evidence)?;
+    settle_review(
+        cli,
+        &project.directory,
+        target,
+        evidence,
+        &project.source_inputs,
+    )?;
 
     if let Some(fragments) = &project.native_rejection {
-        return verify_native_rejection(cli, entry, target, fragments, evidence);
+        return verify_native_rejection(
+            cli,
+            entry,
+            target,
+            fragments,
+            evidence,
+            &project.source_inputs,
+        );
     }
 
     if matches!(project.role.as_str(), "check-only" | "library") {
         let out = execution::output(
-            Command::new(cli)
-                .arg("--check")
-                .arg(entry)
-                .stdin(Stdio::null()),
+            with_source_inputs(
+                Command::new(cli)
+                    .arg("--check")
+                    .arg(entry)
+                    .stdin(Stdio::null()),
+                &project.source_inputs,
+            ),
             evidence,
             "check",
         )?;
@@ -574,10 +646,13 @@ pub fn verify_sample(
             return Ok("no-oracle".to_owned());
         }
         let out = execution::output(
-            Command::new(cli)
-                .args(["--target", target])
-                .arg(entry)
-                .stdin(Stdio::null()),
+            with_source_inputs(
+                Command::new(cli)
+                    .args(["--target", target])
+                    .arg(entry)
+                    .stdin(Stdio::null()),
+                &project.source_inputs,
+            ),
             evidence,
             "compile",
         )?;
@@ -592,6 +667,7 @@ pub fn verify_sample(
     }
 
     let mut cmd = compared_host_command(cli, target)?;
+    with_source_inputs(&mut cmd, &project.source_inputs);
     let scratch = project.directory.join("build/gate-run");
     let _ = fs::create_dir_all(&scratch);
     cmd.arg(entry).current_dir(&scratch);
@@ -794,6 +870,78 @@ mod tests {
         )
         .unwrap();
         project_at(directory, directory).unwrap()
+    }
+
+    #[test]
+    fn malformed_source_inventory_cannot_fall_back_to_a_wide_capture() {
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        fs::write(directory.join("main.omg"), "machine main() {}\n").unwrap();
+        for metadata in [
+            r#"{"source_inputs":[]}"#,
+            r#"{"source_inputs":"main.omg"}"#,
+            r#"{"source_inputs":["main.omg",null]}"#,
+            r#"{"source_inputs":[""]}"#,
+        ] {
+            fs::write(directory.join("sample.json"), metadata).unwrap();
+            assert!(
+                project_at(&directory, &directory)
+                    .unwrap_err()
+                    .contains("source_inputs")
+            );
+        }
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn sample_preparation_and_execution_receive_the_same_explicit_inventory() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        fs::write(
+            directory.join("main.omg"),
+            "// Expected exit: 0\nmachine main() {}\n",
+        )
+        .unwrap();
+        fs::write(directory.join("build.omg"), format!(
+            "machine build(builder: &mut Build) {{ Build::application(builder, \"sample\"); Build::bind(builder, {}::ProgramEntry, main); }}\n", host_target())).unwrap();
+        fs::write(
+            directory.join("sample.json"),
+            r#"{"source_inputs":["main.omg","build.omg"]}"#,
+        )
+        .unwrap();
+        let cli = directory.join("compiler");
+        fs::write(
+            &cli,
+            r#"#!/bin/sh
+main=no
+build=no
+previous=''
+for argument do
+  if [ "$previous" = '--build-input' ]; then
+    case "$argument" in main.omg) main=yes;; build.omg) build=yes;; esac
+  fi
+  previous="$argument"
+done
+if [ "$main" != yes ] || [ "$build" != yes ]; then
+  echo 'caller inventory was lost' >&2
+  exit 91
+fi
+case "$1" in
+  update) exit 0;;
+  run) echo 'native exit 0' >&2; echo 'interp exit: 0' >&2; exit 0;;
+  *) exit 92;;
+esac
+"#,
+        )
+        .unwrap();
+        fs::set_permissions(&cli, fs::Permissions::from_mode(0o700)).unwrap();
+        let project = project_at(&directory, &directory).unwrap();
+        assert!(
+            verify_sample(&cli, &project, host_target(), &directory.join("evidence"))
+                .unwrap()
+                .starts_with("pass")
+        );
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

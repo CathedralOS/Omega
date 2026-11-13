@@ -30,7 +30,7 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "omega-rust/omega/foundation",
     "omega-rust/psi/foundation",
     "omega-rust/psi/compilation/representations/terminal-psi",
-    "omega-rust/psi/compilation/validation/terminal-installation",
+    "omega-rust/psi/compilation/terminal-installation",
     "omega-rust/psi/compilation/proof/admission",
 ];
 
@@ -264,9 +264,8 @@ pub fn forbidden_rules() -> Vec<Rule> {
             owners: vec![TRUST_MODEL],
             forbidden: vec![
                 "omega-rust/psi/compilation/build-time-evaluation",
-                "omega-rust/psi/interpreter/checked-interpreter",
                 "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees",
-                "omega-rust/psi/compilation/validation/terminal-installation",
+                "omega-rust/psi/compilation/terminal-installation",
                 "omega-rust/psi/compilation/representations/terminal-psi",
                 "omega-rust/omega/compilation/backend/target",
                 "omega-rust/psi/foundation/semantic-vocabulary",

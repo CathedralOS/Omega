@@ -201,11 +201,23 @@ before optimized code generation. CLI-only requests do not prepare the harness.
 Relevant toolchain, host, jobs, flags and profile inputs are retained; credentials
 and the full process environment are never captured.
 
-Rust compiler preparation commands have a one-hour wall-clock limit. Checking
-and execution commands keep their 30-minute limit; fixture and Psi work limits are
-unchanged. Each command receipt records its limit and whether it timed out.
-A timed-out child is stopped and reaped, with cleanup errors and the original
-stdout and stderr retained for diagnosis.
+Rust compiler preparation has no wall-clock time cap: waiting for shared mbx
+capacity is not compiler failure. Receipts retain elapsed time and use a null
+`timeout_ms` for unlimited preparation and corpus observation. Other commands
+retain their explicit/default limits; fixture, native execution and Psi work
+budgets are unchanged.
+
+Every shared command reuses `bounded-process`'s native owner through its trusted
+tooling API, with a Unix process group or suspended-start Windows Job Object.
+Windows assignment/resume failure uses the same stop-and-reap path as bounded
+runtime launches; runtime resource-capped constructors remain unchanged.
+On timeout, wait failure, normal completion or unwinding,
+the owner terminates remaining descendants and reaps the command, preserving
+peer jobs. Receipts retain the actual command status, original stdout/stderr,
+container identity and cleanup errors; a cleanup failure cannot become a pass.
+`timeout_cleanup.reaped` records reaping the owned command, not a claim that
+every orphaned Unix descendant was adopted by this process. The same cleanup
+is recorded as `container_cleanup` for non-timeout completion.
 
 `--cli` and `--runner` cannot authenticate an arbitrary supplied executable and
 therefore refuse. Use the current-source builder. Cargo/mbx may reuse compatible
@@ -1429,7 +1441,7 @@ How to read it:
 
 - **A line is counted by source path.** Psi 05 is
   `pipeline/05_typed-trees-to-checked-trees/`, validation is `validation/src/`
-  (not its `terminal-installation` or `representation-planning` subcrates) and
+  (not its `representation-planning` subcrate) and
   Psi 06 is `pipeline/06_checked-trees-to-lowered-psi/`, all under
   `omega-rust/psi/compilation/`.
 - **Instrumented** lines are the lines that carry a coverage counter in this
@@ -1712,6 +1724,27 @@ on Cargo's checksum freshness, Cargo then passes
 for a flag it does not model: a full build reports `0 hits, 0 misses, 213
 bypassed` and stores nothing (`mbx explain build -p <crate>` names the flag).
 `mbx` still schedules builds and manages target directories.
+
+Managed setup (`tools/agent_setup.sh`, including `--mbx-only`) keeps the shared
+`.agents/worktree` pool in mbx's global `target.keep` list through
+`mbx xtask managed-cache-retention`. The managed path bootstraps this Rust helper
+with the repository toolchain; a command-local `MBX_GC_AUTO=false` protects that
+bootstrap without changing global GC policy. It resolves the primary Git root
+even when setup runs from a detached worker, appends only that pool's absolute
+path and preserves existing entries and GC settings for other targets and
+shared cache state. Local sessions do not change settings. An explicit
+`MBX_TARGET_KEEP` remains the operator's override.
+
+mbx 1.29.2 rejects collection settings in workspace `.mbx.toml`; its
+`settings get/ls` commands read environment/global policy, not that file.
+`target.keep` protects live pool targets and their unused units from size/age
+collection, including low-disk sweeps. Deleted checkouts are still collectible,
+and a matching `target.evict_first` entry that reaches deeper wins (ties keep).
+Kept data can exceed the target budget and free-space floor, so disk pressure
+needs deliberate review rather than removing a warm worker cache mid-task.
+Do not move caches, change running jobs' settings, or collect peers' outputs
+during validation. Use `mbx gc --dry-run --json` to inspect the selected policy;
+the preview does not delete data or prove that a live compiler's locks are free.
 
 The hook also sets `gc.min_free_size` to 5 GiB when it is unset. The
 container's disk reports 252 GB while a session may use about 30 GB of it, so

@@ -35,6 +35,14 @@ pub(super) fn create_completion_port() -> io::Result<KernelHandle> {
     })
 }
 
+/// Build tools inherit scheduler/resource policy but still own every process
+/// in their job. Keep runtime job limits on the separate capped constructor.
+pub(super) fn configure_tool_job(job: &KernelHandle) -> io::Result<()> {
+    let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    set_job_information(job, JobObjectExtendedLimitInformation, &limits as *const _)
+}
+
 pub(super) fn configure_job_limits(
     job: &KernelHandle,
     configured: WindowsJobLimits,

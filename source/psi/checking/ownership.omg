@@ -622,6 +622,7 @@ crashes Trap
         ExpressionKind::Field -> field(checker, typing, handle, expression)
         ExpressionKind::Index -> child(checker, typing, expression.left, UseRole::Base)
         ExpressionKind::Unary -> unary(checker, typing, expression, role)
+        ExpressionKind::Cast -> cast(checker, syntax, typing, handle, expression, role)
         ExpressionKind::Call -> elements(checker, syntax, typing, expression.first, expression.first + expression.count, UseRole::Value)
         ExpressionKind::Construct -> fields(checker, syntax, typing, expression.first, expression.first + expression.count)
         ExpressionKind::Match -> arms(checker, syntax, typing, expression.first, expression.first + expression.count, role)
@@ -648,6 +649,44 @@ crashes Trap
             OperatorKind::BorrowWrite -> child(checker, typing, expression.left, UseRole::WriteLend)
             _ -> wrapped(checker, typing, expression, role, wraps)
         }
+    }
+
+    // Reference casts keep their original lending route. A scalar read of
+    // a reference observes its payload; it must not move the descriptor.
+    // Other casts construct values, so their operand keeps ordinary move
+    // and captured-loan transport even when its qualification changes.
+    machine cast(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, role: UseRole) {
+        let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
+        let result: TypeRow = type_table_row(&typing.types, type_handle);
+        let adaptation: Adaptation = typing_adaptation(typing, expression.left);
+        transition result.kind == TypeKind::Reference || adaptation == Adaptation::Read {
+            true -> child(checker, typing, expression.left, UseRole::Inspect)
+            _ -> cast_value(checker, syntax, typing, type_handle, expression, role)
+        }
+    }
+
+    machine cast_value(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping, expression: Expression, role: UseRole) {
+        transition role {
+            UseRole::Value -> child(checker, typing, expression.left, UseRole::Value)
+            UseRole::Drop -> child(checker, typing, expression.left, UseRole::Drop)
+            _ -> cast_temporary(checker, syntax, typing, type_handle, expression)
+        }
+    }
+
+    // Projecting or inspecting an owned cast temporary needs its own
+    // destruction/transfer disposition. Until that is retained, only
+    // copyable results use this path; a noncopyable value is not silently
+    // left in its operand merely because the cast's consumer inspects it.
+    machine cast_temporary(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping, expression: Expression) {
+        let multiplicity: DataMultiplicity = checker_multiplicity(syntax, typing, type_handle);
+        transition multiplicity {
+            DataMultiplicity::Unrestricted -> child(checker, typing, expression.left, UseRole::Value)
+            _ -> unsupported_cast(checker, expression)
+        }
+    }
+
+    machine unsupported_cast(checker: &mut Checker, expression: Expression) {
+        checks_reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, expression.source_span);
     }
 
     machine wrapped(checker: &mut Checker, typing: &Typing, expression: Expression, role: UseRole, wraps: bool) {

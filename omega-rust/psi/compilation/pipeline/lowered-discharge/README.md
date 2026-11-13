@@ -20,6 +20,9 @@ operations; [prove.rs](src/prove.rs) is the one prover.
 [joins.rs](src/joins.rs) infers and checks join predicates;
 [crashes.rs](src/crashes.rs) states crash-site coverage;
 [arrivals.rs](src/arrivals.rs) admits a loop head's declared invariant.
+[prove/reach.rs](src/prove/reach.rs) says which unproved goals the integer
+rules could not have decided
+([below](#what-the-integer-rules-do-not-reach)).
 
 ## What it decides
 
@@ -123,6 +126,20 @@ when the prover and the kernel decide it on every return, and then owes a
 clause. Callers read it as `CalleeGuarantee` knowledge with no rule of their
 own, and a private helper's inferred input condition (`entry_inputs.rs`,
 which runs next) is described from facts that include it.
+
+Summaries run once more after input inference. A helper that omits
+`requires` is first summarized under no input, which is already what its
+caller's later arrivals need when the body returns it whatever it is given;
+what it returns only because of the input its callers establish is a further
+clause, added when it is not already in the contract.
+
+Input inference states, beside the facts a caller holds about an actual, the
+interval the caller derives for it (`entry_inputs.rs`, `derived`): `step(total)`
+after `total = v1 + v2` carries the sum's bounds, which no fact names. A
+bound that holds only by cases is found too, for an actual and for a returned
+value: under a guard `20 <= v && v <= 60` the limits lie inside the join's
+disjunctive fact, so `Prover::literal_bounds` tries each literal such a fact
+compares the value with as a goal, on a side that has no bound of its own.
 
 A summary that some return does not establish is not added, and the machine
 keeps its written contract; so does a public machine, a dependency, a
@@ -816,6 +833,31 @@ Each of these is true in the programs that need it and has no derivation in
 the rules of [integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md),
 so the obligation is `Unproved`. None is worked around here.
 
+Whether such an obligation rejects the program depends on what it rests on
+([prove/reach.rs](src/prove/reach.rs)). A goal that depends on a value
+defined by an operation the rules give no exact interval is unproved whether
+or not the program is right, so its cause is `NoRuleForGoalForm` and the
+route's verdict is `Incomplete`: the second and third items below, and any
+goal on an exclusive or, a bitwise and, or or not, a wrapping or saturating
+operation, or a quotient, remainder or right shift whose divisor or count no
+literal or earlier equation fixes. The dependence is read from the result
+equations of the values the goal names, never from how a search ended, and
+it follows an inferred input or result across a call (`Unreached`): a formal
+whose inferred condition describes such an actual, and the result of a
+private helper whose body returns one. A written contract does not carry it:
+an arrival or return that cannot establish a written clause is judged where
+the operation is, and a caller that needs more than a written contract
+states is rejected. A goal that fails on add, subtract, multiply, a cast, a
+left shift, or a divide or right shift by a literal alone is still `Reject`:
+the first, fourth and fifth items below are.
+
+One case of the second kind is proved instead: a remainder by a divisor
+whose own bounds fix it to one literal (`divisor >= 16 && divisor <= 16`)
+takes the kernel's bound of the remainder by that literal spelled in place,
+carried onto the result through its equation and the proved `divisor == 16`
+(`remainder_by_fixed_divisor`). The kernel has no in-place form for a
+quotient or a right shift, so those stay unreached.
+
 - *A contradiction between two order facts when neither is a taken guard.*
   Two bare facts `low <= high` and `high < low` (two `requires`, or a
   split alternative against a requirement) chain to `high < high`, and no
@@ -838,6 +880,18 @@ so the obligation is `Unproved`. None is worked around here.
 - *A relation through a multiply.* `value * value >= value` for
   `value >= 1`; beyond the floor, which propagates ranges only
   (`pass/arithmetic/nonlinear_square_positive_operand_exit`).
+- *An operand fixed by its bounds, used as a literal.* `(prefix - 360) + last`
+  with `prefix` proved to be exactly 360 equals `last`, and no rule says
+  so: the endpoint chain lands an operand only on an earlier result
+  equation `value == literal`, never on an equality proved from bounds,
+  order translation concludes `a + t <= b + t` and nothing rewrites
+  `0 + last` to `last`, and `IntegerAddOrder` needs a strictly positive
+  increment. It would take a landing on a proved equality, or `0 + x == x`
+  over mathematical integers. These goals name only add and subtract, so
+  they still reject (`pass/facts/nine_arg_stack_calling_plan_through_local_exit`
+  and the `register_stack_arg` and `thirtytwo_arg` families, 15 programs).
+  The same gap is why a quotient or right shift by `divisor >= 3 &&
+  divisor <= 3` is unreached.
 
 ## Why this route and not the arithmetic engine
 
@@ -1308,6 +1362,21 @@ nothing may be concluded.
 proposes a sort beside `ScalarType`; `ScalarType` is matched at 263 places
 across the compiler and its back ends, so the sort lives in the check
 tables, which only this route reads.
+
+**Who proves an applied machine's contract.** `relay`'s form holds
+`forward<T>` as a contract with no body, and relies on its `ensures`. What
+makes that `ensures` true is `forward`'s own check form, which proves it
+with `forward`'s parameters rigid and so for every type `relay` can pass.
+`judge_compilation` therefore judges the form of every generic machine a
+judged form applies, whichever package declares it, and leaves the applied
+machine's rows in the caller's form to that judgment
+(`judge_generic_forms`, [verdict.rs](src/verdict.rs)). A form judged alone
+(`judge`) still refuses those rows, because nothing it knows of proves
+them, and so does a form whose machine applies itself, directly or through
+others: every form on such a cycle would take the next one's contract as
+given, and no form judges that the recursion ends. A requirement reached
+through an implementation parameter is not covered: its rows stay refused
+until each conformance's refinement is judged in the same compilation.
 
 **No proposition names a rigid value.** Under
 [generics.md](../../../../../wiki/spec/language/generics.md#requirements-and-conformance-evidence)

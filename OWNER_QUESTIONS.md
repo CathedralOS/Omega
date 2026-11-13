@@ -64,4 +64,46 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None.
+### Q1 - In `ensures` and in a crash route guard, does the name of a `mut` by-value parameter mean the argument or the value the body last assigned?
+
+Decision name: `mutable-parameter-contract-name`.
+
+**Customer.** A machine that counts with its own parameter and states what
+it returns:
+
+```omega
+machine advance(mut position: u32, step: u32) -> u32
+requires position <= 10, step <= 10
+ensures result == position + step
+{
+    position = position + step;
+    position
+}
+```
+
+A caller imports `ensures` by substituting its argument for `position`, so
+under one reading this contract is true and useful, and under the other it
+says `result == result + step` and the body is rejected.
+
+**Gap.** [Mathematical values](wiki/spec/terminal-psi/mathematical_values.md)
+says a caller importing an `ensures` "requires the matching result case and
+argument/result substitution", and
+[fact validity](wiki/spec/terminal-psi/fact_validity.md#entry-facts-and-crash-coverage)
+says "Entry hypotheses bind exact invocation formals" and "Current body
+values are not entry snapshots". Both point at the argument, but neither
+says what the *source name* denotes once the body has assigned it.
+[Ownership](wiki/spec/language/ownership.md#owned-local-mutability) covers
+`mut` locals and says only that "the recipient may bind its own value
+mutably". [Dependent values](wiki/spec/language/dependent_values.md) uses
+`old(entry.owner)` for the entry state of storage behind `&mut`, which
+suggests a bare name in `ensures` means the state at return; for a by-value
+parameter that state is invisible to the caller.
+
+**Options.** (a) The name always means the argument; the body's later value
+is unnameable in the contract. (b) The name means the value at return, and
+`old(position)` names the argument, as for `&mut` storage. (c) A contract
+clause other than `requires` may not name a `mut` parameter at all.
+
+**Until answered.** The lowered-form checker refuses such a clause as not
+supported (`contract clause that names a mutable parameter outside
+requires`); it accepts no program under either reading.

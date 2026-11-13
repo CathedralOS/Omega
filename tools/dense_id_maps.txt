@@ -111,8 +111,8 @@
 4 omega-rust/psi/compilation/validation/src/machine_calls_core.rs
 14 omega-rust/psi/compilation/validation/src/proof_contracts_core.rs
 2 omega-rust/psi/compilation/validation/src/type_references_and_wire.rs
-2 omega-rust/psi/compilation/validation/terminal-installation/src/evaluation_and_synchronous_calls.rs
-4 omega-rust/psi/compilation/validation/terminal-installation/src/provider_and_target_installation.rs
+2 omega-rust/psi/compilation/terminal-installation/src/evaluation_and_synchronous_calls.rs
+4 omega-rust/psi/compilation/terminal-installation/src/provider_and_target_installation.rs
 2 omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs
 2 omega-rust/psi/foundation/semantic-vocabulary/src/storage.rs
 1 omega-rust/psi/foundation/symbols/src/fast_map.rs

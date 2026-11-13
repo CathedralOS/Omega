@@ -2401,7 +2401,7 @@ crashes Trap
     ) {
         let expression: Expression = syntax_trees_expression(syntax, index);
         transition expression.kind {
-            ExpressionKind::Cast -> bind_cast(resolver, sources, syntax, index, owner, scope, expression.type_reference)
+            ExpressionKind::Cast -> cast_form(resolver, sources, syntax, index, owner, scope, expression)
             ExpressionKind::Apply -> static_argument(resolver, sources, syntax, index, owner, scope, expression, 0)
             _ -> expression(resolver, sources, syntax, index + 1, owner)
         }
@@ -2438,6 +2438,25 @@ crashes Trap
         let argument: u64 in Trapping = type_argument(syntax, application.first + offset);
         bind_type_reference(resolver, sources, syntax, scope, argument, TypeRole::StaticArgument);
         transition { _ -> static_argument(resolver, sources, syntax, index, owner, scope, application, offset + 1) }
+    }
+
+    // A domain-only cast has no carrier type-reference row. Its zero field
+    // is unused storage, not an alias for the first authored type. The
+    // supported compiler-known policy name is classified at type checking;
+    // other domain forms remain explicit coverage refusals there.
+    machine cast_form(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        owner: u64 in Trapping,
+        scope: TypeScope,
+        cast: Expression
+    ) {
+        transition cast.flag {
+            true -> expression(resolver, sources, syntax, index + 1, owner)
+            _ -> bind_cast(resolver, sources, syntax, index, owner, scope, cast.type_reference)
+        }
     }
 
     machine bind_cast(

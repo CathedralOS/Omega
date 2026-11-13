@@ -158,12 +158,26 @@ impl PreparedPackageInspection<'_> {
     }
 
     pub fn acquire_root(&self) -> Result<AcquiredBuildSource, PackageInspectionError> {
-        AcquiredBuildSource::capture_local(
+        let entire = package_source::SourceCaptureRequest::entire_tree();
+        let selected = match self
+            .build_snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.capture())
+        {
+            Some(build_settings::BuildSnapshotCapture::Scoped(selected)) => selected,
+            Some(build_settings::BuildSnapshotCapture::PackageInventory) | None => &entire,
+        };
+        let acquired = AcquiredBuildSource::capture_selected_local(
             self.transaction.project_root(),
             LocalSourceLimits::default(),
             ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
+            selected,
         )
-        .map_err(failure)
+        .map_err(failure)?;
+        acquired
+            .require_compilation_source(Path::new("build.omg"))
+            .map_err(failure)?;
+        Ok(acquired)
     }
 
     pub fn build_snapshot(&self) -> Option<&build_settings::BuildSnapshotRequest> {
