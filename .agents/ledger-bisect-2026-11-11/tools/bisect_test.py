@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
-"""Compare one fixture run against frozen PIN witness observation (not checkout ledger)."""
+"""Score one corpus record against the frozen PIN observation.
+
+Predicates (BISECT_PREDICATE):
+  outcome — 0 ledger-expected status, 1 PIN broken status, 125 otherwise.
+  class   — 1 PIN diagnostic class, 0 any other parsed outcome, 125 no record.
+"""
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
 OBS_PATH = Path("/tmp/pin_witness_observation.json")
-LEDGER_PIN = Path("/tmp/pin_corpus_outcomes.txt")
 
 
 def norm_diag(d: str) -> str:
@@ -18,74 +23,92 @@ def norm_diag(d: str) -> str:
     return d[:160]
 
 
-def parse_record(text: str, witness: str) -> tuple[str, str, list[str]] | None:
+def parse_records(text: str) -> dict[str, tuple[str, list[str]]]:
+    found: dict[str, tuple[str, list[str]]] = {}
     cur = None
-    diags: list[str] = []
     status = ""
+    diags: list[str] = []
+
+    def finish() -> None:
+        nonlocal cur, status, diags
+        if cur is not None:
+            found[cur] = (status, diags)
+
     for line in text.splitlines():
         if line.startswith("\t"):
-            if cur == witness:
+            if cur is not None:
                 diags.append(line[1:].strip())
             continue
         parts = line.split()
         if len(parts) >= 3 and parts[2].endswith("ms"):
-            if cur == witness:
-                return witness, status, diags
+            finish()
             cur = parts[0]
             status = parts[1]
             diags = []
-    if cur == witness:
-        return witness, status, diags
-    return None
+    finish()
+    return found
 
 
-def outcome_matches_good(status: str, expected: str, tier: str) -> bool:
-    if status == expected:
-        return True
-    if tier == "pass" and expected == "checked" and status == "built":
-        return True
-    if tier == "fail" and expected in ("rejected", "incomplete"):
-        return status in ("rejected", "incomplete")
-    return False
-
-
-def outcome_matches_bad(status: str, diag_norm: str, obs: dict) -> bool:
-    if status != obs["pin_bad_status"]:
+def same_class(diag_norm: str, pin_norm: str) -> bool:
+    if not pin_norm:
         return False
-    if not obs.get("pin_bad_diag_norm"):
+    if diag_norm == pin_norm:
         return True
-    if diag_norm == obs["pin_bad_diag_norm"]:
-        return True
-    # same class: normalized prefix agreement
-    a, b = diag_norm, obs["pin_bad_diag_norm"]
-    n = min(len(a), len(b), 80)
-    return a[:n] == b[:n]
+    n = min(len(diag_norm), len(pin_norm), 80)
+    return n > 0 and diag_norm[:n] == pin_norm[:n]
 
 
 def main() -> int:
     witness, rec_path = sys.argv[1], Path(sys.argv[2])
-    if not OBS_PATH.exists():
+    predicate = os.environ.get("BISECT_PREDICATE", "outcome")
+    detail = Path("/tmp/bisect_last_detail.json")
+    if not OBS_PATH.exists() or not rec_path.exists():
+        detail.write_text(json.dumps({"exit": 125, "reason": "missing record or observation"}) + "\n")
         return 125
     obs = json.loads(OBS_PATH.read_text())
-    if witness != obs["witness"]:
+    parsed = parse_records(rec_path.read_text())
+    if witness not in parsed:
+        detail.write_text(
+            json.dumps({"exit": 125, "reason": "witness absent", "predicate": predicate, "witness": witness})
+            + "\n"
+        )
         return 125
-    text = rec_path.read_text() if rec_path.exists() else ""
-    parsed = parse_record(text, witness)
-    if not parsed:
-        return 125
-    _, status, diags = parsed
+    status, diags = parsed[witness]
     first = diags[0] if diags else ""
     dn = norm_diag(first)
-    tier = obs.get("tier", witness.split("/")[0])
     expected = obs["expected_good_status"]
+    pin_status = obs["pin_bad_status"]
+    pin_norm = obs.get("pin_bad_diag_norm") or ""
+    pin_diag = obs.get("pin_bad_diag") or ""
 
-    if outcome_matches_good(status, expected, tier):
-        return 0
-    if outcome_matches_bad(status, dn, obs):
-        return 1
-    if tier == "pass" and status == obs["pin_bad_status"]:
-        return 1
-    return 125
+    if predicate == "class":
+        code = 1 if status == pin_status and same_class(dn, pin_norm) else 0
+    elif predicate == "outcome":
+        if status == expected:
+            code = 0
+        elif status == pin_status:
+            code = 1
+        else:
+            code = 125
+    else:
+        code = 125
+
+    payload = {
+        "exit": code,
+        "predicate": predicate,
+        "witness": witness,
+        "status": status,
+        "diag": first,
+        "diag_norm": dn,
+        "pin_diag": pin_diag,
+        "diag_equals_pin": first == pin_diag,
+        "diag_same_class": same_class(dn, pin_norm),
+        "members": {
+            name: {"status": st, "diag": (ds[0] if ds else "")} for name, (st, ds) in sorted(parsed.items())
+        },
+    }
+    detail.write_text(json.dumps(payload) + "\n")
+    return code
 
 
 if __name__ == "__main__":
