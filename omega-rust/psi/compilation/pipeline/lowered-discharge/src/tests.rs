@@ -25,6 +25,7 @@ use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 mod applications;
 mod arithmetic_policies;
 mod arrays;
+mod build_purpose;
 mod empty_records;
 mod entry_inputs;
 mod guard_contradiction;

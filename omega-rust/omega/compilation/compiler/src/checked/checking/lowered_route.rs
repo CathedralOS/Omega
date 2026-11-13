@@ -38,6 +38,7 @@ impl RouteScope<'_> {
             structure_elaboration::Compilation {
                 entries: self.entries,
                 subjects: &[self.subject],
+                purpose: source::DependencyScope::Product,
                 selected: self.selected,
                 bindings: self.bindings,
             },
