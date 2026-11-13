@@ -555,7 +555,8 @@ mod tests {
             .invoke(target(), &[value], &mut psi_work::WorkMeter::unbounded())
             .expect_err("data descriptions do not supply lexical declaration selection");
         assert!(
-            error.contains("declaration") || error.contains("scope"),
+            error
+                .contains("a callable description selects a concrete machine or trait requirement"),
             "{error}"
         );
     }

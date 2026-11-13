@@ -903,6 +903,9 @@ impl<'a> Storage<'a> {
         match self.root_kind(root, concerns)? {
             StructuralPlaceKind::OperationResult {
                 structural_type, ..
+            }
+            | StructuralPlaceKind::ByteSequenceLiteral {
+                structural_type, ..
             } => Ok(structural_type),
             StructuralPlaceKind::Parameter { position } => self
                 .lowered
@@ -918,7 +921,6 @@ impl<'a> Storage<'a> {
                 _ => Err(self.foreign(concerns, "a result place on a machine with none")),
             },
             StructuralPlaceKind::BlockParameter { .. }
-            | StructuralPlaceKind::ByteSequenceLiteral { .. }
             | StructuralPlaceKind::ProviderAttachment { .. }
             | StructuralPlaceKind::TrivialAffineLocal { .. } => {
                 Err(self.unsupported(concerns, "a root place kind outside this route"))
@@ -1064,6 +1066,11 @@ impl<'a> Storage<'a> {
     ) -> Checked<()> {
         match &self.declaration(structural_type, concerns)?.shape {
             StructuralTypeShape::PrimitiveScalar(_) => found.push(at.clone()),
+            shape if shape.is_shared_readable_byte_view() => {
+                // The shared view is one established descriptor. Its backing
+                // and byte predicates are checked by the byte operations.
+                found.push(at.clone());
+            }
             StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
