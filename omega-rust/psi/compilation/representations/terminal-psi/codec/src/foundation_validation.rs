@@ -8008,10 +8008,8 @@ pub(crate) mod structural_type_foundations {
 
     use super::require_unique_nonempty_identities;
     use crate::codec_error::{CodecError, malformed};
+    use semantic_vocabulary::AuthoredFieldStorage;
     use semantic_vocabulary::StructuralTypeId;
-    use semantic_vocabulary::{
-        AuthoredBitFragments, AuthoredFieldStorage, IeeeFloatFormat, ScalarType,
-    };
     use std::collections::{BTreeMap, BTreeSet};
     use terminal_psi::{
         StructuralFieldType, StructuralTypeShape, TerminalModule, structural_children,
@@ -8359,181 +8357,23 @@ pub(crate) mod structural_type_foundations {
         storage: &AuthoredFieldStorage,
         record_size: u64,
     ) -> Result<Option<(u64, u64)>, CodecError> {
-        use semantic_vocabulary::AuthoredFieldStorage;
-
-        let scalar = field
-            .field_type
-            .scalar_type()
-            .or_else(|| field.field_type.atomic_scalar_type());
-        let declared_layout = || {
-            if let Some(scalar) = scalar {
-                let width = u64::from(terminal_semantics::reference_storage_byte_width(scalar)?);
-                return Some((width, width));
-            }
-            let child = field.field_type.as_structural()?;
-            terminal_semantics::reference_storage_layout(module.structural_types.iter(), child)
-        };
-        let (offset, extent) = match storage {
-            AuthoredFieldStorage::Fragmented(recipe) => {
-                validate_authored_fragments(module, field, recipe, record_size)?;
-                return Ok(None);
-            }
-            AuthoredFieldStorage::Scalar {
-                byte_offset,
-                stored_scalar: Some(stored),
-            } => {
-                let width = terminal_semantics::reference_storage_byte_width(*stored).ok_or(
-                    CodecError::MalformedStructuralFoundation(
-                        "encoded field has no contiguous scalar footprint",
-                    ),
-                )?;
-                (byte_offset, Some(u64::from(width)))
-            }
-            AuthoredFieldStorage::Scalar {
-                byte_offset,
-                stored_scalar: None,
-            }
-            | AuthoredFieldStorage::Direct { byte_offset } => {
-                (byte_offset, declared_layout().map(|(size, _)| size))
-            }
-            AuthoredFieldStorage::Repeated {
-                byte_offset,
-                element_stride,
-            } => {
-                let Some(array) = field.field_type.as_structural() else {
-                    return malformed("repeated field requires a fixed array");
-                };
-                let Some(StructuralTypeShape::FixedArray { element, length }) =
-                    terminal_psi::find_structural_type(module.structural_types, array)
-                        .map(|declaration| &declaration.shape)
-                else {
-                    return malformed("repeated field requires a fixed array");
-                };
-                if let Some((size, alignment)) = terminal_semantics::reference_storage_layout(
-                    module.structural_types.iter(),
-                    *element,
-                ) && (alignment == 0
-                    || *element_stride < size
-                    || *element_stride % alignment != 0
-                    || *byte_offset % alignment != 0)
-                {
-                    return malformed("repeated field stride overlaps or misaligns its elements");
-                }
-                let length = length
-                    .literal()
-                    .ok_or(CodecError::MalformedStructuralFoundation(
-                        "authored repeated storage requires a closed array extent",
-                    ))?;
-                let extent = length.checked_mul(*element_stride).ok_or(
-                    CodecError::MalformedStructuralFoundation("repeated field extent overflows"),
-                )?;
-                (byte_offset, Some(extent))
-            }
-        };
-        if extent.is_some_and(|extent| {
-            offset
-                .checked_add(extent)
-                .is_none_or(|end| end > record_size)
-        }) {
-            return malformed("authored field extent exceeds its record storage");
-        }
-        Ok(extent.map(|extent| (*offset, extent)))
-    }
-
-    fn validate_authored_fragments(
-        module: &StructuralCatalog<'_>,
-        field: &terminal_psi::StructuralFieldDeclaration,
-        recipe: &AuthoredBitFragments,
-        record_size: u64,
-    ) -> Result<(), CodecError> {
-        let source_width = authored_fragment_source_width(module, &field.field_type).ok_or(
-            CodecError::MalformedStructuralFoundation(
-                "fragmented field requires a known scalar representation width",
-            ),
-        )?;
-        if recipe.fragments().is_empty() {
-            return malformed("fragmented field requires a complete recipe");
-        }
-        let mut source_intervals = Vec::with_capacity(recipe.fragments().len());
-        for fragment in recipe.fragments() {
-            if fragment.container_width_bits == 0
-                || !fragment.container_width_bits.is_multiple_of(8)
-                || fragment.width == 0
-                || fragment
-                    .container_byte_offset
-                    .checked_add(fragment.container_width_bits / 8)
-                    .is_none_or(|end| end > record_size)
-                || fragment
-                    .destination_lsb
-                    .checked_add(fragment.width)
-                    .is_none_or(|end| end > fragment.container_width_bits)
-            {
-                return malformed(
-                    "fragmented field has an invalid transfer container or destination",
-                );
-            }
-            let end = fragment.source_lsb.checked_add(fragment.width).ok_or(
-                CodecError::MalformedStructuralFoundation("fragment source range overflows"),
-            )?;
-            if end > source_width {
-                return malformed("fragment source range exceeds its declaration representation");
-            }
-            source_intervals.push((fragment.source_lsb, end));
-        }
-        source_intervals.sort_unstable();
-        let mut cursor = 0;
-        for (start, end) in source_intervals {
-            if start != cursor {
-                return malformed("fragment source ranges have a gap or overlap");
-            }
-            cursor = end;
-        }
-        if cursor != source_width {
-            return malformed("fragment source ranges do not tile the declaration representation");
-        }
-        Ok(())
-    }
-
-    fn authored_fragment_source_width(
-        module: &StructuralCatalog<'_>,
-        field: &StructuralFieldType,
-    ) -> Option<u64> {
-        if let StructuralFieldType::BoundedInteger(integer) = field {
-            use semantic_vocabulary::IntegerValue;
-            let maximum = match (integer.minimum(), integer.maximum()) {
-                (IntegerValue::Signed(minimum), IntegerValue::Signed(maximum)) if minimum >= 0 => {
-                    u128::try_from(maximum).ok()?
-                }
-                (IntegerValue::Unsigned(_), IntegerValue::Unsigned(maximum)) => maximum,
-                _ => return Some(u64::from(integer.integer_type().bits())),
-            };
-            return Some(u64::from((u128::BITS - maximum.leading_zeros()).max(1)));
-        }
-        let scalar = field.scalar_type().or_else(|| {
-            let identity = field.as_structural()?;
-            let StructuralTypeShape::PrimitiveScalar(scalar) =
-                terminal_psi::find_structural_type(module.structural_types, identity)?.shape
-            else {
-                return None;
-            };
-            Some(scalar)
-        })?;
-        match scalar {
-            ScalarType::Boolean => Some(1),
-            ScalarType::Integer(integer) => Some(u64::from(integer.bits())),
-            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => Some(32),
-            ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => Some(64),
-        }
+        terminal_semantics::authored_field_storage_extent(
+            module.structural_types.iter(),
+            field,
+            storage,
+            record_size,
+            |child| {
+                terminal_semantics::reference_storage_layout(module.structural_types.iter(), child)
+            },
+        )
+        .map_err(CodecError::MalformedStructuralFoundation)
     }
 
     fn validate_authored_destination_intervals(
-        mut destinations: Vec<(u128, u128)>,
+        destinations: Vec<(u128, u128)>,
     ) -> Result<(), CodecError> {
-        destinations.sort_unstable();
-        if destinations.windows(2).any(|pair| pair[1].0 < pair[0].1) {
-            return malformed("authored field destination bits overlap");
-        }
-        Ok(())
+        terminal_semantics::validate_storage_destination_intervals(destinations)
+            .map_err(CodecError::MalformedStructuralFoundation)
     }
 
     fn validate_field_storage_envelope(shape: &StructuralTypeShape) -> Result<(), CodecError> {
@@ -9133,49 +8973,24 @@ pub(crate) mod target_layouts {
         field: &terminal_psi::StructuralFieldType,
         target: &terminal_psi::TargetLayoutRealization,
     ) -> Result<TargetLayoutFieldLayoutSource, CodecError> {
-        use terminal_psi::ByteSequenceCarrier;
-        if field.scalar_type().is_some()
-            || matches!(
-                field.byte_sequence_carrier(),
-                Some(ByteSequenceCarrier::BoundedOwned { .. })
-            )
-        {
-            return Ok(TargetLayoutFieldLayoutSource::Scalar);
-        }
-        let Some(mut identity) = field.as_structural() else {
-            return Ok(TargetLayoutFieldLayoutSource::Default);
-        };
-        let mut visiting = BTreeSet::new();
-        loop {
-            if !visiting.insert(identity) {
-                return malformed("layout schema geometry source contains an array cycle");
+        match terminal_semantics::schema_field_layout_source(
+            module,
+            field,
+            &SchemaStorage { module, target },
+        ) {
+            Ok(source) => Ok(source),
+            Err(terminal_semantics::StorageGeometryError::RecursiveType(_)) => {
+                malformed("layout schema geometry source contains an array cycle")
             }
-            let Some(declaration) = module.structural_type(identity) else {
-                return malformed("layout schema geometry source has an absent child");
-            };
-            match &declaration.shape {
-                StructuralTypeShape::PrimitiveScalar(_)
-                | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => {
-                    return Ok(TargetLayoutFieldLayoutSource::Scalar);
-                }
-                StructuralTypeShape::FixedArray { element, length }
-                    if length.literal().is_some() =>
-                {
-                    identity = *element;
-                }
-                StructuralTypeShape::Record {
-                    storage: StructuralRecordStorage::TargetLayout(id),
-                    ..
-                } => {
-                    if selected_layout_realization(module, identity, *id, target).is_none() {
-                        return malformed(
-                            "layout schema explicit child has no matching issuer target",
-                        );
-                    }
-                    return Ok(TargetLayoutFieldLayoutSource::Explicit);
-                }
-                _ => return Ok(TargetLayoutFieldLayoutSource::Default),
+            Err(terminal_semantics::StorageGeometryError::MissingType(_)) => {
+                malformed("layout schema geometry source has an absent child")
             }
+            Err(terminal_semantics::StorageGeometryError::UnresolvedLayout(_)) => {
+                malformed("layout schema explicit child has no matching issuer target")
+            }
+            Err(error) => Err(CodecError::NativeLayout(format!(
+                "layout schema geometry source: {error}"
+            ))),
         }
     }
 
