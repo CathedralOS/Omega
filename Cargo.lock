@@ -458,7 +458,6 @@ dependencies = [
  "layout-plans",
  "libc",
  "lowered-discharge",
- "lowered-psi",
  "machine-code",
  "machine-emission",
  "mimalloc",
@@ -805,7 +804,6 @@ dependencies = [
  "language-core",
  "layout-plans",
  "legalized-operations",
- "lowered-psi-to-terminal-psi",
  "machine-code",
  "machine-emission",
  "object-file",
@@ -1133,39 +1131,6 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "typed-trees",
-]
-
-[[package]]
-name = "lowered-psi"
-version = "0.1.0"
-dependencies = [
- "arena",
- "checked-trees",
- "language-semantics",
- "semantic-vocabulary",
- "symbols",
- "terminal-psi",
-]
-
-[[package]]
-name = "lowered-psi-to-lowered-psi"
-version = "0.1.0"
-dependencies = [
- "lowered-psi",
- "optimization",
- "semantic-vocabulary",
- "terminal-codec",
- "terminal-psi",
- "terminal-semantics",
-]
-
-[[package]]
-name = "lowered-psi-to-terminal-psi"
-version = "0.1.0"
-dependencies = [
- "lowered-psi-to-lowered-psi",
- "terminal-codec",
- "terminal-semantics",
 ]
 
 [[package]]
@@ -1889,8 +1854,6 @@ dependencies = [
  "diagnostics",
  "language-semantics",
  "lowered-discharge",
- "lowered-psi-to-lowered-psi",
- "lowered-psi-to-terminal-psi",
  "optimization",
  "semantic-vocabulary",
  "source",

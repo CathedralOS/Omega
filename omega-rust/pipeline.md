@@ -140,9 +140,9 @@ setup are not additional public program stages.
 | Syntax → symbol-resolved trees | [syntax-trees-to-symbol-resolved-trees](psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
 | Typed → typed trees | [typed-trees-to-typed-trees](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md) |
-| Typed → checked trees | [typed-trees-to-checked-trees](psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md) |
-| Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/lib.rs) |
-| Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/compilation/pipeline/08_lowered-psi-to-terminal-psi/src/lib.rs) |
+| Typed structure → unsealed Terminal Psi | [structure-elaboration](psi/compilation/pipeline/structure-elaboration/src/lib.rs) |
+| Unsealed Terminal Psi → accepted closure | [lowered-discharge](psi/compilation/pipeline/lowered-discharge/src/lib.rs) |
+| Accepted closure → sealed Terminal artifact | [accepted source factory](psi/compilation/psi-compiler/terminal-production/src/accepted.rs) and [codec](psi/compilation/representations/terminal-psi/codec/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 | Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs) |
 | Abstract → target operations | [abstract-operations-to-target-operations](omega/compilation/pipeline/02_abstract-operations-to-target-operations/README.md) |
@@ -1341,13 +1341,13 @@ and elaborates results into source and typed trees. Checked fixed-array-length
 jobs use the Terminal program/instance lifecycle. Build activations use the
 Terminal Build host in `omega/build-system/build-settings/`; there is no
 checked-tree Build execution entrypoint.
-`psi/compilation/psi-compiler/terminal-production/` owns the one checked-program
-lowering, optimization and publication sequence, below the source facade so
-early jobs do not depend back on their source coordinator. Product consumers
-call this operation directly with their policy and reporting observer; there
-is no Omega production wrapper. Psi 06 owns input-ledger validation;
-Psi 08 owns entry receipts and source-correspondence judgments. This shared
-operation is neither another Psi stage nor a second complete compiler driver.
+`psi/compilation/psi-compiler/terminal-production/` owns accepted-source
+publication and source companions below the source facade. It retains the exact
+frozen source owner before judgment, publishes the same lowered-form module and
+its evidence, and attaches per-application roots. Entry receipts belong to
+`terminal-codec::entry_receipt`. Missing product capabilities refuse with
+`no product route yet`; no checked-tree lowering or intermediate Lowered Psi
+carrier remains in this sequence.
 Exact consumed-source and toolchain identities belong to the shared
 `psi/foundation/source/src/source_identity.rs` owner; package review and early
 Psi use the same byte protocol without importing each other's orchestration.
@@ -1572,9 +1572,9 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   (`source-files-to-tokens` → `tokens-to-syntax-trees` →
   `syntax-trees-to-symbol-resolved-trees` →
   `symbol-resolved-trees-to-typed-trees` →
-  `typed-trees-to-typed-trees` → `typed-trees-to-checked-trees` →
-  `lowered-psi-to-lowered-psi` → `lowered-psi-to-terminal-psi`, then
-  `terminal-psi-to-abstract-operations` →
+  `typed-trees-to-typed-trees`). Structural elaboration, lowered-form judgment
+  and accepted-source publication produce the Terminal artifact. Native
+  transforms then continue with `terminal-psi-to-abstract-operations` →
   `abstract-operations-to-target-operations` →
   `target-operations-to-selected-instructions` →
   `selected-instructions-to-selected-instructions` →

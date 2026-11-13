@@ -15,8 +15,8 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     NativeBindingFormation, ProductDeclarationRequest,
 };
-use lowered_psi_to_terminal_psi::rejoin_program_entry_receipt;
 use std::sync::Arc;
+use terminal_codec::entry_receipt::rejoin_program_entry_receipt;
 use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError};
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 

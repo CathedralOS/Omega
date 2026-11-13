@@ -1,7 +1,7 @@
 # Source-to-Terminal pipeline
 
-The [pipeline map](../../../pipeline.md) connects the source stages to checked Psi
-and Terminal publication. These stages own increasingly resolved source meaning;
+The [pipeline map](../../../pipeline.md) connects source preparation to structural
+lowering, the lowered-form checker and Terminal publication. These stages own increasingly resolved source meaning;
 source acquisition and package closure remain compiler/package responsibilities.
 They do not select providers, physical storage, native ABI plans, or installed
 authority.
@@ -15,17 +15,16 @@ authority.
 | 02 — resolution | [resolution.rs](02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs) | [resolved trees](../representations/symbol-resolved-trees/) |
 | 03 — typing | [lowerer.rs](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | [typed trees](../representations/typed-trees/) |
 | 04 — typed elaboration | [preparation.rs](04_typed-trees-to-typed-trees/src/preparation.rs) | [frozen typed trees](../representations/typed-trees/) |
-| 05 — checking and evidence | [checking.rs](05_typed-trees-to-checked-trees/src/checking.rs) | [checked trees](../representations/checked-trees/) |
-| 07 — selected optimization | [psi_optimization.rs](07_lowered-psi-to-lowered-psi/src/psi_optimization.rs) | the same Lowered Psi representation |
-| 08 — publication | [publish_artifact.rs](08_lowered-psi-to-terminal-psi/src/publish_artifact.rs) | [Terminal Psi and codec](../representations/terminal-psi/) |
+| Structural lowering | [structure-elaboration](structure-elaboration/src/lib.rs) | unsealed Terminal Psi |
+| Lowered-form checking | [lowered-discharge](lowered-discharge/src/lib.rs) | accepted closure and evidence |
+| Publication | [accepted source factory](../psi-compiler/terminal-production/src/accepted.rs) | [Terminal Psi and codec](../representations/terminal-psi/) |
 
-Psi 05 constructs the checked program using reusable judgments from
-[checking/](../checking/README.md), obligation construction/search from
-[proof/](../proof/src/lib.rs), and independent mathematical admission. Those
-services are not competing typed-to-checked stages.
-[Compile-time elaboration](../build-time-evaluation/README.md) owns the evaluation
-continuations used around resolution and checking; the interpreter only executes
-the admitted programs. The product driver owns sequencing across these services.
+Structural elaboration reads typed structure without old checker facts. The
+lowered-form checker judges the resulting module; unsupported constructs refuse.
+The accepted-source factory publishes that same module with its evidence. The
+retired checked-to-Lowered-Psi and optimization/publication wrappers are absent.
+[Compile-time elaboration](../build-time-evaluation/README.md) owns evaluation
+continuations around source preparation. The product driver owns sequencing.
 
 ## Lexing and parsing
 
