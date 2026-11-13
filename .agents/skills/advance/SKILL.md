@@ -84,14 +84,14 @@ that already has one, widen that mechanism and make the general fix in this PR.
 2. **Write inline design reasoning:** At the module entry or decision site,
    document why the mechanism fits and what invariant holds so the next reader
    does not have to reconstruct it.
-3. **Challenge assumptions:** Construct a realistic falsifier (e.g., sibling
-   fields where one is valid and one is invalid, or matching vs. fallback
-   runtime paths), verify the mechanism works across value placements (`local`,
-   `field`, `parameter`, `call_result`, `match_join`, `const_name`, nested
-   `machine`, other `machine`, and `Build`-selected target implementation) and
-   `omega run --both` (exit 0), and pin any newly uncovered behavior with a
+3. **Challenge assumptions:** Construct a realistic falsifier for the placement
+   you changed (e.g., sibling fields where one is valid and one is invalid, or
+   matching vs. fallback runtime paths) and confirm the mechanism holds and the
+   invalid one is still rejected. Pin any newly uncovered behavior with a
    focused positive/negative fixture pair under
    `tests/omega/{pass,fail,run}/<behavior>/` (never a new 36-file fact folder).
+   The other placements and targets are the capability's acceptance on
+   `TASKS.md`; reach for one only when a result here points at it.
 
 ## Step 4: Validate, Sweep the Root-Cause Family & Reconcile `TASKS.md`
 
