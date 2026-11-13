@@ -139,8 +139,10 @@ copying, cleanup, failure behavior or ABI. Executable uses require an admitted
 realization and resource/effect contract. An implementation with proved finite
 input bounds may use finite storage without changing the source type's domain.
 
-[Arbitrary finite widths](../../proposals/0008_arbitrary_width_integers.md),
-unbounded bitwise/shift operations, broad mathematical promotion, and the full
+[Arbitrary finite widths and carrier-family constraints](../../spec/language/numeric_values.md#width-indexed-integers)
+were separately ratified on 2026-11-13; their delivery is tracked under
+`WIDTH-INDEXED-INTEGERS` and `INTEGER-CARRIER-FAMILY-CONSTRAINTS`.
+Unbounded bitwise/shift operations, broad mathematical promotion, and the full
 rational representation and conversion API remain separately reviewed work.
 Unsupported combinations reject until their contracts are specified. The
 rational requirement is an exact, source-visible, checked `Rat` interface, not

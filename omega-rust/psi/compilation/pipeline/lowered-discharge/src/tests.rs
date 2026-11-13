@@ -1457,6 +1457,93 @@ fn a_partial_affine_move_keeps_the_disjoint_sibling_established() {
     );
 }
 
+/// `flag && takes(value)`, where machine 2 takes a `Point` by value and
+/// returns `bool`: `value` is transferred on one path into the join only.
+fn transferred_when(flag: usize, value: usize) -> Expression {
+    either(
+        true,
+        slot(flag, bool_type()),
+        of_type(
+            ExpressionKind::Call {
+                callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                arguments: vec![place(value, point())],
+                designated: None,
+            },
+            bool_type().into(),
+        ),
+    )
+}
+
+/// Machine 2: `takes(point: Point) -> bool { true }`.
+fn takes_a_point() -> Shaped {
+    Shaped {
+        parameters: vec![point()],
+        locals: Vec::new(),
+        result: bool_type().into(),
+        requires: Vec::new(),
+        statements: vec![returns(expression(
+            ExpressionKind::Boolean(true),
+            Some(bool_type()),
+        ))],
+    }
+}
+
+#[test]
+fn a_value_transferred_on_one_path_is_not_owned_after_the_join() {
+    // Shows: `flag && takes(value)` transfers `value` only when `flag`
+    // holds, so after the join `value` is owned on one arrival and not the
+    // other. Read again there, it is a use after its value was transferred
+    // (ownership.md: predecessor paths must agree on the live ownership
+    // frontier), a rejection of the program rather than a construct the
+    // route does not serve. Not read again, the path that still owns it
+    // disposes of it before the join and the program is accepted.
+    let caller = |read_again| Shaped {
+        parameters: vec![point(), bool_type().into()],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![
+            Statement::Evaluate(transferred_when(1, 0)),
+            returns(if read_again {
+                read(place(0, point()), 0)
+            } else {
+                unsigned(0)
+            }),
+        ],
+    };
+    let accepted = elaborate_over(vec![caller(false), takes_a_point()], &affine_records());
+    let plan = terminal_semantics::plain_affine::plan(
+        &accepted.module.machines[0],
+        &accepted.module.structural_types,
+    )
+    .unwrap();
+    assert!(plan.unavailable.is_empty());
+    assert!(
+        plan.cleanup
+            .iter()
+            .any(|(_, actions)| actions.iter().any(|action| matches!(
+                action,
+                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
+            ))),
+        "the arrival that still owns the value disposes of it on its edge"
+    );
+    assert!(matches!(judge(Ok(accepted)), Ok(RouteVerdict::Accepted(_))));
+    let read_again = elaborate_over(vec![caller(true), takes_a_point()], &affine_records());
+    let Ok(RouteVerdict::Rejected { unestablished, .. }) = judge(Ok(read_again)) else {
+        panic!("a use after a transfer on one path is a rejection");
+    };
+    assert!(
+        unestablished.iter().any(|used| used.detail
+            == "owned storage is used after its value was transferred or consumed")
+    );
+    // The scalar initialization judgment reports the same read: one site.
+    assert!(
+        unestablished
+            .iter()
+            .all(|used| used.at == unestablished[0].at)
+    );
+}
+
 #[test]
 fn an_affine_empty_case_cannot_be_moved_twice() {
     let mut records = IdTable::default();

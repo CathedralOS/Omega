@@ -8,6 +8,14 @@ the portable module.
 
 ## Authorship and evaluation
 
+An arbitrary-width integer in a boundary signature retains its exact semantic
+signedness and width. Ordinary Omega integer support does not imply a foreign
+ABI or atomic realization. The selected plan must explicitly support the
+argument/result's representation, fit and placement; otherwise reject the
+binding. Internal multiword calls and software arithmetic helpers remain the
+compiler's responsibility, with scratch and stack demand accounted and no
+hidden heap allocation or failure route.
+
 `Calling<Policy>` takes an explicit named implementation parameter declared
 `const Policy: CallingPolicy`. There is no convention data subject. Its
 compile-time `plan` machine
