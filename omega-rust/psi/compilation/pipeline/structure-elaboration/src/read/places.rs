@@ -820,7 +820,8 @@ fn copy_field_is_unrestricted(
     records: &semantic_vocabulary::IdTable<StructuralTypeId, RecordType>,
 ) -> bool {
     match field {
-        ValueType::Scalar(_) => true,
+        // A policy changes no payload: the integer copies as its carrier does.
+        ValueType::Scalar(_) | ValueType::Qualified(..) => true,
         ValueType::Record(record) => records.get(record).is_some_and(|record| record.copyable),
         ValueType::Rigid(_) => false,
     }

@@ -12,7 +12,7 @@ use terminal_psi::{Operation, OperationKind, OperationResult};
 
 use super::places::{Bound, Witness};
 use super::{Lowering, Value, declaration};
-use crate::body::{Expression, ExpressionKind, Strict, ValueType};
+use crate::body::{Expression, ExpressionKind, Policy, Strict, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
 impl Lowering<'_> {
@@ -71,17 +71,18 @@ impl Lowering<'_> {
                 Ok(Witness::Integer(t, *value))
             }
             (ExpressionKind::Boolean(value), _) => Ok(Witness::Boolean(*value)),
-            (ExpressionKind::Slot(slot), Some(ValueType::Scalar(scalar_type))) => {
-                match *self.slot_mut(*slot)? {
-                    Some(Bound::Scalar(value)) => Ok(Witness::Value(value, scalar_type)),
-                    Some(Bound::Erased(witness)) => Ok(witness),
-                    Some(Bound::Home(_) | Bound::Record(_)) | None => Err(refuse(
-                        self.id,
-                        self.current.map_or(Construct::Machine, Construct::Block),
-                        Unserved::Expression("erased term that reads storage"),
-                    )),
-                }
-            }
+            (
+                ExpressionKind::Slot(slot),
+                Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)),
+            ) => match *self.slot_mut(*slot)? {
+                Some(Bound::Scalar(value)) => Ok(Witness::Value(value, scalar_type)),
+                Some(Bound::Erased(witness)) => Ok(witness),
+                Some(Bound::Home(_) | Bound::Record(_)) | None => Err(refuse(
+                    self.id,
+                    self.current.map_or(Construct::Machine, Construct::Block),
+                    Unserved::Expression("erased term that reads storage"),
+                )),
+            },
             _ => Err(refuse(
                 self.id,
                 self.current.map_or(Construct::Machine, Construct::Block),
@@ -103,7 +104,9 @@ impl Lowering<'_> {
         // holds it. Everything below is scalar or Unit.
         let result = match expression.result {
             Some(ValueType::Record(_)) => return self.record(expression).map(Value::Record),
-            Some(ValueType::Scalar(scalar_type)) => Some(scalar_type),
+            Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) => {
+                Some(scalar_type)
+            }
             // A value of a rigid type is only ever named: no operation
             // produces one, so no result row is minted for it here.
             Some(ValueType::Rigid(_)) => {
@@ -212,6 +215,8 @@ impl Lowering<'_> {
                 };
                 self.emit(operation, result, kind)
             }
+            // The operand's value under another policy: nothing is computed.
+            ExpressionKind::Requalify(operand) => self.scalar(operand).map(Value::Scalar),
             ExpressionKind::Strict {
                 operation,
                 left: left_expression,
@@ -220,6 +225,12 @@ impl Lowering<'_> {
                 let left = self.scalar(left_expression)?;
                 let right = self.scalar(right)?;
                 let operand_type = self.result_type(left_expression)?;
+                // An arithmetic or shift result that carries a policy is
+                // that policy's operation; a comparison's result is `bool`
+                // and carries none.
+                if let Some(policy) = expression.result.and_then(ValueType::policy) {
+                    return self.policy_operation(*operation, policy, left, right, result, source);
+                }
                 self.strict(*operation, operand_type, left, right, result, source)
             }
             ExpressionKind::ShortCircuit {
@@ -231,6 +242,99 @@ impl Lowering<'_> {
                 self.call(*callee, arguments, expression.result, source)
             }
         }
+    }
+
+    /// One arithmetic or shift operation under the policy its result type
+    /// carries.
+    ///
+    /// numeric_values.md, "Overflow policies": "Wrapping reduces
+    /// representable-range overflow modulo the selected carrier; Saturating
+    /// clamps it to carrier bounds", and "An overflow policy does not invent
+    /// a result for undefined operands such as an integer zero divisor". So
+    /// a Wrapping or Saturating add, subtract and multiply is total and owes
+    /// nothing, a divide and a remainder still owe their divisor, and a
+    /// Wrapping shift reduces its count and is total. What each one owes is
+    /// Terminal semantics' to say (`integer_policy_bridge`); this names the
+    /// operation and mints the obligation the operation carries. A
+    /// Saturating shift owes the Exact count proof under an operation this
+    /// lowering does not emit, and is refused.
+    fn policy_operation(
+        &mut self,
+        strict: Strict,
+        policy: Policy,
+        left: ValueId,
+        right: ValueId,
+        result: Option<ScalarType>,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
+        let operation = self.operation_identity(source);
+        let kind = match (strict, policy) {
+            (Strict::Add, Policy::Wrapping) => OperationKind::WrappingIntegerAdd { left, right },
+            (Strict::Add, Policy::Saturating) => {
+                OperationKind::SaturatingIntegerAdd { left, right }
+            }
+            (Strict::Subtract, Policy::Wrapping) => {
+                OperationKind::WrappingIntegerSubtract { left, right }
+            }
+            (Strict::Subtract, Policy::Saturating) => {
+                OperationKind::SaturatingIntegerSubtract { left, right }
+            }
+            (Strict::Multiply, Policy::Wrapping) => {
+                OperationKind::WrappingIntegerMultiply { left, right }
+            }
+            (Strict::Multiply, Policy::Saturating) => {
+                OperationKind::SaturatingIntegerMultiply { left, right }
+            }
+            (Strict::Divide, Policy::Wrapping) => OperationKind::WrappingIntegerDivide {
+                left,
+                right,
+                obligation: self.safety(operation, source)?,
+            },
+            (Strict::Divide, Policy::Saturating) => OperationKind::SaturatingIntegerDivide {
+                left,
+                right,
+                obligation: self.safety(operation, source)?,
+            },
+            (Strict::Remainder, Policy::Wrapping) => OperationKind::WrappingIntegerRemainder {
+                left,
+                right,
+                obligation: self.safety(operation, source)?,
+            },
+            (Strict::Remainder, Policy::Saturating) => OperationKind::SaturatingIntegerRemainder {
+                left,
+                right,
+                obligation: self.safety(operation, source)?,
+            },
+            (Strict::ShiftLeft, Policy::Wrapping) => OperationKind::WrappingIntegerShiftLeft {
+                value: left,
+                count: right,
+            },
+            (Strict::ShiftRight, Policy::Wrapping) => OperationKind::WrappingIntegerShiftRight {
+                value: left,
+                count: right,
+            },
+            (Strict::ShiftLeft | Strict::ShiftRight, Policy::Saturating) => {
+                return Err(refuse(
+                    self.id,
+                    self.current.map_or(Construct::Machine, Construct::Block),
+                    Unserved::Expression("saturating shift"),
+                ));
+            }
+            // The reader gives no other operation a policy-qualified result.
+            (
+                Strict::BitwiseAnd
+                | Strict::BitwiseOr
+                | Strict::BitwiseXor
+                | Strict::Equal
+                | Strict::NotEqual
+                | Strict::Less
+                | Strict::LessOrEqual
+                | Strict::Greater
+                | Strict::GreaterOrEqual,
+                _,
+            ) => return Err(self.internal("a policy on an operation that has none")),
+        };
+        self.emit(operation, result, kind)
     }
 
     fn strict(
