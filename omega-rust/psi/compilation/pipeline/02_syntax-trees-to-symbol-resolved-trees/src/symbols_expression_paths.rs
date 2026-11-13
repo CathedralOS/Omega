@@ -76,6 +76,7 @@ mod calls {
                 || matches!(symbols.get(receiver_symbol).kind, SymbolKind::Domain))
                 && let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
                     expression_table.expression(call.receiver)
+                && !path.static_application.is_valid()
                 && let [owner] = expression_table.name_path_members(path.members)
             {
                 return super::super::lookup::call_target_for_attached_data(

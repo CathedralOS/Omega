@@ -1496,6 +1496,9 @@ mod domain_facts {
                     assign_struct_literal_symbols(self.symbols, self.expression_table, expression);
                 }
                 ExpressionNode::Name(path) => {
+                    if path.static_application.is_valid() {
+                        return;
+                    }
                     if path.head_symbol.is_valid() || path.symbol.is_valid() {
                         return;
                     }

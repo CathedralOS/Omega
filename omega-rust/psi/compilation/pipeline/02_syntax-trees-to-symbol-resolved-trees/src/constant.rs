@@ -693,6 +693,9 @@ mod declaration_values {
     ) -> Option<(SourceSpan, symbols::SymbolHandle)> {
         let table = &program.tables.bodies.expressions;
         let path = table.name_path_node(expression)?;
+        if path.static_application.is_valid() {
+            return None;
+        }
         if matches!(
             program.symbols.get(path.head_symbol).kind,
             SymbolKind::Local
@@ -750,8 +753,10 @@ mod declaration_values {
                 }
                 Ok(())
             }
-            ExpressionNode::Name(path) => {
-                let members = syntax_trees.expressions.identifier_path_members(*path);
+            ExpressionNode::Name(path) if path.application.is_none() => {
+                let members = syntax_trees
+                    .expressions
+                    .identifier_path_members(path.members);
                 let [type_name, case_name] = members else {
                     return invalid_literal_initializer(syntax_trees, definition, value);
                 };
@@ -2728,7 +2733,10 @@ mod initializer_leaves {
                 ExpressionNode::Call(_) | ExpressionNode::Match(_) | ExpressionNode::Cast(_) => {
                     true
                 }
-                ExpressionNode::Name(path) => name_selects_const(syntax, selection, *path),
+                ExpressionNode::Name(path) => {
+                    path.application.is_none()
+                        && name_selects_const(syntax, selection, path.members)
+                }
                 _ => false,
             }
         }
@@ -3889,8 +3897,8 @@ pub(crate) mod initializer_normalization {
                 | ExpressionNode::Boolean(_)
                 | ExpressionNode::Float(_)
                 | ExpressionNode::String(_) => {}
-                ExpressionNode::Name(path) => {
-                    let members = syntax.expressions.identifier_path_members(*path);
+                ExpressionNode::Name(path) if path.application.is_none() => {
+                    let members = syntax.expressions.identifier_path_members(path.members);
                     let (Some(first), Some(last)) = (members.first(), members.last()) else {
                         return Err(error(reference, "authored dependency lost its name"));
                     };

@@ -189,8 +189,9 @@ mod assignments {
                     _ => continue,
                 };
                 let expected_type = match syntax.expressions.expression(assignment.target) {
-                    ExpressionNode::Name(path) => {
-                        let [name] = syntax.expressions.identifier_path_members(*path) else {
+                    ExpressionNode::Name(path) if path.application.is_none() => {
+                        let [name] = syntax.expressions.identifier_path_members(path.members)
+                        else {
                             continue;
                         };
                         local_types.get(name.as_str(syntax)).copied()
@@ -454,8 +455,8 @@ mod calls {
         local_owner_types: &HashMap<String, String>,
     ) -> Option<String> {
         match syntax.expressions.expression(receiver) {
-            ExpressionNode::Name(path) => {
-                let [local] = syntax.expressions.identifier_path_members(*path) else {
+            ExpressionNode::Name(path) if path.application.is_none() => {
+                let [local] = syntax.expressions.identifier_path_members(path.members) else {
                     return None;
                 };
                 local_owner_types.get(local.as_str(syntax)).cloned()
@@ -746,7 +747,8 @@ mod constructors {
             return;
         }
         if let ExpressionNode::Name(path) = syntax.expressions.expression(expression)
-            && frontier.captures(syntax, *path)
+            && path.application.is_none()
+            && frontier.captures(syntax, path.members)
         {
             return;
         }
@@ -793,7 +795,9 @@ mod constructors {
         };
         let definition = definition.clone();
         let authored_name = match syntax.expressions.expression(expression) {
-            ExpressionNode::Name(path) => constructor_path_name(syntax, *path),
+            ExpressionNode::Name(path) if path.application.is_none() => {
+                constructor_path_name(syntax, path.members)
+            }
             ExpressionNode::StructLiteral(literal) => Some(literal.constructor_name.clone()),
             _ => None,
         };
@@ -868,14 +872,17 @@ mod constructors {
             return;
         }
         if let ExpressionNode::Name(path) = syntax.expressions.expression(expression) {
+            if path.application.is_some() {
+                return;
+            }
             if instance.is_some()
                 && let Some(case) = case
-                && let Some(carrier_span) = constructor_carrier_span(syntax, *path)
+                && let Some(carrier_span) = constructor_carrier_span(syntax, path.members)
             {
                 let path = closed_sum_path(syntax, closed, carrier_span, case);
                 syntax
                     .expressions
-                    .replace_expression(expression, ExpressionNode::Name(path));
+                    .replace_expression(expression, ExpressionNode::Name(path.into()));
             }
             return;
         }
@@ -1046,6 +1053,18 @@ mod expressions {
             }
             ExpressionNode::Call(call) => {
                 visit_static_argument_type_inputs(syntax, &call.machine_arguments, visit)
+            }
+            ExpressionNode::Name(path) => {
+                if let Some(application) = &path.application {
+                    visit_static_argument_type_inputs(syntax, &application.arguments, visit);
+                    if let Some(member) = syntax.expressions.static_member(application.member) {
+                        visit_static_argument_type_inputs(
+                            syntax,
+                            std::slice::from_ref(member),
+                            visit,
+                        );
+                    }
+                }
             }
             _ => {}
         }
@@ -1488,14 +1507,16 @@ mod patterns {
                         if !retained.is_structural
                             && let ExpressionNode::Name(path) =
                                 syntax.expressions.expression(retained.pattern.head)
-                            && frontier.captures(syntax, *path)
+                            && path.application.is_none()
+                            && frontier.captures(syntax, path.members)
                         {
                             continue;
                         }
                         if !retained.is_structural
                             && let ExpressionNode::Name(path) =
                                 syntax.expressions.expression(retained.pattern.head)
-                            && let Some(name) = constructor_path_name(syntax, *path)
+                            && path.application.is_none()
+                            && let Some(name) = constructor_path_name(syntax, path.members)
                             && selection.is_some_and(|selection| {
                                 selection.constructor_prefix_is_value(syntax, &name)
                             })
@@ -1685,8 +1706,8 @@ mod patterns {
         }
         active.push(expression);
         let result = match syntax.expressions.expression(expression) {
-            ExpressionNode::Name(path) => {
-                let [name] = syntax.expressions.identifier_path_members(*path) else {
+            ExpressionNode::Name(path) if path.application.is_none() => {
+                let [name] = syntax.expressions.identifier_path_members(path.members) else {
                     return None;
                 };
                 if let Some(reference) = types
@@ -1745,7 +1766,10 @@ mod patterns {
         let ExpressionNode::Name(path) = syntax.expressions.expression(head) else {
             return Default::default();
         };
-        let original_path = *path;
+        if path.application.is_some() {
+            return Default::default();
+        }
+        let original_path = path.members;
         let Some(name) = constructor_path_name(syntax, original_path) else {
             return Default::default();
         };
@@ -1783,7 +1807,7 @@ mod patterns {
         };
         syntax
             .expressions
-            .replace_expression(head, ExpressionNode::Name(selected));
+            .replace_expression(head, ExpressionNode::Name(selected.into()));
         application
     }
 }

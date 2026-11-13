@@ -792,7 +792,7 @@ pub(crate) mod bodies {
                     .collect::<Vec<_>>();
                 let has_rest = parsed_fields.has_rest;
                 let proof_selectors = parsed_fields.proof_selectors;
-                let head = exprs(syntax_trees).insert(ExpressionNode::Name(path));
+                let head = exprs(syntax_trees).insert(ExpressionNode::Name(path.into()));
                 let capture = exprs(syntax_trees).insert_transition_subject(subject);
                 let saved = exprs(syntax_trees).insert(ExpressionNode::SavedSubject(
                     syntax_trees::expression::TableSavedSubject {
@@ -974,8 +974,9 @@ pub(crate) mod bodies {
                         .expressions
                         .append_identifier_path_member(name.clone());
                     let path = HandleSpan::from_parts(path_start, 1);
-                    *subject_expression =
-                        syntax_trees.expressions.insert(ExpressionNode::Name(path));
+                    *subject_expression = syntax_trees
+                        .expressions
+                        .insert(ExpressionNode::Name(path.into()));
                     subject_captures.push((name, captured));
                 }
 
@@ -1312,9 +1313,11 @@ pub(crate) mod bodies {
                     expression: ExpressionHandle,
                 ) -> Option<usize> {
                     match exprs_of(syntax_trees).expression(expression) {
-                        ExpressionNode::Name(path) => {
-                            Some(exprs_of(syntax_trees).identifier_path_members(*path).len())
-                        }
+                        ExpressionNode::Name(path) if path.application.is_none() => Some(
+                            exprs_of(syntax_trees)
+                                .identifier_path_members(path.members)
+                                .len(),
+                        ),
                         ExpressionNode::Member(member) => {
                             let depth =
                                 expression_handle_identifier_depth(syntax_trees, member.receiver)?;
@@ -1395,9 +1398,9 @@ pub(crate) mod bodies {
     ) -> Option<arena::HandleSpan<syntax_trees::identifier::Identifier>> {
         use syntax_trees::expression::ExpressionNode;
         match syntax_trees.expressions.expression(expression).clone() {
-            ExpressionNode::Name(path) => {
-                Some(copy_identifier_path_to_statement_table(syntax_trees, path))
-            }
+            ExpressionNode::Name(path) if path.application.is_none() => Some(
+                copy_identifier_path_to_statement_table(syntax_trees, path.members),
+            ),
             ExpressionNode::Member(member) => {
                 let receiver =
                     copy_expression_to_statement_identifier_path(syntax_trees, member.receiver)?;

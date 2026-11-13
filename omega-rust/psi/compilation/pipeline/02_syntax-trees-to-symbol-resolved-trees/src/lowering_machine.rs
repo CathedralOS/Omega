@@ -1245,8 +1245,8 @@ mod type_equations {
             ExpressionNode::TypeExpression(reference) => {
                 type_reference::lower_type_reference_handle(lowerer, syntax, *reference)?
             }
-            ExpressionNode::Name(path) => {
-                let members = syntax.expressions.identifier_path_members(*path);
+            ExpressionNode::Name(path) if path.application.is_none() => {
+                let members = syntax.expressions.identifier_path_members(path.members);
                 TypeReference::Named {
                     supplied_operand_owner: Default::default(),
                     symbol: symbols::SymbolHandle::invalid(),
@@ -1935,9 +1935,11 @@ fn render_ranked_subject(
 ) -> String {
     match syntax_trees.expressions.expression(subject) {
         ExpressionNode::Integer(literal) => literal.to_string(),
-        ExpressionNode::Name(path) => syntax_expressions(syntax_trees)
-            .identifier_path_members(*path)
-            .joined_path_with_in(syntax_trees, "."),
+        ExpressionNode::Name(path) if path.application.is_none() => {
+            syntax_expressions(syntax_trees)
+                .identifier_path_members(path.members)
+                .joined_path_with_in(syntax_trees, ".")
+        }
         ExpressionNode::Member(member) => format!(
             "{}.{}",
             render_ranked_subject(syntax_trees, member.receiver),
@@ -2026,8 +2028,11 @@ fn elaborate_single_subject_default(
     };
     let trees = &lowerer.symbol_resolved_trees;
     let pending = (RankingViewId::NULL, String::new());
+    if path.application.is_some() {
+        return pending;
+    }
     let Some(subject_name) = syntax_expressions(syntax_trees)
-        .identifier_path_members(*path)
+        .identifier_path_members(path.members)
         .last()
     else {
         return pending;

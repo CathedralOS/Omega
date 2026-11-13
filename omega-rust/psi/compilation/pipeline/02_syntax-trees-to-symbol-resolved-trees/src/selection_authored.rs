@@ -1341,6 +1341,21 @@ fn expression_candidates(
                 });
             }
         }
+        ExpressionNode::Name(path) if path.static_application.is_valid() => {
+            let selected = expressions
+                .static_member(path.static_application)
+                .ok_or_else(|| {
+                    Diagnostic::error("declaration selection lost its owning static application")
+                        .with_source_span(expression_span)
+                })?;
+            collect_static_argument_candidates(
+                program,
+                expression,
+                std::slice::from_ref(selected),
+                false,
+                &mut candidates,
+            );
+        }
         ExpressionNode::Name(path) => {
             let members = expressions.name_path_members(path.members);
             if !path.head_symbol.is_valid() && members.len() > 1 {

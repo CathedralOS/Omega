@@ -271,8 +271,11 @@ pub(crate) mod patterns {
                     access: inner.access,
                 }),
                 ExpressionNode::Name(path) => {
-                    if let Some((field, case_variant, component)) =
-                        single_destructured_field_name(syntax_trees, path, fields)
+                    if let Some((field, case_variant, component)) = path
+                        .application
+                        .is_none()
+                        .then(|| single_destructured_field_name(syntax_trees, path.members, fields))
+                        .flatten()
                     {
                         if component == language_core::PatternComponent::Case {
                             // This is another view of the dispatch's saved value,
@@ -295,7 +298,7 @@ pub(crate) mod patterns {
                             })
                         }
                     } else {
-                        ExpressionNode::Name(path)
+                        ExpressionNode::Name(path.into())
                     }
                 }
                 ExpressionNode::Range(range) => ExpressionNode::Range(TableRangeExpression {
@@ -555,8 +558,10 @@ pub(crate) mod type_syntax {
                                 }
                             }
                         }
-                        ExpressionNode::Name(path) => {
-                            let members = syntax_trees.expressions.identifier_path_members(*path);
+                        ExpressionNode::Name(path) if path.application.is_none() => {
+                            let members = syntax_trees
+                                .expressions
+                                .identifier_path_members(path.members);
                             let name = Identifier::new(
                                 members
                                     .iter()

@@ -306,8 +306,9 @@ mod arguments {
                     ExpressionNode::Integer(literal) => {
                         super::integer_literal_value(literal).map(|value| value.to_string())
                     }
-                    ExpressionNode::Name(path) => {
-                        let [member] = syntax.expressions.identifier_path_members(*path) else {
+                    ExpressionNode::Name(path) if path.application.is_none() => {
+                        let [member] = syntax.expressions.identifier_path_members(path.members)
+                        else {
                             return None;
                         };
                         Some(member.as_str(syntax).to_owned())
@@ -554,8 +555,9 @@ mod arguments {
                 match syntax.expressions.expression(*expression) {
                     ExpressionNode::Integer(literal) => super::integer_literal_value(literal)
                         .map(|value| ClosedArgumentIdentity::Constant(value.to_string())),
-                    ExpressionNode::Name(path) => {
-                        let [member] = syntax.expressions.identifier_path_members(*path) else {
+                    ExpressionNode::Name(path) if path.application.is_none() => {
+                        let [member] = syntax.expressions.identifier_path_members(path.members)
+                        else {
                             return None;
                         };
                         Some(ClosedArgumentIdentity::Constant(
@@ -1902,7 +1904,7 @@ mod static_argument_positions {
                         continue;
                     };
                     let prefix = syntax_expressions(syntax)
-                        .identifier_path_members(*path)
+                        .identifier_path_members(path.members)
                         .iter()
                         .map(|part| part.as_str(syntax))
                         .collect::<Vec<_>>()
@@ -2175,8 +2177,8 @@ mod substitution {
         members: &HashMap<String, V>,
     ) -> bool {
         match syntax.expressions.expression(expression) {
-            ExpressionNode::Name(path) => {
-                let [member] = syntax.expressions.identifier_path_members(*path) else {
+            ExpressionNode::Name(path) if path.application.is_none() => {
+                let [member] = syntax.expressions.identifier_path_members(path.members) else {
                     return false;
                 };
                 members.contains_key(member.as_str(syntax))
@@ -2209,7 +2211,10 @@ mod substitution {
             let ExpressionNode::Name(path) = syntax.expressions.expression(side) else {
                 return None;
             };
-            let [member] = syntax.expressions.identifier_path_members(*path) else {
+            if path.application.is_some() {
+                return None;
+            }
+            let [member] = syntax.expressions.identifier_path_members(path.members) else {
                 return None;
             };
             Some(member.clone())
@@ -2298,8 +2303,8 @@ mod substitution {
                 let is_self = matches!(
                     syntax.expressions.expression(membership.value),
                     ExpressionNode::Name(path)
-                        if matches!(
-                            syntax.expressions.identifier_path_members(*path),
+                        if path.application.is_none() && matches!(
+                            syntax.expressions.identifier_path_members(path.members),
                             [member] if member.as_str(syntax) == "self"
                         )
                 );
@@ -2438,7 +2443,10 @@ mod substitution {
                 else {
                     return Undecided;
                 };
-                let [self_member] = syntax.expressions.identifier_path_members(*path) else {
+                if path.application.is_some() {
+                    return Undecided;
+                }
+                let [self_member] = syntax.expressions.identifier_path_members(path.members) else {
                     return Undecided;
                 };
                 if self_member.as_str(syntax) != "self" {

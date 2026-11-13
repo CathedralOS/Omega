@@ -3089,6 +3089,29 @@ fn visit_name_path(
     {
         visit_symbol(retained, *member);
     }
+    if let Some(argument) = program
+        .expression_table
+        .static_member(path.static_application)
+    {
+        visit_described_argument(program, retained, argument);
+    }
+}
+
+fn visit_described_argument(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    argument: &StaticMachineArgument,
+) {
+    retained.declaration_description_dependency(argument.symbol);
+    visit_type_reference(program, retained, argument.type_reference);
+    if let Some(application) = &argument.application {
+        for nested in &application.arguments {
+            visit_described_argument(program, retained, nested);
+        }
+        if let Some(member) = program.expression_table.static_member(application.member) {
+            visit_described_argument(program, retained, member);
+        }
+    }
 }
 
 fn visit_static_requirement_dispatch(

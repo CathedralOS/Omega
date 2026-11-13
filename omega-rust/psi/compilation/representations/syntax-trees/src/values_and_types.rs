@@ -1001,10 +1001,16 @@ pub mod values {
                             expression.access.borrow_prefix(),
                             table.display_expression_name(expression.target)
                         ),
-                        Self::Name(path) => table
-                            .expressions
-                            .identifier_path_members(*path)
-                            .joined_path_with_in(table, "::"),
+                        Self::Name(path) => StaticMachineArgument {
+                            path: table
+                                .expressions
+                                .identifier_path_members(path.members)
+                                .to_vec()
+                                .into_boxed_slice(),
+                            application: path.application.clone(),
+                            ..Default::default()
+                        }
+                        .display_name(table),
                         Self::Range(range) => {
                             let separator = if range.end_inclusive { "..=" } else { ".." };
                             match (range.start.is_valid(), range.end.is_valid()) {
@@ -1720,7 +1726,7 @@ pub mod values {
             Membership(TableMembershipExpression),
             Member(TableMemberExpression),
             Borrow(TableBorrowExpression),
-            Name(HandleSpan<Identifier>),
+            Name(TableNamePath),
             Range(TableRangeExpression),
             StructLiteral(TableStructLiteral),
             String(source::SourceBytes),
@@ -1894,6 +1900,25 @@ pub mod values {
             pub member: Handle<StaticMachineArgument>,
             pub lifetime_arguments: Box<[Identifier]>,
             pub arguments: Box<[StaticMachineArgument]>,
+        }
+
+        // A path keeps each static telescope on the component it applies to.
+        // Ordinary value names have no application. Describing such a path is
+        // distinct from invoking it and uses the same application representation
+        // as a static argument.
+        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        pub struct TableNamePath {
+            pub members: HandleSpan<Identifier>,
+            pub application: Option<Box<StaticSymbolApplication>>,
+        }
+
+        impl From<HandleSpan<Identifier>> for TableNamePath {
+            fn from(members: HandleSpan<Identifier>) -> Self {
+                Self {
+                    members,
+                    application: None,
+                }
+            }
         }
 
         #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]

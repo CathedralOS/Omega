@@ -1225,8 +1225,11 @@ mod type_structure {
             use syntax_trees::identifier::Identifier;
             match self.syntax.expressions.expression(expression).clone() {
                 ExpressionNode::TypeExpression(reference) => Ok(reference),
-                ExpressionNode::Name(path) => {
-                    let parts = self.syntax.expressions.identifier_path_members(path);
+                ExpressionNode::Name(path) if path.application.is_none() => {
+                    let parts = self
+                        .syntax
+                        .expressions
+                        .identifier_path_members(path.members);
                     let Some(first) = parts.first() else {
                         return Err(self.type_structure_error("lost its element type name", span));
                     };
@@ -2236,8 +2239,8 @@ fn classify_side(
             Side::AmbiguousTypeOperand(expression)
         }
         ExpressionNode::TypeExpression(reference) => Side::TypeStructure(*reference),
-        ExpressionNode::Name(path) => {
-            let members = syntax.expressions.identifier_path_members(*path);
+        ExpressionNode::Name(path) if path.application.is_none() => {
+            let members = syntax.expressions.identifier_path_members(path.members);
             if let [member] = members
                 && let Some((index, kind)) = binder_index(syntax, parameters, member.as_str(syntax))
             {
@@ -2332,8 +2335,8 @@ fn type_operand_kind_error(
     expression: ExpressionHandle,
 ) -> Option<&'static str> {
     match syntax.expressions.expression(expression) {
-        ExpressionNode::Name(path) => {
-            if let [name] = syntax.expressions.identifier_path_members(*path)
+        ExpressionNode::Name(path) if path.application.is_none() => {
+            if let [name] = syntax.expressions.identifier_path_members(path.members)
                 && binder_index(syntax, parameters, name.as_str(syntax))
                     .is_some_and(|(_, kind)| !matches!(kind, TypeParameterKind::Type))
             {
@@ -2377,7 +2380,15 @@ fn collect_expression_binder_mentions(
             collect_binder_mentions(syntax, *reference, parameters, mentions);
         }
         ExpressionNode::Name(path) => {
-            if let [member] = syntax.expressions.identifier_path_members(*path)
+            if let Some(application) = &path.application {
+                for argument in &application.arguments {
+                    collect_static_argument_binder_mentions(syntax, argument, parameters, mentions);
+                }
+                if let Some(member) = syntax.expressions.static_member(application.member) {
+                    collect_static_argument_binder_mentions(syntax, member, parameters, mentions);
+                }
+            }
+            if let [member] = syntax.expressions.identifier_path_members(path.members)
                 && let Some(index) = parameters
                     .iter()
                     .position(|parameter| parameter == member.as_str(syntax))

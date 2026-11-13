@@ -7927,13 +7927,12 @@ pub mod result_overloads {
                 }
                 program
                     .expression_table
-                    .insert(ExpressionNode::Name(TableNamePath {
+                    .insert(ExpressionNode::Name(TableNamePath::new(
                         members,
-                        member_symbols: arena::HandleSpan::empty(),
-                        head_symbol: call.receiver_root_symbol,
-                        symbol: call.receiver_symbol,
-                        reserved_result_of: SymbolHandle::invalid(),
-                    }))
+                        arena::HandleSpan::empty(),
+                        call.receiver_root_symbol,
+                        call.receiver_symbol,
+                    )))
             };
             let arguments = program
                 .expression_table
@@ -9611,13 +9610,12 @@ pub mod terminal_transitions {
                 let receiver =
                     program
                         .expression_table
-                        .insert(ExpressionNode::Name(TableNamePath {
-                            members: namespace,
-                            member_symbols: arena::HandleSpan::empty(),
-                            head_symbol: namespace_head,
-                            symbol: namespace_endpoint,
-                            reserved_result_of: SymbolHandle::invalid(),
-                        }));
+                        .insert(ExpressionNode::Name(TableNamePath::new(
+                            namespace,
+                            arena::HandleSpan::empty(),
+                            namespace_head,
+                            namespace_endpoint,
+                        )));
                 program
                     .expression_table
                     .set_source_span(receiver, source_span);

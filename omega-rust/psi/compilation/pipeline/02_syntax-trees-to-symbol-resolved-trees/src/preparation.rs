@@ -3398,6 +3398,29 @@ pub(crate) mod trait_defaults {
         }
         let node = syntax.expressions.expression(expression).clone();
         match node {
+            ExpressionNode::Name(mut path) => {
+                if let Some(application) = path.application.as_ref() {
+                    let argument = StaticMachineArgument {
+                        type_reference: TypeReferenceHandle::invalid(),
+                        path: syntax
+                            .expressions
+                            .identifier_path_members(path.members)
+                            .into(),
+                        application: Some(application.clone()),
+                        const_literal: None,
+                        evidence_projection: None,
+                    };
+                    let mut changed = false;
+                    let rewritten =
+                        rewritten_static_argument(syntax, &argument, substitution, &mut changed);
+                    if changed {
+                        path.application = rewritten.application;
+                        syntax
+                            .expressions
+                            .replace_expression(expression, ExpressionNode::Name(path));
+                    }
+                }
+            }
             ExpressionNode::Call(mut call) => {
                 if let Some(arguments) =
                     rewritten_static_arguments(syntax, &call.machine_arguments, substitution)
@@ -3503,7 +3526,6 @@ pub(crate) mod trait_defaults {
             | ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
-            | ExpressionNode::Name(_)
             | ExpressionNode::String(_)
             | ExpressionNode::ZeroValue(_)
             | ExpressionNode::TypeExpression(_) => {}
@@ -3620,13 +3642,16 @@ pub(crate) mod trait_defaults {
                         const_literal: Some(literal.clone()),
                         evidence_projection: None,
                     }),
-                    ExpressionNode::Name(path) => {
-                        let members = syntax.expressions.identifier_path_members(*path);
-                        let [name] = members else {
-                            return None;
-                        };
-                        Some(bare_static_argument(name.clone()))
-                    }
+                    ExpressionNode::Name(path) => Some(StaticMachineArgument {
+                        type_reference: TypeReferenceHandle::invalid(),
+                        path: syntax
+                            .expressions
+                            .identifier_path_members(path.members)
+                            .into(),
+                        application: path.application.clone(),
+                        const_literal: None,
+                        evidence_projection: None,
+                    }),
                     _ => None,
                 }
             }
@@ -3805,8 +3830,9 @@ pub(crate) mod declared_types {
                     children.push(reference)
                 });
                 match templates.expressions.expression(expression) {
-                    ExpressionNode::Name(path) => {
-                        let [name] = templates.expressions.identifier_path_members(*path) else {
+                    ExpressionNode::Name(path) if path.application.is_none() => {
+                        let [name] = templates.expressions.identifier_path_members(path.members)
+                        else {
                             bindings.unresolved.push(expression);
                             continue;
                         };
@@ -3840,7 +3866,9 @@ pub(crate) mod declared_types {
                             bindings.unresolved.push(expression);
                         }
                     }
-                    ExpressionNode::Call(_) => bindings.unresolved.push(expression),
+                    ExpressionNode::Name(_) | ExpressionNode::Call(_) => {
+                        bindings.unresolved.push(expression)
+                    }
                     _ => {}
                 }
             }
@@ -3855,9 +3883,12 @@ pub(crate) mod declared_types {
             let ExpressionNode::Name(path) = syntax.expressions.expression(expression) else {
                 return false;
             };
+            if path.application.is_some() {
+                return false;
+            }
             let name = syntax
                 .expressions
-                .identifier_path_members(*path)
+                .identifier_path_members(path.members)
                 .iter()
                 .map(|member| member.as_str(syntax))
                 .collect::<Vec<_>>()
@@ -3902,7 +3933,8 @@ pub(crate) mod declared_types {
                                     .expressions
                                     .append_identifier_path_member_to_span(&mut path, member);
                             }
-                            let expression = syntax.expressions.insert(ExpressionNode::Name(path));
+                            let expression =
+                                syntax.expressions.insert(ExpressionNode::Name(path.into()));
                             syntax.expressions.set_source_span(expression, span);
                             expression
                         }
@@ -4074,12 +4106,17 @@ pub(crate) mod declared_types {
             ) -> Result<(), Diagnostic> {
                 match syntax.expressions.expression(expression).clone() {
                     ExpressionNode::Name(path) => {
-                        let path = syntax.expressions.identifier_path_members(path).to_vec();
+                        let application = path.application;
+                        let path = syntax
+                            .expressions
+                            .identifier_path_members(path.members)
+                            .to_vec();
                         let Some(first) = path.first() else {
                             return Ok(());
                         };
                         let argument = StaticMachineArgument {
                             path: path.clone().into_boxed_slice(),
+                            application,
                             ..Default::default()
                         };
                         let name = argument_name(syntax, &argument, first)?;

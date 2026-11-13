@@ -114,7 +114,7 @@ mod references {
             return None;
         }
         match expression_table.expression(receiver) {
-            ExpressionNode::Name(path) => {
+            ExpressionNode::Name(path) if !path.static_application.is_valid() => {
                 let members = expression_table.name_path_members(path.members);
                 (!members.is_empty()).then(|| {
                     members
@@ -429,6 +429,9 @@ mod references {
         expression: ExpressionHandle,
         role: NameRole,
     ) {
+        if path.static_application.is_valid() {
+            return;
+        }
         let mut lookup_state = state_symbol;
         if let [member, suffix @ ..] = expression_table.name_path_members(path.members) {
             let symbol =
@@ -879,6 +882,43 @@ mod traversal {
             }
         }
 
+        fn assign_declaration_argument_symbols(&mut self, argument: &mut StaticMachineArgument) {
+            if argument.type_reference.is_valid() {
+                self.reassign_type_reference(argument.type_reference);
+            }
+            crate::symbols::targets::assign_static_argument_symbol(
+                self.symbols,
+                self.machine.symbol,
+                self.machine.type_parameters,
+                argument,
+                true,
+            );
+            if let Some(application) = &mut argument.application {
+                for nested in &mut application.arguments {
+                    self.assign_declaration_argument_symbols(nested);
+                }
+                self.assign_member_argument_symbols(application.member);
+            }
+        }
+
+        fn assign_member_argument_symbols(&mut self, handle: arena::Handle<StaticMachineArgument>) {
+            let Some(mut member) = self.expression_table.static_member(handle).cloned() else {
+                return;
+            };
+            // The member itself belongs to its applied owner, not the lexical
+            // namespace. Its supplied arguments still have ordinary lexical scope.
+            if let Some(application) = &mut member.application {
+                for argument in &mut application.arguments {
+                    self.assign_declaration_argument_symbols(argument);
+                }
+                self.assign_member_argument_symbols(application.member);
+            }
+            *self
+                .expression_table
+                .static_member_mut(handle)
+                .expect("selected member belongs to this expression table") = member;
+        }
+
         fn assign_expression_span_symbols(&mut self, expressions: HandleSpan<ExpressionHandle>) {
             let count = expressions.count();
             for offset in 0..count {
@@ -1065,6 +1105,19 @@ mod traversal {
                     self.assign_expression_table_symbols(unary.operand);
                 }
                 ExpressionNode::Name(path) => {
+                    if path.static_application.is_valid()
+                        && let Some(mut selected) = self
+                            .expression_table
+                            .static_member(path.static_application)
+                            .cloned()
+                    {
+                        self.assign_declaration_argument_symbols(&mut selected);
+                        *self
+                            .expression_table
+                            .static_member_mut(path.static_application)
+                            .expect("selected declaration application belongs to this table") =
+                            selected;
+                    }
                     if self
                         .declaration_references
                         .contains(&self.expression_table.source_span(expression))

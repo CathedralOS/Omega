@@ -853,7 +853,15 @@ pub(crate) mod body_copies {
                     })
                 }
                 ExpressionNode::Name(path) => {
-                    ExpressionNode::Name(self.copy_expression_identifier_span(other, *path))
+                    let mut selection = StaticMachineArgument {
+                        application: path.application.clone(),
+                        ..Default::default()
+                    };
+                    self.remap_static_machine_argument(other, &mut selection);
+                    ExpressionNode::Name(crate::expression::TableNamePath {
+                        members: self.copy_expression_identifier_span(other, path.members),
+                        application: selection.application,
+                    })
                 }
                 ExpressionNode::Range(range) => ExpressionNode::Range(TableRangeExpression {
                     start: self.copy_expression_handle(other, range.start),

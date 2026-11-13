@@ -1010,7 +1010,7 @@ pub(crate) mod expression {
         .ok_or_else(|| {
             let head = match syntax_trees.expressions.expression(saved.pattern_head) {
                 syntax::ExpressionNode::Name(path) => syntax_trees.expressions
-                    .identifier_path_members(*path).iter()
+                    .identifier_path_members(path.members).iter()
                     .map(|name| name.as_str(syntax_trees)).collect::<Vec<_>>().join("::"),
                 _ => "<non-name>".to_owned(),
             };
@@ -1512,19 +1512,41 @@ pub(crate) mod expression {
             }
             syntax::expression::ExpressionNode::Name(path) => {
                 let mut members = HandleSpan::empty();
-                for member in syntax_trees.expressions.identifier_path_members(*path) {
+                for member in syntax_trees
+                    .expressions
+                    .identifier_path_members(path.members)
+                {
                     expression_table(lowerer)
                         .push_name_path_member(&mut members, lower_name(syntax_trees, member));
                 }
                 let member_symbols =
                     expression_table(lowerer).reserve_name_path_member_symbols(members.count());
+                let static_application = if path.application.is_some() {
+                    let selection = syntax::expression::StaticMachineArgument {
+                        path: syntax_trees
+                            .expressions
+                            .identifier_path_members(path.members)
+                            .to_vec()
+                            .into_boxed_slice(),
+                        application: path.application.clone(),
+                        ..Default::default()
+                    };
+                    let selection =
+                        lower_static_machine_argument(lowerer, syntax_trees, &selection)?;
+                    expression_table(lowerer).insert_static_member(selection)
+                } else {
+                    arena::Handle::invalid()
+                };
                 Ok(
-                    expression_table(lowerer).insert(ExpressionNode::Name(TableNamePath::new(
-                        members,
-                        member_symbols,
-                        SymbolHandle::invalid(),
-                        SymbolHandle::invalid(),
-                    ))),
+                    expression_table(lowerer).insert(ExpressionNode::Name(TableNamePath {
+                        static_application,
+                        ..TableNamePath::new(
+                            members,
+                            member_symbols,
+                            SymbolHandle::invalid(),
+                            SymbolHandle::invalid(),
+                        )
+                    })),
                 )
             }
             syntax::expression::ExpressionNode::Range(range) => {

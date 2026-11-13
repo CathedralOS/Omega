@@ -1593,7 +1593,13 @@ mod statement_nodes {
         else {
             return None;
         };
-        let [name] = syntax_trees.expressions.identifier_path_members(*path) else {
+        if path.application.is_some() {
+            return None;
+        }
+        let [name] = syntax_trees
+            .expressions
+            .identifier_path_members(path.members)
+        else {
             return None;
         };
         Some(name)

@@ -1003,7 +1003,7 @@ pub(crate) mod domain {
                 ProofMembershipFact {
                     value: syntax_trees
                         .expressions
-                        .insert(ExpressionNode::Name(subject_path)),
+                        .insert(ExpressionNode::Name(subject_path.into())),
                     domain: parent_path,
                     domain_arguments: name_segments[name_segments.len() - 2].1,
                 },

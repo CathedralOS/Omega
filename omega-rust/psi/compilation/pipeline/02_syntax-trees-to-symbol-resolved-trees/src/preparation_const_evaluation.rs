@@ -802,8 +802,8 @@ mod arguments {
                 .ok_or_else(|| {
                     "integer operand must fit the signed/unsigned 64-bit envelope".to_string()
                 }),
-            ExpressionNode::Name(path) => {
-                let members = syntax.expressions.identifier_path_members(*path);
+            ExpressionNode::Name(path) if path.application.is_none() => {
+                let members = syntax.expressions.identifier_path_members(path.members);
                 let name = members.joined_path_in(syntax);
                 if let Some(value) = parameter_values.get(&name) {
                     Ok(EvaluatedConst::Concrete(*value))
@@ -2015,8 +2015,8 @@ mod facts {
                 }))
             }
             ExpressionNode::Boolean(value) => Ok(Some(ConstFactValue::Boolean(*value))),
-            ExpressionNode::Name(path) => {
-                let members = syntax.expressions.identifier_path_members(*path);
+            ExpressionNode::Name(path) if path.application.is_none() => {
+                let members = syntax.expressions.identifier_path_members(path.members);
                 let name = members.joined_path_in(syntax);
                 if let Some(subject) = subject.filter(|subject| subject.matches(syntax, expression))
                 {
@@ -2266,7 +2266,8 @@ mod facts {
             let ExpressionNode::Name(path) = syntax.expressions.expression(expression) else {
                 return false;
             };
-            matches!(syntax.expressions.identifier_path_members(*path), [name] if name.as_str(syntax) == "self")
+            path.application.is_none()
+                && matches!(syntax.expressions.identifier_path_members(path.members), [name] if name.as_str(syntax) == "self")
         }
 
         fn binding(self) -> Option<ConstSubjectBinding<'a>> {
@@ -2321,8 +2322,8 @@ mod facts {
     ) -> Result<Option<Option<&'value CanonicalConstNode>>, String> {
         use super::values::CanonicalConstNode;
         match syntax.expressions.expression(expression) {
-            ExpressionNode::Name(path) => {
-                let [name] = syntax.expressions.identifier_path_members(*path) else {
+            ExpressionNode::Name(path) if path.application.is_none() => {
+                let [name] = syntax.expressions.identifier_path_members(path.members) else {
                     return Ok(None);
                 };
                 Ok(fields
@@ -2332,8 +2333,8 @@ mod facts {
             }
             ExpressionNode::Member(member) => {
                 let logical_subject = match syntax.expressions.expression(member.receiver) {
-                    ExpressionNode::Name(path) => {
-                        matches!(syntax.expressions.identifier_path_members(*path), [name]
+                    ExpressionNode::Name(path) if path.application.is_none() => {
+                        matches!(syntax.expressions.identifier_path_members(path.members), [name]
                         if name.as_str(syntax) == "self")
                     }
                     _ => false,
@@ -3769,7 +3770,8 @@ mod templates {
         for (handle, expression) in syntax.expressions.iter_expressions() {
             if expression_watermark.contains(handle)
                 && let ExpressionNode::Name(path) = expression
-                && header_frontier.captures(syntax, *path)
+                && path.application.is_none()
+                && header_frontier.captures(syntax, path.members)
             {
                 captured.expressions.insert(handle);
             }
@@ -3904,7 +3906,7 @@ mod templates {
         }
         for handle in expressions.iter() {
             if let ExpressionNode::Name(path) = syntax.expressions.expression(*handle) {
-                if frontier.captures(syntax, *path) {
+                if path.application.is_none() && frontier.captures(syntax, path.members) {
                     captured.expressions.insert(*handle);
                 } else {
                     captured.expressions.remove(handle);
@@ -4054,7 +4056,10 @@ mod templates {
                 let ExpressionNode::Name(path) = expression else {
                     return None;
                 };
-                let [name] = syntax.expressions.identifier_path_members(*path) else {
+                if path.application.is_some() {
+                    return None;
+                }
+                let [name] = syntax.expressions.identifier_path_members(path.members) else {
                     return None;
                 };
                 const_expressions
@@ -4883,8 +4888,11 @@ mod values {
                                     "integer literal exceeds const envelope".to_owned()
                                 })?
                         }
-                        syntax_trees::expression::ExpressionNode::Name(path) => {
-                            let [member] = syntax.expressions.identifier_path_members(*path) else {
+                        syntax_trees::expression::ExpressionNode::Name(path)
+                            if path.application.is_none() =>
+                        {
+                            let [member] = syntax.expressions.identifier_path_members(path.members)
+                            else {
                                 return Err("unsupported path in const expression".to_owned());
                             };
                             member.as_str(syntax).to_owned()
@@ -6285,8 +6293,8 @@ mod values {
                     })
                 }
             }
-            ExpressionNode::Name(path) => {
-                let path = syntax.expressions.identifier_path_members(*path);
+            ExpressionNode::Name(path) if path.application.is_none() => {
+                let path = syntax.expressions.identifier_path_members(path.members);
                 let Some((case_name, owner)) = path.split_last() else {
                     return Err(format!("expected a `{type_name}` structural literal"));
                 };
