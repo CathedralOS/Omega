@@ -106,11 +106,16 @@ file is the subject's. A declaration with no source file is refused.
 
 Subject declarations that are not machines are also roots. A `data`
 declaration is resolved as a record, so one outside the record subset refuses
-the compilation even when no machine names it. Every other kind (`const`,
-`domain`, `operator`, `trait`, a conformance, a proposition, a measure, a
-mathematical definition, a type alias, a wire schema, a machine token
-binding) is refused as `declaration <kind>`: the route judges none of them
-yet.
+the compilation even when no machine names it. A trait that only lists
+requirements has each requirement's contract read. An implementation of such
+a trait, with no parameter of its own, has each of its rows set aside
+(`Elaboration::conformance_witnesses`): the checker judges, as a part of its
+own, that the machine the row selects refines the requirement. A trait or
+implementation with parameters, schema clauses or a refinement, and a
+boundary trait, are refused by name. Every other kind (`const`, `domain`,
+`operator`, a proposition, a measure, a mathematical definition, a type
+alias, a wire schema, a machine token binding) is refused as
+`declaration <kind>`: the route judges none of them yet.
 
 Two sets the specification's closure names are not roots, so the route's
 verdict does not cover them and a router must not treat it as if it did.

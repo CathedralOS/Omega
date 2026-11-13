@@ -241,10 +241,10 @@ fn declaration(
 ///
 /// The commitment is this route's own, like the contract commitment: a
 /// digest of the generic machine's callable identity and the identity of
-/// each type the application binds, in parameter order. Two machines
-/// generated from one generic machine at the same types commit alike, and
-/// no other pair does. Only type arguments are stated; an application that
-/// binds anything else is left undeclared.
+/// each type and implementation the application binds, in parameter order.
+/// Two machines generated from one generic machine at the same arguments
+/// commit alike, and no other pair does. Type and implementation arguments
+/// are stated; an application that binds anything else is left undeclared.
 fn application(
     typed: &TypedTrees,
     sources: &[(source::SourceId, [u8; 32])],
@@ -279,14 +279,36 @@ fn application(
         return Err("a generated machine's application binds nothing");
     }
     for binding in bindings {
-        let StaticMachineBindingValue::Type(type_reference) = binding.value else {
-            return Err("a generated machine's application binds something other than a type");
-        };
-        typed
-            .type_identity_text(typed.package_qualified_type_identity(type_reference))
-            .filter(|text| !text.is_empty())
-            .ok_or("an application's type argument has no identity")?
-            .hash(&mut commitment);
+        match &binding.value {
+            StaticMachineBindingValue::Type(type_reference) => typed
+                .type_identity_text(typed.package_qualified_type_identity(*type_reference))
+                .filter(|text| !text.is_empty())
+                .ok_or("an application's type argument has no identity")?
+                .hash(&mut commitment),
+            // conformances.md, "Resulting-value identity": a name "creates
+            // no additional identity", so the implementation is stated by
+            // the declaration that stands for its value, whichever name the
+            // application wrote. The kind is hashed with it, so a type and
+            // an implementation never commit alike.
+            StaticMachineBindingValue::Conformance(argument) => {
+                let named = argument.symbol;
+                if !named.is_valid()
+                    || !typed.symbols.symbols().nodes().is_valid(named)
+                    || typed.symbols.get(named).kind != symbols::SymbolKind::Conformance
+                {
+                    return Err("an application's implementation argument names no implementation");
+                }
+                let identity = typed
+                    .normalized_hermetic_symbol_identity(typed.implementation_value_head(named))
+                    .map_err(|_| "an application's implementation argument has no identity")?;
+                ("implementation", identity).hash(&mut commitment);
+            }
+            _ => {
+                return Err(
+                    "a generated machine's application binds something other than a type or an implementation",
+                );
+            }
+        }
     }
     Ok(terminal_psi::CheckedMachineSpecialization {
         capture: None,

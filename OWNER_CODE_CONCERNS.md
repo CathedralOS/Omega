@@ -541,6 +541,13 @@ own to defend. Say what you saw, not what you would build.
 - Cost: a pass that sets one marker and not the other produces a machine the reader accepts and the declaration step refuses, or the reverse; a new expression node that holds a type is silently left pointing at the generic machine's type until someone adds it to the list
 - Reported: 2026-11-13, Claude Code, while rebuilding specialization as a typed preparation pass
 
+### An implementation's refinement witness is built twice, and its dispatch row keeps fields nobody fills
+- Category: one idea built twice
+- Where: `lowered-discharge/src/verdict.rs` (`witnesses`, and the witness parts of `judge_compilation_for`); `typed-trees` (`StaticRequirementDispatch`); `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`selections`)
+- Saw: "this machine refines that requirement" is elaborated and discharged once to carry a generic form's proofs into a generated machine, where a failure is silently skipped, and a second time as the part that gives the verdict; the two share `elaborate_witness` and nothing else. Separately, the dispatch a generated call carries has an application fingerprint, a commitment, a selection application and a contract signature that only the deleted checker filled, so the pass writes four of nine fields
+- Cost: every selected implementation is proved twice per compilation, and a reader of the dispatch cannot tell an empty commitment from one that was never computed
+- Reported: 2026-11-13, Claude Code, while serving implementation parameters in the specialization pass
+
 ### A typing unit test is red on `main` and nothing runs it before merge
 - Category: a test that pins nothing while it is red
 - Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs`, `construction_destinations::tests::an_assigned_literal_lands_on_its_binding_or_refuses_its_own_machine`

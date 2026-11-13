@@ -137,6 +137,9 @@ pub(crate) struct Program<'t> {
     )>,
     /// The subject's generic machines, set aside by `subject_declarations`.
     pub generic_templates: Vec<SymbolHandle>,
+    /// The operations the subject's implementations select, set aside by
+    /// `subject_declarations`.
+    pub conformance_witnesses: Vec<crate::ConformanceWitness>,
 }
 
 /// One slot of a body: formals first, then locals in binding order.
@@ -209,6 +212,7 @@ impl<'t> Program<'t> {
             cases_minted: 0,
             captures: Vec::new(),
             generic_templates: Vec::new(),
+            conformance_witnesses: Vec::new(),
         }
     }
 }
