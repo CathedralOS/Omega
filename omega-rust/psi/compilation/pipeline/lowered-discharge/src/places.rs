@@ -174,6 +174,21 @@ pub(crate) fn overlap(left: &Lineage, right: &Lineage) -> bool {
     }
 }
 
+/// Whether a field stores a shared byte view, the one view a record holds:
+/// structural_access.md, "`StructuralByteViewFieldStore` replaces the
+/// descriptor of one shared borrowed-view field"; "Qualified mutable,
+/// write-only, and access-unspecified view fields remain unsupported". A
+/// predicate-bearing view owes proofs this route does not state yet, so it
+/// is not one of these.
+fn is_stored_view(field_type: &StructuralFieldType) -> bool {
+    matches!(
+        field_type,
+        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        })
+    )
+}
+
 fn asked_root(asked: Asked<'_>) -> PlaceId {
     asked.place().root
 }
@@ -245,6 +260,11 @@ enum Reached {
 enum Shape<'a> {
     Scalar(ScalarType),
     Typed(StructuralTypeId),
+    /// A shared byte view stored in a field: the descriptor is the field's
+    /// own contents, with no structural type of its own (structural_access.md,
+    /// `StructuralByteViewFieldStore`). It is one leaf, as a view held whole
+    /// is (`leaves_of`), and nothing lies beneath it.
+    View,
     /// The payload namespace of one case of a sum: a `Case` segment, which
     /// holds no storage of its own and is followed by a payload field.
     Payload(&'a StructuralCaseDeclaration),
@@ -456,6 +476,7 @@ impl<'a> Storage<'a> {
             OperationKind::StructuralScalarFieldStore { .. }
                 | OperationKind::WriteOnlyPrimitiveStore { .. }
                 | OperationKind::StoreStructuralField { .. }
+                | OperationKind::StructuralByteViewFieldStore { .. }
         ))
     }
 
@@ -564,6 +585,9 @@ impl<'a> Storage<'a> {
                     self.zero_typed(nested, at, found, concerns)?;
                     at.segments.pop();
                 }
+                // The zero of a stored view is the empty shared view: a
+                // value of no data type, so it owes no clause.
+                ref stored if is_stored_view(stored) => {}
                 _ => return Err(self.unsupported(concerns, "a field type outside plain data")),
             }
         }
@@ -616,6 +640,12 @@ impl<'a> Storage<'a> {
             OperationKind::StructuralScalarFieldStore {
                 destination, path, ..
             }
+            | OperationKind::StructuralByteViewFieldStore {
+                destination,
+                path,
+                field: Some(_),
+                ..
+            }
             | OperationKind::StoreStructuralField {
                 destination,
                 path,
@@ -652,8 +682,8 @@ impl<'a> Storage<'a> {
                 // A case's payload namespace is no value of its own; the
                 // sum above it is.
                 Shape::Payload(_) => {}
-                Shape::Scalar(_) => {
-                    return Err(self.foreign(concerns, "a store path crosses a scalar field"));
+                Shape::Scalar(_) | Shape::View => {
+                    return Err(self.foreign(concerns, "a store path crosses a leaf field"));
                 }
             }
         }
@@ -941,6 +971,7 @@ impl<'a> Storage<'a> {
         match declared.field_type {
             StructuralFieldType::Scalar(scalar_type) => Ok(Shape::Scalar(scalar_type)),
             StructuralFieldType::Structural(nested) => Ok(Shape::Typed(nested)),
+            ref stored if is_stored_view(stored) => Ok(Shape::View),
             _ => Err(self.unsupported(concerns, "a field type outside plain data")),
         }
     }
@@ -960,6 +991,9 @@ impl<'a> Storage<'a> {
             at = match (at, segment) {
                 (Shape::Scalar(_), _) => {
                     return Err(self.foreign(concerns, "a place lies beneath a scalar field"));
+                }
+                (Shape::View, _) => {
+                    return Err(self.foreign(concerns, "a place lies beneath a stored view"));
                 }
                 (Shape::Typed(owner), Segment::Field(field)) => {
                     let StructuralTypeShape::Record { fields, .. } =
@@ -1025,7 +1059,7 @@ impl<'a> Storage<'a> {
         let mut found = Vec::new();
         let mut at = place.clone();
         match self.shape(place, concerns)? {
-            Shape::Scalar(_) => found.push(at),
+            Shape::Scalar(_) | Shape::View => found.push(at),
             Shape::Typed(structural_type) => {
                 self.leaves_of(structural_type, &mut at, &mut found, concerns)?;
             }
@@ -1050,6 +1084,7 @@ impl<'a> Storage<'a> {
                 StructuralFieldType::Structural(nested) => {
                     self.leaves_of(nested, at, found, concerns)?;
                 }
+                ref stored if is_stored_view(stored) => found.push(at.clone()),
                 _ => return Err(self.unsupported(concerns, "a field type outside plain data")),
             }
             at.segments.pop();
@@ -2036,6 +2071,10 @@ impl<'a> Storage<'a> {
             OperationKind::StoreStructuralField { value, .. } => {
                 Ok(vec![self.argument(value, concerns)?])
             }
+            // The stored descriptor is read whole from its own root.
+            OperationKind::StructuralByteViewFieldStore { source, .. } => {
+                Ok(vec![self.stored_at(*source, &[], concerns)?])
+            }
             OperationKind::StructuralCaseLeafCopy { .. } => {
                 Err(self.unsupported(concerns, "a case leaf copy"))
             }
@@ -2060,6 +2099,12 @@ impl<'a> Storage<'a> {
                 ..
             } => (destination, path, Some(*field)),
             OperationKind::StoreStructuralField {
+                destination,
+                path,
+                field,
+                ..
+            }
+            | OperationKind::StructuralByteViewFieldStore {
                 destination,
                 path,
                 field,

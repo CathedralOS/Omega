@@ -67,13 +67,6 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
-### A record's stored byte view is declared in a form nothing downstream reads
-- Category: one idea, several implementations
-- Where: `structure-elaboration/src/lower/places.rs` (`declare_fields`: `StructuralFieldType::Structural` of a `StructuralTypeShape::ByteSequence` type); `terminal-psi/semantics/src/structural.rs` (`zeroed_declaration_graph`, `zeroed_byte_field`); `lowered-discharge/src/places.rs` (`field_shape`, `field_leaves`)
-- Saw: structural_access.md and the interpreter know a record's view member as a byte field (`StructuralFieldType::ByteSequence`); the route declares it as a nested standalone view type because the checker's place model accepts only scalar and structural fields, and its tests stop at the checker's verdict
-- Cost: the first program that runs with such a record (every Build script: `Build.identifier`) fails in the interpreter at zero-initialization, after the checker accepted it; found only by removing the Build activation refusal locally
-- Reported: 2026-11-13, Claude Code, while preparing Build activation on the lowered-form route
-
 ### Constant operands are still read from a table keyed by spelling
 - Category: a verdict with nothing behind it
 - Where: `02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs` (`module_constants::lexical_integer_const_values`), built at five call sites in `preparation_const_evaluation.rs`, `preparation_generic_data.rs` and `preparation_machine_equations.rs` and handed to `evaluate_const_argument_expression` and the fact evaluators

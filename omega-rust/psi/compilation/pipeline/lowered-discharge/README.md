@@ -333,7 +333,18 @@ rows end a path and in what an edge can establish:
 - **Leaves.** The leaves beneath a place are its scalars and its sums. A
   sum is a leaf itself, standing for its discriminator, beside the payload
   leaves of every one of its cases: it is established by a whole write,
-  whatever case that write selected.
+  whatever case that write selected. A shared byte view is one leaf too,
+  whether it is held whole (a formal, a literal, a copy) or stored in a
+  record, where it is a byte field of that record
+  ([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
+  "`StructuralByteViewFieldStore` replaces the descriptor of one shared
+  borrowed-view field"). The leaf is the descriptor: a view store supplies
+  what its source held, and the zero of a record holds the empty shared view
+  there. It has no value identity, so nothing is yet known about a stored
+  view's extent; a fact about one will have to be ended by a write to the
+  field as a scalar leaf's is, because a field, unlike a view formal, can be
+  overwritten in place. Exclusive and predicate-bearing view fields are
+  refused.
 
 A store inside a block reaches only what that block leads to: a store in a
 guarded arm that completes the machine reaches neither a read nor a copy in

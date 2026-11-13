@@ -142,6 +142,7 @@ pub(crate) fn declare<'a>(
             for field in declared {
                 let identity = identities.intern(&field.identity);
                 indexes.push(identity);
+                let mut inline_carrier = None;
                 let field_type = match field.value_type {
                     // The reader refuses a data type with such a field.
                     ValueType::Rigid(_) => {
@@ -164,11 +165,37 @@ pub(crate) fn declare<'a>(
                                 Unserved::Type("record field of a later record type"),
                             ));
                         }
-                        StructuralFieldType::Structural(nested)
+                        // A stored byte view is a byte field of its record,
+                        // not a nested value of a view type
+                        // (structural_access.md, "Store vocabulary": the
+                        // field is replaced by `StructuralByteViewFieldStore`
+                        // and "Zero-initialized storage holds the empty
+                        // shared view"). Only the shared view is storable:
+                        // "Qualified mutable, write-only, and
+                        // access-unspecified view fields remain unsupported".
+                        match types.get(nested).map(|row| &row.shape) {
+                            Some(crate::StorageShape::ByteSequence(carrier))
+                                if is_stored_view(*carrier) =>
+                            {
+                                // The view type the field was read as stays
+                                // the carrier a copy of the descriptor has:
+                                // it names the region the view is valid for.
+                                inline_carrier = Some(nested);
+                                StructuralFieldType::ByteSequence(*carrier)
+                            }
+                            Some(crate::StorageShape::ByteSequence(_)) => {
+                                return Err(refuse(
+                                    entry,
+                                    Construct::Machine,
+                                    Unserved::Type("stored view that is not a shared byte view"),
+                                ));
+                            }
+                            _ => StructuralFieldType::Structural(nested),
+                        }
                     }
                 };
                 fields.push(StructuralFieldDeclaration {
-                    inline_carrier: None,
+                    inline_carrier,
                     id: field.id,
                     identity,
                     relevance: language_core::BindingRelevance::Relevant,
@@ -346,6 +373,14 @@ pub(crate) fn declare<'a>(
         structural_types,
         native_layouts,
     })
+}
+
+/// The one view a record field stores: a shared borrowed byte view.
+fn is_stored_view(carrier: terminal_psi::ByteSequenceCarrier) -> bool {
+    carrier
+        == terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        }
 }
 
 // Calling storage and scalar homes name the same primitive structural type.
@@ -683,6 +718,13 @@ fn owned_result(
 impl<'a> Lowering<'a> {
     pub(super) fn record_type(&self, record: StructuralTypeId) -> Checked<&'a RecordType> {
         terminal_check_tables::row(self.records.types, record, self.id, Construct::Machine)
+    }
+
+    /// Whether a field of this type is a byte field of its record, holding
+    /// a shared view's descriptor (`declare`).
+    fn is_stored_view(&self, record: StructuralTypeId) -> Checked<bool> {
+        Ok(matches!(self.record_type(record)?.shape,
+            StorageShape::ByteSequence(carrier) if is_stored_view(carrier)))
     }
 
     /// Mints a root place: its Terminal `PlaceId`, its row and its `roots`
@@ -2074,7 +2116,10 @@ impl<'a> Lowering<'a> {
     /// field has no declared range, so it carries no obligation ("unbounded
     /// fields must not carry one"). A record field is the ordinary
     /// structural replacement, `StoreStructuralField`, of a root that holds
-    /// the already constructed value ("A whole record assignment constructs
+    /// the already constructed value. A stored byte view is a byte field,
+    /// replaced by `StructuralByteViewFieldStore` from the root that holds
+    /// the source descriptor ("No length, capacity or bytes are retained:
+    /// the slot takes the source's backing and extent") ("A whole record assignment constructs
     /// its operands before replacing the destination through the ordinary
     /// structural replacement operation ... Root, field, and indexed
     /// destinations do not change construction semantics or decompose the
@@ -2147,23 +2192,41 @@ impl<'a> Lowering<'a> {
                     Content::Value(stored),
                 )
             }
-            ValueType::Record(_) => {
+            ValueType::Record(stored) => {
                 let constructed = self.record(value)?;
                 let operation = self.operation_identity(source);
                 self.owe_domains(operation, owed, source)?;
-                let storage =
+                let mut storage =
                     self.storage_path(&steps, ExecutionSite::Operation(operation), source)?;
-                self.emit(
-                    operation,
-                    None,
-                    OperationKind::StoreStructuralField {
+                let view_field = match steps.last() {
+                    Some(step @ (Step::Field { .. } | Step::Payload { .. }))
+                        if self.is_stored_view(stored)? =>
+                    {
+                        Some(self.declared(*step)?.id)
+                    }
+                    _ => None,
+                };
+                let kind = match view_field {
+                    Some(field) => {
+                        // The carrier is the path without the field itself.
+                        storage.pop();
+                        OperationKind::StructuralByteViewFieldStore {
+                            destination: root,
+                            path: storage,
+                            field: Some(field),
+                            source: constructed,
+                            predicate_obligation: None,
+                        }
+                    }
+                    None => OperationKind::StoreStructuralField {
                         disposition: StructuralStoreDisposition::ReplaceDiscardable,
                         destination: root,
                         path: storage,
                         field: None,
                         value: StructuralArgument::whole(constructed, StructuralAccess::Owned),
                     },
-                )?;
+                };
+                self.emit(operation, None, kind)?;
                 self.write(
                     place,
                     ProgramPoint::AfterOperation(operation),
@@ -2250,6 +2313,11 @@ impl<'a> Lowering<'a> {
                     let zero = self.zero(scalar_type, source)?;
                     zeros.push((prefix.clone(), zero));
                 }
+                // A stored view's zero is the empty shared view: no scalar
+                // leaf and no clause (structural_access.md: "Zero-initialized
+                // storage holds the empty shared view, which borrows
+                // nothing").
+                ValueType::Record(nested) if self.is_stored_view(nested)? => {}
                 ValueType::Record(nested) => {
                     self.zero_leaves(nested, prefix, zeros, owed, source)?;
                 }
