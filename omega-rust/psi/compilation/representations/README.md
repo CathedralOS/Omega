@@ -17,15 +17,15 @@ in the linked pipeline stages; retired compatibility records are identified belo
 | [Syntax trees](syntax-trees/src/lib.rs) | [01: tokens → syntax trees](../pipeline/01_tokens-to-syntax-trees/src/lib.rs) | [02: syntax → symbol-resolved trees](../pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | [Symbol-resolved trees](symbol-resolved-trees/src/lib.rs) | [02: syntax → symbol-resolved trees](../pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
 | [Typed trees](typed-trees/src/lib.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) | [04: typed elaboration](../pipeline/04_typed-trees-to-typed-trees/README.md), then [structural lowering](../pipeline/structure-elaboration/src/lib.rs) |
-| [Checked trees](checked-trees/src/lib.rs) | no current producer; retired compatibility data pending removal | remaining consumers are being cut |
 | [Terminal Psi](terminal-psi/src/lib.rs) | [structural lowering](../pipeline/structure-elaboration/src/lib.rs), [judgment](../pipeline/lowered-discharge/src/lib.rs) and [accepted-source publication](../psi-compiler/terminal-production/src/accepted.rs) | [Omega 00](../../../omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 
 The independent
 [Terminal interpreter](../../interpreter/terminal-interpreter/README.md) consumes
 Terminal Psi without creating another pipeline representation.
 
+The retired checked-tree and facts packages are removed. Checking facts now
+belong to the lowered-form checker tables, not a second source judgment.
 Constituent semantic records have separate package owners:
-[facts](checked-trees/facts/src/lib.rs) holds fact contexts, places and evidence;
 [flow-effects](../../foundation/flow-effects/src/lib.rs) holds operational,
 invocation, capability and reach summaries. The shared
 [optimization selections](../../foundation/optimization/src/lib.rs)

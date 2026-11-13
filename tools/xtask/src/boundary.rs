@@ -110,10 +110,6 @@ pub struct Allowance {
 
 const FIREWALL_ALLOWANCES: &[Allowance] = &[
     Allowance {
-        owner: PROVIDER_PLANNING,
-        dependency: "omega-rust/psi/compilation/representations/checked-trees",
-    },
-    Allowance {
         owner: SELECTED_DISPATCH,
         dependency: TERMINAL_PRODUCTION,
     },
