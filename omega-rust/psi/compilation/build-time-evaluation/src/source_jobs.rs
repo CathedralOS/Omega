@@ -909,7 +909,9 @@ mod tests {
                     .admit_invocation(&produced, target())
                     .expect_err("source checking cannot supply missing package custody");
                 assert!(
-                    error.contains("build-time invocation has user source without reconciled package custody"),
+                    error.contains(
+                        "build-time invocation has user source without reconciled package custody"
+                    ),
                     "{error}"
                 );
             }
