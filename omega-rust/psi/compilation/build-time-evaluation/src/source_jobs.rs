@@ -38,7 +38,7 @@ pub fn is_exact_toolchain_build_prelude_data(
             && typed.symbols.is_build_prelude_symbol(symbol)
     })
 }
-pub use build_activation::{BUILD_VALUE_UNPROTECTED, admit_toolchain_build_activation};
+pub use build_activation::admit_toolchain_build_activation;
 
 pub use crate::evaluation_requests::{
     CapturedFilesystemRoot as BuildMachineCapturedFilesystemRoot,
