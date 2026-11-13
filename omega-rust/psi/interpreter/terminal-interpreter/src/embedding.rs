@@ -941,28 +941,47 @@ pub(crate) mod instance {
                     .shape
                     .is_shared_readable_byte_view() =>
                 {
-                    let binding = execution
-                        .structural_byte_descriptors
-                        .get(destination)
-                        .or_else(|| {
-                            execution.returned_byte_sequence.as_ref().filter(|binding| {
-                                binding.descriptor_home().is_some_and(|home| {
-                                    home.structural_type == *declaration
-                                        && StructuralRuntimePlace::from(home) == *destination
-                                })
-                            })
-                        })
-                        .ok_or(TerminalStorageObservationError::OpaqueContents)?;
-                    let home = binding
-                        .descriptor_home()
-                        .filter(|home| {
-                            home.structural_type == *declaration
-                                && StructuralRuntimePlace::from(*home) == *destination
-                        })
-                        .ok_or(TerminalStorageObservationError::OpaqueContents)?;
-                    if !binding.matches_shared_home(home) {
-                        return Err(TerminalStorageObservationError::OpaqueContents);
-                    }
+                    let unsupported = |reason| {
+                        TerminalStorageObservationError::Execution(
+                            TerminalInterpretError::UnsupportedSemanticVariant(reason),
+                        )
+                    };
+                    let binding = if let Some(binding) =
+                        execution.structural_byte_descriptors.get(destination)
+                    {
+                        let home = binding.descriptor_home().ok_or_else(|| {
+                            unsupported("observed byte field has no retained descriptor home")
+                        })?;
+                        if home.structural_type != *declaration
+                            || StructuralRuntimePlace::from(home) != *destination
+                            || !binding.matches_shared_home(home)
+                        {
+                            return Err(unsupported(
+                                "observed byte field differs from its retained descriptor home",
+                            ));
+                        }
+                        binding
+                    } else if path.is_empty()
+                        && value.structural_type == *declaration
+                        && StructuralRuntimePlace::from(value) == *destination
+                    {
+                        let binding =
+                            execution.returned_byte_sequence.as_ref().ok_or_else(|| {
+                                unsupported(
+                                    "returned byte value has no retained descriptor binding",
+                                )
+                            })?;
+                        if !binding.matches_shared_home(value) {
+                            return Err(unsupported(
+                                "returned byte binding differs from its actual result home",
+                            ));
+                        }
+                        binding
+                    } else {
+                        return Err(unsupported(
+                            "observed byte field has no retained descriptor binding",
+                        ));
+                    };
                     Ok(TerminalStorageObservationValue::Bytes(
                         binding.read_view(execution)?,
                     ))

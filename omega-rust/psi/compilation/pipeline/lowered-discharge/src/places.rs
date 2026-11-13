@@ -1348,74 +1348,105 @@ impl<'a> Storage<'a> {
     fn supplied(
         &self,
         tables: &MachineTables,
-        row: &Logged,
+        mut row_index: usize,
         asked: Asked<'_>,
         budget: &mut usize,
         concerns: Construct,
     ) -> Checked<Reached> {
-        // A window asks only which store a path met last: the one that
-        // opened it, or one that closed it.
-        if let Asked::Window { by, .. } = asked {
-            return Ok(if row.operation == by {
-                Reached::Open
+        let mut weakened = false;
+        loop {
+            let row = &self.log[row_index];
+            // A window asks only which store a path met last: the one that
+            // opened it, or one that closed it.
+            if let Asked::Window { by, .. } = asked {
+                return Ok(if row.operation == by {
+                    Reached::Open
+                } else {
+                    Reached::Closed
+                });
+            }
+            let place = asked.place();
+            // Only a store into the place or above it replaces it whole; one
+            // beneath it or beside it leaves contents this route cannot name.
+            let Some(beneath) = place.segments.strip_prefix(row.lineage.segments.as_slice()) else {
+                if matches!(row.stored, Stored::Vacated) {
+                    return Ok(Reached::Unestablished);
+                }
+                // A constructor first establishes its whole case, then its
+                // fields at the same operation. Follow earlier stores of that
+                // operation before crossing its observation point.
+                let earlier =
+                    self.log[..row_index]
+                        .iter()
+                        .enumerate()
+                        .rev()
+                        .find(|(_, previous)| {
+                            previous.block == row.block
+                                && previous.position == row.position
+                                && asked.ended_by(previous)
+                        });
+                if let Some((index, _)) = earlier {
+                    row_index = index;
+                    weakened = true;
+                    continue;
+                }
+                let previous =
+                    self.reaching(tables, asked, row.block, row.position - 1, budget, concerns)?;
+                return Ok(if previous == Reached::Unestablished {
+                    previous
+                } else {
+                    Reached::Unknown
+                });
+            };
+            let reached = match (&row.stored, asked) {
+                (Stored::Vacated, Asked::Contents(_)) => Reached::Unestablished,
+                (Stored::Vacated, Asked::Case(_)) => Reached::Unknown,
+                (Stored::Vacated, Asked::Window { .. }) => {
+                    unreachable!("windows are handled above")
+                }
+                (Stored::Value(value), Asked::Contents(_)) if beneath.is_empty() => {
+                    Reached::Value(*value)
+                }
+                (Stored::Value(_), _) => Reached::Unknown,
+                (Stored::Case(case), Asked::Case(_)) if beneath.is_empty() => Reached::Case(*case),
+                // The payload leaves of a construction have stores of their
+                // own, which come after this one; what is left is the sum's
+                // discriminator, or a payload of another case.
+                (Stored::Case(_), _) => Reached::Unknown,
+                // A zero establishment holds the first declared case of every
+                // sum of the zero value.
+                (Stored::Zeroed, Asked::Case(_)) => self
+                    .zero_case(row.lineage.root, beneath, concerns)?
+                    .map_or(Reached::Unknown, Reached::Case),
+                (Stored::Zeroed, Asked::Contents(_)) => Reached::Unknown,
+                (Stored::Established, Asked::Contents(_)) => Reached::Returned,
+                (Stored::Established, Asked::Case(_)) => Reached::Unknown,
+                // A window is answered by the row alone, above.
+                (Stored::Zeroed | Stored::Established, Asked::Window { .. }) => {
+                    return Err(
+                        self.foreign(concerns, "a window is followed into a store's contents")
+                    );
+                }
+                (Stored::Moved(source), _) => {
+                    let mut source = source.clone();
+                    source.segments.extend_from_slice(beneath);
+                    let asked = match asked {
+                        Asked::Contents(_) => Asked::Contents(&source),
+                        Asked::Case(_) => Asked::Case(&source),
+                        Asked::Window { .. } => {
+                            return Err(self.foreign(concerns, "a window is followed into a copy"));
+                        }
+                    };
+                    // The source as it was just before the store.
+                    self.reaching(tables, asked, row.block, row.position - 1, budget, concerns)?
+                }
+            };
+            return Ok(if weakened && reached != Reached::Unestablished {
+                Reached::Unknown
             } else {
-                Reached::Closed
+                reached
             });
         }
-        let place = asked.place();
-        // Only a store into the place or above it replaces it whole; one
-        // beneath it or beside it leaves contents this route cannot name.
-        let Some(beneath) = place.segments.strip_prefix(row.lineage.segments.as_slice()) else {
-            if matches!(row.stored, Stored::Vacated) {
-                return Ok(Reached::Unestablished);
-            }
-            let previous =
-                self.reaching(tables, asked, row.block, row.position - 1, budget, concerns)?;
-            return Ok(if previous == Reached::Unestablished {
-                previous
-            } else {
-                Reached::Unknown
-            });
-        };
-        Ok(match (&row.stored, asked) {
-            (Stored::Vacated, Asked::Contents(_)) => Reached::Unestablished,
-            (Stored::Vacated, Asked::Case(_)) => Reached::Unknown,
-            (Stored::Vacated, Asked::Window { .. }) => unreachable!("windows are handled above"),
-            (Stored::Value(value), Asked::Contents(_)) if beneath.is_empty() => {
-                Reached::Value(*value)
-            }
-            (Stored::Value(_), _) => Reached::Unknown,
-            (Stored::Case(case), Asked::Case(_)) if beneath.is_empty() => Reached::Case(*case),
-            // The payload leaves of a construction have stores of their
-            // own, which come after this one; what is left is the sum's
-            // discriminator, or a payload of another case.
-            (Stored::Case(_), _) => Reached::Unknown,
-            // A zero establishment holds the first declared case of every
-            // sum of the zero value.
-            (Stored::Zeroed, Asked::Case(_)) => self
-                .zero_case(row.lineage.root, beneath, concerns)?
-                .map_or(Reached::Unknown, Reached::Case),
-            (Stored::Zeroed, Asked::Contents(_)) => Reached::Unknown,
-            (Stored::Established, Asked::Contents(_)) => Reached::Returned,
-            (Stored::Established, Asked::Case(_)) => Reached::Unknown,
-            // A window is answered by the row alone, above.
-            (Stored::Zeroed | Stored::Established, Asked::Window { .. }) => {
-                return Err(self.foreign(concerns, "a window is followed into a store's contents"));
-            }
-            (Stored::Moved(source), _) => {
-                let mut source = source.clone();
-                source.segments.extend_from_slice(beneath);
-                let asked = match asked {
-                    Asked::Contents(_) => Asked::Contents(&source),
-                    Asked::Case(_) => Asked::Case(&source),
-                    Asked::Window { .. } => {
-                        return Err(self.foreign(concerns, "a window is followed into a copy"));
-                    }
-                };
-                // The source as it was just before the store.
-                return self.reaching(tables, asked, row.block, row.position - 1, budget, concerns);
-            }
-        })
     }
 
     /// What taking an edge from `from` into `into` establishes about the
@@ -1555,13 +1586,16 @@ impl<'a> Storage<'a> {
             let last = self
                 .log
                 .iter()
-                .filter(|row| row.block == block && row.position <= up_to && asked.ended_by(row))
-                .fold(None::<&Logged>, |best, row| match best {
-                    Some(best) if best.position > row.position => Some(best),
+                .enumerate()
+                .filter(|(_, row)| {
+                    row.block == block && row.position <= up_to && asked.ended_by(row)
+                })
+                .fold(None::<(usize, &Logged)>, |best, row| match best {
+                    Some(best) if best.1.position > row.1.position => Some(best),
                     Some(_) | None => Some(row),
                 });
-            if let Some(row) = last {
-                supply(self.supplied(tables, row, asked, budget, concerns)?);
+            if let Some((index, _)) = last {
+                supply(self.supplied(tables, index, asked, budget, concerns)?);
                 continue;
             }
             if block == self.graph.entry() {
