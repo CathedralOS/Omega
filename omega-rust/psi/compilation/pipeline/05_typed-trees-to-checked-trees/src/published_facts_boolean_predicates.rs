@@ -1230,7 +1230,7 @@ mod retention {
                 bindings: vec![BoundObservation {
                     operand: CheckedScalarExpression::Parameter {
                         position: 0,
-                        scalar_type: (PrimitiveType::U64).into(),
+                        primitive_type: PrimitiveType::U64,
                     }
                     .into(),
                     place: CanonicalPlace {
@@ -1247,7 +1247,7 @@ mod retention {
             let mut other_operand = first.clone();
             other_operand.bindings[0].operand = CheckedScalarExpression::Parameter {
                 position: 1,
-                scalar_type: (PrimitiveType::U64).into(),
+                primitive_type: PrimitiveType::U64,
             }
             .into();
             let mut other_type = first.clone();
@@ -1442,7 +1442,7 @@ pub(crate) fn entry_scalar(
             observation: Default::default(),
             root: checked_trees::CheckedStorageRoot::Parameter { index: position },
             path,
-            scalar_type: primitive.into(),
+            primitive_type: primitive,
         });
     }
     let position = usize::try_from(position).ok()?;
@@ -1463,7 +1463,7 @@ pub(crate) fn entry_scalar(
             .iter()
             .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
             .count(),
-        scalar_type: primitive.into(),
+        primitive_type: primitive,
     })
 }
 
@@ -1999,7 +1999,7 @@ impl ObservationKind {
         match self {
             Self::Scalar(primitive_type) => Some(Operand::Scalar(Scalar::Parameter {
                 position,
-                scalar_type: primitive_type.into(),
+                primitive_type,
             })),
             Self::CaseSubject(_) => Some(Operand::CaseSubject(
                 checked_trees::CheckedStructuralCaseSubject {
@@ -2258,7 +2258,7 @@ pub(crate) fn map_observations(
         Boolean::Parameter { position } => {
             let mut scalar = Scalar::Parameter {
                 position: *position,
-                scalar_type: PrimitiveType::Bool.into(),
+                primitive_type: PrimitiveType::Bool,
             };
             map_scalar_observation(&mut scalar, map)?;
             *expression = boolean_operand(scalar)?;
@@ -2266,7 +2266,7 @@ pub(crate) fn map_observations(
         Boolean::Local { position } => {
             let mut scalar = Scalar::Local {
                 position: *position,
-                scalar_type: PrimitiveType::Bool.into(),
+                primitive_type: PrimitiveType::Bool,
             };
             map_scalar_observation(&mut scalar, map)?;
             *expression = boolean_operand(scalar)?;
@@ -2274,7 +2274,7 @@ pub(crate) fn map_observations(
         Boolean::StorageRead { symbol } => {
             let mut scalar = Scalar::StorageRead {
                 symbol: *symbol,
-                scalar_type: PrimitiveType::Bool.into(),
+                primitive_type: PrimitiveType::Bool,
             };
             map_scalar_observation(&mut scalar, map)?;
             *expression = boolean_operand(scalar)?;
@@ -2290,7 +2290,7 @@ pub(crate) fn map_observations(
                     index: *parameter_position,
                 },
                 path: path.clone(),
-                scalar_type: PrimitiveType::Bool.into(),
+                primitive_type: PrimitiveType::Bool,
             };
             map_scalar_observation(&mut scalar, map)?;
             *expression = boolean_operand(scalar)?;
@@ -2360,8 +2360,7 @@ fn boolean_operand(operand: Scalar) -> Option<Boolean> {
     match operand {
         Scalar::Parameter {
             position,
-            scalar_type:
-                typed_trees::callable_values::ScalarValueType::Primitive(PrimitiveType::Bool),
+            primitive_type: PrimitiveType::Bool,
         } => Some(Boolean::Parameter { position }),
         Scalar::StructuralParameterField {
             observation,
@@ -2370,8 +2369,7 @@ fn boolean_operand(operand: Scalar) -> Option<Boolean> {
                     index: parameter_position,
                 },
             path,
-            scalar_type:
-                typed_trees::callable_values::ScalarValueType::Primitive(PrimitiveType::Bool),
+            primitive_type: PrimitiveType::Bool,
         } => Some(Boolean::StructuralParameterField {
             observation,
             parameter_position,
@@ -2379,13 +2377,11 @@ fn boolean_operand(operand: Scalar) -> Option<Boolean> {
         }),
         Scalar::Local {
             position,
-            scalar_type:
-                typed_trees::callable_values::ScalarValueType::Primitive(PrimitiveType::Bool),
+            primitive_type: PrimitiveType::Bool,
         } => Some(Boolean::Local { position }),
         Scalar::StorageRead {
             symbol,
-            scalar_type:
-                typed_trees::callable_values::ScalarValueType::Primitive(PrimitiveType::Bool),
+            primitive_type: PrimitiveType::Bool,
         } => Some(Boolean::StorageRead { symbol }),
         Scalar::Boolean(expression) => Some(*expression),
         _ => None,
@@ -2562,7 +2558,7 @@ mod tests {
             bindings: vec![BoundObservation {
                 operand: Scalar::Parameter {
                     position: 0,
-                    scalar_type: PrimitiveType::Bool.into(),
+                    primitive_type: PrimitiveType::Bool,
                 }
                 .into(),
                 place: CanonicalPlace {

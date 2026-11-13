@@ -2204,8 +2204,6 @@ mod dependencies {
                     return false;
                 }
                 match program.expression_table.expression(expression) {
-                    // A formed closed code selection reads no caller storage.
-                    ExpressionNode::MachineValue(_) => true,
                     ExpressionNode::SavedSubject(_) => false,
                     ExpressionNode::Integer(_)
                     | ExpressionNode::Boolean(_)
@@ -2231,35 +2229,14 @@ mod dependencies {
                         else {
                             return false;
                         };
-                        let runtime =
-                            match validation::CallContractSource::runtime_expression(program, call)
-                            {
-                                Ok(Some(validation::CallContractSource::Runtime {
-                                    binding,
-                                    ..
-                                })) => {
-                                    if borrow_call.runtime_call != Some(binding) {
-                                        return false;
-                                    }
-                                    true
-                                }
-                                Ok(Some(_)) => return false,
-                                Ok(None) => {
-                                    if borrow_call.runtime_call.is_some()
-                                        || call.static_machine_parameter.is_valid()
-                                        || !call.selects_only_nominal_route()
-                                        || !static_application_carries_no_caller_storage(
-                                            program, call,
-                                        )
-                                    {
-                                        return false;
-                                    }
-                                    false
-                                }
-                                Err(_) => return false,
-                            };
-                        let callee = call.evaluated_callee();
-                        if callee.is_valid() && !self.collect_reads(callee, depth + 1) {
+                        if call.static_machine_parameter.is_valid()
+                            || !call.selects_only_nominal_route()
+                            || !static_application_carries_no_caller_storage(program, call)
+                        {
+                            return false;
+                        }
+                        if call.receiver.is_valid() && !self.collect_reads(call.receiver, depth + 1)
+                        {
                             return false;
                         }
                         for argument in program.expression_table.expression_handles(call.arguments)
@@ -2273,9 +2250,6 @@ mod dependencies {
                                 return false;
                             }
                             push_unique(self.reads, place);
-                        }
-                        if runtime {
-                            return true;
                         }
                         let Some((target_machine_symbol, target_state_symbol)) =
                             contract_target_from_state_symbol(program, borrow_call.target_symbol)

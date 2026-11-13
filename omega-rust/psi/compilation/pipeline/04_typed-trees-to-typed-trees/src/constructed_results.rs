@@ -79,9 +79,9 @@ pub(crate) mod call_results {
                 .iter()
                 .zip(expressions_of(program).expression_handles(call.arguments))
             {
-                let Some(actual) =
-                    validation::expression_result_type_reference(program, caller, state, *argument)
-                else {
+                let Some(actual) = crate::source_type_queries::expression_result_type_reference(
+                    program, caller, state, *argument,
+                ) else {
                     continue;
                 };
                 crate::conformance::conformance_application_lifetimes::visit_lifetime_bindings(
@@ -570,17 +570,19 @@ impl ValueTypeOwner {
         expression: ExpressionHandle,
     ) -> Option<TypeReferenceHandle> {
         match self {
-            Self::State { machine, state } => validation::expression_result_type_reference(
-                program,
-                program.machine_by_symbol(machine)?,
-                program.state_by_symbol(state)?,
-                expression,
-            ),
+            Self::State { machine, state } => {
+                crate::source_type_queries::expression_result_type_reference(
+                    program,
+                    program.machine_by_symbol(machine)?,
+                    program.state_by_symbol(state)?,
+                    expression,
+                )
+            }
             Self::Declaration {
                 callable,
                 parameters,
                 trait_scope,
-            } => validation::parameter_expression_result_type_reference_in_scope(
+            } => crate::source_type_queries::parameter_expression_result_type_reference_in_scope(
                 program,
                 callable,
                 program.state_parameters.span_or_empty(parameters),

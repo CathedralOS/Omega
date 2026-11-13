@@ -2046,7 +2046,7 @@ pub(crate) mod call_result_bounds {
                 if subject {
                     return Some(Scalar::Parameter {
                         position: 0,
-                        scalar_type: primitive.into(),
+                        primitive_type: primitive,
                     });
                 }
                 let (interval, reference) = operand_interval(
@@ -2063,7 +2063,7 @@ pub(crate) mod call_result_bounds {
                 intervals.push(interval);
                 Some(Scalar::Parameter {
                     position,
-                    scalar_type: primitive.into(),
+                    primitive_type: primitive,
                 })
             },
         );
@@ -2097,13 +2097,8 @@ pub(crate) mod call_result_bounds {
                 }
             }
             Boolean::IntegerComparison { kind, left, right } => {
-                let subject = |value: &Scalar| {
-                    matches!(
-                        value,
-                        Scalar::Parameter { position: 0, scalar_type }
-                            if scalar_type.primitive().is_some_and(|primitive| primitive.is_fixed_integer())
-                    )
-                };
+                let subject =
+                    |value: &Scalar| matches!(value, Scalar::Parameter { position: 0, .. });
                 let (operand, subject_on_left) = if subject(left) {
                     (right, true)
                 } else if subject(right) {
@@ -2112,14 +2107,7 @@ pub(crate) mod call_result_bounds {
                     return Some(Interval::UNBOUNDED);
                 };
                 let operand = match operand.as_ref() {
-                    Scalar::Parameter {
-                        position,
-                        scalar_type,
-                    } if *position != 0
-                        && scalar_type
-                            .primitive()
-                            .is_some_and(|primitive| primitive.is_fixed_integer()) =>
-                    {
+                    Scalar::Parameter { position, .. } if *position != 0 => {
                         intervals.get(*position).copied()
                     }
                     Scalar::IntegerLiteral { literal } => {
@@ -3145,10 +3133,7 @@ pub(crate) mod cited_element_bounds {
         written: Option<&[String]>,
         environment: &mut ValueEnvironment,
     ) {
-        if call.runtime_call.is_some()
-            || !call.receiver.is_empty()
-            || call.static_requirement_dispatch.is_some()
-        {
+        if !call.receiver.is_empty() || call.static_requirement_dispatch.is_some() {
             return;
         }
         let (target, static_arguments) = if call.authored_machine_application.is_valid() {
@@ -5378,8 +5363,8 @@ pub(crate) mod domain_exclusions {
         match expression {
             Scalar::Parameter {
                 position: 0,
-                scalar_type,
-            } if scalar_type.primitive() == Some(primitive) => Some(BigInt::from_i64(value)),
+                primitive_type,
+            } if *primitive_type == primitive => Some(BigInt::from_i64(value)),
             Scalar::IntegerLiteral { literal } => literal.value_bignum(),
             _ => None,
         }
@@ -12150,7 +12135,7 @@ pub(crate) mod guard_narrowing {
                         }
                     }
                     ExpressionNode::Call(call) => {
-                        self.expression(source, call.evaluated_callee(), environment);
+                        self.expression(source, call.receiver, environment);
                         let arguments =
                             expression_table(self.program).expression_handles(call.arguments);
                         self.visit_call_or_target(
@@ -12220,8 +12205,7 @@ pub(crate) mod guard_narrowing {
                             }
                         }
                     }
-                    ExpressionNode::MachineValue(_)
-                    | ExpressionNode::TypeExpression(_)
+                    ExpressionNode::TypeExpression(_)
                     | ExpressionNode::SavedSubject(_)
                     | typed_trees::literal_expression_pattern!() => {}
                 }
@@ -12396,7 +12380,7 @@ pub(crate) mod guard_narrowing {
                         if is_machine_state(call.target_symbol) {
                             return true;
                         }
-                        stack.push(call.evaluated_callee());
+                        stack.push(call.receiver);
                         stack.extend_from_slice(
                             expression_table(program).expression_handles(call.arguments),
                         );
@@ -12428,8 +12412,7 @@ pub(crate) mod guard_narrowing {
                             stack.push(field.value);
                         }
                     }
-                    ExpressionNode::MachineValue(_)
-                    | ExpressionNode::TypeExpression(_)
+                    ExpressionNode::TypeExpression(_)
                     | ExpressionNode::SavedSubject(_)
                     | typed_trees::literal_expression_pattern!() => {}
                 }
@@ -17039,7 +17022,7 @@ pub(crate) mod invariant_bounds {
                 Some(state),
                 expression,
             )?;
-            (program.primitive_type_reference(reference) == Some(field.scalar_type.primitive()?))
+            (program.primitive_type_reference(reference) == Some(field.primitive_type))
                 .then_some(reference)
         }
     }
@@ -22865,15 +22848,12 @@ pub(crate) mod selected_scalar_intervals {
             ),
             Expression::Parameter {
                 position,
-                scalar_type,
+                primitive_type,
             }
             | Expression::Local {
                 position,
-                scalar_type,
-            } => {
-                let primitive = scalar_type.primitive()?;
-                (primitive, source.binding(*position, primitive)?)
-            }
+                primitive_type,
+            } => (*primitive_type, source.binding(*position, *primitive_type)?),
             Expression::ConstantApplication { .. }
             | Expression::ErasedParameter { .. }
             | Expression::StructuralParameterField {
@@ -22886,21 +22866,18 @@ pub(crate) mod selected_scalar_intervals {
             }
             Expression::StorageRead {
                 symbol,
-                scalar_type,
-            } => {
-                let primitive = scalar_type.primitive()?;
-                (primitive, source.storage(*symbol, primitive)?)
-            }
+                primitive_type,
+            } => (*primitive_type, source.storage(*symbol, *primitive_type)?),
             Expression::StructuralParameterField {
                 root:
                     checked_trees::CheckedStorageRoot::Parameter {
                         index: parameter_position,
                     },
                 path,
-                scalar_type,
+                primitive_type,
                 ..
             } => (
-                scalar_type.primitive()?,
+                *primitive_type,
                 source.structural_field(*parameter_position, path)?,
             ),
             Expression::StructuralParameterIndexedRead {
@@ -22908,15 +22885,12 @@ pub(crate) mod selected_scalar_intervals {
                 path,
                 index,
                 element_path,
-                scalar_type,
+                primitive_type,
                 ..
-            } => {
-                let primitive = scalar_type.primitive()?;
-                (
-                    primitive,
-                    source.indexed_read(*root, path, index, element_path, primitive)?,
-                )
-            }
+            } => (
+                *primitive_type,
+                source.indexed_read(*root, path, index, element_path, *primitive_type)?,
+            ),
             Expression::IntegerLiteral { literal } => {
                 let primitive =
                     PrimitiveType::non_address_landed_integer(literal.landing()?.landed_type)?;
@@ -24669,7 +24643,7 @@ pub(crate) mod total_specification {
                     numeric_coercion(cast.value, cast.target_type, diagnostics);
                 }
                 ExpressionNode::Call(call) => {
-                    recurse(call.evaluated_callee(), diagnostics, visited);
+                    recurse(call.receiver, diagnostics, visited);
                     for argument in expression_table(program).expression_handles(call.arguments) {
                         recurse(*argument, diagnostics, visited);
                     }

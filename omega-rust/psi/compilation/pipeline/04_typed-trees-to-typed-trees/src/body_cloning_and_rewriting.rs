@@ -3377,6 +3377,7 @@ pub(crate) mod body_rewriting {
         use crate::monomorphization::{
             Candidate, ExpressionNode, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
         };
+        use crate::source_type_queries::parameter_expression_result_type_reference;
         use crate::tables::{expressions_of, expressions_of_mut};
         use numerics::literals::{IntegerLiteral, IntegerRadix};
         use typed_trees::const_integer::{self, ConstIntegerExpression};
@@ -3384,7 +3385,6 @@ pub(crate) mod body_rewriting {
         use typed_trees::name::Identifier;
         use typed_trees::statement::TransitionTargetNode;
         use typed_trees::types::TypeReferenceHandle;
-        use validation::parameter_expression_result_type_reference;
 
         pub(crate) fn fixed_array_const_replacements(
             program: &dyn ::validation::CheckingInput,

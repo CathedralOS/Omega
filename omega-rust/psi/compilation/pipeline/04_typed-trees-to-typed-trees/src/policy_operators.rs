@@ -296,9 +296,9 @@ fn operand(
     spelling: &str,
     side: &str,
 ) -> Result<Operand, Diagnostic> {
-    let Some(reference) =
-        validation::expression_result_type_reference(program, machine, state, expression)
-    else {
+    let Some(reference) = crate::source_type_queries::expression_result_type_reference(
+        program, machine, state, expression,
+    ) else {
         if validation::has_anonymous_numeric_results(program, expression) {
             return Ok(Operand::Anonymous);
         }

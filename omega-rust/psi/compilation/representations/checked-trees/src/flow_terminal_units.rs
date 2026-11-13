@@ -120,9 +120,7 @@ pub(crate) mod composed_unit_control_plans {
     pub enum CheckedControlResultPlan {
         Unit,
         Structural(CheckedStructuralResultPlan),
-        Scalar {
-            scalar_type: crate::CheckedScalarType,
-        },
+        Scalar { primitive_type: PrimitiveType },
     }
 
     impl CheckedControlResultPlan {
@@ -831,7 +829,7 @@ pub(crate) mod composed_unit_control_plans {
         Structural(CheckedUnitEffectOperationPlan),
         Scalar {
             statement_ordinal: u32,
-            scalar_type: crate::CheckedScalarType,
+            primitive_type: PrimitiveType,
         },
         Call {
             operands: crate::CheckedOperandSequence,
@@ -1053,7 +1051,7 @@ pub(crate) mod composed_unit_control_plans {
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedClosedSumPayloadTransferPlan {
         pub field_identity: CheckedMemberIdentity,
-        pub scalar_type: crate::CheckedScalarType,
+        pub primitive_type: PrimitiveType,
         pub target_scalar_parameter_index: u32,
     }
 }
@@ -1074,61 +1072,15 @@ pub(crate) mod unit_call_plans {
     use typed_trees::type_identity::TypeIdentityId;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-    pub enum CheckedUnitCallTargetSource {
-        Declaration {
-            machine: SymbolHandle,
-            state: SymbolHandle,
-        },
-        Runtime {
-            contract: typed_trees::callable_values::RuntimeCallableContractHandle,
-        },
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedUnitCallTarget {
-        pub source: CheckedUnitCallTargetSource,
+        pub machine: SymbolHandle,
+        pub state: SymbolHandle,
         pub contract_report_fingerprint: u64,
         pub service_reach: ServiceReachSummary,
     }
 
-    impl CheckedUnitCallTarget {
-        pub fn declaration(&self) -> Option<(SymbolHandle, SymbolHandle)> {
-            match self.source {
-                CheckedUnitCallTargetSource::Declaration { machine, state } => {
-                    Some((machine, state))
-                }
-                CheckedUnitCallTargetSource::Runtime { .. } => None,
-            }
-        }
-
-        pub fn runtime_contract(
-            &self,
-        ) -> Option<typed_trees::callable_values::RuntimeCallableContractHandle> {
-            match self.source {
-                CheckedUnitCallTargetSource::Runtime { contract } => Some(contract),
-                CheckedUnitCallTargetSource::Declaration { .. } => None,
-            }
-        }
-        pub fn matches_flow_call(&self, call: &crate::FlowCallFact) -> bool {
-            match self.source {
-                CheckedUnitCallTargetSource::Declaration { state, .. } => {
-                    call.runtime_call.is_none() && call.target_symbol == state
-                }
-                CheckedUnitCallTargetSource::Runtime { contract } => call
-                    .runtime_call
-                    .is_some_and(|binding| binding.contract == contract),
-            }
-        }
-    }
-
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub enum CheckedUnitCallRoute {
-        Runtime {
-            callee: CheckedCallScalarArgument,
-            contract: typed_trees::callable_values::RuntimeCallableContractHandle,
-            erased_scalar_arguments: Vec<CheckedCallScalarArgument>,
-            erased_proof_arguments: Vec<CheckedProofTerm>,
-        },
         DescriptorTable {
             operation: language_core::descriptor_tables::DescriptorTableOperation,
             service: language_semantics::ServiceReachId,
@@ -1233,7 +1185,7 @@ pub(crate) mod unit_call_plans {
                 ) => {
                     claims.is_empty()
                         && match &result {
-                            Result::Scalar(result) => result.scalar_type == *result_type,
+                            Result::Scalar(result) => result.primitive_type == *result_type,
                             _ => true,
                         }
                         && match operation {
@@ -1341,30 +1293,19 @@ pub(crate) mod unit_call_plans {
                     Transfers::StructuralCustody(_),
                 ) => true,
                 (
-                    CheckedUnitCallRoute::Dynamic { .. } | CheckedUnitCallRoute::Runtime { .. },
+                    CheckedUnitCallRoute::Dynamic { .. },
                     Result::Unit | Result::Scalar(_),
                     Transfers::Claims(_),
                 ) => true,
                 (
-                    CheckedUnitCallRoute::Dynamic { .. } | CheckedUnitCallRoute::Runtime { .. },
+                    CheckedUnitCallRoute::Dynamic { .. },
                     Result::Structural { .. },
                     Transfers::StructuralCustody(_),
                 ) => true,
                 _ => false,
             },
         };
-            let target_matches = match (&route, target.source) {
-                (
-                    CheckedUnitCallRoute::Runtime { contract, .. },
-                    CheckedUnitCallTargetSource::Runtime { contract: retained },
-                ) => contract.is_valid() && *contract == retained,
-                (CheckedUnitCallRoute::Runtime { .. }, _)
-                | (_, CheckedUnitCallTargetSource::Runtime { .. }) => false,
-                (_, CheckedUnitCallTargetSource::Declaration { machine, state }) => {
-                    machine.is_valid() && state.is_valid()
-                }
-            };
-            (admitted && target_matches).then_some(Self {
+            admitted.then_some(Self {
                 coordinate,
                 source_site,
                 target,
@@ -1433,18 +1374,13 @@ pub(crate) mod unit_call_plans {
                 CheckedUnitCallRoute::ActivationStorage { .. }
                 | CheckedUnitCallRoute::DescriptorTable { .. }
                 | CheckedUnitCallRoute::Boundary
-                | CheckedUnitCallRoute::Dynamic { .. }
-                | CheckedUnitCallRoute::Runtime { .. } => None,
+                | CheckedUnitCallRoute::Dynamic { .. } => None,
             }
         }
 
         pub fn erased_scalar_arguments(&self) -> Option<&[CheckedCallScalarArgument]> {
             match &self.route {
                 CheckedUnitCallRoute::Module {
-                    erased_scalar_arguments,
-                    ..
-                }
-                | CheckedUnitCallRoute::Runtime {
                     erased_scalar_arguments,
                     ..
                 } => Some(erased_scalar_arguments),
@@ -1460,10 +1396,6 @@ pub(crate) mod unit_call_plans {
                 CheckedUnitCallRoute::Module {
                     erased_proof_arguments,
                     ..
-                }
-                | CheckedUnitCallRoute::Runtime {
-                    erased_proof_arguments,
-                    ..
                 } => Some(erased_proof_arguments),
                 CheckedUnitCallRoute::ActivationStorage { .. }
                 | CheckedUnitCallRoute::DescriptorTable { .. }
@@ -1473,18 +1405,10 @@ pub(crate) mod unit_call_plans {
         }
 
         pub fn scalar_operands(&self) -> Vec<&CheckedCallScalarArgument> {
-            self.evaluated_callee()
+            self.dynamic_selector()
                 .into_iter()
                 .chain(&self.scalar_arguments)
                 .collect()
-        }
-
-        pub fn evaluated_callee(&self) -> Option<&CheckedCallScalarArgument> {
-            match &self.route {
-                CheckedUnitCallRoute::Dynamic { selector, .. } => Some(selector),
-                CheckedUnitCallRoute::Runtime { callee, .. } => Some(callee),
-                _ => None,
-            }
         }
 
         pub fn dynamic_selector(&self) -> Option<&CheckedCallScalarArgument> {
@@ -2526,7 +2450,7 @@ pub(crate) mod unit_effect_plans {
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedUnitScalarControlPlan {
-        pub scalar_type: crate::CheckedScalarType,
+        pub primitive_type: PrimitiveType,
         pub terminator: CheckedScalarStateTerminator,
         /// Payload values born only after their exact return arm is selected.
         pub selected_copies: Vec<CheckedScalarReturnCopies>,

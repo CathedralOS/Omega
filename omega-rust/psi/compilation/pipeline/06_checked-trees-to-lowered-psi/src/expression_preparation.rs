@@ -208,45 +208,6 @@ pub(crate) mod computation_graph {
         collect_call_targets(checked, machine, false)
     }
 
-    pub(crate) fn machine_computations(
-        checked: &CheckedTrees,
-        machine: symbols::SymbolHandle,
-    ) -> Result<Vec<Computation>, LoweringError> {
-        let mut roots = value_facts(checked)
-            .scalar_computations
-            .roots_for_machine(machine);
-        for root in value_facts(checked)
-            .structural_values
-            .roots_for_machine(machine)
-        {
-            roots.extend(structural_dependencies(checked, root.root)?.scalars);
-        }
-        reachable_nodes(checked, &roots)
-    }
-
-    /// Retain both invoked bodies and code stored as values, without turning a
-    /// construction into an executable call edge.
-    pub(crate) fn code_targets(
-        checked: &CheckedTrees,
-        machine: symbols::SymbolHandle,
-    ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
-        let mut targets = call_targets(checked, machine)?;
-        for handle in machine_computations(checked, machine)? {
-            if let CheckedScalarComputationKind::MachineValue { machine, .. } = checked
-                .facts
-                .values
-                .scalar_computations
-                .nodes
-                .get(handle)
-                .kind
-                && !targets.contains(&machine)
-            {
-                targets.push(machine);
-            }
-        }
-        Ok(targets)
-    }
-
     pub(crate) fn static_realization_targets(
         checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
@@ -299,9 +260,9 @@ pub(crate) mod computation_graph {
         }
         for operation in value_call_operations(checked, machine, None)? {
             if let Some(call) = operation.call().filter(|call| call.is_boundary())
-                && !targets.contains(&crate::shared::call_sites::declared_machine(&call.target)?)
+                && !targets.contains(&call.target.machine)
             {
-                targets.push(crate::shared::call_sites::declared_machine(&call.target)?);
+                targets.push(call.target.machine);
             }
         }
         Ok(targets)
@@ -373,9 +334,9 @@ pub(crate) mod computation_graph {
                 && (!structural_only
                     || !call.structural_arguments.is_empty()
                     || !call.claim_transfers().is_empty())
-                && !targets.contains(&crate::shared::call_sites::declared_machine(&call.target)?)
+                && !targets.contains(&call.target.machine)
             {
-                targets.push(crate::shared::call_sites::declared_machine(&call.target)?);
+                targets.push(call.target.machine);
             }
         }
         Ok(targets)
@@ -534,8 +495,7 @@ pub(crate) mod computation_graph {
                     extend_range(checked, subject, &mut pending);
                 }
                 CheckedScalarComputationKind::RetainedConstant { .. }
-                | CheckedScalarComputationKind::Value(_)
-                | CheckedScalarComputationKind::MachineValue { .. } => {}
+                | CheckedScalarComputationKind::Value(_) => {}
                 CheckedScalarComputationKind::StructuralField { receiver_value, .. } => {
                     if receiver_value.is_valid() {
                         if !structural_roots.contains(receiver_value) {
@@ -598,7 +558,7 @@ pub(crate) mod computation_graph {
                                 .extend(fields(checked, subject)?.iter().map(|field| field.value));
                         }
                     }
-                    pending.extend(callee.evaluated_callee());
+                    pending.extend(callee.selector());
                     pending.extend(plans.operands.span(*arguments).ok_or(
                         LoweringError::Unsupported(
                             "scalar computation closure has invalid arguments",
@@ -1252,23 +1212,6 @@ pub(crate) mod prepare_expression {
     }
 
     impl<'a> PreparedExpressionContext<'a> {
-        fn lower_scalar_type(
-            &self,
-            scalar: checked_trees::CheckedScalarType,
-        ) -> Result<ScalarType, LoweringError> {
-            if let Some(bindings) = self.scalar_bindings {
-                return bindings.scalar_type(scalar);
-            }
-            match scalar {
-                checked_trees::CheckedScalarType::Primitive(primitive) => {
-                    terminal_scalar_type(primitive)
-                }
-                checked_trees::CheckedScalarType::Callable(_) => {
-                    unsupported("callable read has no prepared type namespace")
-                }
-            }
-        }
-
         pub(crate) fn lower_scalar(
             &self,
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -1285,7 +1228,7 @@ pub(crate) mod prepare_expression {
                         root @ (checked_trees::CheckedStorageRoot::OwnedLocal { .. }
                         | checked_trees::CheckedStorageRoot::ViewLocal { .. }),
                     path,
-                    scalar_type: checked_scalar_type,
+                    primitive_type,
                     ..
                 } => {
                     // Psi 05 forms this root only for an erased call actual
@@ -1299,7 +1242,7 @@ pub(crate) mod prepare_expression {
                         std::slice::from_ref(&binding),
                         0,
                         path,
-                        self.lower_scalar_type(*checked_scalar_type)?,
+                        terminal_scalar_type(*primitive_type)?,
                     )
                 }
                 CheckedScalarExpression::StructuralSequenceLength { root, path } => self
@@ -1315,9 +1258,9 @@ pub(crate) mod prepare_expression {
                     )),
                 CheckedScalarExpression::StorageRead {
                     symbol,
-                    scalar_type: checked_scalar_type,
+                    primitive_type,
                 } => {
-                    let scalar_type = self.lower_scalar_type(*checked_scalar_type)?;
+                    let scalar_type = terminal_scalar_type(*primitive_type)?;
                     if let Some(bindings) = self.scalar_bindings
                         && let Some(observation) =
                             captured_observation(bindings, *symbol, scalar_type)?
@@ -1340,10 +1283,10 @@ pub(crate) mod prepare_expression {
                 }
                 CheckedScalarExpression::Parameter {
                     position,
-                    scalar_type: checked_scalar_type,
+                    primitive_type,
                 } => Ok(LoweredDirectExpression::Parameter {
                     position: *position,
-                    scalar_type: self.lower_scalar_type(*checked_scalar_type)?,
+                    scalar_type: terminal_scalar_type(*primitive_type)?,
                 }),
                 CheckedScalarExpression::ErasedParameter {
                     position,
@@ -1354,10 +1297,10 @@ pub(crate) mod prepare_expression {
                 }),
                 CheckedScalarExpression::Local {
                     position,
-                    scalar_type: checked_scalar_type,
+                    primitive_type,
                 } => Ok(LoweredDirectExpression::Local {
                     position: *position,
-                    scalar_type: self.lower_scalar_type(*checked_scalar_type)?,
+                    scalar_type: terminal_scalar_type(*primitive_type)?,
                 }),
                 CheckedScalarExpression::StructuralParameterField {
                     root:
@@ -1365,10 +1308,10 @@ pub(crate) mod prepare_expression {
                             index: parameter_position,
                         },
                     path,
-                    scalar_type: checked_scalar_type,
+                    primitive_type,
                     ..
                 } => {
-                    let scalar_type = self.lower_scalar_type(*checked_scalar_type)?;
+                    let scalar_type = terminal_scalar_type(*primitive_type)?;
                     if let Some(bindings) = self.scalar_bindings
                         && let Some(observation) = bindings.captured_field_observation(
                             identities,
@@ -1470,13 +1413,12 @@ pub(crate) mod prepare_expression {
                     path,
                     index,
                     element_path,
-                    scalar_type: checked_scalar_type,
+                    primitive_type,
                     ..
                 } => {
                     let bound_decided = selector_bound_is_decided(index, self.proven_indexes);
                     if let checked_trees::CheckedStorageRoot::ViewLocal { symbol } = *root
                         && let Some(bindings) = self.scalar_bindings
-                        && let Some(primitive) = checked_scalar_type.primitive()
                         && let Some(observation) = bindings.byte_record_observation(
                             identities,
                             self.proven_indexes,
@@ -1484,7 +1426,7 @@ pub(crate) mod prepare_expression {
                             path,
                             &index.expression,
                             element_path,
-                            primitive,
+                            *primitive_type,
                         )?
                     {
                         return Ok(observation);
@@ -1498,7 +1440,7 @@ pub(crate) mod prepare_expression {
                         };
                     let index = Box::new(lower_selector(identities, &index.expression)?);
                     if element_path.is_empty()
-                        && *checked_scalar_type == PrimitiveType::U8
+                        && *primitive_type == PrimitiveType::U8
                         && let Some(LoweredDirectExpression::ByteSequenceFieldLength {
                             source,
                             path,
@@ -1523,7 +1465,7 @@ pub(crate) mod prepare_expression {
                             path,
                             field,
                             index,
-                            scalar_type: self.lower_scalar_type(*checked_scalar_type)?,
+                            scalar_type: terminal_scalar_type(*primitive_type)?,
                             bound_decided,
                         });
                     }
@@ -1549,7 +1491,7 @@ pub(crate) mod prepare_expression {
                     let crate::expression_preparation::bindings::structural_fields::IndexedElementObservation {
                     source, path, element_path: explicit_path, scalar_type, extent,
                 } = observation;
-                    if scalar_type != self.lower_scalar_type(*checked_scalar_type)? {
+                    if scalar_type != terminal_scalar_type(*primitive_type)? {
                         return unsupported("indexed read changes its declared scalar carrier");
                     }
                     use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment as Prepared;
@@ -2502,7 +2444,7 @@ pub(crate) mod qualifications {
 
         use super::{
             PreparedScalarQualifications, carries_scalar_qualifications, qualification_set,
-            retain_domain, retained_domain_predicate, type_atoms,
+            retain_domain, retained_domain_predicate, terminal_scalar_type, type_atoms,
         };
         use crate::shared::lowering_error::{LoweringError, unsupported};
         use checked_trees::CheckedTrees;
@@ -2541,36 +2483,15 @@ pub(crate) mod qualifications {
                 for (state_ordinal, state) in checked.machine_states(machine).iter().enumerate() {
                     for (position, parameter) in checked.state_parameters(state).iter().enumerate()
                     {
-                        let Some(scalar) = checked_trees::CheckedScalarType::from_type_reference(
-                            &checked.typed,
-                            parameter.type_reference,
-                        ) else {
+                        let Some(primitive) =
+                            checked.primitive_type_reference(parameter.type_reference)
+                        else {
                             continue;
                         };
                         if parameter.relevance.is_erased() {
                             continue;
                         }
-                        let carrier = crate::emission::scalar_types::terminal_checked_scalar_type(
-                            checked, scalar,
-                        )?;
-                        let Some(primitive) = scalar.primitive() else {
-                            if carries_scalar_qualifications(checked, parameter.type_reference) {
-                                return unsupported(
-                                    "opaque callable parameters cannot acquire numeric domain predicates",
-                                );
-                            }
-                            parameters.push(ParameterAtoms {
-                                state: state.symbol,
-                                position: u32::try_from(position).map_err(|_| {
-                                    LoweringError::Unsupported(
-                                        "callable parameter position exceeds u32",
-                                    )
-                                })?,
-                                carrier,
-                                domains: Vec::new(),
-                            });
-                            continue;
-                        };
+                        let carrier = terminal_scalar_type(primitive)?;
                         let mut atoms =
                             if carries_scalar_qualifications(checked, parameter.type_reference) {
                                 type_atoms(checked, parameter.type_reference)?.1
@@ -2636,7 +2557,7 @@ pub(crate) mod qualifications {
                                     let subject =
                                         checked_trees::CheckedScalarExpression::Parameter {
                                             position: 0,
-                                            scalar_type: primitive.into(),
+                                            primitive_type: primitive,
                                         };
                                     let predicate = validation::scalar_membership_value_predicates(
                                         &checked.typed,
@@ -3130,17 +3051,6 @@ pub(crate) mod qualifications {
                 .iter()
                 .map(|(_, reference)| *reference)
                 .collect::<Vec<_>>();
-            for row in checked.facts.callable_contracts.contracts() {
-                let signature = &checked.runtime_callable_contract(row.source).signature;
-                references.extend(
-                    checked
-                        .state_signature_parameters(signature)
-                        .iter()
-                        .map(|parameter| parameter.type_reference)
-                        .chain([signature.return_type])
-                        .filter(|reference| checked.primitive_type_reference(*reference).is_some()),
-                );
-            }
             for symbol in signatures {
                 let machine = checked.machine(*symbol).ok_or(LoweringError::Unsupported(
                     "scalar qualification closure lost a machine",
@@ -3383,7 +3293,7 @@ pub(crate) mod qualifications {
             checked: &CheckedTrees,
             reference: TypeReferenceHandle,
         ) -> Result<QualifiedScalarType, LoweringError> {
-            signature_value_type(checked, &self.catalog, reference)
+            scalar_value_type(checked, &self.catalog, reference)
         }
 
         pub(crate) fn boundary_domain_id(
@@ -3406,7 +3316,6 @@ pub(crate) mod qualifications {
 
         pub(crate) fn boundary_signature_types(
             &self,
-            checked: &CheckedTrees,
             boundary: &checked_trees::CheckedBoundaryMachinePlan,
         ) -> Result<Vec<QualifiedScalarType>, LoweringError> {
             boundary
@@ -3422,10 +3331,7 @@ pub(crate) mod qualifications {
                         .collect::<Result<Vec<_>, _>>()?;
                     let qualifications = qualification_set(&self.catalog, domains)?;
                     Ok(QualifiedScalarType {
-                        scalar_type: crate::emission::scalar_types::terminal_checked_scalar_type(
-                            checked,
-                            parameter.scalar_type,
-                        )?,
+                        scalar_type: terminal_scalar_type(parameter.primitive_type)?,
                         qualifications,
                     })
                 })
@@ -3442,7 +3348,7 @@ pub(crate) mod qualifications {
                 .boundary_machines
                 .iter()
                 .find(|plan| plan.machine == machine)?;
-            self.boundary_signature_types(checked, plan).ok()
+            self.boundary_signature_types(plan).ok()
         }
 
         pub(crate) fn scalar_state_types(
@@ -3463,11 +3369,9 @@ pub(crate) mod qualifications {
                 .enumerate()
                 .filter(|(_, parameter)| {
                     !parameter.relevance.is_erased()
-                        && checked_trees::CheckedScalarType::from_type_reference(
-                            &checked.typed,
-                            parameter.type_reference,
-                        )
-                        .is_some()
+                        && checked
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some()
                 })
                 .map(|(position, _)| {
                     self.parameter_value_type(
@@ -3621,7 +3525,7 @@ pub(crate) mod qualifications {
                                 membership,
                                 &checked_trees::CheckedScalarExpression::Parameter {
                                     position: 0,
-                                    scalar_type: primitive_type.into(),
+                                    primitive_type,
                                 },
                             )?;
                             Some(
@@ -3729,7 +3633,13 @@ pub(crate) mod qualifications {
         if carries_scalar_qualifications(checked, reference) {
             return scalar_value_type(checked, catalog, reference);
         }
-        Ok(crate::emission::scalar_types::terminal_type_reference(checked, reference)?.into())
+        let primitive =
+            checked
+                .primitive_type_reference(reference)
+                .ok_or(LoweringError::Unsupported(
+                    "scalar signature slot is not a primitive scalar",
+                ))?;
+        Ok(terminal_scalar_type(primitive)?.into())
     }
 
     fn qualification_set(
@@ -3827,7 +3737,7 @@ pub(crate) mod qualifications {
                     domain,
                     checked_trees::CheckedScalarExpression::Parameter {
                         position: 0,
-                        scalar_type: primitive_type.into(),
+                        primitive_type,
                     },
                 )
                 .ok_or(LoweringError::Unsupported(
@@ -3911,7 +3821,7 @@ pub(crate) mod qualifications {
                             TypeConstraintNode::Domain(domain)
                                 if matches!(domain.subject, DomainConstraintSubject::Value(value_domain)
                                     if validation::scalar_value_domain_predicate(value_domain,
-                                        checked_trees::CheckedScalarExpression::Parameter { position: 0, scalar_type: primitive.into() }
+                                        checked_trees::CheckedScalarExpression::Parameter { position: 0, primitive_type: primitive }
                                     ).is_some()) => {}
                             TypeConstraintNode::Domain(domain)
                                 if validation::exact_declared_domain_carrier_interval(
@@ -4011,7 +3921,7 @@ pub(crate) mod qualifications {
             .find(|plan| {
                 plan.identity == identity
                     && plan.shape
-                        == checked_trees::CheckedUnitStructuralTypeShape::Scalar(primitive.into())
+                        == checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)
             })
             .and_then(|plan| plan.scalar_restriction.as_ref())
     }
@@ -4237,7 +4147,7 @@ pub(crate) mod representation_view {
         match scalar_type {
             ScalarType::Integer(integer) => Some(integer.bits()),
             ScalarType::IeeeFloat(format) => Some(format.byte_size() * 8),
-            ScalarType::Boolean | ScalarType::Callable(_) => None,
+            ScalarType::Boolean => None,
         }
     }
 

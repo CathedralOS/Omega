@@ -864,10 +864,8 @@ pub(crate) mod authored_selections {
             for handle in containing {
                 let contract = facts.proof.contract_facts.get(handle);
                 let resultless = match contract.owner {
-                    ContractProofFactOwner::CallSignature { .. }
-                    | ContractProofFactOwner::RuntimeCallableContract { .. } => {
+                    ContractProofFactOwner::CallSignature { .. } => {
                         crate::published::proof::contracts::call_signatures::signature(
-                            program,
                             &facts.proof,
                             contract.owner,
                         )
@@ -1812,7 +1810,6 @@ pub(crate) mod authored_selections {
                     ..
                 } => (*base_symbol, base_name),
                 TypeReferenceNode::Named { symbol, name } => (*symbol, name),
-                TypeReferenceNode::Callable { .. } => return None,
                 TypeReferenceNode::ConstExpression(_)
                 | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::FixedArray { .. }

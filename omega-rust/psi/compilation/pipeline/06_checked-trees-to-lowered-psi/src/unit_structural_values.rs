@@ -2788,7 +2788,6 @@ pub(crate) mod attached_unit {
                             crate::expression_preparation::bindings::ScalarBindings::new(
                                 self.values.iter().map(|value| value.scalar_type),
                             )
-                            .with_callables_from(&self.evaluation.scalar_bindings)
                             .with_structural_parameters(&self.evaluation.structural_parameters)
                             .with_structural_locals(&self.evaluation.structural_locals)
                             .with_structural_observations(self.environment.structural_types)
@@ -4047,9 +4046,9 @@ pub(crate) mod attached_unit {
                                     .enumerate()
                                     .filter(|(_, parameter)| {
                                         !parameter.is_const
-                                            && checked_trees::CheckedScalarType::from_type_reference(
-                                                self.checked, parameter.type_reference,
-                                            )
+                                            && self
+                                                .checked
+                                                .primitive_type_reference(parameter.type_reference)
                                                 .is_none()
                                     })
                                     .nth(*parameter_index as usize)
@@ -6828,12 +6827,7 @@ pub(crate) mod attached_unit {
                                     "zeroed scalar array element is not a literal zero",
                                 );
                             };
-                            let scalar_type =
-                                terminal_scalar_type(computation.scalar_type.primitive().ok_or(
-                                    LoweringError::Unsupported(
-                                        "zeroed scalar array has an opaque element carrier",
-                                    ),
-                                )?)?;
+                            let scalar_type = terminal_scalar_type(computation.primitive_type)?;
                             let value =
                                 crate::emission::scalar_types::integer_value(literal, scalar_type)?;
                             let zero = emit_scalar_leaf(
@@ -7377,7 +7371,6 @@ pub(crate) mod attached_unit {
 
                 fn structural_bindings(&self) -> ScalarBindings {
                     ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
-                        .with_callables_from(&self.evaluation.scalar_bindings)
                         .with_structural_parameters(&self.evaluation.structural_parameters)
                         .with_structural_locals(&self.evaluation.structural_locals)
                         .with_structural_observations(self.structural_types)
@@ -8222,7 +8215,7 @@ pub(crate) mod attached_unit {
                         return unsupported("nested constructor operand has a scalar destination");
                     }
                     let zero = emit_scalar_leaf(
-                        zero_constant(scalar_type)?,
+                        zero_constant(scalar_type),
                         scalar_type,
                         self.next_value,
                         self.operations,
@@ -8241,26 +8234,19 @@ pub(crate) mod attached_unit {
                 }
             }
 
-            pub(crate) fn zero_constant(
-                scalar_type: ScalarType,
-            ) -> Result<OperationKind, LoweringError> {
-                Ok(match scalar_type {
+            pub(crate) fn zero_constant(scalar_type: ScalarType) -> OperationKind {
+                match scalar_type {
                     ScalarType::Integer(integer) => OperationKind::IntegerConstant {
                         value: integer.zero(),
                     },
                     ScalarType::Boolean => OperationKind::BooleanConstant { value: false },
-                    ScalarType::Callable(_) => {
-                        return unsupported(
-                            "machine values require a selected code descriptor and cannot be zero initialized",
-                        );
-                    }
                     ScalarType::IeeeFloat(format) => OperationKind::IeeeFloatConstant {
                         value: match format {
                             IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(0),
                             IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(0),
                         },
                     },
-                })
+                }
             }
         }
         pub(crate) mod structural_case {

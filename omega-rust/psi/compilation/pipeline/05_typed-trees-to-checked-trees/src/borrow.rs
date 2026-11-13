@@ -350,7 +350,7 @@ pub(crate) mod accesses {
                     state.symbol,
                     call.statement_index,
                     machine.symbol,
-                    super::ArgumentCallee::from_site(&site, call.target_symbol),
+                    call.target_symbol,
                     super::ArgumentAccessSchedule::TransitionTarget(extraction),
                 );
                 let Some(expected) = accesses.span(expected) else {
@@ -710,13 +710,7 @@ pub(crate) mod accesses {
                     let no_runtime_receiver = collection
                         .program
                         .call_has_no_runtime_receiver_for_target(call);
-                    if let Some(runtime) = call.runtime_call {
-                        collect_read_accesses(collection, runtime.callee);
-                        let reference = collection
-                            .value_type_reference(runtime.callee)
-                            .unwrap_or_default();
-                        collection.finish_completed_value(first_access, runtime.callee, reference);
-                    } else if call.receiver.is_valid() && !no_runtime_receiver {
+                    if call.receiver.is_valid() && !no_runtime_receiver {
                         collect_read_accesses(collection, call.receiver);
                         collection.retain_receiver_accesses(first_access);
                     }
@@ -729,10 +723,7 @@ pub(crate) mod accesses {
                             .expression_handles(call.arguments),
                         collection.state_symbol,
                         collection.statement_index,
-                        super::ArgumentCallee::from_site(
-                            &validation::CallSite::Expression { expression, call },
-                            validation::call_target_symbol(collection.program, call),
-                        ),
+                        validation::call_target_symbol(collection.program, call),
                     );
                     let reference = collection
                         .value_type_reference(expression)
@@ -836,7 +827,6 @@ pub(crate) mod accesses {
             });
             let call = calls.next()?;
             if calls.next().is_some()
-                || call.runtime_call != source.runtime_call
                 || call.target_symbol != source.target_symbol
                 || call.accesses != source.accesses
                 || call.has_receiver != source.has_receiver
@@ -859,7 +849,6 @@ pub(crate) mod accesses {
                 return None;
             };
             if *expression != source.authored_expression
-                || call.runtime_call != site.runtime_call()
                 || validation::call_target_entry_symbol(
                     program,
                     validation::call_target_symbol(program, named_call),
@@ -893,7 +882,7 @@ pub(crate) mod accesses {
                 state,
                 source.statement_index,
                 machine,
-                super::ArgumentCallee::from_site(&site, source.target_symbol),
+                source.target_symbol,
                 schedule,
             );
             let expected = expected_accesses.span(expected)?;
@@ -939,47 +928,6 @@ pub(crate) mod accesses {
         TransitionTarget(Option<validation::DispatchExtraction>),
     }
 
-    #[derive(Clone, Copy)]
-    pub(crate) enum ArgumentCallee {
-        Declaration(SymbolHandle),
-        Runtime(typed_trees::callable_values::RuntimeCallBinding),
-    }
-
-    impl From<SymbolHandle> for ArgumentCallee {
-        fn from(symbol: SymbolHandle) -> Self {
-            Self::Declaration(symbol)
-        }
-    }
-
-    impl From<typed_trees::callable_values::RuntimeCallBinding> for ArgumentCallee {
-        fn from(binding: typed_trees::callable_values::RuntimeCallBinding) -> Self {
-            Self::Runtime(binding)
-        }
-    }
-
-    impl ArgumentCallee {
-        pub(crate) fn from_site(site: &validation::CallSite<'_>, target: SymbolHandle) -> Self {
-            site.runtime_call()
-                .map_or(Self::Declaration(target), Self::Runtime)
-        }
-
-        pub(crate) fn target_symbol(self) -> SymbolHandle {
-            match self {
-                Self::Declaration(symbol) => symbol,
-                Self::Runtime(_) => SymbolHandle::invalid(),
-            }
-        }
-
-        pub(crate) fn runtime_call(
-            self,
-        ) -> Option<typed_trees::callable_values::RuntimeCallBinding> {
-            match self {
-                Self::Declaration(_) => None,
-                Self::Runtime(binding) => Some(binding),
-            }
-        }
-    }
-
     pub(crate) fn collect_argument_accesses(
         program: &dyn ::validation::CheckingInput,
         access_segments: &mut arena::Arena<facts::PlaceSegment>,
@@ -988,7 +936,7 @@ pub(crate) mod accesses {
         state_symbol: SymbolHandle,
         statement_index: usize,
         machine_symbol: SymbolHandle,
-        callee: impl Into<ArgumentCallee>,
+        target_symbol: SymbolHandle,
         schedule: ArgumentAccessSchedule,
     ) -> arena::HandleSpan<BorrowArgumentAccessFact> {
         let mut accesses = arena::HandleSpan::empty();
@@ -1015,7 +963,7 @@ pub(crate) mod accesses {
                 arguments,
                 state_symbol,
                 statement_index,
-                callee.into(),
+                target_symbol,
             );
         }
 
@@ -1081,23 +1029,10 @@ pub(crate) mod accesses {
         arguments: &[ExpressionHandle],
         state_symbol: SymbolHandle,
         statement_index: usize,
-        callee: impl Into<ArgumentCallee>,
+        target_symbol: SymbolHandle,
     ) {
         let program = collection.program;
-        let callee = callee.into();
-        let target_symbol = callee.target_symbol();
-        let parameters = match callee {
-            ArgumentCallee::Declaration(target) => {
-                validation::call_target_parameters(program, target)
-            }
-            ArgumentCallee::Runtime(binding) => Some(
-                program.state_signature_parameters(
-                    binding
-                        .signature(program.typed_program())
-                        .expect("runtime borrow access follows callable admission"),
-                ),
-            ),
-        };
+        let parameters = validation::call_target_parameters(program, target_symbol);
         let instruction_parameters = parameters
             .is_none()
             .then(|| {
@@ -1309,9 +1244,7 @@ pub(crate) mod calls {
     use checked_trees::statement::{StatementNode, TransitionGuardNode};
     use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
     mod collection {
-        use crate::borrow::accesses::{
-            ArgumentAccessSchedule, ArgumentCallee, collect_argument_accesses,
-        };
+        use crate::borrow::accesses::{ArgumentAccessSchedule, collect_argument_accesses};
         use checked_trees::expression::ExpressionHandle;
         use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
         use symbols::SymbolHandle;
@@ -1358,7 +1291,7 @@ pub(crate) mod calls {
             pub(super) fn collect_argument_accesses(
                 &mut self,
                 arguments: &[ExpressionHandle],
-                callee: impl Into<ArgumentCallee>,
+                target_symbol: SymbolHandle,
                 schedule: ArgumentAccessSchedule,
             ) -> arena::HandleSpan<BorrowArgumentAccessFact> {
                 collect_argument_accesses(
@@ -1369,7 +1302,7 @@ pub(crate) mod calls {
                     self.state.symbol,
                     self.statement_index,
                     self.machine.symbol,
-                    callee,
+                    target_symbol,
                     schedule,
                 )
             }
@@ -1378,23 +1311,21 @@ pub(crate) mod calls {
                 &mut self,
                 authored_expression: ExpressionHandle,
                 receiver_symbol: SymbolHandle,
-                callee: impl Into<ArgumentCallee>,
+                target_symbol: SymbolHandle,
                 has_receiver: bool,
                 accesses: arena::HandleSpan<BorrowArgumentAccessFact>,
             ) {
-                let callee = callee.into();
                 self.calls.append_to_span(
                     self.state_calls,
                     BorrowCallFact {
                         statement_index: self.statement_index,
                         call_ordinal: *self.call_ordinal,
                         authored_expression,
-                        runtime_call: callee.runtime_call(),
                         input_reference_loans: None,
                         reference_slot_effects: Default::default(),
                         completed_reference_loans: Default::default(),
                         receiver_symbol,
-                        target_symbol: callee.target_symbol(),
+                        target_symbol,
                         has_receiver,
                         accesses,
                     },
@@ -1434,26 +1365,6 @@ pub(crate) mod calls {
             }
             match program.expression_table.expression(expression) {
                 ExpressionNode::Call(call) => {
-                    if let Some(runtime) = call.runtime_call {
-                        let arguments = program.expression_table.expression_handles(call.arguments);
-                        let accesses = collection.collect_argument_accesses(
-                            arguments,
-                            runtime,
-                            ArgumentAccessSchedule::Invocation,
-                        );
-                        collection.append_borrow_call(
-                            expression,
-                            symbols::SymbolHandle::invalid(),
-                            runtime,
-                            false,
-                            accesses,
-                        );
-                        collect_expression_borrow_calls(collection, runtime.callee);
-                        for argument in arguments {
-                            collect_expression_borrow_calls(collection, *argument);
-                        }
-                        return;
-                    }
                     let (receiver_symbol, receiver_path) =
                         call_receiver_parts(collection.program, call.receiver);
                     let selected_operator = typed_trees::operator::resolve_named_expression_call(
@@ -1924,26 +1835,6 @@ pub(crate) mod calls {
                 expression::collect_expression_borrow_calls(&mut collection, assignment.value)
             }
             StatementNode::Call(call) => {
-                if let Some(runtime) = call.runtime_call {
-                    let arguments = program.statement_table.expression_handles(call.arguments);
-                    let accesses = collection.collect_argument_accesses(
-                        arguments,
-                        runtime,
-                        ArgumentAccessSchedule::Invocation,
-                    );
-                    collection.append_borrow_call(
-                        Default::default(),
-                        symbols::SymbolHandle::invalid(),
-                        runtime,
-                        false,
-                        accesses,
-                    );
-                    expression::collect_expression_borrow_calls(&mut collection, runtime.callee);
-                    for argument in arguments {
-                        expression::collect_expression_borrow_calls(&mut collection, *argument);
-                    }
-                    return;
-                }
                 let resolved_target = validation::resolve_state_call_target(
                     program,
                     machine,
@@ -3437,8 +3328,7 @@ mod loans {
                         owner_path,
                     )
                 }
-                TypeReferenceNode::Callable { .. }
-                | TypeReferenceNode::ConstExpression(_)
+                TypeReferenceNode::ConstExpression(_)
                 | TypeReferenceNode::Slice { .. }
                 | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::Unit => Vec::new(),
@@ -5435,8 +5325,7 @@ mod loans {
                 typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                     is_reference_type(program, *base_type)
                 }
-                typed_trees::types::TypeReferenceNode::Callable { .. }
-                | typed_trees::types::TypeReferenceNode::ConstExpression(_)
+                typed_trees::types::TypeReferenceNode::ConstExpression(_)
                 | typed_trees::types::TypeReferenceNode::FixedArray { .. }
                 | typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
                 | typed_trees::types::TypeReferenceNode::Generic { .. }
@@ -5457,8 +5346,7 @@ mod loans {
                 typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                     reference_borrow_access_kind(program, *base_type)
                 }
-                typed_trees::types::TypeReferenceNode::Callable { .. }
-                | typed_trees::types::TypeReferenceNode::ConstExpression(_)
+                typed_trees::types::TypeReferenceNode::ConstExpression(_)
                 | typed_trees::types::TypeReferenceNode::FixedArray { .. }
                 | typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
                 | typed_trees::types::TypeReferenceNode::Generic { .. }
@@ -6841,7 +6729,6 @@ mod loans {
             pub(super) substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
             substitution_scope_starts: Vec<usize>,
             requirement_signature: Option<&'program typed_trees::signature::StateSignature>,
-            runtime_contract: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
             argument_owner: SymbolHandle,
             target: SymbolHandle,
         }
@@ -6882,11 +6769,6 @@ mod loans {
                 &self,
                 program: &dyn ::validation::CheckingInput,
             ) -> ViewReturnSource {
-                if let Some(contract) = self.runtime_contract {
-                    return validation::borrow_contracts::resolve_runtime_callable_view_return_source(
-                        program, contract, self.argument_owner,
-                    );
-                }
                 if let Some(relation) =
                     validation::borrow_contracts::installed_context_lifetime_source(
                         program,
@@ -6981,21 +6863,6 @@ mod loans {
             call: &checked_trees::expression::TableCallExpression,
         ) -> Option<CallViewReturnContract<'program>> {
             let (caller, state) = validation::find_state(program, state_symbol)?;
-            if let Some(validation::CallContractSource::Runtime { binding, contract }) =
-                validation::CallContractSource::runtime_expression(program, call).ok()?
-            {
-                return Some(CallViewReturnContract {
-                    parameters: program.state_signature_parameters(&contract.signature),
-                    return_type: contract.signature.return_type,
-                    substitutions: Vec::new(),
-                    substitution_scope_starts: Vec::new(),
-                    requirement_signature: None,
-                    runtime_contract: Some(binding.contract),
-                    argument_owner: caller.symbol,
-                    target: SymbolHandle::invalid(),
-                });
-            }
-
             let (
                 parameters,
                 return_type,
@@ -7049,7 +6916,6 @@ mod loans {
                 substitutions,
                 substitution_scope_starts,
                 requirement_signature,
-                runtime_contract: None,
                 argument_owner: caller.symbol,
                 target: call.target_symbol,
             })
@@ -7064,23 +6930,12 @@ mod loans {
         */
         pub(crate) fn call_declares_direct_view_source(
             program: &dyn ::validation::CheckingInput,
-            call: &checked_trees::expression::TableCallExpression,
+            target_symbol: SymbolHandle,
         ) -> bool {
-            let source = if call.runtime_call.is_some() {
-                let Ok(Some(validation::CallContractSource::Runtime { binding, contract })) =
-                    validation::CallContractSource::runtime_expression(program, call)
-                else {
-                    return false;
-                };
-                validation::borrow_contracts::resolve_runtime_callable_view_return_source(
-                    program,
-                    binding.contract,
-                    contract.lexical_owner,
-                )
-            } else {
-                call_view_return_source(program, call.target_symbol)
-            };
-            matches!(source, ViewReturnSource::Parameter { .. })
+            matches!(
+                call_view_return_source(program, target_symbol),
+                ViewReturnSource::Parameter { .. }
+            )
         }
 
         fn call_view_signature(
@@ -7512,7 +7367,7 @@ mod loans {
                 validation::reference_formation_source(program, formation).is_some();
             let declared_source = match program.expression_table.expression(formation) {
                 checked_trees::expression::ExpressionNode::Call(call) => {
-                    call_declares_direct_view_source(program, call)
+                    call_declares_direct_view_source(program, call.target_symbol)
                 }
                 _ => false,
             };
@@ -8408,7 +8263,6 @@ mod machine_rows {
                 statement_index,
                 call_ordinal,
                 authored_expression,
-                runtime_call,
                 input_reference_loans,
                 reference_slot_effects,
                 completed_reference_loans,
@@ -8421,7 +8275,6 @@ mod machine_rows {
                 statement_index,
                 call_ordinal,
                 authored_expression,
-                runtime_call,
                 input_reference_loans: input_reference_loans
                     .map(|span| self.span(span, self.loan_suppliers)),
                 reference_slot_effects: self

@@ -1624,7 +1624,6 @@ pub mod borrow_contracts {
                 return true;
             }
             match program.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Callable { .. } => true,
                 TypeReferenceNode::Reference {
                     access,
                     lifetime,
@@ -3379,42 +3378,6 @@ pub mod borrow_contracts {
                 }],
             };
         }
-        resolve_structural_signature_view_return_source(
-            program,
-            signature,
-            substitutions,
-            scope_starts,
-            argument_owner,
-        )
-    }
-
-    pub fn resolve_runtime_callable_view_return_source(
-        program: &dyn CheckingInput,
-        contract: typed_trees::callable_values::RuntimeCallableContractHandle,
-        argument_owner: SymbolHandle,
-    ) -> ViewReturnSource {
-        if !program.runtime_callable_contracts.is_valid(contract) {
-            return ViewReturnSource::Ambiguous(ViewReturnAmbiguity::IncompleteStructure {
-                subject: "runtime callable contract".to_owned(),
-            });
-        }
-        let row = program.runtime_callable_contracts.get(contract);
-        resolve_structural_signature_view_return_source(
-            program,
-            &row.signature,
-            &[],
-            &[],
-            argument_owner,
-        )
-    }
-
-    fn resolve_structural_signature_view_return_source(
-        program: &dyn CheckingInput,
-        signature: &typed_trees::signature::StateSignature,
-        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-        scope_starts: &[usize],
-        argument_owner: SymbolHandle,
-    ) -> ViewReturnSource {
         if signature.lifetime_parameters.is_empty() {
             return resolve_substituted_view_return_source(
                 program,
@@ -3918,30 +3881,6 @@ pub mod reflection {
                 };
 
                 match typed.type_reference_table.type_reference(type_reference) {
-                    TypeReferenceNode::Callable { contract } => {
-                        typed
-                            .runtime_callable_type_identity(
-                                typed_trees::type_identity::TypeIdentityRequest::ordinary(
-                                    type_reference,
-                                ),
-                            )
-                            .map_err(|error| error.to_string())?;
-                        let inputs = typed_trees::references::signature_type_inputs(
-                            typed,
-                            &typed.runtime_callable_contract(*contract).signature,
-                        );
-                        for reference in inputs.types {
-                            if reference != type_reference {
-                                collect_nominal_expectations(
-                                    typed,
-                                    reference,
-                                    root_owner_identity,
-                                    root_application_identity,
-                                    found,
-                                )?;
-                            }
-                        }
-                    }
                     TypeReferenceNode::Named { symbol, name } => {
                         intern(*symbol, name.as_str(), type_reference, true)?;
                     }

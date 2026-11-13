@@ -983,7 +983,8 @@ pub(super) mod fields {
             ordinal: usize,
         },
         CallableInput {
-            identity: validation::CallableInputIdentity,
+            application: typed_trees::static_applications::StaticMachineApplicationHandle,
+            ordinal: usize,
         },
     }
 
@@ -1002,8 +1003,10 @@ pub(super) mod fields {
             }
         }
         pub(super) fn callable_input(input: &validation::StaticMachineContractObligation) -> Self {
+            let (application, ordinal) = input.input_identity();
             Self::CallableInput {
-                identity: input.input_identity(),
+                application,
+                ordinal,
             }
         }
     }

@@ -1708,7 +1708,7 @@ mod cyclic_headers {
                             .any(|parameter| parameter.symbol == symbol))
                     .then_some(CheckedScalarExpression::StorageRead {
                         symbol,
-                        scalar_type: primitive_type.into(),
+                        primitive_type,
                     })
                 },
             )?;
@@ -6762,8 +6762,7 @@ mod scalars {
                 ) -> Option<&'selected CheckedScalarExpression> {
                     while let CheckedScalarExpression::Local {
                         position,
-                        scalar_type:
-                            typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
+                        primitive_type,
                     } = expression
                     {
                         let (selected, operands, statement) = self.captured_scalar_local(
@@ -9012,7 +9011,11 @@ mod scalars {
                 let parameters = self.program.state_parameters(state);
                 let scalar_parameters = || {
                     parameters.iter().filter(|parameter| {
-                        crate::values::occupies_scalar_position(self.program, parameter)
+                        !parameter.relevance.is_erased()
+                            && self
+                                .program
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_some()
                     })
                 };
                 let mut pending = vec![expression];
@@ -9020,8 +9023,7 @@ mod scalars {
                     let (mut place, primitive) = match expression {
                         Scalar::Parameter {
                             position,
-                            scalar_type:
-                                typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
+                            primitive_type,
                         } => (
                             flow::canonical_place_from_symbol(
                                 scalar_parameters().nth(*position)?.symbol,
@@ -9034,8 +9036,7 @@ mod scalars {
                                     index: parameter_position,
                                 },
                             path,
-                            scalar_type:
-                                typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
+                            primitive_type,
                             ..
                         } => {
                             let (symbol, segments, _, _) =
@@ -9055,13 +9056,11 @@ mod scalars {
                         }
                         Scalar::StorageRead {
                             symbol,
-                            scalar_type:
-                                typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
+                            primitive_type,
                         } => (flow::canonical_place_from_symbol(*symbol)?, *primitive_type),
                         Scalar::Local {
                             position,
-                            scalar_type:
-                                typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
+                            primitive_type,
                         } if !contract => {
                             let ordinal = position.checked_sub(scalar_parameters().count())?;
                             let local =
@@ -9259,7 +9258,7 @@ mod scalars {
                 });
             CheckedScalarExpression::Parameter {
                 position,
-                scalar_type: primitive_type.into(),
+                primitive_type,
             }
         }
     }
@@ -9624,8 +9623,8 @@ mod scalars {
     }
 
     /*
-        Every immutable initialized scalar local occupies a roster position.
-        Mathematical observations still require a primitive carrier.
+        An immutable local carrying an initializer whose declared type is
+        primitive — the only locals a scalar binding roster names.
     */
     pub(crate) fn is_scalar_roster_local(
         program: &dyn ::validation::CheckingInput,
@@ -9633,11 +9632,9 @@ mod scalars {
     ) -> bool {
         !local.is_mutable
             && local.initial_value.is_valid()
-            && typed_trees::callable_values::ScalarValueType::from_type_reference(
-                program.typed_program(),
-                local.type_reference,
-            )
-            .is_some()
+            && program
+                .primitive_type_reference(local.type_reference)
+                .is_some()
     }
 
     impl ExitScalars<'_, '_> {

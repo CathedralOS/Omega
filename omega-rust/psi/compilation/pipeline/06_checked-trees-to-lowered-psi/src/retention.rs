@@ -315,15 +315,13 @@ pub(crate) mod access_lifecycles {
         };
         let mut selected = None;
         for occurrence in &lowered.source_call_occurrences {
-            let Some(source_target) = occurrence.source_target.declaration() else {
-                continue;
-            };
-            let Some((declaration, signature)) = typed.trait_machine_signature(source_target)
+            let Some((declaration, signature)) =
+                typed.trait_machine_signature(occurrence.source_target)
             else {
                 continue;
             };
             let template = typed
-                .closed_requirement_application(source_target)
+                .closed_requirement_application(occurrence.source_target)
                 .map_or(signature.symbol, |application| application.template);
             if !is_core(declaration.symbol)
                 || !is_core(template)
@@ -336,7 +334,8 @@ pub(crate) mod access_lifecycles {
             {
                 continue;
             }
-            let Some(application) = typed.closed_requirement_application(source_target) else {
+            let Some(application) = typed.closed_requirement_application(occurrence.source_target)
+            else {
                 continue;
             };
             let [supply_role] = application.trait_arguments else {
@@ -1383,10 +1382,7 @@ pub(crate) mod closed_reach_applications {
                                 state.symbol,
                                 call.statement_index,
                                 call.call_ordinal,
-                            ) && occurrence
-                                .source_target
-                                .declaration()
-                                .and_then(|target| resolved_source_entry(checked, target))
+                            ) && resolved_source_entry(checked, occurrence.source_target)
                                 == Some(call.target_state_symbol)
                         })
                         .collect::<Vec<_>>();
@@ -4399,7 +4395,7 @@ pub(crate) mod reborrow_restored_call_use {
                         event.state_symbol,
                         call.statement_index,
                         call.call_ordinal,
-                    ) && occurrence.source_target.matches_flow_call(call)
+                    ) && occurrence.source_target == call.target_symbol
                 })
                 .collect::<Vec<_>>();
             let [occurrence] = occurrences.as_slice() else {
@@ -4922,11 +4918,8 @@ pub(crate) mod suspension_call_plan {
                         "external completion cannot park a continuing activation",
                     ))?;
             if occurrences.next().is_some()
-                || occurrence
-                    .source_target
-                    .declaration()
-                    .map(|target| owning_callable_symbol(checked, target))
-                    != Some(owning_callable_symbol(checked, crossing.target))
+                || owning_callable_symbol(checked, occurrence.source_target)
+                    != owning_callable_symbol(checked, crossing.target)
             {
                 return unsupported("suspension crossing call join is duplicate or redirected");
             }
@@ -6082,11 +6075,8 @@ pub(crate) mod suspension_call_plan {
                 "captured output/input call has no emitted occurrence",
             ))?;
         if occurrences.next().is_some()
-            || occurrence
-                .source_target
-                .declaration()
-                .map(|target| owning_callable_symbol(checked, target))
-                != Some(owning_callable_symbol(checked, call.target_symbol))
+            || owning_callable_symbol(checked, occurrence.source_target)
+                != owning_callable_symbol(checked, call.target_symbol)
         {
             return invalid_suspension("captured output/input call is ambiguous or redirected");
         }

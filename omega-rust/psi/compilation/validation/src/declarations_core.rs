@@ -1992,7 +1992,6 @@ pub mod state_signatures {
         Machine(&'program Machine),
         Trait(&'program str),
         Requirement(&'program str),
-        RuntimeCallable,
     }
 
     impl fmt::Display for StateSignatureOwner<'_> {
@@ -2003,61 +2002,8 @@ pub mod state_signatures {
                 Self::Requirement(parameter) => {
                     write!(formatter, "machine-parameter requirement `{parameter}`")
                 }
-                Self::RuntimeCallable => formatter.write_str("machine value contract"),
             }
         }
-    }
-
-    pub(crate) fn validate_runtime_callable_type(
-        program: &dyn crate::CheckingInput,
-        contract: typed_trees::callable_values::RuntimeCallableContractHandle,
-        symbols: &TopLevelSymbols<'_>,
-        inherited: TypeParameterScope<'_>,
-        diagnostics: &mut Vec<Diagnostic>,
-        obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
-    ) {
-        let signature = &program.runtime_callable_contract(contract).signature;
-        let own_parameters = program.state_signature_type_parameters(signature);
-        let mut parameters = inherited.type_parameters.to_vec();
-        parameters.extend_from_slice(own_parameters);
-        let mut lifetimes = inherited.lifetime_parameters.to_vec();
-        lifetimes.extend_from_slice(&signature.lifetime_parameters);
-        let scope = TypeParameterScope::authored(signature.symbol, &parameters, &lifetimes);
-        crate::value_custody::type_references::validate_const_binder_carriers(
-            program,
-            symbols,
-            "machine value contract",
-            own_parameters,
-            scope,
-            diagnostics,
-            obligations,
-        );
-        validate_state_signature_types(
-            std::iter::once(StateSignatureView {
-                symbol: signature.symbol,
-                name: signature.name.as_str(),
-                lifetime_parameters: &signature.lifetime_parameters,
-                parameters: program.state_signature_parameters(signature),
-                return_type: signature.return_type,
-                contracts: program.state_signature_contracts(signature),
-            }),
-            program,
-            symbols,
-            diagnostics,
-            StateSignatureOwner::RuntimeCallable,
-            scope,
-            obligations,
-        );
-        validate_machine_parameter_signatures(
-            program,
-            symbols,
-            diagnostics,
-            own_parameters,
-            &parameters,
-            &lifetimes,
-            "machine value contract",
-            obligations,
-        );
     }
 
     pub(crate) fn validate_machine_parameter_signatures<'program>(

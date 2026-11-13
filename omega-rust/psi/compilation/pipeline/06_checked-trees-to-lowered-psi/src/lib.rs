@@ -26,8 +26,6 @@ Entered through `lower_machine` and `select_terminal_machine` (alongside compani
 
 pub(crate) use optimization::digest_encoder;
 mod attached_unit;
-mod callable_catalog;
-mod callable_contracts;
 mod emission;
 mod emission_cleanup;
 mod expression_bindings;

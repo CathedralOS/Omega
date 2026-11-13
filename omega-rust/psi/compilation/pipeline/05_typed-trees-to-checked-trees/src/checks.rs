@@ -5538,10 +5538,7 @@ mod carry {
                         self.visit_expression(assignment.value);
                     }
                     StatementNode::Call(call) => {
-                        self.add_call_signature(call.target_symbol, call.runtime_call);
-                        if let Some(runtime) = call.runtime_call {
-                            self.visit_expression(runtime.callee);
-                        }
+                        self.add_call_signature(call.target_symbol);
                         for argument in self
                             .program
                             .statement_table
@@ -5575,7 +5572,7 @@ mod carry {
                     TransitionTargetNode::Named {
                         path, arguments, ..
                     } => {
-                        self.add_call_signature(path.symbol, None);
+                        self.add_call_signature(path.symbol);
                         for argument in self.program.statement_table.expression_handles(*arguments)
                         {
                             self.visit_expression(*argument);
@@ -5591,7 +5588,7 @@ mod carry {
                     return;
                 }
                 match self.program.expression_table.expression(expression) {
-                    ExpressionNode::SavedSubject(_) | ExpressionNode::MachineValue(_) => {}
+                    ExpressionNode::SavedSubject(_) => {}
                     ExpressionNode::Match(dispatch) => {
                         self.visit_expression(dispatch.subject);
                         for arm in self.program.expression_table.match_arms(dispatch.arms) {
@@ -5619,8 +5616,8 @@ mod carry {
                         self.visit_expression(binary.right);
                     }
                     ExpressionNode::Call(call) => {
-                        self.add_call_signature(call.target_symbol, call.runtime_call);
-                        self.visit_expression(call.evaluated_callee());
+                        self.add_call_signature(call.target_symbol);
+                        self.visit_expression(call.receiver);
                         for argument in self
                             .program
                             .expression_table
@@ -5683,23 +5680,7 @@ mod carry {
                 ));
             }
 
-            fn add_call_signature(
-                &mut self,
-                target: SymbolHandle,
-                runtime: Option<typed_trees::callable_values::RuntimeCallBinding>,
-            ) {
-                if let Some(runtime) = runtime {
-                    let Ok(signature) = runtime.signature(self.program.typed_program()) else {
-                        self.analysis_complete = false;
-                        return;
-                    };
-                    let type_parameters = self.program.state_signature_type_parameters(signature);
-                    for parameter in self.program.state_signature_parameters(signature) {
-                        self.add_type(type_parameters, parameter.type_reference);
-                    }
-                    self.add_return_type(type_parameters, signature.return_type);
-                    return;
-                }
+            fn add_call_signature(&mut self, target: SymbolHandle) {
                 if !target.is_valid() {
                     self.analysis_complete = false;
                     return;
@@ -5875,7 +5856,7 @@ mod carry {
                     return;
                 }
                 match self.program.expression_table.expression(expression) {
-                    ExpressionNode::SavedSubject(_) | ExpressionNode::MachineValue(_) => {}
+                    ExpressionNode::SavedSubject(_) => {}
                     ExpressionNode::Match(dispatch) => {
                         self.visit_expression(dispatch.subject);
                         let mut selected_reached = false;
@@ -5921,8 +5902,8 @@ mod carry {
                         self.visit_expression(binary.right);
                     }
                     ExpressionNode::Call(call) => {
-                        if call.evaluated_callee().is_valid() {
-                            self.visit_expression(call.evaluated_callee());
+                        if call.receiver.is_valid() {
+                            self.visit_expression(call.receiver);
                         }
                         for argument in self
                             .program
@@ -8848,7 +8829,7 @@ pub(crate) mod ownership_occurrences {
                     }
                     ExpressionNode::Call(call) => {
                         invocation = Some(self.steps.len());
-                        self.expression(call.evaluated_callee(), conditional);
+                        self.expression(call.receiver, conditional);
                         for argument in self
                             .program
                             .expression_table
@@ -9432,8 +9413,8 @@ mod crashes {
                                 .filter(|value| value.is_valid()),
                         ),
                         ExpressionNode::Call(call) => {
-                            if call.evaluated_callee().is_valid() {
-                                pending.push(call.evaluated_callee());
+                            if call.receiver.is_valid() {
+                                pending.push(call.receiver);
                             }
                             pending.extend(
                                 expressions(self.program).expression_handles(call.arguments),
@@ -9447,8 +9428,7 @@ mod crashes {
                                 .iter()
                                 .map(|field| field.value),
                         ),
-                        ExpressionNode::MachineValue(_)
-                        | ExpressionNode::TypeExpression(_)
+                        ExpressionNode::TypeExpression(_)
                         | typed_trees::spelled_literal_expression_pattern!() => {}
                     }
                 }

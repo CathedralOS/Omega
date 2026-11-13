@@ -5,12 +5,12 @@ local refreshing (`result_locals`).
 */
 
 pub(crate) mod selection {
+    use crate::source_type_queries::expression_result_type_reference;
     use crate::tables::expressions_of;
     use const_arguments::collect_type_expressions;
     use typed_trees::operator::declaration_by_symbol;
     use validation::collect_expression_tree;
     use validation::collect_statement_expression_trees;
-    use validation::expression_result_type_reference;
 
     pub(crate) mod callee_proposals {
         use const_arguments::resolve_runtime_subject;
@@ -3126,6 +3126,7 @@ pub(crate) mod reflection {
 }
 
 pub(crate) mod result_locals {
+    use crate::source_type_queries::expression_result_type_reference;
     use crate::tables::expressions_of;
     use symbols::SymbolHandle;
     use typed_trees::TypedTrees;
@@ -3135,7 +3136,6 @@ pub(crate) mod result_locals {
     use typed_trees::type_identity::TypeIdentityRequest;
     use typed_trees::type_identity::applied_type_identity;
     use typed_trees::types::TypeReferenceHandle;
-    use validation::expression_result_type_reference;
 
     pub(crate) mod dispatch_subjects {
 
@@ -3367,8 +3367,9 @@ pub(crate) mod result_locals {
                 return None;
             }
             seen.push(expression);
-            let actual =
-                validation::expression_result_type_reference(program, machine, state, expression)?;
+            let actual = crate::source_type_queries::expression_result_type_reference(
+                program, machine, state, expression,
+            )?;
             if matches!(
                 program.type_reference_table.type_reference(actual),
                 typed_trees::types::TypeReferenceNode::Unit
@@ -3608,7 +3609,7 @@ pub(crate) mod result_locals {
                                 })
                                 .map(|update| update.type_reference)
                                 .or_else(|| {
-                                    validation::expression_result_type_reference(
+                                    crate::source_type_queries::expression_result_type_reference(
                                         program,
                                         machine,
                                         state,
@@ -3661,7 +3662,7 @@ pub(crate) mod result_locals {
                                         operand
                                             .is_valid()
                                             .then(|| {
-                                                validation::expression_result_type_reference(
+                                                crate::source_type_queries::expression_result_type_reference(
                                                     program, machine, state, operand,
                                                 )
                                             })
@@ -3823,6 +3824,7 @@ pub(crate) mod result_locals {
         }
     }
     pub(crate) mod reference_observations {
+        use crate::source_type_queries::expression_result_type_reference;
         use crate::tables::{expressions_of, expressions_of_mut};
         use arena::HandleSpan;
         use symbols::{SymbolHandle, SymbolKind};
@@ -3830,7 +3832,6 @@ pub(crate) mod result_locals {
         use typed_trees::expression::ExpressionNode;
         use typed_trees::operator::scalar_operand_read_type;
         use typed_trees::statement::{StatementNode, TableLocalData};
-        use validation::expression_result_type_reference;
 
         pub(crate) fn materialize(
             program: &mut TypedTrees,

@@ -407,7 +407,6 @@ dependencies = [
  "facts",
  "language-core",
  "language-semantics",
- "lowered-discharge",
  "lowered-psi",
  "numerics",
  "optimization",

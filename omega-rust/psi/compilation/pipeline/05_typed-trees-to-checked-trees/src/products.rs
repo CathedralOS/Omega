@@ -155,13 +155,6 @@ pub(crate) mod package_review {
         )
     }
 
-    pub fn derive_checked_runtime_contract_expression_evidence_parameters(
-        facts: &CheckFacts,
-        contract: typed_trees::callable_values::RuntimeCallableContractHandle,
-    ) -> Vec<arena::Handle<checked_trees::CheckedEvidenceTerm>> {
-        checks::contracts::exact_runtime_evidence_parameters(facts, contract)
-    }
-
     /*
         Freshly instantiate one erased requires proposition against the current
         typed call arguments. Package review uses this after checking to reject a
@@ -302,7 +295,6 @@ pub(crate) mod product_pruning {
         use typed_trees::references::visit_declarations;
         use typed_trees::references::visit_machine;
         use typed_trees::references::visit_static_argument;
-        use typed_trees::references::{visit_expression, visit_signature};
         use typed_trees::typed_trees::AccessLifecyclePlan;
         use typed_trees::typed_trees::ClosedConformanceApplication;
 
@@ -402,7 +394,8 @@ pub(crate) mod product_pruning {
             }
 
             for call in &facts.proof.contract_expression_evidence_calls {
-                retain_contract_expression_call(program, index, &mut retained, call);
+                retained.insert(call.target_machine_symbol);
+                retain_symbol(&mut retained, index, call.target_state_symbol);
             }
             for application in &facts
                 .proof
@@ -486,12 +479,7 @@ pub(crate) mod product_pruning {
 
             for call in &facts.proof.contract_expression_evidence_calls {
                 if let Some(machine_symbol) = contract_caller(&facts.proof, call.owner) {
-                    retain_contract_expression_call(
-                        program,
-                        index,
-                        edges.entry(machine_symbol).or_default(),
-                        call,
-                    );
+                    edge!(machine_symbol, call.target_machine_symbol);
                 }
             }
             for application in &facts
@@ -557,71 +545,6 @@ pub(crate) mod product_pruning {
             }
         }
         impl<Output: Extend<SymbolHandle>> TypedReferences for MachineReferences<'_, '_, Output> {}
-
-        fn retain_contract_expression_call(
-            program: &dyn ::validation::CheckingInput,
-            index: &MachineIndex,
-            output: &mut impl Extend<SymbolHandle>,
-            call: &checked_trees::ContractExpressionEvidenceCallFact,
-        ) {
-            if let Some(contract) = call.runtime_contract {
-                let row = program.runtime_callable_contracts.get(contract);
-                let mut references = MachineReferences { index, output };
-                visit_signature(program, &mut references, &row.signature);
-                visit_expression(program, &mut references, call.expression);
-            } else {
-                retain_symbol(output, index, call.target_machine_symbol);
-                retain_symbol(output, index, call.target_state_symbol);
-            }
-        }
-
-        pub(super) fn validate_contract_expression_call_sources(
-            program: &dyn ::validation::CheckingInput,
-            facts: &CheckFacts,
-        ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-            for call in &facts.proof.contract_expression_evidence_calls {
-                let Some(contract) = call.runtime_contract else {
-                    continue;
-                };
-                let valid = (|| {
-                    if !program.runtime_callable_contracts.is_valid(contract)
-                        || call.target_machine_symbol.is_valid()
-                        || call.target_state_symbol.is_valid()
-                        || !program
-                            .expression_table
-                            .expression_is_valid(call.expression)
-                    {
-                        return None;
-                    }
-                    let typed_trees::expression::ExpressionNode::Call(source) =
-                        program.expression_table.expression(call.expression)
-                    else {
-                        return None;
-                    };
-                    let row = program.runtime_callable_contracts.get(contract);
-                    let site = validation::CallSite::Expression {
-                        expression: call.expression,
-                        call: source,
-                    };
-                    match validation::call_contract_source(program, row.lexical_owner, &site)
-                        .ok()??
-                    {
-                        validation::CallContractSource::Runtime { binding, .. }
-                            if binding.contract == contract =>
-                        {
-                            Some(())
-                        }
-                        _ => None,
-                    }
-                })();
-                if valid.is_none() {
-                    return Err(vec![diagnostics::Diagnostic::error(
-                        "checked runtime proof-expression call lost its exact contract source during product selection",
-                    )]);
-                }
-            }
-            Ok(())
-        }
 
         fn retain_declaration_surface_machines(
             program: &dyn ::validation::CheckingInput,
@@ -690,7 +613,6 @@ pub(crate) mod product_pruning {
                             .caller_machine_symbol
                     })
                 }
-                ContractProofFactOwner::RuntimeCallableContract { .. } => None,
                 _ => None,
             }
         }
@@ -1020,7 +942,6 @@ pub(crate) mod product_pruning {
                     ) == Some(owner)
                         && !pruned.contains(&signatures.get(application).caller_machine_symbol)
                 }
-                checked_trees::ContractProofFactOwner::RuntimeCallableContract { .. } => true,
                 _ => true,
             }
         }
@@ -1214,7 +1135,6 @@ pub(crate) mod product_pruning {
             return Err(diagnostics);
         }
 
-        dependencies::validate_contract_expression_call_sources(&checked.typed, &checked.facts)?;
         let edges = collect_machine_edges(&checked.typed, &checked.facts, &index);
         let mut retained = interface_retention_set(&checked.typed, &checked.facts, &index);
         retained.extend(plan.roots().machines().iter().copied());

@@ -877,12 +877,12 @@ pub(crate) mod contextual_calls {
             CallSite, ExpressionNode, StaticMachineArgument, SymbolHandle, TypeReferenceHandle,
             TypedTrees,
         };
+        use crate::source_type_queries::parameter_expression_result_type_reference;
         use crate::tables::expressions_of;
         use symbols::SymbolKind;
         use typed_trees::data::{TypeParameter, TypeParameterKind};
         use typed_trees::signature::StateSignature;
         use validation::collect_statement_expression_trees;
-        use validation::parameter_expression_result_type_reference;
         pub(crate) mod operands {
             use super::{
                 CallSite, StaticMachineArgument, SymbolHandle, TypeReferenceHandle, TypedTrees,
@@ -1093,7 +1093,7 @@ pub(crate) mod contextual_calls {
                             .machine_states(machine)
                             .iter()
                             .find(|candidate| candidate.symbol == *state)?;
-                        validation::expression_result_type_reference(
+                        crate::source_type_queries::expression_result_type_reference(
                             program, machine, state, expression,
                         )
                     }
@@ -2410,9 +2410,9 @@ pub(crate) mod requirement_applications {
                 .iter()
                 .zip(runtime_arguments)
             {
-                let Some(actual) =
-                    validation::expression_result_type_reference(program, machine, state, *actual)
-                else {
+                let Some(actual) = crate::source_type_queries::expression_result_type_reference(
+                    program, machine, state, *actual,
+                ) else {
                     continue;
                 };
                 validation::infer_call_type_arguments(
@@ -3542,7 +3542,7 @@ pub(crate) mod requirement_applications {
                 .iter()
                 .zip(arguments)
                 .filter_map(|(required, argument)| {
-                    let actual = validation::expression_result_type_reference(
+                    let actual = crate::source_type_queries::expression_result_type_reference(
                         program, machine, state, *argument,
                     )?;
                     if !program.callable_body_has_open_parameters(machine)

@@ -1733,9 +1733,6 @@ mod nominal_requirements {
         state: SymbolHandle,
         kind: ContractProofFactKind,
     ) -> Option<Vec<typed_trees::expression::ExpressionHandle>> {
-        // Cleanup executes a concrete machine entry; an abstract callable contract
-        // cannot supply its physical precondition lane.
-        validation::machine_state_by_symbols(program, machine, state)?;
         let mut expressions = Vec::new();
         for (_, checked) in facts.proof.contract_facts.iter().filter(|(_, checked)| {
             matches!(checked.owner, ContractProofFactOwner::Machine { machine_symbol } if machine_symbol == machine)

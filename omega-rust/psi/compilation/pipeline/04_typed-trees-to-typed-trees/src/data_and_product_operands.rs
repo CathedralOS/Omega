@@ -183,9 +183,9 @@ pub(crate) mod data_applications {
             let Some(state) = program.state_by_symbol(state_symbol) else {
                 continue;
             };
-            let Some(reference) =
-                validation::expression_result_type_reference(program, machine, state, receiver)
-            else {
+            let Some(reference) = crate::source_type_queries::expression_result_type_reference(
+                program, machine, state, receiver,
+            ) else {
                 continue;
             };
             let reference = program

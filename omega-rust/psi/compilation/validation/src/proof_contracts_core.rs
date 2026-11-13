@@ -318,7 +318,6 @@ pub mod carrier_contents {
             }
             TypeReferenceNode::Reference { .. }
             | TypeReferenceNode::Slice { .. }
-            | TypeReferenceNode::Callable { .. }
             | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::ConstExpression(_) => {
                 Some(CarrierFenceViolation::UnshareableType(
@@ -477,7 +476,6 @@ pub mod contract_results {
     #[derive(Debug, Clone)]
     pub struct ReservedResultPlace {
         pub machine_symbol: symbols::SymbolHandle,
-        pub runtime_contract: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
         pub root: ExpressionHandle,
         pub type_reference: TypeReferenceHandle,
         pub segments: Vec<facts::PlaceSegment>,
@@ -498,25 +496,6 @@ pub mod contract_results {
         program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
     ) -> Option<ReservedResultPlace> {
-        reserved_result_place_from_source(program, expression, None)
-    }
-
-    pub fn runtime_reserved_result_place(
-        program: &dyn crate::CheckingInput,
-        contract: typed_trees::callable_values::RuntimeCallableContractHandle,
-        expression: ExpressionHandle,
-    ) -> Option<ReservedResultPlace> {
-        if !program.runtime_callable_contracts.is_valid(contract) {
-            return None;
-        }
-        reserved_result_place_from_source(program, expression, Some(contract))
-    }
-
-    fn reserved_result_place_from_source(
-        program: &dyn crate::CheckingInput,
-        expression: ExpressionHandle,
-        runtime_contract: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
-    ) -> Option<ReservedResultPlace> {
         let mut root = expression;
         let mut projections = Vec::new();
         loop {
@@ -536,14 +515,9 @@ pub mod contract_results {
                 _ => return None,
             }
         }
-        if !expression_table(program).names_reserved_result(root) {
-            return None;
-        }
-        let (machine_symbol, mut type_reference) =
-            contract_occurrence_owner_from_source(program, root, root, runtime_contract)?;
+        let (machine_symbol, mut type_reference) = reserved_result_owner(program, root)?;
         if expression != root
-            && let Some(owner) =
-                contract_occurrence_owner_from_source(program, root, expression, runtime_contract)
+            && let Some(owner) = contract_occurrence_owner(program, root, expression)
             && owner != (machine_symbol, type_reference)
         {
             return None;
@@ -582,13 +556,7 @@ pub mod contract_results {
                     return None;
                 }
                 let index = usize::try_from(literal.value_u64()?).ok()?;
-                let parameters = if let Some(contract) = runtime_contract {
-                    program.state_signature_parameters(
-                        &program.runtime_callable_contracts.get(contract).signature,
-                    )
-                } else {
-                    source_contract_parameters(program, machine_symbol, root)?
-                };
+                let parameters = source_contract_parameters(program, machine_symbol, root)?;
                 let index_type = crate::parameter_expression_result_type_reference(
                     program,
                     machine_symbol,
@@ -704,7 +672,6 @@ pub mod contract_results {
         }
         Some(ReservedResultPlace {
             machine_symbol,
-            runtime_contract,
             root,
             type_reference,
             segments,
@@ -866,22 +833,34 @@ pub mod contract_results {
         root: ExpressionHandle,
         expression: ExpressionHandle,
     ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
-        contract_occurrence_owner_from_source(program, root, expression, None)
-    }
-
-    fn contract_occurrence_owner_from_source(
-        program: &dyn crate::CheckingInput,
-        root: ExpressionHandle,
-        expression: ExpressionHandle,
-        runtime_contract: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
-    ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
         if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
             return memos
                 .contract_occurrences
                 .get_or_init(|| std::sync::Arc::new(ContractOccurrenceIndex::of(program)))
-                .owner(root, expression, runtime_contract);
+                .owner(root, expression);
         }
-        ContractOccurrenceIndex::of(program).owner(root, expression, runtime_contract)
+        let mut owner = None;
+        let (mut nodes, mut seen) = (Vec::new(), ContractNodeSet::default());
+        for (callable, return_type, parameters, _, contract) in callable_contract_scopes(program) {
+            contract_nodes(program, contract, &mut nodes, &mut seen);
+            if !seen.contains(&expression) || !seen.contains(&root) {
+                continue;
+            }
+            if !owns_result(
+                program,
+                callable,
+                return_type,
+                program.state_parameters.span_or_empty(parameters),
+                contract,
+            ) {
+                return None;
+            }
+            if owner.is_some_and(|candidate| candidate != (callable, return_type)) {
+                return None;
+            }
+            owner = Some((callable, return_type));
+        }
+        owner
     }
 
     pub(crate) fn source_contract_parameters(
@@ -1109,10 +1088,8 @@ pub mod contract_results {
         parameters: &[StateParameter],
         contract: &SignatureContract,
     ) -> bool {
-        matches!(
-            contract.kind,
-            SignatureContractKind::Ensures | SignatureContractKind::EnsuresForResultCase { .. }
-        ) && callable.is_valid()
+        contract.kind == SignatureContractKind::Ensures
+            && callable.is_valid()
             && program
                 .type_reference_table
                 .contains_type_reference(return_type)
@@ -1127,7 +1104,6 @@ pub mod contract_results {
             TypeReferenceHandle,
             bool,
             arena::HandleSpan<StateParameter>,
-            Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
         )>,
         containing: symbols::SymbolKeyMap<ExpressionHandle, Vec<u32>>,
     }
@@ -1139,17 +1115,12 @@ pub mod contract_results {
             expression: ExpressionHandle,
         ) -> Option<arena::HandleSpan<StateParameter>> {
             let mut parameters = None;
-            let mut previous_source = None;
             for position in self.containing.get(&expression)? {
-                let (callable, _, _, candidate, source) = self.contracts[*position as usize];
-                if callable != owner
-                    || parameters.is_some_and(|prior| prior != candidate)
-                    || previous_source.is_some_and(|previous| previous != source)
-                {
+                let (callable, _, _, candidate) = self.contracts[*position as usize];
+                if callable != owner || parameters.is_some_and(|prior| prior != candidate) {
                     return None;
                 }
                 parameters = Some(candidate);
-                previous_source = Some(source);
             }
             parameters
         }
@@ -1158,43 +1129,27 @@ pub mod contract_results {
             let mut contracts = Vec::new();
             let mut containing = symbols::SymbolKeyMap::<ExpressionHandle, Vec<u32>>::default();
             let (mut nodes, mut seen) = (Vec::new(), ContractNodeSet::default());
-            let mut retain =
-                |callable, return_type, parameters, contract: &SignatureContract, source| {
-                    let position = u32::try_from(contracts.len())
-                        .expect("callable contract position overflow");
-                    contract_nodes(program, contract, &mut nodes, &mut seen);
-                    for node in nodes.iter().copied() {
-                        containing.entry(node).or_default().push(position);
-                    }
-                    contracts.push((
-                        callable,
-                        return_type,
-                        owns_result(
-                            program,
-                            callable,
-                            return_type,
-                            program.state_parameters.span_or_empty(parameters),
-                            contract,
-                        ),
-                        parameters,
-                        source,
-                    ));
-                };
             for (callable, return_type, parameters, _, contract) in
                 callable_contract_scopes(program)
             {
-                retain(callable, return_type, parameters, contract, None);
-            }
-            for (source, row) in program.runtime_callable_contracts.iter() {
-                for contract in program.state_signature_contracts(&row.signature) {
-                    retain(
-                        row.signature.symbol,
-                        row.signature.return_type,
-                        row.signature.parameters,
-                        contract,
-                        Some(source),
-                    );
+                let position =
+                    u32::try_from(contracts.len()).expect("callable contract position overflow");
+                contract_nodes(program, contract, &mut nodes, &mut seen);
+                for node in nodes.iter().copied() {
+                    containing.entry(node).or_default().push(position);
                 }
+                contracts.push((
+                    callable,
+                    return_type,
+                    owns_result(
+                        program,
+                        callable,
+                        return_type,
+                        program.state_parameters.span_or_empty(parameters),
+                        contract,
+                    ),
+                    parameters,
+                ));
             }
             Self {
                 contracts,
@@ -1207,17 +1162,12 @@ pub mod contract_results {
             expression: ExpressionHandle,
         ) -> Result<symbols::SymbolHandle, ()> {
             let mut owner = symbols::SymbolHandle::default();
-            let mut previous_source = None;
             for position in self.containing.get(&expression).into_iter().flatten() {
-                let (callable, _, _, _, source) = self.contracts[*position as usize];
-                if !callable.is_valid()
-                    || (owner.is_valid() && owner != callable)
-                    || previous_source.is_some_and(|previous| previous != source)
-                {
+                let (callable, _, _, _) = self.contracts[*position as usize];
+                if !callable.is_valid() || (owner.is_valid() && owner != callable) {
                     return Err(());
                 }
                 owner = callable;
-                previous_source = Some(source);
             }
             Ok(owner)
         }
@@ -1226,31 +1176,22 @@ pub mod contract_results {
             &self,
             root: ExpressionHandle,
             expression: ExpressionHandle,
-            expected_source: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
         ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
             let with_expression = self.containing.get(&expression)?;
             let with_root = self.containing.get(&root)?;
             let mut owner = None;
-            let mut previous_source = None;
             for position in with_expression
                 .iter()
                 .filter(|position| with_root.binary_search(position).is_ok())
             {
-                let (callable, return_type, owns_result, _, source) =
-                    self.contracts[*position as usize];
-                if expected_source.is_some() && source != expected_source {
-                    continue;
-                }
+                let (callable, return_type, owns_result, _) = self.contracts[*position as usize];
                 if !owns_result {
                     return None;
                 }
-                if owner.is_some_and(|candidate| candidate != (callable, return_type))
-                    || previous_source.is_some_and(|previous| previous != source)
-                {
+                if owner.is_some_and(|candidate| candidate != (callable, return_type)) {
                     return None;
                 }
                 owner = Some((callable, return_type));
-                previous_source = Some(source);
             }
             owner
         }
@@ -2915,49 +2856,15 @@ pub mod expression_owners {
                         return None;
                     }
                     let retained = signatures.get(application);
-                    let source_owner = match retained.source {
-                        checked_trees::CallContractSignatureSource::Requirement {
-                            declaring_trait,
-                        } => declaring_trait,
-                        checked_trees::CallContractSignatureSource::Runtime {
-                            contract,
-                            lexical_owner,
-                            callee,
-                        } => {
-                            if !program.runtime_callable_contracts.is_valid(contract)
-                                || !program.expression_table.expression_is_valid(callee)
-                            {
-                                return None;
-                            }
-                            let row = program.runtime_callable_contract(contract);
-                            if row.lexical_owner != lexical_owner
-                                || row.signature != retained.signature
-                            {
-                                return None;
-                            }
-                            lexical_owner
-                        }
-                        checked_trees::CallContractSignatureSource::Invalid => return None,
-                    };
-                    if source_owner != owner_symbol || retained.signature.symbol != state_symbol {
+                    if retained.declaring_trait != owner_symbol
+                        || retained.signature.symbol != state_symbol
+                    {
                         return None;
                     }
                     Some(environment_from_parameters(
                         state_symbol,
                         program.state_signature_parameters(&retained.signature),
                         retained.signature.return_type,
-                        None,
-                    ))
-                }
-                ContractProofFactOwner::RuntimeCallableContract { contract } => {
-                    if !program.runtime_callable_contracts.is_valid(contract) {
-                        return None;
-                    }
-                    let row = program.runtime_callable_contract(contract);
-                    Some(environment_from_parameters(
-                        row.signature.symbol,
-                        program.state_signature_parameters(&row.signature),
-                        row.signature.return_type,
                         None,
                     ))
                 }
@@ -3631,14 +3538,6 @@ pub mod expression_owners {
             }
             visited.push(type_reference);
             match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Callable { .. } => {
-                    let inputs = typed_trees::references::type_reference_inputs(
-                        program.typed_program(),
-                        type_reference,
-                    );
-                    reached.extend(inputs.expressions);
-                    visited.extend(inputs.types);
-                }
                 TypeReferenceNode::Reference { referee, .. } => {
                     collect_type_reference_expressions(program, *referee, visited, reached)
                 }
@@ -3954,14 +3853,6 @@ pub mod expression_owners {
             }
             visited.push(type_reference);
             match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Callable { .. } => {
-                    typed_trees::references::type_reference_inputs(
-                        program.typed_program(),
-                        type_reference,
-                    )
-                    .expressions
-                    .contains(&expression)
-                }
                 TypeReferenceNode::Reference { referee, .. } => {
                     type_reference_contains_expression(program, *referee, expression, visited)
                 }
@@ -4107,9 +3998,6 @@ pub mod expression_owners {
             }
             visited.push(expression);
             match program.expression_table.expression(expression) {
-                ExpressionNode::MachineValue(value) => {
-                    Some(InferredType::TypeReference(value.type_reference))
-                }
                 ExpressionNode::SavedSubject(saved) => {
                     program.saved_value_source(saved).and_then(|subject| {
                         infer_expression_type(program, subject, environment, visited)
@@ -4625,7 +4513,6 @@ pub mod expression_owners {
             program
                 .expression_table
                 .insert_tree(&Expression::Call(Box::new(CallExpression {
-                    runtime_call: None,
                     authored_call_selection: None,
                     authored_call_binding: None,
                     exact_coercion_target: Default::default(),
@@ -6950,11 +6837,6 @@ pub mod proof_facts {
             return false;
         }
         match program.type_reference_table.type_reference(argument) {
-            TypeReferenceNode::Callable { .. } => program
-                .runtime_callable_type_identity(
-                    typed_trees::type_identity::TypeIdentityRequest::ordinary(argument),
-                )
-                .is_ok(),
             TypeReferenceNode::Named { symbol, .. } => symbol.is_valid(),
             TypeReferenceNode::Reference { referee, .. } => {
                 evidence_argument_is_resolved(program, *referee)
@@ -7226,7 +7108,6 @@ pub mod proof_facts {
             return Some(member.to_owned());
         }
         match expression_table(program).expression(expression) {
-            ExpressionNode::MachineValue(_) => None,
             ExpressionNode::Match(dispatch) => {
                 crate::queries::expression_traversal::match_children(program, *dispatch).find_map(
                     |child| abstract_trait_self_member_in_expression(program, child, visited),
@@ -7498,7 +7379,6 @@ pub mod proof_facts {
         expression: ExpressionHandle,
     ) -> bool {
         match expression_table(program).expression(expression) {
-            ExpressionNode::MachineValue(_) => false,
             ExpressionNode::SavedSubject(_) | ExpressionNode::Match(_) => false,
             ExpressionNode::Atomic(atomic) => is_boolean_fact_expression(program, atomic.value),
             ExpressionNode::Binary(binary) => match binary.operator {
@@ -8087,9 +7967,9 @@ pub mod properties {
                             .to_vec();
                         self.derive_named_data(base_symbol, base_name.as_str(), Some(&arguments))
                     }
-                    TypeReferenceNode::Callable { .. }
-                    | TypeReferenceNode::ConstExpression(_)
-                    | TypeReferenceNode::Unit => CarryPolicy::PERMISSIVE,
+                    TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => {
+                        CarryPolicy::PERMISSIVE
+                    }
                     TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => {
                         self.requires_borrow_preservation = true;
                         CarryPolicy::STRICT
@@ -10302,7 +10182,6 @@ pub mod relevance {
                 return None;
             }
             match program.type_reference_table.type_reference(handle) {
-                TypeReferenceNode::Callable { .. } => None,
                 TypeReferenceNode::Reference { referee, .. } => {
                     unresolved_erased_generic_base(program, *referee)
                 }
@@ -11035,14 +10914,14 @@ pub mod scalar_boundary_guarantees {
             })?;
             Some(Scalar::Parameter {
                 position,
-                scalar_type: primitive_type.into(),
+                primitive_type,
             })
         };
         let left = formal(*left)?;
         let right = formal(*right)?;
         let result = Scalar::Parameter {
             position: parameters.len(),
-            scalar_type: primitive_type.into(),
+            primitive_type,
         };
         let mut condition = and(
             finite(left, application.format),
@@ -11344,8 +11223,8 @@ pub mod signature_ensures {
                 .and_then(|source| source.scalar_storage_coordinate(program, state))
                 .filter(|coordinate| {
                     coordinate.preserves_scalar_value
-                        && coordinate.source_scalar_type.primitive() == Some(primitive)
-                        && coordinate.view_scalar_type.primitive() == Some(primitive)
+                        && coordinate.source_primitive == primitive
+                        && coordinate.view_primitive == primitive
                 })
             else {
                 return;

@@ -463,94 +463,6 @@ mod boundary_machine {
         presentation; a formal or result the planners cannot present leaves the
         slot unplanned, and calls naming it decline at their own plan.
     */
-    pub(crate) fn build_callable_contract_signatures(
-        program: &dyn ::validation::CheckingInput,
-        shapes: &mut ShapeCollector<'_>,
-        contracts: &checked_trees::CheckedCallableContracts,
-    ) -> Result<
-        Vec<(
-            semantic_vocabulary::CallableContractId,
-            checked_trees::CheckedCallableSignature,
-        )>,
-        &'static str,
-    > {
-        let mut signatures = Vec::new();
-        for row in contracts.contracts() {
-            let signature = &program.runtime_callable_contract(row.source).signature;
-            let parameters = program.state_signature_parameters(signature);
-            let result = boundary_result_plan(program, shapes, signature.return_type, &[], &[])
-                .ok_or("callable result has no admitted representation")?;
-            let (structural_parameters, scalar_parameters) =
-                crate::execution::terminal_unit::calls::parameter_signatures(
-                    program,
-                    shapes,
-                    parameters,
-                    &[],
-                    &[],
-                    &crate::execution::terminal_unit::control::LocalConstructionTrace::default(),
-                )
-                .ok_or("callable parameters have no admitted representation")?;
-            let mut entry_claim_paths = Vec::new();
-            for (argument_index, parameter) in structural_parameters.iter().enumerate() {
-                if parameter.access != checked_trees::CheckedStructuralAccess::Owned {
-                    continue;
-                }
-                let source = parameters
-                    .get(parameter.position as usize)
-                    .ok_or("callable structural formal lost its source position")?;
-                for claim in validation::linear_claim_frontier(program, source.type_reference) {
-                    entry_claim_paths.push(checked_trees::CheckedDynamicClaimPath {
-                        argument_index: u32::try_from(argument_index)
-                            .map_err(|_| "callable argument count exceeds claim identity range")?,
-                        path: validation::structural_claim_path(
-                            program,
-                            source.type_reference,
-                            &claim.path,
-                        )
-                        .map_err(|_| "callable input claim lost its structural path")?,
-                    });
-                }
-            }
-            let result_claim_paths =
-                validation::linear_claim_frontier(program, signature.return_type)
-                    .iter()
-                    .map(|claim| {
-                        validation::structural_claim_path(
-                            program,
-                            signature.return_type,
-                            &claim.path,
-                        )
-                        .map_err(|_| "callable result claim lost its structural path")
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-            let result_reference_sources =
-                validation::reference_result_custody::declared_return_sources(
-                    program,
-                    parameters,
-                    signature.return_type,
-                )
-                .map_err(|_| "callable result has no complete declared reference custody")?;
-            let erased_scalar_parameters = crate::execution::terminal_unit::types::erased_scalar_parameter_plans_for_parameters(program, parameters)
-                .ok_or("callable erased scalar parameters have no admitted representation")?;
-            let erased_proof_parameters = crate::execution::terminal_unit::types::erased_proof_parameter_plans_for_parameters(program, parameters)
-                .ok_or("callable erased proof parameters have no admitted representation")?;
-            signatures.push((
-                row.id,
-                checked_trees::CheckedCallableSignature {
-                    scalar_parameters,
-                    structural_parameters,
-                    erased_scalar_parameters,
-                    erased_proof_parameters,
-                    result,
-                    entry_claim_paths,
-                    result_claim_paths,
-                    result_reference_sources,
-                },
-            ));
-        }
-        Ok(signatures)
-    }
-
     pub(crate) fn build_dynamic_slot_plans(
         program: &dyn ::validation::CheckingInput,
         shapes: &mut ShapeCollector<'_>,
@@ -1358,10 +1270,7 @@ mod boundary_machine {
         if is_unit(program, type_reference) {
             return Some(CheckedBoundaryMachineResultPlan::Unit);
         }
-        if let Some(scalar) = checked_trees::CheckedScalarType::from_type_reference(
-            program.typed_program(),
-            type_reference,
-        ) {
+        if let Some(scalar) = program.primitive_type_reference(type_reference) {
             return Some(CheckedBoundaryMachineResultPlan::Scalar(scalar));
         }
         if is_reference(program, type_reference) {
@@ -2235,9 +2144,7 @@ mod call_occurrences {
                     .map(|(argument, name)| {
                         Some((
                             *argument,
-                            checked_trees::CheckedScalarType::Primitive(
-                                typed_trees::types::PrimitiveType::from_name(name.name())?,
-                            ),
+                            typed_trees::types::PrimitiveType::from_name(name.name())?,
                         ))
                     })
                     .collect::<Option<Vec<_>>>()?;
@@ -2283,11 +2190,9 @@ mod call_occurrences {
                     .iter()
                     .zip(formals)
                     .filter_map(|(argument, parameter)| {
-                        checked_trees::CheckedScalarType::from_type_reference(
-                            program.typed_program(),
-                            parameter.type_reference,
-                        )
-                        .map(|primitive| (*argument, primitive))
+                        program
+                            .primitive_type_reference(parameter.type_reference)
+                            .map(|primitive| (*argument, primitive))
                     })
                     .collect::<Vec<_>>();
                 (scalar_arguments, structural_arguments)
@@ -2324,8 +2229,8 @@ mod call_occurrences {
                         {
                             return None;
                         }
-                        let primitive = plans.nodes.get(root.root).scalar_type;
-                        if !primitive.primitive()?.is_fixed_integer() {
+                        let primitive = plans.nodes.get(root.root).primitive_type;
+                        if !primitive.is_fixed_integer() {
                             return None;
                         }
                         (expression, primitive)
@@ -2338,7 +2243,7 @@ mod call_occurrences {
                 roles.push(root.role);
                 if !plans.nodes.is_valid(root.root)
                     || plans.nodes.get(root.root).authored_root != expression
-                    || plans.nodes.get(root.root).scalar_type != primitive
+                    || plans.nodes.get(root.root).primitive_type != primitive
                 {
                     return None;
                 }
@@ -2560,7 +2465,6 @@ mod call_occurrences {
                 };
             }
             match &plans.nodes.get(handle).kind {
-                ComputationKind::MachineValue { .. } => {}
                 ComputationKind::CaseMembership {
                     subject:
                         checked_trees::CheckedScalarComputationStructuralArgument::Place(subject),
@@ -2675,7 +2579,7 @@ mod call_occurrences {
                     if *call_ordinal < minimum_call_ordinal
                         || call.call_ordinal != *call_ordinal as usize
                         || call.statement_index != statement
-                        || !callee.matches_flow_call(call, plans)
+                        || call.target_symbol != callee.called_signature()
                         || !call.authored_expression.is_valid()
                         || !calls.iter().any(|candidate| std::ptr::eq(candidate, call))
                         || facts.flow.control.is_retired(state, call)
@@ -2685,7 +2589,7 @@ mod call_occurrences {
                     consumed.record_minimum(Some(*call_ordinal));
                     consumed.push(source_call);
                     for operand in callee
-                        .evaluated_callee()
+                        .selector()
                         .into_iter()
                         .chain(plans.operands.span(*arguments)?.iter().copied())
                     {
@@ -4682,8 +4586,7 @@ mod call_results {
             } if operation.produces_value()
                 && operation.result_carrier().is_some_and(|carrier| {
                     typed_trees::types::PrimitiveType::from_name(carrier.name())
-                        .map(checked_trees::CheckedScalarType::from)
-                        == Some(result.scalar_type)
+                        == Some(result.primitive_type)
                 }) =>
             {
                 return Some(CheckedUnitEffectOperationPlan::RegisterAccess {
@@ -4709,14 +4612,12 @@ mod call_results {
         match &mut parts.route {
             CheckedUnitCallRoute::ActivationStorage { .. } => return None,
             CheckedUnitCallRoute::DescriptorTable { result_type, .. } => {
-                if result.scalar_type != *result_type {
+                if result.primitive_type != *result_type {
                     return None;
                 }
             }
             CheckedUnitCallRoute::Boundary if !allow_boundary => return None,
-            CheckedUnitCallRoute::Boundary
-            | CheckedUnitCallRoute::Dynamic { .. }
-            | CheckedUnitCallRoute::Runtime { .. } => {}
+            CheckedUnitCallRoute::Boundary | CheckedUnitCallRoute::Dynamic { .. } => {}
             CheckedUnitCallRoute::Module {
                 contract_commitment,
                 ..
@@ -4724,7 +4625,7 @@ mod call_results {
                 *contract_commitment = Some(
                     facts
                         .contract_plans
-                        .for_machine(parts.target.declaration()?.0)?
+                        .for_machine(parts.target.machine)?
                         .commitment,
                 );
             }
@@ -4756,7 +4657,6 @@ mod call_results {
             (
                 CheckedUnitCallRoute::Module { .. }
                 | CheckedUnitCallRoute::Dynamic { .. }
-                | CheckedUnitCallRoute::Runtime { .. }
                 | CheckedUnitCallRoute::ActivationStorage { .. },
                 CheckedUnitCallResult::Structural { .. },
             ) => Some(CheckedUnitEffectOperationPlan::Call(call)),
@@ -4767,10 +4667,7 @@ mod call_results {
                     parts.coordinate.statement_index as usize,
                     parts.coordinate.call_ordinal as usize,
                 )?;
-                let return_type = crate::execution::terminal_unit::calls::call_return_type(
-                    program,
-                    &parts.target,
-                )?;
+                let return_type = validation::call_target_return_type(program, parts.target.state)?;
                 let substitutions = parts
                     .source_site
                     .and_then(|site| {
@@ -7008,8 +6905,7 @@ pub(super) mod structural_operands {
 }
 
 pub(crate) use boundary_machine::{
-    build_boundary_machine, build_callable_contract_signatures, build_dynamic_slot_plans,
-    build_static_boundary_requirements,
+    build_boundary_machine, build_dynamic_slot_plans, build_static_boundary_requirements,
 };
 pub(super) use call_occurrences::{
     SelectedInvocationAccounting, call_owns_statement_computations, completion_expression,

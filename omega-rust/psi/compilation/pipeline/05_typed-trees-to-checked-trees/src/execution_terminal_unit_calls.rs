@@ -193,6 +193,7 @@ mod argument_paths {
     };
     use crate::flow::{expressions, state_statements};
     use crate::values::lower_unit_scalar_argument;
+    use crate::values::scalar_expression_type;
     use checked_trees::CheckedByteSequenceCarrier;
     use checked_trees::CheckedCallScalarArgument;
     use checked_trees::CheckedErasedProofParameterPlan;
@@ -227,7 +228,6 @@ mod argument_paths {
     use validation::unwrapped_type_reference;
 
     pub(crate) fn checked_call_scalar_arguments(
-        program: &dyn validation::CheckingInput,
         facts: &CheckFacts,
         caller_state: SymbolHandle,
         coordinate: CallCoordinate,
@@ -262,12 +262,8 @@ mod argument_paths {
                     .collect::<Vec<_>>();
                 if let [root] = roots.as_slice() {
                     if !computations.nodes.is_valid(root.root)
-                        || !computations
-                            .nodes
-                            .get(root.root)
-                            .scalar_type
-                            .same_type(program.typed_program(), parameter.scalar_type)
-                            .ok()?
+                        || computations.nodes.get(root.root).primitive_type
+                            != parameter.primitive_type
                         || facts
                             .values
                             .scalar_expressions
@@ -291,10 +287,7 @@ mod argument_paths {
                     coordinate.statement_index,
                     role,
                 )?;
-                expression
-                    .scalar_type()?
-                    .same_type(program.typed_program(), parameter.scalar_type)
-                    .ok()?
+                (scalar_expression_type(expression)? == parameter.primitive_type)
                     .then(|| CheckedCallScalarArgument::Pure(expression.clone()))
             })
             .collect()
@@ -610,7 +603,7 @@ mod argument_paths {
                     coordinate.statement_index,
                     role,
                 )?;
-                (expression.scalar_type()? == parameter.scalar_type)
+                (scalar_expression_type(expression)? == parameter.primitive_type)
                     .then(|| CheckedCallScalarArgument::Pure(expression.clone()))
             })
             .collect()
@@ -1229,11 +1222,7 @@ mod argument_paths {
         let parameter = &parameters[authored_position];
         if parameter.is_mutable
             || !matches!(
-                checked_trees::CheckedScalarType::from_type_reference(
-                    program.typed_program(),
-                    parameter.type_reference
-                )
-                .and_then(|scalar| scalar.primitive()),
+                program.primitive_type_reference(parameter.type_reference),
                 Some(
                     PrimitiveType::U8
                         | PrimitiveType::U16
@@ -1854,7 +1843,7 @@ mod call_operations {
     use validation::exact_external_leaf_boundary_requirement;
 
     pub(in crate::execution) enum ExpectedCallValueResult<'result> {
-        Scalar(checked_trees::CheckedScalarType),
+        Scalar(PrimitiveType),
         Structural(&'result CheckedUnitStructuralResultBindingPlan),
     }
 
@@ -1875,12 +1864,7 @@ mod call_operations {
         let return_type = substituted_formal_type(program, return_type, substitutions);
         match expected {
             ExpectedCallValueResult::Scalar(expected) => {
-                checked_trees::CheckedScalarType::from_type_reference(
-                    program.typed_program(),
-                    return_type,
-                )
-                .and_then(|actual| actual.same_type(program.typed_program(), *expected).ok())
-                    == Some(true)
+                program.primitive_type_reference(return_type) == Some(*expected)
             }
             ExpectedCallValueResult::Structural(expected)
                 if borrowed_slice_result(program, return_type)
@@ -1998,26 +1982,6 @@ mod call_operations {
             validation::CallSite::TransitionNamed { .. } => None,
         };
 
-        if call.runtime_call.is_some() {
-            return super::runtime_call::build(
-                program,
-                shapes,
-                facts,
-                machine,
-                state,
-                caller_parameters,
-                caller_trivial_affine_locals,
-                call,
-                expected_call_result.as_ref(),
-                caller_structural_results,
-                caller_operations,
-                trace,
-                coordinate,
-                &call_site,
-                source_site,
-            );
-        }
-
         if let Some(operation) = program
             .symbols
             .builtin_function_for_symbol(call.target_symbol)
@@ -2104,9 +2068,7 @@ mod call_operations {
                 || match expected_call_result {
                     Some(ExpectedCallValueResult::Scalar(primitive_type)) => {
                         operation.result_carrier().is_none_or(|carrier| {
-                            PrimitiveType::from_name(carrier.name())
-                                .map(checked_trees::CheckedScalarType::from)
-                                != Some(primitive_type)
+                            PrimitiveType::from_name(carrier.name()) != Some(primitive_type)
                         })
                     }
                     None => operation.produces_value(),
@@ -2122,7 +2084,7 @@ mod call_operations {
                 .map(|(position, name)| {
                     Some(CheckedStructuralScalarParameterPlan {
                         source_position: u32::try_from(position).ok()?,
-                        scalar_type: (PrimitiveType::from_name(name.name())?).into(),
+                        primitive_type: PrimitiveType::from_name(name.name())?,
                     })
                 })
                 .collect::<Option<Vec<_>>>()?;
@@ -2136,7 +2098,6 @@ mod call_operations {
                 operation,
                 result: None,
                 arguments: checked_call_scalar_arguments(
-                    program,
                     facts,
                     state.symbol,
                     coordinate,
@@ -2194,14 +2155,12 @@ mod call_operations {
             }
             super::ResolvedCallTarget::Declared { machine, state } => (machine, state),
         };
-        let (target_identity, target_state_identity) = destination.identity();
+        let (target_machine_identity, target_state_identity) = destination.identity();
         phase("call operation: target contract");
         let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
         let call_target = CheckedUnitCallTarget {
-            source: checked_trees::CheckedUnitCallTargetSource::Declaration {
-                machine: target_identity,
-                state: target_state_identity,
-            },
+            machine: target_machine_identity,
+            state: target_state_identity,
             contract_report_fingerprint: target_contract.report_fingerprint,
             service_reach: call.service_reach,
         };
@@ -2246,10 +2205,8 @@ mod call_operations {
             if strips_erased_parameter(parameter)? {
                 continue;
             }
-            let Some(primitive_type) = checked_trees::CheckedScalarType::from_type_reference(
-                program.typed_program(),
-                parameter.type_reference,
-            ) else {
+            let Some(primitive_type) = program.primitive_type_reference(parameter.type_reference)
+            else {
                 continue;
             };
             if (parameter.is_const)
@@ -2260,13 +2217,12 @@ mod call_operations {
             }
             scalar_parameters.push(CheckedStructuralScalarParameterPlan {
                 source_position: u32::try_from(position).ok()?,
-                scalar_type: primitive_type.into(),
+                primitive_type,
             });
         }
         phase("call operation: scalar arguments");
         let scalar_arguments = if boundary {
             checked_call_scalar_arguments(
-                program,
                 facts,
                 state.symbol,
                 coordinate,
@@ -2275,7 +2231,6 @@ mod call_operations {
             )?
         } else {
             checked_call_scalar_arguments(
-                program,
                 facts,
                 state.symbol,
                 coordinate,
@@ -2425,7 +2380,7 @@ mod call_operations {
         }
         phase("call operation: claim transfers");
         let completion = if boundary {
-            validation::boundary_requirement_completion(program, call_target.declaration()?.0)
+            validation::boundary_requirement_completion(program, call_target.machine)
         } else {
             semantic_vocabulary::BoundaryCompletion::NormalReturn
         };
@@ -3614,199 +3569,6 @@ mod computation_arguments {
         })
     }
 }
-mod runtime_call {
-    use super::argument_paths::{
-        checked_call_erased_proof_arguments, checked_call_erased_scalar_arguments,
-        checked_call_scalar_arguments,
-    };
-    use super::call_operations::call_value_result_matches;
-    use super::structural_arguments::{call_claim_transfers, structural_call_arguments};
-    use super::structural_result_call::with_structural_custody;
-    use crate::execution::terminal_unit::types::{
-        erased_proof_parameter_plans_for_parameters, erased_scalar_parameter_plans_for_parameters,
-        is_unit,
-    };
-    use checked_trees::{
-        CheckedCallScalarArgument, CheckedScalarExpressionRole, CheckedUnitCallParts,
-        CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute, CheckedUnitCallTarget,
-        CheckedUnitCallTargetSource, CheckedUnitCallTransfers,
-    };
-
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn build(
-        program: &dyn validation::CheckingInput,
-        shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
-        facts: &checked_trees::CheckFacts,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        caller_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
-        caller_trivial_affine_locals: &[(
-            checked_trees::CheckedTrivialAffineStructuralLocalPlan,
-            symbols::SymbolHandle,
-        )],
-        call: &checked_trees::FlowCallFact,
-        expected: Option<&super::ExpectedCallValueResult<'_>>,
-        caller_results: &[(
-            checked_trees::CheckedUnitStructuralResultBindingPlan,
-            facts::PlaceRoot,
-        )],
-        caller_operations: &[checked_trees::CheckedUnitEffectOperationPlan],
-        trace: &crate::execution::terminal_unit::control::LocalConstructionTrace,
-        coordinate: checked_trees::CheckedUnitCallCoordinate,
-        site: &validation::CallSite<'_>,
-        source_site: Option<checked_trees::NominalMachineUseSite>,
-    ) -> Option<checked_trees::CheckedUnitEffectOperationPlan> {
-        trace.phase("call operation: exact runtime signature");
-        let validation::CallContractSource::Runtime { binding, contract } =
-            validation::call_contract_source(program, machine.symbol, site).ok()??
-        else {
-            return None;
-        };
-        if call.runtime_call != Some(binding) {
-            return None;
-        }
-        let signature = &contract.signature;
-        if match expected {
-            None => !is_unit(program, signature.return_type),
-            Some(expected) => {
-                !call_value_result_matches(program, signature.return_type, expected, &[])
-            }
-        } {
-            return None;
-        }
-        let parameters = program.state_signature_parameters(signature);
-        let callee = facts.values.scalar_computations.root_at(
-            state.symbol,
-            coordinate.statement_index,
-            CheckedScalarExpressionRole::RuntimeCallCallee {
-                call_ordinal: coordinate.call_ordinal,
-            },
-        )?;
-        if !facts.values.scalar_computations.nodes.is_valid(callee.root)
-            || facts
-                .values
-                .scalar_computations
-                .nodes
-                .get(callee.root)
-                .authored_root
-                != binding.callee
-        {
-            return None;
-        }
-        let mut scalar_parameters = Vec::new();
-        for (position, parameter) in parameters.iter().enumerate() {
-            if crate::execution::terminal_unit::strips_erased_parameter(parameter)? {
-                continue;
-            }
-            if let Some(primitive_type) = checked_trees::CheckedScalarType::from_type_reference(
-                program.typed_program(),
-                parameter.type_reference,
-            ) {
-                scalar_parameters.push(checked_trees::CheckedStructuralScalarParameterPlan {
-                    source_position: u32::try_from(position).ok()?,
-                    scalar_type: primitive_type.into(),
-                });
-            }
-        }
-        let scalar_arguments = checked_call_scalar_arguments(
-            program,
-            facts,
-            state.symbol,
-            coordinate,
-            &scalar_parameters,
-            false,
-        )?;
-        let erased_scalar_arguments = checked_call_erased_scalar_arguments(
-            facts,
-            state.symbol,
-            coordinate,
-            &erased_scalar_parameter_plans_for_parameters(program, parameters)?,
-        )?;
-        let erased_proof_arguments = checked_call_erased_proof_arguments(
-            program,
-            facts,
-            state.symbol,
-            coordinate,
-            &erased_proof_parameter_plans_for_parameters(program, parameters)?,
-        )?;
-        let structural_arguments = structural_call_arguments(
-            program,
-            shapes,
-            facts,
-            call,
-            machine,
-            state,
-            caller_parameters,
-            caller_trivial_affine_locals,
-            super::CallTarget::runtime(program, contract),
-            site,
-            call.statement_index,
-            caller_results,
-            caller_operations,
-            trace,
-        )?;
-        let structural_result = match expected {
-            Some(super::ExpectedCallValueResult::Structural(result)) => Some(*result),
-            _ => None,
-        };
-        let transfers = if structural_result.is_none() {
-            call_claim_transfers(
-                program,
-                facts,
-                machine.symbol,
-                state.symbol,
-                call,
-                caller_parameters,
-                caller_results,
-                &structural_arguments,
-            )
-            .inspect_err(|reason| trace.phase(reason))
-            .ok()?
-        } else {
-            Vec::new()
-        };
-        let capsule = facts
-            .contract_plans
-            .runtime_callable_crash_capsule(binding.contract)?;
-        let parts = CheckedUnitCallParts {
-            coordinate,
-            source_site,
-            target: CheckedUnitCallTarget {
-                source: CheckedUnitCallTargetSource::Runtime {
-                    contract: binding.contract,
-                },
-                contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
-                service_reach: call.service_reach,
-            },
-            route: CheckedUnitCallRoute::Runtime {
-                callee: CheckedCallScalarArgument::Computation(callee.root),
-                contract: binding.contract,
-                erased_scalar_arguments,
-                erased_proof_arguments,
-            },
-            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
-            scalar_arguments,
-            structural_arguments,
-            result: structural_result.map_or(CheckedUnitCallResult::Unit, |result| {
-                CheckedUnitCallResult::Structural {
-                    binding: result.clone(),
-                    discard_result_on_return: result.multiplicity
-                        == language_semantics::Multiplicity::Affine,
-                }
-            }),
-            transfers: if structural_result.is_some() {
-                CheckedUnitCallTransfers::StructuralCustody(Default::default())
-            } else {
-                CheckedUnitCallTransfers::Claims(transfers)
-            },
-        };
-        if structural_result.is_some() {
-            with_structural_custody(program, facts, machine.symbol, state.symbol, trace, parts)
-        } else {
-            CheckedUnitCallPlan::new(parts).map(checked_trees::CheckedUnitEffectOperationPlan::Call)
-        }
-    }
-}
 mod dynamic_call {
     /*
         A selector call `Trait::member(selector, data...)` from a Unit body.
@@ -3904,10 +3666,8 @@ mod dynamic_call {
             if strips_erased_parameter(parameter)? {
                 return None;
             }
-            let Some(primitive_type) = checked_trees::CheckedScalarType::from_type_reference(
-                program.typed_program(),
-                parameter.type_reference,
-            ) else {
+            let Some(primitive_type) = program.primitive_type_reference(parameter.type_reference)
+            else {
                 continue;
             };
             if parameter.is_const || parameter.is_mutable {
@@ -3915,19 +3675,18 @@ mod dynamic_call {
             }
             scalar_parameters.push(CheckedStructuralScalarParameterPlan {
                 source_position: u32::try_from(position).ok()?,
-                scalar_type: primitive_type.into(),
+                primitive_type,
             });
         }
         if scalar_parameters
             .first()
-            .map(|parameter| (parameter.source_position, parameter.scalar_type))
-            != Some((0, PrimitiveType::Selector.into()))
+            .map(|parameter| (parameter.source_position, parameter.primitive_type))
+            != Some((0, PrimitiveType::Selector))
         {
             return None;
         }
         phase("call operation: dynamic scalar arguments");
         let mut scalar_arguments = checked_call_scalar_arguments(
-            program,
             facts,
             state.symbol,
             coordinate,
@@ -3974,10 +3733,8 @@ mod dynamic_call {
             completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
             source_site,
             target: CheckedUnitCallTarget {
-                source: checked_trees::CheckedUnitCallTargetSource::Declaration {
-                    machine: target_machine,
-                    state: target_state,
-                },
+                machine: target_machine,
+                state: target_state,
                 contract_report_fingerprint: 0,
                 service_reach: call.service_reach,
             },
@@ -6254,24 +6011,13 @@ mod signatures {
         program: &dyn ::validation::CheckingInput,
         position: usize,
         parameter: &StateParameter,
-        scalar_type: checked_trees::CheckedScalarType,
     ) -> Option<ParameterPlan> {
         if parameter.is_const {
             return None;
         }
-        let authored = checked_trees::CheckedScalarType::from_type_reference(
-            program.typed_program(),
-            parameter.type_reference,
-        )?;
-        if !scalar_type
-            .same_type(program.typed_program(), authored)
-            .ok()?
-        {
-            return None;
-        }
         Some(ParameterPlan {
             source_position: u32::try_from(position).ok()?,
-            scalar_type,
+            primitive_type: program.primitive_type_reference(parameter.type_reference)?,
         })
     }
 
@@ -6365,17 +6111,9 @@ mod signatures {
             let source_position = u32::try_from(position).ok()?;
             let parameter_type =
                 substituted_formal_type(program, parameter.type_reference, substitutions);
-            if let Some(scalar_type) = checked_trees::CheckedScalarType::from_type_reference(
-                program.typed_program(),
-                parameter_type,
-            ) {
+            if program.primitive_type_reference(parameter_type).is_some() {
                 trace.phase("state graph: state signature: parameter signature: scalar parameter");
-                scalar_parameters.push(scalar_parameter_signature(
-                    program,
-                    position,
-                    parameter,
-                    scalar_type,
-                )?);
+                scalar_parameters.push(scalar_parameter_signature(program, position, parameter)?);
                 continue;
             }
             trace.phase("state graph: state signature: parameter signature: const parameter");
@@ -8022,10 +7760,8 @@ mod structural_result_call {
             transfers,
         } = planned;
         let call_target = CheckedUnitCallTarget {
-            source: checked_trees::CheckedUnitCallTargetSource::Declaration {
-                machine: target_machine.symbol,
-                state: target_state.symbol,
-            },
+            machine: target_machine.symbol,
+            state: target_state.symbol,
             contract_report_fingerprint: target_contract.report_fingerprint,
             service_reach: call.service_reach,
         };
@@ -8444,7 +8180,7 @@ mod trait_boundary_call {
             if let Some(primitive_type) = program.primitive_type_reference(formal) {
                 scalar_parameters.push(CheckedStructuralScalarParameterPlan {
                     source_position,
-                    scalar_type: primitive_type.into(),
+                    primitive_type,
                 });
                 continue;
             }
@@ -8697,7 +8433,6 @@ mod trait_boundary_call {
         };
         phase("call operation: boundary scalar arguments");
         let scalar_arguments = checked_call_scalar_arguments(
-            program,
             facts,
             state.symbol,
             coordinate,
@@ -8708,10 +8443,8 @@ mod trait_boundary_call {
             coordinate,
             source_site,
             target: checked_trees::CheckedUnitCallTarget {
-                source: checked_trees::CheckedUnitCallTargetSource::Declaration {
-                    machine: target,
-                    state: target,
-                },
+                machine: target,
+                state: target,
                 contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
                 service_reach: call.service_reach,
             },
@@ -9180,10 +8913,7 @@ pub(crate) mod view_subslice {
                 let value = computations.nodes.get(root.root);
                 return (root.machine == machine
                     && value.authored_root == endpoint
-                    && value
-                        .scalar_type
-                        .primitive()
-                        .is_some_and(|primitive| primitive.integer_sign_bits().is_some()))
+                    && value.primitive_type.integer_sign_bits().is_some())
                 .then_some(Some(checked_trees::CheckedCallScalarArgument::Computation(
                     root.root,
                 )));
@@ -9673,18 +9403,6 @@ impl<'program> CallTarget<'program> {
         }
     }
 
-    pub(crate) fn runtime(
-        program: &'program dyn ::validation::CheckingInput,
-        contract: &'program typed_trees::callable_values::RuntimeCallableContract,
-    ) -> Self {
-        Self {
-            parameters: program.state_signature_parameters(&contract.signature),
-            return_type: contract.signature.return_type,
-            supply_mode: language_semantics::MachineSupplyMode::CheckedBody,
-            declaration: None,
-        }
-    }
-
     pub(crate) fn dynamic_slot(
         slot: &'program typed_trees::dynamic_traits::DynamicSlotSignature,
     ) -> Self {
@@ -9693,27 +9411,6 @@ impl<'program> CallTarget<'program> {
             return_type: slot.return_type,
             supply_mode: language_semantics::MachineSupplyMode::CheckedBody,
             declaration: None,
-        }
-    }
-}
-
-pub(crate) fn call_return_type(
-    program: &dyn validation::CheckingInput,
-    target: &checked_trees::CheckedUnitCallTarget,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    match target.source {
-        checked_trees::CheckedUnitCallTargetSource::Runtime { contract } => program
-            .runtime_callable_contracts
-            .is_valid(contract)
-            .then(|| {
-                program
-                    .runtime_callable_contracts
-                    .get(contract)
-                    .signature
-                    .return_type
-            }),
-        checked_trees::CheckedUnitCallTargetSource::Declaration { state, .. } => {
-            validation::call_target_return_type(program, state)
         }
     }
 }

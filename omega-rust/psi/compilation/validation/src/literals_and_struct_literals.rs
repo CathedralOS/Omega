@@ -688,7 +688,6 @@ pub mod literals {
                 .type_reference(declared)
                 .clone();
             match declared_node {
-                TypeReferenceNode::Callable { .. } => {}
                 TypeReferenceNode::Reference { referee, .. } => {
                     let source = match expression_table(program).expression(value) {
                         ExpressionNode::Borrow(borrow) => borrow.target,

@@ -628,7 +628,7 @@ pub(crate) mod runtime_index_fields {
                         StatementNode::Assignment(assignment) => {
                             if contains_reachable_construction(program, assignment.value)
                                 && let Some(reference) =
-                                    validation::expression_result_type_reference(
+                                    crate::source_type_queries::expression_result_type_reference(
                                         program,
                                         machine,
                                         state,

@@ -46,8 +46,10 @@ pub(crate) mod conformance_application_lifetimes {
                 .expression_table
                 .borrow_expression(argument)
                 .map_or(argument, |borrow| borrow.target);
-            validation::expression_result_type_reference(program, machine, state, source)
-                .map(|reference| (reference, Vec::new()))
+            crate::source_type_queries::expression_result_type_reference(
+                program, machine, state, source,
+            )
+            .map(|reference| (reference, Vec::new()))
         }
 
         #[derive(Clone, Copy)]

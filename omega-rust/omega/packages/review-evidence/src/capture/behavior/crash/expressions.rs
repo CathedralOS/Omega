@@ -145,7 +145,7 @@ fn project_scalar_expression(
             path,
             index,
             element_path,
-            scalar_type,
+            primitive_type,
             ..
         } => {
             let prefix_count = element_path
@@ -169,20 +169,12 @@ fn project_scalar_expression(
                     }
                     CheckedScalarReadProjection::RuntimeIndex(selector) => {
                         let coordinate = match &selector.expression {
-                            CheckedScalarExpression::Parameter {
-                                position,
-                                scalar_type,
-                            } => {
-                                scalar_type.primitive()?;
+                            CheckedScalarExpression::Parameter { position, .. } => {
                                 PackageReviewRuntimeIndex::Parameter {
                                     position: u32::try_from(*position).ok()?,
                                 }
                             }
-                            CheckedScalarExpression::Local {
-                                position,
-                                scalar_type,
-                            } => {
-                                scalar_type.primitive()?;
+                            CheckedScalarExpression::Local { position, .. } => {
                                 PackageReviewRuntimeIndex::Local {
                                     position: u32::try_from(*position).ok()?,
                                 }
@@ -193,17 +185,13 @@ fn project_scalar_expression(
                                         index: parameter_position,
                                     },
                                 path,
-                                scalar_type,
                                 ..
-                            } => {
-                                scalar_type.primitive()?;
-                                PackageReviewRuntimeIndex::StructuralField(
-                                    PackageReviewStructuralParameterField {
-                                        parameter_position: *parameter_position,
-                                        path: project_structural_path(path)?,
-                                    },
-                                )
-                            }
+                            } => PackageReviewRuntimeIndex::StructuralField(
+                                PackageReviewStructuralParameterField {
+                                    parameter_position: *parameter_position,
+                                    path: project_structural_path(path)?,
+                                },
+                            ),
                             _ => return None,
                         };
                         Some(PackageReviewStructuralPredicatePathSegment::RuntimeIndex(
@@ -218,22 +206,22 @@ fn project_scalar_expression(
                 index: Box::new(project_scalar_expression(&index.expression)?),
                 inner_indexes,
                 element_path,
-                primitive_type: project_primitive_type(scalar_type.primitive()?),
+                primitive_type: project_primitive_type(*primitive_type),
             }
         }
         CheckedScalarExpression::Parameter {
             position,
-            scalar_type,
+            primitive_type,
         } => PackageReviewScalarExpression::Parameter {
             position: *position,
-            primitive_type: project_primitive_type(scalar_type.primitive()?),
+            primitive_type: project_primitive_type(*primitive_type),
         },
         CheckedScalarExpression::Local {
             position,
-            scalar_type,
+            primitive_type,
         } => PackageReviewScalarExpression::Local {
             position: *position,
-            primitive_type: project_primitive_type(scalar_type.primitive()?),
+            primitive_type: project_primitive_type(*primitive_type),
         },
         CheckedScalarExpression::StructuralParameterField {
             root:
@@ -241,12 +229,12 @@ fn project_scalar_expression(
                     index: parameter_position,
                 },
             path,
-            scalar_type,
+            primitive_type,
             ..
         } => PackageReviewScalarExpression::StructuralParameterField {
             parameter_position: *parameter_position,
             path: project_structural_path(path)?,
-            primitive_type: project_primitive_type(scalar_type.primitive()?),
+            primitive_type: project_primitive_type(*primitive_type),
         },
         CheckedScalarExpression::IntegerLiteral { literal } => {
             PackageReviewScalarExpression::IntegerLiteral(PackageReviewIntegerLiteral {

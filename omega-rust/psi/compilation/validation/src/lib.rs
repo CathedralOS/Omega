@@ -1477,9 +1477,9 @@ pub use declarations::standard_declarations::{
 use declarations::state_signatures::StateSignatureOwner;
 pub use machine_calls::boundary_calls::validate_boundary_calls;
 pub use machine_calls::calls::{
-    CallContractSource, SelectedCallArgument, SelectedCallArgumentError, authored_call_parameters,
-    call_contract_source, call_returns_unit, call_target_has_checked_body_contract,
-    call_type_arguments, closed_requirement_dispatch_is_valid, machine_has_unit_result,
+    SelectedCallArgument, SelectedCallArgumentError, authored_call_parameters, call_returns_unit,
+    call_target_has_checked_body_contract, call_type_arguments,
+    closed_requirement_dispatch_is_valid, machine_has_unit_result,
     named_conformance_target_requirement, nested_boundary_applications_compose,
     requirement_contract_signature, resolve_requirement_contract,
     result_initializer_call_is_admitted, selected_call_arguments,
@@ -1566,7 +1566,7 @@ pub use proof_contracts::contract_entailment::{
 };
 pub use proof_contracts::contract_results::{
     ReservedResultMember, ReservedResultPlace, callable_contract_scopes, reserved_result_owner,
-    reserved_result_place, runtime_reserved_result_place,
+    reserved_result_place,
 };
 pub use proof_contracts::domains::{
     integer_domain_membership, scalar_domain_definition_predicate, scalar_domain_local_predicate,
@@ -1765,14 +1765,14 @@ pub use machine_calls::effect_inference::{
     fixed_installation_boundary_service_reach, has_self_forwarded_boundary_parameter,
     infer_operational_may, infer_operational_may_for_dependencies, infer_service_reaches,
     infer_synchronous_invocations, invocation_target_label, signature_operational,
-    trait_signature_service_reach, validate_runtime_callable_effects,
+    trait_signature_service_reach,
 };
 pub use machine_calls::effects::{
     AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,
 };
 pub use machine_calls::machine_parameters::infer_call_type_arguments;
 pub use machine_calls::machine_parameters::{
-    CallableInputIdentity, PreparedInstalledInterruptRegistration, PreparedStaticMachineSelections,
+    PreparedInstalledInterruptRegistration, PreparedStaticMachineSelections,
     StaticMachineContractObligation, ValidatedNominalMachineUse, ValidatedNominalMachineUseSite,
     ValidatedRequirementCallMachineSelection, ValidatedRequirementCallSpecialization,
     ValidatedRequirementCallTypeBinding, closed_static_call_type_bindings,
@@ -1821,11 +1821,9 @@ pub use value_custody::expression_types::bounded_byte_buffer_capacity;
 pub use value_custody::expression_types::match_subject_primitive_type;
 pub use value_custody::expression_types::validate_match_dispatch;
 pub use value_custody::expression_types::{
-    arithmetic_result_type_reference, declaration_expression_result_type_reference,
-    expression_result_type_reference, join_result_type_references, named_value_type_reference,
-    parameter_expression_result_type_reference,
-    parameter_expression_result_type_reference_in_scope, parameter_place_type_reference,
-    scalar_observation_meaning,
+    arithmetic_result_type_reference, expression_result_type_reference,
+    join_result_type_references, parameter_expression_result_type_reference,
+    parameter_expression_result_type_reference_in_scope, scalar_observation_meaning,
 };
 pub use value_custody::expression_types::{
     structural_match_cases_are_covered, structural_match_pattern_case,

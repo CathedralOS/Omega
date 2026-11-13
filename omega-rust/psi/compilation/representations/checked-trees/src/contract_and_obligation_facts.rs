@@ -948,15 +948,46 @@ pub(crate) mod contract_plans {
         use std::hash::{Hash, Hasher};
         use typed_trees::type_identity::{NormalizedTypeIdentity, TypeIdentityTable};
 
-        pub use typed_trees::contract_structure::{
-            DeclaredContractFact, DeclaredContractParameter,
-        };
-        pub type DeclaredContractKind =
-            typed_trees::contract_structure::DeclaredContractKind<super::CrashCause>;
-        pub type DeclaredContractClause =
-            typed_trees::contract_structure::DeclaredContractClause<super::CrashCause>;
-        pub type DeclaredCallableContract =
-            typed_trees::contract_structure::DeclaredCallableContract<super::CrashCause>;
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+        pub enum DeclaredContractFact {
+            Expression(String),
+            Membership {
+                value: String,
+                domain: String,
+                arguments: Vec<NormalizedTypeIdentity>,
+            },
+            Proposition(String),
+            ContentConservation(Vec<u8>),
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub enum DeclaredContractKind {
+            Requires,
+            Ensures,
+            EnsuresForResultCase { data: String, case: String },
+            Crashes(super::CrashCause),
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+        pub struct DeclaredContractClause {
+            pub kind: DeclaredContractKind,
+            pub fact: Option<DeclaredContractFact>,
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+        pub struct DeclaredContractParameter {
+            pub mutable: bool,
+            pub constant: bool,
+            pub relevance: language_core::BindingRelevance,
+            pub type_identity: NormalizedTypeIdentity,
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+        pub struct DeclaredCallableContract {
+            pub parameters: Vec<DeclaredContractParameter>,
+            pub result: NormalizedTypeIdentity,
+            pub clauses: Vec<DeclaredContractClause>,
+        }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct DeclaredContractStructure {
@@ -2684,10 +2715,6 @@ pub(crate) mod contract_plans {
 
         #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
         pub struct CheckedCrashCallSite {
-            runtime_callable_source: Option<(
-                typed_trees::callable_values::RuntimeCallableContractHandle,
-                SymbolHandle,
-            )>,
             pub(crate) location: CrashCallSiteLocation,
             target_machine: SymbolHandle,
             target_state: SymbolHandle,
@@ -2700,10 +2727,6 @@ pub(crate) mod contract_plans {
 
         #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
         pub struct CrashContractCapsule {
-            runtime_callable_source: Option<(
-                typed_trees::callable_values::RuntimeCallableContractHandle,
-                SymbolHandle,
-            )>,
             pub(crate) target_machine: SymbolHandle,
             pub(crate) target_state: SymbolHandle,
             target_contract_report_fingerprint: u64,
@@ -2741,7 +2764,6 @@ pub(crate) mod contract_plans {
             ) -> Self {
                 published_buckets = sorted_dedup(published_buckets);
                 Self {
-                    runtime_callable_source: None,
                     target_machine,
                     target_state,
                     target_contract_report_fingerprint,
@@ -2753,24 +2775,6 @@ pub(crate) mod contract_plans {
                     published_termination: TerminationGuarantee::NoGuarantee,
                     published_buckets,
                 }
-            }
-
-            pub fn with_runtime_callable_source(
-                mut self,
-                contract: typed_trees::callable_values::RuntimeCallableContractHandle,
-                lexical_owner: SymbolHandle,
-            ) -> Self {
-                self.runtime_callable_source = Some((contract, lexical_owner));
-                self
-            }
-
-            pub fn runtime_callable_source(
-                &self,
-            ) -> Option<(
-                typed_trees::callable_values::RuntimeCallableContractHandle,
-                SymbolHandle,
-            )> {
-                self.runtime_callable_source
             }
 
             pub fn with_operational_envelope(
@@ -2824,147 +2828,6 @@ pub(crate) mod contract_plans {
         }
 
         impl CheckedCrashCallSite {
-            pub fn with_runtime_callable_source(
-                mut self,
-                contract: typed_trees::callable_values::RuntimeCallableContractHandle,
-                lexical_owner: SymbolHandle,
-            ) -> Self {
-                self.runtime_callable_source = Some((contract, lexical_owner));
-                self
-            }
-
-            pub fn runtime_callable_source(
-                &self,
-            ) -> Option<(
-                typed_trees::callable_values::RuntimeCallableContractHandle,
-                SymbolHandle,
-            )> {
-                self.runtime_callable_source
-            }
-
-            pub fn runtime_callable_contract_identity(
-                &self,
-                program: &typed_trees::TypedTrees,
-                plans: &crate::MachineContractPlans,
-                proof: &crate::ProofFacts,
-                caller: SymbolHandle,
-                binding: typed_trees::callable_values::RuntimeCallBinding,
-            ) -> Result<crate::MachineContractIdentity, &'static str> {
-                if !program
-                    .runtime_callable_contracts
-                    .is_valid(binding.contract)
-                    || !program.expression_table.expression_is_valid(binding.callee)
-                {
-                    return Err("runtime executable contract lost its exact source row or callee");
-                }
-                let row = program.runtime_callable_contract(binding.contract);
-                if self.runtime_callable_source != Some((binding.contract, row.lexical_owner))
-                    || self.target_machine.is_valid()
-                    || self.target_state.is_valid()
-                {
-                    return Err("runtime crash check belongs to another structural contract");
-                }
-                let call = proof
-                    .unique_contract_call_at(&(
-                        caller,
-                        self.location.state,
-                        self.location.statement_ordinal as usize,
-                        self.location.call_ordinal as usize,
-                    ))
-                    .ok_or("runtime call has no unique retained contract occurrence")?;
-                if !proof.call_contract_signatures.is_valid(call.signature) {
-                    return Err("runtime call lost its invocation-owned signature");
-                }
-                let source = proof.call_contract_signatures.get(call.signature);
-                if source.source
-                    != (crate::CallContractSignatureSource::Runtime {
-                        contract: binding.contract,
-                        lexical_owner: row.lexical_owner,
-                        callee: binding.callee,
-                    })
-                    || source.signature != row.signature
-                    || source.caller_machine_symbol != caller
-                    || source.caller_state_symbol != self.location.state
-                    || source.statement_index != self.location.statement_ordinal as usize
-                    || source.call_ordinal != self.location.call_ordinal as usize
-                    || call.target_machine_symbol.is_valid()
-                    || call.target_state_symbol.is_valid()
-                {
-                    return Err("runtime call retained another contract or occurrence");
-                }
-                let state = program
-                    .state_by_symbol(self.location.state)
-                    .ok_or("runtime crash call lost its caller state")?;
-                if program
-                    .machine_holding_state(self.location.state)
-                    .is_none_or(|machine| machine.symbol != caller)
-                    || self.location.statement_ordinal as usize >= state.statement_nodes.len()
-                    || state
-                        .statement_nodes
-                        .handle_at(self.location.statement_ordinal)
-                        != source.source_statement
-                {
-                    return Err("runtime crash call changed its exact source statement");
-                }
-                let current = if source.source_expression.is_valid() {
-                    if !program
-                        .expression_table
-                        .expression_is_valid(source.source_expression)
-                    {
-                        return Err("runtime crash call lost its source expression");
-                    }
-                    match program
-                        .expression_table
-                        .expression(source.source_expression)
-                    {
-                        typed_trees::expression::ExpressionNode::Call(call)
-                            if !call.target_symbol.is_valid()
-                                && !call.static_machine_parameter.is_valid()
-                                && !call.receiver.is_valid()
-                                && call.static_requirement_dispatch.is_none()
-                                && !call.authored_machine_application.is_valid()
-                                && !call.requirement_application.is_valid()
-                                && call.machine_arguments.is_empty() =>
-                        {
-                            call.runtime_call
-                        }
-                        _ => None,
-                    }
-                } else {
-                    match program.statement_table.statement(source.source_statement) {
-                        typed_trees::statement::StatementNode::Call(call)
-                            if !call.target_symbol.is_valid()
-                                && !call.static_machine_parameter.is_valid()
-                                && call.receiver.is_empty()
-                                && !call.receiver_symbol.is_valid()
-                                && call.static_requirement_dispatch.is_none()
-                                && !call.authored_machine_application.is_valid()
-                                && call.machine_arguments.is_empty() =>
-                        {
-                            call.runtime_call
-                        }
-                        _ => None,
-                    }
-                };
-                if current != Some(binding) {
-                    return Err("runtime crash call changed its evaluated source binding");
-                }
-                let capsule = plans
-                    .runtime_callable_crash_capsule(binding.contract)
-                    .ok_or("runtime executable contract has no unique published capsule")?;
-                if capsule.runtime_callable_source() != self.runtime_callable_source
-                    || capsule.target_contract_report_fingerprint
-                        != self.target_contract_report_fingerprint
-                    || capsule.target_contract_commitment != self.target_contract_commitment
-                {
-                    return Err("runtime crash check changed its published contract identity");
-                }
-                Ok(crate::MachineContractIdentity {
-                    report_fingerprint: self.target_contract_report_fingerprint,
-                    commitment: self.target_contract_commitment,
-                })
-            }
-
             pub fn executable_contract_identity(
                 &self,
                 plans: &crate::MachineContractPlans,
@@ -2973,11 +2836,6 @@ pub(crate) mod contract_plans {
                 target_machine: SymbolHandle,
                 target_state: SymbolHandle,
             ) -> Result<crate::MachineContractIdentity, &'static str> {
-                if self.runtime_callable_source.is_some() {
-                    return Err(
-                        "runtime callable requires its exact indirect executable contract identity",
-                    );
-                }
                 let target = plans
                     .for_machine(target_machine)
                     .ok_or("executable call target has no checked contract plan")?;
@@ -3009,24 +2867,11 @@ pub(crate) mod contract_plans {
                     return Err("requirement call has a mismatched checked executable binding");
                 }
                 let public = proof.call_contract_signatures.get(binding.signature);
-                let declaring_trait = match public.source {
-                    crate::CallContractSignatureSource::Requirement { declaring_trait } => {
-                        declaring_trait
-                    }
-                    crate::CallContractSignatureSource::Runtime { .. } => {
-                        return Err(
-                            "runtime callable requires an indirect executable contract identity",
-                        );
-                    }
-                    crate::CallContractSignatureSource::Invalid => {
-                        return Err("checked call has no public contract source");
-                    }
-                };
                 if public.caller_machine_symbol != caller_machine
                     || public.caller_state_symbol != self.location.state
                     || public.statement_index != self.location.statement_ordinal as usize
                     || public.call_ordinal != self.location.call_ordinal as usize
-                    || self.target_machine != declaring_trait
+                    || self.target_machine != public.declaring_trait
                     || self.target_state != public.signature.symbol
                 {
                     return Err("requirement crash check belongs to another public call");
@@ -3061,7 +2906,6 @@ pub(crate) mod contract_plans {
             ) -> Self {
                 surviving_buckets = sorted_dedup(surviving_buckets);
                 Self {
-                    runtime_callable_source: None,
                     location,
                     target_machine,
                     target_state,
@@ -3739,10 +3583,6 @@ pub(crate) mod contract_plans {
     pub struct MachineContractPlans {
         machines: Vec<MachineContractPlan>,
         pub crash_capsules: Vec<CrashContractCapsule>,
-        pub runtime_callable_scalar_contracts: Vec<(
-            typed_trees::callable_values::RuntimeCallableContractHandle,
-            ClosedScalarValueContractPlan,
-        )>,
         pub realized_envelopes: Vec<RealizedMachineContractEnvelope>,
         #[record(skip)]
         machine_index: Vec<((u32, u32), usize)>,
@@ -3754,7 +3594,6 @@ pub(crate) mod contract_plans {
         fn eq(&self, other: &Self) -> bool {
             self.machines == other.machines
                 && self.crash_capsules == other.crash_capsules
-                && self.runtime_callable_scalar_contracts == other.runtime_callable_scalar_contracts
                 && self.realized_envelopes == other.realized_envelopes
         }
     }
@@ -3762,18 +3601,6 @@ pub(crate) mod contract_plans {
     impl Eq for MachineContractPlans {}
 
     impl MachineContractPlans {
-        pub fn runtime_callable_scalar_contract(
-            &self,
-            contract: typed_trees::callable_values::RuntimeCallableContractHandle,
-        ) -> Option<&ClosedScalarValueContractPlan> {
-            let mut rows = self
-                .runtime_callable_scalar_contracts
-                .iter()
-                .filter_map(|(source, plan)| (*source == contract).then_some(plan));
-            let selected = rows.next()?;
-            rows.next().is_none().then_some(selected)
-        }
-
         pub fn for_machine(&self, machine: SymbolHandle) -> Option<&MachineContractPlan> {
             if !self.indexed {
                 return contract_plan_by_machine(&self.machines, machine);
@@ -3853,7 +3680,6 @@ pub(crate) mod contract_plans {
             let mut plans = Self {
                 machines,
                 crash_capsules,
-                runtime_callable_scalar_contracts: Vec::new(),
                 realized_envelopes,
                 machine_index: Vec::new(),
                 indexed: false,
@@ -3868,23 +3694,8 @@ pub(crate) mod contract_plans {
             target_state: SymbolHandle,
         ) -> Option<&CrashContractCapsule> {
             self.crash_capsules.iter().find(|capsule| {
-                capsule.runtime_callable_source().is_none()
-                    && capsule.target_machine == target_machine
-                    && capsule.target_state == target_state
+                capsule.target_machine == target_machine && capsule.target_state == target_state
             })
-        }
-
-        pub fn runtime_callable_crash_capsule(
-            &self,
-            contract: typed_trees::callable_values::RuntimeCallableContractHandle,
-        ) -> Option<&CrashContractCapsule> {
-            let mut capsules = self.crash_capsules.iter().filter(|capsule| {
-                capsule
-                    .runtime_callable_source()
-                    .is_some_and(|(retained, _)| retained == contract)
-            });
-            let selected = capsules.next()?;
-            capsules.next().is_none().then_some(selected)
         }
 
         pub fn realized_envelope(

@@ -189,3 +189,88 @@ impl PartialEq<ScalarValueType> for crate::types::PrimitiveType {
         other == self
     }
 }
+
+impl crate::TypedTrees {
+    fn declared_callable_contract(
+        &self,
+        contract: RuntimeCallableContractHandle,
+    ) -> Result<&RuntimeCallableContract, &'static str> {
+        if !self.runtime_callable_contracts.is_valid(contract) {
+            return Err("callable type query names a stale signature row");
+        }
+        let row = self.runtime_callable_contracts.get(contract);
+        if !self.symbols.symbols().nodes().is_valid(row.lexical_owner)
+            || !self
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(row.signature.symbol)
+        {
+            return Err("callable type query has no complete declaration namespace");
+        }
+        Ok(row)
+    }
+
+    /// Read the type owned by a retained callable declaration. `None` means
+    /// another source query owns this expression. A known Unit result keeps
+    /// its ordinary invalid-handle sentinel; it is not an absent declaration.
+    pub fn declared_callable_expression_type_reference(
+        &self,
+        expression: crate::expression::ExpressionHandle,
+    ) -> Result<Option<crate::types::TypeReferenceHandle>, &'static str> {
+        use crate::expression::ExpressionNode;
+        use crate::types::TypeReferenceNode;
+        if !self.expression_table.expression_is_valid(expression) {
+            return Err("callable type query names a stale expression");
+        }
+        let reference = match self.expression_table.expression(expression) {
+            ExpressionNode::MachineValue(value) => {
+                let mut current = value.type_reference;
+                let mut seen = Vec::new();
+                let contract = loop {
+                    if !self.type_reference_table.contains_type_reference(current)
+                        || seen.contains(&current)
+                    {
+                        return Err("machine value type query has a stale or cyclic type");
+                    }
+                    seen.push(current);
+                    match self.type_reference_table.type_reference(current) {
+                        TypeReferenceNode::Constrained { base_type, .. } => current = *base_type,
+                        TypeReferenceNode::Callable { contract } => break *contract,
+                        _ => {
+                            return Err("machine value type query has no structural callable type");
+                        }
+                    }
+                };
+                self.declared_callable_contract(contract)?;
+                value.type_reference
+            }
+            ExpressionNode::Call(call) => {
+                let Some(binding) = call.runtime_call else {
+                    return Ok(None);
+                };
+                if call.target_symbol.is_valid()
+                    || call.static_machine_parameter.is_valid()
+                    || call.receiver.is_valid()
+                    || call.static_requirement_dispatch.is_some()
+                    || call.authored_machine_application.is_valid()
+                    || call.requirement_application.is_valid()
+                    || !call.machine_arguments.is_empty()
+                {
+                    return Err("callable type query retains conflicting static call metadata");
+                }
+                if !self.expression_table.expression_is_valid(binding.callee) {
+                    return Err("callable type query lost its exact evaluated callee");
+                }
+                self.declared_callable_contract(binding.contract)?
+                    .signature
+                    .return_type
+            }
+            _ => return Ok(None),
+        };
+        if reference.is_valid() && !self.type_reference_table.contains_type_reference(reference) {
+            return Err("callable declaration has a stale result type");
+        }
+        Ok(Some(reference))
+    }
+}

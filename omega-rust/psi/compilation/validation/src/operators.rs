@@ -464,18 +464,6 @@ pub(crate) mod applications {
             return false;
         }
         match program.type_reference_table.type_reference(inferred) {
-            TypeReferenceNode::Callable { .. } => {
-                let request = typed_trees::type_identity::TypeIdentityRequest::ordinary;
-                program
-                    .runtime_callable_type_identity(request(supplied.type_reference))
-                    .ok()
-                    .zip(
-                        program
-                            .runtime_callable_type_identity(request(inferred))
-                            .ok(),
-                    )
-                    .is_some_and(|(supplied, inferred)| supplied == inferred)
-            }
             TypeReferenceNode::Named { symbol, .. } => {
                 supplied.application.is_none()
                     && symbol.is_valid()
@@ -775,7 +763,6 @@ pub(crate) mod receiver {
         }
 
         match expression_table(program).expression(expression) {
-            ExpressionNode::MachineValue(value) => Some(value.type_reference),
             ExpressionNode::SavedSubject(saved) => {
                 program.saved_value_source(saved).and_then(|subject| {
                     expression_type_reference_in_state(
@@ -1017,7 +1004,6 @@ pub(crate) mod receiver {
             .map(|field| field.type_reference);
         }
         match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Callable { .. } => None,
             TypeReferenceNode::Reference { referee, .. }
             | TypeReferenceNode::Constrained {
                 base_type: referee, ..
@@ -1823,7 +1809,6 @@ pub(crate) mod selection {
         type_reference: TypeReferenceHandle,
     ) -> bool {
         match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Callable { .. } => false,
             TypeReferenceNode::Reference { referee, .. }
             | TypeReferenceNode::Constrained {
                 base_type: referee, ..
@@ -1850,15 +1835,18 @@ pub(crate) mod signatures {
     pub(crate) fn operator_signature_key(
         program: &dyn crate::CheckingInput,
         operator: &typed_trees::operator::OperatorDefinition,
-    ) -> Result<String, typed_trees::runtime_callable_identity::RuntimeCallableIdentityError> {
-        operator_operand_signature(program, operator)
-            .map(|operands| format!("{}({operands})", operator_name(program, operator)))
+    ) -> String {
+        format!(
+            "{}({})",
+            operator_name(program, operator),
+            operator_operand_signature(program, operator)
+        )
     }
 
     pub(crate) fn operator_operand_key(
         program: &dyn crate::CheckingInput,
         operator: &typed_trees::operator::OperatorDefinition,
-    ) -> Result<String, typed_trees::runtime_callable_identity::RuntimeCallableIdentityError> {
+    ) -> String {
         operator_operand_signature(program, operator)
     }
 
@@ -2838,28 +2826,20 @@ fn validate_spelling_overlap(
     operators: &[typed_trees::operator::OperatorDefinition],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut prior = Vec::<(&typed_trees::operator::OperatorDefinition, String)>::new();
-    for operator in operators {
+    for (operator_index, operator) in operators.iter().enumerate() {
         let Some(spelling) = operator.spelling else {
             continue;
         };
-        let operand_key = match operator_operand_key(program, operator) {
-            Ok(key) => key,
-            Err(error) => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "operator `{}` has no resolved operand identity: {error}",
-                    operator_name(program, operator),
-                )));
-                continue;
-            }
-        };
-        let overlaps = prior.iter().any(|(previous, previous_key)| {
+        let operand_key = operator_operand_key(program, operator);
+
+        let overlaps = operators[..operator_index].iter().any(|previous| {
             previous.spelling == Some(spelling)
-                && *previous_key == operand_key
+                && operator_operand_key(program, previous) == operand_key
                 && !program
                     .symbols
                     .source_scopes_separate(previous.symbol, operator.symbol)
         });
+
         if overlaps {
             diagnostics.push(Diagnostic::error(format!(
                 "operator spelling `{}` has overlapping operand types `({operand_key})`; \
@@ -2867,7 +2847,6 @@ fn validate_spelling_overlap(
                 spelling.symbol()
             )));
         }
-        prior.push((operator, operand_key));
     }
 }
 
@@ -2877,29 +2856,17 @@ fn validate_duplicate_operator_signatures(
     operators: &[typed_trees::operator::OperatorDefinition],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut prior = Vec::<(&typed_trees::operator::OperatorDefinition, String)>::new();
-    for operator in operators {
-        let signature = match operator_signature_key(program, operator) {
-            Ok(key) => key,
-            Err(error) => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "operator `{}` has no resolved declaration identity: {error}",
-                    operator_name(program, operator),
-                )));
-                continue;
-            }
-        };
-        let previous = prior
+    for (operator_index, operator) in operators.iter().enumerate() {
+        let signature = operator_signature_key(program, operator);
+        let previous = operators[..operator_index]
             .iter()
-            .filter(|(previous, previous_key)| {
-                *previous_key == signature
+            .filter(|previous| {
+                operator_signature_key(program, previous) == signature
                     && !program
                         .symbols
                         .source_scopes_separate(previous.symbol, operator.symbol)
             })
-            .map(|(previous, _)| *previous)
             .collect::<Vec<_>>();
-        prior.push((operator, signature));
         if previous.is_empty() {
             continue;
         }

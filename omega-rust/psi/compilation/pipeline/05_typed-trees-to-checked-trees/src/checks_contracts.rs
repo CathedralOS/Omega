@@ -766,40 +766,28 @@ mod evidence {
                 }
                 return Ok(());
             }
+            if arguments.is_empty() {
+                return Ok(());
+            }
             let mut outputs = proof
                 .contract_fact_refs
                 .span_or_empty(call.ensures)
                 .iter()
                 .filter_map(|reference| proof.contract_facts.get(reference.fact).evidence_term)
                 .collect::<Vec<_>>();
-            if arguments.is_empty() && outputs.is_empty() {
-                return Ok(());
-            }
-            let owner = if call.signature.is_valid() {
-                if !crate::published::proof::contracts::call_signatures::source_is_current(
-                    program, proof, call, site,
-                ) {
-                    return Err(
-                        "ordinary evidence call lost its exact current invocation contract",
-                    );
-                }
-                crate::published::proof::contracts::call_signatures::owner(
-                    &proof.call_contract_signatures,
-                    call.signature,
-                )
-                .ok_or("ordinary evidence call lost its retained invocation-owned evidence lane")?
-            } else {
-                ContractProofFactOwner::Machine {
-                    machine_symbol: call.target_machine_symbol,
-                }
+            let owner = ContractProofFactOwner::Machine {
+                machine_symbol: call.target_machine_symbol,
             };
-            if arguments.iter().any(|argument| {
-                let term = proof.evidence_terms.get(argument.callee_input);
-                term.owner != owner || term.kind != ContractProofFactKind::Requires
-            }) || outputs.iter().any(|output| {
-                let term = proof.evidence_terms.get(*output);
-                term.owner != owner || term.kind != ContractProofFactKind::Ensures
-            }) {
+            if call.signature.is_valid()
+                || arguments.iter().any(|argument| {
+                    let term = proof.evidence_terms.get(argument.callee_input);
+                    term.owner != owner || term.kind != ContractProofFactKind::Requires
+                })
+                || outputs.iter().any(|output| {
+                    let term = proof.evidence_terms.get(*output);
+                    term.owner != owner || term.kind != ContractProofFactKind::Ensures
+                })
+            {
                 return Err(
                     "ordinary evidence call requires its exact invocation-owned contract lane",
                 );
@@ -848,9 +836,7 @@ mod evidence {
                 }),
                 target_machine_symbol: call.target_machine_symbol,
                 target_state_symbol: call.target_state_symbol,
-                static_requirement_dispatch: site
-                    .static_requirement_dispatch()
-                    .map(checked_trees::StaticRequirementDispatchFact::from),
+                static_requirement_dispatch: None,
                 evidence_arguments: arguments,
                 outputs: dispositions,
             });
@@ -933,71 +919,40 @@ mod evidence {
                 if call.evidence_arguments.is_empty() || call.quotient_operation.is_some() {
                     continue;
                 }
-                let call_site = validation::CallSite::Expression { expression, call };
-                let (
+                let Some(target_state_symbol) =
+                    call.target_symbol.is_valid().then_some(call.target_symbol)
+                else {
+                    diagnostics.push(Diagnostic::error(
+                        "proof-expression evidence call has no exact nominal target",
+                    ));
+                    continue;
+                };
+                if call.static_requirement_dispatch.is_some() {
+                    continue;
+                }
+                let Some((target_machine_symbol, target_state_symbol)) =
+                    crate::published::proof::contract_target_from_state_symbol(
+                        program,
+                        target_state_symbol,
+                    )
+                else {
+                    diagnostics.push(Diagnostic::error(
+                        "proof-expression evidence call has no exact checked target owner",
+                    ));
+                    continue;
+                };
+                let Some(target_parameters) = call_target_parameters(program, target_state_symbol)
+                else {
+                    diagnostics.push(Diagnostic::error(
+                        "proof-expression evidence call has no exact target parameter telescope",
+                    ));
+                    continue;
+                };
+                let parameters = exact_target_evidence_parameters(
+                    facts,
                     target_machine_symbol,
                     target_state_symbol,
-                    target_parameters,
-                    parameters,
-                    runtime_contract,
-                ) = if call.runtime_call.is_some() {
-                    let (binding, contract) = match validation::call_contract_source(
-                        program,
-                        symbols::SymbolHandle::invalid(),
-                        &call_site,
-                    ) {
-                        Ok(Some(validation::CallContractSource::Runtime { binding, contract })) => {
-                            (binding, contract)
-                        }
-                        Ok(_) => {
-                            diagnostics.push(Diagnostic::error(
-                                "proof-expression runtime call has no exact contract row",
-                            ));
-                            continue;
-                        }
-                        Err(reason) => {
-                            diagnostics.push(Diagnostic::error(reason));
-                            continue;
-                        }
-                    };
-                    (
-                        symbols::SymbolHandle::invalid(),
-                        symbols::SymbolHandle::invalid(),
-                        program.state_signature_parameters(&contract.signature),
-                        exact_runtime_evidence_parameters(facts, binding.contract),
-                        Some(binding.contract),
-                    )
-                } else {
-                    let Some(target) = call.target_symbol.is_valid().then_some(call.target_symbol)
-                    else {
-                        diagnostics.push(Diagnostic::error(
-                            "proof-expression evidence call has no exact nominal target",
-                        ));
-                        continue;
-                    };
-                    if call.static_requirement_dispatch.is_some() {
-                        continue;
-                    }
-                    let Some((machine, state)) =
-                        crate::published::proof::contract_target_from_state_symbol(program, target)
-                    else {
-                        diagnostics.push(Diagnostic::error(
-                            "proof-expression evidence call has no exact checked target owner",
-                        ));
-                        continue;
-                    };
-                    let Some(parameters) = call_target_parameters(program, state) else {
-                        diagnostics.push(Diagnostic::error("proof-expression evidence call has no exact target parameter telescope"));
-                        continue;
-                    };
-                    (
-                        machine,
-                        state,
-                        parameters,
-                        exact_target_evidence_parameters(facts, machine, state),
-                        None,
-                    )
-                };
+                );
                 if call.evidence_arguments.len() != parameters.len() {
                     diagnostics.push(Diagnostic::error(format!(
                         "proof-expression call supplies {} erased evidence argument{} but its named requires lane has {}",
@@ -1008,20 +963,13 @@ mod evidence {
                     continue;
                 }
 
+                let call_site = validation::CallSite::Expression { expression, call };
                 let mut bindings = Vec::with_capacity(parameters.len());
                 let mut invalid = false;
                 for (lane_position, (authored, parameter)) in
                     call.evidence_arguments.iter().zip(parameters).enumerate()
                 {
-                    if facts.proof.evidence_terms.get(parameter).lane_position != lane_position {
-                        diagnostics.push(Diagnostic::error(
-                            "proof-expression evidence call has no complete ordered input lane",
-                        ));
-                        invalid = true;
-                        continue;
-                    }
-                    let sources =
-                        exact_visible_evidence_sources(facts, owner, fact, authored.as_str());
+                    let sources = exact_visible_evidence_sources(facts, owner, authored.as_str());
                     let [source] = sources.as_slice() else {
                         diagnostics.push(Diagnostic::error(format!(
                             "proof-expression call resolves incoming evidence term `{authored}` to {} exact contract rows; expected one",
@@ -1067,7 +1015,6 @@ mod evidence {
                         expression,
                         target_machine_symbol,
                         target_state_symbol,
-                        runtime_contract,
                         evidence_arguments: bindings,
                     });
                 }
@@ -1102,30 +1049,6 @@ mod evidence {
                 state_symbol,
             } if owner_symbol == target_machine_symbol && state_symbol == target_state_symbol
         )
-    }
-
-    pub(crate) fn exact_runtime_evidence_parameters(
-        facts: &CheckFacts,
-        contract: typed_trees::callable_values::RuntimeCallableContractHandle,
-    ) -> Vec<Handle<CheckedEvidenceTerm>> {
-        let owner = ContractProofFactOwner::RuntimeCallableContract { contract };
-        let mut parameters = facts
-            .proof
-            .contract_facts
-            .iter()
-            .filter_map(|(_, fact)| {
-                let term = fact.evidence_term?;
-                let checked = facts.proof.evidence_terms.get(term);
-                (fact.owner == owner
-                    && fact.kind == ContractProofFactKind::Requires
-                    && checked.owner == owner
-                    && checked.kind == fact.kind)
-                    .then_some(term)
-            })
-            .collect::<Vec<_>>();
-        parameters
-            .sort_by_key(|parameter| facts.proof.evidence_terms.get(*parameter).lane_position);
-        parameters
     }
 
     pub(crate) fn exact_target_evidence_parameters(
@@ -1168,30 +1091,6 @@ mod evidence {
         else {
             return None;
         };
-        if let Some(binding) = call.runtime_call {
-            if target_state_symbol.is_valid()
-                || facts.proof.evidence_terms.get(parameter).owner
-                    != (ContractProofFactOwner::RuntimeCallableContract {
-                        contract: binding.contract,
-                    })
-            {
-                return None;
-            }
-            let site = validation::CallSite::Expression { expression, call };
-            let validation::CallContractSource::Runtime { contract, .. } =
-                validation::call_contract_source(program, symbols::SymbolHandle::invalid(), &site)
-                    .ok()??
-            else {
-                return None;
-            };
-            return instantiate_proof_expression_parameter(
-                program,
-                facts,
-                &site,
-                program.state_signature_parameters(&contract.signature),
-                parameter,
-            );
-        }
         if validation::call_target_entry_symbol(program, call.target_symbol) != target_state_symbol
             || call.static_requirement_dispatch.is_some()
             || call.quotient_operation.is_some()
@@ -1211,32 +1110,16 @@ mod evidence {
     fn exact_visible_evidence_sources(
         facts: &CheckFacts,
         owner: ContractProofFactOwner,
-        current_fact: Handle<typed_trees::domain::ProofFact>,
         name: &str,
     ) -> Vec<Handle<CheckedEvidenceTerm>> {
-        // A requires operand forms before that clause introduces its binding.
-        // The producer appends each owner's facts in its retained clause order.
-        let current_requires = facts
-            .proof
-            .contract_facts
-            .iter()
-            .filter_map(|(handle, contract)| {
-                (contract.owner == owner
-                    && contract.fact == current_fact
-                    && contract.kind == ContractProofFactKind::Requires)
-                    .then_some(handle.arena_index())
-            })
-            .min();
         facts
             .proof
             .contract_facts
             .iter()
-            .filter_map(|(handle, contract)| {
+            .filter_map(|(_, contract)| {
                 let term = contract.evidence_term?;
                 let checked = facts.proof.evidence_terms.get(term);
                 (contract.kind == ContractProofFactKind::Requires
-                    && (contract.owner != owner
-                        || current_requires.is_none_or(|current| handle.arena_index() < current))
                     && evidence_term_visible_from_owner(contract.owner, owner)
                     && checked.owner == contract.owner
                     && checked.kind == contract.kind
@@ -1359,12 +1242,6 @@ mod evidence {
             let mut span = HandleSpan::empty();
             let mut runtime_arguments = Vec::with_capacity(authored.len());
             for (lane_position, (name, parameter)) in authored.iter().zip(parameters).enumerate() {
-                if facts.proof.evidence_terms.get(parameter).lane_position != lane_position {
-                    diagnostics.push(Diagnostic::error(
-                        "ordinary evidence call has no complete ordered input lane",
-                    ));
-                    continue;
-                }
                 let Some(source) = source_term_by_name(
                     &facts.proof.evidence_terms,
                     &facts.proof.outcome_specific_arms,
@@ -1530,19 +1407,7 @@ mod evidence {
             .map(|fact_ref| proof.contract_facts.get(fact_ref.fact))
             .find(|contract| contract.evidence_term == Some(parameter))?;
         let application = program.proof_facts.get(contract.fact).as_proposition()?;
-        let target_parameters = if call.signature.is_valid() {
-            if !crate::published::proof::contracts::call_signatures::source_is_current(
-                program, proof, call, call_site,
-            ) {
-                return None;
-            }
-            let signature = crate::published::proof::contracts::call_signatures::signature(
-                program,
-                proof,
-                parameter_term.owner,
-            )?;
-            program.state_signature_parameters(signature)
-        } else if let Some(dispatch) = call_site.static_requirement_dispatch() {
+        let target_parameters = if let Some(dispatch) = call_site.static_requirement_dispatch() {
             program
                 .trait_definition_by_symbol(dispatch.declaring_trait)
                 .and_then(|definition| {
@@ -7575,7 +7440,7 @@ pub(crate) mod call_values {
         }
         let operand = CheckedScalarExpression::Parameter {
             position: bindings.len(),
-            scalar_type: (primitive).into(),
+            primitive_type: primitive,
         };
         bindings.push(boolean_predicates::BoundObservation {
             operand: operand.clone().into(),
@@ -11424,9 +11289,6 @@ pub(crate) mod labels {
             struct_label: &dyn Fn(&typed_trees::expression::TableStructLiteral) -> String,
         ) -> String {
             match node {
-                typed_trees::expression::ExpressionNode::MachineValue(value) => program.typed_program()
-                    .runtime_machine_value_identity(value, &[])
-                    .expect("check_program validates machine value identity before labels read frozen source"),
                 typed_trees::expression::ExpressionNode::SavedSubject(saved) => format!(
                     "$saved-subject#{}:{}",
                     saved.capture.arena_index(),
@@ -11793,8 +11655,7 @@ use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 pub(crate) use evaluator::call_site_boolean_contract_expression_value;
 pub(crate) use evidence::{
-    exact_runtime_evidence_parameters, exact_target_evidence_parameters,
-    instantiate_contract_expression_evidence_parameter,
+    exact_target_evidence_parameters, instantiate_contract_expression_evidence_parameter,
 };
 pub(crate) use exits::exact_scalar_membership;
 use exits::{CyclicHeaderInvariants, check_exit_ensures};

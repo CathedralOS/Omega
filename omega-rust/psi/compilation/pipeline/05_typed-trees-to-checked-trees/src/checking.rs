@@ -114,16 +114,6 @@ pub(crate) mod call_acknowledgements {
                     call_ordinal,
                     diagnostics,
                 );
-                if let Some(runtime) = call.runtime_call {
-                    validate_child(
-                        program,
-                        runtime.callee,
-                        statement_index,
-                        operational_calls,
-                        call_ordinal,
-                        diagnostics,
-                    );
-                }
                 for argument in program.statement_table.expression_handles(call.arguments) {
                     validate_child(
                         program,
@@ -263,7 +253,7 @@ pub(crate) mod call_acknowledgements {
         }
 
         match program.expression_table.expression(expression) {
-            ExpressionNode::SavedSubject(_) | ExpressionNode::MachineValue(_) => {}
+            ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::Match(dispatch) => {
                 visit_child!(dispatch.subject);
                 for arm in program.expression_table.match_arms(dispatch.arms) {
@@ -299,7 +289,7 @@ pub(crate) mod call_acknowledgements {
                     call_ordinal,
                     diagnostics,
                 );
-                visit_child!(call.evaluated_callee());
+                visit_child!(call.receiver);
                 for argument in program.expression_table.expression_handles(call.arguments) {
                     visit_child!(*argument);
                 }
@@ -1055,23 +1045,6 @@ fn check_program(
         )
         .with_opaque_representation_selections(&opaque_representation_selections)
         .with_prepared_mathematics(mathematics.prepared_view());
-    let mut callable_diagnostics = Vec::new();
-    // All later fact renderers share this immutable source. Establish exact
-    // construction identities before any bare-label consumer can use them.
-    for (expression, node) in typed_program.expression_table.expression_entries() {
-        if let typed_trees::expression::ExpressionNode::MachineValue(value) = node
-            && let Err(reason) = typed_program.runtime_machine_value_identity(value, &[])
-        {
-            callable_diagnostics.push(
-                diagnostics::Diagnostic::error(reason.to_string())
-                    .with_source_span(typed_program.expression_table.source_span(expression)),
-            );
-        }
-    }
-    validation::validate_runtime_callable_effects(&program, &mut callable_diagnostics);
-    if !callable_diagnostics.is_empty() {
-        return Err(callable_diagnostics);
-    }
     validation::validate_selected_attached_method_bounds(&program)?;
     let declared_content = checks::prepare_retained_content_custody(
         &program,

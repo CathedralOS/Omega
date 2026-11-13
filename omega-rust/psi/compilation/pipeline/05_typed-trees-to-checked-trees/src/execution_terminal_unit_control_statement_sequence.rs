@@ -354,7 +354,7 @@ mod assignments {
                 result: CheckedUnitScalarResultBindingPlan {
                     statement_index,
                     binding_ordinal,
-                    scalar_type: primitive_type.into(),
+                    primitive_type,
                 },
                 store,
             })
@@ -1052,7 +1052,7 @@ mod completion {
                 let result = CheckedUnitScalarResultBindingPlan {
                     statement_index,
                     binding_ordinal: u32::try_from(scalar_count).ok()?,
-                    scalar_type: primitive_type.into(),
+                    primitive_type,
                 };
                 operations.push(OperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::Scalar { result, value },
@@ -1516,7 +1516,7 @@ mod local_data {
             *atomic_result = Some(CheckedUnitScalarResultBindingPlan {
                 statement_index,
                 binding_ordinal: u32::try_from(*scalar_count).ok()?,
-                scalar_type: primitive_type.into(),
+                primitive_type,
             });
             *scalar_count = scalar_count.checked_add(1)?;
             return Some(LocalPlan::Planned);
@@ -1904,7 +1904,7 @@ mod local_data {
             Some(LocalPlan::ScalarCall(CheckedUnitScalarResultBindingPlan {
                 statement_index,
                 binding_ordinal,
-                scalar_type: primitive_type.into(),
+                primitive_type,
             }))
         } else {
             local_phase("statement sequence: local data: structural call binding");
@@ -3478,17 +3478,14 @@ mod reference_retirement {
                                         let Some(receiver) = call.structural_result() else {
                                             return true;
                                         };
-                                        let Some(return_type) =
-                                        crate::execution::terminal_unit::calls::call_return_type(
-                                            self.program,
-                                            &call.target,
-                                        )
-                                    else {
-                                        return false;
-                                    };
+                                        let Some(target) =
+                                            self.program.state_by_symbol(call.target.state)
+                                        else {
+                                            return false;
+                                        };
                                         if substituted_result_is_view_free(
                                             self.program,
-                                            return_type,
+                                            target.return_type,
                                             &[],
                                         ) {
                                             return true;
@@ -3731,7 +3728,7 @@ mod reference_retirement {
                     .filter(|call| {
                         call.coordinate.statement_index as usize == source_call.statement_index
                             && call.coordinate.call_ordinal as usize == source_call.call_ordinal
-                            && call.target.declaration() == Some(candidate.target_identity)
+                            && (call.target.machine, call.target.state) == candidate.target_identity
                             && call.completion()
                                 == semantic_vocabulary::BoundaryCompletion::NormalReturn
                     })
@@ -6324,6 +6321,7 @@ mod result_consumption {
     use typed_trees::state::State;
     use typed_trees::statement::StatementExecutionOrder;
     use validation::ContentsRequirement;
+    use validation::call_target_return_type;
     use validation::has_contents;
     use validation::reference_result_custody::loan_weakening;
     use validation::reference_result_custody::local_record_loans;
@@ -6675,7 +6673,7 @@ mod result_consumption {
             _ => operation.call().and_then(|call| {
                 let custody = call.structural_custody()?;
                 let result = call.structural_result()?;
-                crate::execution::terminal_unit::calls::call_return_type(program, &call.target)
+                call_target_return_type(program, call.target.state)
                     .is_some_and(|returned| {
                         has_contents(
                             program,
@@ -8398,7 +8396,7 @@ mod statement_call {
             call,
             result
                 .as_ref()
-                .map(|result| ExpectedCallValueResult::Scalar(result.scalar_type))
+                .map(|result| ExpectedCallValueResult::Scalar(result.primitive_type))
                 .or_else(|| {
                     structural_result
                         .as_ref()
@@ -9362,7 +9360,7 @@ pub(in super::super) fn build(
                     let result = CheckedUnitScalarResultBindingPlan {
                         statement_index,
                         binding_ordinal: u32::try_from(scalar_count).ok()?,
-                        scalar_type: primitive_type.into(),
+                        primitive_type,
                     };
                     Some(result)
                 } else if !is_unit(program, result_type) {
@@ -9385,7 +9383,7 @@ pub(in super::super) fn build(
                 let result = CheckedUnitScalarResultBindingPlan {
                     statement_index,
                     binding_ordinal: u32::try_from(scalar_count).ok()?,
-                    scalar_type: (program.primitive_type_reference(state.return_type)?).into(),
+                    primitive_type: program.primitive_type_reference(state.return_type)?,
                 };
                 scalar_count = scalar_count.checked_add(1)?;
                 returned_scalar_call = Some(result);
@@ -9417,7 +9415,7 @@ pub(in super::super) fn build(
                     let result = CheckedUnitScalarResultBindingPlan {
                         statement_index,
                         binding_ordinal: u32::try_from(scalar_count).ok()?,
-                        scalar_type: primitive_type.into(),
+                        primitive_type,
                     };
                     scalar_count = scalar_count.checked_add(1)?;
                     returned_scalar_call = Some(result);
@@ -9612,10 +9610,7 @@ pub(in super::super) fn scalar_control(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) -> Option<(checked_trees::CheckedUnitScalarControlPlan, usize)> {
-    let scalar_type = checked_trees::CheckedScalarType::from_type_reference(
-        program.typed_program(),
-        state.return_type,
-    )?;
+    let primitive_type = program.primitive_type_reference(state.return_type)?;
     let (terminator, prefix_count) = returning_terminator(program, facts, machine, state)?;
     let retained_return = |statement, continuation| {
         let role = if continuation {
@@ -9680,7 +9675,7 @@ pub(in super::super) fn scalar_control(
     };
     Some((
         checked_trees::CheckedUnitScalarControlPlan {
-            scalar_type,
+            primitive_type,
             terminator,
             selected_copies,
         },
@@ -9728,7 +9723,7 @@ fn scalar_computation_local_at(
         || local.is_mutable
         || !computations.nodes.is_valid(root.root)
         || computations.nodes.get(root.root).authored_root != local.initial_value
-        || computations.nodes.get(root.root).scalar_type != primitive_type
+        || computations.nodes.get(root.root).primitive_type != primitive_type
         || facts
             .values
             .scalar_expressions
@@ -9741,7 +9736,7 @@ fn scalar_computation_local_at(
         CheckedUnitScalarResultBindingPlan {
             statement_index,
             binding_ordinal,
-            scalar_type: primitive_type.into(),
+            primitive_type,
         },
         checked_trees::CheckedCallScalarArgument::Computation(root.root),
     ))

@@ -759,16 +759,14 @@ mod evaluation {
                         index: parameter_position,
                     },
                 path,
-                scalar_type:
-                    typed_trees::callable_values::ScalarValueType::Primitive(PrimitiveType::Bool),
+                primitive_type: PrimitiveType::Bool,
                 ..
             } => resolve_binding
                 .structural_field(*observation, *parameter_position, path)
                 .filter(|value| matches!(value, ScalarValue::Boolean(_))),
             CheckedScalarExpression::StorageRead {
                 symbol,
-                scalar_type:
-                    typed_trees::callable_values::ScalarValueType::Primitive(PrimitiveType::Bool),
+                primitive_type: PrimitiveType::Bool,
             } => resolve_binding
                 .storage(*symbol)
                 .filter(|value| matches!(value, ScalarValue::Boolean(_))),
@@ -777,13 +775,11 @@ mod evaluation {
             }
             CheckedScalarExpression::Parameter {
                 position,
-                scalar_type:
-                    typed_trees::callable_values::ScalarValueType::Primitive(PrimitiveType::Bool),
+                primitive_type: PrimitiveType::Bool,
             }
             | CheckedScalarExpression::Local {
                 position,
-                scalar_type:
-                    typed_trees::callable_values::ScalarValueType::Primitive(PrimitiveType::Bool),
+                primitive_type: PrimitiveType::Bool,
             } => binding_boolean(*position, resolve_binding).map(ScalarValue::Boolean),
             _ => integer(expression, resolve_binding)
                 .map(|(_, value)| ScalarValue::Integer(integer_magnitude(value))),
@@ -795,22 +791,6 @@ mod evaluation {
         resolve_binding: &mut impl ScalarValueSource,
     ) -> Option<(IntegerType, IntegerValue)> {
         match expression {
-            CheckedScalarExpression::StorageRead {
-                scalar_type: typed_trees::callable_values::ScalarValueType::Callable(_),
-                ..
-            }
-            | CheckedScalarExpression::Parameter {
-                scalar_type: typed_trees::callable_values::ScalarValueType::Callable(_),
-                ..
-            }
-            | CheckedScalarExpression::Local {
-                scalar_type: typed_trees::callable_values::ScalarValueType::Callable(_),
-                ..
-            }
-            | CheckedScalarExpression::StructuralParameterField {
-                scalar_type: typed_trees::callable_values::ScalarValueType::Callable(_),
-                ..
-            } => None,
             CheckedScalarExpression::StructuralParameterIndexedRead { .. }
             | CheckedScalarExpression::StructuralParameterField {
                 root:
@@ -826,8 +806,7 @@ mod evaluation {
                         index: parameter_position,
                     },
                 path,
-                scalar_type:
-                    typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
+                primitive_type,
                 ..
             } => {
                 let scalar_type = integer_type(*primitive_type)?;
@@ -840,8 +819,7 @@ mod evaluation {
             }
             CheckedScalarExpression::StorageRead {
                 symbol,
-                scalar_type:
-                    typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
+                primitive_type,
             } => {
                 let scalar_type = integer_type(*primitive_type)?;
                 let ScalarValue::Integer(value) = resolve_binding.storage(*symbol)? else {
@@ -851,13 +829,11 @@ mod evaluation {
             }
             CheckedScalarExpression::Parameter {
                 position,
-                scalar_type:
-                    typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
+                primitive_type,
             }
             | CheckedScalarExpression::Local {
                 position,
-                scalar_type:
-                    typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
+                primitive_type,
             } => {
                 let scalar_type = integer_type(*primitive_type)?;
                 let ScalarValue::Integer(value) = resolve_binding.binding(*position)? else {
@@ -3559,7 +3535,7 @@ pub(crate) fn build_value_facts(
             reference,
             checked_trees::CheckedScalarExpression::Parameter {
                 position: 0,
-                scalar_type: primitive_type.into(),
+                primitive_type,
             },
         ) {
             facts.retain_scalar_type_refinement(reference, predicates);

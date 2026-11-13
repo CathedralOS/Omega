@@ -2163,11 +2163,6 @@ pub(crate) mod crash_routes {
                     ScalarType::IeeeFloat(format) => {
                         ScalarTerm::ieee_float_field_path(root, path, *format)
                     }
-                    ScalarType::Callable(_) => {
-                        return unsupported(
-                            "opaque callable storage cannot supply an erased mathematical scalar term",
-                        );
-                    }
                 });
             }
             lowered_direct_scalar_term(expression, values, erased)
@@ -3091,7 +3086,7 @@ pub(crate) mod crash_routes {
                 path,
                 index,
                 element_path,
-                scalar_type,
+                primitive_type,
                 ..
             } = expression
             else {
@@ -3117,10 +3112,7 @@ pub(crate) mod crash_routes {
                 root_type,
                 &terminal_path,
             );
-            let primitive = scalar_type.primitive().ok_or(LoweringError::Unsupported(
-                "opaque callable storage is not a mathematical indexed term",
-            ))?;
-            let expected = terminal_scalar_type(primitive)?;
+            let expected = terminal_scalar_type(*primitive_type)?;
             if actual != Some(expected) {
                 return unsupported(
                     "indexed contract path does not select its retained scalar type",
@@ -3140,11 +3132,6 @@ pub(crate) mod crash_routes {
                 (Some(path), ScalarType::Boolean) => ScalarTerm::boolean_field_path(root, path),
                 (Some(path), ScalarType::IeeeFloat(format)) => {
                     ScalarTerm::ieee_float_field_path(root, path, format)
-                }
-                (_, ScalarType::Callable(_)) => {
-                    return unsupported(
-                        "opaque callable storage is not a mathematical indexed term",
-                    );
                 }
                 (None, _) => ScalarTerm::StructuralRead {
                     root,
@@ -3374,11 +3361,6 @@ pub(crate) mod crash_routes {
                 }
                 ScalarType::IeeeFloat(format) => {
                     ScalarTerm::ieee_float_field_path(root, terminal_path, format)
-                }
-                ScalarType::Callable(_) => {
-                    return unsupported(
-                        "opaque callable storage is not a mathematical structural term",
-                    );
                 }
             })
         }
@@ -3846,17 +3828,13 @@ pub(crate) mod crash_routes {
                                     index: parameter_position,
                                 },
                             path,
-                            scalar_type,
+                            primitive_type,
                             ..
                         } => lower_structural_member_term(
                             identities,
                             *parameter_position,
                             path,
-                            crate::emission::scalar_types::terminal_scalar_type(
-                                scalar_type.primitive().ok_or(LoweringError::Unsupported(
-                                    "opaque callable storage is not crash-predicate arithmetic",
-                                ))?,
-                            )?,
+                            crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?,
                             self.parameters,
                             self.structural_types,
                         ),
@@ -4692,341 +4670,10 @@ pub(crate) mod evidence_lowering {
             index
         }
 
-        pub(crate) struct RuntimeEvidenceTerm {
-            pub source: arena::Handle<checked_trees::CheckedEvidenceTerm>,
-            pub contract: semantic_vocabulary::CallableContractId,
-            pub application: checked_trees::CheckedPropositionApplication,
-            pub kind: checked_trees::ContractProofFactKind,
-            pub position: u32,
-        }
-
-        #[derive(Default)]
-        pub(crate) struct RuntimeEvidenceTerms {
-            terms: BTreeMap<usize, RuntimeEvidenceTerm>,
-        }
-
-        impl RuntimeEvidenceTerms {
-            pub(crate) fn prepare(
-                checked: &CheckedTrees,
-                module: &terminal_psi::TerminalModule,
-            ) -> Result<Self, LoweringError> {
-                let mut terms = Vec::new();
-                for (handle, term) in checked.facts.proof.evidence_terms.iter() {
-                    let checked_trees::ContractProofFactOwner::RuntimeCallableContract {
-                        contract: source,
-                    } = term.owner
-                    else {
-                        continue;
-                    };
-                    let contract = checked
-                        .facts
-                        .callable_contracts
-                        .contract_for_source(source)
-                        .map_err(LoweringError::Unsupported)?;
-                    if module.callables.contract(contract.id).is_none() {
-                        continue;
-                    }
-                    let mut facts = checked
-                        .facts
-                        .proof
-                        .contract_facts
-                        .iter()
-                        .map(|(_, fact)| fact)
-                        .filter(|fact| {
-                            fact.owner == term.owner && fact.evidence_term == Some(handle)
-                        });
-                    let fact = facts.next().ok_or(LoweringError::Unsupported(
-                        "runtime evidence term has no exact original contract fact",
-                    ))?;
-                    if facts.next().is_some() || !checked.typed.proof_facts.is_valid(fact.fact) {
-                        return Err(LoweringError::Unsupported(
-                            "runtime evidence term has ambiguous or stale source fact ownership",
-                        ));
-                    }
-                    let typed_trees::domain::ProofFact::Proposition(application) =
-                        checked.typed.proof_facts.get(fact.fact)
-                    else {
-                        return Err(LoweringError::Unsupported(
-                            "runtime evidence term source is not its proposition application",
-                        ));
-                    };
-                    let endpoint = checked
-                        .typed
-                        .runtime_callable_proposition_application(source, application, &[])
-                        .map_err(|reason| LoweringError::Unsupported(reason.reason()))?;
-                    let mut normalized =
-                        checked_trees::CheckedPropositionApplication::from_normalized(endpoint);
-                    if normalized.declaration != term.proposition.declaration
-                        || normalized.arguments.len() != term.proposition.arguments.len()
-                        || normalized.binder_arguments.len()
-                            != term.proposition.binder_arguments.len()
-                    {
-                        return Err(LoweringError::Unsupported(
-                            "runtime evidence alias changed its exact checked nominal endpoint",
-                        ));
-                    }
-                    for (scoped, retained) in normalized
-                        .binder_arguments
-                        .iter_mut()
-                        .zip(&term.proposition.binder_arguments)
-                    {
-                        if scoped.kind != retained.kind {
-                            return Err(LoweringError::Unsupported(
-                                "runtime evidence alias changed its checked static operand roles",
-                            ));
-                        }
-                        scoped.evidence_projection = retained.evidence_projection.clone();
-                    }
-                    let declaration = checked
-                        .typed
-                        .runtime_callable_index_identity(
-                            source,
-                            typed_trees::type_identity::IndexIdentityArgument::Subject(
-                                normalized.declaration,
-                            ),
-                            &[],
-                        )
-                        .map_err(|reason| LoweringError::Unsupported(reason.reason()))?;
-                    let kind = match term.kind {
-                        checked_trees::ContractProofFactKind::Requires => 0_u8,
-                        checked_trees::ContractProofFactKind::Ensures => 1_u8,
-                    };
-                    let meaning = (
-                        declaration,
-                        normalized
-                            .binder_arguments
-                            .iter()
-                            .map(|argument| argument.diagnostic_label.clone())
-                            .collect::<Vec<_>>(),
-                        normalized.arguments.clone(),
-                    );
-                    terms.push(((contract.id, kind, meaning), handle, normalized, term.kind));
-                }
-                terms.sort_by(|left, right| left.0.cmp(&right.0));
-                let mut retained = Self::default();
-                let mut previous: Option<(
-                    semantic_vocabulary::CallableContractId,
-                    u8,
-                    (String, Vec<String>, Vec<String>),
-                )> = None;
-                let mut position = 0_u32;
-                for (key, source, application, kind) in terms {
-                    if let Some(previous_key) = &previous {
-                        if previous_key != &key {
-                            position = if previous_key.0 == key.0 && previous_key.1 == key.1 {
-                                position.checked_add(1).ok_or(LoweringError::Unsupported(
-                                    "runtime evidence lane count exceeds u32",
-                                ))?
-                            } else {
-                                0
-                            };
-                        }
-                    }
-                    let contract = key.0;
-                    previous = Some(key);
-                    retained.terms.insert(
-                        evidence_term_index(source),
-                        RuntimeEvidenceTerm {
-                            source,
-                            contract,
-                            application,
-                            kind,
-                            position,
-                        },
-                    );
-                }
-                for (source, row) in checked.typed.runtime_callable_contracts.iter() {
-                    let contract = checked
-                        .facts
-                        .callable_contracts
-                        .contract_for_source(source)
-                        .map_err(LoweringError::Unsupported)?;
-                    if module.callables.contract(contract.id).is_none() {
-                        continue;
-                    }
-                    for clause in checked.typed.state_signature_contracts(&row.signature) {
-                        if clause.binding.is_none() {
-                            continue;
-                        }
-                        for fact in clause.facts.handles() {
-                            let mut declared = checked.facts.proof.contract_facts.iter().map(|(_, row)| row)
-                                .filter(|row| row.owner == (checked_trees::ContractProofFactOwner::RuntimeCallableContract { contract: source }) && row.fact == fact);
-                            let declaration = declared.next().ok_or(LoweringError::Unsupported("named runtime contract fact was not published by its exact source owner"))?;
-                            if declared.next().is_some()
-                                || declaration.evidence_term.is_none_or(|term| {
-                                    !retained.terms.contains_key(&evidence_term_index(term))
-                                })
-                            {
-                                return Err(LoweringError::Unsupported(
-                                    "named runtime contract fact has no unique complete evidence lane",
-                                ));
-                            }
-                        }
-                    }
-                }
-                Ok(retained)
-            }
-
-            pub(crate) fn lower_lanes(
-                &self,
-                identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-                checked: &CheckedTrees,
-                module: &terminal_psi::TerminalModule,
-                term_ids: &[Option<EvidenceTermId>],
-            ) -> Result<Vec<EvidenceContractLane>, LoweringError> {
-                let mut lanes = Vec::new();
-                for (&index, term) in &self.terms {
-                    let source_term = checked.facts.proof.evidence_terms.get(term.source);
-                    let checked_trees::ContractProofFactOwner::RuntimeCallableContract {
-                        contract: source,
-                    } = source_term.owner
-                    else {
-                        return Err(LoweringError::Unsupported(
-                            "runtime evidence inventory changed its source owner",
-                        ));
-                    };
-                    let contract = checked
-                        .facts
-                        .callable_contracts
-                        .contract_for_source(source)
-                        .map_err(LoweringError::Unsupported)?;
-                    let shape = contract
-                        .signature
-                        .as_ref()
-                        .ok_or(LoweringError::Unsupported(
-                            "runtime evidence has no checked signature shape",
-                        ))?;
-                    let emitted = module.callables.contract(term.contract).ok_or(
-                        LoweringError::Unsupported(
-                            "runtime evidence has no lowered callable signature",
-                        ),
-                    )?;
-                    let scalar_positions = shape
-                        .scalar_parameters
-                        .iter()
-                        .map(|parameter| parameter.source_position)
-                        .collect::<Vec<_>>();
-                    let structural_positions = shape
-                        .structural_parameters
-                        .iter()
-                        .map(|parameter| parameter.position)
-                        .collect::<Vec<_>>();
-                    let mut facts = checked
-                        .facts
-                        .proof
-                        .contract_facts
-                        .iter()
-                        .map(|(_, fact)| fact)
-                        .filter(|fact| {
-                            fact.owner == source_term.owner
-                                && fact.evidence_term == Some(term.source)
-                        });
-                    let fact = facts.next().ok_or(LoweringError::Unsupported(
-                        "runtime evidence lane lost its original source fact",
-                    ))?;
-                    if facts.next().is_some() {
-                        return Err(LoweringError::Unsupported(
-                            "runtime evidence lane has ambiguous source facts",
-                        ));
-                    }
-                    let roots = fact
-                        .nominal_argument_roots
-                        .and_then(|roots| checked.facts.proof.nominal_argument_roots.span(roots))
-                        .ok_or(LoweringError::Unsupported(
-                            "runtime evidence lane has no complete typed argument subjects",
-                        ))?;
-                    let argument_subjects = roots
-                        .iter()
-                        .enumerate()
-                        .map(|(position, root)| {
-                            super::outcome_specific_calls::lower_signature_argument_subject(
-                                identities,
-                                checked,
-                                &scalar_positions,
-                                &structural_positions,
-                                &emitted.structural_parameters,
-                                &module.structural_types,
-                                position,
-                                root,
-                            )
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    let kind = match term.kind {
-                        checked_trees::ContractProofFactKind::Requires => {
-                            EvidenceContractLaneKind::Requires
-                        }
-                        checked_trees::ContractProofFactKind::Ensures => {
-                            EvidenceContractLaneKind::Ensures
-                        }
-                    };
-                    lanes.push(EvidenceContractLane {
-                        owner: terminal_psi::EvidenceCallableOwner::Runtime(term.contract),
-                        kind,
-                        position: term.position,
-                        term: term_ids.get(index).copied().flatten().ok_or(
-                            LoweringError::Unsupported(
-                                "runtime evidence lane has no canonical term identity",
-                            ),
-                        )?,
-                        output_field: (kind == EvidenceContractLaneKind::Ensures)
-                            .then(|| format!("${}", term.position)),
-                        argument_subjects,
-                    });
-                }
-                lanes.sort_unstable();
-                for pair in lanes.windows(2) {
-                    if (pair[0].owner, pair[0].kind, pair[0].position)
-                        == (pair[1].owner, pair[1].kind, pair[1].position)
-                        && pair[0] != pair[1]
-                    {
-                        return Err(LoweringError::Unsupported(
-                            "equal runtime callable signatures disagree on exact evidence lane meaning",
-                        ));
-                    }
-                }
-                lanes.dedup();
-                Ok(lanes)
-            }
-
-            pub(crate) fn application<'term>(
-                &'term self,
-                handle: arena::Handle<checked_trees::CheckedEvidenceTerm>,
-                fallback: &'term checked_trees::CheckedPropositionApplication,
-            ) -> &'term checked_trees::CheckedPropositionApplication {
-                self.terms
-                    .get(&evidence_term_index(handle))
-                    .map_or(fallback, |term| &term.application)
-            }
-
-            pub(crate) fn lane_position(
-                &self,
-                handle: arena::Handle<checked_trees::CheckedEvidenceTerm>,
-                fallback: usize,
-            ) -> Result<u32, LoweringError> {
-                match self.terms.get(&evidence_term_index(handle)) {
-                    Some(term) => Ok(term.position),
-                    None => u32::try_from(fallback).map_err(|_| {
-                        LoweringError::Unsupported("evidence lane position exceeds u32")
-                    }),
-                }
-            }
-
-            pub(crate) fn output_field(
-                &self,
-                handle: arena::Handle<checked_trees::CheckedEvidenceTerm>,
-                fallback: &str,
-            ) -> String {
-                self.terms
-                    .get(&evidence_term_index(handle))
-                    .map_or_else(|| fallback.to_owned(), |term| format!("${}", term.position))
-            }
-        }
-
         pub(crate) fn lower_proposition_vocabulary(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             checked: &CheckedTrees,
             term_ids: &[Option<EvidenceTermId>],
-            runtime: &RuntimeEvidenceTerms,
         ) -> Result<
             (
                 Vec<PropositionDeclaration>,
@@ -5111,7 +4758,7 @@ pub(crate) mod evidence_lowering {
                             .get(index)
                             .copied()
                             .flatten()
-                            .map(|_| runtime.application(handle, &term.proposition))
+                            .map(|_| &term.proposition)
                     });
             let mut applications = Vec::new();
             for application in checked
@@ -5197,7 +4844,6 @@ pub(crate) mod evidence_lowering {
         pub(crate) fn lower_evidence_term_ids(
             checked: &CheckedTrees,
             source_machine_ids: &[(symbols::SymbolHandle, MachineId)],
-            runtime: &RuntimeEvidenceTerms,
         ) -> Result<LoweredEvidenceTermIds, LoweringError> {
             let mut parents = (0..checked.facts.proof.evidence_terms.len()).collect::<Vec<_>>();
             let guarded_terms = source_machine_ids
@@ -5248,83 +4894,28 @@ pub(crate) mod evidence_lowering {
                 }
             }
 
-            for invocation in &invocations {
-                let mut received = BTreeMap::new();
-                for output in &invocation.outputs {
-                    let Some(runtime_term) = runtime
-                        .terms
-                        .get(&evidence_term_index(output.callee_output))
-                    else {
-                        continue;
-                    };
-                    let Some(target) = output.output else {
-                        continue;
-                    };
-                    let root = evidence_term_root(&mut parents, evidence_term_index(target));
-                    if let Some(previous) =
-                        received.insert((runtime_term.contract, runtime_term.position), root)
-                    {
-                        let previous = evidence_term_root(&mut parents, previous);
-                        parents[root] = previous;
-                    }
-                }
-            }
-            let mut runtime_roots = BTreeMap::new();
-            for (&index, term) in &runtime.terms {
-                let kind = match term.kind {
-                    checked_trees::ContractProofFactKind::Requires => 0_u8,
-                    checked_trees::ContractProofFactKind::Ensures => 1_u8,
-                };
-                let key = (term.contract, kind, term.position);
-                let root = evidence_term_root(&mut parents, index);
-                if let Some(previous) = runtime_roots.insert(key, root) {
-                    let previous = evidence_term_root(&mut parents, previous);
-                    parents[root] = previous;
-                }
-            }
             let mut roots = BTreeMap::<usize, (usize, u8, usize)>::new();
             for (handle, term) in checked.facts.proof.evidence_terms.iter() {
-                let machine_position = match term.owner {
-                    checked_trees::ContractProofFactOwner::Machine { machine_symbol } => {
-                        let Some(position) = body_position(machine_symbol) else {
-                            continue;
-                        };
-                        position
-                    }
-                    checked_trees::ContractProofFactOwner::RuntimeCallableContract { .. } => {
-                        let Some(term) = runtime.terms.get(&evidence_term_index(handle)) else {
-                            continue;
-                        };
-                        source_machine_ids
-                            .len()
-                            .checked_add(usize::try_from(term.contract.get()).map_err(|_| {
-                                LoweringError::Unsupported(
-                                    "runtime evidence contract ID exceeds host range",
-                                )
-                            })?)
-                            .ok_or(LoweringError::Unsupported(
-                                "runtime evidence owner order exceeds host range",
-                            ))?
-                    }
-                    _ => continue,
+                let checked_trees::ContractProofFactOwner::Machine { machine_symbol } = term.owner
+                else {
+                    continue;
+                };
+                let Some(machine_position) = body_position(machine_symbol) else {
+                    continue;
                 };
                 let index = evidence_term_index(handle);
                 let root = evidence_term_root(&mut parents, index);
-                let lane_position = runtime
-                    .terms
-                    .get(&evidence_term_index(handle))
-                    .map_or(term.lane_position, |term| term.position as usize);
                 let lane_key = match term.kind {
                     checked_trees::ContractProofFactKind::Requires => {
-                        (machine_position, 0_u8, lane_position)
+                        (machine_position, 0_u8, term.lane_position)
                     }
                     checked_trees::ContractProofFactKind::Ensures
                         if guarded_terms.contains(&evidence_term_index(handle)) =>
                     {
-                        (machine_position, 2_u8, lane_position)
+                        (machine_position, 2_u8, term.lane_position)
                     }
                     checked_trees::ContractProofFactKind::Ensures => {
-                        (machine_position, 1_u8, lane_position)
+                        (machine_position, 1_u8, term.lane_position)
                     }
                 };
                 roots
@@ -5421,7 +5012,6 @@ pub(crate) mod evidence_lowering {
             declaration_ids: &[(symbols::SymbolHandle, PropositionId)],
             applications: &[PropositionApplicationIdentity],
             term_ids: Vec<Option<EvidenceTermId>>,
-            runtime: &RuntimeEvidenceTerms,
         ) -> Result<LoweredEvidenceTerms, LoweringError> {
             let mut identities_by_id =
                 BTreeMap::<EvidenceTermId, (PropositionId, EvidenceInterfaceIdentity)>::new();
@@ -5433,14 +5023,16 @@ pub(crate) mod evidence_lowering {
                 let id = term_ids[index].ok_or(LoweringError::Unsupported(
                     "selected terminal evidence term has no canonical identity",
                 ))?;
-                let application = runtime.application(handle, &term.proposition);
                 let declaration = declaration_ids
                     .iter()
-                    .find_map(|(symbol, id)| (*symbol == application.declaration).then_some(*id))
+                    .find_map(|(symbol, id)| {
+                        (*symbol == term.proposition.declaration).then_some(*id)
+                    })
                     .ok_or(LoweringError::Unsupported(
                         "checked evidence term has no terminal proposition declaration",
                     ))?;
-                let binder_arguments = application
+                let binder_arguments = term
+                    .proposition
                     .binder_arguments
                     .iter()
                     .map(|argument| {
@@ -5468,22 +5060,19 @@ pub(crate) mod evidence_lowering {
                         })
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
-                let checked_interface = if runtime.terms.contains_key(&index) {
-                    application.evidence_interface.as_ref()
-                } else {
-                    term.evidence_interface.as_ref()
-                }
-                .ok_or(LoweringError::Unsupported(
-                    "terminal evidence term has an unresolved carrierless interface",
-                ))?;
+                let checked_interface =
+                    term.evidence_interface
+                        .as_ref()
+                        .ok_or(LoweringError::Unsupported(
+                            "terminal evidence term has an unresolved carrierless interface",
+                        ))?;
                 let interface = lower_evidence_interface(identities, checked, checked_interface)?;
                 let proposition = applications
                     .iter()
                     .find(|application| {
                         application.declaration == declaration
                             && application.binder_arguments == binder_arguments
-                            && application.arguments
-                                == runtime.application(handle, &term.proposition).arguments
+                            && application.arguments == term.proposition.arguments
                             && application.evidence_interface.as_ref() == Some(&interface)
                     })
                     .map(|application| application.id)
@@ -5551,8 +5140,8 @@ pub(crate) mod evidence_lowering {
                     .iter()
                     .map(|argument| {
                         checked.type_identity_text(*argument).ok_or(LoweringError::Unsupported(
-                        "evidence interface type argument has no complete normalized identity",
-                    ))
+                            "evidence interface type argument has no complete normalized identity",
+                        ))
                     })
                     .collect::<Result<Vec<_>, _>>()?,
                 requirements,
@@ -6122,61 +5711,6 @@ pub(crate) mod evidence_lowering {
             position: usize,
             root: &checked_trees::OutcomeOccurrenceRoot,
         ) -> Result<terminal_psi::EvidenceArgumentSubject, LoweringError> {
-            if matches!(
-                root,
-                checked_trees::OutcomeOccurrenceRoot::CalleeResult
-                    | checked_trees::OutcomeOccurrenceRoot::ClosedValue
-                    | checked_trees::OutcomeOccurrenceRoot::Other
-            ) {
-                return lower_signature_argument_subject(
-                    identities,
-                    checked,
-                    &[],
-                    &[],
-                    &callee.structural_parameters,
-                    &module.structural_types,
-                    position,
-                    root,
-                );
-            }
-            let entry = flow_facts(checked)
-                .terminal_unit_effects
-                .callable_entry_for_machine(machine)
-                .ok_or(LoweringError::Unsupported(
-                    "evidence subject has no published callable entry",
-                ))?;
-            let scalar_positions = entry
-                .scalar_parameters
-                .iter()
-                .map(|parameter| parameter.source_position)
-                .collect::<Vec<_>>();
-            let structural_positions = entry
-                .structural_parameters
-                .iter()
-                .map(|parameter| parameter.position)
-                .collect::<Vec<_>>();
-            lower_signature_argument_subject(
-                identities,
-                checked,
-                &scalar_positions,
-                &structural_positions,
-                &callee.structural_parameters,
-                &module.structural_types,
-                position,
-                root,
-            )
-        }
-
-        pub(crate) fn lower_signature_argument_subject(
-            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-            checked: &CheckedTrees,
-            scalar_source_positions: &[u32],
-            structural_source_positions: &[u32],
-            structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
-            structural_types: &[terminal_psi::StructuralTypeDeclaration],
-            position: usize,
-            root: &checked_trees::OutcomeOccurrenceRoot,
-        ) -> Result<terminal_psi::EvidenceArgumentSubject, LoweringError> {
             use terminal_psi::EvidenceArgumentSubject as Subject;
             let argument_position = u32::try_from(position).map_err(|_| {
                 LoweringError::Unsupported("evidence argument position exceeds u32")
@@ -6193,11 +5727,20 @@ pub(crate) mod evidence_lowering {
                 }
                 _ => {}
             }
+            let Some(entry) = flow_facts(checked)
+                .terminal_unit_effects
+                .callable_entry_for_machine(machine)
+            else {
+                return Err(LoweringError::Unsupported(
+                    "outcome-specific subject has no published callable entry",
+                ));
+            };
             let (parameter_position, structural_path) = match root {
                 checked_trees::OutcomeOccurrenceRoot::CalleeParameter { source_position } => {
-                    let Some(position) = scalar_source_positions
+                    let Some(position) = entry
+                        .scalar_parameters
                         .iter()
-                        .position(|parameter| parameter == source_position)
+                        .position(|parameter| parameter.source_position == *source_position)
                     else {
                         return Ok(Subject::Unknown { argument_position });
                     };
@@ -6207,16 +5750,18 @@ pub(crate) mod evidence_lowering {
                     source_position,
                     fields,
                 } => {
-                    let position = structural_source_positions.iter().position(|parameter| parameter == source_position)
+                    let position = entry
+                            .structural_parameters
+                            .iter()
+                            .position(|parameter| parameter.position == *source_position)
                             .ok_or(LoweringError::Unsupported(
                                 "outcome-specific projection names no structural parameter of its callee",
                             ))?;
-                    let parameter =
-                        structural_parameters
-                            .get(position)
-                            .ok_or(LoweringError::Unsupported(
-                                "outcome-specific structural parameter position is absent",
-                            ))?;
+                    let parameter = callee.structural_parameters.get(position).ok_or(
+                        LoweringError::Unsupported(
+                            "outcome-specific structural parameter position is absent",
+                        ),
+                    )?;
                     let path = fields
                         .iter()
                         .map(|field| {
@@ -6228,7 +5773,7 @@ pub(crate) mod evidence_lowering {
                         })
                         .collect::<Result<Vec<_>, _>>()?;
                     if terminal_semantics::primitive_read_projection_type(
-                        structural_types.iter(),
+                        module.structural_types.iter(),
                         parameter.structural_type,
                         &path,
                     )
@@ -6478,7 +6023,7 @@ pub(crate) mod evidence_lowering {
 
         use crate::machine_lowering::declarations::semantic_identity;
         use crate::proofs::evidence_lowering::evidence_terms::{
-            RuntimeEvidenceTerms, evidence_term_index, lower_evidence_interface,
+            evidence_term_index, lower_evidence_interface,
         };
         use crate::proofs::evidence_lowering::{
             checked_evidence_machine_identity, checked_evidence_requirement_identity,
@@ -6504,7 +6049,6 @@ pub(crate) mod evidence_lowering {
             term_ids: &[Option<EvidenceTermId>],
             declarations: &[PropositionDeclaration],
             applications: &[PropositionApplicationIdentity],
-            runtime: &RuntimeEvidenceTerms,
         ) -> Result<Vec<ProofOutputCall>, LoweringError> {
             let mut invocations = checked
                 .facts
@@ -6532,19 +6076,28 @@ pub(crate) mod evidence_lowering {
                         runtime_result,
                         runtime_call,
                     )?;
-                    let mut evidence_arguments = invocation
+                    let evidence_arguments = invocation
                         .evidence_arguments
                         .iter()
                         .map(|argument| {
                             Ok(terminal_psi::ProofOutputEvidenceArgument {
-                                input_position: runtime.lane_position(argument.callee_input, argument.input_position)?,
+                                input_position: u32::try_from(argument.input_position).map_err(|_| {
+                                    LoweringError::Unsupported(
+                                        "terminal proof-output input position exceeds u32",
+                                    )
+                                })?,
                                 callee_proposition: terminal_proposition_application_id(
                                     identities,
                                     checked,
                                     term_ids,
                                     declarations,
                                     applications,
-                                    runtime.application(argument.callee_input, &checked.facts.proof.evidence_terms.get(argument.callee_input).proposition),
+                                    &checked
+                                        .facts
+                                        .proof
+                                        .evidence_terms
+                                        .get(argument.callee_input)
+                                        .proposition,
                                 )?,
                                 source: terminal_evidence_term_id(
                                     term_ids,
@@ -6562,35 +6115,26 @@ pub(crate) mod evidence_lowering {
                             })
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
-                    if runtime_call.is_some_and(|call| matches!(call.target, terminal_psi::EvidenceCallableTarget::Runtime { .. })) {
-                    evidence_arguments.sort_unstable();
-                    for pair in evidence_arguments.windows(2) {
-                        if pair[0].input_position == pair[1].input_position
-                            && (pair[0].callee_proposition != pair[1].callee_proposition
-                                || pair[0].instantiated_proposition != pair[1].instantiated_proposition) {
-                            return unsupported("equivalent runtime input lanes changed their exact invocation meaning");
-                        }
-                    }
-                    evidence_arguments.dedup_by_key(|argument| argument.input_position);
-                    }
-                    let mut outputs = invocation
+                    let outputs = invocation
                         .outputs
                         .iter()
                         .map(|output| {
                             let callee_output =
                                 checked.facts.proof.evidence_terms.get(output.callee_output);
                             let forwarded_input_position =
-                                proof_output_forwarded_input_position(checked, invocation, output, runtime)?;
+                                proof_output_forwarded_input_position(checked, invocation, output)?;
                             Ok(ProofOutput {
-                                output_position: runtime.lane_position(output.callee_output, output.output_position)?,
-                                output_field: runtime.output_field(output.callee_output, &callee_output.name),
+                                output_position: u32::try_from(output.output_position).map_err(|_| {
+                                    LoweringError::Unsupported("terminal proof-output position exceeds u32")
+                                })?,
+                                output_field: callee_output.name.clone(),
                                 callee_proposition: terminal_proposition_application_id(
                                     identities,
                                     checked,
                                     term_ids,
                                     declarations,
                                     applications,
-                                    runtime.application(output.callee_output, &callee_output.proposition),
+                                    &callee_output.proposition,
                                 )?,
                                 callee_output: (forwarded_input_position.is_none()
                                     && invocation.static_requirement_dispatch.is_none())
@@ -6626,15 +6170,6 @@ pub(crate) mod evidence_lowering {
                             })
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
-                    if runtime_call.is_some_and(|call| matches!(call.target, terminal_psi::EvidenceCallableTarget::Runtime { .. })) {
-                    outputs.sort_unstable();
-                    for pair in outputs.windows(2) {
-                        if pair[0].output_position == pair[1].output_position && pair[0] != pair[1] {
-                            return unsupported("equivalent runtime output lanes changed their receiving evidence identity");
-                        }
-                    }
-                    outputs.dedup();
-                    }
                     Ok(ProofOutputCall {
                         caller: terminal_machine,
                         ordinal: u32::try_from(ordinal).map_err(|_| {
@@ -6644,15 +6179,8 @@ pub(crate) mod evidence_lowering {
                             .as_ref()
                             .map(|dispatch| Ok(dispatch.public_requirement_identity))
                             .unwrap_or_else(|| {
-                                if let Some(terminal_psi::ProofOutputRuntimeCall {
-                                    target: terminal_psi::EvidenceCallableTarget::Runtime { contract, .. }, ..
-                                }) = runtime_call {
-                                    semantic_module.callables.contract(contract).map(|row| row.identity)
-                                        .ok_or(LoweringError::Unsupported("runtime evidence target has no complete lowered contract identity"))
-                                } else {
-                                    checked_evidence_machine_identity(checked, invocation.target_machine_symbol)
-                                        .map(|identity| identities.intern(&identity))
-                                }
+                                checked_evidence_machine_identity(checked, invocation.target_machine_symbol)
+                                    .map(|identity| identities.intern(&identity))
                             })?,
                         static_requirement_dispatch,
                         runtime_result,
@@ -6697,13 +6225,12 @@ pub(crate) mod evidence_lowering {
                     "static requirement proof output has no bounded ordinary runtime call",
                 );
             };
-            let runtime_machine =
-                runtime_call
-                    .target
-                    .machine()
-                    .ok_or(LoweringError::Unsupported(
-                        "static requirement evidence cannot name an indirect callable contract",
-                    ))?;
+            let terminal_psi::EvidenceCallableTarget::Machine(realization) = runtime_call.target
+            else {
+                return unsupported(
+                    "static requirement proof output has no nominal realization machine",
+                );
+            };
             if !bounded_result {
                 return unsupported(
                     "static requirement proof output is outside the bounded runtime Unit, exact i32, or exact bool call",
@@ -6877,8 +6404,7 @@ pub(crate) mod evidence_lowering {
                     && applied.realization_identity == identities.intern(&realization_identity)
                     && applied.source_callable_identity
                         == identities.intern(&realization_callable_identity)
-                    && applied.callable
-                        == terminal_psi::TargetMachineCallable::Machine(runtime_machine)
+                    && applied.callable == terminal_psi::TargetMachineCallable::Machine(realization)
                     && applied.application_commitment == expected_commitment
                     && applied.method_arguments == expected_arguments
             });
@@ -6891,7 +6417,7 @@ pub(crate) mod evidence_lowering {
                 callable.source_callable_identity
                     == identities.intern(&realization_callable_identity)
                     && callable.callable
-                        == terminal_psi::TargetMachineCallable::Machine(runtime_machine)
+                        == terminal_psi::TargetMachineCallable::Machine(realization)
             });
             if callables.next().is_none() || callables.next().is_some() {
                 return unsupported(
@@ -6906,7 +6432,7 @@ pub(crate) mod evidence_lowering {
                 requirement_identity: identities.intern(&requirement_identity),
                 realization_identity: identities.intern(&realization_identity),
                 realization_callable_identity: identities.intern(&realization_callable_identity),
-                realization: runtime_machine,
+                realization,
             }))
         }
 
@@ -6951,15 +6477,16 @@ pub(crate) mod evidence_lowering {
             checked: &CheckedTrees,
             invocation: &checked_trees::ProofOutputCallFact,
             output: &checked_trees::ProofOutputFact,
-            runtime: &RuntimeEvidenceTerms,
         ) -> Result<Option<u32>, LoweringError> {
             let Some(argument) = proof_output_forwarded_argument(checked, invocation, output)
             else {
                 return Ok(None);
             };
-            runtime
-                .lane_position(argument.callee_input, argument.input_position)
+            u32::try_from(argument.input_position)
                 .map(Some)
+                .map_err(|_| {
+                    LoweringError::Unsupported("proof-output forwarded input position exceeds u32")
+                })
         }
 
         pub(crate) fn terminal_evidence_term_id(
@@ -7063,201 +6590,8 @@ pub(crate) mod evidence_lowering {
             LoweringError,
         > {
             let Some(runtime_call) = invocation.runtime_call else {
-                if !invocation.target_machine_symbol.is_valid()
-                    || !invocation.target_state_symbol.is_valid()
-                {
-                    return unsupported(
-                        "proof-output invocation has no exact executable contract source",
-                    );
-                }
                 return Ok((None, None));
             };
-            let site = validation::find_call_site(
-                &checked.typed,
-                invocation.caller_machine_symbol,
-                invocation.caller_state_symbol,
-                runtime_call.statement_index,
-                runtime_call.call_ordinal,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "proof-output invocation lost its exact typed source occurrence",
-            ))?;
-            let retained_call = checked.facts.proof.contract_call_at(&(
-                invocation.caller_machine_symbol,
-                invocation.caller_state_symbol,
-                runtime_call.statement_index,
-                runtime_call.call_ordinal,
-            ));
-            let retained_source = retained_call
-                .filter(|call| {
-                    checked
-                        .facts
-                        .proof
-                        .call_contract_signatures
-                        .is_valid(call.signature)
-                })
-                .map(|call| {
-                    checked
-                        .facts
-                        .proof
-                        .call_contract_signatures
-                        .get(call.signature)
-                });
-            let source = validation::call_contract_source(
-                &checked.typed,
-                invocation.caller_machine_symbol,
-                &site,
-            )
-            .map_err(LoweringError::Unsupported)?;
-            if let Some(validation::CallContractSource::Runtime { binding, contract }) = source {
-                let retained = retained_source.ok_or(LoweringError::Unsupported(
-                    "runtime proof-output invocation has no retained exact contract row",
-                ))?;
-                let source_expression = match site {
-                    validation::CallSite::Expression { expression, .. } => expression,
-                    _ => Default::default(),
-                };
-                let source_state = checked
-                    .typed
-                    .state_by_symbol(invocation.caller_state_symbol)
-                    .ok_or(LoweringError::Unsupported(
-                        "runtime proof-output caller state is absent",
-                    ))?;
-                let source_statement = (runtime_call.statement_index
-                    < source_state.statement_nodes.len())
-                .then(|| {
-                    source_state
-                        .statement_nodes
-                        .handle_at(runtime_call.statement_index as u32)
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "runtime proof-output source statement is absent",
-                ))?;
-                if retained.source
-                    != (checked_trees::CallContractSignatureSource::Runtime {
-                        contract: binding.contract,
-                        lexical_owner: contract.lexical_owner,
-                        callee: binding.callee,
-                    })
-                    || retained.signature != contract.signature
-                    || retained.caller_machine_symbol != invocation.caller_machine_symbol
-                    || retained.caller_state_symbol != invocation.caller_state_symbol
-                    || retained.statement_index != runtime_call.statement_index
-                    || retained.call_ordinal != runtime_call.call_ordinal
-                    || retained.source_statement != source_statement
-                    || retained.source_expression != source_expression
-                    || retained.source_target.is_valid()
-                    || invocation.target_machine_symbol.is_valid()
-                    || invocation.target_state_symbol.is_valid()
-                    || invocation.static_requirement_dispatch.is_some()
-                {
-                    return unsupported(
-                        "runtime proof-output invocation lost its exact retained contract source",
-                    );
-                }
-                let mut matching = occurrences.iter().filter(|occurrence| {
-                    occurrence.matches_statement(
-                        invocation.caller_state_symbol,
-                        runtime_call.statement_index,
-                        runtime_call.call_ordinal,
-                    )
-                });
-                let occurrence = matching.next().ok_or(LoweringError::Unsupported(
-                    "runtime proof-output call has no emitted source occurrence",
-                ))?;
-                if matching.next().is_some() || occurrence.source_target.runtime() != Some(binding)
-                {
-                    return unsupported(
-                        "runtime proof-output occurrence changed its exact callable binding",
-                    );
-                }
-                let caller =
-                    semantic_module
-                        .machine(terminal_machine)
-                        .ok_or(LoweringError::Unsupported(
-                            "runtime proof-output caller has no emitted body",
-                        ))?;
-                let mut emitted_rows = caller
-                    .callable_invocations()
-                    .filter(|call| call.site == occurrence.terminal_site);
-                let emitted = emitted_rows.next().ok_or(LoweringError::Unsupported(
-                    "runtime proof-output call has no genuine indirect executable invocation",
-                ))?;
-                if emitted_rows.next().is_some() {
-                    return unsupported("runtime proof-output executable invocation is ambiguous");
-                }
-                let retained_contract = checked
-                    .facts
-                    .callable_contracts
-                    .contract_for_source(binding.contract)
-                    .map_err(LoweringError::Unsupported)?;
-                let lowered_contract = semantic_module
-                    .callables
-                    .contract(retained_contract.id)
-                    .ok_or(LoweringError::Unsupported(
-                        "runtime proof-output contract was not lowered",
-                    ))?;
-                if emitted.inputs.contract != retained_contract.id
-                    || semantic_module.identities.text(lowered_contract.identity)
-                        != checked
-                            .type_identity_text(retained_contract.identity)
-                            .as_deref()
-                {
-                    return unsupported(
-                        "runtime proof-output operation changed its complete callable contract",
-                    );
-                }
-                let semantic_vocabulary::InvocationSite::Operation(operation_id) = emitted.site
-                else {
-                    return unsupported(
-                        "runtime proof-output occurrence has no executable operation result",
-                    );
-                };
-                let operation =
-                    caller
-                        .operation(operation_id)
-                        .ok_or(LoweringError::Unsupported(
-                            "runtime proof-output occurrence names an absent operation",
-                        ))?;
-                if !lowered_contract
-                    .result
-                    .matches_operation_result(&operation.result)
-                {
-                    return unsupported(
-                        "runtime proof-output operation changed its exact contract result",
-                    );
-                }
-                let result = match &operation.result {
-                    terminal_psi::OperationResult::Unit => ProofOutputRuntimeResult::Unit,
-                    terminal_psi::OperationResult::Scalar(value) => {
-                        ProofOutputRuntimeResult::Scalar(value.scalar_type)
-                    }
-                    terminal_psi::OperationResult::Structural(value) => {
-                        ProofOutputRuntimeResult::Structural(value.structural_type)
-                    }
-                };
-                return Ok((
-                    Some(result),
-                    Some(ProofOutputRuntimeCall {
-                        site: emitted.site,
-                        target: terminal_psi::EvidenceCallableTarget::Runtime {
-                            contract: emitted.inputs.contract,
-                            callee: emitted.inputs.callee,
-                        },
-                    }),
-                ));
-            }
-            if retained_source.is_some_and(|retained| {
-                matches!(
-                    retained.source,
-                    checked_trees::CallContractSignatureSource::Runtime { .. },
-                )
-            }) {
-                return unsupported(
-                    "proof-output invocation changed its retained runtime contract source",
-                );
-            }
-
             let mut matching = occurrences.iter().filter(|occurrence| {
                 occurrence.matches_statement(
                     invocation.caller_state_symbol,
@@ -7356,90 +6690,13 @@ pub(crate) mod evidence_lowering {
 
     use super::{CheckedTrees, EvidenceTermId, LoweredPsi, LoweringError, unsupported};
     use crate::proofs::evidence_lowering::evidence_terms::{
-        RuntimeEvidenceTerms, lower_evidence_contract_lanes, lower_evidence_term_ids,
-        lower_evidence_terms, lower_proposition_vocabulary,
+        lower_evidence_contract_lanes, lower_evidence_term_ids, lower_evidence_terms,
+        lower_proposition_vocabulary,
     };
     use crate::proofs::evidence_lowering::outcome_specific_calls::lower_outcome_specific_call_evidence;
     use crate::proofs::evidence_lowering::outcome_specific_ensures::outcome_specific_ensure_rows;
     use crate::proofs::evidence_lowering::proof_output_calls::lower_proof_output_calls;
     use std::collections::BTreeMap;
-
-    pub(crate) fn publish_runtime_callable_evidence_contracts(
-        module: &mut terminal_psi::TerminalModule,
-        lanes: &[terminal_psi::EvidenceContractLane],
-        declarations: &[terminal_psi::PropositionDeclaration],
-        applications: &[terminal_psi::PropositionApplicationIdentity],
-        terms: &[terminal_psi::EvidenceTermDeclaration],
-    ) -> Result<(), LoweringError> {
-        for contract in &mut module.callables.contracts {
-            let mut expected = Vec::new();
-            for lane in lanes.iter().filter(|lane| {
-                lane.owner == terminal_psi::EvidenceCallableOwner::Runtime(contract.id)
-            }) {
-                let mut selected_terms = terms.iter().filter(|term| term.id == lane.term);
-                let term = selected_terms.next().ok_or(LoweringError::Unsupported(
-                    "runtime evidence contract has no canonical witness term",
-                ))?;
-                if selected_terms.next().is_some() {
-                    return unsupported(
-                        "runtime evidence term is ambiguous during contract publication",
-                    );
-                }
-                let mut selected_applications = applications
-                    .iter()
-                    .filter(|application| application.id == term.proposition);
-                let application =
-                    selected_applications
-                        .next()
-                        .ok_or(LoweringError::Unsupported(
-                            "runtime evidence contract has no full proposition application",
-                        ))?;
-                if selected_applications.next().is_some() {
-                    return unsupported(
-                        "runtime evidence application is ambiguous during contract publication",
-                    );
-                }
-                let mut selected_declarations = declarations
-                    .iter()
-                    .filter(|declaration| declaration.id == application.declaration);
-                let declaration =
-                    selected_declarations
-                        .next()
-                        .ok_or(LoweringError::Unsupported(
-                            "runtime evidence contract has no proposition declaration",
-                        ))?;
-                if selected_declarations.next().is_some() {
-                    return unsupported(
-                        "runtime evidence declaration is ambiguous during contract publication",
-                    );
-                }
-                expected.push(terminal_psi::TerminalCallableEvidenceLane {
-                    kind: lane.kind,
-                    position: lane.position,
-                    declaration: declaration.clone(),
-                    application: application.clone(),
-                    term: term.clone(),
-                    argument_subjects: lane.argument_subjects.clone(),
-                });
-            }
-            expected.sort_by_key(|lane| (lane.kind, lane.position));
-            if expected
-                .windows(2)
-                .any(|pair| (pair[0].kind, pair[0].position) == (pair[1].kind, pair[1].position))
-            {
-                return unsupported("runtime public evidence contract repeats a canonical lane");
-            }
-            contract.evidence_contract = expected;
-        }
-        terminal_semantics::calls::callable_refinement::validate_callable_evidence_contracts_in(
-            &module.callables,
-            declarations,
-            applications,
-            terms,
-            lanes,
-        )
-        .map_err(LoweringError::Unsupported)
-    }
 
     pub(crate) fn lower_and_install_evidence_artifacts(
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -7460,19 +6717,17 @@ pub(crate) mod evidence_lowering {
                 return unsupported("evidence body mapping names an absent terminal machine");
             }
         }
-        let runtime = RuntimeEvidenceTerms::prepare(checked, &lowered.semantic_module)?;
-        let mut term_ids = lower_evidence_term_ids(checked, source_machine_ids, &runtime)?.term_ids;
+        let mut term_ids = lower_evidence_term_ids(checked, source_machine_ids)?.term_ids;
         let mut rounds = 0_u8;
         let (declarations, applications, evidence_terms) = loop {
             let (declarations, applications, declaration_ids) =
-                lower_proposition_vocabulary(identities, checked, &term_ids, &runtime)?;
+                lower_proposition_vocabulary(identities, checked, &term_ids)?;
             let evidence_terms = lower_evidence_terms(
                 identities,
                 checked,
                 &declaration_ids,
                 &applications,
                 term_ids.clone(),
-                &runtime,
             )?;
             let mut canonical = evidence_terms
                 .declarations
@@ -7506,12 +6761,7 @@ pub(crate) mod evidence_lowering {
                 .map(|id| id.map(|previous| renumbered[&previous]))
                 .collect();
         };
-        let mut evidence_contract_lanes = runtime.lower_lanes(
-            identities,
-            checked,
-            &lowered.semantic_module,
-            &evidence_terms.term_ids,
-        )?;
+        let mut evidence_contract_lanes = Vec::new();
         let mut proof_output_calls = Vec::new();
         for &(machine, terminal_machine) in source_machine_ids {
             let outcome_specific_ensures = outcome_specific_ensure_rows(
@@ -7541,7 +6791,6 @@ pub(crate) mod evidence_lowering {
                 &evidence_terms.term_ids,
                 &declarations,
                 &applications,
-                &runtime,
             )?);
             lower_outcome_specific_call_evidence(
                 identities,
@@ -7565,13 +6814,6 @@ pub(crate) mod evidence_lowering {
         }
         evidence_contract_lanes.sort_unstable();
         proof_output_calls.sort_unstable();
-        publish_runtime_callable_evidence_contracts(
-            &mut lowered.semantic_module,
-            &evidence_contract_lanes,
-            &declarations,
-            &applications,
-            &evidence_terms.declarations,
-        )?;
         lowered.semantic_module.proposition_declarations = declarations;
         lowered.semantic_module.proposition_applications = applications;
         lowered.semantic_module.evidence_terms = evidence_terms.declarations;
@@ -8365,10 +7607,8 @@ pub(crate) mod float_meaning_projection {
                 usize::try_from(scalar.source_position).ok() == Some(authored_position)
             })
             .ok_or_else(invalid_source)?;
-        if graph_state.scalar_parameters[scalar_index]
-            .scalar_type
-            .primitive()
-            != Some(parameter.fallback.primitive)
+        if graph_state.scalar_parameters[scalar_index].primitive_type
+            != parameter.fallback.primitive
         {
             return Err(invalid_source());
         }

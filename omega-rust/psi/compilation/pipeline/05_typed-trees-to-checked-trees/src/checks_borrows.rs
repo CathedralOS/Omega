@@ -1720,8 +1720,7 @@ mod persistent {
                 resolving.pop();
                 is_static
             }
-            typed_trees::expression::ExpressionNode::MachineValue(_)
-            | typed_trees::expression::ExpressionNode::ArrayLiteral(_)
+            typed_trees::expression::ExpressionNode::ArrayLiteral(_)
             | typed_trees::expression::ExpressionNode::Match(_)
             | typed_trees::expression::ExpressionNode::Atomic(_)
             | typed_trees::expression::ExpressionNode::Boolean(_)

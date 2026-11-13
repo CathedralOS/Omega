@@ -154,21 +154,9 @@ mod declared_result {
         if is_unit(program, reference) {
             return Some(ResultPlan::Unit);
         }
-        if let Some(scalar_type) = checked_trees::CheckedScalarType::from_type_reference(
-            program.typed_program(),
-            reference,
-        ) {
-            let represented = match scalar_type {
-                checked_trees::CheckedScalarType::Primitive(_) => {
-                    validation::scalar_result_contract_is_represented(program, reference)
-                }
-                checked_trees::CheckedScalarType::Callable(_) => program
-                    .runtime_callable_type_identity(
-                        typed_trees::type_identity::TypeIdentityRequest::ordinary(reference),
-                    )
-                    .is_ok(),
-            };
-            return represented.then_some(ResultPlan::Scalar { scalar_type });
+        if let Some(primitive_type) = program.primitive_type_reference(reference) {
+            return validation::scalar_result_contract_is_represented(program, reference)
+                .then_some(ResultPlan::Scalar { primitive_type });
         }
         let multiplicity = crate::checks::type_multiplicity(program, reference);
         let pointer_result =
@@ -461,8 +449,8 @@ mod scalar_fields {
         remain conjoined with every retained interval shell.
     */
     use super::{
-        CheckedUnitStructuralFieldType as FieldType, DataMember, SymbolHandle, TypeReferenceHandle,
-        TypeReferenceNode, substituted_formal_type,
+        CheckedUnitStructuralFieldType as FieldType, DataMember, PrimitiveType, SymbolHandle,
+        TypeReferenceHandle, TypeReferenceNode, substituted_formal_type,
     };
     use numerics::bignum::BigInt;
     use semantic_vocabulary::{BoundedIntegerType, IntegerValue};
@@ -571,37 +559,9 @@ mod scalar_fields {
         program: &dyn ::validation::CheckingInput,
         mut type_reference: TypeReferenceHandle,
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-        scalar_type: impl Into<checked_trees::CheckedScalarType>,
+        primitive: PrimitiveType,
         stated: Option<(Option<i64>, Option<i64>)>,
     ) -> Option<FieldType> {
-        let scalar_type = scalar_type.into();
-        let primitive = match scalar_type {
-            checked_trees::CheckedScalarType::Primitive(primitive) => primitive,
-            checked_trees::CheckedScalarType::Callable(_) => {
-                let declared = checked_trees::CheckedScalarType::from_type_reference(
-                    program.typed_program(),
-                    type_reference,
-                )?;
-                if stated.is_some()
-                    || !declared
-                        .same_type(program.typed_program(), scalar_type)
-                        .ok()?
-                {
-                    return None;
-                }
-                program
-                    .runtime_callable_type_identity(
-                        typed_trees::type_identity::TypeIdentityRequest {
-                            substitutions,
-                            ..typed_trees::type_identity::TypeIdentityRequest::ordinary(
-                                type_reference,
-                            )
-                        },
-                    )
-                    .ok()?;
-                return Some(FieldType::Scalar(scalar_type));
-            }
-        };
         let mut declared_bounds: Option<(BigInt, BigInt)> = None;
         let mut has_non_exact_domain = false;
         let mut predicate = None;
@@ -637,7 +597,7 @@ mod scalar_fields {
                                     domain,
                                     checked_trees::CheckedScalarExpression::Parameter {
                                         position: 0,
-                                        scalar_type: (primitive).into(),
+                                        primitive_type: primitive,
                                     },
                                 )?;
                                 predicate = Some(match predicate {
@@ -1171,14 +1131,14 @@ mod boundary_domains {
                     let argument_index = scalar_parameters.iter().position(|parameter| {
                         parameter.source_position as usize == source_position
                     })?;
-                    if scalar_parameters[argument_index].scalar_type != primitive_type
+                    if scalar_parameters[argument_index].primitive_type != primitive_type
                         || !membership.semantic_domain.is_valid()
                     {
                         return None;
                     }
                     let subject = checked_trees::CheckedScalarExpression::Parameter {
                         position: 0,
-                        scalar_type: primitive_type.into(),
+                        primitive_type,
                     };
                     let predicate = validation::scalar_membership_value_predicates(
                         program, membership, &subject,
@@ -1467,26 +1427,18 @@ mod identities {
         program: &dyn ::validation::CheckingInput,
         mut type_reference: TypeReferenceHandle,
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    ) -> Option<checked_trees::CheckedScalarType> {
+    ) -> Option<PrimitiveType> {
         loop {
             match program.type_reference_table.type_reference(type_reference) {
                 TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
                 TypeReferenceNode::Named { name, .. } => {
                     let resolved = substituted_formal_type(program, type_reference, substitutions);
                     if resolved == type_reference {
-                        return PrimitiveType::from_name(name.as_str()).map(Into::into);
+                        return PrimitiveType::from_name(name.as_str());
                     }
                     type_reference = resolved;
                 }
-                TypeReferenceNode::DynamicTrait { .. } => {
-                    return Some(PrimitiveType::Selector.into());
-                }
-                TypeReferenceNode::Callable { .. } => {
-                    return checked_trees::CheckedScalarType::from_type_reference(
-                        program.typed_program(),
-                        type_reference,
-                    );
-                }
+                TypeReferenceNode::DynamicTrait { .. } => return Some(PrimitiveType::Selector),
                 _ => return None,
             }
         }
@@ -1744,7 +1696,7 @@ mod parameters {
             .map(|(scalar, parameter)| {
                 let primitive_type =
                     crate::values::mutable_scalar_parameter_type(program, parameter)?;
-                if primitive_type != scalar.scalar_type
+                if primitive_type != scalar.primitive_type
                     || !super::supports_primitive_storage(program, parameter.type_reference)
                 {
                     return None;
@@ -1769,21 +1721,16 @@ mod parameters {
         program: &dyn ::validation::CheckingInput,
         state: &State,
     ) -> Option<Vec<CheckedStructuralScalarParameterPlan>> {
-        erased_scalar_parameter_plans_for_parameters(program, program.state_parameters(state))
-    }
-
-    pub(crate) fn erased_scalar_parameter_plans_for_parameters(
-        program: &dyn ::validation::CheckingInput,
-        parameters: &[StateParameter],
-    ) -> Option<Vec<CheckedStructuralScalarParameterPlan>> {
-        if !parameters
+        if !program
+            .state_parameters(state)
             .iter()
             .any(|parameter| parameter.relevance.is_erased())
         {
             return Some(Vec::new());
         }
         let proof_only = proof_only_classification(program);
-        parameters
+        program
+            .state_parameters(state)
             .iter()
             .enumerate()
             .filter(|(_, parameter)| parameter.relevance.is_erased())
@@ -1804,7 +1751,7 @@ mod parameters {
                         .into_iter()
                         .map(|lane| CheckedStructuralScalarParameterPlan {
                             source_position,
-                            scalar_type: lane.primitive_type.into(),
+                            primitive_type: lane.primitive_type,
                         })
                         .collect::<Vec<_>>(),
                 )
@@ -1823,21 +1770,16 @@ mod parameters {
         program: &dyn ::validation::CheckingInput,
         state: &State,
     ) -> Option<Vec<CheckedErasedProofParameterPlan>> {
-        erased_proof_parameter_plans_for_parameters(program, program.state_parameters(state))
-    }
-
-    pub(crate) fn erased_proof_parameter_plans_for_parameters(
-        program: &dyn ::validation::CheckingInput,
-        parameters: &[StateParameter],
-    ) -> Option<Vec<CheckedErasedProofParameterPlan>> {
-        if !parameters
+        if !program
+            .state_parameters(state)
             .iter()
             .any(|parameter| parameter.relevance.is_erased())
         {
             return Some(Vec::new());
         }
         let proof_only = proof_only_classification(program);
-        parameters
+        program
+            .state_parameters(state)
             .iter()
             .enumerate()
             .filter(|(_, parameter)| parameter.relevance.is_erased())
@@ -2826,7 +2768,7 @@ mod shape_collector {
                     application,
                     CheckedScalarExpression::Parameter {
                         position: 0,
-                        scalar_type: (primitive).into(),
+                        primitive_type: primitive,
                     },
                 )?;
                 (!matches!(predicate, CheckedBooleanExpression::Constant(true)))
@@ -3266,8 +3208,8 @@ mod shape_collector {
             identity: TypeIdentityId,
         ) -> Option<PrimitiveType> {
             match self.types.get(&identity).map(|plan| &plan.shape) {
-                Some(CheckedUnitStructuralTypeShape::Scalar(scalar_type)) => {
-                    scalar_type.primitive()
+                Some(CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)) => {
+                    Some(*primitive)
                 }
                 _ => None,
             }
@@ -3552,24 +3494,22 @@ mod shape_collector {
             if self.types.contains_key(&identity) {
                 return Some(identity);
             }
-            if let Some(scalar_type) = checked_trees::CheckedScalarType::from_type_reference(
-                self.program.typed_program(),
-                type_reference,
-            ) {
+            if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
                 let (copyable, no_code_affine_cleanup, descriptor_cleanup) = storage_properties();
                 let (shape, scalar_restriction) = match scalar_fields::retain_scalar_field(
                     self.program,
                     type_reference,
                     substitutions,
-                    scalar_type,
+                    primitive,
                     None,
                 )? {
-                    CheckedUnitStructuralFieldType::Scalar(_) => {
-                        (CheckedUnitStructuralTypeShape::Scalar(scalar_type), None)
-                    }
+                    CheckedUnitStructuralFieldType::Scalar(_) => (
+                        CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
+                        None,
+                    ),
                     restriction @ (CheckedUnitStructuralFieldType::BoundedInteger(_)
                     | CheckedUnitStructuralFieldType::RefinedScalar { .. }) => (
-                        CheckedUnitStructuralTypeShape::Scalar(scalar_type),
+                        CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
                         Some(restriction),
                     ),
                     CheckedUnitStructuralFieldType::Atomic(primitive) => {
@@ -4329,7 +4269,7 @@ mod shape_collector {
                         CheckedUnitStructuralTypeShape::ByteSequence(_) => {
                             retained.extend(self.byte_view_elements.iter().cloned());
                         }
-                        CheckedUnitStructuralTypeShape::Scalar(_)
+                        CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
                         | CheckedUnitStructuralTypeShape::AtomicCell(_) => {}
                         CheckedUnitStructuralTypeShape::Record { fields, storage } => {
                             if let CheckedUnitRecordStorage::TargetLayout {

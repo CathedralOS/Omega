@@ -117,7 +117,7 @@ pub(crate) mod branch_states {
                 }
                 validate_direct_parameter_types(expression, &scalar_carriers(caller_value_types))?;
             }
-            let erased_arguments = (0..target.erased_parameters()?.len())
+            let erased_arguments = (0..target.erased_parameters().len())
                 .map(|erased_ordinal| {
                     let (statement_ordinal, call_ordinal) =
                         statement_site.ok_or(LoweringError::Unsupported(
@@ -887,11 +887,14 @@ pub(crate) mod branch_states {
 }
 pub(crate) mod call_closure {
 
-    use super::{CheckedTerminalSignatureEligibility, CheckedTrees, LoweringError, unsupported};
+    use super::{
+        CheckedTerminalSignatureEligibility, CheckedTrees, LoweringError, PrimitiveType,
+        unsupported,
+    };
 
     pub(crate) mod callee {
         use super::super::CheckedUnitStructuralParameterPlan;
-        use super::{CheckedTrees, LoweringError, unsupported};
+        use super::{CheckedTrees, LoweringError, PrimitiveType, unsupported};
         use crate::shared::checked_facts::flow_facts;
         use crate::unit::attached_unit::bodies::UnitBody;
 
@@ -988,25 +991,27 @@ pub(crate) mod call_closure {
                 Ok(self.0.entry()?.state)
             }
 
-            pub(crate) fn parameter_types(
-                &self,
-            ) -> Result<Vec<checked_trees::CheckedScalarType>, LoweringError> {
+            pub(crate) fn parameter_types(&self) -> Result<Vec<PrimitiveType>, LoweringError> {
                 Ok(self
                     .0
                     .entry()?
                     .scalar_parameters
                     .iter()
-                    .map(|parameter| parameter.scalar_type)
+                    .map(|parameter| parameter.primitive_type)
                     .collect())
             }
 
-            pub(crate) fn erased_parameters(
-                &self,
-            ) -> Result<
-                &'checked [checked_trees::CheckedStructuralScalarParameterPlan],
-                LoweringError,
-            > {
-                Ok(self.0.entry()?.erased_scalar_parameters)
+            pub(crate) fn erased_parameters(&self) -> Vec<(u32, PrimitiveType)> {
+                self.0
+                    .entry()
+                    .map(|entry| {
+                        entry
+                            .erased_scalar_parameters
+                            .iter()
+                            .map(|parameter| (parameter.source_position, parameter.primitive_type))
+                            .collect()
+                    })
+                    .unwrap_or_default()
             }
 
             pub(crate) fn erased_proof_parameters(
@@ -1081,8 +1086,7 @@ pub(crate) mod call_closure {
                             .call()
                             .filter(|call| call.is_module() && call.scalar_result().is_some())
                         {
-                            let target_machine =
-                                crate::shared::call_sites::declared_machine(&call.target)?;
+                            let target_machine = call.target.machine;
                             if !computed.contains(&target_machine) {
                                 computed.push(target_machine);
                             }
@@ -1123,13 +1127,12 @@ pub(crate) mod call_closure {
                         return unsupported("embedded computation has no unique live source root");
                     }
                 }
-                crate::expression_preparation::computation_graph::code_targets(checked, machine)
+                crate::expression_preparation::computation_graph::call_targets(checked, machine)
             }
         }
         pub(crate) use discovery::checked_scalar_call_closure_with_structural_roots;
 
         pub(crate) struct EmbeddedScalarCalls<'catalogs> {
-            callables: &'catalogs terminal_psi::TerminalCallableCatalog,
             terminal_machine: MachineId,
             service_ids: &'catalogs [(
                 language_semantics::ServiceReachId,
@@ -1155,7 +1158,6 @@ pub(crate) mod call_closure {
 
         impl<'catalogs> EmbeddedScalarCalls<'catalogs> {
             pub(crate) fn from_shared(
-                callables: &'catalogs terminal_psi::TerminalCallableCatalog,
                 terminal_machine: MachineId,
                 machine_ids: Vec<(symbols::SymbolHandle, MachineId)>,
                 requirement_counts: Vec<(symbols::SymbolHandle, usize)>,
@@ -1163,7 +1165,6 @@ pub(crate) mod call_closure {
                 scalar_qualifications: &'catalogs terminal_psi::ScalarQualificationCatalog,
             ) -> Self {
                 Self {
-                    callables,
                     terminal_machine,
                     service_ids: &[],
                     signatures: &[],
@@ -1213,7 +1214,6 @@ pub(crate) mod call_closure {
 
             pub(crate) fn emission_context(&self) -> CallEmissionContext<'_> {
                 CallEmissionContext {
-                    callables: self.callables,
                     terminal_machine: self.terminal_machine,
                     service_ids: self.service_ids,
                     domain_ids: self.domain_ids,
@@ -1591,13 +1591,10 @@ pub(crate) mod contracts {
                         checked_trees::CheckedStorageRoot::Parameter {
                             index: parameter_position,
                         },
-                    scalar_type,
+                    primitive_type,
                     ..
                 } => {
-                    let primitive = scalar_type.primitive().ok_or(LoweringError::Unsupported(
-                        "opaque callable storage cannot define a mathematical scalar predicate",
-                    ))?;
-                    crate::emission::scalar_types::terminal_scalar_type(primitive)?;
+                    crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?;
                     namespace.structural(*parameter_position)
                 }
                 // A contract clause is written over the callable's own
@@ -1826,11 +1823,7 @@ pub(crate) mod contracts {
                 Ok(ValueDeclaration {
                     qualifications: Default::default(),
                     id: value_id(allocate_dense(next_value)?),
-                    scalar_type: terminal_scalar_type(parameter.scalar_type.primitive().ok_or(
-                        LoweringError::Unsupported(
-                            "opaque callable cannot be an erased mathematical scalar formal",
-                        ),
-                    )?)?,
+                    scalar_type: terminal_scalar_type(parameter.primitive_type)?,
                 })
             })
             .collect()
@@ -2432,14 +2425,11 @@ pub(crate) mod contracts {
             if let CheckedScalarExpression::ConstantApplication {
                 recipe,
                 owner,
-                scalar_type,
+                primitive_type,
             } = expression
             {
-                let primitive_type = scalar_type.primitive().ok_or(LoweringError::Unsupported(
-                    "opaque machine values cannot appear in mathematical constant applications",
-                ))?;
                 let scalar_type =
-                    crate::emission::scalar_types::integer_scalar_type(primitive_type)?;
+                    crate::emission::scalar_types::integer_scalar_type(*primitive_type)?;
                 if let Some(application) = self.views.scalar_applications.recipe_in(*recipe, *owner)
                 {
                     if self.views.scalar_applications.scalar_type(application) != Some(scalar_type)
@@ -2461,10 +2451,11 @@ pub(crate) mod contracts {
                     .ok_or(LoweringError::Unsupported(
                         "contract constant application has no admitted target value",
                     ))?;
-                let value = typed_trees::closed_numeric::land_integer(&value.value, primitive_type)
-                    .ok_or(LoweringError::Unsupported(
-                        "contract constant application does not fit its declared carrier",
-                    ))?;
+                let value =
+                    typed_trees::closed_numeric::land_integer(&value.value, *primitive_type)
+                        .ok_or(LoweringError::Unsupported(
+                            "contract constant application does not fit its declared carrier",
+                        ))?;
                 let scalar_type = scalar_type.as_integer().ok_or(LoweringError::Unsupported(
                     "contract constant application has no integer carrier",
                 ))?;
@@ -2517,18 +2508,15 @@ pub(crate) mod contracts {
             if let CheckedScalarExpression::StructuralParameterField {
                 root,
                 path,
-                scalar_type,
+                primitive_type,
                 ..
             } = expression
             {
-                let primitive = scalar_type.primitive().ok_or(LoweringError::Unsupported(
-                    "opaque callable storage cannot define a mathematical scalar term",
-                ))?;
                 return self.structural_member_term(
                     identities,
                     *root,
                     path,
-                    crate::emission::scalar_types::terminal_scalar_type(primitive)?,
+                    crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?,
                 );
             }
             checked_scalar_term_with_views(identities, expression, self.namespace, self.erased)
@@ -2677,10 +2665,7 @@ pub(crate) mod effects {
                             *receiver_value,
                             subject,
                             *field,
-                            crate::emission::scalar_types::terminal_checked_scalar_type(
-                                checked,
-                                node.scalar_type,
-                            )?,
+                            node.primitive_type,
                             *atomic_ordering,
                             &completed,
                         )?,

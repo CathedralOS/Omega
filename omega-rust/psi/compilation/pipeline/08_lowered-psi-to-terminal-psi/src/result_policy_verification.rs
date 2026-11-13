@@ -334,35 +334,6 @@ pub fn verify_boundary_result_policies(
                 let Some(NominalMachineUseSite::Expression(expression)) = source.source_site else {
                     continue;
                 };
-                let source_target = match source.source_target {
-                    lowered_psi::LoweredSourceCallTarget::Declaration(declaration) => declaration,
-                    lowered_psi::LoweredSourceCallTarget::Runtime(binding) => {
-                        let call = checked.expression_table.call_node(expression).ok_or(
-                            "runtime boundary policy source lost its exact call expression",
-                        )?;
-                        let Some(validation::CallContractSource::Runtime {
-                            binding: current, ..
-                        }) = validation::CallContractSource::runtime_expression(
-                            &checked.typed,
-                            call,
-                        )?
-                        else {
-                            return Err(
-                                "runtime boundary policy source lost its public callable contract",
-                            );
-                        };
-                        if current != binding {
-                            return Err(
-                                "runtime boundary policy source changed its exact callable binding",
-                            );
-                        }
-                        // Runtime calls have a genuine CallMachine operation.
-                        // A boundary proxy owns its separate declaration call.
-                        return Err(
-                            "runtime callable source cannot own a direct boundary result policy",
-                        );
-                    }
-                };
                 let mut first_selection = None;
                 let mut multiple_selections = false;
                 checked
@@ -381,14 +352,17 @@ pub fn verify_boundary_result_policies(
                         },
                     );
                 let Some((target, policy)) = first_selection else {
-                    if typed_trees::operator::declaration_by_symbol(&checked.typed, source_target)
-                        .is_some()
+                    if typed_trees::operator::declaration_by_symbol(
+                        &checked.typed,
+                        source.source_target,
+                    )
+                    .is_some()
                     {
                         return Err("float result policy lost its checked selection");
                     }
                     continue;
                 };
-                if multiple_selections || target != source_target {
+                if multiple_selections || target != source.source_target {
                     return Err("float result policy changed its exact checked selection");
                 }
                 let control = &checked.facts.flow.control;

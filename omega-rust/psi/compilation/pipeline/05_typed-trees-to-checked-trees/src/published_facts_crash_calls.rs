@@ -14,22 +14,6 @@
     `requirement_contracts.rs` prepares each call's selected public signature.
 */
 
-type CapsuleTargetKey = (
-    symbols::SymbolHandle,
-    symbols::SymbolHandle,
-    Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
-);
-
-fn capsule_target_key(capsule: &checked_trees::CrashContractCapsule) -> CapsuleTargetKey {
-    (
-        capsule.target_machine(),
-        capsule.target_state(),
-        capsule
-            .runtime_callable_source()
-            .map(|(contract, _)| contract),
-    )
-}
-
 mod potential_causes {
     /*
         Conservative public cause envelopes over the prepared crash dependency graph.
@@ -59,10 +43,10 @@ mod potential_causes {
             plan_by_machine.entry(plan.machine).or_insert(plan);
         }
         let mut capsule_by_target =
-            SymbolKeyMap::<super::CapsuleTargetKey, &CrashContractCapsule>::default();
+            SymbolKeyMap::<(SymbolHandle, SymbolHandle), &CrashContractCapsule>::default();
         for capsule in capsules {
             capsule_by_target
-                .entry(super::capsule_target_key(capsule))
+                .entry((capsule.target_machine(), capsule.target_state()))
                 .or_insert(capsule);
         }
         let mut equations = Vec::with_capacity(nodes.len());
@@ -119,11 +103,7 @@ mod potential_causes {
                     }
                 } else {
                     let capsule = capsule_by_target
-                        .get(&(
-                            invocation.target_machine,
-                            invocation.target_state,
-                            invocation.runtime_contract,
-                        ))
+                        .get(&(invocation.target_machine, invocation.target_state))
                         .copied()
                         .expect("a viable abstract invocation has its pinned crash capsule");
                     direct.extend(
@@ -379,7 +359,6 @@ mod private_summaries {
                     let pinned = crash_capsules.iter().any(|capsule| {
                         capsule.target_machine() == site.target_machine
                             && capsule.target_state() == site.target_state
-                            && capsule.runtime_callable_source().map(|(contract, _)| contract) == site.runtime_contract
                     });
                     return (!pinned).then(|| {
                         format!("retained member `{member_name}` calls `{target}` without a pinned crash capsule")
@@ -453,9 +432,9 @@ mod private_summaries {
                 .get(&machine)
                 .and_then(|&index| plans.get(index))
         };
-        let mut capsule_targets = SymbolKeyMap::<super::CapsuleTargetKey, ()>::default();
+        let mut capsule_targets = SymbolKeyMap::<(SymbolHandle, SymbolHandle), ()>::default();
         for capsule in crash_capsules {
-            capsule_targets.insert(super::capsule_target_key(capsule), ());
+            capsule_targets.insert((capsule.target_machine(), capsule.target_state()), ());
         }
 
         loop {
@@ -479,11 +458,8 @@ mod private_summaries {
                                     || viable_machines.contains_key(&invocation.target_machine)
                             })
                     } else {
-                        capsule_targets.contains_key(&(
-                            invocation.target_machine,
-                            invocation.target_state,
-                            invocation.runtime_contract,
-                        ))
+                        capsule_targets
+                            .contains_key(&(invocation.target_machine, invocation.target_state))
                     }
                 })
             });
@@ -520,10 +496,10 @@ mod private_summaries {
             node_indices.entry(node.machine).or_insert(index);
         }
         let mut capsule_by_target =
-            SymbolKeyMap::<super::CapsuleTargetKey, &CrashContractCapsule>::default();
+            SymbolKeyMap::<(SymbolHandle, SymbolHandle), &CrashContractCapsule>::default();
         for capsule in crash_capsules {
             capsule_by_target
-                .entry(super::capsule_target_key(capsule))
+                .entry((capsule.target_machine(), capsule.target_state()))
                 .or_insert(capsule);
         }
 
@@ -653,7 +629,7 @@ mod private_summaries {
                                 (&selected.capsule, &selected.source.signature)
                             } else {
                                 let capsule = capsule_by_target
-                                    .get(&(invocation.target_machine, invocation.target_state, invocation.runtime_contract))
+                                    .get(&(invocation.target_machine, invocation.target_state))
                                     .copied()
                                     .expect(
                                         "the viability pass retained only pinned requirement targets",
@@ -733,8 +709,6 @@ mod private_summaries {
         call_ordinal: usize,
         pub(super) target_machine: SymbolHandle,
         pub(super) target_state: SymbolHandle,
-        pub(super) runtime_contract:
-            Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
     }
 
     pub(crate) struct PrivateSummaryEquation<'program> {
@@ -921,8 +895,6 @@ mod private_summaries {
                     call_ordinal: call.call_ordinal,
                     target_machine,
                     target_state,
-
-                    runtime_contract: site.runtime_call().map(|binding| binding.contract),
                 });
             }
         }
@@ -1502,27 +1474,14 @@ mod requirement_contracts {
                 .into_iter()
                 .map(|application| {
                     let source = proof.call_contract_signatures.get(application);
-                    let site = validation::find_call_site(program, source.caller_machine_symbol, source.caller_state_symbol, source.statement_index, source.call_ordinal)
-                        .ok_or_else(|| Diagnostic::error("a retained callable crash contract lost its exact source invocation"))?;
-                    let selected = validation::call_contract_source(program, source.caller_machine_symbol, &site)
-                        .map_err(Diagnostic::error)?.ok_or_else(|| Diagnostic::error("a retained callable crash contract lost its source-owned signature"))?;
-                    if selected.signature() != &source.signature || site.target_symbol(program) != source.source_target {
-                        return Err(Diagnostic::error("a retained callable crash contract belongs to another invocation signature"));
-                    }
-                    let (target_machine, target_state, runtime) = match (&source.source, selected) {
-                        (checked_trees::CallContractSignatureSource::Requirement { declaring_trait }, validation::CallContractSource::Requirement { declaration, signature })
-                            if *declaring_trait == declaration.symbol => (declaration.symbol, signature.symbol, None),
-                        (checked_trees::CallContractSignatureSource::Runtime { contract, lexical_owner, callee }, validation::CallContractSource::Runtime { binding, contract: current })
-                            if *contract == binding.contract && *callee == binding.callee && *lexical_owner == current.lexical_owner =>
-                            (SymbolHandle::invalid(), SymbolHandle::invalid(), Some((*contract, *lexical_owner))),
-                        _ => return Err(Diagnostic::error("a retained callable crash capsule lost its exact contract source")),
-                    };
-                    let mut capsule = super::super::crash_plan_facts::build_signature_crash_capsule(
-                        program, target_machine, target_state, &source.signature, content_conservation, operators,
+                    let capsule = super::super::crash_plan_facts::build_signature_crash_capsule(
+                        program,
+                        source.declaring_trait,
+                        source.signature.symbol,
+                        &source.signature,
+                        content_conservation,
+                        operators,
                     )?;
-                    if let Some((contract, lexical_owner)) = runtime {
-                        capsule = capsule.with_runtime_callable_source(contract, lexical_owner);
-                    }
                     Ok(RequirementCrashContract { source, capsule })
                 })
                 .collect::<Result<Vec<_>, Diagnostic>>()
@@ -1546,20 +1505,9 @@ mod requirement_contracts {
                         call.statement_index,
                         call.call_ordinal,
                     ) else {
-                        if call.runtime_call.is_some() {
-                            return Err(vec![Diagnostic::error(
-                                "runtime crash call lost its exact typed invocation",
-                            )]);
-                        }
                         continue;
                     };
-                    if site.runtime_call() != call.runtime_call {
-                        return Err(vec![Diagnostic::error(
-                            "runtime crash call lost its retained callee and contract custody",
-                        )]);
-                    }
-                    let is_requirement = site.runtime_call().is_some()
-                        || site.static_requirement_dispatch().is_some()
+                    let is_requirement = site.static_requirement_dispatch().is_some()
                         || validation::selected_requirement_signature(
                             program,
                             site.target_symbol(program),
@@ -2654,26 +2602,11 @@ mod route_substitution {
     ) -> Option<checked_trees::CheckedScalarExpression> {
         use checked_trees::CheckedScalarExpression;
 
-        if matches!(
-            expression.scalar_type(),
-            Some(typed_trees::callable_values::ScalarValueType::Callable(_))
-        ) {
-            return None;
-        }
         Some(match expression {
-            CheckedScalarExpression::Parameter {
-                scalar_type: typed_trees::callable_values::ScalarValueType::Callable(_),
-                ..
-            }
-            | CheckedScalarExpression::StructuralParameterField {
-                scalar_type: typed_trees::callable_values::ScalarValueType::Callable(_),
-                ..
-            } => return None,
             CheckedScalarExpression::ConstantApplication { .. } => expression.clone(),
             CheckedScalarExpression::Parameter {
                 position,
-                scalar_type:
-                    typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
+                primitive_type,
             } => {
                 let substituted = arguments.get(*position)?.as_ref()?.clone();
                 (crate::values::scalar_expression_type(&substituted) == Some(*primitive_type))
@@ -2705,8 +2638,7 @@ mod route_substitution {
                         index: parameter_position,
                     },
                 path,
-                scalar_type:
-                    typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
+                primitive_type,
                 ..
             } => {
                 let leaf = substitute_structural_parameter_field(
@@ -2722,7 +2654,7 @@ mod route_substitution {
                         index: leaf.parameter_position,
                     },
                     path: leaf.path,
-                    scalar_type: (*primitive_type).into(),
+                    primitive_type: *primitive_type,
                 }
             }
             CheckedScalarExpression::IntegerLiteral { literal } => {
@@ -4040,13 +3972,11 @@ mod entry_equations {
                 let (
                     Scalar::Parameter {
                         position: output,
-                        scalar_type:
-                            typed_trees::callable_values::ScalarValueType::Primitive(output_type),
+                        primitive_type: output_type,
                     },
                     Scalar::Parameter {
                         position: input,
-                        scalar_type:
-                            typed_trees::callable_values::ScalarValueType::Primitive(input_type),
+                        primitive_type: input_type,
                     },
                 ) = (result_term, input)
                 else {
@@ -5254,11 +5184,13 @@ pub(super) fn attach_checked_crash_calls(
             .unwrap_or_default();
         plan_entry_parameter_names.push(entry_names);
     }
-    let mut capsule_by_target =
-        symbols::SymbolKeyMap::<CapsuleTargetKey, &checked_trees::CrashContractCapsule>::default();
+    let mut capsule_by_target = symbols::SymbolKeyMap::<
+        (SymbolHandle, SymbolHandle),
+        &checked_trees::CrashContractCapsule,
+    >::default();
     for capsule in crash_capsules {
         capsule_by_target
-            .entry(capsule_target_key(capsule))
+            .entry((capsule.target_machine(), capsule.target_state()))
             .or_insert(capsule);
     }
     let mut summary_by_machine =
@@ -5372,7 +5304,7 @@ pub(super) fn attach_checked_crash_calls(
                                 (&selected.capsule, &selected.source.signature)
                             } else {
                                 let Some(&capsule) = capsule_by_target
-                                    .get(&(target_machine_symbol, target_state_symbol, call_site.runtime_call().map(|binding| binding.contract)))
+                                    .get(&(target_machine_symbol, target_state_symbol))
                                 else {
                                     continue;
                                 };
@@ -5524,7 +5456,9 @@ pub(super) fn attach_checked_crash_calls(
                             .into_iter()
                             .filter_map(SummaryCrashBucket::into_checked)
                             .collect::<Vec<_>>();
-                        let mut checked_site = checked_trees::CheckedCrashCallSite::new_with_commitment(
+                        state_calls.push((
+                            state_flow.machine_symbol,
+                            checked_trees::CheckedCrashCallSite::new_with_commitment(
                                 checked_trees::CrashCallSiteLocation::new(
                                     state_flow.state_symbol,
                                     u32::try_from(call_flow.statement_index).expect(
@@ -5539,12 +5473,8 @@ pub(super) fn attach_checked_crash_calls(
                                 target_contract_fingerprint,
                                 target_contract_commitment,
                                 surviving_buckets,
-                            );
-                        if let Some(binding) = call_site.runtime_call() {
-                            let row = program.runtime_callable_contract(binding.contract);
-                            checked_site = checked_site.with_runtime_callable_source(binding.contract, row.lexical_owner);
-                        }
-                        state_calls.push((state_flow.machine_symbol, checked_site));
+                            ),
+                        ));
                     }
                     state_calls
                 })

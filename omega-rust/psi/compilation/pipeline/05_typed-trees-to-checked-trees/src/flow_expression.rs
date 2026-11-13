@@ -6068,8 +6068,7 @@ mod view_footprints {
             if formation.interpretation != ReferenceFormationInterpretation::Access {
                 return;
             }
-            let Some([(_, source)]) = inputs.get(usize::from(call.evaluated_callee().is_valid())..)
-            else {
+            let Some([(_, source)]) = inputs.get(usize::from(call.receiver.is_valid())..) else {
                 return;
             };
             if let Some(lifetime) = *retention {
@@ -6862,7 +6861,7 @@ mod view_referents {
                 parameters,
                 inputs
                     .iter()
-                    .skip(usize::from(call.evaluated_callee().is_valid()))
+                    .skip(usize::from(call.receiver.is_valid()))
                     .map(|(_, value)| value),
             ) else {
                 return Some(HandleSpan::empty());
@@ -6937,7 +6936,7 @@ mod view_referents {
                             ..
                         } => {
                             let Some(actual) = inputs
-                                .get(argument_index + usize::from(call.evaluated_callee().is_valid()))
+                                .get(argument_index + usize::from(call.receiver.is_valid()))
                                 .map(|(_, actual)| actual)
                             else {
                                 complete = false;
@@ -7291,7 +7290,7 @@ mod view_referents {
                 parameters,
                 inputs
                     .iter()
-                    .skip(usize::from(call.evaluated_callee().is_valid()))
+                    .skip(usize::from(call.receiver.is_valid()))
                     .map(|(_, value)| value),
             ) else {
                 return;
@@ -7311,8 +7310,8 @@ mod view_referents {
                         argument_index,
                         ..
                     } => {
-                        let Some((_, actual)) = inputs
-                            .get(argument_index + usize::from(call.evaluated_callee().is_valid()))
+                        let Some((_, actual)) =
+                            inputs.get(argument_index + usize::from(call.receiver.is_valid()))
                         else {
                             return;
                         };
@@ -9140,7 +9139,7 @@ mod view_retention {
             retention: &mut Option<Handle<FlowOperandRetention>>,
             source_snapshot: Handle<FlowStorageSnapshot>,
         ) {
-            let Some(inputs) = inputs.get(usize::from(call.evaluated_callee().is_valid())..) else {
+            let Some(inputs) = inputs.get(usize::from(call.receiver.is_valid())..) else {
                 *retention = Some(Handle::invalid());
                 return;
             };
@@ -9656,19 +9655,7 @@ pub(super) fn append_statement_calls<'plans>(
         }
         StatementNode::Call(call) => {
             let arguments = program.statement_table.expression_handles(call.arguments);
-            let mut captured = Vec::new();
-            if let Some(runtime) = call.runtime_call {
-                captured.push(
-                    execution
-                        .evaluated_operand(runtime.callee, contexts, constraints)
-                        .capture,
-                );
-            }
-            let prefix = captured.len();
-            captured.resize(
-                prefix + arguments.len(),
-                checked_trees::FlowOperandFact::default(),
-            );
+            let mut captured = vec![checked_trees::FlowOperandFact::default(); arguments.len()];
             for position in validation::CallSite::Statement(call)
                 .argument_evaluation_order(program)
                 .into_iter()
@@ -9676,7 +9663,7 @@ pub(super) fn append_statement_calls<'plans>(
             {
                 let destination =
                     execution.invocation_parameter_type(InvocationSite::Statement, position);
-                captured[prefix + position] = execution
+                captured[position] = execution
                     .evaluated_operand_as(arguments[position], destination, contexts, constraints)
                     .capture;
             }
@@ -9747,22 +9734,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         expression,
                         call: source,
                     }) => {
-                        if let Some(runtime) = source.runtime_call {
-                            if call.runtime_call != Some(runtime)
-                                || call.target_symbol.is_valid()
-                                || call.receiver_symbol.is_valid()
-                                || call.has_receiver
-                                || !program.expression_table.expression_is_valid(expression)
-                            {
-                                malformed = true;
-                                return None;
-                            }
-                            return Some(Invocation {
-                                call,
-                                site: InvocationSite::Expression(expression),
-                                visited: false,
-                            });
-                        }
                         let (receiver, path) =
                             validation::call_receiver_parts(program, source.receiver);
                         let selected_target = validation::call_target_symbol(program, source);
@@ -9775,8 +9746,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                             path.as_deref(),
                             &source.target,
                         );
-                        if call.runtime_call.is_some()
-                            || call.receiver_symbol != receiver
+                        if call.receiver_symbol != receiver
                             || call.target_symbol
                                 != if target.is_valid() {
                                     target
@@ -9790,13 +9760,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         }
                         InvocationSite::Expression(expression)
                     }
-                    Some(CallSite::Statement(source)) => {
-                        if call.runtime_call != source.runtime_call {
-                            malformed = true;
-                            return None;
-                        }
-                        InvocationSite::Statement
-                    }
+                    Some(CallSite::Statement(_)) => InvocationSite::Statement,
                     Some(CallSite::TransitionNamed { .. }) => {
                         let Some(target) = context
                             .transition_call_target_at(
@@ -11389,10 +11353,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             ExpressionNode::Call(call) => {
                 let named_uses = self.named_uses_at(expression);
                 let mut captured = Vec::new();
-                if call.evaluated_callee().is_valid() {
-                    let callee =
-                        self.evaluated_operand(call.evaluated_callee(), contexts, constraints);
-                    captured.push((call.evaluated_callee(), callee.capture));
+                if call.receiver.is_valid() {
+                    let receiver = self.evaluated_operand(call.receiver, contexts, constraints);
+                    captured.push((call.receiver, receiver.capture));
                 }
                 let prefix = captured.len();
                 let arguments = self
@@ -11809,10 +11772,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     .immutable_image = true;
                 *retention = Some(image);
                 *formed_type = destination;
-            }
-            ExpressionNode::MachineValue(value) => {
-                *formed_type = value.type_reference;
-                *referents = Some(HandleSpan::empty());
             }
             ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)

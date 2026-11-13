@@ -36,6 +36,7 @@ mod monomorphization;
 mod policy_operators;
 mod preparation;
 mod selection_and_reflection;
+mod source_type_queries;
 
 pub(crate) use assembly_and_operators::{assembly_control, operators};
 pub use monomorphization::{prepare_requirement_expression_views, restore_copied_call_sources};

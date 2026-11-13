@@ -177,10 +177,9 @@ pub(crate) mod declaration_predicates {
                     Scalar::StructuralParameterField {
                         root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
                         path,
-                        scalar_type,
+                        primitive_type,
                         ..
                     } => {
-                        let primitive_type = scalar_type.primitive()?;
                         let field = match path.as_slice() {
                             [Segment::Field(identity)] => {
                                 self.program.data_members(self.definition).iter().find_map(
@@ -214,11 +213,11 @@ pub(crate) mod declaration_predicates {
                         };
                         if field.relevance.is_erased()
                             || self.program.primitive_type_reference(field.type_reference)
-                                != Some(primitive_type)
+                                != Some(*primitive_type)
                         {
                             return None;
                         }
-                        let (low, high) = carrier_bounds(primitive_type)?;
+                        let (low, high) = carrier_bounds(*primitive_type)?;
                         let mut interval = BigIntInterval {
                             low: Some(BigInt::from_i128(low)),
                             high: Some(BigInt::from_i128(high)),
@@ -708,7 +707,7 @@ pub(crate) mod declaration_predicates {
                     index: self.parameter_position,
                 },
                 path: path.clone(),
-                scalar_type: primitive.into(),
+                primitive_type: primitive,
             };
             let literal = |value: i128| {
                 crate::land_integer_value(&BigInt::from_i128(value), primitive)
@@ -1179,8 +1178,8 @@ pub(crate) mod declaration_predicates {
                         value: typed_trees::expression::ieee_float_value(literal, format),
                     })
                 }
-                (CheckedScalarExpression::StructuralParameterField { scalar_type, .. }, _) => {
-                    (scalar_type.primitive() == Some(primitive)).then_some(operand)
+                (CheckedScalarExpression::StructuralParameterField { primitive_type, .. }, _) => {
+                    (*primitive_type == primitive).then_some(operand)
                 }
                 _ => None,
             }
@@ -1300,7 +1299,7 @@ pub(crate) mod declaration_predicates {
                                 index: self.parameter_position,
                             },
                             path,
-                            scalar_type: primitive.into(),
+                            primitive_type: primitive,
                         },
                         Some(primitive),
                     ))
@@ -2046,7 +2045,7 @@ pub(crate) mod declaration_predicates {
                     CheckedStructuralPredicatePathSegment::Field(identity(10, "pair")),
                     CheckedStructuralPredicatePathSegment::Field(identity(ordinal, name)),
                 ],
-                scalar_type: PrimitiveType::U64.into(),
+                primitive_type: PrimitiveType::U64,
             };
             assert_eq!(
                 rows[0].predicate,
@@ -2566,18 +2565,16 @@ pub fn state_finite_predicate(
         .iter()
         .filter(|parameter| {
             !parameter.relevance.is_erased()
-                && typed_trees::callable_values::ScalarValueType::from_type_reference(
-                    program.typed_program(),
-                    parameter.type_reference,
-                )
-                .is_some()
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some()
         })
         .count();
     crate::scalar_value_domain_predicate(
         language_semantics::value_domain::ValueDomain::Finite,
         CheckedScalarExpression::Parameter {
             position,
-            scalar_type: primitive_type.into(),
+            primitive_type,
         },
     )
 }
@@ -3361,7 +3358,7 @@ fn structural_authored_arguments<'program>(
     call: &FlowCallFact,
     source_state: &typed_trees::state::State,
     coordinate: &CheckedUnitCallCoordinate,
-    target: checked_trees::CheckedUnitCallTargetSource,
+    target_state: SymbolHandle,
     parameter_count: usize,
 ) -> Result<&'program [typed_trees::expression::ExpressionHandle], &'static str> {
     let authored_arguments = if call.authored_expression.is_valid() {
@@ -3370,21 +3367,9 @@ fn structural_authored_arguments<'program>(
         else {
             return Err("structural call occurrence has no authored expression");
         };
-        let matches = match target {
-            checked_trees::CheckedUnitCallTargetSource::Declaration { state, .. } => {
-                call.runtime_call.is_none()
-                    && crate::call_target_entry_symbol(
-                        program,
-                        crate::call_target_symbol(program, authored),
-                    ) == state
-            }
-            checked_trees::CheckedUnitCallTargetSource::Runtime { contract } => {
-                call.runtime_call
-                    .is_some_and(|binding| binding.contract == contract)
-                    && authored.runtime_call == call.runtime_call
-            }
-        };
-        if !matches {
+        if crate::call_target_entry_symbol(program, crate::call_target_symbol(program, authored))
+            != target_state
+        {
             return Err("structural call expression target changed");
         }
         expression_table(program).expression_handles(authored.arguments)
@@ -3395,19 +3380,8 @@ fn structural_authored_arguments<'program>(
             .get(coordinate.statement_index as usize)
         {
             Some(StatementNode::Call(authored)) => {
-                let matches = match target {
-                    checked_trees::CheckedUnitCallTargetSource::Declaration { state, .. } => {
-                        call.runtime_call.is_none()
-                            && crate::call_target_entry_symbol(program, authored.target_symbol)
-                                == state
-                    }
-                    checked_trees::CheckedUnitCallTargetSource::Runtime { contract } => {
-                        call.runtime_call
-                            .is_some_and(|binding| binding.contract == contract)
-                            && authored.runtime_call == call.runtime_call
-                    }
-                };
-                if !matches {
+                if crate::call_target_entry_symbol(program, authored.target_symbol) != target_state
+                {
                     return Err("structural call statement target changed");
                 }
                 program
@@ -3415,13 +3389,6 @@ fn structural_authored_arguments<'program>(
                     .expression_handles(authored.arguments)
             }
             Some(StatementNode::Transition(transition)) => {
-                let checked_trees::CheckedUnitCallTargetSource::Declaration {
-                    state: target_state,
-                    ..
-                } = target
-                else {
-                    return Err("runtime callable invocation cannot be a named transition");
-                };
                 let names_target = |symbol: SymbolHandle| {
                     symbol == target_state
                         || program.machine_by_symbol(symbol).is_some_and(|machine| {
@@ -3491,8 +3458,8 @@ pub fn structural_call_custody(
         return Err("structural custody requires an ordinary structural call");
     };
     let coordinate = &call.coordinate;
-    let target_source = call.target.source;
-    let planned_call = call;
+    let target_machine = &call.target.machine;
+    let target_state = &call.target.state;
     let structural_arguments = &call.structural_arguments;
     let caller = program
         .machine(caller_machine)
@@ -3500,124 +3467,75 @@ pub fn structural_call_custody(
     let source_state = program
         .state_in_machine(caller, caller_state)
         .ok_or("structural call has no exact caller state")?;
-    let (return_type, parameters, entry_state) =
-        if let checked_trees::CheckedUnitCallTargetSource::Runtime { contract } = target_source {
-            let checked_trees::CheckedUnitCallRoute::Runtime {
-                contract: retained, ..
-            } = call.route()
-            else {
-                return Err("runtime structural call lost its exact invocation route");
-            };
-            if *retained != contract || !program.runtime_callable_contracts.is_valid(contract) {
-                return Err("runtime structural call has a stale or redirected contract");
-            }
-            let capsule = facts
-                .contract_plans
-                .runtime_callable_crash_capsule(contract)
-                .ok_or("runtime structural call has no checked contract capsule")?;
-            if capsule.target_contract_report_fingerprint()
-                != call.target.contract_report_fingerprint
+    let dynamic_slot = match call.route() {
+        checked_trees::CheckedUnitCallRoute::Dynamic {
+            interface_identity,
+            requirement,
+            ..
+        } => {
+            let slot = program
+                .dynamic_slot_by_symbol(*target_state)
+                .ok_or("structural selector call has no exact slot")?;
+            if slot.symbol != *target_machine
+                || slot.requirement != *requirement
+                || slot.interface_identity != *interface_identity
             {
-                return Err("runtime structural call changed its checked contract identity");
+                return Err("structural selector call differs from its public slot");
             }
-            let row = program.runtime_callable_contracts.get(contract);
-            let signature = &row.signature;
-            let parameters = program.state_signature_parameters(signature);
-            crate::machine_calls::reference_result_custody::runtime_declared_return_sources(
-                program,
-                contract,
-                row.lexical_owner,
-            )?;
-            (signature.return_type, parameters, None)
-        } else {
-            let (target_machine, target_state) = call
-                .target
-                .declaration()
-                .ok_or("structural declaration call lost its target")?;
-            let target_machine = &target_machine;
-            let target_state = &target_state;
-            let dynamic_slot = match call.route() {
-                checked_trees::CheckedUnitCallRoute::Dynamic {
-                    interface_identity,
-                    requirement,
-                    ..
-                } => {
-                    let slot = program
-                        .dynamic_slot_by_symbol(*target_state)
-                        .ok_or("structural selector call has no exact slot")?;
-                    if slot.symbol != *target_machine
-                        || slot.requirement != *requirement
-                        || slot.interface_identity != *interface_identity
-                    {
-                        return Err("structural selector call differs from its public slot");
-                    }
-                    Some(slot)
-                }
-                _ => None,
-            };
-            if let Some(slot) = dynamic_slot {
-                crate::machine_calls::reference_result_custody::declared_return_sources(
-                    program,
-                    &slot.parameters,
-                    slot.return_type,
-                )?;
-                (
-                    slot.return_type,
-                    slot.parameters.as_slice(),
-                    Some(*target_state),
-                )
-            } else {
-                let target = program
-                    .machine(*target_machine)
-                    .ok_or("structural call has no exact callee")?;
-                let destination = typed_trees::state::state_by_symbol(
-                    program.machine_states(target),
-                    *target_state,
-                )
+            Some(slot)
+        }
+        _ => None,
+    };
+    let (return_type, parameters, entry_state) = if let Some(slot) = dynamic_slot {
+        crate::machine_calls::reference_result_custody::declared_return_sources(
+            program,
+            &slot.parameters,
+            slot.return_type,
+        )?;
+        (slot.return_type, slot.parameters.as_slice(), *target_state)
+    } else {
+        let target = program
+            .machine(*target_machine)
+            .ok_or("structural call has no exact callee")?;
+        let destination =
+            typed_trees::state::state_by_symbol(program.machine_states(target), *target_state)
                 .ok_or("structural call has no exact callee state")?;
-                let activation_operation = match call.route() {
-                    checked_trees::CheckedUnitCallRoute::ActivationStorage { operation, bound } => {
-                        let contract =
-                            crate::exact_toolchain_activation_storage_contract(program, target)
-                                .ok_or(
-                                    "activation operation lost its sealed declaration contract",
-                                )?;
-                        if contract.operation != *operation {
-                            return Err(
-                                "activation operation differs from its selected declaration",
-                            );
-                        }
-                        let expected_bound = if matches!(
-                            *operation,
-                            crate::ActivationStorageOperation::Establish
-                                | crate::ActivationStorageOperation::Split
-                        ) {
-                            Some(crate::activation_storage_bound(program, target)?)
-                        } else {
-                            None
-                        };
-                        if *bound != expected_bound {
-                            return Err(
-                                "activation operation differs from its selected static bound",
-                            );
-                        }
-                        true
-                    }
-                    _ => false,
-                };
-                if !target.supplies_checked_body() && !activation_operation {
-                    return Err("structural call result differs from the callee contract");
+        let activation_operation = match call.route() {
+            checked_trees::CheckedUnitCallRoute::ActivationStorage { operation, bound } => {
+                let contract = crate::exact_toolchain_activation_storage_contract(program, target)
+                    .ok_or("activation operation lost its sealed declaration contract")?;
+                if contract.operation != *operation {
+                    return Err("activation operation differs from its selected declaration");
                 }
-                (
-                    destination.return_type,
-                    program.state_parameters(destination),
-                    program
-                        .machine_states(target)
-                        .first()
-                        .map(|entry| entry.symbol),
-                )
+                let expected_bound = if matches!(
+                    *operation,
+                    crate::ActivationStorageOperation::Establish
+                        | crate::ActivationStorageOperation::Split
+                ) {
+                    Some(crate::activation_storage_bound(program, target)?)
+                } else {
+                    None
+                };
+                if *bound != expected_bound {
+                    return Err("activation operation differs from its selected static bound");
+                }
+                true
             }
+            _ => false,
         };
+        if !target.supplies_checked_body() && !activation_operation {
+            return Err("structural call result differs from the callee contract");
+        }
+        (
+            destination.return_type,
+            program.state_parameters(destination),
+            program
+                .machine_states(target)
+                .first()
+                .map(|entry| entry.symbol)
+                .unwrap_or_default(),
+        )
+    };
     let expected_multiplicity =
         crate::machine_calls::reference_result_custody::result_multiplicity(program, return_type);
     if expected_multiplicity != result.multiplicity {
@@ -3644,58 +3562,8 @@ pub fn structural_call_custody(
     let call = calls
         .next()
         .ok_or("structural call has no exact semantic occurrence")?;
-    let targets_destination = match target_source {
-        checked_trees::CheckedUnitCallTargetSource::Declaration { machine, state } => {
-            call.runtime_call.is_none()
-                && (call.target_symbol == state
-                    || (call.target_symbol == machine && entry_state == Some(state)))
-        }
-        checked_trees::CheckedUnitCallTargetSource::Runtime { contract } => {
-            let site = crate::find_call_site(
-                program,
-                caller_machine,
-                caller_state,
-                call.statement_index,
-                call.call_ordinal,
-            )
-            .ok_or("runtime structural call lost its authored call site")?;
-            let Some(crate::CallContractSource::Runtime { binding, .. }) =
-                crate::call_contract_source(program, caller_machine, &site)?
-            else {
-                return Err("runtime structural call source changed its invocation kind");
-            };
-            let checked_trees::CheckedUnitCallRoute::Runtime { callee, .. } = planned_call.route()
-            else {
-                return Err("runtime structural call lost its evaluated callee");
-            };
-            let callee_matches = match callee {
-                checked_trees::CheckedCallScalarArgument::Computation(value) => {
-                    facts.values.scalar_computations.nodes.is_valid(*value)
-                        && facts
-                            .values
-                            .scalar_computations
-                            .nodes
-                            .get(*value)
-                            .authored_root
-                            == binding.callee
-                }
-                checked_trees::CheckedCallScalarArgument::Pure(value) => facts
-                    .values
-                    .scalar_expressions
-                    .bound_expression_at(
-                        caller_state,
-                        coordinate.statement_index,
-                        checked_trees::CheckedScalarExpressionRole::RuntimeCallCallee {
-                            call_ordinal: coordinate.call_ordinal,
-                        },
-                    )
-                    .is_some_and(|(source, retained)| {
-                        source.expression == binding.callee && retained == value
-                    }),
-            };
-            binding.contract == contract && call.runtime_call == Some(binding) && callee_matches
-        }
-    };
+    let targets_destination = call.target_symbol == *target_state
+        || (call.target_symbol == *target_machine && entry_state == *target_state);
     if calls.next().is_some() || !targets_destination {
         return Err("structural call target or occurrence differs from source");
     }
@@ -3726,7 +3594,7 @@ pub fn structural_call_custody(
         source_state,
         coordinate,
         parameters,
-        target_source,
+        *target_state,
         structural_arguments,
         &transfers,
         &facts.flow.ownership.segments,
@@ -3786,22 +3654,12 @@ pub fn structural_call_custody(
     )?;
     let mut retained_reference_inputs = Vec::new();
     if crate::reference_result_custody::stored_loan_parts(program, return_type).is_some() {
-        let sources = match target_source {
-            checked_trees::CheckedUnitCallTargetSource::Runtime { contract } => {
-                let row = program.runtime_callable_contracts.get(contract);
-                crate::machine_calls::reference_result_custody::runtime_declared_return_sources(
-                    program,
-                    contract,
-                    row.lexical_owner,
-                )?
-            }
-            checked_trees::CheckedUnitCallTargetSource::Declaration { state, .. } => {
-                crate::machine_calls::reference_result_custody::call_return_sources(
-                    program, facts, state,
-                )
-                .ok_or("reference result has no complete input origins")?
-            }
-        };
+        let sources = crate::machine_calls::reference_result_custody::call_return_sources(
+            program,
+            facts,
+            *target_state,
+        )
+        .ok_or("reference result has no complete input origins")?;
         for source in sources {
             let parameter_index = match source.source.root {
                 checked_trees::CheckedReferenceOriginRoot::Parameter { index } => index,
@@ -3938,7 +3796,7 @@ fn owned_argument_claim_transfers(
     source_state: &typed_trees::state::State,
     coordinate: &CheckedUnitCallCoordinate,
     parameters: &[typed_trees::signature::StateParameter],
-    target: checked_trees::CheckedUnitCallTargetSource,
+    target_state: SymbolHandle,
     structural_arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     transfers: &[&checked_trees::FlowPermissionEventFact],
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
@@ -3952,7 +3810,7 @@ fn owned_argument_claim_transfers(
         call,
         source_state,
         coordinate,
-        target,
+        target_state,
         parameters.len(),
     )?;
     let mut accounted = vec![false; transfers.len()];

@@ -1248,7 +1248,6 @@ pub mod borrow {
         pub statement_index: usize,
         pub call_ordinal: usize,
         pub authored_expression: ExpressionHandle,
-        pub runtime_call: Option<typed_trees::callable_values::RuntimeCallBinding>,
         pub input_reference_loans: Option<HandleSpan<arena::Handle<BorrowLoanFact>>>,
         pub reference_slot_effects: HandleSpan<BorrowCallReferenceSlotEffect>,
         pub completed_reference_loans: HandleSpan<BorrowLoanFact>,
@@ -1894,15 +1893,10 @@ pub mod borrow {
                 return None;
             }
             let source = self.calls.get(call);
-            let source_is_bound = match source.runtime_call {
-                Some(binding) => {
-                    !source.target_symbol.is_valid()
-                        && binding.callee.is_valid()
-                        && binding.contract.is_valid()
-                }
-                None => source.target_symbol.is_valid(),
-            };
-            if !source_is_bound || !loan.storage_owner.is_valid() || !loan.owner_symbol.is_valid() {
+            if !source.target_symbol.is_valid()
+                || !loan.storage_owner.is_valid()
+                || !loan.owner_symbol.is_valid()
+            {
                 return None;
             }
             let owner = self.owner_segments.span(loan.owner_path)?;

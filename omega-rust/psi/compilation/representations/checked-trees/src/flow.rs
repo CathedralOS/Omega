@@ -252,7 +252,6 @@ pub(crate) mod control {
         pub completed_storage: arena::Handle<super::FlowStorageSnapshot>,
         pub operands: HandleSpan<super::FlowOperandFact>,
         pub authored_expression: typed_trees::expression::ExpressionHandle,
-        pub runtime_call: Option<typed_trees::callable_values::RuntimeCallBinding>,
         pub authored_site: FlowCallSite,
         pub authored_target: SymbolHandle,
         pub authored_arguments: HandleSpan<typed_trees::expression::ExpressionHandle>,
@@ -290,9 +289,7 @@ pub(crate) mod control {
 
     impl FlowCallFact {
         pub fn argument_operands(&self) -> HandleSpan<super::FlowOperandFact> {
-            if (self.runtime_call.is_none() && !self.authored_receiver.is_valid())
-                || self.operands.is_empty()
-            {
+            if !self.authored_receiver.is_valid() || self.operands.is_empty() {
                 return self.operands;
             }
             HandleSpan::from_parts_or_empty(self.operands.handle_at(1), self.operands.count() - 1)
@@ -2262,26 +2259,26 @@ pub use self::terminal::{
     CheckedTerminalMachineSelections, CheckedTerminalSignatureEligibility,
     CheckedTerminalStateDebugPlan, CheckedTrivialAffineStructuralLocalPlan,
     CheckedUnitCallCoordinate, CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult,
-    CheckedUnitCallRoute, CheckedUnitCallTarget, CheckedUnitCallTargetSource,
-    CheckedUnitCallTransfers, CheckedUnitCallableEntry, CheckedUnitClaimTransferPlan,
-    CheckedUnitCleanupBoundary, CheckedUnitCompletionExpression, CheckedUnitCompletionKind,
-    CheckedUnitCompletionPlan, CheckedUnitCompletionSelection, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
-    CheckedUnitLocalBindingPlan, CheckedUnitNominalAffineCallerRequirementPlan,
-    CheckedUnitNominalAffineCleanupPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
-    CheckedUnitParameterStoragePlan, CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlan,
-    CheckedUnitPlanGap, CheckedUnitPlanGapReason, CheckedUnitRecordStorage,
-    CheckedUnitScalarCompletionArm, CheckedUnitScalarCompletionCondition,
-    CheckedUnitScalarControlPlan, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitSelectedReferenceRetirementPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralCasePlan,
-    CheckedUnitStructuralCompletionArm, CheckedUnitStructuralDomainPlan,
-    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
-    CheckedUnitStructuralReturnPlan, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
-    CheckedValueCompletionPlan, ScalarReturnPath, checked_structural_type_by_identity,
-    is_borrowed_view, is_bounded_nominal_cleanup_record, is_partial_affine_field_type,
+    CheckedUnitCallRoute, CheckedUnitCallTarget, CheckedUnitCallTransfers,
+    CheckedUnitCallableEntry, CheckedUnitClaimTransferPlan, CheckedUnitCleanupBoundary,
+    CheckedUnitCompletionExpression, CheckedUnitCompletionKind, CheckedUnitCompletionPlan,
+    CheckedUnitCompletionSelection, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan, CheckedUnitLocalBindingPlan,
+    CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
+    CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitParameterStoragePlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlan, CheckedUnitPlanGap,
+    CheckedUnitPlanGapReason, CheckedUnitRecordStorage, CheckedUnitScalarCompletionArm,
+    CheckedUnitScalarCompletionCondition, CheckedUnitScalarControlPlan,
+    CheckedUnitScalarResultBindingPlan, CheckedUnitSelectedReferenceRetirementPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralCasePlan, CheckedUnitStructuralCompletionArm,
+    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
+    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralReturnPlan,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, CheckedValueCompletionPlan,
+    ScalarReturnPath, checked_structural_type_by_identity, is_borrowed_view,
+    is_bounded_nominal_cleanup_record, is_partial_affine_field_type,
 };
 pub use borrow_lifetimes::{
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason,

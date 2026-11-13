@@ -191,75 +191,12 @@ pub(crate) mod source_custody {
         }
     }
 
-    /// The checked source of a call survives separately from the selected code.
-    /// Runtime calls retain their evaluated operand and complete signature row.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum LoweredSourceCallTarget {
-        Declaration(symbols::SymbolHandle),
-        Runtime(checked_trees::typed_trees::callable_values::RuntimeCallBinding),
-    }
-
-    impl LoweredSourceCallTarget {
-        pub const fn declaration(self) -> Option<symbols::SymbolHandle> {
-            match self {
-                Self::Declaration(symbol) => Some(symbol),
-                Self::Runtime(_) => None,
-            }
-        }
-
-        pub const fn runtime(
-            self,
-        ) -> Option<checked_trees::typed_trees::callable_values::RuntimeCallBinding> {
-            match self {
-                Self::Declaration(_) => None,
-                Self::Runtime(binding) => Some(binding),
-            }
-        }
-    }
-
-    impl LoweredSourceCallTarget {
-        pub fn matches_flow_call(self, call: &checked_trees::FlowCallFact) -> bool {
-            match self {
-                Self::Declaration(symbol) => {
-                    call.runtime_call.is_none() && symbol == call.target_symbol
-                }
-                Self::Runtime(binding) => call.runtime_call == Some(binding),
-            }
-        }
-    }
-
-    impl PartialEq<symbols::SymbolHandle> for LoweredSourceCallTarget {
-        fn eq(&self, symbol: &symbols::SymbolHandle) -> bool {
-            self.declaration() == Some(*symbol)
-        }
-    }
-
-    impl PartialEq<LoweredSourceCallTarget> for symbols::SymbolHandle {
-        fn eq(&self, source: &LoweredSourceCallTarget) -> bool {
-            source == self
-        }
-    }
-
-    impl From<symbols::SymbolHandle> for LoweredSourceCallTarget {
-        fn from(symbol: symbols::SymbolHandle) -> Self {
-            Self::Declaration(symbol)
-        }
-    }
-
-    impl From<checked_trees::typed_trees::callable_values::RuntimeCallBinding>
-        for LoweredSourceCallTarget
-    {
-        fn from(binding: checked_trees::typed_trees::callable_values::RuntimeCallBinding) -> Self {
-            Self::Runtime(binding)
-        }
-    }
-
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct LoweredSourceCallOccurrence {
         pub source_site: Option<checked_trees::NominalMachineUseSite>,
         pub origin: LoweredSourceCallOrigin,
         pub terminal_site: LoweredSourceCallSite,
-        pub source_target: LoweredSourceCallTarget,
+        pub source_target: symbols::SymbolHandle,
         pub frontier_before_call: LoweredSourceFrontierBindings,
     }
 
@@ -273,9 +210,8 @@ pub(crate) mod source_custody {
 pub use source_custody::{
     LoweredSelectedComparisonOccurrence, LoweredSelectedComparisonOperandOrder,
     LoweredSourceCallOccurrence, LoweredSourceCallOrigin, LoweredSourceCallSite,
-    LoweredSourceCallTarget, LoweredSourceFrontierBindings, LoweredSourceLoanCapture,
-    LoweredSourceScalarBinding, LoweredSourceStructuralBinding, LoweredStateBlock,
-    LoweredStatementCallCoordinate,
+    LoweredSourceFrontierBindings, LoweredSourceLoanCapture, LoweredSourceScalarBinding,
+    LoweredSourceStructuralBinding, LoweredStateBlock, LoweredStatementCallCoordinate,
 };
 use terminal_psi::{TerminalDebugMap, TerminalModule};
 

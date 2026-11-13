@@ -3137,7 +3137,10 @@ pub mod expression_types {
             }
             let mut substitutions = Vec::new();
             let reference = match expression_table(program).expression(value) {
-                ExpressionNode::MachineValue(value) => value.type_reference,
+                ExpressionNode::MachineValue(_) => program
+                    .typed_program()
+                    .declared_callable_expression_type_reference(value)
+                    .ok()??,
                 ExpressionNode::Call(_) => {
                     expression_table(program).constructed_value_type_reference(value)
                 }
@@ -5174,13 +5177,18 @@ pub mod expression_types {
                         program.common_static_type_reference(&values)
                     })
                 }
-                ExpressionNode::MachineValue(value) => Some(value.type_reference),
+                ExpressionNode::MachineValue(_) => program
+                    .typed_program()
+                    .declared_callable_expression_type_reference(expression)
+                    .ok()
+                    .flatten(),
                 ExpressionNode::Call(call) => (|| {
-                    if let Some(binding) = call.runtime_call {
-                        return binding
-                            .signature(program.typed_program())
+                    if call.runtime_call.is_some() {
+                        return program
+                            .typed_program()
+                            .declared_callable_expression_type_reference(expression)
                             .ok()
-                            .map(|signature| signature.return_type);
+                            .flatten();
                     }
                     if crate::compiler_operations::storage_address_operand(program, call).is_some()
                     {

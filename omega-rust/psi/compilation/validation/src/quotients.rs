@@ -3482,13 +3482,12 @@ pub(crate) mod relation_plan {
                 .iter()
                 .map(|value| (value.symbol, value.rendered.clone()))
                 .collect::<Vec<_>>();
-            let trace = expression_symbol_trace(program, expression, values)?;
             Some((
                 program.render_proof_expression(
                     expression,
                     ProofSubstitutions::BySymbol(&rendered_values),
                 ),
-                trace,
+                expression_symbol_trace(program, expression, values),
             ))
         }
 
@@ -3496,12 +3495,11 @@ pub(crate) mod relation_plan {
             program: &dyn crate::CheckingInput,
             expression: ExpressionHandle,
             values: &[ProofValueSubstitution],
-        ) -> Option<String> {
+        ) -> String {
             let trace = |expression| expression_symbol_trace(program, expression, values);
-            Some(match expression_table(program).expression(expression) {
-                ExpressionNode::MachineValue(_) => return None,
+            match expression_table(program).expression(expression) {
                 ExpressionNode::SavedSubject(saved) => {
-                    format!("saved-subject:{}", trace(saved.pattern_head)?)
+                    format!("saved-subject:{}", trace(saved.pattern_head))
                 }
                 ExpressionNode::Match(dispatch) => {
                     let arms = expression_table(program)
@@ -3510,7 +3508,7 @@ pub(crate) mod relation_plan {
                         .map(|arm| {
                             let pattern = match arm.pattern {
                                 MatchPattern::Value(pattern) => {
-                                    format!("value:{}", trace(pattern)?)
+                                    format!("value:{}", trace(pattern))
                                 }
                                 MatchPattern::Wildcard => "wildcard".to_owned(),
                                 MatchPattern::Destructure(pattern) => format!(
@@ -3520,15 +3518,15 @@ pub(crate) mod relation_plan {
                                             pattern
                                         ))
                                         .map(trace)
-                                        .collect::<Option<Vec<_>>>()?
+                                        .collect::<Vec<_>>()
                                         .join(",")
                                 ),
                             };
-                            Some(format!("({pattern}=>{})", trace(arm.value)?))
+                            format!("({pattern}=>{})", trace(arm.value))
                         })
-                        .collect::<Option<Vec<_>>>()?
+                        .collect::<Vec<_>>()
                         .join(",");
-                    format!("match:{}:[{arms}]", trace(dispatch.subject)?)
+                    format!("match:{}:[{arms}]", trace(dispatch.subject))
                 }
                 ExpressionNode::Name(path) => {
                     let members = expression_table(program).name_path_members(path.members);
@@ -3537,7 +3535,7 @@ pub(crate) mod relation_plan {
                             value.symbol == path.symbol || value.symbol == path.head_symbol
                         })
                     {
-                        return Some(value.trace.clone());
+                        return value.trace.clone();
                     }
                     format!(
                         "name:{:?}:{:?}:[{}]",
@@ -3547,9 +3545,6 @@ pub(crate) mod relation_plan {
                     )
                 }
                 ExpressionNode::Call(call) => {
-                    if call.runtime_call.is_some() {
-                        return None;
-                    }
                     let mut identity = format!(
                         "call:{:?}:{}:{:?}:{:?}:{:?}:{:?}:[{}]:({})",
                         call.target_symbol,
@@ -3563,7 +3558,7 @@ pub(crate) mod relation_plan {
                         call.evidence_arguments,
                         call.operational_acknowledgement,
                         if call.receiver.is_valid() {
-                            trace(call.receiver)?
+                            trace(call.receiver)
                         } else {
                             Default::default()
                         },
@@ -3571,7 +3566,7 @@ pub(crate) mod relation_plan {
                             .expression_handles(call.arguments)
                             .iter()
                             .map(|argument| trace(*argument))
-                            .collect::<Option<Vec<_>>>()?
+                            .collect::<Vec<_>>()
                             .join(","),
                     );
                     if let Some(request) = &call.installed_interrupt_operation {
@@ -3584,28 +3579,27 @@ pub(crate) mod relation_plan {
                     expression_table(program)
                         .expression_handles(*values_span)
                         .iter()
-                        .map(|value| trace(*value))
-                        .collect::<Option<Vec<_>>>()?,
+                        .map(|value| trace(*value)),
                 ),
-                ExpressionNode::Atomic(value) => trace(value.value)?,
+                ExpressionNode::Atomic(value) => trace(value.value),
                 ExpressionNode::Binary(value) => {
-                    format!("{}|{}", trace(value.left)?, trace(value.right)?)
+                    format!("{}|{}", trace(value.left), trace(value.right))
                 }
                 ExpressionNode::Cast(value) => format!(
                     "{}:{:?}:{}",
-                    trace(value.value)?,
+                    trace(value.value),
                     value.semantic_domain_symbol,
                     program.normalized_type_identity_text(value.target_type)
                 ),
                 ExpressionNode::Indexed(value) => {
-                    format!("{}|{}", trace(value.collection)?, trace(value.index)?)
+                    format!("{}|{}", trace(value.collection), trace(value.index))
                 }
                 ExpressionNode::Member(value) => {
-                    format!("{}:{:?}", trace(value.receiver)?, value.member_symbol)
+                    format!("{}:{:?}", trace(value.receiver), value.member_symbol)
                 }
-                ExpressionNode::Borrow(value) => trace(value.target)?,
+                ExpressionNode::Borrow(value) => trace(value.target),
                 ExpressionNode::Range(value) => {
-                    format!("{}|{}", trace(value.start)?, trace(value.end)?)
+                    format!("{}|{}", trace(value.start), trace(value.end))
                 }
                 ExpressionNode::StructLiteral(value) => format!(
                     "struct:{:?}:{:?}:[{}]",
@@ -3614,15 +3608,11 @@ pub(crate) mod relation_plan {
                     expression_table(program)
                         .struct_fields(value.fields)
                         .iter()
-                        .map(|field| Some(format!(
-                            "{:?}={}",
-                            field.field_symbol,
-                            trace(field.value)?
-                        )))
-                        .collect::<Option<Vec<_>>>()?
+                        .map(|field| format!("{:?}={}", field.field_symbol, trace(field.value)))
+                        .collect::<Vec<_>>()
                         .join(",")
                 ),
-                ExpressionNode::Unary(value) => trace(value.operand)?,
+                ExpressionNode::Unary(value) => trace(value.operand),
                 ExpressionNode::TypeExpression(value) => {
                     format!("type:{}", program.normalized_type_identity_text(*value))
                 }
@@ -3642,7 +3632,7 @@ pub(crate) mod relation_plan {
                     format!("undetermined-nan:{}", format.name())
                 }
                 ExpressionNode::String(value) => byte_string_trace(value),
-            })
+            }
         }
 
         fn array_trace(elements: impl IntoIterator<Item = String>) -> String {

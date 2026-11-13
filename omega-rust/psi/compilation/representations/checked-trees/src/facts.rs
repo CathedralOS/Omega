@@ -21,7 +21,6 @@ pub(crate) mod collection {
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckFacts {
-        pub callable_contracts: crate::CheckedCallableContracts,
         pub declaration_descriptions: crate::CheckedDeclarationDescriptions,
         pub proof_applications: crate::ProofApplicationPlan,
         pub deferred_layout_applications: Vec<typed_trees::types::TypeReferenceHandle>,
