@@ -245,24 +245,34 @@ crashes Trap
 
 // The type a value is read as: a reference to a builtin scalar, through
 // every layer, reads as its referent where the scalar is needed, as a place
-// of reference type denotes its referent's storage; a write-only reference
-// (wiki/spec/language/ownership.md#borrows-and-aliases) and any other type
-// read as themselves.
+// of reference type denotes its referent's storage. Every traversed layer
+// must permit observation: a write-only layer anywhere in the chain keeps
+// the original reference type, so no scalar read is admitted. Other types
+// likewise read as themselves.
 public machine typer_read_type(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    let row: TypeRow = type_table_row(&typer.output.types, handle);
-    transition row.kind == TypeKind::Reference && row.access != ReferenceAccess::WriteOnly {
-        true -> referenced(typer, handle)
-        _ -> result(handle)
+    transition { _ -> referenced(typer, handle, handle, typer.output.types.row_count) }
+
+    machine referenced(typer: &Typer, original: u64 in Trapping, handle: u64 in Trapping, remaining: u64) -> u64 in Trapping {
+        let row: TypeRow = type_table_row(&typer.output.types, handle);
+        transition row.kind == TypeKind::Reference {
+            true -> layer(typer, original, row, remaining)
+            _ -> scalar(original, handle, row)
+        }
     }
 
-    machine referenced(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping {
-        let referent: u64 in Trapping = typer_referent(typer, handle);
-        let row: TypeRow = type_table_row(&typer.output.types, referent);
+    machine layer(typer: &Typer, original: u64 in Trapping, row: TypeRow, remaining: u64) -> u64 in Trapping {
+        transition row.access != ReferenceAccess::WriteOnly && remaining > 0 {
+            true -> referenced(typer, original, row.inner, remaining - 1)
+            _ -> result(original)
+        }
+    }
+
+    machine scalar(original: u64 in Trapping, handle: u64 in Trapping, row: TypeRow) -> u64 in Trapping {
         transition row.kind == TypeKind::Builtin {
-            true -> result(referent)
-            _ -> result(handle)
+            true -> result(handle)
+            _ -> result(original)
         }
     }
 

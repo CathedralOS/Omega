@@ -106,31 +106,3 @@ pub enum PackageReviewSymbolicBoundaryApplicationArgument {
         producer_binder_ordinal: u32,
     },
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum PackageReviewBoundaryApplicationRealization {
-    NongenericCheckedBody {
-        realization_machine: PackageReviewNominalIdentity,
-        realization_state: PackageReviewNominalIdentity,
-        realization_contract_commitment: [u8; 32],
-    },
-    SpecializedCheckedBody {
-        realization_template: PackageReviewNominalIdentity,
-        realization_machine: PackageReviewNominalIdentity,
-        realization_state: PackageReviewNominalIdentity,
-        specialization_commitment: [u8; 32],
-        realization_contract_commitment: [u8; 32],
-    },
-    ExactCompilerIntrinsic {
-        execution: PackageReviewCompilerIntrinsicExecution,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CheckedPackageBoundaryApplicationRealizationReview {
-    pub(crate) requirement_identity: String,
-    pub(crate) operator_declaration: PackageReviewNominalIdentity,
-    pub(crate) application: PackageReviewBoundaryApplication,
-    pub(crate) selected_plan_digest: [u8; 32],
-    pub(crate) realization: PackageReviewBoundaryApplicationRealization,
-}

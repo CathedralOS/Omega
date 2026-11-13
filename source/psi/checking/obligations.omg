@@ -19,21 +19,29 @@ crashes Trap
     let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
     let row: TypeRow = type_table_row(&typing.types, type_handle);
     let integer: bool = row.kind == TypeKind::Builtin && is_carrier(row.builtin);
-    transition expression.kind {
-        ExpressionKind::Name -> name(checker, syntax, resolution, typing, handle, type_handle)
-        ExpressionKind::Integer -> literal(checker, typing, handle)
-        ExpressionKind::Boolean -> boolean(checker, handle, expression)
-        ExpressionKind::Field -> field(checker, typing, handle, expression, type_handle)
-        ExpressionKind::Index -> index(checker, syntax, typing, handle, expression, row, checking)
-        ExpressionKind::Unary -> unary(checker, handle, expression, row, integer, checking)
-        ExpressionKind::Binary -> binary(checker, syntax, resolution, typing, handle, expression, row, integer, checking)
-        ExpressionKind::Cast -> qualified_cast(checker, syntax, resolution, typing, handle, expression, type_handle, row, integer, checking)
-        ExpressionKind::Call -> call(checker, syntax, resolution, typing, handle, expression, row, checking)
-        ExpressionKind::Construct -> construct(checker, syntax, resolution, typing, handle, expression, type_handle, row, checking)
-        ExpressionKind::Path -> path(checker, syntax, resolution, typing, handle, expression, type_handle, row, checking)
-        ExpressionKind::Match -> matched(checker, syntax, resolution, typing, handle, checking)
-        ExpressionKind::Array -> array_literal(checker, syntax, resolution, typing, handle, expression, row, checking)
-        _ -> typed(checker, handle, row)
+    let landed: bool = typing_landed_integer(typing, handle, expression);
+    transition landed {
+        true -> literal(checker, typing, handle)
+        _ -> form(checker, syntax, resolution, typing, handle, checking, expression, type_handle, row, integer)
+    }
+
+    machine form(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, checking: bool, expression: Expression, type_handle: u64 in Trapping, row: TypeRow, integer: bool) {
+        transition expression.kind {
+            ExpressionKind::Name -> name(checker, syntax, resolution, typing, handle, type_handle)
+            ExpressionKind::Integer -> literal(checker, typing, handle)
+            ExpressionKind::Boolean -> boolean(checker, handle, expression)
+            ExpressionKind::Field -> field(checker, typing, handle, expression, type_handle)
+            ExpressionKind::Index -> index(checker, syntax, typing, handle, expression, row, checking)
+            ExpressionKind::Unary -> unary(checker, handle, expression, row, integer, checking)
+            ExpressionKind::Binary -> binary(checker, syntax, resolution, typing, handle, expression, row, integer, checking)
+            ExpressionKind::Cast -> qualified_cast(checker, syntax, resolution, typing, handle, expression, type_handle, row, integer, checking)
+            ExpressionKind::Call -> call(checker, syntax, resolution, typing, handle, expression, row, checking)
+            ExpressionKind::Construct -> construct(checker, syntax, resolution, typing, handle, expression, type_handle, row, checking)
+            ExpressionKind::Path -> path(checker, syntax, resolution, typing, handle, expression, type_handle, row, checking)
+            ExpressionKind::Match -> matched(checker, syntax, resolution, typing, handle, checking)
+            ExpressionKind::Array -> array_literal(checker, syntax, resolution, typing, handle, expression, row, checking)
+            _ -> typed(checker, handle, row)
+        }
     }
 
     // An array literal's elements meet its element type's qualification.
@@ -166,7 +174,7 @@ crashes Trap
     // A range slice of a placed collection is a view: a place of its own
     // below the collection, whose live length is the range's extent
     // (wiki/spec/terminal-psi/byte_views.md). A write through it forgets
-    // the collection's contents (`forget_backing`).
+    // the collection's contents (`Checker::forget_backing`).
     machine range_viewed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, row: TypeRow, base: Value, start: Value, bound: Value) {
         transition base.place > 0 {
             true -> view_place(checker, typing, handle, base.place, start, bound)
@@ -680,7 +688,7 @@ crashes Trap
 // An array's extent: its static integer, or for a `const` generic extent
 // any `u64`, since one body serves every specialization.
 // Whether every exclusive reference argument of a call has known storage
-// (`storage_origin`), from operand `offset` on.
+// (`Checker::storage_origin`), from operand `offset` on.
 public machine exclusive_arguments_placed(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, offset: u64 in Trapping) -> bool
 crashes Trap
 {

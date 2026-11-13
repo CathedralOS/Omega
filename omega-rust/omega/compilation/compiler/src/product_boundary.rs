@@ -28,7 +28,7 @@ fn assert_in_order(source: &str, owner: &str, operations: &[&str]) {
 }
 
 #[test]
-fn final_representation_admission_belongs_to_psi_checking() {
+fn opaque_representation_admission_is_not_rebuilt_in_the_coordinator() {
     let coordinator = include_str!("checked/checking/source_checking.rs");
     assert_absent(
         &[coordinator],
@@ -37,16 +37,6 @@ fn final_representation_admission_belongs_to_psi_checking() {
             "rederive_opaque_representation_selections(",
             "OpaqueDataPropertyReceipt::copy(",
             "CheckedSemanticCopy",
-        ],
-    );
-    let checking = include_str!("../../../../psi/compilation/psi-compiler/src/source_checking.rs");
-    assert_in_order(
-        checking,
-        "Psi source checking",
-        &[
-            "self.admission.representations.admit(&program)",
-            "validation::source_completion::prepare_source_completion(",
-            "prior.judgment.judges_preparation_input(",
         ],
     );
 }
@@ -80,7 +70,6 @@ fn product_policy_admission_has_one_source_owner() {
         "Psi product policy",
         &[
             "self.admit_product_provider_requests(",
-            "collect_opaque_representation_selections(",
             "native_bindings::collect(",
             "collect_product_root_grants(",
             "product_declarations::admit(",
@@ -138,35 +127,6 @@ fn selected_constant_evaluation_belongs_to_psi() {
         "geometry owns",
         &["expression_mut(", "proof_only::", "PreCheckEvaluation"],
     );
-}
-
-#[test]
-fn reused_product_selection_shares_the_checked_program() {
-    use std::sync::Arc;
-
-    let program = Arc::new(checked_trees::CheckedTrees::default());
-    let mut selections = psi_compiler::ProductSelections::default();
-    let first = selections
-        .select(
-            psi_compiler::CheckedSource {
-                program: Arc::clone(&program),
-                retained: None,
-                reused: false,
-            },
-            None,
-        )
-        .expect("first root selection");
-    let second = selections
-        .select(
-            psi_compiler::CheckedSource {
-                program: Arc::clone(&program),
-                retained: None,
-                reused: true,
-            },
-            None,
-        )
-        .expect("reused root selection");
-    assert!(Arc::ptr_eq(&first.program, &second.program));
 }
 
 #[test]
@@ -290,36 +250,6 @@ fn installation_reach_settlement_consumes_prepared_rows() {
 }
 
 #[test]
-fn checked_operator_choice_consumes_retained_candidates() {
-    let admission = include_str!(
-        "../../realization/provider-planning/src/provider_planning/source_provider_selections.rs"
-    );
-    let dispatch = include_str!(
-        "../../realization/selected-dispatch/src/selected_dispatch/operator_adapter.rs"
-    );
-    assert_absent(
-        &[admission, dispatch],
-        "operator body choice reconstructs",
-        &["machine_specializations", "machine_trait_conformances"],
-    );
-}
-
-#[test]
-fn issuer_identities_precede_occurrence_production() {
-    let preparation = include_str!(
-        "../../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published.rs"
-    );
-    assert_in_order(
-        preparation,
-        "contract fact preparation",
-        &[
-            "qualification_evidence::prepare_issuers(",
-            "append_contract_semantic_facts(program",
-        ],
-    );
-}
-
-#[test]
 fn native_provider_handoff_borrows_closed_source_associations() {
     let projection = include_str!("../../products/src/checked_compilation.rs");
     assert_absent(
@@ -330,20 +260,6 @@ fn native_provider_handoff_borrows_closed_source_associations() {
             "exact_owner_nominal_identity",
             "target_machine_families",
             "machine_by_symbol",
-        ],
-    );
-}
-
-#[test]
-fn selected_intrinsic_settlement_borrows_original_row_declarations() {
-    let settlement = include_str!("../../realization/selected-dispatch/src/intrinsic_review.rs");
-    assert_absent(
-        &[settlement],
-        "selected settlement reopens",
-        &[
-            "CheckedTrees",
-            "ProviderPlanningContext",
-            "row_execution_identity(",
         ],
     );
 }
@@ -772,16 +688,6 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
         "Terminal root preparation reopens source",
         &["checked_trees", "typed_trees", "psi_terminal_production"],
     );
-    let declarations = include_str!(
-        "../../../../psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/projections.rs"
-    );
-    assert!(declarations.contains("checked.callback_declaration(usage)"));
-    assert!(declarations.contains("declarations::identity("));
-    assert!(declarations.contains("TerminalRootDeclaration::Unavailable(reason.clone())"));
-    assert!(declarations.contains("PreparedTerminalRoots::new(identities, requests)"));
-    assert!(declarations.contains("usage.published_requirement_envelope"));
-    assert!(declarations.contains("usage.selected_actual_envelope"));
-    assert!(declarations.contains("usage.callback_entry.map("));
     let admission =
         include_str!("../../../../psi/compilation/psi-compiler/terminal-production/src/lib.rs");
     assert!(admission.contains("roots.push(project_root(module, provenance, entry))"));

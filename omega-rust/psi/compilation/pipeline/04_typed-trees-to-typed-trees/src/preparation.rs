@@ -1820,8 +1820,8 @@ pub use selections::bind_pre_specialization_authored_selections;
 
 pub(crate) use data_applications::elaborate_projected_receivers;
 
-pub(crate) use representation_selections::OpaqueRepresentationSelection;
 pub(crate) use typed_trees::TypedTrees;
+pub(crate) use typed_trees::opaque_representations::OpaqueRepresentationSelection;
 pub(crate) use typed_trees::references::DeclarationSelection;
 pub(crate) use validation::AsmAuthorityAdmission;
 

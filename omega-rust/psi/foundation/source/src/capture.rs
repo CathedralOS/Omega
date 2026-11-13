@@ -205,7 +205,17 @@ fn validate_entry_path(path: &Path) -> io::Result<()> {
         ));
     }
     let canonical: PathBuf = components.into_iter().collect();
-    if canonical.as_os_str() != path.as_os_str() {
+    // Package-relative paths are authored with `/` on every host
+    // (`targets/linux_arm64`), and on Windows that names the same entry as
+    // the `\` spelling the components rebuild. Compare the given spelling
+    // with its separators made native, so a portable spelling is canonical
+    // there too while `a//b` and `a/./b` are still refused.
+    let given = if cfg!(windows) {
+        PathBuf::from(path.to_string_lossy().replace('/', "\\"))
+    } else {
+        path.to_path_buf()
+    };
+    if canonical.as_os_str() != given.as_os_str() {
         return Err(path_error(
             io::ErrorKind::InvalidInput,
             path,
@@ -657,6 +667,27 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
     use std::sync::Arc;
+
+    /// A package-relative path spelled with `/` is canonical on every host,
+    /// and a spelling with an empty or `.` component never is.
+    #[test]
+    fn a_portable_entry_path_is_canonical_and_a_redundant_one_is_not() {
+        use super::validate_entry_path;
+        use std::path::Path;
+        assert!(validate_entry_path(Path::new("targets/linux_arm64")).is_ok());
+        assert!(validate_entry_path(Path::new("main.omg")).is_ok());
+        for redundant in [
+            "targets//linux_arm64",
+            "targets/./linux_arm64",
+            "targets/",
+            "../x",
+        ] {
+            assert!(
+                validate_entry_path(Path::new(redundant)).is_err(),
+                "{redundant} must be refused"
+            );
+        }
+    }
 
     struct TemporaryDirectory(PathBuf);
 

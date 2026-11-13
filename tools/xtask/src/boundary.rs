@@ -66,7 +66,6 @@ const PARSER_STAGES: &[&str] = &[
 ];
 
 const TERMINAL_STAGES: &[&str] = &[
-    "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi",
     "omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi",
     "omega-rust/psi/compilation/pipeline/08_lowered-psi-to-terminal-psi",
 ];
@@ -265,7 +264,6 @@ pub fn forbidden_rules() -> Vec<Rule> {
             owners: vec![TRUST_MODEL],
             forbidden: vec![
                 "omega-rust/psi/compilation/build-time-evaluation",
-                "omega-rust/psi/interpreter/checked-interpreter",
                 "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees",
                 "omega-rust/psi/compilation/terminal-installation",
                 "omega-rust/psi/compilation/representations/terminal-psi",

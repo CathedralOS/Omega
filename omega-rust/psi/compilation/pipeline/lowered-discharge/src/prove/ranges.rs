@@ -72,7 +72,7 @@ fn chain_operands(expression: &ScalarTerm) -> Vec<(&ScalarTerm, &ScalarTerm)> {
 impl Prover<'_> {
     /// The earlier axiom that fixes `term` to a literal, which a chain step
     /// cites as the landing of its literal operand.
-    fn landing(&self, term: &ScalarTerm, before: usize) -> Option<usize> {
+    pub(super) fn landing(&self, term: &ScalarTerm, before: usize) -> Option<usize> {
         self.axioms.get(..before)?.iter().position(|axiom| {
             matches!(
                 axiom,

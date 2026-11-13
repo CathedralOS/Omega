@@ -767,6 +767,7 @@ machine diagnostic_tag(value: TypeDiagnosticCode) -> u8 {
         TypeDiagnosticCode::NotAPlace -> tag(28)
         TypeDiagnosticCode::TerminalResultMismatch -> tag(29)
         TypeDiagnosticCode::AnonymousFraction -> tag(30)
+        TypeDiagnosticCode::FractionalIntermediate -> tag(43)
         TypeDiagnosticCode::UnsupportedExpression -> tag(31)
         TypeDiagnosticCode::UninferredGenericArgument -> tag(33)
         TypeDiagnosticCode::SatisfierMismatch -> tag(34)

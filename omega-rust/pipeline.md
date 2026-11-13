@@ -141,7 +141,6 @@ setup are not additional public program stages.
 | Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
 | Typed → typed trees | [typed-trees-to-typed-trees](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md) |
 | Typed → checked trees | [typed-trees-to-checked-trees](psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md) |
-| Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/compilation/pipeline/06_checked-trees-to-lowered-psi/README.md) |
 | Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/lib.rs) |
 | Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/compilation/pipeline/08_lowered-psi-to-terminal-psi/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
@@ -1095,9 +1094,9 @@ make folder counts match.
 Target descriptions, calling conventions and register models belong to backend;
 installation/task evidence belongs to backend runtime; boundary-application
 companions belong to backend artifacts; provider authority evidence belongs to
-backend plans. Target-independent opaque representation-selection records remain
-an independent package beside their Psi admission owner at
-`psi/compilation/validation/representation-planning/`. None of these is a pipeline program IR.
+backend plans. Target-independent opaque representation-selection records belong to the
+`typed-trees::opaque_representations` data owner. They retain source choices,
+not a checking verdict. None of these is a pipeline program IR.
 
 ### Subsystem entrances and supporting packages
 
@@ -1337,8 +1336,7 @@ projections consume compilation products, not compiler orchestration; the
 compiler uses their exact permission-consent comparison before production.
 Shared process and filesystem utilities remain under `omega/foundation/`.
 
-`psi/interpreter/` contains the `terminal-interpreter` engine and the
-`checked-interpreter` build-time evaluator that remains to migrate onto it. `psi/compilation/build-time-evaluation/` admits execution
+`psi/interpreter/` contains the `terminal-interpreter` engine. `psi/compilation/build-time-evaluation/` admits execution
 and elaborates results into source and typed trees. Checked fixed-array-length
 jobs use the Terminal program/instance lifecycle. Build activations use the
 Terminal Build host in `omega/build-system/build-settings/`; there is no
@@ -1364,12 +1362,11 @@ and product records retain that sealed selection evidence; only interpretation
 constructs host-import dispatch from it. This semantic library is not a source
 checker or an additional transform stage.
 
-Its independent
-[`representation-planning`](psi/compilation/validation/representation-planning/README.md)
-package admits source-level opaque representation relationships and checks their
-transitive cleanup and copy properties. The caller supplies build authority;
-backend layout derives target shape from the admitted carrier. Its independent
-`selections/` package keeps consumers free of a dependency on admission.
+The old opaque representation planner is deleted. Source preparation and
+product policy refuse nonempty representation inputs until the lowered-form
+route can supply their obligations. Retained application records live in
+[`typed-trees::opaque_representations`](psi/compilation/representations/typed-trees/src/opaque_representations.rs);
+retention itself supplies no checking or layout authority.
 `psi/compilation/proof/` constructs and solves source proof obligations; its
 independent `admission/` package owns the mathematical kernel and
 supplied-certificate checking. Terminal-specific codec, semantic reconstruction
@@ -1576,7 +1573,6 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   `syntax-trees-to-symbol-resolved-trees` →
   `symbol-resolved-trees-to-typed-trees` →
   `typed-trees-to-typed-trees` → `typed-trees-to-checked-trees` →
-  `checked-trees-to-lowered-psi` →
   `lowered-psi-to-lowered-psi` → `lowered-psi-to-terminal-psi`, then
   `terminal-psi-to-abstract-operations` →
   `abstract-operations-to-target-operations` →

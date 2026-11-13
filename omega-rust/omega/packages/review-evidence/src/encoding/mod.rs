@@ -14,7 +14,6 @@ pub use encode::membership::{
     PackagePolicyMembershipLimits,
 };
 pub use encode::restricted_build_request_acceptance_text;
-pub(crate) use encode::runtime_permission_rows;
 
 pub use recovery::PackagePolicyRecoveryLimits;
 pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage};

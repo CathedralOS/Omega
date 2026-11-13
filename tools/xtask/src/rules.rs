@@ -1,14 +1,12 @@
 //! Repository admission rules (`cargo xtask check-rules`):
 //! - Per-file count ratchets (`source_text_reads.txt`, `contract_status_phrases.txt`,
-//!   `stage06_shape_gates.txt`, `stage06_source_context.txt`, `dense_id_maps.txt`,
-//!   `cache_state.txt`)
+//!   `dense_id_maps.txt`, `cache_state.txt`)
 //! - Dangling task ID citations (`dangling_task_ids.txt`)
 //! - Discrete `TASKS.md` board shape
-//! - Historical corpus rows and runnable fixture reclassification
-//! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, `facts/` freeze, raw measurements limit,
-//!   existing `expected.txt` diagnostic pins)
+//! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, the `samples/cli/facts/` freeze, no new
+//!   files under the retired `tests/omega/`, raw measurements limit)
 //! - Commit title lane (`AGENTS.md` table) and PR `Agent:` provenance
-//! - Compiler-lane PR release gate and intended red-row change
+//! - Compiler-lane PR `Gate:` and `Proof:` lines
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -20,9 +18,6 @@ use crate::repo_root;
 const RUST_ROOT: &str = "omega-rust";
 const READS_BASELINE: &str = "tools/source_text_reads.txt";
 const STATUS_BASELINE: &str = "tools/contract_status_phrases.txt";
-const STAGE06_ROOT: &str = "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi";
-const SHAPE_GATE_BASELINE: &str = "tools/stage06_shape_gates.txt";
-const SOURCE_CONTEXT_BASELINE: &str = "tools/stage06_source_context.txt";
 const SEMANTIC_IDS: &str = "omega-rust/psi/foundation/semantic-vocabulary/src/identity.rs";
 const DENSE_MAP_BASELINE: &str = "tools/dense_id_maps.txt";
 const CACHE_STATE_BASELINE: &str = "tools/cache_state.txt";
@@ -35,8 +30,6 @@ const TASK_BOARDS: &[&str] = &[
     "TASKS_BOOTSTRAP.md",
     "OWNER_QUESTIONS.md",
 ];
-const GOLDEN: &str = "tests/omega/corpus_outcomes.txt";
-const CORPUS_LEDGERS: &str = "tests/omega/corpus_*.txt";
 const GATE_LANES: &[&str] = &[
     "psi", "omega", "backend", "compiler", "build", "packages", "library",
 ];
@@ -48,7 +41,10 @@ const RELEASE_GATES: &[&str] = &[
     "RC-DIAGNOSTICS",
     "RC-REPRESENTATIVE-PROGRAMS",
 ];
-const FIXTURE_TIERS: &[&str] = &["tests/omega/pass/", "tests/omega/fail/", "tests/omega/run/"];
+/// The fixture corpus that was deleted from the repository; see tests/README.md.
+const RETIRED_CORPUS_ROOT: &str = "tests/omega/";
+/// Where a test keeps the few programs it reads.
+const KEPT_FIXTURES_ROOT: &str = "omega-rust/omega/compilation/compiler/tests/fixtures/";
 const FACTS_ROOT: &str = "samples/cli/facts/";
 const MEASUREMENTS_ROOT: &str = "wiki/drafts/measurements/";
 const MEASUREMENT_LINE_LIMIT: usize = 300;
@@ -63,7 +59,6 @@ const AGENT_NAMES: &[&str] = &[
     "Antigravity",
     "Dot",
     "Human",
-    "Corpus sweep",
 ];
 
 fn git(root: &Path, args: &[&str]) -> Result<String, String> {
@@ -91,7 +86,7 @@ fn show_git_file(root: &Path, rev: &str, path: &str) -> String {
 fn pr_diff_base(root: &Path, requested: Option<&str>) -> Result<String, String> {
     // Every diff rule must inspect the topic's changes, not undo work that
     // arrived on its target after the fork. Resolve once so concurrent fetches
-    // cannot make the ledger, paths and diagnostic-pin checks use different bases.
+    // cannot make the diff checks use different bases.
     let requested = requested.unwrap_or("origin/main");
     let bases = git(root, &["merge-base", "--all", requested, "HEAD"])?;
     let bases: Vec<_> = bases.lines().filter(|base| !base.is_empty()).collect();
@@ -200,13 +195,6 @@ fn product_rust_files(root: &Path) -> Vec<PathBuf> {
             !has_test_dir && !is_test_filename(name)
         })
         .collect()
-}
-
-fn stage06_files(root: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    collect_files_with_ext(&root.join(STAGE06_ROOT), root, "rs", &mut out);
-    out.sort();
-    out
 }
 
 fn contract_files(root: &Path) -> Vec<PathBuf> {
@@ -460,68 +448,7 @@ pub fn count_status_phrases(text: &str) -> usize {
     count
 }
 
-// --- 3. Psi 06 shape gates & 4. Psi 06 source context ---
-
-pub fn count_shape_gates_exact(text: &str) -> usize {
-    let bytes = text.as_bytes();
-    let mut count = 0;
-    let mut i = 0;
-    while i < bytes.len() {
-        let mut step = 1;
-        for pat in ["unsupported(", "Unsupported", "unpinned("] {
-            if bytes[i..].starts_with(pat.as_bytes()) {
-                count += 1;
-                step = pat.len();
-                break;
-            }
-        }
-        i += step;
-    }
-    count
-}
-
-pub fn count_source_context(text: &str) -> usize {
-    // `\b(?:Frozen)?TypedTrees\b|\btyped_trees::expression\b|\.typed\b`
-    let bytes = text.as_bytes();
-    let mut count = 0;
-    let mut i = 0;
-    while i < bytes.len() {
-        let mut step = 1;
-        for pat in ["FrozenTypedTrees", "TypedTrees"] {
-            if bytes[i..].starts_with(pat.as_bytes())
-                && (i == 0 || !is_ident_byte(bytes[i - 1]))
-                && !is_ident_byte(*bytes.get(i + pat.len()).unwrap_or(&b' '))
-            {
-                count += 1;
-                step = pat.len();
-                break;
-            }
-        }
-        if step == 1
-            && bytes[i..].starts_with(b"typed_trees::expression")
-            && (i == 0 || !is_ident_byte(bytes[i - 1]))
-            && !is_ident_byte(
-                *bytes
-                    .get(i + "typed_trees::expression".len())
-                    .unwrap_or(&b' '),
-            )
-        {
-            count += 1;
-            step = "typed_trees::expression".len();
-        }
-        if step == 1
-            && bytes[i..].starts_with(b".typed")
-            && !is_ident_byte(*bytes.get(i + ".typed".len()).unwrap_or(&b' '))
-        {
-            count += 1;
-            step = ".typed".len();
-        }
-        i += step;
-    }
-    count
-}
-
-// --- 5. Product text stripping, Dense-ID maps, and 6. Cache state ---
+// --- 3. Product text stripping, Dense-ID maps, and 4. Cache state ---
 
 pub fn product_text(text: &str) -> String {
     // Strip `//[^\n]*` first
@@ -1154,46 +1081,16 @@ pub fn provenance_violations(body: &str) -> Vec<String> {
     )]
 }
 
-// Mirrors `xtask corpus --list-pinned-regressions`, so a PR's claim and the
-// pinned-regression list agree on which ledger rows count as red.
-fn ledger_row_is_red(row: &str) -> Option<bool> {
-    let tokens: Vec<&str> = row.split_whitespace().collect();
-    let (name, status) = (*tokens.first()?, *tokens.get(1)?);
-    let flags = &tokens[2..];
-    if name.starts_with("fail/") {
-        Some(status != "rejected" || flags.contains(&"unexpected"))
-    } else if name.starts_with("pass/") || name.starts_with("run/") {
-        let native_rejection = status == "rejected"
-            && flags.contains(&"expected")
-            && flags.contains(&"native-rejection:match");
-        let green = matches!(status, "checked" | "built") || native_rejection;
-        Some(!green || flags.iter().any(|flag| flag.starts_with("regressed-from:")))
-    } else {
-        None
-    }
-}
-
-/// Net change in red rows across the corpus ledgers in a `git diff -U0`.
-pub fn ledger_red_row_delta(diff: &str) -> i64 {
-    let count = |prefix: char, header: &str| {
-        diff.lines()
-            .filter(|line| line.starts_with(prefix) && !line.starts_with(header))
-            .filter(|line| !line[1..].starts_with(['\t', ' ', '#']))
-            .filter(|line| ledger_row_is_red(&line[1..]) == Some(true))
-            .count() as i64
-    };
-    count('+', "+++") - count('-', "---")
-}
-
-/// A compiler-lane PR names the release gate it serves and its red-row change.
-/// The change comes from the ledger diff, so it cannot be claimed without being
-/// recorded. Work that moves no row must say what it unlocks.
-pub fn gate_movement_violations(title: &str, body: &str, ledger_delta: i64) -> Vec<String> {
+/// A compiler-lane PR names the release gate it serves and says what the
+/// change makes work. Nothing counts rows any more, so the second field is the
+/// author's own statement and is only required to be present.
+pub fn gate_violations(title: &str, body: &str) -> Vec<String> {
     let lane = title.split(':').next().unwrap_or("").trim();
     if !GATE_LANES.contains(&lane) {
         return Vec::new();
     }
-    const FORM: &str = "`Gate: <RC-NAME> | red rows: <change>`, with `| unlocks: <what>` when no row turns green (AGENTS.md 'Explain the change')";
+    const FORM: &str =
+        "`Gate: <release-gate> | <what the change makes work>` (AGENTS.md 'Explain the change')";
     let Some(line) = body.lines().find_map(|line| line.strip_prefix("Gate: ")) else {
         return vec![format!("{lane} pull request description has no {FORM}")];
     };
@@ -1206,50 +1103,26 @@ pub fn gate_movement_violations(title: &str, body: &str, ledger_delta: i64) -> V
             RELEASE_GATES.join(", ")
         ));
     }
-    let claimed = fields
-        .get(1)
-        .and_then(|field| field.strip_prefix("red rows:"))
-        .and_then(|value| value.trim().parse::<i64>().ok());
-    let Some(claimed) = claimed else {
+    if !fields.get(1).is_some_and(|what| !what.is_empty()) {
         violations.push(format!("`Gate:` line is not of the form {FORM}"));
-        return violations;
-    };
-    // Pull requests no longer record the ledger; the post-merge check measures
-    // main and writes it. The claim is the author's statement of intent.
-    let _ = ledger_delta;
-    let unlocks = fields
-        .get(2)
-        .and_then(|field| field.strip_prefix("unlocks:"))
-        .is_some_and(|what| !what.trim().is_empty());
-    if claimed >= 0 && !unlocks {
-        violations.push(format!(
-            "`Gate:` turns no row green, so it must say what it unlocks: {FORM}"
-        ));
     }
     violations
 }
 
-/// A compiler-lane PR says what proved it: the tests on the change itself,
-/// how many fixtures `cargo xtask corpus` ran around it, and whether that
-/// blast was clean. The line is a statement of what was run; the corpus gate,
-/// not this check, decides what a pre-merge run may be.
+/// A compiler-lane PR says what proved it: the tests on the change itself and
+/// on the small area around it, and what they showed. The line is a statement
+/// of what was run.
 pub fn proof_violations(title: &str, body: &str) -> Vec<String> {
     let lane = title.split(':').next().unwrap_or("").trim();
     if !GATE_LANES.contains(&lane) {
         return Vec::new();
     }
-    const FORM: &str = "`Proof: <tests on the change> | blast: <n> fixtures | <clean, or what the rows that moved turned out to be>` (AGENTS.md 'Explain the change')";
+    const FORM: &str = "`Proof: <tests on the change and the area around it> | <clean, or what failed and what it turned out to be>` (AGENTS.md 'Explain the change')";
     let Some(line) = body.lines().find_map(|line| line.strip_prefix("Proof: ")) else {
         return vec![format!("{lane} pull request description has no {FORM}")];
     };
     let fields: Vec<&str> = line.split('|').map(str::trim).collect();
-    let count = fields
-        .get(1)
-        .and_then(|field| field.strip_prefix("blast:"))
-        .and_then(|value| value.split_whitespace().next())
-        .and_then(|count| count.parse::<usize>().ok());
-    let verdict = fields.get(2).is_some_and(|verdict| !verdict.is_empty());
-    if count.is_some() && !fields[0].is_empty() && verdict {
+    if fields.len() >= 2 && fields.iter().all(|field| !field.is_empty()) {
         Vec::new()
     } else {
         vec![format!("`Proof:` line is not of the form {FORM}")]
@@ -1335,121 +1208,6 @@ pub fn tasks_board_violations(head_text: &str) -> Vec<String> {
 
 // --- Diff checks ---
 
-fn golden_rows(text: &str) -> BTreeSet<String> {
-    text.lines()
-        .filter(|l| !l.trim().is_empty() && !l.starts_with(['#', '\t', ' ']))
-        .filter_map(|l| l.split_whitespace().next().map(str::to_owned))
-        .collect()
-}
-
-fn changed_golden_rows(diff: &str) -> BTreeSet<String> {
-    let mut names = BTreeSet::new();
-    for line in diff.lines() {
-        if (line.starts_with('+') || line.starts_with('-'))
-            && !line.starts_with("+++")
-            && !line.starts_with("---")
-        {
-            let body = &line[1..];
-            if !body.trim().is_empty()
-                && !body.starts_with(['#', '\t', ' '])
-                && let Some(name) = body.split_whitespace().next()
-            {
-                names.insert(name.to_owned());
-            }
-        }
-    }
-    names
-}
-
-/// Whether a pull request only writes down measurements: every changed path is
-/// a corpus ledger or Markdown that no fixture reads. Such a diff changes no
-/// compiler, library or fixture source, so any regression it records already
-/// existed on its base and cannot be its own.
-pub fn records_observations_only(changes: &[(char, String)]) -> bool {
-    let ledger = |path: &str| {
-        path.strip_prefix("tests/omega/corpus_")
-            .is_some_and(|rest| rest.ends_with(".txt") && !rest.contains('/'))
-    };
-    let prose = |path: &str| {
-        path.ends_with(".md") && !path.starts_with("tests/") && !path.starts_with("samples/")
-    };
-    !changes.is_empty() && changes.iter().all(|(_, path)| ledger(path) || prose(path))
-}
-
-const REGRESSION_RECORDING: &str = "a regression that already exists on the base is recorded by a pull request that changes only corpus ledgers and Markdown (tools/testing.md 'Who may record a regression')";
-
-/// Refuses ledger rows that would turn bad news into a baseline.
-///
-/// A pull request that changes source may not write a red row: it could be
-/// blessing its own breakage. An observation-only pull request (see
-/// [`records_observations_only`]) may, because it cannot have caused the
-/// outcome; its pass/run rows that lose a success must still carry the
-/// recorder's `regressed-from:` token so the loss stays distinguishable from a
-/// fixture that never worked.
-pub fn golden_row_quality_violations(diff: &str, observations_only: bool) -> Vec<String> {
-    let removed: BTreeSet<&str> = diff
-        .lines()
-        .filter(|l| l.starts_with('-') && !l.starts_with("---"))
-        .map(|l| &l[1..])
-        .collect();
-    let replaced_green = |name: &str| {
-        removed.iter().any(|row| {
-            row.split_whitespace().next() == Some(name) && ledger_row_is_red(row) == Some(false)
-        })
-    };
-    let mut violations = Vec::new();
-    for line in diff.lines() {
-        if !line.starts_with('+') || line.starts_with("+++") {
-            continue;
-        }
-        let body = &line[1..];
-        if removed.contains(body) || body.trim().is_empty() || body.starts_with(['#', '\t', ' ']) {
-            continue;
-        }
-        let tokens: Vec<&str> = body.split_whitespace().collect();
-        if tokens.len() < 2 {
-            continue;
-        }
-        let (name, outcome) = (tokens[0], tokens[1]);
-        for &token in &tokens[2..] {
-            if token.starts_with('@') && token.ends_with("+wt") {
-                violations.push(format!(
-                    "{GOLDEN}: {name} carries a dirty worktree stamp ({token}); commit all changes before running cargo xtask corpus --record"
-                ));
-            }
-        }
-        let marked = tokens[2..].iter().any(|t| t.starts_with("regressed-from:"));
-        if name.starts_with("pass/") || name.starts_with("run/") {
-            if observations_only {
-                if ledger_row_is_red(body) == Some(true) && !marked && replaced_green(name) {
-                    violations.push(format!(
-                        "{GOLDEN}: {name} lost its recorded success but carries no `regressed-from:` token; write the row with cargo xtask corpus --record instead of editing it"
-                    ));
-                }
-            // A refusal the fixture authors and the runner matched is the row's
-            // success, exactly as `ledger_row_is_red` counts it.
-            } else if (outcome == "rejected" && ledger_row_is_red(body) != Some(false)) || marked {
-                violations.push(format!(
-                    "{GOLDEN}: {name} is a pass/run fixture recorded as {outcome}; fix the fixture or compiler before recording; {REGRESSION_RECORDING}"
-                ));
-            }
-        } else if name.starts_with("fail/")
-            && !observations_only
-            && (outcome != "rejected" || tokens[2..].contains(&"unexpected"))
-        {
-            let shown = if tokens[2..].contains(&"unexpected") {
-                "unexpected"
-            } else {
-                outcome
-            };
-            violations.push(format!(
-                "{GOLDEN}: {name} is a fail fixture recorded as {shown}; ensure it rejects with its expected obligation before recording; {REGRESSION_RECORDING}"
-            ));
-        }
-    }
-    violations
-}
-
 pub fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String> {
     let mut violations = Vec::new();
     let mut added_omg = 0isize;
@@ -1462,21 +1220,17 @@ pub fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String> {
         if *status != 'A' {
             continue;
         }
-        if path.ends_with(".omg") {
+        if path.starts_with(RETIRED_CORPUS_ROOT) {
+            violations.push(format!(
+                "{path}: {RETIRED_CORPUS_ROOT} is retired and nothing runs it (tests/README.md); keep a program a test needs beside that test, under {KEPT_FIXTURES_ROOT}"
+            ));
+        } else if path.ends_with(".omg") {
             added_omg += 1;
-            if path.starts_with(FACTS_ROOT)
-                || path.starts_with("tests/omega/pass/facts/")
-                || path.starts_with("tests/omega/fail/facts/")
-                || path.starts_with("tests/omega/run/facts/")
-            {
+            if path.starts_with(FACTS_ROOT) {
                 violations.push(format!(
-                    "{path}: adding new .omg files under facts/ is frozen to prevent corpus bloat; pin the repair by flipping existing regressions in {GOLDEN} or adding a focused fixture pair under tests/omega/{{pass,fail,run}}/<behavior>/"
+                    "{path}: {FACTS_ROOT} is a frozen set; add no .omg files to it"
                 ));
             }
-        } else if path.starts_with("tests/omega/corpus_") && path.ends_with(".txt") {
-            violations.push(format!(
-                "{path}: do not add new corpus_*.txt files; record outcomes in {GOLDEN}"
-            ));
         } else if path.starts_with("tools/swarm/waves/") {
             violations.push(format!(
                 "{path}: swarm wave state belongs in ignored build/swarm/<wave>/, not tools/swarm/waves/"
@@ -1493,285 +1247,7 @@ pub fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String> {
     let net_added = added_omg - deleted_omg;
     if net_added > MAX_NEW_OMG_FILES {
         violations.push(format!(
-            "PR adds {net_added} .omg files (limit is {MAX_NEW_OMG_FILES}); pin repairs with at most a focused positive/negative fixture pair, never a combinatorial matrix"
-        ));
-    }
-    violations
-}
-
-fn fixture_directories(root: &Path) -> BTreeSet<String> {
-    let omega_tests = root.join("tests/omega");
-    let mut dirs = BTreeSet::new();
-    for tier in FIXTURE_TIERS {
-        let base = root.join(tier);
-        if base.is_dir() {
-            let mut files = Vec::new();
-            collect_files_with_ext(&base, root, "omg", &mut files);
-            for file in files {
-                if file.file_name().and_then(|n| n.to_str()) == Some("main.omg")
-                    && let Some(parent) = file.parent()
-                    && let Ok(rel) = parent.strip_prefix(&omega_tests)
-                {
-                    dirs.insert(rel.to_string_lossy().replace('\\', "/"));
-                }
-            }
-        }
-    }
-    dirs
-}
-
-fn fixture_of(
-    path: &str,
-    rows: &BTreeSet<String>,
-    fixture_dirs: &BTreeSet<String>,
-) -> Option<String> {
-    if !FIXTURE_TIERS.iter().any(|t| path.starts_with(t)) {
-        return None;
-    }
-    let rel = path.strip_prefix("tests/omega/")?;
-    let parts: Vec<&str> = rel.split('/').collect();
-    if parts.len() <= 2 {
-        return None;
-    }
-    let dir_parts = &parts[..parts.len() - 1];
-    let prefixes: Vec<String> = (2..=dir_parts.len())
-        .rev()
-        .map(|end| dir_parts[..end].join("/"))
-        .collect();
-    for p in &prefixes {
-        if rows.contains(p) {
-            return Some(p.clone());
-        }
-    }
-    for p in prefixes.iter().rev() {
-        if fixture_dirs.contains(p) {
-            return Some(p.clone());
-        }
-    }
-    None
-}
-
-fn source_oracle_input(path: &str) -> bool {
-    !path.ends_with("README.md")
-        && !(path.contains("/validation/") && (path.ends_with(".rs") || path.ends_with(".py")))
-}
-
-// A former rejection stays covered when this diff introduces its runnable pass
-// counterpart at the same group/name. An existing positive cannot justify
-// deleting a negative. Prepare this correspondence once for both admission rules.
-fn runnable_fail_to_pass_reclassifications(
-    root: &Path,
-    changes: &[(char, String)],
-) -> Result<BTreeSet<String>, String> {
-    let added: BTreeSet<&str> = changes
-        .iter()
-        .filter_map(|(status, path)| (*status == 'A').then_some(path.as_str()))
-        .collect();
-    let mut reclassified = BTreeSet::new();
-    for (status, path) in changes {
-        if *status != 'D' || root.join(path).exists() {
-            continue;
-        }
-        let Some(identity) = path
-            .strip_prefix("tests/omega/fail/")
-            .and_then(|path| path.strip_suffix("/main.omg"))
-        else {
-            continue;
-        };
-        let positive = format!("tests/omega/pass/{identity}/main.omg");
-        if added.contains(positive.as_str())
-            && root.join(&positive).is_file()
-            && has_valid_runtime_exit_oracles(&root.join(positive))?
-        {
-            reclassified.insert(format!("fail/{identity}"));
-        }
-    }
-    Ok(reclassified)
-}
-
-// Check authored outcomes with the execution owner's parser. Focused
-// qualification establishes the actual native and Psi observations separately.
-fn has_valid_runtime_exit_oracles(main: &Path) -> Result<bool, String> {
-    let mut complete = false;
-    for target in [
-        "linux_x86_64",
-        "linux_arm64",
-        "macos_arm64",
-        "windows_x86_64",
-    ] {
-        let native = crate::runtime_oracles::exit_oracle(main, Some(target), false, None)?;
-        let interpreted = crate::runtime_oracles::exit_oracle(main, Some(target), true, None)?;
-        complete |= native.is_some() && interpreted.is_some();
-    }
-    Ok(complete)
-}
-
-fn golden_violations(
-    changes: &[(char, String)],
-    base_rows: &BTreeSet<String>,
-    head_rows: &BTreeSet<String>,
-    rewritten: &BTreeSet<String>,
-    fixture_dirs: &BTreeSet<String>,
-    reclassified: &BTreeSet<String>,
-) -> Vec<String> {
-    let all_rows: BTreeSet<String> = base_rows.union(head_rows).cloned().collect();
-    let mut touched = BTreeSet::new();
-    for (_, path) in changes {
-        if source_oracle_input(path)
-            && let Some(f) = fixture_of(path, &all_rows, fixture_dirs)
-        {
-            touched.insert(f);
-        }
-    }
-    let stale: Vec<String> = touched
-        .iter()
-        .filter(|f| fixture_dirs.contains(*f) && !rewritten.contains(*f))
-        .cloned()
-        .collect();
-    let orphaned: Vec<String> = touched
-        .iter()
-        .filter(|f| {
-            !fixture_dirs.contains(*f) && head_rows.contains(*f) && !reclassified.contains(*f)
-        })
-        .cloned()
-        .collect();
-    let mut violations = Vec::new();
-    // A changed fixture's row is re-measured on main after merge, not by the
-    // pull request, so a stale row here is expected.
-    let _ = stale;
-    if !orphaned.is_empty() {
-        violations.push(format!(
-            "{} deleted fixture(s) keep a row in {GOLDEN} without a new runnable pass counterpart at the same group/name: {}",
-            orphaned.len(),
-            orphaned.join(", ")
-        ));
-    }
-    violations
-}
-
-// The ratified work-accounting rename changes spelling, not diagnostic strength.
-// Keep complete fragments: comparison operators, numbers and all other words bind.
-fn work_vocabulary_pin(fragment: &str) -> String {
-    match fragment {
-        "evaluation Fuel allowance exhausted" => "evaluation Work budget exhausted".to_owned(),
-        "AllowanceExhausted(Fuel)" => "BudgetExhausted(Work)".to_owned(),
-        "fuel > 0" => "remaining_steps > 0".to_owned(),
-        _ => fragment.replace(
-            "constant Terminal execution exhausted its fuel allowance",
-            "constant Terminal execution exhausted its work budget",
-        ),
-    }
-}
-
-fn canonical_work_pins(pins: &BTreeSet<String>) -> Vec<String> {
-    let mut canonical: Vec<_> = pins.iter().map(|pin| work_vocabulary_pin(pin)).collect();
-    canonical.sort();
-    canonical
-}
-
-fn equivalent_work_pin(root: &Path, base_rev: &str, status: char, path: &str) -> bool {
-    if status != 'M' || !path.ends_with("/expected.txt") {
-        return false;
-    }
-    let fragments = |text: String| -> BTreeSet<String> {
-        text.lines()
-            .map(str::trim)
-            .filter(|line| !line.is_empty())
-            .map(str::to_owned)
-            .collect()
-    };
-    canonical_work_pins(&fragments(show_git_file(root, base_rev, path)))
-        == canonical_work_pins(&fragments(show_git_file(root, "HEAD", path)))
-}
-
-// A compiler repair can change the first reported error or its spelling.
-// Authors check replacement fragments against the intended rejection; corpus
-// recording belongs after merge. Admission rejects an empty or drop-only change
-// without requiring a prohibited pull-request ledger edit.
-fn substantive_pin_migration(old: &BTreeSet<String>, new: &BTreeSet<String>) -> bool {
-    !new.is_empty() && new.difference(old).next().is_some()
-}
-
-// `tests/omega/pending/` holds a witness the checker accepts wrongly until a
-// fix lands; the fix then moves it to the same place under `fail/`. The pin is
-// kept, not removed, when that move carries the same nonempty fragments.
-// Authors check the intended rejection before merge; recording belongs afterward.
-fn pending_promotion_path(path: &str) -> Option<String> {
-    let rest = path.strip_prefix("tests/omega/pending/")?;
-    Some(format!("tests/omega/fail/{rest}"))
-}
-
-fn expected_pin_violations(
-    root: &Path,
-    base_rev: &str,
-    changes: &[(char, String)],
-    reclassified: &BTreeSet<String>,
-) -> Vec<String> {
-    let mut violations = Vec::new();
-    for (status, path) in changes {
-        if *status == 'A' || !path.starts_with("tests/omega/") || !path.ends_with("/expected.txt") {
-            continue;
-        }
-        if *status == 'D'
-            && path
-                .strip_prefix("tests/omega/")
-                .and_then(|path| path.strip_suffix("/expected.txt"))
-                .is_some_and(|fixture| reclassified.contains(fixture))
-        {
-            continue;
-        }
-        let old: BTreeSet<String> = show_git_file(root, base_rev, path)
-            .lines()
-            .map(str::trim)
-            .filter(|l| !l.is_empty())
-            .map(str::to_owned)
-            .collect();
-        let new: BTreeSet<String> = if *status == 'D' {
-            BTreeSet::new()
-        } else {
-            show_git_file(root, "HEAD", path)
-                .lines()
-                .map(str::trim)
-                .filter(|l| !l.is_empty())
-                .map(str::to_owned)
-                .collect()
-        };
-        if *status != 'D' && canonical_work_pins(&old) == canonical_work_pins(&new) {
-            continue;
-        }
-        if *status == 'M' && substantive_pin_migration(&old, &new) {
-            continue;
-        }
-        if *status == 'D'
-            && let Some(promoted) = pending_promotion_path(path)
-            && changes.contains(&('A', promoted.clone()))
-        {
-            let promoted_pins: BTreeSet<String> = show_git_file(root, "HEAD", &promoted)
-                .lines()
-                .map(str::trim)
-                .filter(|l| !l.is_empty())
-                .map(str::to_owned)
-                .collect();
-            if !old.is_empty() && canonical_work_pins(&old) == canonical_work_pins(&promoted_pins) {
-                continue;
-            }
-        }
-        let detail = if *status == 'D' {
-            "removed the file and its pinned diagnostic".to_owned()
-        } else {
-            let removed: Vec<&String> = old.difference(&new).collect();
-            let added: Vec<&String> = new.difference(&old).collect();
-            let mut parts = Vec::new();
-            if !removed.is_empty() {
-                parts.push(format!("dropped {} fragment(s)", removed.len()));
-            }
-            if !added.is_empty() {
-                parts.push(format!("added {} fragment(s)", added.len()));
-            }
-            parts.join("; ")
-        };
-        violations.push(format!(
-            "{path}: broke existing-diagnostic-pin: {detail}. Keep a nonempty expected.txt; replace obsolete fragments rather than only dropping them. A pending-to-fail move must preserve the same pins at the same place. A fail-to-pass move must introduce a runnable counterpart at the same group/name with valid native and Psi exit oracles. Check the intended outcome before merge; corpus recording belongs afterward."
+            "PR adds {net_added} .omg files (limit is {MAX_NEW_OMG_FILES}); a test keeps the few programs it reads, never a combinatorial matrix"
         ));
     }
     violations
@@ -1809,28 +1285,6 @@ const RATCHET_SPECS: &[RatchetSpec] = &[
             "Counts may only fall: put open work on its TASKS.md item, not in the contract.",
         ],
         advice: "Contracts state rules; record where the implementation stands as a remaining bullet on the owning TASKS.md item, and phrase the rule without it.",
-    },
-    RatchetSpec {
-        baseline: SHAPE_GATE_BASELINE,
-        flag: "update-shape-gates",
-        noun: "Psi 06 shape gates",
-        header: &[
-            "Psi 06 shape gates (unsupported(, Unsupported, unpinned() per file.",
-            "Counts may only fall: Psi 06 is a mechanical lowering of Psi 05's plans",
-            "(TASKS.md owner ruling 2026-10-04; LOC-VALUE-CUSTODY retires these gates).",
-        ],
-        advice: "Psi 06 lowers Psi 05's plans without re-checking them (TASKS.md owner ruling 2026-10-04): record the missing decision on the Psi 05 plan and lower it, or reject the program in checking with a reject twin.",
-    },
-    RatchetSpec {
-        baseline: SOURCE_CONTEXT_BASELINE,
-        flag: "update-source-context",
-        noun: "Psi 06 source-context reads",
-        header: &[
-            "Psi 06 reads of source context (TypedTrees, typed_trees::expression,",
-            ".typed) per file. Counts may only fall: stages do not reconstruct missing",
-            "input facts (omega-rust/pipeline.md \"Public contracts\").",
-        ],
-        advice: "Stages cannot reconstruct missing input facts from source context (omega-rust/pipeline.md \"Public contracts\"): read the fact from the Psi 05 plan, and record it there when Psi 05 does not yet publish it.",
     },
     RatchetSpec {
         baseline: DENSE_MAP_BASELINE,
@@ -1878,9 +1332,8 @@ pub fn compute_ratchet_counts(
     let files = match index {
         0 => rust_files(root),
         1 => contract_files(root),
-        2 | 3 => stage06_files(root),
-        4 | 5 => product_rust_files(root),
-        6 => product_rust_files(root)
+        2 | 3 => product_rust_files(root),
+        4 => product_rust_files(root)
             .into_iter()
             .filter(|path| {
                 path.strip_prefix(root)
@@ -1898,11 +1351,9 @@ pub fn compute_ratchet_counts(
         let c = match index {
             0 => count_source_reads(&text),
             1 => count_status_phrases(&text),
-            2 => count_shape_gates_exact(&text),
-            3 => count_source_context(&text),
-            4 => count_dense_id_maps(&text, semantic_ids),
-            5 => count_cache_state(&text),
-            6 => count_place_transport(&text),
+            2 => count_dense_id_maps(&text, semantic_ids),
+            3 => count_cache_state(&text),
+            4 => count_place_transport(&text),
             _ => 0,
         };
         if c > 0
@@ -2063,12 +1514,6 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     })?;
 
     // Diff checks against `base_rev`
-    // An unreadable diff leaves 0, so a claimed movement fails closed.
-    let ledger_delta = git(
-        &root,
-        &["diff", "-U0", &base_rev, "HEAD", "--", CORPUS_LEDGERS],
-    )
-    .map_or(0, |diff| ledger_red_row_delta(&diff));
     if let Ok(diff_out) = git(
         &root,
         &["diff", "--name-status", "--no-renames", &base_rev, "HEAD"],
@@ -2081,42 +1526,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 changes.push((ch, path.to_owned()));
             }
         }
-        let golden_diff =
-            git(&root, &["diff", "-U0", &base_rev, "HEAD", "--", GOLDEN]).unwrap_or_default();
-        let base_golden = show_git_file(&root, &base_rev, GOLDEN);
-        let head_golden = show_git_file(&root, "HEAD", GOLDEN);
-        let rewritten = changed_golden_rows(&golden_diff);
-        let freshness_changes: Vec<_> = changes
-            .iter()
-            .filter(|(status, path)| !equivalent_work_pin(&root, &base_rev, *status, path))
-            .cloned()
-            .collect();
-        let reclassified = match runnable_fail_to_pass_reclassifications(&root, &changes) {
-            Ok(reclassified) => reclassified,
-            Err(error) => {
-                violations.push(format!("cannot admit fixture reclassification: {error}"));
-                BTreeSet::new()
-            }
-        };
-        violations.extend(golden_violations(
-            &freshness_changes,
-            &golden_rows(&base_golden),
-            &golden_rows(&head_golden),
-            &rewritten,
-            &fixture_directories(&root),
-            &reclassified,
-        ));
-        violations.extend(golden_row_quality_violations(
-            &golden_diff,
-            records_observations_only(&changes),
-        ));
         violations.extend(diff_hygiene_violations(&changes));
-        violations.extend(expected_pin_violations(
-            &root,
-            &base_rev,
-            &changes,
-            &reclassified,
-        ));
         for (status, path) in &changes {
             if *status == 'A' && path.starts_with(MEASUREMENTS_ROOT) {
                 if !path.ends_with(".md") {
@@ -2147,7 +1557,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         let body = fs::read_to_string(&bf).unwrap_or_default();
         violations.extend(provenance_violations(&body));
         if let Some(t) = &title {
-            violations.extend(gate_movement_violations(t, &body, ledger_delta));
+            violations.extend(gate_violations(t, &body));
             violations.extend(proof_violations(t, &body));
         }
     }
@@ -2213,25 +1623,23 @@ struct Ledger;
         );
     }
 
-    struct DiagnosticPinRepository {
+    struct ScratchRepository {
         root: PathBuf,
     }
 
-    impl DiagnosticPinRepository {
+    impl ScratchRepository {
         fn new() -> Self {
             let nonce = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_nanos();
-            let root = std::env::temp_dir().join(format!(
-                "omega-diagnostic-pins-{}-{nonce}",
-                std::process::id()
-            ));
+            let root = std::env::temp_dir()
+                .join(format!("omega-check-rules-{}-{nonce}", std::process::id()));
             fs::create_dir(&root).unwrap();
             git(&root, &["init", "--quiet"]).unwrap();
             for (key, value) in [
-                ("user.name", "Diagnostic pin test"),
-                ("user.email", "diagnostic-pin@example.invalid"),
+                ("user.name", "Check rules test"),
+                ("user.email", "check-rules@example.invalid"),
                 ("commit.gpgSign", "false"),
                 ("core.hooksPath", ".git/empty-hooks"),
             ] {
@@ -2273,7 +1681,7 @@ struct Ledger;
         }
     }
 
-    impl Drop for DiagnosticPinRepository {
+    impl Drop for ScratchRepository {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.root);
         }
@@ -2281,15 +1689,12 @@ struct Ledger;
 
     #[test]
     fn pr_scope_excludes_files_added_to_main_after_the_topic_forked() {
-        let repo = DiagnosticPinRepository::new();
+        let repo = ScratchRepository::new();
         let fork = repo.commit(&[("shared.md", Some("shared\n"))]);
         let main = repo.commit(&[
+            ("notes/new_on_main/main.md", Some("fixture\n")),
             (
-                "tests/omega/fail/contracts/new_on_main/main.omg",
-                Some("fixture\n"),
-            ),
-            (
-                "tests/omega/fail/contracts/new_on_main/expected.txt",
+                "notes/new_on_main/expected.md",
                 Some("required diagnostic\n"),
             ),
         ]);
@@ -2304,41 +1709,12 @@ struct Ledger;
         let base = pr_diff_base(&repo.root, Some("origin/main")).unwrap();
         let changes = repo.changes_since(&base);
         assert_eq!(changes, [('A', "topic.md".to_owned())]);
-        assert!(expected_pin_violations(&repo.root, &base, &changes, &BTreeSet::new()).is_empty());
         assert_eq!(pr_diff_base(&repo.root, None).unwrap(), fork);
     }
 
     #[test]
-    fn pr_scope_still_rejects_a_pin_actually_deleted_by_the_topic() {
-        let repo = DiagnosticPinRepository::new();
-        let pin = "tests/omega/fail/contracts/existing/expected.txt";
-        let fork = repo.commit(&[
-            ("shared.md", Some("shared\n")),
-            (pin, Some("required diagnostic\n")),
-        ]);
-        let main = repo.commit(&[(
-            "tests/omega/fail/contracts/new_on_main/expected.txt",
-            Some("another required diagnostic\n"),
-        )]);
-        git(
-            &repo.root,
-            &["update-ref", "refs/remotes/origin/main", &main],
-        )
-        .unwrap();
-        git(&repo.root, &["checkout", "--quiet", "--detach", &fork]).unwrap();
-        repo.commit(&[(pin, None)]);
-
-        let base = pr_diff_base(&repo.root, Some("origin/main")).unwrap();
-        let changes = repo.changes_since(&base);
-        assert_eq!(changes, [('D', pin.to_owned())]);
-        let violations = expected_pin_violations(&repo.root, &base, &changes, &BTreeSet::new());
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].contains(pin));
-    }
-
-    #[test]
     fn pr_scope_preserves_ancestor_and_admission_merge_parent_diffs() {
-        let repo = DiagnosticPinRepository::new();
+        let repo = ScratchRepository::new();
         let fork = repo.commit(&[("shared.md", Some("shared\n"))]);
         let topic = repo.commit(&[("topic.md", Some("topic change\n"))]);
         let ancestor = pr_diff_base(&repo.root, Some(&fork)).unwrap();
@@ -2392,7 +1768,7 @@ struct Ledger;
 
     #[test]
     fn pr_scope_refuses_invalid_or_unrelated_bases_instead_of_empty_coverage() {
-        let repo = DiagnosticPinRepository::new();
+        let repo = ScratchRepository::new();
         repo.commit(&[("shared.md", Some("shared\n"))]);
         assert!(pr_diff_base(&repo.root, Some("missing-reference")).is_err());
         assert!(pr_diff_base(&repo.root, None).is_err());
@@ -2412,7 +1788,7 @@ struct Ledger;
 
     #[test]
     fn pr_scope_requires_an_explicit_ancestor_when_history_has_two_merge_bases() {
-        let repo = DiagnosticPinRepository::new();
+        let repo = ScratchRepository::new();
         let fork = repo.commit(&[("shared.md", Some("shared\n"))]);
         let left = repo.commit(&[("left.md", Some("left\n"))]);
         git(&repo.root, &["checkout", "--quiet", "--detach", &fork]).unwrap();
@@ -2456,320 +1832,6 @@ struct Ledger;
     }
 
     #[test]
-    fn diagnostic_pin_migration_does_not_require_a_ledger_edit() {
-        let repo = DiagnosticPinRepository::new();
-        let path = "tests/omega/fail/layouts/example/expected.txt";
-        let base = repo.commit(&[
-            (path, Some("schema instance has no runtime layout\n")),
-            (
-                GOLDEN,
-                Some("fail/layouts/example rejected 1ms expected @aaaaaaaaaaaa\n\tschema instance has no runtime layout\n"),
-            ),
-        ]);
-        repo.commit(&[(path, Some("alignment 0 is not a positive power of two\n"))]);
-        assert_eq!(
-            show_git_file(&repo.root, &base, GOLDEN),
-            show_git_file(&repo.root, "HEAD", GOLDEN)
-        );
-        assert!(
-            expected_pin_violations(
-                &repo.root,
-                &base,
-                &[('M', path.to_owned())],
-                &BTreeSet::new(),
-            )
-            .is_empty()
-        );
-    }
-
-    #[test]
-    fn diagnostic_pin_migration_rejects_empty_drop_only_and_deleted_pins() {
-        let repo = DiagnosticPinRepository::new();
-        let path = "tests/omega/fail/contracts/example/expected.txt";
-        let base = repo.commit(&[(path, Some("missing output\nIdentity\n"))]);
-        for (contents, status) in [(Some("Identity\n"), 'M'), (Some("  \n"), 'M'), (None, 'D')] {
-            repo.commit(&[(path, contents)]);
-            let violations = expected_pin_violations(
-                &repo.root,
-                &base,
-                &[(status, path.to_owned())],
-                &BTreeSet::new(),
-            );
-            assert_eq!(violations.len(), 1, "{contents:?}");
-            assert!(violations[0].contains("existing-diagnostic-pin"));
-        }
-    }
-
-    #[test]
-    fn diagnostic_pin_promotion_preserves_the_same_place_and_fragments_without_a_ledger() {
-        let repo = DiagnosticPinRepository::new();
-        let pending = "tests/omega/pending/contracts/example/expected.txt";
-        let fail = "tests/omega/fail/contracts/example/expected.txt";
-        let wrong_place = "tests/omega/fail/contracts/other/expected.txt";
-        let pins = "missing output\nIdentity\n";
-        let base = repo.commit(&[(pending, Some(pins))]);
-        repo.commit(&[(pending, None), (fail, Some(pins))]);
-        let changes = [('D', pending.to_owned()), ('A', fail.to_owned())];
-        assert!(expected_pin_violations(&repo.root, &base, &changes, &BTreeSet::new()).is_empty());
-
-        repo.commit(&[(fail, Some("Identity\n"))]);
-        assert_eq!(
-            expected_pin_violations(&repo.root, &base, &changes, &BTreeSet::new()).len(),
-            1
-        );
-
-        repo.commit(&[(fail, None), (wrong_place, Some(pins))]);
-        let changes = [('D', pending.to_owned()), ('A', wrong_place.to_owned())];
-        assert_eq!(
-            expected_pin_violations(&repo.root, &base, &changes, &BTreeSet::new()).len(),
-            1
-        );
-    }
-
-    #[test]
-    fn diagnostic_pin_promotion_rejects_an_empty_pin() {
-        let repo = DiagnosticPinRepository::new();
-        let pending = "tests/omega/pending/contracts/example/expected.txt";
-        let fail = "tests/omega/fail/contracts/example/expected.txt";
-        let base = repo.commit(&[(pending, Some("\n"))]);
-        repo.commit(&[(pending, None), (fail, Some("\n"))]);
-        let changes = [('D', pending.to_owned()), ('A', fail.to_owned())];
-        assert_eq!(
-            expected_pin_violations(&repo.root, &base, &changes, &BTreeSet::new()).len(),
-            1
-        );
-    }
-
-    #[test]
-    fn runnable_reclassification_preserves_the_case_without_editing_its_ledger() {
-        let repo = DiagnosticPinRepository::new();
-        let old_main = "tests/omega/fail/calls/example/main.omg";
-        let old_pin = "tests/omega/fail/calls/example/expected.txt";
-        let new_main = "tests/omega/pass/calls/example/main.omg";
-        let base = repo.commit(&[
-            (old_main, Some("machine main() {}\n")),
-            (old_pin, Some("obsolete acknowledgement refusal\n")),
-            (
-                GOLDEN,
-                Some("fail/calls/example rejected 1ms expected @aaaaaaaaaaaa\n\tobsolete acknowledgement refusal\n"),
-            ),
-        ]);
-        repo.commit(&[
-            (old_main, None),
-            (old_pin, None),
-            (new_main, Some("machine main() {}\n")),
-            (
-                "tests/omega/pass/calls/example/expected_native_exit.txt",
-                Some("0\n"),
-            ),
-            (
-                "tests/omega/pass/calls/example/expected_interpreter_exit.txt",
-                Some("0\n"),
-            ),
-        ]);
-        let changes = [
-            ('D', old_main.to_owned()),
-            ('D', old_pin.to_owned()),
-            ('A', new_main.to_owned()),
-        ];
-        let reclassified = runnable_fail_to_pass_reclassifications(&repo.root, &changes).unwrap();
-        assert_eq!(
-            reclassified,
-            BTreeSet::from(["fail/calls/example".to_owned()])
-        );
-        let rows = BTreeSet::from(["fail/calls/example".to_owned()]);
-        assert!(
-            golden_violations(
-                &changes,
-                &rows,
-                &rows,
-                &BTreeSet::new(),
-                &fixture_directories(&repo.root),
-                &reclassified,
-            )
-            .is_empty()
-        );
-        assert!(expected_pin_violations(&repo.root, &base, &changes, &reclassified).is_empty());
-        assert_eq!(
-            show_git_file(&repo.root, &base, GOLDEN),
-            show_git_file(&repo.root, "HEAD", GOLDEN)
-        );
-    }
-
-    #[test]
-    fn runnable_reclassification_requires_valid_outcomes_for_both_engines() {
-        for (native, interpreted, invalid) in [
-            (None, None, false),
-            (None, Some("0\n"), false),
-            (Some("invalid\n"), Some("0\n"), true),
-            (Some("0\n"), Some("invalid\n"), true),
-        ] {
-            let repo = DiagnosticPinRepository::new();
-            let old_main = "tests/omega/fail/calls/example/main.omg";
-            let old_pin = "tests/omega/fail/calls/example/expected.txt";
-            let new_main = "tests/omega/pass/calls/example/main.omg";
-            let base = repo.commit(&[
-                (old_main, Some("machine main() {}\n")),
-                (old_pin, Some("required rejection\n")),
-            ]);
-            let mut files = vec![
-                (old_main, None),
-                (old_pin, None),
-                (new_main, Some("machine main() {}\n")),
-            ];
-            if let Some(native) = native {
-                files.push((
-                    "tests/omega/pass/calls/example/expected_native_exit.txt",
-                    Some(native),
-                ));
-            }
-            if let Some(interpreted) = interpreted {
-                files.push((
-                    "tests/omega/pass/calls/example/expected_interpreter_exit.txt",
-                    Some(interpreted),
-                ));
-            }
-            repo.commit(&files);
-            let changes = [
-                ('D', old_main.to_owned()),
-                ('D', old_pin.to_owned()),
-                ('A', new_main.to_owned()),
-            ];
-            let result = runnable_fail_to_pass_reclassifications(&repo.root, &changes);
-            if invalid {
-                assert!(result.unwrap_err().contains("invalid exit oracle"));
-            } else {
-                let reclassified = result.unwrap();
-                assert!(reclassified.is_empty());
-                assert_eq!(
-                    expected_pin_violations(&repo.root, &base, &changes, &reclassified).len(),
-                    1
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn runnable_reclassification_rejects_an_invalid_target_override() {
-        let repo = DiagnosticPinRepository::new();
-        repo.commit(&[
-            (
-                "tests/omega/pass/calls/example/main.omg",
-                Some("// Expected exit: 0\nmachine main() {}\n"),
-            ),
-            (
-                "tests/omega/pass/calls/example/expected_native_exit.windows_x86_64.txt",
-                Some("invalid\n"),
-            ),
-        ]);
-        let changes = [
-            ('D', "tests/omega/fail/calls/example/main.omg".to_owned()),
-            ('A', "tests/omega/pass/calls/example/main.omg".to_owned()),
-        ];
-        assert!(
-            runnable_fail_to_pass_reclassifications(&repo.root, &changes)
-                .unwrap_err()
-                .contains("invalid exit oracle")
-        );
-    }
-
-    #[test]
-    fn runnable_reclassification_preserves_exact_group_and_name() {
-        for destination in ["other/example", "calls/other"] {
-            let repo = DiagnosticPinRepository::new();
-            let new_main = format!("tests/omega/pass/{destination}/main.omg");
-            repo.commit(&[(&new_main, Some("// Expected exit: 0\nmachine main() {}\n"))]);
-            let changes = [
-                ('D', "tests/omega/fail/calls/example/main.omg".to_owned()),
-                ('A', new_main),
-            ];
-            assert!(
-                runnable_fail_to_pass_reclassifications(&repo.root, &changes)
-                    .unwrap()
-                    .is_empty()
-            );
-        }
-    }
-
-    #[test]
-    fn an_existing_positive_does_not_justify_deleting_a_negative() {
-        let repo = DiagnosticPinRepository::new();
-        let old_main = "tests/omega/fail/calls/example/main.omg";
-        let old_pin = "tests/omega/fail/calls/example/expected.txt";
-        let base = repo.commit(&[
-            (old_main, Some("machine main() {}\n")),
-            (old_pin, Some("required rejection\n")),
-            (
-                "tests/omega/pass/calls/example/main.omg",
-                Some("// Expected exit: 0\nmachine main() {}\n"),
-            ),
-        ]);
-        repo.commit(&[(old_main, None), (old_pin, None)]);
-        let changes = [('D', old_main.to_owned()), ('D', old_pin.to_owned())];
-        let reclassified = runnable_fail_to_pass_reclassifications(&repo.root, &changes).unwrap();
-        assert!(reclassified.is_empty());
-        assert_eq!(
-            expected_pin_violations(&repo.root, &base, &changes, &reclassified).len(),
-            1
-        );
-        let rows = BTreeSet::from(["fail/calls/example".to_owned()]);
-        assert_eq!(
-            golden_violations(
-                &changes,
-                &rows,
-                &rows,
-                &BTreeSet::new(),
-                &fixture_directories(&repo.root),
-                &reclassified
-            )
-            .len(),
-            1
-        );
-    }
-
-    #[test]
-    fn diagnostic_pin_work_migration_preserves_the_complete_requirement() {
-        for (old, new) in [
-            (
-                "evaluation Fuel allowance exhausted",
-                "evaluation Work budget exhausted",
-            ),
-            ("AllowanceExhausted(Fuel)", "BudgetExhausted(Work)"),
-            ("fuel > 0", "remaining_steps > 0"),
-        ] {
-            assert_eq!(work_vocabulary_pin(old), work_vocabulary_pin(new));
-        }
-        assert_ne!(
-            work_vocabulary_pin("fuel > 0"),
-            work_vocabulary_pin("remaining_steps >= 0")
-        );
-        assert_ne!(
-            work_vocabulary_pin("fuel > 0"),
-            work_vocabulary_pin("remaining_steps > 1")
-        );
-        assert_eq!(work_vocabulary_pin("other_fuel > 0"), "other_fuel > 0");
-        assert_ne!(work_vocabulary_pin("fuel > 0"), work_vocabulary_pin(""));
-        let two: BTreeSet<String> = ["fuel > 0", "remaining_steps > 0"]
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
-        let one: BTreeSet<String> = ["remaining_steps > 0"]
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
-        assert_ne!(canonical_work_pins(&two), canonical_work_pins(&one));
-        assert!(!source_oracle_input(
-            "tests/omega/pass/provider/check/validation/terminal.rs"
-        ));
-        assert!(source_oracle_input(
-            "tests/omega/pass/provider/check/main.omg"
-        ));
-        assert!(source_oracle_input(
-            "tests/omega/pass/provider/check/validation/main.omg"
-        ));
-    }
-
-    #[test]
     fn validates_commit_titles_and_provenance() {
         let root = repo_root();
         let allowed = lanes(&fs::read_to_string(root.join("AGENTS.md")).unwrap());
@@ -2780,139 +1842,59 @@ struct Ledger;
         assert!(!provenance_violations("Summary without agent line\n").is_empty());
     }
 
-    fn changed(paths: &[&str]) -> Vec<(char, String)> {
-        paths.iter().map(|path| ('M', (*path).to_owned())).collect()
-    }
-
     #[test]
-    fn only_ledgers_and_unread_prose_make_an_observation_only_diff() {
-        assert!(records_observations_only(&changed(&[
-            "tests/omega/corpus_outcomes.txt",
-            "tests/omega/corpus_native_linux_x86_64.txt",
-            "wiki/drafts/audits/ledger.md",
-            "TASKS.md",
-        ])));
-        for source in [
-            "omega-rust/psi/src/lib.rs",
-            "source/library/core/mod.omg",
-            "tests/omega/pass/a/x/main.omg",
-            "tests/omega/fail/a/x/expected.txt",
-            "tests/omega/fail/a/x/notes.md",
-            "samples/cli/a/README.md",
-            "tests/omega/corpus_runs/outcomes.txt",
-            "tools/xtask/src/rules.rs",
-        ] {
-            assert!(
-                !records_observations_only(&changed(&["tests/omega/corpus_outcomes.txt", source])),
-                "{source}"
-            );
-        }
-        assert!(!records_observations_only(&[]));
-    }
-
-    const LOST_PASS: &str = "+++ b/l\n-pass/a/x checked 1ms @aaaaaaaaaaaa\n+pass/a/x rejected 2ms regressed-from:checked @bbbbbbbbbbbb\n+\tcannot prove\n";
-    const ACCEPTED_FAIL: &str = "+++ b/l\n-fail/a/x rejected 1ms expected @aaaaaaaaaaaa\n-\tcannot prove\n+fail/a/x checked 2ms @bbbbbbbbbbbb\n";
-    const WRONG_REASON_FAIL: &str = "+++ b/l\n-fail/a/y rejected 1ms expected @aaaaaaaaaaaa\n+fail/a/y rejected 2ms unexpected @bbbbbbbbbbbb\n";
-
-    #[test]
-    fn a_source_changing_diff_cannot_record_a_red_row() {
-        for diff in [LOST_PASS, ACCEPTED_FAIL, WRONG_REASON_FAIL] {
-            let violations = golden_row_quality_violations(diff, false);
-            assert_eq!(violations.len(), 1, "{diff}");
-            assert!(
-                violations[0].contains("changes only corpus ledgers"),
-                "{diff}"
-            );
-        }
-        // An unmarked pass row is refused too: dropping the token is not a way round.
-        let unmarked = "+++ b/l\n-pass/a/x checked 1ms\n+pass/a/x rejected 2ms @bbbbbbbbbbbb\n";
-        assert_eq!(golden_row_quality_violations(unmarked, false).len(), 1);
-        // A matched authored refusal is green; an unmatched one is not.
-        let matched = "+++ b/l
--pass/a/x rejected 1ms regressed-from:rejected+expected+native-rejection:match
-+pass/a/x rejected 2ms expected native-rejection:match @bbbbbbbbbbbb
-";
-        assert!(golden_row_quality_violations(matched, false).is_empty());
-        let unmatched = "+++ b/l
-+pass/a/x rejected 2ms unexpected native-rejection:mismatch @bbbbbbbbbbbb
-";
-        assert_eq!(golden_row_quality_violations(unmatched, false).len(), 1);
-    }
-
-    #[test]
-    fn an_observation_only_diff_records_regressions() {
-        for diff in [LOST_PASS, ACCEPTED_FAIL, WRONG_REASON_FAIL] {
-            assert!(
-                golden_row_quality_violations(diff, true).is_empty(),
-                "{diff}"
-            );
-        }
-        // Recording them raises the red count; it never lowers it.
-        assert_eq!(ledger_red_row_delta(LOST_PASS), 1);
-        assert_eq!(ledger_red_row_delta(ACCEPTED_FAIL), 1);
-        assert_eq!(ledger_red_row_delta(WRONG_REASON_FAIL), 1);
-    }
-
-    #[test]
-    fn an_observed_lost_success_must_carry_its_regression_token() {
-        for status in ["rejected", "incomplete", "timeout"] {
-            let unmarked = format!(
-                "+++ b/l\n-run/a/x built 1ms exit:0\n+run/a/x {status} 2ms @bbbbbbbbbbbb\n"
-            );
-            let violations = golden_row_quality_violations(&unmarked, true);
-            assert_eq!(violations.len(), 1, "{status}");
-            assert!(violations[0].contains("regressed-from:"), "{status}");
-        }
-        // A row that was already red, or is new, lost nothing to name.
-        let standing = "+++ b/l\n-pass/a/x rejected 1ms\n+pass/a/x rejected 2ms @bbbbbbbbbbbb\n+pass/a/new incomplete 2ms @bbbbbbbbbbbb\n";
-        assert!(golden_row_quality_violations(standing, true).is_empty());
-        // A weaker success is not a loss.
-        let weaker = "+++ b/l\n-run/a/x built 1ms\n+run/a/x checked 2ms @bbbbbbbbbbbb\n";
-        assert!(golden_row_quality_violations(weaker, true).is_empty());
-    }
-
-    #[test]
-    fn a_dirty_stamp_is_refused_in_every_diff() {
-        let dirty =
-            "+++ b/l\n-fail/a/x rejected 1ms expected\n+fail/a/x checked 2ms @bbbbbbbbbbbb+wt\n";
-        assert_eq!(golden_row_quality_violations(dirty, true).len(), 1);
-        assert_eq!(golden_row_quality_violations(dirty, false).len(), 2);
-    }
-
-    #[test]
-    fn proof_line_states_the_tests_the_blast_and_its_verdict() {
-        let check = |body: &str| proof_violations("psi: keep a bound", body);
-        assert!(check("Proof: codec round trips | blast: 6 fixtures | clean\n").is_empty());
+    fn retired_corpus_and_frozen_facts_accept_no_new_files() {
+        let added = |path: &str| diff_hygiene_violations(&[('A', path.to_owned())]);
+        assert_eq!(added("tests/omega/pass/a/x/main.omg").len(), 1);
+        assert_eq!(added("tests/omega/corpus_outcomes.txt").len(), 1);
+        assert_eq!(added("samples/cli/facts/a/local/main.omg").len(), 1);
         assert!(
-            check("Proof: unit tests | blast: 4 fixtures | 1 moved: main rejects it too\n")
+            added("omega-rust/omega/compilation/compiler/tests/fixtures/pass/a/x/main.omg")
                 .is_empty()
         );
+        // Deleting from the retired tree is how it goes away.
+        assert!(
+            diff_hygiene_violations(&[('D', "tests/omega/pass/a/x/main.omg".to_owned())])
+                .is_empty()
+        );
+        // A move counts as nothing added: the cap is on the net count.
+        let mut moved = Vec::new();
+        for index in 0..10 {
+            moved.push(('D', format!("tests/omega/pass/a/x{index}/main.omg")));
+            moved.push(('A', format!("samples/cli/a/x{index}/main.omg")));
+        }
+        assert!(diff_hygiene_violations(&moved).is_empty());
+        moved.retain(|(status, _)| *status == 'A');
+        assert_eq!(diff_hygiene_violations(&moved).len(), 1);
+    }
+
+    #[test]
+    fn proof_line_states_the_tests_and_what_they_showed() {
+        let check = |body: &str| proof_violations("psi: keep a bound", body);
+        assert!(
+            check("Proof: codec round trips and the two lowered-route tests | clean\n").is_empty()
+        );
+        // A line written while a blast count was still required stays valid.
+        assert!(check("Proof: unit tests | blast: 6 fixtures | clean\n").is_empty());
         // Missing and incomplete.
         assert!(!check("Summary\n").is_empty());
-        assert!(!check("Proof: unit tests | blast: 6 fixtures\n").is_empty());
+        assert!(!check("Proof: unit tests\n").is_empty());
+        assert!(!check("Proof: unit tests | \n").is_empty());
         // Other lanes carry no proof line.
         assert!(proof_violations("docs: explain a page", "Summary\n").is_empty());
     }
+
     #[test]
-    fn gate_line_must_name_a_gate_and_a_row_change() {
-        // One fixture turns green, a second stays red under a new stamp, and a
-        // diagnostic line under a row is ignored.
-        let diff = "+++ b/l\n-pass/a/x rejected 1ms\n+pass/a/x checked 1ms\n-pass/a/y rejected 1ms\n+pass/a/y rejected 2ms\n-\tcannot prove\n";
-        assert_eq!(ledger_red_row_delta(diff), -1);
-        let check = |body, delta| gate_movement_violations("psi: fix", body, delta);
-        assert!(check("Gate: RC-SOURCE-SEMANTICS | red rows: -1\n", -1).is_empty());
-        // The claim is no longer compared with the ledger diff.
-        assert!(check("Gate: RC-SOURCE-SEMANTICS | red rows: -5\n", -1).is_empty());
-        assert!(!check("Gate: RC-MADE-UP | red rows: -1\n", -1).is_empty());
-        assert!(!check("Gate: RC-NATIVE-MATRIX | red rows: 0\n", 0).is_empty());
+    fn gate_line_must_name_a_gate_and_what_the_change_makes_work() {
+        let check = |body| gate_violations("psi: fix", body);
         assert!(
-            check(
-                "Gate: RC-NATIVE-MATRIX | red rows: 0 | unlocks: pass/a/x\n",
-                0
-            )
-            .is_empty()
+            check("Gate: RC-SOURCE-SEMANTICS | generic bounds carry through a call\n").is_empty()
         );
-        assert!(!check("No gate line\n", 0).is_empty());
-        assert!(gate_movement_violations("docs: explain", "No gate line\n", 0).is_empty());
+        // A line written while a red-row count was still required stays valid.
+        assert!(check("Gate: RC-NATIVE-MATRIX | red rows: 0 | unlocks: pass/a/x\n").is_empty());
+        assert!(!check("Gate: RC-MADE-UP | something\n").is_empty());
+        assert!(!check("Gate: RC-NATIVE-MATRIX\n").is_empty());
+        assert!(!check("No gate line\n").is_empty());
+        assert!(gate_violations("docs: explain", "No gate line\n").is_empty());
     }
 }

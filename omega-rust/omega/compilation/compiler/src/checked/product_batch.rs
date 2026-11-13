@@ -52,14 +52,7 @@ impl CompilationSession {
                 .computed_build_config
                 .independent_components();
             let checked = complete_prepared_build(prepared, Some(&inputs)).and_then(|source| {
-                check_product_source(
-                    source,
-                    Some(&inputs),
-                    &rollback,
-                    self.reuse(),
-                    &mut self.selections,
-                    frontier.as_deref_mut(),
-                )
+                check_product_source(source, Some(&inputs), &rollback, frontier.as_deref_mut())
             });
             match checked {
                 Ok(mut source) => {
@@ -72,7 +65,6 @@ impl CompilationSession {
                     }
                     let completion_timings = std::mem::replace(&mut source.timings, first_timings);
                     source.timings.extend(&completion_timings);
-                    self.retain(&source.retained_checks);
                     applications.push((
                         first_position,
                         first_owner,
@@ -109,7 +101,6 @@ impl CompilationSession {
                             }
                         };
                         application.computed_build_config = std::sync::Arc::new(observed);
-                        application.retained_checks.build = prepared.built.retained_build_check;
                         application.timings = prepared.timings;
                         application.timings.extend(&completion_timings);
                         applications.push((position, owner, application, target, inputs));

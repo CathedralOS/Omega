@@ -14,11 +14,11 @@ pub mod frozen_program {
     };
     use crate::value_custody::content_conservation::ContentConservationInputs;
     use language_semantics::declaration_selection::AuthoredDeclarationSelections;
-    use representation_selections::OpaqueRepresentationSelection;
     use std::fmt;
     use std::ops::Deref;
     use std::sync::{Arc, Mutex, OnceLock};
     use typed_trees::TypedTrees;
+    use typed_trees::opaque_representations::OpaqueRepresentationSelection;
     use typed_trees::proof_only::ProofOnlyClassification;
 
     pub(crate) mod queries {
@@ -492,7 +492,7 @@ pub mod frozen_program {
 
             fn opaque_representation_selections(
                 &self,
-            ) -> &[representation_selections::OpaqueRepresentationSelection] {
+            ) -> &[typed_trees::opaque_representations::OpaqueRepresentationSelection] {
                 self.input.opaque_representation_selections()
             }
 
@@ -3584,8 +3584,8 @@ pub mod queries {
         use crate::mathematical_applications::PreparedMathematicalView;
         use crate::{CheckingInput, CheckingMemos, PreparedEffectPlans};
         use language_semantics::declaration_selection::AuthoredDeclarationSelections;
-        use representation_selections::OpaqueRepresentationSelection;
         use std::sync::Arc;
+        use typed_trees::opaque_representations::OpaqueRepresentationSelection;
         use typed_trees::proof_only::ProofOnlyClassification;
         use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
         use typed_trees::{PlanLaidLayout, PlanLaidRealizations, TypedTrees};

@@ -12,7 +12,7 @@ use std::sync::{Arc, OnceLock};
 pub struct ProductTerminalPublication {
     optimizations: OptimizationSelections,
     program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
-    productions: Arc<psi_compiler::PortableProductions>,
+    accepted: Option<Arc<psi_compiler::AcceptedTerminalSource>>,
 }
 
 impl std::fmt::Debug for ProductTerminalPublication {
@@ -21,31 +21,59 @@ impl std::fmt::Debug for ProductTerminalPublication {
             .debug_struct("ProductTerminalPublication")
             .field("optimizations", &self.optimizations)
             .field("published", &self.program.get().map(Result::is_ok))
+            .field("accepted", &self.accepted.is_some())
             .finish()
     }
 }
 
 impl ProductTerminalPublication {
-    pub fn new(
-        optimizations: OptimizationSelections,
-        productions: Arc<psi_compiler::PortableProductions>,
-    ) -> Self {
+    pub fn new(optimizations: OptimizationSelections) -> Self {
         Self {
             optimizations,
             program: OnceLock::new(),
-            productions,
+            accepted: None,
         }
     }
 
-    // The same portable productions published for a different root
-    // selection. Roots decide which machines the Terminal program retains, so
-    // a separately selected test root never reuses the application's program.
-    pub fn for_other_roots(&self) -> Self {
-        Self::new(self.optimizations.clone(), Arc::clone(&self.productions))
+    pub fn with_accepted(mut self, source: Arc<psi_compiler::AcceptedTerminalSource>) -> Self {
+        self.accepted = Some(source);
+        self
     }
 
-    pub fn productions(&self) -> &psi_compiler::PortableProductions {
-        &self.productions
+    pub fn require_source_owner(
+        &self,
+        source: &Arc<typed_trees::FrozenTypedTrees>,
+    ) -> Result<(), Diagnostic> {
+        let accepted = self.accepted.as_ref().ok_or_else(|| {
+            Diagnostic::error("no product route yet: the source has no retained accepted judgment")
+        })?;
+        if !Arc::ptr_eq(source, accepted.source()) {
+            return Err(Diagnostic::error(
+                "no product route yet: product publication retains a different frozen source owner",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn accepted(&self) -> Result<&psi_compiler::AcceptedTerminalSource, Vec<Diagnostic>> {
+        // The factory seals the judged module with the empty Psi execution
+        // record. A requested transform needs its own evidence transport.
+        if !self.optimizations.project_psi().selections().is_empty() {
+            return Err(vec![Diagnostic::error(
+                "no product route yet: selected Psi optimizations have no accepted evidence transport",
+            )]);
+        }
+        self.accepted.as_deref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "no product route yet: this root selection has no accepted source",
+            )]
+        })
+    }
+
+    // A separately selected test root needs its own structural judgment. It
+    // cannot reuse the application's closure or a cached old production.
+    pub fn for_other_roots(&self) -> Self {
+        Self::new(self.optimizations.clone())
     }
 
     pub fn optimizations(&self) -> &OptimizationSelections {
@@ -95,8 +123,7 @@ mod tests {
 
     #[test]
     fn publication_keeps_its_projection_and_one_refusal_without_retry() {
-        let publication =
-            ProductTerminalPublication::new(OptimizationSelections::default(), Default::default());
+        let publication = ProductTerminalPublication::new(OptimizationSelections::default());
         let mut attempts = 0;
         for _ in 0..2 {
             let result = publication.retain(&OptimizationSelections::default(), || {
@@ -121,6 +148,16 @@ mod tests {
         assert_eq!(
             attempts, 1,
             "a different projection cannot replace published code or its refusal"
+        );
+    }
+    #[test]
+    fn accepted_publication_refuses_unexecuted_psi_optimizations() {
+        let selected = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        let publication = ProductTerminalPublication::new(selected);
+        assert!(
+            publication.accepted().unwrap_err()[0]
+                .message
+                .contains("Psi optimizations")
         );
     }
 }

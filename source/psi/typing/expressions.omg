@@ -62,7 +62,7 @@ crashes Trap
         ExpressionKind::Index -> indexed(typer, syntax, index, expression)
         ExpressionKind::Unary -> unary(typer, syntax, resolution, index, expression)
         ExpressionKind::Binary -> binary(typer, sources, syntax, resolution, index, expression)
-        ExpressionKind::Cast -> cast(typer, index, expression)
+        ExpressionKind::Cast -> cast(typer, sources, syntax, index, expression)
         ExpressionKind::Call -> call(typer, sources, syntax, resolution, index, expression)
         ExpressionKind::Construct -> construct(typer, sources, syntax, resolution, index, expression)
         ExpressionKind::Apply -> application()
@@ -184,7 +184,18 @@ crashes Trap
         type_binary(typer, sources, syntax, resolution, index, expression);
     }
 
-    machine cast(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
+    machine cast(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+        transition expression.flag {
+            true -> domain_cast(typer, sources, syntax, index, expression)
+            _ -> carrier_cast(typer, index, expression)
+        }
+    }
+
+    machine domain_cast(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+        type_domain_cast(typer, sources, syntax, index, expression);
+    }
+
+    machine carrier_cast(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
         type_cast(typer, index, expression);
     }
 
@@ -302,7 +313,7 @@ crashes Trap
 
     // A case fact's payload name has the payload field's declared type.
     // A constant is a value of its declared type; its initializer types
-    // against that type (`type_constants`).
+    // against that type (`Typer::type_constants`).
     machine constant_value(typer: &mut Typer, syntax: &SyntaxTrees, constant: u64 in Trapping) -> u64 in Trapping {
         let declaration: ConstantItem = constant_item(syntax, constant);
         reference_type(&typer.output, declaration.type_reference)
@@ -477,11 +488,10 @@ crashes Trap
     }
 }
 
-// `collection[index]`: an array's or slice's element, through references.
-// An anonymous index lands at `u64`. Reading an integer or Boolean element
-// through a policy-qualified collection (`[u64; N] in Trapping`) yields the
-// element under that policy; storing into one takes the element's own
-// carrier (`place_type`).
+// Builtin indexing selects an element through unqualified array/slice and
+// index operands. Collection qualifications belong to the collection shell;
+// they never become the element's domains. A qualified operator requires its
+// own selected declaration, which this builtin path does not supply.
 machine type_index(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
@@ -510,8 +520,15 @@ crashes Trap
         let base: u64 in Trapping = typer_referent(typer, collection);
         let row: TypeRow = type_table_row(&typer.output.types, base);
         transition row.kind == TypeKind::Array || row.kind == TypeKind::Slice {
-            true -> view(typer, index, expression, row)
+            true -> slice_qualification(typer, index, expression, row)
             _ -> not_collection(typer, expression)
+        }
+    }
+
+    machine slice_qualification(typer: &mut Typer, index: u64 in Trapping, expression: Expression, row: TypeRow) {
+        transition row.domain == DomainBinding::Unqualified {
+            true -> view(typer, index, expression, row)
+            _ -> qualified_index(typer, expression)
         }
     }
 
@@ -533,14 +550,25 @@ crashes Trap
     }
 
     machine element(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, selector: u64 in Trapping) {
+        let selected: TypeRow = type_table_row(&typer.output.types, selector);
+        transition row.domain == DomainBinding::Unqualified && selected.domain == DomainBinding::Unqualified {
+            true -> unqualified(typer, syntax, index, expression, row, selector)
+            _ -> qualified_index(typer, expression)
+        }
+    }
+
+    machine unqualified(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, selector: u64 in Trapping) {
         let integer: bool = integer_type(typer, selector);
         let anonymous: bool = selector == typer.output.anonymous;
-        let read: u64 in Trapping = element_read(typer, row, expression.source_span);
-        set_expression_type(&mut typer.output, index, read);
+        set_expression_type(&mut typer.output, index, row.inner);
         transition integer {
             true -> done()
             _ -> anonymous_index(typer, syntax, expression, anonymous)
         }
+    }
+
+    machine qualified_index(typer: &mut Typer, expression: Expression) {
+        typing_reject(&mut typer.output, TypeDiagnosticCode::UnsupportedExpression, expression.source_span);
     }
 
     machine anonymous_index(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, anonymous: bool) {
@@ -605,15 +633,30 @@ crashes Trap
     machine done() {}
 }
 
-// One range endpoint: an integer, or an anonymous literal landed at `u64`.
+// Builtin range endpoints follow scalar indexing: an unqualified integer,
+// or an anonymous literal landed at `u64`. A qualified endpoint requires
+// a selected operator, which this builtin path does not supply.
 machine type_endpoint(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping)
 crashes Trap
 {
     let typed: u64 in Trapping = typing_expression_type(&typer.output, endpoint);
     let integer: bool = integer_type(typer, typed);
     transition integer {
-        true -> done()
+        true -> qualified(typer, syntax, endpoint, typed)
         _ -> other(typer, syntax, endpoint, typed == typer.output.anonymous)
+    }
+
+    machine qualified(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping, typed: u64 in Trapping) {
+        let row: TypeRow = type_table_row(&typer.output.types, typed);
+        transition row.domain == DomainBinding::Unqualified {
+            true -> done()
+            _ -> unsupported(typer, syntax, endpoint)
+        }
+    }
+
+    machine unsupported(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping) {
+        let written: Expression = syntax_trees_expression(syntax, endpoint);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::UnsupportedExpression, written.source_span);
     }
 
     machine other(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping, anonymous: bool) {
@@ -639,36 +682,8 @@ crashes Trap
     machine done() {}
 }
 
-// The type a read of `collection`'s element has: an unqualified integer or
-// Boolean element takes the collection's policy.
-machine element_read(typer: &mut Typer, collection: TypeRow, source_span: SourceSpan) -> u64 in Trapping
-crashes Trap
-{
-    let element: TypeRow = type_table_row(&typer.output.types, collection.inner);
-    let fixed: bool = fixed_integer(element.builtin);
-    transition collection.domain != DomainBinding::Unqualified && element.kind == TypeKind::Builtin
-        && element.domain == DomainBinding::Unqualified && (fixed || element.builtin == BuiltinType::Bool) {
-        true -> qualified(typer, collection, element, source_span)
-        _ -> stored(collection)
-    }
-
-    machine qualified(typer: &mut Typer, collection: TypeRow, element: TypeRow, source_span: SourceSpan) -> u64 in Trapping {
-        let mut row: TypeRow = type_row_of(TypeKind::Builtin);
-        row.builtin = element.builtin;
-        row.domain = collection.domain;
-        let handle: u64 in Trapping = typer_intern(typer, row, source_span);
-        handle
-    }
-
-    machine stored(collection: TypeRow) -> u64 in Trapping {
-        collection.inner
-    }
-}
-
-// The type a store into `place` must meet: an indexed element as it reads,
-// under its collection's policy (a typed value keeps its own policy, so it
-// must already carry it; a literal lands there), a loaned name's referent,
-// or the place's type.
+// A store meets the selected element's own type, a loaned name's referent,
+// or the place's type. Collection-shell policy is not element qualification.
 public machine place_type(typer: &mut Typer, syntax: &SyntaxTrees, place: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
@@ -695,8 +710,7 @@ crashes Trap
         let collection: u64 in Trapping = typing_expression_type(&typer.output, expression.left);
         let base: u64 in Trapping = typer_referent(typer, collection);
         let row: TypeRow = type_table_row(&typer.output.types, base);
-        let read: u64 in Trapping = element_read(typer, row, expression.source_span);
-        read
+        row.inner
     }
 
     machine result(handle: u64 in Trapping) -> u64 in Trapping {
@@ -751,14 +765,37 @@ crashes Trap
     machine typed(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         let read: u64 in Trapping = typer_read_type(typer, operand);
         transition expression.operator {
-            OperatorKind::Not -> not(typer, index, expression, read)
-            OperatorKind::Negate -> negate(typer, index, expression, read)
-            OperatorKind::BitNot -> complement(typer, index, expression, read)
+            OperatorKind::Not -> scalar_operator(typer, index, expression, read)
+            OperatorKind::Negate -> scalar_operator(typer, index, expression, read)
+            OperatorKind::BitNot -> scalar_operator(typer, index, expression, read)
             OperatorKind::Borrow -> borrow(typer, index, expression, operand, ReferenceAccess::Shared)
             OperatorKind::BorrowMutable -> borrow_mutable(typer, syntax, resolution, index, expression, operand)
             OperatorKind::BorrowWrite -> borrow_write(typer, syntax, resolution, index, expression, operand)
             _ -> acknowledged(typer, syntax, index, expression, operand)
         }
+    }
+
+    // Qualified unary operators need their selected declaration. This
+    // builtin slice cannot infer one from the operand's policy spelling.
+    machine scalar_operator(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        let row: TypeRow = type_table_row(&typer.output.types, operand);
+        transition row.domain == DomainBinding::Unqualified {
+            true -> scalar_builtin(typer, index, expression, operand)
+            _ -> unsupported(typer, expression)
+        }
+    }
+
+    machine scalar_builtin(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        transition expression.operator {
+            OperatorKind::Not -> not(typer, index, expression, operand)
+            OperatorKind::Negate -> negate(typer, index, expression, operand)
+            OperatorKind::BitNot -> complement(typer, index, expression, operand)
+            _ -> unsupported(typer, expression)
+        }
+    }
+
+    machine unsupported(typer: &mut Typer, expression: Expression) {
+        typing_reject(&mut typer.output, TypeDiagnosticCode::UnsupportedExpression, expression.source_span);
     }
 
     machine not(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
@@ -783,9 +820,13 @@ crashes Trap
     }
 
     machine negate_anonymous(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
-        let value: ExactInteger = typing_value(&typer.output, expression.left);
-        let negated: ExactInteger = exact_integer_negate(value);
-        typing_set_value(&mut typer.output, index, negated);
+        let value: Rational = rational(&typer.output, expression.left);
+        let origin: u64 in Trapping = typing_fractional_origin(&typer.output, expression.left);
+        let negated: Rational = Rational {
+            numerator: exact_integer_negate(value.numerator),
+            denominator: value.denominator
+        };
+        set_rational(&mut typer.output, index, negated, origin);
     }
 
     machine negate_typed(typer: &mut Typer, expression: Expression, signed: bool) {
@@ -827,7 +868,7 @@ crashes Trap
     // permits: a place reached through a shared reference cannot be lent
     // exclusively (wiki/spec/language/expressions.md#borrowed-range-access).
     machine borrow_mutable(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
-        let place: bool = is_place(syntax, resolution, expression.left);
+        let place: bool = is_place(typer, syntax, resolution, expression.left);
         let shared: bool = through_shared(typer, syntax, expression.left);
         transition place {
             true -> exclusive_source(typer, syntax, index, expression, operand, shared)
@@ -846,7 +887,7 @@ crashes Trap
     // (wiki/spec/language/ownership.md#borrows-and-aliases) of a place an
     // assignment could write.
     machine borrow_write(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
-        let place: bool = is_place(syntax, resolution, expression.left);
+        let place: bool = is_place(typer, syntax, resolution, expression.left);
         transition place {
             true -> write_source(typer, syntax, resolution, index, expression, operand)
             _ -> not_a_place(typer, expression)
@@ -896,19 +937,27 @@ crashes Trap
 
 // Whether `index` names storage: a local, parameter or binder, or a field
 // or element of one, through any references.
-public machine is_place(syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> bool
+public machine is_place(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> bool
 crashes Trap
 {
-    let expression: Expression = syntax_trees_expression(syntax, index);
-    transition expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index {
-        true -> projected(syntax, resolution, expression.left)
-        _ -> root(resolution, index)
+    transition { _ -> step(typer, syntax, resolution, index) }
+
+    machine step(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> bool {
+        let handle: u64 in Trapping = typing_expression_type(&typer.output, index);
+        let row: TypeRow = type_table_row(&typer.output.types, handle);
+        let expression: Expression = syntax_trees_expression(syntax, index);
+        transition row.kind == TypeKind::Reference {
+            true -> yes()
+            _ -> written(typer, syntax, resolution, index, expression)
+        }
     }
 
-    machine projected(syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> bool {
-        let expression: Expression = syntax_trees_expression(syntax, index);
+    // A reference expression denotes its original storage even when it is a
+    // borrowed or cast view. Typing has preserved access; ownership checking
+    // still establishes the exact backing and loan before any write.
+    machine written(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) -> bool {
         transition expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index {
-            true -> projected(syntax, resolution, expression.left)
+            true -> step(typer, syntax, resolution, expression.left)
             _ -> root(resolution, index)
         }
     }
@@ -923,13 +972,8 @@ crashes Trap
         }
     }
 
-    machine yes() -> bool {
-        true
-    }
-
-    machine no() -> bool {
-        false
-    }
+    machine yes() -> bool { true }
+    machine no() -> bool { false }
 }
 
 // Whether the place `index` is reached through a shared reference: the
@@ -980,6 +1024,14 @@ crashes Trap
         let row: TypeRow = type_table_row(&typer.output.types, handle_type);
         let exclusive: bool = row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared;
         let projected: bool = expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index;
+        let shared: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::Shared;
+        transition shared {
+            true -> answer(false)
+            _ -> access(typer, syntax, resolution, handle, expression, projected, exclusive)
+        }
+    }
+
+    machine access(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping, expression: Expression, projected: bool, exclusive: bool) -> bool {
         transition exclusive {
             true -> answer(true)
             _ -> inner(typer, syntax, resolution, handle, expression, projected)
@@ -1022,7 +1074,9 @@ crashes Trap
 // any carriers; `==` and `!=` also compare Booleans and payload-free sums of
 // one type. Arithmetic and bitwise operators take one fixed-integer type;
 // shifts keep the left operand's. A typed operand lands an anonymous one at
-// its carrier; two anonymous operands fold exactly.
+// its bare carrier; two anonymous operands fold exactly. The bounded core
+// policy path separately matches one fixed carrier with a singleton policy
+// and a same-policy or plain peer; no operand acquires a domain by landing.
 machine type_binary(
     typer: &mut Typer,
     sources: &SourceSet,
@@ -1043,7 +1097,8 @@ crashes Trap
     }
 
     // An arithmetic or order operator with a data operand selects a machine
-    // binding its token (operators.omg); every other operator is builtin.
+    // binding its token (operators.omg). Other qualified operands must
+    // match the supported core policy shapes before builtin fallback.
     machine typed(
         typer: &mut Typer,
         sources: &SourceSet,
@@ -1059,8 +1114,91 @@ crashes Trap
         let right_data: bool = typer_data_type(typer, right);
         transition token != OperatorToken::None && (left_data || right_data) {
             true -> declared(typer, sources, syntax, resolution, index, expression)
-            _ -> builtin(typer, syntax, index, expression, left, right)
+            _ -> qualification(typer, syntax, index, expression, left, right)
         }
+    }
+
+    machine qualification(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        let left_outer: TypeRow = type_table_row(&typer.output.types, left);
+        let right_outer: TypeRow = type_table_row(&typer.output.types, right);
+        let left_row: TypeRow = qualified_row(&typer.output.types, left_outer);
+        let right_row: TypeRow = qualified_row(&typer.output.types, right_outer);
+        transition left_row.domain == DomainBinding::Unqualified && right_row.domain == DomainBinding::Unqualified {
+            true -> builtin(typer, syntax, index, expression, left, right)
+            // Only authorized scalar reads may reach a policy declaration.
+            // A remaining reference (notably &write) is not its referent.
+            _ -> policy_side(typer, syntax, index, expression, left, right, left_outer, right_outer)
+        }
+    }
+
+    // These are the core policy declarations' exact supported operand
+    // shapes (numeric_values.md, Policy domains), not ordinary admission.
+    // A qualified comparison cannot borrow mixed-width builtin order laws.
+    machine policy_side(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping, left_row: TypeRow, right_row: TypeRow) {
+        transition left_row.domain != DomainBinding::Unqualified {
+            true -> policy_shape(typer, syntax, index, expression, left, left_row, expression.right, right, right_row)
+            _ -> policy_shape(typer, syntax, index, expression, right, right_row, expression.left, left, left_row)
+        }
+    }
+
+    machine policy_shape(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, policy: u64 in Trapping, row: TypeRow, peer_expression: u64 in Trapping, peer: u64 in Trapping, peer_row: TypeRow) {
+        let fixed: bool = row.kind == TypeKind::Builtin && fixed_integer(row.builtin);
+        let supported: bool = row.domain == DomainBinding::Wrapping || row.domain == DomainBinding::Saturating
+            || row.domain == DomainBinding::Trapping;
+        let same: bool = peer_row.kind == TypeKind::Builtin && peer_row.builtin == row.builtin
+            && (peer_row.domain == DomainBinding::Unqualified || peer_row.domain == row.domain);
+        transition fixed && supported && (same || peer == typer.output.anonymous) {
+            true -> policy_operator(typer, syntax, index, expression, policy, row, peer_expression, peer)
+            _ -> unsupported_policy(typer, expression)
+        }
+    }
+
+    machine policy_operator(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, policy: u64 in Trapping, row: TypeRow, peer_expression: u64 in Trapping, peer: u64 in Trapping) {
+        transition expression.operator {
+            OperatorKind::Add -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer)
+            OperatorKind::Subtract -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer)
+            OperatorKind::Multiply -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer)
+            OperatorKind::Divide -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer)
+            OperatorKind::Modulo -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer)
+            OperatorKind::Equal -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
+            OperatorKind::NotEqual -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
+            OperatorKind::Less -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
+            OperatorKind::LessEqual -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
+            OperatorKind::Greater -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
+            OperatorKind::GreaterEqual -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
+            _ -> unsupported_policy(typer, expression)
+        }
+    }
+
+    machine policy_comparison(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, peer_expression: u64 in Trapping, peer: u64 in Trapping) {
+        let boolean_type: u64 in Trapping = typer.output.boolean;
+        transition { _ -> policy_selected(typer, syntax, index, expression, boolean_type, row, peer_expression, peer) }
+    }
+
+    machine policy_selected(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, result: u64 in Trapping, row: TypeRow, peer_expression: u64 in Trapping, peer: u64 in Trapping) {
+        set_expression_type(&mut typer.output, index, result);
+        let left: u64 in Trapping = typing_expression_type(&typer.output, expression.left);
+        let right: u64 in Trapping = typing_expression_type(&typer.output, expression.right);
+        let left_read: u64 in Trapping = typer_read_type(typer, left);
+        let right_read: u64 in Trapping = typer_read_type(typer, right);
+        record_scalar_read(typer, expression.left, left_read);
+        record_scalar_read(typer, expression.right, right_read);
+        transition peer == typer.output.anonymous {
+            true -> policy_literal(typer, syntax, expression, row, peer_expression)
+            _ -> done()
+        }
+    }
+
+    machine policy_literal(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, row: TypeRow, peer_expression: u64 in Trapping) {
+        let mut bare: TypeRow = row;
+        bare.domain = DomainBinding::Unqualified;
+        bare.domain_item = 0 as u64 +Trapping;
+        let carrier: u64 in Trapping = typer_intern(typer, bare, expression.source_span);
+        let admitted: bool = typer_admit(typer, syntax, carrier, peer_expression, false);
+    }
+
+    machine unsupported_policy(typer: &mut Typer, expression: Expression) {
+        typing_reject(&mut typer.output, TypeDiagnosticCode::UnsupportedExpression, expression.source_span);
     }
 
     machine declared(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
@@ -1094,8 +1232,8 @@ crashes Trap
         }
     }
 
-    // Byte sequences compare their bytes and lengths independently of
-    // qualification. A fixed array contributes its complete fixed extent.
+    // Plain byte sequences compare their bytes and lengths. A fixed array
+    // contributes its complete fixed extent; qualifications need an operator.
     machine equality(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         let comparable: bool = intrinsic_equality(typer, syntax, left);
         let sequences: bool = byte_sequence(typer, left) && byte_sequence(typer, right);
@@ -1275,7 +1413,8 @@ crashes Trap
     }
 
     machine folded(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: RationalResult) {
-        set_rational(&mut typer.output, index, result.value);
+        let origin: u64 in Trapping = binary_fractional_origin(typer, expression);
+        set_rational(&mut typer.output, index, result.value, origin);
         transition result.valid {
             true -> done()
             _ -> out_of_range(typer, expression)
@@ -1283,7 +1422,8 @@ crashes Trap
     }
 
     machine divided(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: RationalResult, divisor: Rational) {
-        set_rational(&mut typer.output, index, result.value);
+        let origin: u64 in Trapping = binary_fractional_origin(typer, expression);
+        set_rational(&mut typer.output, index, result.value, origin);
         transition result.valid {
             true -> done()
             _ -> undivided(typer, expression, divisor)
@@ -1359,21 +1499,23 @@ crashes Trap
 // fixed integers and addresses, and sums whose every case is payload-free
 // (wiki/spec/language/data_and_literals.md: records and payload-bearing sums
 // need a declared equality).
-// Byte-sequence operations accept fixed byte arrays and byte slices, with
-// or without qualification, themselves or through a reference.
+// Builtin byte-sequence equality accepts plain byte arrays and byte slices,
+// themselves or through a reference; element domains cannot be erased.
 public machine byte_sequence(typer: &Typer, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let referent: u64 in Trapping = typer_referent(typer, handle);
     let row: TypeRow = type_table_row(&typer.output.types, referent);
-    transition row.kind == TypeKind::Slice || row.kind == TypeKind::Array {
+    transition (row.kind == TypeKind::Slice || row.kind == TypeKind::Array)
+        && row.domain == DomainBinding::Unqualified {
         true -> elements(typer, row)
         _ -> answer(false)
     }
 
     machine elements(typer: &Typer, row: TypeRow) -> bool {
         let element: TypeRow = type_table_row(&typer.output.types, row.inner);
-        let bytes: bool = element.kind == TypeKind::Builtin && element.builtin == BuiltinType::U8;
+        let bytes: bool = element.kind == TypeKind::Builtin && element.builtin == BuiltinType::U8
+            && element.domain == DomainBinding::Unqualified;
         transition { _ -> answer(bytes) }
     }
 
@@ -1435,14 +1577,10 @@ crashes Trap
     }
 }
 
-// `value as Type`: fixed integers and Booleans convert to any fixed integer
-// (a conversion is the explicit boundary between carriers and policies); an
-// anonymous value lands at a fixed-integer target; anything casts to its own
-// type, or to another qualification of its carrier, which checking proves
-// when the target's domain is declared
-// (wiki/spec/language/domains.md#exact-coercion-and-erasure). A reference
-// target is a recast, which views the operand's storage under another shape
-// (wiki/spec/layouts/recasts.md).
+// A carrier cast converts unqualified values without changing their
+// denotation. Anonymous values land explicitly; checking proves numeric
+// representability and reference-recast compatibility. Domain changes are
+// separate written entries handled by type_domain_cast below.
 machine type_cast(typer: &mut Typer, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
@@ -1454,9 +1592,20 @@ crashes Trap
     let source_integer: bool = integer_type(typer, source);
     let target_row: TypeRow = type_table_row(&typer.output.types, target);
     set_expression_type(&mut typer.output, index, target);
-    transition target_row.kind == TypeKind::Reference {
-        true -> recast(typer, expression, written, target_row)
-        _ -> plain(typer, index, expression, source, target, source_integer, target_integer)
+    let source_row: TypeRow = type_table_row(&typer.output.types, source);
+    let source_qualification: TypeRow = qualified_row(&typer.output.types, source_row);
+    let target_qualification: TypeRow = qualified_row(&typer.output.types, target_row);
+    transition source_qualification.domain == DomainBinding::Unqualified
+        && target_qualification.domain == DomainBinding::Unqualified {
+        true -> carrier(typer, index, expression, written, source, target, source_integer, target_integer, target_row)
+        _ -> invalid(typer, expression)
+    }
+
+    machine carrier(typer: &mut Typer, index: u64 in Trapping, expression: Expression, written: u64 in Trapping, source: u64 in Trapping, target: u64 in Trapping, source_integer: bool, target_integer: bool, target_row: TypeRow) {
+        transition target_row.kind == TypeKind::Reference {
+            true -> recast(typer, expression, written, target_row)
+            _ -> plain(typer, index, expression, source, target, source_integer, target_integer)
+        }
     }
 
     machine plain(typer: &mut Typer, index: u64 in Trapping, expression: Expression, source: u64 in Trapping, target: u64 in Trapping, source_integer: bool, target_integer: bool) {
@@ -1560,6 +1709,105 @@ crashes Trap
     machine done() {}
 }
 
+// One explicitly written policy entry changes only its attached qualification.
+// A borrowed view keeps the same reference access and referent carrier. Named
+// domains and simultaneous multi-entry accounting require more representation
+// than this slice retains and fail explicitly instead of dropping obligations.
+machine type_domain_cast(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression)
+crashes Trap
+{
+    let path: NamePath = syntax_trees_name_path(syntax, expression.first);
+    transition expression.count == 1 && path.member_count == 1 {
+        true -> named(typer, sources, syntax, index, expression, path)
+        _ -> unsupported(typer, expression)
+    }
+
+    machine named(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, path: NamePath) {
+        let name: IdentifierSpan = syntax_trees_member(syntax, path.first_member);
+        // Resolution rejects authored domains with these reserved spellings
+        // in every module before typing; none can shadow this policy identity.
+        let domain: DomainBinding = known_domain(sources, name.source_span);
+        let policy: bool = domain == DomainBinding::Trapping || domain == DomainBinding::Wrapping
+            || domain == DomainBinding::Saturating;
+        transition policy {
+            true -> operand(typer, index, expression, domain)
+            _ -> unsupported(typer, expression)
+        }
+    }
+
+    machine operand(typer: &mut Typer, index: u64 in Trapping, expression: Expression, domain: DomainBinding) {
+        let written: u64 in Trapping = typing_expression_type(&typer.output, expression.left);
+        let outer: TypeRow = type_table_row(&typer.output.types, written);
+        let row: TypeRow = qualified_row(&typer.output.types, outer);
+        let integer: bool = row.kind == TypeKind::Builtin && fixed_integer(row.builtin);
+        let collection: bool = row.kind == TypeKind::Array || row.kind == TypeKind::Slice;
+        transition integer || collection {
+            true -> account(typer, index, expression, domain, outer, row)
+            _ -> unsupported(typer, expression)
+        }
+    }
+
+    machine account(typer: &mut Typer, index: u64 in Trapping, expression: Expression, domain: DomainBinding, outer: TypeRow, row: TypeRow) {
+        transition expression.operator {
+            OperatorKind::Add -> addition(typer, index, expression, domain, outer, row)
+            OperatorKind::Subtract -> removal(typer, index, expression, domain, outer, row)
+            OperatorKind::Equal -> retention(typer, index, expression, domain, outer, row)
+            _ -> invalid(typer, expression)
+        }
+    }
+
+    machine addition(typer: &mut Typer, index: u64 in Trapping, expression: Expression, domain: DomainBinding, outer: TypeRow, row: TypeRow) {
+        transition row.domain == DomainBinding::Unqualified {
+            true -> result(typer, index, expression, domain, outer, row)
+            _ -> invalid(typer, expression)
+        }
+    }
+
+    machine removal(typer: &mut Typer, index: u64 in Trapping, expression: Expression, domain: DomainBinding, outer: TypeRow, row: TypeRow) {
+        transition row.domain == domain {
+            true -> result(typer, index, expression, DomainBinding::Unqualified, outer, row)
+            _ -> invalid(typer, expression)
+        }
+    }
+
+    machine retention(typer: &mut Typer, index: u64 in Trapping, expression: Expression, domain: DomainBinding, outer: TypeRow, row: TypeRow) {
+        transition row.domain == domain {
+            true -> result(typer, index, expression, domain, outer, row)
+            _ -> invalid(typer, expression)
+        }
+    }
+
+    machine result(typer: &mut Typer, index: u64 in Trapping, expression: Expression, domain: DomainBinding, outer: TypeRow, row: TypeRow) {
+        let mut qualified: TypeRow = row;
+        qualified.domain = domain;
+        qualified.domain_item = 0 as u64 +Trapping;
+        let inner: u64 in Trapping = typer_intern(typer, qualified, expression.source_span);
+        transition outer.kind == TypeKind::Reference {
+            true -> reference(typer, index, expression, outer, inner)
+            _ -> value(typer, index, inner)
+        }
+    }
+
+    machine reference(typer: &mut Typer, index: u64 in Trapping, expression: Expression, outer: TypeRow, inner: u64 in Trapping) {
+        let mut reference: TypeRow = outer;
+        reference.inner = inner;
+        let handle: u64 in Trapping = typer_intern(typer, reference, expression.source_span);
+        transition { _ -> value(typer, index, handle) }
+    }
+
+    machine value(typer: &mut Typer, index: u64 in Trapping, handle: u64 in Trapping) {
+        set_expression_type(&mut typer.output, index, handle);
+    }
+
+    machine unsupported(typer: &mut Typer, expression: Expression) {
+        typing_reject(&mut typer.output, TypeDiagnosticCode::UnsupportedDomain, expression.source_span);
+    }
+
+    machine invalid(typer: &mut Typer, expression: Expression) {
+        typing_reject(&mut typer.output, TypeDiagnosticCode::InvalidCast, expression.source_span);
+    }
+}
+
 // Builtin operators and selectors consume scalars just as admission to a
 // scalar parameter does. Preserve that use on the operand: its written
 // reference type still describes live storage, while Read marks the value
@@ -1617,5 +1865,21 @@ crashes Trap
 
     machine unchanged(handle: u64 in Trapping) -> u64 in Trapping {
         handle
+    }
+}
+
+// Children are evaluated left to right. Preserve the first authored fractional
+// origin even when exact folding cancels its denominator.
+machine binary_fractional_origin(typer: &Typer, expression: Expression) -> u64 in Trapping
+crashes Trap
+{
+    let left: u64 in Trapping = typing_fractional_origin(&typer.output, expression.left);
+    transition left > 0 {
+        true -> found(left)
+        _ -> right(typer, expression)
+    }
+    machine found(origin: u64 in Trapping) -> u64 in Trapping { origin }
+    machine right(typer: &Typer, expression: Expression) -> u64 in Trapping {
+        typing_fractional_origin(&typer.output, expression.right)
     }
 }

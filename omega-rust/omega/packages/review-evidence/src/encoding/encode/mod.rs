@@ -18,7 +18,6 @@ mod terminal_permissions;
 mod values;
 
 pub use policy_rows::restricted_build_request_acceptance_text;
-pub(crate) use policy_rows::runtime_permission_rows;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -45,17 +44,4 @@ pub(super) fn type_identity(
 ) -> Result<(), crate::encoding::PackageReviewEncodingError> {
     encoder.observe_type_identity(identity.canonical())?;
     encoder.field("canonical", |encoder| encoder.string(identity.canonical()))
-}
-
-impl crate::record::PackageReviewCallableContract {
-    pub(crate) fn canonical_set_text(
-        contracts: &[Self],
-    ) -> Result<String, PackageReviewEncodingError> {
-        let writer = encoder::text::Writer::new(64 * 1024, None);
-        let mut encoder = encoder::Encoder::policy_text(writer);
-        encoder.field("contracts", |encoder| {
-            encoder.sequence(contracts, values::contracts::encode_callable_contract)
-        })?;
-        encoder.finish_text()
-    }
 }

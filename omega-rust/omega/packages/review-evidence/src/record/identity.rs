@@ -67,4 +67,4 @@ pub enum PackageReviewSemanticDependencyExposure {
     PublicInterface,
 }
 
-pub type PackageReviewSemanticDependencyKind = checked_trees::CheckedSemanticDependencyKind;
+pub type PackageReviewSemanticDependencyKind = semantic_vocabulary::SemanticDependencyKind;

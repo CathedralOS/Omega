@@ -571,55 +571,7 @@ impl CheckedScalarExpression {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-pub enum CheckedIntegerBinaryKind {
-    ExactAdd,
-    ExactSubtract,
-    ExactMultiply,
-    ExactDivide,
-    ExactRemainder,
-    WrappingDivide,
-    WrappingRemainder,
-    SaturatingDivide,
-    SaturatingRemainder,
-    WrappingAdd,
-    SaturatingAdd,
-    WrappingSubtract,
-    SaturatingSubtract,
-    WrappingMultiply,
-    SaturatingMultiply,
-    BitwiseAnd,
-    BitwiseOr,
-    BitwiseXor,
-    WrappingShiftLeft,
-    WrappingShiftRight,
-    ExactShiftLeft,
-    ExactShiftRight,
-    SaturatingShiftLeft,
-    SaturatingShiftRight,
-    TrappingShiftLeft,
-    TrappingShiftRight,
-    TrappingAdd,
-    TrappingSubtract,
-    TrappingMultiply,
-    TrappingDivide,
-    TrappingRemainder,
-}
-
-impl CheckedIntegerBinaryKind {
-    pub const fn is_trapping(self) -> bool {
-        matches!(
-            self,
-            Self::TrappingShiftLeft
-                | Self::TrappingShiftRight
-                | Self::TrappingAdd
-                | Self::TrappingSubtract
-                | Self::TrappingMultiply
-                | Self::TrappingDivide
-                | Self::TrappingRemainder
-        )
-    }
-}
+pub use semantic_vocabulary::IntegerBinaryKind as CheckedIntegerBinaryKind;
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedBooleanExpression {

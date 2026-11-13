@@ -1,14 +1,8 @@
-// A comparison harness needs the program the current checker judged even when
-// that checker rejects it. The product path cannot supply it: Psi 04's frozen
-// typed trees are moved into Psi 05, and every later rejection returns only
-// diagnostics. `CompilationSession::check_keeping_typed_frontier` runs the same
-// check and also returns those trees.
-//
-// The trees are copied out where they are produced
-// (`psi_compiler::CheckRequest::check_keeping_typed_frontier`), through one
-// optional slot passed down the existing check calls. Product callers pass no
-// slot, so they clone nothing: the checker on the lowered form judges the same
-// trees by reference (`lowered_route`).
+// Developer harnesses can retain the frozen source the lowered-form checker
+// receives even when judgment or later product preparation refuses. The shared
+// SourcePreparationRequest returns that frontier directly after Psi 04; the
+// product path copies it only when a caller supplies an optional capture slot.
+// A captured frontier is source data, not a second judgment or an acceptance.
 
 use compilation_products::{CheckedCompilation, CompileFailure};
 
@@ -27,17 +21,14 @@ pub enum TypedFrontierRequest {
 /// The Product program as Psi 04 left it, with the entries this Build bound.
 #[derive(Debug, Clone)]
 pub struct TypedFrontier {
-    /// The frozen typed trees Psi 05 was given. When the lifecycle-plan step
-    /// between Psi 04 and Psi 05 refused, these are Psi 04's output instead.
+    /// The actual frozen typed source returned by Psi 04 preparation.
     pub typed: typed_trees::FrozenTypedTrees,
     /// The Build's bound program roots, in the order the checker received
     /// them. Empty when the Build binds no entry.
     pub entries: Vec<symbols::SymbolHandle>,
-    /// The package this check was asked to validate, as the checker's own
-    /// library slice takes it. `None` for a source checked outside a package.
-    /// A second checker needs it to know which declarations the check claims
-    /// (`wiki/spec/build/validation_subjects.md`); the trees also hold
-    /// declarations of other packages and do not say.
+    /// The package whose declarations this check claims. `None` for a source
+    /// checked outside a package. The structural judgment needs this subject
+    /// because the trees also hold declarations of dependency packages.
     pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
     /// The declarations the Build's selections name: selected providers and
     /// what each provides, layout-scope entries and chosen opaque
@@ -48,11 +39,11 @@ pub struct TypedFrontier {
     pub bindings: Vec<typed_trees::callable_signature_shapes::BoundCallableShape>,
 }
 
-/// What the current checker concluded about a program that reached it.
+/// What the product path concluded after receiving its typed source.
 pub enum CurrentCheckerVerdict {
     /// The check the product path runs returned a checked compilation.
     Accepted(Box<CheckedCompilation>),
-    /// Psi 05, validation, or a later step of the same check rejected it.
+    /// Structural judgment or a later product step refused it.
     Rejected(CompileFailure),
 }
 
@@ -66,8 +57,7 @@ pub enum TypedFrontierCheck {
     /// The compilation stopped before Psi 04 produced the Product's frozen
     /// typed trees: a parse error or another refusal in Psi 00 through 03, a
     /// Build that failed, or a refusal in Psi 04 itself. There are no trees to
-    /// compare on. Most unknown-type and type-mismatch errors are not here:
-    /// Psi 05 and validation report them, after Psi 04.
+    /// compare on.
     StoppedBeforeTypedFrontier(CompileFailure),
 }
 

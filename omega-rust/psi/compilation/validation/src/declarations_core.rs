@@ -896,7 +896,6 @@ pub mod selection_authority {
     use checked_trees::CheckedTrees;
     use diagnostics::Diagnostic;
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
-    use semantic_vocabulary::PackageKeyIdentity;
     use source::SourceOrigin;
     use symbols::FixedCoreDeclaration;
 
@@ -1104,100 +1103,7 @@ pub mod selection_authority {
         }
     }
 
-    #[derive(Clone, PartialEq, Eq, compiler_storage::Record)]
-    pub enum RecordedDeclarationAuthority {
-        Absent,
-        Packages(std::collections::BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>),
-    }
-    impl RecordedDeclarationAuthority {
-        pub fn capture(
-            authority: Option<&dyn DeclarationSelectionAuthority>,
-        ) -> Result<Self, &'static str> {
-            let Some(authority) = authority else {
-                return Ok(Self::Absent);
-            };
-            let mut scope = authority.declaration_selection_scope().ok_or(
-                "declaration selection predicate does not export a complete comparison scope",
-            )?;
-            for owners in scope.values_mut() {
-                owners.sort_unstable();
-                owners.dedup();
-            }
-            Ok(Self::Packages(scope))
-        }
-        pub fn has_authority(&self) -> bool {
-            matches!(self, Self::Packages(_))
-        }
-        pub fn allows(
-            &self,
-            requester: PackageKeyIdentity,
-            owner: PackageKeyIdentity,
-        ) -> Option<bool> {
-            match self {
-                Self::Absent => None,
-                Self::Packages(scope) => {
-                    scope.get(&requester).map(|owners| owners.contains(&owner))
-                }
-            }
-        }
-        pub fn require_current(
-            &self,
-            authority: Option<&dyn DeclarationSelectionAuthority>,
-            sources: &source::SourceMap,
-        ) -> Result<(), &'static str> {
-            self.require_requesters(
-                authority,
-                sources
-                    .selected_files()
-                    .filter(|file| !file.origin.is_toolchain())
-                    .filter_map(|file| file.package_identity),
-            )
-        }
-        pub fn require_current_sites(
-            &self,
-            authority: Option<&dyn DeclarationSelectionAuthority>,
-            program: &typed_trees::TypedTrees,
-            sites: impl Iterator<Item = source::SourceSpan>,
-        ) -> Result<(), &'static str> {
-            let mut requesters = std::collections::BTreeSet::new();
-            for site in sites {
-                let file = program
-                    .symbols
-                    .source_file(site)
-                    .ok_or("retained pending invocation has no source custody")?;
-                if !file.origin.is_toolchain()
-                    && let Some(requester) = file.package_identity
-                {
-                    requesters.insert(requester);
-                }
-            }
-            self.require_requesters(authority, requesters.into_iter())
-        }
-        fn require_requesters(
-            &self,
-            authority: Option<&dyn DeclarationSelectionAuthority>,
-            requesters: impl Iterator<Item = PackageKeyIdentity>,
-        ) -> Result<(), &'static str> {
-            match (self, Self::capture(authority)?) {
-                (Self::Absent, Self::Absent) => Ok(()),
-                (Self::Packages(previous), Self::Packages(current)) => {
-                    for requester in requesters {
-                        let old = previous.get(&requester).ok_or(
-                            "retained declaration scope does not cover a requesting package",
-                        )?;
-                        let new = current.get(&requester).ok_or(
-                            "current declaration scope does not cover a requesting package",
-                        )?;
-                        if old != new {
-                            return Err("requesting package declaration scope changed");
-                        }
-                    }
-                    Ok(())
-                }
-                _ => Err("presence of declaration selection authority changed"),
-            }
-        }
-    }
+    pub use typed_trees::declaration_authority::RecordedDeclarationAuthority;
 }
 
 pub mod selection_resolution {
@@ -1560,122 +1466,9 @@ pub mod selection_resolution {
 }
 
 pub mod source_completion {
-    use diagnostics::Diagnostic;
-    use semantic_vocabulary::PackageKeyIdentity;
-    use symbols::SymbolHandle;
-    use typed_trees::boundary_completions::completion_declaration;
-    use typed_trees::{BoundaryCompletionDeclaration, TypedTrees};
-
-    #[derive(Clone, Copy, Default)]
-    pub enum SourceCompletionAdmission<'request> {
-        #[default]
-        None,
-        AcceptedProcessExit {
-            package: PackageKeyIdentity,
-            declaration_path: &'request str,
-        },
-        DiscoverProcessExit,
-    }
-
-    pub fn prepare_source_completion(
-        typed: &mut TypedTrees,
-        admission: SourceCompletionAdmission<'_>,
-    ) -> Result<(), Vec<Diagnostic>> {
-        typed.boundary_completion_declarations.clear();
-        let SourceCompletionAdmission::AcceptedProcessExit {
-            package,
-            declaration_path,
-        } = admission
-        else {
-            if matches!(admission, SourceCompletionAdmission::DiscoverProcessExit) {
-                nominate_source_completion(typed)?;
-            }
-            return Ok(());
-        };
-        let declarations = typed
-            .traits()
-            .iter()
-            .filter(|definition| {
-                is_product_declaration(typed, definition.symbol)
-                    && typed.symbols.symbol_package_identity(definition.symbol) == Some(package)
-                    && typed.symbols.display_path(definition.symbol, "::") == declaration_path
-            })
-            .collect::<Vec<_>>();
-        let [definition] = declarations.as_slice() else {
-            return Err(vec![Diagnostic::error(
-                "accepted completion role has no unique package-owned declaration",
-            )]);
-        };
-        let declaration =
-            completion_declaration(typed, definition.symbol, package).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "accepted completion role has no exact process-exit requirement",
-                )]
-            })?;
-        let _ = typed.boundary_completion_declarations.append(declaration);
-        Ok(())
-    }
-
-    fn nominate_source_completion(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-        let declarations = typed
-            .traits()
-            .iter()
-            .filter_map(|definition| {
-                if !is_product_declaration(typed, definition.symbol)
-                    || typed.symbols.display_path(definition.symbol, "::") != "Console"
-                {
-                    return None;
-                }
-                let package = typed.symbols.symbol_package_identity(definition.symbol)?;
-                let declaration = completion_declaration(typed, definition.symbol, package)?;
-                has_external_source_candidate(typed, &declaration).then_some(declaration)
-            })
-            .collect::<Vec<_>>();
-        if declarations.len() > 1 {
-            return Err(vec![Diagnostic::error(
-                "completion role discovery has multiple package-owned source declarations",
-            )]);
-        }
-        for declaration in declarations {
-            let _ = typed.boundary_completion_declarations.append(declaration);
-        }
-        Ok(())
-    }
-
-    fn has_external_source_candidate(
-        typed: &TypedTrees,
-        declaration: &BoundaryCompletionDeclaration,
-    ) -> bool {
-        typed.machines().iter().any(|machine| {
-            !machine.body_is_present
-                && matches!(
-                    machine.supply_mode,
-                    language_semantics::MachineSupplyMode::Boundary
-                        | language_semantics::MachineSupplyMode::ExternalRealization { .. }
-                )
-                && is_product_declaration(typed, machine.symbol)
-                && typed.symbols.symbol_package_identity(machine.symbol) == declaration.package
-                && typed
-                    .machine_trait_conformances(machine)
-                    .iter()
-                    .any(|conformance| {
-                        typed_trees::machine::resolve_satisfied_declaration(
-                            typed,
-                            machine,
-                            conformance,
-                        )
-                        .is_some_and(|requirement| requirement.symbol() == declaration.requirement)
-                    })
-        })
-    }
-
-    fn is_product_declaration(typed: &TypedTrees, symbol: SymbolHandle) -> bool {
-        typed
-            .symbols
-            .symbol_provenance_source_span(symbol)
-            .and_then(|span| typed.symbols.source_file(span))
-            .is_none_or(|file| file.dependency_scope == source::DependencyScope::Product)
-    }
+    pub use typed_trees::boundary_completions::{
+        SourceCompletionAdmission, prepare_source_completion,
+    };
 }
 
 pub mod standard_declarations {

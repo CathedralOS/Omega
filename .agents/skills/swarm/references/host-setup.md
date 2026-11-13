@@ -121,16 +121,15 @@ for its first gate run, producing median 17-minute and worst 75-minute pool
 waits with 25-45 waiters. Batch them instead:
 
 1. Pick the sub-batch base revision G and create the sub-batch worktrees **at G**.
-2. Build ONE pair at G — the `omega` binary plus the corpus test runner — as one
+2. Build ONE `omega` binary at G as one
    build under the [host build budget](../../../../tools/build_slot.md), then
-   publish both outside any worktree (for example
+   publish it outside any worktree (for example
    `build/swarm/<wave>/producers/gen-<rev11>/`) with a `GENERATION` file (exact
-   revision + sha256 of each artifact) and a `READY` marker. With a warm MBX
-   action cache the pair compiles in ~1-2 minutes; the pool queue dominates the
+   revision + sha256 of the artifact) and a `READY` marker. With a warm MBX
+   action cache it compiles in ~1-2 minutes; the pool queue dominates the
    wall time.
-3. Every slot uses the published pair instead of building: place/twin runs via
-   `<gen>/omega run --both ...`, gates via `tools/corpus_gate.py --cli
-   <gen>/omega --runner <gen>/corpus_runner`.
+3. Every slot uses the published binary instead of building: place/twin runs via
+   `<gen>/omega run --both ...`.
 4. Validity: a generation is valid for a worktree whose base B is psi-identical —
    `git diff G..B -- omega-rust` empty. Basing the sub-batch at G makes this
    true by construction. After psi landings, re-roll the generation for the next
@@ -138,8 +137,7 @@ waits with 25-45 waiters. Batch them instead:
    worktree (`git reset --hard G`) rather than creating a new one.
 5. Reuse a generation only while its relevant producer inputs remain applicable.
    A source repair needs a producer built from the changed source for its focused
-   checks. Post-merge verification owns corpus ledger recording; workers do not
-   run record legs.
+   checks.
 
 Observed on a 16 GiB, 10-CPU macOS ARM64 host (2026-10-23): per-slot runner
 builds queued 20-60 minutes each; after generations, an 11-slot sub-batch landed
@@ -157,7 +155,7 @@ lane's single acquisition waited 3,039 to 5,282 seconds (up to 88 minutes) for
 one of two slots, so a chain that re-queued for each check, test run and
 landing re-verify paid that wait several times.
 
-Run a lane's local check, crate tests and scoped corpus gate as strictly
+Run a lane's local check and crate tests as strictly
 sequential steps in one shell under one
 [host build budget](../../../../tools/build_slot.md#one-hold-for-a-whole-chain).
 Finish before submitting or waiting for GitHub admission, and release local

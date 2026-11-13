@@ -1,144 +1,34 @@
 # Terminal production
 
 Public contract: [Terminal Psi product](../../../../../wiki/spec/terminal-psi/product.md).
-This Psi-owned operation sequences checked-program lowering, optimization and
-canonical publication. Product consumers call it directly; there is no Omega
-Terminal-production wrapper or alternative stage sequence.
 
-Enter [lib.rs](src/lib.rs):
-`checked-trees-to-lowered-psi` -> `lowered-psi-to-lowered-psi` ->
-`lowered-psi-to-terminal-psi`. `LoweredPsi` belongs to representations.
-Publication consumes the validated optimization-stage result.
+No request reaches Terminal Psi through this crate today.
+`TerminalProductionRequest::produce`, `BuildProviderProductionRequest::produce`
+and the external provider declaration constructors all refuse with
+`no product route yet`. The stage that lowered checked trees into Lowered Psi
+(Psi 06) is deleted, and the hand-off from the lowered-form checker's published
+module (`TASKS.md`, **LOWERED-FORM-CHECKER**) is not built. A refusal is the
+whole behavior: nothing here routes a program back through the old checker.
 
-`TerminalProductionRequest` carries the checked trees, the
-`TerminalMachineSelection` naming the machine, and the exact Psi optimization
-selection. Its one `produce` entry takes a `TerminalProductionCustody` and a
-caller-owned observer. Product callers supply their own timing adapter;
-Psi retains no Omega reporting dependency. Source preparation freezes exact
-entry and adapter identities in `TerminalApplicationCustody`, alongside the
-source-free callback roster and optional ProgramEntry signature identity.
+What remains in [lib.rs](src/lib.rs) is the set of contracts that hand-off has
+to fill:
 
-Every shared entry closure runs the same lowering, optimization and publication
-legs. `ProducedTerminalProgram::into_shared_portable` retains one immutable
-artifact and its source-issued Build and diagnostic companions. Consumers can
-then call `PortableTerminalProgram::attach_application` without checked trees,
-source handles or another production request. The diagnostic companion survives
-compiler-private record recovery; it is not canonical semantics or authority.
-The producer can also attach applications supplied with its production request.
-Both routes use the same attachment operation after publication.
+- `TerminalProductionRequest`, `TerminalMachineSelection` and
+  `TerminalProgramRoots`: what a caller asks to have produced.
+- [custody.rs](src/custody.rs): `ProducedTerminalProgram` and
+  `PortableTerminalProgram`, the retained program with its Build companions,
+  machine provenance and per-application receipts, including their
+  compiler-storage records.
+- [build_bindings.rs](src/build_bindings.rs): the record shapes of Build
+  bindings, requests, queries, filesystem calls and native locators that travel
+  beside a program.
+- [external_providers.rs](src/external_providers.rs): external provider
+  declarations as data, read by provider selection and package review.
+- `composition_roots`: `TerminalApplicationCustody`, which attaches entry,
+  callback and physical-adapter roots and the optional `ProgramEntry` receipt
+  to a sealed artifact after publication.
+- `observation`: stage labels for the caller's timing rows.
 
-Attachment returns ordered entry, callback and physical-adapter roots plus the
-optional Unit entry receipt bound to the sealed artifact. Each refusal belongs
-to its application; it neither rejects a sibling nor mutates shared code.
-Omega's exclusion policy consumes those roots and retained pre-optimization
-behavior afterward. It uses exact service owners in boundary declarations,
-not checked trees or a callable-name lookup. No lowering or unoptimized clone
-leaves production, and no admission can replace a stage or choose whether
-optimization runs.
-
-Permission-ledger validation belongs to the Psi 06 lowering entrance, not
-this coordinator. Its work is included in the lowering timing row; there is
-no separate caller-owned ledger-check leg.
-
-Terminal production owns its observation labels and failure classification.
-`PsiCompilationStage::observation_labels` supplies stable report names and
-input/output labels; the Omega caller only merges their measured rows.
-`TerminalArtifactProductionError::diagnostics` distinguishes missing
-implementation, incomplete proof search and ordinary rejection. Neither requires
-a dependency on the Omega reporting accumulator.
-
-The [Psi 08 entry receipt owner](../../pipeline/08_lowered-psi-to-terminal-psi/src/entry_receipt.rs) checks the
-unique Unit entry in the published artifact and binds its exact semantic identity.
-Source preparation delegates explicit context eligibility to its own child.
-
-ProgramEntry retains source-derived eligibility for the exact declared context
-parameter when its record is ZII-valid and needs no executable nominal cleanup.
-Keep machine, parameter and declared data-type identities distinct. The former
-`Self`/attachment/receiver join is migration debt; the
-[machine contract](../../../../../wiki/spec/language/machines.md#static-declarations-and-explicit-state)
-requires ordinary explicit parameters, including in dynamic callers.
-An absent eligibility row is not permission to infer validity from layout.
-The shared cleanup query also serves ordinary
-checked cleanup planning. This receipt is checked-source correspondence, not a
-source-free proof, a storage grant, or Fused service establishment; native entry
-must still supply those independent obligations.
-
-Boundary application demands, checked body candidates, selected comparison
-demands and callback applications live in the canonical artifact. Source-call
-records do not cross publication. Callback applications identify their registrar,
-requirement and checked contracts; target-owned placement and body receipts
-still supply the distinct ABI and installation evidence.
-
-## Lowering owners
-
-This coordinator does not own the lowerers' feature dispatch. Start with
-[checked execution selection](../../pipeline/05_typed-trees-to-checked-trees/src/execution_terminal_unit.rs),
-then [machine lowering](../../pipeline/06_checked-trees-to-lowered-psi/src/machine_lowering.rs).
-[Source custody](../../pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation.rs)
-prepares expressions and places; the
-[call catalog](../../pipeline/06_checked-trees-to-lowered-psi/src/attached_unit.rs)
-owns shared call lowering.
-
-### Partial ownership and cleanup
-
-[Cleanup lowering](../../pipeline/06_checked-trees-to-lowered-psi/src/unit.rs)
-and its partial-cleanup children own residual destruction.
-The [ownership contract](../../../../../wiki/spec/terminal-psi/ownership.md) defines
-what must survive into Terminal Psi; successful helper tests do not establish
-every source ownership shape's end-to-end coverage.
-
-Whole owned Linear values retain their existing claim identities and typed paths
-through local binding moves, structural state arguments including swaps, and
-ordinary terminal calls, including selected conditional and guarded arms with
-scalar or Unit completion. Each arm retains its exact authored invocation and
-transfers the inherited owner only on that executed path. An explicit consuming
-call may finish
-through the exact `dropped by` cleanup plan for the admitted scalar-record
-carrier. The cleanup edge consumes
-that live claim while the hook receives only a temporary exclusive loan; an
-ordinary borrowed method does not gain disposition authority. Source checking
-and Terminal/Omega replay retain the hook's exact nominal designation and require
-a normal, infallible, nonblocking, non-suspending contract without process exit
-or additional runtime authority.
-
-This coverage does not include joins that choose or rename claim lineages,
-claim-bearing result joins, or disposition of erased or nested Linear children.
-An owner hook cannot erase a child's independent obligation. Missing owner
-permission, duplicate transfer, and live-owner overwrite remain rejected.
-The maintained [local-move and terminal-call fixture](../../../../../tests/omega/pass/calls/runtime_linear_terminal_owner_disposition_exit/main.omg)
-and [state-swap fixture](../../../../../tests/omega/pass/calls/runtime_linear_state_owner_disposition_exit/main.omg)
-execute the complete disposition path in both engines. The
-[conditional scalar fixture](../../../../../tests/omega/pass/calls/runtime_linear_guarded_owner_disposition_exit/main.omg)
-and [guarded Unit fixture](../../../../../tests/omega/pass/calls/runtime_linear_guarded_unit_owner_disposition_exit/main.omg)
-exercise both alternatives without duplicating or renaming the inherited claim.
-
-### Structural predicate production
-
-[Contract predicates](../../pipeline/06_checked-trees-to-lowered-psi/src/proofs.rs)
-lower checked facts under the
-[structural-predicate contract](../../../../../wiki/spec/terminal-psi/structural_predicates.md).
-Claim identity, projection path, and equal scalar values are not interchangeable.
-
-### Structural access and stores
-
-[Structural source custody](../../pipeline/06_checked-trees-to-lowered-psi/src/expression_bindings.rs)
-prepares accesses; [store emission](../../pipeline/06_checked-trees-to-lowered-psi/src/emission.rs)
-consumes prepared subjects.
-The [structural-access contract](../../../../../wiki/spec/terminal-psi/structural_access.md)
-is authoritative, not the current bounded producer vocabulary.
-
-### Structural results and suspension
-
-A structural or scalar result is an ordinary body lowered through the
-[Unit closure](../../pipeline/06_checked-trees-to-lowered-psi/src/attached_unit.rs).
-[Suspension retention](../../pipeline/06_checked-trees-to-lowered-psi/src/retention.rs)
-owns retained call plans. Native task planning remains downstream;
-a retained call plan alone does not establish native execution coverage.
-
-## Coverage and validation
-
-Use [the testing guide](../../../../../tools/testing.md) for current commands and
-[TASKS.md](../../../../../TASKS.md) for unfinished work. Stage-local tests live beside
-the lowering owners; compiler corpus cases establish end-to-end coverage.
-The [scalar-call migration note](../../../../../wiki/drafts/reference/scalar_call_lowering.md)
-preserves historical algorithm context, not a current capability list.
+The [Psi 08 entry receipt owner](../../pipeline/08_lowered-psi-to-terminal-psi/src/entry_receipt.rs)
+checks the unique Unit entry in a published artifact and binds its exact
+semantic identity.

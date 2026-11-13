@@ -163,7 +163,7 @@ public data DependencyRow [copy] {
 // duplicate aliases of one requester and scope.
 public data SourceSet
 requires
-    unit_count <= 128,
+    unit_count <= 512,
     byte_count <= 4194304,
     path_byte_count <= 16384,
     package_count <= 64,
@@ -173,9 +173,9 @@ requires
     byte_count: u64;
     path_bytes: [u8; 16384] in Trapping;
     path_byte_count: u64;
-    units: [SourceRange; 128] in Trapping;
-    paths: [SourceRange; 128] in Trapping;
-    unit_packages: [u64; 128] in Trapping;
+    units: [SourceRange; 512] in Trapping;
+    paths: [SourceRange; 512] in Trapping;
+    unit_packages: [u64; 512] in Trapping;
     unit_count: u64;
     packages: [PackageRow; 64] in Trapping;
     package_count: u64;
@@ -202,7 +202,7 @@ public machine source_set_add(
 ) -> bool
 crashes Trap
 {
-    transition sources.unit_count < 128
+    transition sources.unit_count < 512
         && package < sources.package_count
         && unit.length <= 4194304 - sources.byte_count
         && module_path.length <= 16384 - sources.path_byte_count {
@@ -250,7 +250,7 @@ crashes Trap
         let unit_start: u64 in Trapping = sources.byte_count as u64 in Trapping;
         let unit_length: u64 in Trapping = unit.length as u64 in Trapping;
         let unit_end: u64 in Trapping = unit_start + unit_length;
-        transition unit_count < 128 && unit_end <= 4194304 {
+        transition unit_count < 512 && unit_end <= 4194304 {
             true -> store_ranges(sources, unit_count, unit_start, unit_length, unit_end, package, path)
             _ -> invalid()
         }
@@ -265,7 +265,7 @@ crashes Trap
         package: u64 in Trapping,
         path: SourceRange
     ) -> bool
-    requires unit_count < 128, unit_end <= 4194304
+    requires unit_count < 512, unit_end <= 4194304
     {
         sources.units[unit_count] = SourceRange { start: unit_start, length: unit_length };
         sources.paths[unit_count] = path;
@@ -437,7 +437,7 @@ crashes Trap
     }
 
     machine unit_range(sources: &SourceSet, unit: u64 in Trapping, index: u64 in Trapping) -> u8 {
-        transition unit < 128 {
+        transition unit < 512 {
             true -> within(sources, sources.units[unit], index)
             _ -> absent()
         }
@@ -546,7 +546,7 @@ crashes Trap
     }
 
     machine unit_range(sources: &SourceSet, unit: u64 in Trapping, index: u64 in Trapping) -> u8 {
-        transition unit < 128 {
+        transition unit < 512 {
             true -> within(sources, sources.paths[unit], index)
             _ -> absent()
         }
@@ -577,7 +577,7 @@ crashes Trap
 
 // The length of unit `unit`'s module path; zero for no unit.
 public machine path_length(sources: &SourceSet, unit: u64 in Trapping) -> u64 in Trapping {
-    transition unit < sources.unit_count && unit < 128 {
+    transition unit < sources.unit_count && unit < 512 {
         true -> read(sources, unit)
         _ -> none()
     }
@@ -593,7 +593,7 @@ public machine path_length(sources: &SourceSet, unit: u64 in Trapping) -> u64 in
 
 // The package unit `unit` belongs to; zero for no unit.
 public machine unit_package(sources: &SourceSet, unit: u64 in Trapping) -> u64 in Trapping {
-    transition unit < sources.unit_count && unit < 128 {
+    transition unit < sources.unit_count && unit < 512 {
         true -> read(sources, unit)
         _ -> none()
     }

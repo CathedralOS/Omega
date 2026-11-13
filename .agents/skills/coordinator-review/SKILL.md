@@ -33,7 +33,7 @@ Before merging, inspect the actual diff:
 ```bash
 gh pr diff NUMBER
 # For a scoped local view, use the recorded base and submitted head:
-git diff BASE HEAD -- omega-rust/ tests/omega/ samples/ TASKS.md
+git diff BASE HEAD -- omega-rust/ samples/ TASKS.md
 ```
 
 Reject the candidate and send line-level feedback back to the worker if any of
@@ -67,22 +67,22 @@ the five checks below fail:
   `CallFrameResolver`, `FactPayload`) rather than matching the surface AST shape
   of one fixture (e.g., handling only a bare `ExpressionNode::Name` when an
   operand may be a projection, cast, or call result).
-- **Full stage carry-through (`Psi 05 -> 06 -> 08 -> Native`):** Verify that a
-  construct, carrier, or cleanup disposition admitted in Stage 05 is carried
-  through Stage 06 (`06_checked-trees-to-lowered-psi`), Terminal Psi
-  execution, and native codegen (`omega run --both`), rather than stopping at
-  `--check`.
+- **Full stage carry-through (lowered-form checker `-> 08 -> Native`):** Verify
+  that a construct, carrier, or cleanup disposition admitted by the lowered-form
+  checker is carried through Terminal Psi execution and native codegen
+  (`omega run --both`), rather than stopping at `--check`.
 - **Bounce a sound patch in the wrong place:** Correct is not sufficient. Return
   a PR that adds a carrier, case or per-place branch where a shared operation
   could serve, even if every check passes; the general fix belongs in the same PR.
-- **Known affected rows shown:** Focused results name the rows they covered.
-  The PR's `Gate:` line must describe the change's real purpose; a
-  `red rows: 0` PR must unlock something this review can check.
+- **Known affected programs shown:** Focused results name the tests and
+  programs they covered. The PR's `Gate:` line must describe the change's real
+  purpose: something this review can check.
 
 ### Point 3: Outcomes and Diagnostic Expectations
-- **Leave the ledger to post-merge verification:** Author PRs do not edit
-  `tests/omega/corpus_outcomes.txt` or run `corpus --record`. Reject ledger
-  changes rather than repairing or re-recording their rows in the PR.
+- **No corpus, no ledger:** Nothing runs `tests/omega/` and nothing may be
+  added to it. The `Proof:` line names the tests on the change and on the
+  small area around it; reject a PR that widened its run instead of
+  investigating a failure there.
 - **Read actual focused results:** Positive programs must pass their intended
   checks and runtime oracles. Negative controls must reject for the obligation
   they break; a parse, import or reachability error does not establish that.
@@ -90,12 +90,12 @@ the five checks below fail:
   intended refusal. Never weaken a program or its diagnostic just to make a
   failed check green. Keep source and host limits beside the reported result.
 
-### Point 4: Witness, Reject-Twin & Anti-Bloat Audit (`samples/` & `tests/omega/` diff)
+### Point 4: Witness, Reject-Twin & Anti-Bloat Audit (`samples/` & kept-fixture diff)
 - **No new `samples/cli/facts/<folder>/` or 18-fixture fact-matrix bloat:**
   `samples/cli/facts/` is frozen against new folder creation (`cargo xtask check-rules`
-  enforces this). Repairs target existing failing programs in
-  `tests/omega/` and `samples/` or add a focused
-  positive/negative fixture pair under `tests/omega/{pass,fail,run}/<behavior>/`.
+  enforces this). Repairs target existing failing programs in `samples/` or
+  add a test on the changed code with, at most, a focused positive/negative
+  pair kept beside it under `omega-rust/omega/compilation/compiler/tests/fixtures/`.
 - **No weakened positive witnesses:** Confirm the worker did not make a fixture
   or sample pass by adding a caller post-hoc equality guard (`transition x == 100`),
   changing the bound or operation, or simplifying the construct under test.
@@ -103,7 +103,7 @@ the five checks below fail:
   targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and
   pass `omega run --both` with their authored exit.
 - **Minimal reject-twin diff:** Compare positive vs. negative controls
-  (`tests/omega/pass/...` vs. `tests/omega/fail/...`). They must differ **only**
+  (`pass/...` vs. `fail/...` under the kept fixtures). They must differ **only**
   in the construct's own broken fact, domain, or contract—never in a caller
   guard or unrelated syntax.
 - **No deprecated syntax in new or migrated `.omg` files:** Reject any diff
@@ -119,16 +119,6 @@ the five checks below fail:
 - **Stage 05/06 ratchets:** Confirm no new shape gates or source-context reads
   were added in violation of stage ratchets, and no production boundary checks
   were bypassed.
-- **Capability notices:** `cargo xtask check-rules` prints a notice when compiler Rust
-  closes nothing that existed at the base (no row turned green, no control newly
-  rejecting for its pin or changing its diagnostic, no `TASKS.md` line deleted).
-  - `… pinned only on N row(s) it adds`: the PR body names the existing failing
-    row, sample or acceptance it closes, or the behavior no existing fixture
-    covered. A repair whose only customer is its own new fixture is per-case
-    glue: return it to the worker.
-  - `… changes no corpus outcome`: accept it only as performance or
-    restructuring work with its measurement in the PR body. Any other repair
-    with no observable outcome goes back to the worker.
 - **`TASKS.md` closure:** Delete a bullet only when its full stated acceptance
   is demonstrated. For a fact row that is its existing nine places and reject
   twins; other outcomes follow their own acceptance. This is the test for a
@@ -163,6 +153,6 @@ recurring agent failure pattern along the path to compiler completion
    only describe platform session mechanics and point to `/advance` and
    `coordinator-review`.
 3. **Prefer mechanical admission checks where possible:** When a recurring
-   mistake can be detected deterministically (such as `+wt` stamps or `unexpected`
-   rows in `corpus_outcomes.txt`), enforce it in `tools/xtask/src/rules.rs` as well as
+   mistake can be detected deterministically (such as a new file under the
+   retired `tests/omega/`), enforce it in `tools/xtask/src/rules.rs` as well as
    in `AGENTS.md`.

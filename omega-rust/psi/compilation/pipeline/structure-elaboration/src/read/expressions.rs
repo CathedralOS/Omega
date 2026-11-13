@@ -106,6 +106,9 @@ impl<'t> Program<'t> {
                         (ExpressionKind::Slot(slot), scalar_type)
                     }
                     ValueType::Scalar(_) => return unserved("erased term that reads storage"),
+                    ValueType::Qualified(..) => {
+                        return unserved("erased term of a policy-qualified type");
+                    }
                     ValueType::Record(_) | ValueType::Rigid(_) => {
                         return unserved("erased term of a data type");
                     }
@@ -243,7 +246,11 @@ impl<'t> Program<'t> {
                     let right = self.expression(id, slots, binary.right, hint.or(partner))?;
                     (left, right)
                 };
-                return binary_expression(id, binary.operator, left, right, source);
+                let anonymous = (
+                    self.wholly_anonymous(binary.left),
+                    self.wholly_anonymous(binary.right),
+                );
+                return binary_expression(id, binary.operator, left, right, anonymous, source);
             }
             ExpressionNode::Call(call) => return self.call_expression(id, slots, call, source),
             ExpressionNode::TypeExpression(_) => return unserved("type expression"),
@@ -377,6 +384,9 @@ impl<'t> Program<'t> {
             let value_type = match value.result {
                 Some(ValueType::Scalar(scalar_type)) => scalar_type,
                 Some(ValueType::Record(_)) => return Err(unserved("match with a data result")),
+                Some(ValueType::Qualified(..)) => {
+                    return Err(unserved("match with a policy-qualified result"));
+                }
                 Some(ValueType::Rigid(_)) => {
                     return Err(unserved("match with a result of a rigid type"));
                 }
@@ -420,6 +430,7 @@ pub(super) fn names_storage(expression: &Expression) -> bool {
         | ExpressionKind::Not(_)
         | ExpressionKind::BitwiseNot(_)
         | ExpressionKind::Cast(_)
+        | ExpressionKind::Requalify(_)
         | ExpressionKind::ShortCircuit { .. }
         | ExpressionKind::Call { .. } => false,
     }
@@ -458,11 +469,14 @@ pub(super) fn case_condition(subject: &Expression, case: usize) -> Expression {
 /// Builtin operator selection: which operation a binary operator names, and
 /// its operand and result types. Builtin meaning is all the subset has: an
 /// operator bound to a declared machine reaches the typed trees as a call.
+/// `anonymous` says which operands are wholly anonymous in the source: a
+/// literal that landed in its partner's carrier.
 fn binary_expression(
     id: MachineId,
     operator: BinaryOperator,
     left: Expression,
     right: Expression,
+    anonymous: (bool, bool),
     source: SourceOrigin,
 ) -> Checked<Expression> {
     enum Operands {
@@ -483,7 +497,26 @@ fn binary_expression(
     // Builtin operators are over scalars. Equality of two records needs
     // synthesized structural comparison evidence
     // (`wiki/spec/terminal-psi/structural_predicates.md`) and is refused.
-    let (ValueType::Scalar(left_type), ValueType::Scalar(right_type)) = (left_type, right_type)
+    // A policy-qualified operand is its carrier under that policy
+    // (numeric_values.md, "Policy domains": core declares each unsuffixed
+    // arithmetic operator "for two operands carrying the domain and for one
+    // such operand with a plain operand of the same carrier, so
+    // `counter + 1` needs no cast", and "its result carries the same
+    // domain"). Two different policies select no operator ("incompatible
+    // policies do not mix implicitly").
+    //
+    // The plain partner is served when it is a literal, the case that
+    // sentence names. Whether a plain *binding* is one too is open
+    // (`OWNER_QUESTIONS.md`, decision `policy-operator-plain-operand`):
+    // the sentence reads that way, and the current checker rejects it as
+    // mixed arithmetic domains.
+    let carried = |value_type| match value_type {
+        ValueType::Scalar(scalar_type) => Some((scalar_type, None)),
+        ValueType::Qualified(carrier, policy) => Some((carrier, Some(policy))),
+        ValueType::Record(_) | ValueType::Rigid(_) => None,
+    };
+    let (Some((left_type, left_policy)), Some((right_type, right_policy))) =
+        (carried(left_type), carried(right_type))
     else {
         return Err(refuse(
             id,
@@ -491,6 +524,32 @@ fn binary_expression(
             Unserved::Expression("operator on a record"),
         ));
     };
+    let policy = match (left_policy, right_policy) {
+        (Some(left), Some(right)) if left != right => {
+            return Err(typing("operands under two arithmetic policies"));
+        }
+        (left, right) => left.or(right),
+    };
+    // A shift's count is the exception: it "keeps its own" type and is
+    // never the operand a policy is matched against.
+    let shift = matches!(
+        operator,
+        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+    );
+    let plain_binding = match (left_policy, right_policy) {
+        (Some(_), None) => !anonymous.1 && !shift,
+        (None, Some(_)) => !anonymous.0,
+        (Some(_), Some(_)) | (None, None) => false,
+    };
+    if plain_binding {
+        return Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Expression(
+                "operator between a policy-qualified operand and a plain operand that is not a literal",
+            ),
+        ));
+    }
     let (operation, operands) = match operator {
         BinaryOperator::And | BinaryOperator::Or => {
             if left_type != ScalarType::Boolean || right_type != ScalarType::Boolean {
@@ -530,17 +589,47 @@ fn binary_expression(
         BinaryOperator::Greater => (Strict::Greater, Operands::Ordering),
         BinaryOperator::GreaterOrEqual => (Strict::GreaterOrEqual, Operands::Ordering),
     };
+    let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
     let integer = |scalar_type| matches!(scalar_type, ScalarType::Integer(_));
+    let boolean = ValueType::Scalar(ScalarType::Boolean);
+    // The type an arithmetic or shift result has: its value operand's
+    // carrier, under the operation's policy when it has one.
+    let computed = |carrier| match policy {
+        Some(policy) => ValueType::Qualified(carrier, policy),
+        None => ValueType::Scalar(carrier),
+    };
     let result = match operands {
-        Operands::Arithmetic if integer(left_type) && left_type == right_type => left_type,
-        Operands::Shift if integer(left_type) && integer(right_type) => left_type,
+        // The policy catalog has no bitwise row: `&`, `|` and `^` cannot
+        // overflow, and whether core declares them for a policy-qualified
+        // operand the specification's "each unsuffixed arithmetic
+        // operator" does not say.
+        Operands::Arithmetic
+            if policy.is_some()
+                && matches!(
+                    operation,
+                    Strict::BitwiseAnd | Strict::BitwiseOr | Strict::BitwiseXor
+                ) =>
+        {
+            return Err(unserved("bitwise operator on a policy-qualified operand"));
+        }
+        Operands::Arithmetic if integer(left_type) && left_type == right_type => {
+            computed(left_type)
+        }
+        // A shift's count keeps its own type and chooses nothing: the
+        // value operand's policy is the operation's.
+        Operands::Shift if right_policy.is_some() => {
+            return Err(unserved("shift by a policy-qualified count"));
+        }
+        Operands::Shift if integer(left_type) && integer(right_type) => computed(left_type),
+        // A comparison compares the stored values, whatever policy either
+        // carries ("they compare the stored values and return `bool`").
         Operands::Equality
             if left_type == right_type
                 && (integer(left_type) || left_type == ScalarType::Boolean) =>
         {
-            ScalarType::Boolean
+            boolean
         }
-        Operands::Ordering if integer(left_type) && left_type == right_type => ScalarType::Boolean,
+        Operands::Ordering if integer(left_type) && left_type == right_type => boolean,
         Operands::Arithmetic | Operands::Shift | Operands::Equality | Operands::Ordering => {
             return Err(typing("operand types"));
         }
@@ -551,7 +640,7 @@ fn binary_expression(
             left: Box::new(left),
             right: Box::new(right),
         },
-        result: Some(ValueType::Scalar(result)),
+        result: Some(result),
         source,
     })
 }
@@ -700,6 +789,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::Not(_)
                 | ExpressionKind::BitwiseNot(_)
                 | ExpressionKind::Cast(_)
+            | ExpressionKind::Requalify(_)
                 | ExpressionKind::ShortCircuit { .. }
                 | ExpressionKind::Call { .. }
                 // A loan is formed afresh each time; two are never one.
@@ -707,4 +797,123 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 _,
             ) => false,
         }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::body::Policy;
+    use semantic_vocabulary::{IntegerSign, IntegerType};
+
+    fn carrier() -> ScalarType {
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())
+    }
+
+    /// The type `operator` gives two operands of these types, or why it is
+    /// refused. `anonymous` says which operand is a literal in the source.
+    fn typed(
+        operator: BinaryOperator,
+        left: ValueType,
+        right: ValueType,
+        anonymous: (bool, bool),
+    ) -> Result<ValueType, String> {
+        let source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        let operand = |slot, value_type| Expression {
+            kind: ExpressionKind::Slot(slot),
+            result: Some(value_type),
+            source,
+        };
+        binary_expression(
+            MachineId::new(1).unwrap(),
+            operator,
+            operand(0, left),
+            operand(1, right),
+            anonymous,
+            source,
+        )
+        .map(|expression| expression.result.unwrap())
+        .map_err(|refusal| refusal.detail)
+    }
+
+    /// An arithmetic operator over a policy-qualified operand is that
+    /// policy's and its result carries the policy; a comparison yields
+    /// `bool`. The partner is an operand of the same policy or a literal.
+    /// Two policies, a plain binding, a bitwise operator, a
+    /// policy-qualified shift count and two carriers are each refused by
+    /// name, and two plain operands are untouched.
+    #[test]
+    fn an_operator_takes_its_policy_from_its_operands_and_never_from_a_plain_binding() {
+        let plain = ValueType::Scalar(carrier());
+        let wrapping = ValueType::Qualified(carrier(), Policy::Wrapping);
+        let saturating = ValueType::Qualified(carrier(), Policy::Saturating);
+        let boolean = ValueType::Scalar(ScalarType::Boolean);
+        let neither = (false, false);
+        for operator in [
+            BinaryOperator::Add,
+            BinaryOperator::Subtract,
+            BinaryOperator::Multiply,
+            BinaryOperator::Divide,
+            BinaryOperator::Modulo,
+        ] {
+            assert_eq!(typed(operator, plain, plain, neither), Ok(plain));
+            assert_eq!(typed(operator, wrapping, wrapping, neither), Ok(wrapping));
+            assert_eq!(
+                typed(operator, saturating, saturating, neither),
+                Ok(saturating)
+            );
+            // `w + 1` and `1 + w`: the literal landed in the carrier.
+            assert_eq!(
+                typed(operator, wrapping, plain, (false, true)),
+                Ok(wrapping)
+            );
+            assert_eq!(
+                typed(operator, plain, wrapping, (true, false)),
+                Ok(wrapping)
+            );
+            for (left, right) in [(wrapping, plain), (plain, wrapping)] {
+                assert_eq!(
+                    typed(operator, left, right, neither).unwrap_err(),
+                    "expression operator between a policy-qualified operand and a plain operand that is not a literal"
+                );
+            }
+            assert_eq!(
+                typed(operator, wrapping, saturating, neither).unwrap_err(),
+                "typing operands under two arithmetic policies"
+            );
+        }
+        for operator in [BinaryOperator::Less, BinaryOperator::Equal] {
+            assert_eq!(typed(operator, wrapping, wrapping, neither), Ok(boolean));
+            assert_eq!(typed(operator, wrapping, plain, (false, true)), Ok(boolean));
+            assert_eq!(
+                typed(operator, wrapping, plain, neither).unwrap_err(),
+                "expression operator between a policy-qualified operand and a plain operand that is not a literal"
+            );
+        }
+        // A shift's count keeps its own plain type, literal or binding.
+        assert_eq!(
+            typed(BinaryOperator::ShiftLeft, wrapping, plain, neither),
+            Ok(wrapping)
+        );
+        assert_eq!(
+            typed(BinaryOperator::ShiftRight, wrapping, wrapping, neither).unwrap_err(),
+            "expression shift by a policy-qualified count"
+        );
+        assert_eq!(
+            typed(BinaryOperator::BitwiseAnd, wrapping, wrapping, neither).unwrap_err(),
+            "expression bitwise operator on a policy-qualified operand"
+        );
+        assert_eq!(
+            typed(BinaryOperator::BitwiseAnd, plain, plain, neither),
+            Ok(plain)
+        );
+        // A policy does not make two carriers one.
+        let wider = ValueType::Qualified(
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+            Policy::Wrapping,
+        );
+        assert_eq!(
+            typed(BinaryOperator::Add, wrapping, wider, neither).unwrap_err(),
+            "typing operand types"
+        );
+    }
 }

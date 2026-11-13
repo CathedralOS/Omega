@@ -117,8 +117,8 @@ Each retained item states the capability requirement, its owning
 code/specification, real dependencies, a discrete list of one-per-line
 remaining sub-bullets (one unfinished witness or missing mechanism gap per
 bullet, with its current reproduction or decisive symbol/test link when it saves
-rediscovery), and the final `Acceptance:` gate. `tests/omega/`
-(`corpus_outcomes.txt`) and `samples/cli/facts/` own regression retention of
+rediscovery), and the final `Acceptance:` gate. Tests and
+`samples/cli/facts/` own regression retention of
 already-passing witnesses; `TASKS.md` owns only the unbuilt or failing gap.
 Structure remaining work as discrete bullets so an agent finishing one witness
 deletes that line outright instead of rewriting prose paragraphs or moving the
