@@ -1184,7 +1184,10 @@ mod tests {
             )),
         );
         let bounded = Proposition::IntegerMathLessOrEqual(sum.clone(), integer(99));
-        assert_eq!(program.clause(machine(), &served, within), Ok(bounded.clone()));
+        assert_eq!(
+            program.clause(machine(), &served, within),
+            Ok(bounded.clone())
+        );
         assert_eq!(program.clause(machine(), &served, at_least), Ok(bounded));
         let equal = program.clause(machine(), &served, exactly).unwrap();
         let Proposition::IntegerMathEqual(left, right) = &equal else {
@@ -1220,7 +1223,10 @@ mod tests {
             detail(&served, mixed),
             "contract runtime value in a mathematical term without embed"
         );
-        assert_eq!(detail(&served, spelled_embed), "contract call in a clause term");
+        assert_eq!(
+            detail(&served, spelled_embed),
+            "contract call in a clause term"
+        );
         let guard = scope(MathematicalTerms::Refused(
             "mathematical comparison in a crash route guard",
         ));

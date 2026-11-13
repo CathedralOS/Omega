@@ -84,7 +84,11 @@ fn requirement_of(machines: Vec<Machine>) -> (structure_elaboration::Elaboration
 }
 
 fn cause_of(verdict: &Checked<Discharged>) -> UnprovedCause {
-    match verdict.as_ref().expect_err("the requirement must be refused").reason {
+    match verdict
+        .as_ref()
+        .expect_err("the requirement must be refused")
+        .reason
+    {
         RefusalReason::Unproved(cause) => cause,
         reason => panic!("an unproved requirement, found {reason:?}"),
     }
@@ -96,8 +100,12 @@ fn a_mathematical_requirement_over_constants_is_evaluated() {
     // constants' values. Each is fixed to 9 by its result equation, so the
     // kernel evaluates 9 + 9 * 10 = 99 and accepts. The goal still names the
     // caller's values embedded in their carrier, never a carrier sum.
-    let (elaboration, result) =
-        requirement_of(calling(Vec::new(), packed_clause(), unsigned(9), unsigned(9)));
+    let (elaboration, result) = requirement_of(calling(
+        Vec::new(),
+        packed_clause(),
+        unsigned(9),
+        unsigned(9),
+    ));
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
     let evidence = certificate(verdict);
     let Proposition::IntegerMathLessOrEqual(IntegerMathTerm::Add(rest, tens), limit) =
@@ -162,12 +170,8 @@ fn a_caller_that_requires_the_same_clause_passes_it_on() {
     // clause of its own formals and forwards them owes exactly what it
     // assumed.
     let (rest, count) = formals();
-    let (elaboration, result) = requirement_of(calling(
-        vec![packed_clause()],
-        packed_clause(),
-        rest,
-        count,
-    ));
+    let (elaboration, result) =
+        requirement_of(calling(vec![packed_clause()], packed_clause(), rest, count));
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
     let evidence = certificate(verdict);
     assert_eq!(evidence.goal, packed_clause());
@@ -261,13 +265,19 @@ fn rule_coverage_of_a_mathematical_goal_is_read_from_its_form() {
         sum(embedded(1), embedded(2)),
         300
     )));
-    assert!(crate::has_rules_for(&within(sum(embedded(1), integer(1)), 11)));
+    assert!(crate::has_rules_for(&within(
+        sum(embedded(1), integer(1)),
+        11
+    )));
     assert!(!crate::has_rules_for(&packed_clause()));
     let narrow = IntegerMathTerm::MathValue {
         source_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
         value: id(2),
     };
-    assert!(!crate::has_rules_for(&within(sum(embedded(1), narrow), 300)));
+    assert!(!crate::has_rules_for(&within(
+        sum(embedded(1), narrow),
+        300
+    )));
     assert!(!crate::has_rules_for(&Proposition::IntegerMathEqual(
         embedded(1),
         integer(7)

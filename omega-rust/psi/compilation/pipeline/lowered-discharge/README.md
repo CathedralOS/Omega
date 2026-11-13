@@ -29,7 +29,7 @@ rules could not have decided
 | Kind | Goal | Hypotheses available at its point |
 | --- | --- | --- |
 | `OperationSafety` | Terminal semantics' canonical goal for the operation (`proof_bearing_scalar_leaf_semantics`): representability of an exact add, subtract, multiply or cast, a defined division or remainder, a shift count in range | entry `requires`, result equations of the operations before it, callee `ensures` after earlier calls |
-| `CallRequirement` | the callee's `requires` clause at that position, its scalar formals replaced by the call's scalar actuals and each field of a record formal by the one value that field of the record actual holds at the call | the same, before the call |
+| `CallRequirement` | the callee's `requires` clause at that position, its scalar formals replaced by the call's scalar actuals (embedded where the clause embeds them, see [Clauses over mathematical integers](#clauses-over-mathematical-integers)) and each field of a record formal by the one value that field of the record actual holds at the call | the same, before the call |
 | `NormalGuarantee` | this machine's `ensures` clause at that position, with `result` replaced by the value that exit returns | the same, on the exit edge |
 | `DataDomain` | one clause of a data type's `requires`, with `self` replaced by the values the place holds once the owing operation completes ([Data `requires`](#data-requires)); when a store or a zero establishment leaves it unproved, the same clause over what the place holds at each consumption point the [invariant window](#invariant-windows) reaches open | the same, before the operation or the consumption point |
 | `PublishedGuarantee` | not proved: held when every return edge's `NormalGuarantee` for the clause is discharged | - |
@@ -74,6 +74,34 @@ see [What a dispatch binds](#what-a-dispatch-binds)). Each row's proposition is 
 an obligation only when its point dominates the obligation's point.
 Requires and guarantees go in as assumptions, result equations as semantic
 axioms, which is how the kernel's definition rules cite them.
+
+## Clauses over mathematical integers
+
+A `requires` or `ensures` may compare mathematical integers,
+`embed(rest) + embed(count) * 10 <= 99`
+([structure elaboration](../structure-elaboration/README.md#mathematical-integers-in-a-clause)).
+The one substitution (`substitute`) states such a clause wherever a scalar
+clause is stated: at a call each embedded formal is the actual embedded, in
+the actual's carrier, and a literal actual is the integer it denotes
+(`bound_mathematical`); on a return the embedded `result` is the returned
+value embedded (`returned_for_result`). The arithmetic around the embeddings
+is over unbounded integers and is kept as written, so stating the clause
+adds no obligation of its own
+([mathematical values](../../../../../wiki/spec/terminal-psi/mathematical_values.md#integer-terms):
+"These terms denote unbounded mathematical integers and cannot overflow").
+
+What the prover does with the goal is narrower than what a clause can say:
+
+| Goal | Outcome |
+| --- | --- |
+| every value it names is fixed to a literal by a result equation (`packed(9, 9)`) | the kernel evaluates the closed comparison (`by_transport`, then `ClosedIntegerRelation`); a false one is `NoDerivation`, which rejects the call |
+| `<=` between a literal and one add, subtract or multiply of values of one carrier and literals | bounded from the values' intervals, the rule an exact operation's representability goal uses (`arithmetic_interval`); a failure is `NoDerivation` |
+| the same proposition as a hypothesis at that point (a caller that requires the clause it passes on) | taken from the hypothesis |
+| a deeper term, operands of two carriers, or `==` or `<` over values that are not fixed | no rule: `NoRuleForGoalForm`, so the route answers `Incomplete`, never accepted and never called wrong |
+
+`Prover::has_rules_for` draws that line from the goal's form with each value
+an equation fixes to a literal read as that literal, the reading
+`beyond_rules` already uses for the operations behind a goal's values.
 
 ## Erased formals at a call
 

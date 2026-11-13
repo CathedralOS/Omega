@@ -621,7 +621,9 @@ impl Program<'_> {
         match comparison {
             // The codec holds an equality's operands in the vocabulary's
             // order (`validate_canonical_proposition`).
-            BinaryOperator::Equal if left <= right => Ok(Proposition::IntegerMathEqual(left, right)),
+            BinaryOperator::Equal if left <= right => {
+                Ok(Proposition::IntegerMathEqual(left, right))
+            }
             BinaryOperator::Equal => Ok(Proposition::IntegerMathEqual(right, left)),
             BinaryOperator::Less => Ok(Proposition::IntegerMathLessThan(left, right)),
             BinaryOperator::LessOrEqual => Ok(Proposition::IntegerMathLessOrEqual(left, right)),

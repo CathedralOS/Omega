@@ -112,14 +112,12 @@ fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
             let bounded = |term: &IntegerMathTerm| match term {
                 IntegerMathTerm::Add(first, second)
                 | IntegerMathTerm::Subtract(first, second)
-                | IntegerMathTerm::Multiply(first, second) => {
-                    match (leaf(first), leaf(second)) {
-                        (Some(first), Some(second)) => {
-                            first.is_none() || second.is_none() || first == second
-                        }
-                        _ => false,
+                | IntegerMathTerm::Multiply(first, second) => match (leaf(first), leaf(second)) {
+                    (Some(first), Some(second)) => {
+                        first.is_none() || second.is_none() || first == second
                     }
-                }
+                    _ => false,
+                },
                 IntegerMathTerm::ShiftLeft { .. } | IntegerMathTerm::MathValue { .. } => true,
                 IntegerMathTerm::IntegerLiteral(_) | IntegerMathTerm::Embed(_) => false,
             };
