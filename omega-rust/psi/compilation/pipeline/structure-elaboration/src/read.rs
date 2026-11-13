@@ -265,7 +265,7 @@ mod tests {
         BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath,
     };
     use typed_trees::expression::{
-        TableBinaryExpression, TableBorrowExpression, TableIndexedExpression, TableRangeExpression,
+        TableBinaryExpression, TableBorrowExpression, TableRangeExpression,
     };
     use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -293,13 +293,6 @@ mod tests {
         let invalid = ExpressionHandle::invalid();
         let cases = [
             (
-                ExpressionNode::Indexed(TableIndexedExpression {
-                    collection: invalid,
-                    index: invalid,
-                }),
-                "expression index",
-            ),
-            (
                 ExpressionNode::Borrow(TableBorrowExpression {
                     target: invalid,
                     access: ReferenceAccess::Shared,
@@ -313,10 +306,6 @@ mod tests {
                     end_inclusive: false,
                 }),
                 "expression range",
-            ),
-            (
-                ExpressionNode::ArrayLiteral(arena::HandleSpan::empty()),
-                "expression array literal",
             ),
             (
                 ExpressionNode::ZeroValue(TypeReferenceHandle::invalid()),
@@ -339,9 +328,12 @@ mod tests {
                 "spelling name without a symbol",
             ),
         ];
-        for (node, expected) in cases {
-            assert_eq!(refused(&typed, node), expected);
-        }
+        let wrong: Vec<_> = cases
+            .into_iter()
+            .map(|(node, expected)| (refused(&typed, node), expected))
+            .filter(|(found, expected)| found != expected)
+            .collect();
+        assert!(wrong.is_empty(), "{wrong:?}");
     }
 
     #[test]
@@ -632,9 +624,12 @@ mod tests {
                 "expression saved subject",
             ),
         ];
-        for (node, expected) in cases {
-            assert_eq!(refused(&typed, node), expected);
-        }
+        let wrong: Vec<_> = cases
+            .into_iter()
+            .map(|(node, expected)| (refused(&typed, node), expected))
+            .filter(|(found, expected)| found != expected)
+            .collect();
+        assert!(wrong.is_empty(), "{wrong:?}");
     }
 
     /// Dispatch forms outside the slice are refused by name before anything

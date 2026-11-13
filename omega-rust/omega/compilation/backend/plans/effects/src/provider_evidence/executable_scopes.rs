@@ -888,6 +888,7 @@ mod boundary_reach_tests {
             content_guarantees: Vec::new(),
             fixed_service_reach: Vec::new(),
             owning_service: Some(ServiceId::new(1).unwrap()),
+            published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
         });
         module

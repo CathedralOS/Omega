@@ -91,7 +91,7 @@ impl<'t> Program<'t> {
         &mut self,
         caller: MachineId,
         owner: symbols::SymbolHandle,
-    ) -> Checked<crate::ReachCeiling> {
+    ) -> Checked<crate::Ceiling> {
         let typed = self.typed;
         let unserved = |what| refuse(caller, Construct::Machine, Unserved::Machine(what));
         let mut written = false;
@@ -104,9 +104,83 @@ impl<'t> Program<'t> {
             named.extend(row.targets.iter().map(|target| target.service));
         }
         if !written {
-            return Ok(crate::ReachCeiling::Inferred);
+            return Ok(crate::Ceiling::Inferred);
         }
-        let mut ceiling = Vec::with_capacity(named.len());
+        Ok(crate::Ceiling::Authored(self.named_row(
+            caller,
+            named,
+            crate::body::Axis::Reach,
+        )?))
+    }
+
+    /// What a header says about synchronous entry: its `invokes` rows as
+    /// the requirement identities they name. `bodyless` is a requirement,
+    /// boundary or not.
+    ///
+    /// effects.md, "Direct synchronous invocation": on a checked body an
+    /// omitted clause means "Infer and publish its entries" and a written
+    /// one bounds them; on a bodyless requirement omission is "No
+    /// synchronous entry", an empty written row. "A row names a parameter
+    /// path or a requirement identity." A parameter path stands for the
+    /// binding a call supplies, so charging a caller for it needs the
+    /// actual substituted at each call; no slice reads that yet, and it is
+    /// refused by name, never dropped.
+    pub(super) fn entry_ceiling(
+        &mut self,
+        caller: MachineId,
+        rows: &[typed_trees::signature::AuthoredInvocation],
+        bodyless: bool,
+    ) -> Checked<crate::Ceiling> {
+        use typed_trees::signature::AuthoredInvocationTarget as Named;
+        if rows.is_empty() && !bodyless {
+            return Ok(crate::Ceiling::Inferred);
+        }
+        let mut named = Vec::with_capacity(rows.len());
+        for row in rows {
+            match row.target {
+                Named::Service(requirement) => named.push(requirement),
+                Named::Parameter { .. } => {
+                    return Err(refuse(
+                        caller,
+                        Construct::Machine,
+                        Unserved::Machine("invokes naming a parameter path"),
+                    ));
+                }
+                Named::Unresolved => {
+                    return Err(refuse(
+                        caller,
+                        Construct::Machine,
+                        Unserved::Typing("invokes names nothing this program declares"),
+                    ));
+                }
+            }
+        }
+        Ok(crate::Ceiling::Authored(self.named_row(
+            caller,
+            named,
+            crate::body::Axis::Entries,
+        )?))
+    }
+
+    /// The row a clause on `axis` writes by naming `named`: the one reading
+    /// of a written ceiling. Each name must be a boundary trait, whose
+    /// applied declaration is its service identity in the module's catalog.
+    /// A reach row is closed under boundary parents; an entry row is not
+    /// (`invokes_entry_ceiling.md`, "No parent closure").
+    ///
+    /// For reach a name that is not a boundary trait is a mistake of the
+    /// program ("Ordinary traits are not service identities"). For entries
+    /// it may be a valid requirement identity ("Route and direction decide
+    /// what a row may name, not declaration kind"), which the catalog has
+    /// no identity for yet, so it is not served.
+    fn named_row(
+        &mut self,
+        caller: MachineId,
+        named: Vec<symbols::SymbolHandle>,
+        axis: crate::body::Axis,
+    ) -> Checked<Vec<ServiceId>> {
+        let typed = self.typed;
+        let mut row = Vec::with_capacity(named.len());
         for service in named {
             let declaration = typed
                 .trait_definition_by_symbol(service)
@@ -115,12 +189,26 @@ impl<'t> Program<'t> {
                     refuse(
                         caller,
                         Construct::Machine,
-                        Unserved::Typing("reaches names something that is not a boundary trait"),
+                        match axis {
+                            crate::body::Axis::Reach => Unserved::Typing(
+                                "reaches names something that is not a boundary trait",
+                            ),
+                            crate::body::Axis::Entries => Unserved::Machine(
+                                "invokes naming a requirement that is not a boundary trait",
+                            ),
+                        },
                     )
                 })?;
-            ceiling.push(self.declared_service(caller, declaration)?);
+            row.push(self.declared_service(caller, declaration)?);
         }
-        Ok(crate::ReachCeiling::Authored(self.with_parents(ceiling)))
+        Ok(match axis {
+            crate::body::Axis::Reach => self.with_parents(row),
+            crate::body::Axis::Entries => {
+                row.sort_unstable();
+                row.dedup();
+                row
+            }
+        })
     }
 
     /// `services` and every boundary parent of one, strictly increasing.
@@ -159,31 +247,45 @@ impl<'t> Program<'t> {
             )?;
             let unavailable =
                 |reason| refuse(caller, Construct::Machine, Unserved::Declaration(reason));
-            let ceiling = match &signature.reaches {
-                crate::ReachCeiling::Authored(ceiling) => ceiling.as_slice(),
-                crate::ReachCeiling::Inferred => {
-                    return Err(unavailable(
-                        "boundary declaration has no declared reach ceiling",
-                    ));
+            let mut rows = [Vec::new(), Vec::new()];
+            for axis in crate::body::Axis::ALL {
+                let crate::Ceiling::Authored(ceiling) = signature.ceiling(axis) else {
+                    return Err(unavailable(match axis {
+                        crate::body::Axis::Reach => {
+                            "boundary declaration has no declared reach ceiling"
+                        }
+                        crate::body::Axis::Entries => {
+                            "boundary declaration has no declared entry ceiling"
+                        }
+                    }));
+                };
+                for service in ceiling {
+                    rows[axis as usize].push(
+                        self.services
+                            .get(*service)
+                            .and_then(|(scope, _)| scope.portable_application_identity(self.typed))
+                            .and_then(|identity| self.typed.type_identity_text(identity))
+                            .filter(|identity| !identity.is_empty())
+                            .ok_or_else(|| {
+                                unavailable("retained service lost its exact application identity")
+                            })?,
+                    );
                 }
-            };
-            let mut reach = Vec::with_capacity(ceiling.len());
-            for service in ceiling {
-                reach.push(
-                    self.services
-                        .get(*service)
-                        .and_then(|(scope, _)| scope.portable_application_identity(self.typed))
-                        .and_then(|identity| self.typed.type_identity_text(identity))
-                        .filter(|identity| !identity.is_empty())
-                        .ok_or_else(|| {
-                            unavailable("retained service lost its exact application identity")
-                        })?,
-                );
             }
-            let reach: Vec<&str> = reach.iter().map(String::as_str).collect();
-            let metadata =
-                crate::declare::boundary(self.typed, *symbol, signature, &reach, &mut identities)
-                    .map_err(unavailable)?;
+            let [reach, entries] = rows
+                .each_ref()
+                .map(|row: &Vec<String>| row.iter().map(String::as_str).collect::<Vec<&str>>());
+            let metadata = crate::declare::boundary(
+                self.typed,
+                *symbol,
+                signature,
+                crate::declare::Published {
+                    reach: &reach,
+                    entries: &entries,
+                },
+                &mut identities,
+            )
+            .map_err(unavailable)?;
             let service = *terminal_check_tables::row(
                 &self.boundary_services,
                 boundary,

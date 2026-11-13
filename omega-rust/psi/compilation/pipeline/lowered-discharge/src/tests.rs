@@ -27,6 +27,7 @@ mod arithmetic_policies;
 mod arrays;
 mod boundary_calls;
 mod build_purpose;
+mod ceilings;
 mod empty_records;
 mod entry_inputs;
 mod guard_contradiction;
@@ -39,7 +40,6 @@ mod ranges;
 mod reach;
 mod references;
 mod result_summaries;
-mod service_reach;
 mod type_parameters;
 mod value_parameters;
 
@@ -180,7 +180,8 @@ fn lower(machines: Vec<Machine>) -> Checked<structure_elaboration::Elaboration> 
             result: Some(machine.result.into()),
             requires: machine.requires,
             ensures: machine.ensures,
-            reaches: structure_elaboration::ReachCeiling::Inferred,
+            reaches: structure_elaboration::Ceiling::Inferred,
+            invokes: structure_elaboration::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });
@@ -1762,7 +1763,8 @@ fn elaborate_over(
             result: Some(machine.result),
             requires: machine.requires,
             ensures: Vec::new(),
-            reaches: structure_elaboration::ReachCeiling::Inferred,
+            reaches: structure_elaboration::Ceiling::Inferred,
+            invokes: structure_elaboration::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });
@@ -6007,7 +6009,8 @@ mod generic_bodies {
                 result: Some(machine.result.into()),
                 requires: machine.requires,
                 ensures: machine.ensures,
-                reaches: structure_elaboration::ReachCeiling::Inferred,
+                reaches: structure_elaboration::Ceiling::Inferred,
+                invokes: structure_elaboration::Ceiling::Inferred,
                 crashes: CrashCeiling::DeclaredNone,
                 termination: structure_elaboration::Termination::Silent,
             });
@@ -6334,7 +6337,8 @@ fn crashing_below_ten(
         result: Some(u32_type().into()),
         requires: Vec::new(),
         ensures: Vec::new(),
-        reaches: structure_elaboration::ReachCeiling::Inferred,
+        reaches: structure_elaboration::Ceiling::Inferred,
+        invokes: structure_elaboration::Ceiling::Inferred,
         crashes: CrashCeiling::Authored(routes),
         termination: structure_elaboration::Termination::Silent,
     });
@@ -6422,7 +6426,8 @@ fn crashing_at_zero(requires: Vec<Proposition>) -> (structure_elaboration::Elabo
         result: Some(u32_type().into()),
         requires,
         ensures: Vec::new(),
-        reaches: structure_elaboration::ReachCeiling::Inferred,
+        reaches: structure_elaboration::Ceiling::Inferred,
+        invokes: structure_elaboration::Ceiling::Inferred,
         crashes: CrashCeiling::DeclaredNone,
         termination: structure_elaboration::Termination::Silent,
     });
@@ -6475,7 +6480,8 @@ fn calling_a_zero_route(
         result: Some(u32_type().into()),
         requires,
         ensures: Vec::new(),
-        reaches: structure_elaboration::ReachCeiling::Inferred,
+        reaches: structure_elaboration::Ceiling::Inferred,
+        invokes: structure_elaboration::Ceiling::Inferred,
         crashes: CrashCeiling::DeclaredNone,
         termination: structure_elaboration::Termination::Silent,
     });
@@ -6497,7 +6503,8 @@ fn calling_a_zero_route(
         result: Some(u32_type().into()),
         requires: Vec::new(),
         ensures: Vec::new(),
-        reaches: structure_elaboration::ReachCeiling::Inferred,
+        reaches: structure_elaboration::Ceiling::Inferred,
+        invokes: structure_elaboration::Ceiling::Inferred,
         crashes: CrashCeiling::Authored(trap_when(vec![terminal_psi::CrashRouteGuard::Predicate(
             terminal_psi::CrashPredicateTerm::new(Proposition::Equal(
                 formal(1, u32_type()),
@@ -6597,7 +6604,8 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             result: Some(u32_type().into()),
             requires: Vec::new(),
             ensures: Vec::new(),
-            reaches: structure_elaboration::ReachCeiling::Inferred,
+            reaches: structure_elaboration::Ceiling::Inferred,
+            invokes: structure_elaboration::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(caller_routes),
             termination: structure_elaboration::Termination::Silent,
         });
@@ -6619,7 +6627,8 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             result: Some(u32_type().into()),
             requires: Vec::new(),
             ensures: Vec::new(),
-            reaches: structure_elaboration::ReachCeiling::Inferred,
+            reaches: structure_elaboration::Ceiling::Inferred,
+            invokes: structure_elaboration::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(trap_when(vec![terminal_psi::CrashRouteGuard::Truth])),
             termination: structure_elaboration::Termination::Silent,
         });

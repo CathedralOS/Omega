@@ -739,6 +739,7 @@ mod selected_completion_contract_tests {
             content_guarantees: Vec::new(),
             fixed_service_reach: Vec::new(),
             owning_service: None,
+            published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
         }
     }

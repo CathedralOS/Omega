@@ -452,13 +452,15 @@ impl UnestablishedUse {
     }
 }
 
-/// One call that reaches a service outside its caller's service reach. A
-/// compile error of the program with no certificate: effects.md, "A derived
-/// reach that exceeds its ceiling rejects at the call that contributes the
-/// excess. The diagnostic names that call, the identities its requirement
-/// declares, and the ceiling."
+/// One call outside a ceiling its caller publishes: it reaches a service
+/// outside the caller's service reach, or may enter a callback outside the
+/// caller's `invokes`. A compile error of the program with no certificate:
+/// effects.md, "A derived reach that exceeds its ceiling rejects at the call
+/// that contributes the excess. The diagnostic names that call, the
+/// identities its requirement declares, and the ceiling."
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExceededReach {
+    pub axis: crate::ceilings::Axis,
     pub machine: MachineId,
     /// The call operation or edge.
     pub at: Construct,
@@ -469,7 +471,12 @@ pub struct ExceededReach {
 
 impl ExceededReach {
     pub fn message(&self) -> String {
-        format!("{} (service reach)", self.statement)
+        match self.axis {
+            crate::ceilings::Axis::Reach => format!("{} (service reach)", self.statement),
+            crate::ceilings::Axis::Entries => {
+                format!("{} (synchronous invocation)", self.statement)
+            }
+        }
     }
 
     /// The `Reject` diagnostic.
@@ -484,7 +491,7 @@ impl ExceededReach {
 
 fn exceeded_reach(
     elaboration: &Elaboration,
-    excess: crate::service_reach::Excess,
+    excess: crate::ceilings::Excess,
 ) -> Checked<ExceededReach> {
     let module = &elaboration.module;
     let services = |row: &[semantic_vocabulary::ServiceId]| {
@@ -520,18 +527,26 @@ fn exceeded_reach(
     };
     let ceiling = module
         .machine(excess.machine)
-        .map(|machine| machine.published_service_ceiling.as_slice())
+        .map(|machine| match excess.axis {
+            crate::ceilings::Axis::Reach => machine.published_service_ceiling.as_slice(),
+            crate::ceilings::Axis::Entries => machine.published_synchronous_entries.as_slice(),
+        })
         .unwrap_or_default();
+    let verb = match excess.axis {
+        crate::ceilings::Axis::Reach => "reaches",
+        crate::ceilings::Axis::Entries => "invokes",
+    };
     let site = match elaboration.sources.get(excess.machine) {
         Some(sources) => Some(source_of(sources, excess.machine, excess.at)?),
         None => None,
     };
     Ok(ExceededReach {
+        axis: excess.axis,
         machine: excess.machine,
         at: excess.at,
         site,
         statement: format!(
-            "machine `{}` reaches `{}` but its call of `{callee}` contributes `{}`, which adds `{}`",
+            "machine `{}` {verb} `{}` but its call of `{callee}` contributes `{}`, which adds `{}`",
             machine_name(excess.machine),
             services(ceiling),
             services(&excess.contributes),
@@ -913,7 +928,7 @@ pub(crate) fn judge_owing(
             });
         }
     }
-    let exceeded = match crate::service_reach::judge(&elaboration.module, &elaboration.tables) {
+    let exceeded = match crate::ceilings::judge(&elaboration.module, &elaboration.tables) {
         Ok(found) => found
             .into_iter()
             .map(|excess| exceeded_reach(&elaboration, excess))

@@ -76,7 +76,7 @@ impl<'t> Program<'t> {
         };
         // effects.md: "Every boundary-trait machine requirement must declare
         // that ceiling, using `reaches none` when it permits no services".
-        if signature.reaches == crate::ReachCeiling::Inferred {
+        if signature.reaches == crate::Ceiling::Inferred {
             return Err(unserved(
                 "boundary requirement must declare its reach ceiling",
             ));

@@ -76,8 +76,10 @@ pub fn prove_callable_refinement<'a>(
     // one is declared". The witness stands for the required contract and
     // calls the supplied one, so the per-call containment is that rule. A
     // supplied callable outside the ceiling is refused here, not reported
-    // as a rejection: this operation has no rejection of its own.
-    if let Some(excess) = crate::service_reach::judge(&witness.module, &witness.tables)?
+    // as a rejection: this operation has no rejection of its own. The same
+    // containment on the entries axis is "Bound the entries of every
+    // admitted implementation".
+    if let Some(excess) = crate::ceilings::judge(&witness.module, &witness.tables)?
         .into_iter()
         .next()
     {
@@ -85,7 +87,14 @@ pub fn prove_callable_refinement<'a>(
             RefusalReason::Unsupported,
             excess.machine,
             excess.at,
-            "supplied callable reaches a service outside the required ceiling",
+            match excess.axis {
+                crate::ceilings::Axis::Reach => {
+                    "supplied callable reaches a service outside the required ceiling"
+                }
+                crate::ceilings::Axis::Entries => {
+                    "supplied callable enters a callback outside the required invokes ceiling"
+                }
+            },
         ));
     }
     Ok(())

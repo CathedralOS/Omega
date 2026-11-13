@@ -180,9 +180,16 @@ pub(crate) fn boundary(
     // effects.md: a boundary requirement "publishes one stable interface
     // across providers", so its written ceiling is both what it may reach
     // and what a caller is charged.
-    let crate::ReachCeiling::Authored(reach) = &signature.reaches else {
+    let crate::Ceiling::Authored(reach) = &signature.reaches else {
         return Err(unavailable(
             "boundary declaration has no declared reach ceiling",
+        ));
+    };
+    // A requirement's `invokes` bounds "the entries of every admitted
+    // implementation"; the reader states omission as the empty row.
+    let crate::Ceiling::Authored(entries) = &signature.invokes else {
+        return Err(unavailable(
+            "boundary declaration has no declared entry ceiling",
         ));
     };
     let result = match result {
@@ -225,7 +232,7 @@ pub(crate) fn boundary(
         scalar_requires: signature.requires.clone(),
         scalar_ensures: signature.ensures.clone(),
         // The shared signature reader refuses declared domains, reference
-        // results, invokes, suspension and blocking before this point. Those
+        // results, suspension and blocking before this point. Those
         // actual unsupported dimensions cannot be replaced by empty claims.
         requires: Vec::new(),
         normal_qualifications: Vec::new(),
@@ -236,6 +243,7 @@ pub(crate) fn boundary(
         fixed_service_reach: reach.clone(),
         owning_service: Some(service),
         published_service_ceiling: reach.clone(),
+        published_synchronous_entries: entries.clone(),
     })
 }
 
@@ -821,10 +829,11 @@ impl<'a> Lowering<'a> {
         // same row when a clause is written; an omitted clause declares
         // nothing and publishes what the body's calls contribute.
         let declared_service_reach = match &self.signature.reaches {
-            crate::ReachCeiling::Authored(ceiling) => ceiling.clone(),
-            crate::ReachCeiling::Inferred => Vec::new(),
+            crate::Ceiling::Authored(ceiling) => ceiling.clone(),
+            crate::Ceiling::Inferred => Vec::new(),
         };
         let published_service_ceiling = outcome.service_reach.clone();
+        let published_synchronous_entries = outcome.synchronous_entries.clone();
         let contract = MachineContract {
             crash_routes,
             erased_scalar_formals: formals.erased,
@@ -858,6 +867,7 @@ impl<'a> Lowering<'a> {
             loan_completions: Vec::new(),
             declared_service_reach,
             closed_reach_application: None,
+            published_synchronous_entries,
             published_service_ceiling,
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),

@@ -103,26 +103,30 @@ pub(crate) fn declare(
             signatures.get(machine.id),
         ) {
             (Ok(sources), Some(symbol), Some(signature)) => {
-                let reach = machine
-                    .published_service_ceiling
-                    .iter()
-                    .map(|service| {
-                        services
-                            .iter()
-                            .find(|(id, _)| id == service)
-                            .map(|(_, identity)| identity.as_str())
-                            .filter(|identity| !identity.is_empty())
-                            .ok_or("a published service has no identity")
-                    })
-                    .collect::<Result<Vec<_>, _>>();
-                reach.and_then(|reach| {
+                let identities_of = |row: &[semantic_vocabulary::ServiceId]| {
+                    row.iter()
+                        .map(|service| {
+                            services
+                                .iter()
+                                .find(|(id, _)| id == service)
+                                .map(|(_, identity)| identity.as_str())
+                                .filter(|identity| !identity.is_empty())
+                                .ok_or("a published service has no identity")
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                };
+                identities_of(&machine.published_service_ceiling).and_then(|reach| {
+                    let entries = identities_of(&machine.published_synchronous_entries)?;
                     declaration(
                         typed,
                         sources,
                         *symbol,
                         signature,
                         machine,
-                        &reach,
+                        Published {
+                            reach: &reach,
+                            entries: &entries,
+                        },
                         &mut identities,
                     )
                 })
@@ -144,7 +148,7 @@ fn declaration(
     symbol: SymbolHandle,
     signature: &Signature,
     machine: &TerminalMachine,
-    reach: &[&str],
+    published: Published<'_>,
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<CheckedMachineDeclaration, &'static str> {
     let declared = typed
@@ -206,7 +210,7 @@ fn declaration(
             .map(|clause| &clause.proposition),
         &machine.contract.crash_routes,
         signature.termination,
-        reach,
+        published,
     );
 
     Ok(CheckedMachineDeclaration {
@@ -237,7 +241,7 @@ pub(crate) fn boundary(
     typed: &TypedTrees,
     symbol: SymbolHandle,
     signature: &Signature,
-    reach: &[&str],
+    published: Published<'_>,
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<
     (
@@ -300,7 +304,7 @@ pub(crate) fn boundary(
             .declared_crash_routes()
             .ok_or("boundary declaration has no published crash ceiling")?,
         signature.termination,
-        reach,
+        published,
     );
     let source = CheckedMachineDeclaration {
         machine: NominalDeclarationIdentity::new(owner_identity),
@@ -337,7 +341,7 @@ fn declaration_contract_commitment<'a>(
     ensures: impl IntoIterator<Item = &'a semantic_vocabulary::Proposition>,
     crash_routes: &[terminal_psi::CrashRouteBucket],
     termination: crate::Termination,
-    reach: &[&str],
+    published: Published<'_>,
 ) -> [u8; 32] {
     let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
     callable.hash(&mut commitment);
@@ -360,10 +364,23 @@ fn declaration_contract_commitment<'a>(
     // The published service reach is part of what a caller relies on. An
     // empty row adds nothing, so a contract with no reach commits as it
     // did before reach was read; a nonempty one is hashed with its length.
-    if !reach.is_empty() {
-        reach.hash(&mut commitment);
+    if !published.reach.is_empty() {
+        published.reach.hash(&mut commitment);
+    }
+    // So are the published synchronous entries. The axis is hashed before
+    // the row, so `invokes A` never commits as `reaches A`.
+    if !published.entries.is_empty() {
+        ("synchronous entries", published.entries).hash(&mut commitment);
     }
     commitment.0.finish()
+}
+
+/// The identities of the rows a declaration publishes on the two ceiling
+/// axes, in row order.
+#[derive(Clone, Copy)]
+pub(crate) struct Published<'a> {
+    pub reach: &'a [&'a str],
+    pub entries: &'a [&'a str],
 }
 
 /// The exact-owner identity of `symbol`: its package's, or its toolchain

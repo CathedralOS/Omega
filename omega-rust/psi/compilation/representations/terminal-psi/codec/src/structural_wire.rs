@@ -1279,6 +1279,7 @@ pub(crate) mod structural_signature_wire {
             fixed_service_reach: Ids,
             owning_service: OptionalId,
             published_service_ceiling: Ids,
+            published_synchronous_entries: Ids,
         }
         Callable: CheckedBoundaryCallable {
             source: MachineDeclaration,

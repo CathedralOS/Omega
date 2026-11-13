@@ -246,8 +246,9 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
             supplies_checked_body: false,
             type_parameter_count: typed.machine_type_parameters(source).len(),
             compiler_evaluation: evaluation,
-            // The reader rejects invokes; an empty list here is its actual
-            // admitted declaration, not a substitute for missing metadata.
+            // A machine with no `invokes` clause declares the empty list. A
+            // written clause names requirement identities, which this header
+            // has no complete declaration for, so it is unavailable here.
             synchronous_invocations: if source.invokes.is_empty() {
                 Ok(Vec::new())
             } else {
