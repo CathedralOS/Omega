@@ -112,8 +112,8 @@ pub struct AcceptedClosure {
 /// the module the route checked, and the evidence seals bound to that
 /// module's identity, which travel beside it in memory to Omega 00.
 #[derive(Debug)]
-pub struct RoutePublication {
-    pub artifact: terminal_codec::CanonicalTerminalArtifact,
+pub struct RoutePublication<Artifact = terminal_codec::CanonicalTerminalArtifact> {
+    pub artifact: Artifact,
     pub seals: terminal_codec::EvidenceSeals,
 }
 
@@ -161,15 +161,8 @@ impl AcceptedClosure {
     /// publication Psi 08 performs (`finalize_terminal_program`), from the
     /// route's module instead of Psi 06's.
     pub fn publish(&self) -> Result<RoutePublication, PublicationError> {
-        if !self.elaboration.requirements.is_empty() {
-            return Err(PublicationError::GenericCheckForm);
-        }
-        if let Some((machine, reason)) = self.elaboration.undeclared.first() {
-            return Err(PublicationError::Undeclared(*machine, reason));
-        }
+        self.validate_publication()?;
         let module = self.elaboration.module.clone();
-        terminal_semantics::activation_storage::validate_module(&module)
-            .map_err(|reason| PublicationError::Semantic(reason.to_owned()))?;
         let identity =
             terminal_codec::terminal_psi_identity(&module).map_err(PublicationError::Seals)?;
         let record = terminal_codec::PsiOptimizationExecutionRecord::new(
@@ -183,6 +176,32 @@ impl AcceptedClosure {
         let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None)
             .map_err(PublicationError::Artifact)?;
         Ok(RoutePublication { artifact, seals })
+    }
+
+    /// Publishes the exact invocation-scoped module that was judged. The
+    /// activation scope must already have been supplied to elaboration.
+    pub fn publish_invocation(
+        &self,
+    ) -> Result<RoutePublication<terminal_codec::InvocationTerminalCode>, PublicationError> {
+        self.validate_publication()?;
+        let module = self.elaboration.module.clone();
+        let seals = terminal_codec::EvidenceSeals::for_module(&module, self.seals.clone())
+            .map_err(PublicationError::Seals)?;
+        let artifact =
+            terminal_codec::InvocationTerminalCode::new(module).map_err(PublicationError::Seals)?;
+        Ok(RoutePublication { artifact, seals })
+    }
+
+    fn validate_publication(&self) -> Result<(), PublicationError> {
+        if !self.elaboration.requirements.is_empty() {
+            return Err(PublicationError::GenericCheckForm);
+        }
+        if let Some((machine, reason)) = self.elaboration.undeclared.first() {
+            return Err(PublicationError::Undeclared(*machine, reason));
+        }
+        terminal_semantics::activation_storage::validate_module(&self.elaboration.module)
+            .map_err(|reason| PublicationError::Semantic(reason.to_owned()))?;
+        Ok(())
     }
 }
 
@@ -746,6 +765,19 @@ pub fn judge_compilation(
     typed: &typed_trees::TypedTrees,
     compilation: structure_elaboration::Compilation<'_>,
 ) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
+    judge_compilation_for(
+        typed,
+        compilation,
+        terminal_codec::TerminalPublication::Portable,
+    )
+}
+
+/// Judges the exact publication scope supplied before structural elaboration.
+pub fn judge_compilation_for(
+    typed: &typed_trees::TypedTrees,
+    compilation: structure_elaboration::Compilation<'_>,
+    publication: terminal_codec::TerminalPublication,
+) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
     match crate::check_bound_callable_shapes(typed, compilation.bindings) {
         Ok(formations) if !formations.is_empty() => {
             return vec![Ok(RouteVerdict::Rejected {
@@ -758,7 +790,7 @@ pub fn judge_compilation(
         Ok(_) => {}
         Err(defect) => return vec![Err(CompilationRefusal::Binding(defect))],
     }
-    let elaborated = structure_elaboration::elaborate(typed, compilation);
+    let elaborated = structure_elaboration::elaborate_for(typed, compilation, publication);
     let (closure, templates) = match elaborated {
         Ok(mut elaboration) => {
             let templates = std::mem::take(&mut elaboration.generic_templates);

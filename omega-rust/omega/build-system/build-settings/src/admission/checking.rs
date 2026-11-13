@@ -39,8 +39,6 @@ inputs joined after Build ran; a constant that needs no provider folds the
 same way on either frontier.
 */
 
-use artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES;
-use build_time_evaluation::PreparedBuildMachineProgram;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use provider_planning::{ProviderPlanDerivation, ProviderPlanningContext};
@@ -260,20 +258,20 @@ pub fn settle_rejoined_build_slice(
     discharge_build_slice(typed, pre_checks, &settled.program)
 }
 
-pub(crate) fn prepare_checked_build(
+pub(crate) fn prepare_admitted_build(
     typed: &mut typed_trees::TypedTrees,
     pre_checks: &mut Vec<build_time_evaluation::PreCheckEvaluation>,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     dependency_activation: bool,
     execution_profile: Option<target::TargetProfile>,
-    timings: &mut artifacts::compile_timings::CompileTimings,
-    priors: &[&RetainedCheck],
-    retain: bool,
-    checked_slices: Option<&dyn psi_compiler::CheckedSliceStore>,
+    _timings: &mut artifacts::compile_timings::CompileTimings,
+    _priors: &[&RetainedCheck],
+    _retain: bool,
+    _checked_slices: Option<&dyn psi_compiler::CheckedSliceStore>,
 ) -> Result<
     (
-        PreparedBuildMachineProgram,
+        std::sync::Arc<psi_compiler::AcceptedTerminalSource>,
         super::provider_execution::BuildProviderPlans,
         Option<RetainedCheck>,
         bool, // A constant was folded under the provider plans.
@@ -301,69 +299,29 @@ pub(crate) fn prepare_checked_build(
             "Build admission settled its slice without provider plans",
         )]
     })?;
-    // A dependency's Build holds no source of its consumer, so its whole
-    // check may be reused; any other Build program only when it holds no
-    // source of the root package.
-    let target = execution_profile
-        .or_else(target::TargetProfile::host_if_supported)
-        .map(|profile| profile.target_name());
-    let checked_slices =
-        checked_slices
-            .zip(target)
-            .map(|(store, target)| psi_compiler::CheckedSliceReuse {
-                store,
-                target,
-                owner: if dependency_activation {
-                    psi_compiler::CheckedSliceOwner::Dependency
-                } else {
-                    psi_compiler::CheckedSliceOwner::Consumer(packages.map(|inputs| inputs.root()))
-                },
-            });
-    let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
-        let started = std::time::Instant::now();
-        let result = psi_compiler::CheckRequest {
-            program,
-            admission: psi_compiler::SourceAdmission {
-                declarations: packages
-                    .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
-                ..Default::default()
-            },
-            previous: priors,
-            retain,
-            library_slice: psi_compiler::LibrarySliceRequest {
-                root_package: packages.map(|inputs| inputs.root()),
-            },
-            checked_slices,
-        }
-        .check();
-        artifacts::compile_timings::counters::record_preliminary_check(started.elapsed());
-        if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
-            artifacts::compile_timings::counters::record_settled_check(started.elapsed());
-        }
-        result
-    })?;
-    let psi_compiler::CheckedSource {
-        program: checked,
-        retained,
-        ..
-    } = outcome;
-    let mut checked =
-        std::sync::Arc::try_unwrap(checked).unwrap_or_else(|shared| (*shared).clone());
-    selected_dispatch::settle_selected_comparison_execution(
-        &mut checked,
-        DependencyScope::Build,
-        &provenance,
-    )?;
-    discharge_build_slice(typed, pre_checks, &checked)?;
+    // Capture the source owner before the route judges it. Neither a prior
+    // checked tree nor a later source clone can substitute for this owner.
+    let program = std::sync::Arc::new(typed_trees::FrozenTypedTrees::from(program));
     let providers = super::provider_execution::BuildProviderPlans::capture(
-        &checked,
+        &program,
         selected_provider_plan_facts,
         &provenance,
     )?;
+    let accepted = psi_compiler::AcceptedTerminalSource::judge(
+        program,
+        psi_compiler::TerminalSourceCompilation {
+            entries: &[entry],
+            subject: packages.map(|inputs| inputs.root()),
+            selected: &[],
+            bindings: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )?;
+    discharge_build_slice(typed, pre_checks, accepted.source())?;
     Ok((
-        PreparedBuildMachineProgram::from_checked(checked),
+        std::sync::Arc::new(accepted),
         providers,
-        retained,
+        None,
         folded_under_plans,
     ))
 }

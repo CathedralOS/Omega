@@ -282,7 +282,7 @@ pub fn prepare_build_evaluation(
         .chain(completed_checks.iter().map(AsRef::as_ref))
         .collect::<Vec<_>>();
     let (prepared, providers, retained_check, provider_folded_constants) =
-        crate::admission::checking::prepare_checked_build(
+        crate::admission::checking::prepare_admitted_build(
             typed,
             pre_checks,
             selected_machine,

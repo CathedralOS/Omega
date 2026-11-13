@@ -28,17 +28,17 @@ pub(crate) struct BuildProviderInstallation {
 
 impl BuildProviderPlans {
     pub(crate) fn capture(
-        checked: &checked_trees::CheckedTrees,
+        typed: &typed_trees::TypedTrees,
         selected: effects::SelectedProviderPlanFacts,
         provenance: &[provider_planning::SelectedProviderReviewProvenance],
     ) -> Result<Self, Vec<Diagnostic>> {
         let toolchain =
-            source::source_identity::toolchain_source_identities(checked.symbols.source_files())
+            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let declarations =
             provider_planning::provider_declarations::retain_selected_provider_declarations(
                 provider_planning::ProviderPlanningContext::new(
-                    checked,
+                    typed,
                     source::DependencyScope::Build,
                 ),
                 &toolchain,

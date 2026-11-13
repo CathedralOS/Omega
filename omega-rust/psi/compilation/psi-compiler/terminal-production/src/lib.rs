@@ -29,6 +29,10 @@
 
 #![forbid(unsafe_code)]
 
+mod accepted;
+pub use accepted::AcceptedTerminalSource;
+pub use structure_elaboration::Compilation as TerminalSourceCompilation;
+
 mod build_bindings;
 pub(crate) use build_bindings::{
     build_filesystem, build_protocol, build_provider, build_queries, build_requests,
@@ -510,6 +514,7 @@ pub(crate) mod terminal_production {
                 crate::TerminalBuildFilesystem::new(program.view(), filesystem_calls);
             Ok(ProducedTerminalProgram {
                 program,
+                evidence: None,
                 build_bindings,
                 build_requests,
                 build_filesystem,

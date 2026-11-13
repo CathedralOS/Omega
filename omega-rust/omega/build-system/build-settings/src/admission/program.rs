@@ -14,7 +14,7 @@ code runs (`admit_build_program`).
   filesystem operations, and projects no restricted host requests.
 */
 
-use build_time_evaluation::{BuildEvaluationSponsor, PreparedBuildMachineProgram};
+use build_time_evaluation::BuildEvaluationSponsor;
 use diagnostics::Diagnostic;
 use package_compilation::BuildMachineFilesystemScope;
 use package_compilation::build_execution::RestrictedBuildRequest;
@@ -23,7 +23,7 @@ use symbols::SymbolHandle;
 
 #[must_use = "an admitted build program must prepare its execution"]
 pub(crate) struct AdmittedBuildProgram {
-    pub(crate) prepared: PreparedBuildMachineProgram,
+    pub(crate) prepared: std::sync::Arc<psi_compiler::AcceptedTerminalSource>,
     pub(crate) providers: super::provider_execution::BuildProviderPlans,
     pub(crate) machine: SelectedBuildMachine,
     pub(crate) filesystem_scope: BuildMachineFilesystemScope,
@@ -46,36 +46,18 @@ impl AdmittedBuildProgram {
 
     pub(crate) fn pure_consumption_inputs(
         &self,
-        packages: Option<&package_compilation::PackageCompilationInputs>,
-        snapshot: Option<&package_compilation::BuildSnapshotRequest>,
-        retained_check: Option<psi_compiler::RetainedCheck>,
+        _packages: Option<&package_compilation::PackageCompilationInputs>,
+        _snapshot: Option<&package_compilation::BuildSnapshotRequest>,
+        _retained_check: Option<psi_compiler::RetainedCheck>,
     ) -> Option<crate::activation::completed_pure_build::CompletedPureBuildInputs> {
-        if self.machine.filesystem_reachable
-            || self.machine.execution_mode != build_time_evaluation::BuildMachineExecutionMode::Pure
-            || !self.restricted_build_requests().is_empty()
-        {
-            return None;
-        }
-        let checked = self.prepared.checked_program()?;
-        crate::activation::completed_pure_build::CompletedPureBuildInputs::from_admitted(
-            checked,
-            retained_check,
-            self.providers.clone(),
-            self.machine.symbol,
-            self.machine.initial_build.clone(),
-            packages,
-            snapshot,
-            &self.filesystem_scope,
-            self.artifact_only,
-            self.default_source,
-            crate::activation::measurement(),
-            self.evaluation_sponsor.as_ref(),
-        )
+        // Legacy keys retain a CheckedTrees owner. Until a key binds this
+        // actual accepted module and source, no old key can authorize reuse.
+        None
     }
 }
 
 pub(crate) fn admit_build_program(
-    prepared: PreparedBuildMachineProgram,
+    prepared: std::sync::Arc<psi_compiler::AcceptedTerminalSource>,
     providers: super::provider_execution::BuildProviderPlans,
     machine_symbol: SymbolHandle,
     filesystem_scope: &BuildMachineFilesystemScope,
@@ -85,7 +67,7 @@ pub(crate) fn admit_build_program(
     source: package_compilation::BuildSourceSelection,
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
-    let typed = prepared.typed();
+    let typed = prepared.source();
     if !typed
         .symbols
         .symbol_source_span(machine_symbol)
@@ -95,16 +77,8 @@ pub(crate) fn admit_build_program(
             "Build entry differs from its source-owned selection",
         )]);
     }
-    let operational_plan = validation::infer_operational_may(typed);
-    let service_reach_plan = validation::infer_service_reaches(typed, &operational_plan);
-
     let mut filesystem_scope = filesystem_scope.clone();
-    let machine = admit_build_machine(
-        &prepared,
-        machine_symbol,
-        &service_reach_plan,
-        &mut filesystem_scope,
-    )?;
+    let machine = admit_build_machine(&prepared, machine_symbol, &mut filesystem_scope)?;
     Ok(AdmittedBuildProgram {
         prepared,
         providers,

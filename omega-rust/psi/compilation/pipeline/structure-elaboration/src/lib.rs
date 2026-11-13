@@ -339,7 +339,23 @@ pub(crate) fn refuse(machine: MachineId, concerns: Construct, unserved: Unserved
 /// Any refusal refuses the whole compilation, because a module missing a
 /// machine the check claims would be a silent drop.
 pub fn elaborate(typed: &TypedTrees, compilation: Compilation<'_>) -> Checked<Elaboration> {
+    elaborate_for(
+        typed,
+        compilation,
+        terminal_codec::TerminalPublication::Portable,
+    )
+}
+
+/// Fixes publication custody before any structural identity is minted. An
+/// invocation is judged with its actual activation scope, never rewritten
+/// from a portable module after acceptance.
+pub fn elaborate_for(
+    typed: &TypedTrees,
+    compilation: Compilation<'_>,
+    publication: terminal_codec::TerminalPublication,
+) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed, false);
+    program.publication = publication;
     let first = MachineId::new(1).expect("1 is nonzero");
     let Some((entry, others)) = compilation.entries.split_first() else {
         // A Terminal module names one entry machine, so a compilation that
@@ -585,12 +601,13 @@ fn finish_reading(
     }
     let private_inputs = program.private_input_contracts(entry)?;
     let local_results = program.local_result_bodies(entry)?;
-    let mut elaboration = lower_generic(
+    let mut elaboration = lower_generic_for(
         entry,
         &bodies,
         &program.signatures,
         &program.records,
         &program.requirements,
+        program.publication,
     )?;
     if let Some(typed) = declared {
         declare::declare(
@@ -650,6 +667,24 @@ pub fn lower_generic(
     records: &IdTable<StructuralTypeId, RecordType>,
     requirements: &[MachineId],
 ) -> Checked<Elaboration> {
+    lower_generic_for(
+        entry,
+        bodies,
+        signatures,
+        records,
+        requirements,
+        terminal_codec::TerminalPublication::Portable,
+    )
+}
+
+fn lower_generic_for(
+    entry: MachineId,
+    bodies: &IdTable<MachineId, Body>,
+    signatures: &IdTable<MachineId, Signature>,
+    records: &IdTable<StructuralTypeId, RecordType>,
+    requirements: &[MachineId],
+    publication: terminal_codec::TerminalPublication,
+) -> Checked<Elaboration> {
     for requirement in requirements {
         let body = terminal_check_tables::row(bodies, *requirement, entry, Construct::Machine)?;
         if !body.statements.is_empty() {
@@ -666,12 +701,18 @@ pub fn lower_generic(
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
     // record declares none and keeps the empty identity table.
-    let declared = lower::places::declare(entry, records, bodies, signatures)?;
-    if !declared.structural_types.is_empty() {
-        module.identities = declared.identities;
-        module.structural_types = declared.structural_types;
-        module.native_layouts = declared.native_layouts;
-    }
+    let identities = match publication {
+        terminal_codec::TerminalPublication::Portable => {
+            terminal_psi::TerminalIdentityTableBuilder::default()
+        }
+        terminal_codec::TerminalPublication::Invocation => {
+            terminal_psi::TerminalIdentityTableBuilder::for_invocation()
+        }
+    };
+    let declared = lower::places::declare(entry, records, bodies, signatures, identities)?;
+    module.identities = declared.identities;
+    module.structural_types = declared.structural_types;
+    module.native_layouts = declared.native_layouts;
     let mut tables = CheckTables::default();
     let mut sources = IdTable::default();
     for position in 1..=bodies.len() as u64 {
@@ -792,3 +833,53 @@ pub fn lower_generic(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod publication_scope_tests {
+    use super::*;
+
+    #[test]
+    fn invocation_scope_is_minted_before_lowering_even_without_records() {
+        let entry = MachineId::new(1).unwrap();
+        let mut bodies = IdTable::default();
+        bodies.push(Body {
+            slots: Vec::new(),
+            statements: Vec::new(),
+        });
+        let mut signatures = IdTable::default();
+        signatures.push(Signature {
+            parameters: Vec::new(),
+            erased: Vec::new(),
+            borrowed: Vec::new(),
+            result: None,
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            crashes: CrashCeiling::Authored(Vec::new()),
+            termination: Termination::Silent,
+        });
+        let lower = |publication| {
+            lower_generic_for(
+                entry,
+                &bodies,
+                &signatures,
+                &IdTable::default(),
+                &[],
+                publication,
+            )
+            .unwrap()
+        };
+        let first = lower(terminal_codec::TerminalPublication::Invocation);
+        let second = lower(terminal_codec::TerminalPublication::Invocation);
+        let portable = lower(terminal_codec::TerminalPublication::Portable);
+        assert!(portable.module.identities.invocation_scope().is_none());
+        let first_scope = first.module.identities.invocation_scope().unwrap();
+        let second_scope = second.module.identities.invocation_scope().unwrap();
+        assert_ne!(first_scope, second_scope);
+        let first_code = terminal_codec::InvocationTerminalCode::new(first.module).unwrap();
+        let second_code = terminal_codec::InvocationTerminalCode::new(second.module).unwrap();
+        assert_ne!(
+            first_code.view().custody_identity(),
+            second_code.view().custody_identity()
+        );
+    }
+}

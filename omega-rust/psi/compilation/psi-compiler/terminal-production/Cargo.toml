@@ -5,6 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+lowered-discharge = { path = "../../pipeline/lowered-discharge" }
+structure-elaboration = { path = "../../pipeline/structure-elaboration" }
 compiler-storage = { path = "../../../foundation/compiler-storage" }
 validation = { path = "../../validation" }
 language-semantics = { path = "../../../foundation/language-semantics" }
