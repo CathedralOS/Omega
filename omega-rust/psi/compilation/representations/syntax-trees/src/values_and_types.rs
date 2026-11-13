@@ -1902,10 +1902,10 @@ pub mod values {
             pub arguments: Box<[StaticMachineArgument]>,
         }
 
-        // A path keeps each static telescope on the component it applies to.
-        // Ordinary value names have no application. Describing such a path is
-        // distinct from invoking it and uses the same application representation
-        // as a static argument.
+        // A declaration query needs the chosen arguments of each owner and
+        // member. Keep their type, constant and lifetime arguments in the
+        // existing static-call form. This describes a declaration without
+        // invoking it; ordinary value names have no application.
         #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
         pub struct TableNamePath {
             pub members: HandleSpan<Identifier>,
