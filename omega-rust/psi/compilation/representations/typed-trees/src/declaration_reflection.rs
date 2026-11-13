@@ -314,9 +314,9 @@ pub mod reflection {
             } else {
                 declaration
             };
-            crate::type_identity::applied_type_identity_in_region_scope(
+            crate::type_identity::descriptive_type_identity_in_region_scope(
                 typed,
-                reference,
+                crate::type_identity::TypeIdentityRequest::package_qualified(reference),
                 owner,
                 owner,
                 &[],
@@ -1384,6 +1384,25 @@ pub mod reflection {
                 [graph.root()]
             );
             assert_eq!(graph.nodes().len(), 3);
+            assert!(
+                graph
+                    .fields()
+                    .next()
+                    .unwrap()
+                    .1
+                    .qualified_type
+                    .contains("elided-region")
+            );
+            assert!(
+                crate::type_identity::portable_applied_type_identity(
+                    &program,
+                    reference,
+                    field,
+                    &[],
+                )
+                .is_none(),
+                "a declared description does not establish a portable reference region"
+            );
             let foreign = SchemaQueryAuthority::ForeignScope {
                 requester_identity: "consumer".to_owned(),
             };
