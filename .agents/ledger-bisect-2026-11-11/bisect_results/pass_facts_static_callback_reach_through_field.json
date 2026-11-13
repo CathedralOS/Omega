@@ -1,0 +1,30 @@
+{
+  "witness": "pass/facts/static_callback_reach_through_field",
+  "good": "250bd1799699c18d601bca7a56f0b0d1148edd7e",
+  "bad_pin": "51e8c45c793007f211d0d9baee7de16767172444",
+  "fixture_add": "3c1b7104e4f62b22ddd31502f076fb3bf5ab7bef",
+  "breaking_commit": "c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30",
+  "pr": "1880",
+  "mechanism": "compiler: preserve array contracts across calls and state changes (#1880) \u2014 .../src/native_artifact/mixed_structural_scalar.rs |   1 +; .../src/physical/derivation/tests.rs               |   3 +; .../function_fragments/source/structural_case.rs   |   2 +; .../source/structural_fields/tests.rs              |   6 +",
+  "status": "bisected",
+  "stable": true,
+  "bisect_rc": 1,
+  "method": "pin-fixed-ledger",
+  "exit_codes_first_bad": [
+    0,
+    0,
+    0
+  ],
+  "exit_codes_first_parent": [
+    125,
+    1,
+    1
+  ],
+  "membership_pin_check": {
+    "pass/domains/private_case_payload_construction": [
+      1,
+      1,
+      1
+    ]
+  }
+}

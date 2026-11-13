@@ -20,8 +20,15 @@ PIN `51e8c45c793007f211d0d9baee7de16767172444`. PIN-fixed ledger + observation; 
 
 - **Diagnostic:** data `Locator` literal cannot prove the default domain: a `requires` fact is not established by the values observed at t
 - **Witness:** `pass/facts/static_callback_reach_through_field`
-- **Status:** pending
+- **Status:** bisected
+- **First bad:** `c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30`
+- **PR:** 1880
+- **Mechanism:** compiler: preserve array contracts across calls and state changes (#1880) — .../src/native_artifact/mixed_structural_scalar.rs |   1 +; .../src/physical/derivation/tests.rs               |   3 +; .../function_fragments/source/structural_case.rs   |   2 +; .../source/structural_fields/tests.rs              |   6 +
+- **Exit codes @ first-bad (3×):** 0,0,0
+- **Exit codes @ first parent (3×):** 125,1,1
 - **Members:** `pass/domains/private_case_payload_construction`, `pass/facts/static_callback_reach_through_field`
+- **Membership @ PIN (3× each, pin-fixed):**
+  - `pass/domains/private_case_payload_construction`: 1,1,1
 
 ## Cluster 2 (1 rows)
 
