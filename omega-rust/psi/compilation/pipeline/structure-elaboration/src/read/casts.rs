@@ -232,9 +232,13 @@ impl Program<'_> {
                 // leave behind is not kept on the plain value here, so only
                 // a domain anyone may add again is removed.
                 _ => {
-                    let free = self.typed.domain_definition(domain).is_some_and(|definition| {
-                        definition.issuance() == typed_trees::domain::DomainIssuance::Unrestricted
-                    });
+                    let free = self
+                        .typed
+                        .domain_definition(domain)
+                        .is_some_and(|definition| {
+                            definition.issuance()
+                                == typed_trees::domain::DomainIssuance::Unrestricted
+                        });
                     if !free {
                         return unserved("removal of a domain with restricted issuance");
                     }

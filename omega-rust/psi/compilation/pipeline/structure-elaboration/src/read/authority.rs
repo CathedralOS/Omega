@@ -126,15 +126,16 @@ impl Program<'_> {
         let mut pending = vec![value_type];
         while let Some(value_type) = pending.pop() {
             for domain in value_type.qualification().domains.members() {
-                let free = self.typed.domain_definition(domain).is_some_and(|definition| {
-                    !has_predicates(definition)
-                        && definition.issuance()
-                            == typed_trees::domain::DomainIssuance::Unrestricted
-                });
+                let free = self
+                    .typed
+                    .domain_definition(domain)
+                    .is_some_and(|definition| {
+                        !has_predicates(definition)
+                            && definition.issuance()
+                                == typed_trees::domain::DomainIssuance::Unrestricted
+                    });
                 if !free {
-                    return unserved(
-                        "zero-established value in a domain that must be established",
-                    );
+                    return unserved("zero-established value in a domain that must be established");
                 }
             }
             let ValueType::Record(record, _) = value_type else {

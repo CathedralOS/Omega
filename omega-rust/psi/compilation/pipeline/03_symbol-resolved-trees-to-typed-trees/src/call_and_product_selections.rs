@@ -1978,9 +1978,7 @@ pub(crate) mod construction_destinations {
                 landed.type_reference_table.type_reference(record)
             );
             assert_eq!(
-                landed
-                    .type_reference_table
-                    .operand_lifetime_owner(required),
+                landed.type_reference_table.operand_lifetime_owner(required),
                 writer
             );
 
