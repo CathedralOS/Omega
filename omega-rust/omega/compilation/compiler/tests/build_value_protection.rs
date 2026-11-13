@@ -186,9 +186,11 @@ machine wrong(builder: &mut Build) {
 ",
         "owned extraction from borrowed storage",
     );
+    // The result states the lent value's region, so it is the extraction
+    // itself, not an unrelated region, that is refused.
     refused_with(
         "returned",
-        "machine wrong(builder: &mut Build) -> Build {\n    builder\n}\n",
+        "machine wrong<'storage>(builder: &mut Build<'storage>) -> Build<'storage> {\n    builder\n}\n",
         "owned extraction from borrowed storage",
     );
 }

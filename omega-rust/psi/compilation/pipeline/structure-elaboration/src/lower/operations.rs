@@ -106,7 +106,7 @@ impl Lowering<'_> {
         // A record-typed expression names storage; its value is a root that
         // holds it. Everything below is scalar or Unit.
         let result = match expression.result {
-            Some(ValueType::Record(_, _)) => return self.record(expression).map(Value::Record),
+            Some(ValueType::Record(_, _, _)) => return self.record(expression).map(Value::Record),
             Some(ValueType::Scalar(scalar_type, _)) => Some(scalar_type),
             // A value of a rigid type is only ever named: no operation
             // produces one, so no result row is minted for it here.
