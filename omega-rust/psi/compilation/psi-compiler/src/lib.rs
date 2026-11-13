@@ -1,13 +1,7 @@
 /*
-    Target-neutral Psi source compilation facade: source-frontier parsing,
-    resolver and typing continuations across Build execution, whole-program and
-    library-slice checking, and invocation-shared portable Terminal production.
-
-    We load and parse admitted source frontiers into arena-backed syntax pages,
-    drive symbol resolution and seeded typing through `SourceContinuation` and
-    `CompletedSource`, admit post-join Product policies, check typed programs
-    against fresh invocation authority or matching retained judgments, and
-    re-export `psi-terminal-production` for checked-to-Terminal lowering.
+    Target-neutral source parsing, resolution, typing, and preparation. This
+    facade supplies frozen typed input to the lowered-form checker; it produces
+    no source-checker judgment, checked-tree cache, or selected checked product.
 */
 
 /*
@@ -22,7 +16,7 @@
     parsing, `source_compilation` (`SourceCompilationRequest`,
     `SourceContinuation`, and `CompletedSource`) for the resolver/typing
     continuation and Product policy admission, `source_checking`
-    (`SourcePreparationRequest` and `PreparedSource`) before lowered-form
+    (`SourcePreparationRequest` and `FrozenSource`) before lowered-form
     checking, and `portable_productions` (`PortableProductions`) for sharing
     identical portable Terminal productions within an invocation.
 */
@@ -537,7 +531,7 @@ pub(crate) mod source_parsing {
 
 pub use portable_productions::{PortableProductionInputs, PortableProductions};
 pub use source_checking::{
-    PreparedSource, ProductRepresentationInput, SourceAdmission, SourcePreparationRequest,
+    FrozenSource, ProductRepresentationInput, SourceAdmission, SourcePreparationRequest,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,

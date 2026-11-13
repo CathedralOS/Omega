@@ -2512,14 +2512,6 @@ fn main() {
     }
     // Every fixture ran to completion, so nothing still uses the staging root.
     sealed_fixture_staging::discard_staged_snapshots(0);
-    // Equal slice keys are checks a library-slice reuse would not repeat.
-    let slices = compiler::library_slice_totals();
-    eprintln!(
-        "corpus_runner: library slices: {} distinct, {} computed",
-        slices.distinct, slices.computed
-    );
-    let (loaded, saved) = compiler::checked_slice_totals();
-    eprintln!("corpus_runner: checked slices: {loaded} loaded, {saved} saved");
     // Detached stragglers from timed-out fixtures die with the process here.
     process::exit(0);
 }

@@ -1,11 +1,8 @@
-// Exact authored crash guards in policy-only nested static signatures.
+//! Legacy evidence reconstruction is unavailable after source-checker removal.
 
 use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
-use crate::capture::semantics::facts::exactly_one;
-use crate::record::{
-    PackagePolicyCrashGuard, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
-};
+use crate::record::PackageReviewCrashRoute;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::signature::StateSignature;
@@ -18,6 +15,6 @@ pub(crate) fn project(
     _binders: &[(SymbolHandle, String)],
 ) -> Result<Vec<PackageReviewCrashRoute>, Vec<Diagnostic>> {
     Err(vec![diagnostics::Diagnostic::error(
-        "no product route yet: package review requires lowered-form evidence",
+        "no product route yet: package-review static signature crash evidence",
     )])
 }

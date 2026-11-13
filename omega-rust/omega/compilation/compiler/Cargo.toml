@@ -123,10 +123,6 @@ harness = false
 name = "terminal_decode_once"
 path = "tests/terminal_decode_once.rs"
 
-[[test]]
-name = "retained_layout_match"
-path = "tests/retained_layout_match.rs"
-
 # A source compile publishes Psi without a separate core supplier activation.
 [[test]]
 name = "core_build_activation"

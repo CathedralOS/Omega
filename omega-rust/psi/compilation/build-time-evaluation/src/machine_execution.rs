@@ -25,31 +25,23 @@ pub(crate) mod admission {
     use crate::syntax_probes::PreparedEvaluationInputs;
 
     mod closure_validation {
-        use super::{
-            BuildTimeAdmissionPlan, BuildTimeCallEdge, BuildTimeProgram, RecursiveCheckingInput,
-        };
+        use super::{BuildTimeAdmissionPlan, BuildTimeCallEdge, BuildTimeProgram};
         use crate::build_time_evaluation::{expression_table, type_reference_table};
-        use language_semantics::{MachineSupplyMode, Multiplicity, TerminationGuarantee};
+
         use symbols::{SymbolHandle, SymbolKind};
         use typed_trees::TypedTrees;
         use typed_trees::machine::Machine;
         use typed_trees::signature::{SignatureContract, StateSignature};
 
         pub(super) fn checked_closure_violation<'request>(
-            admission: &'request BuildTimeAdmissionPlan,
-            input: BuildTimeProgram<'request>,
-            call_edges: &[BuildTimeCallEdge],
-            execution: &dyn validation::CheckingInput,
-            root: &Machine,
-            discharge_authored_requires: bool,
+            _admission: &'request BuildTimeAdmissionPlan,
+            _input: BuildTimeProgram<'request>,
+            _call_edges: &[BuildTimeCallEdge],
+            _execution: &dyn validation::CheckingInput,
+            _root: &Machine,
+            _discharge_authored_requires: bool,
         ) -> Option<String> {
-            machine_termination_violation(
-                call_edges,
-                execution,
-                root.symbol,
-                &mut ClosureWalk::new(admission, input, root.symbol),
-                discharge_authored_requires,
-            )
+            Some("no product route yet: compile-time closure proof".into())
         }
 
         pub(super) fn closure_has_authored_requires(
@@ -195,94 +187,10 @@ pub(crate) mod admission {
                 })
         }
 
-        struct ClosureWalk<'request> {
-            admission: &'request BuildTimeAdmissionPlan,
-            input: BuildTimeProgram<'request>,
-            root: SymbolHandle,
-            recursion_input: Option<RecursiveCheckingInput<'request>>,
-            completed: Vec<SymbolHandle>,
-            active: Vec<SymbolHandle>,
-            path: Vec<String>,
-            recursive_terminations: Vec<checked_trees::CheckedRuntimeRankMember>,
-        }
-
-        impl<'request> ClosureWalk<'request> {
-            fn new(
-                admission: &'request BuildTimeAdmissionPlan,
-                input: BuildTimeProgram<'request>,
-                root: SymbolHandle,
-            ) -> Self {
-                Self {
-                    admission,
-                    input,
-                    root,
-                    recursion_input: None,
-                    completed: Vec::new(),
-                    active: Vec::new(),
-                    path: Vec::new(),
-                    recursive_terminations: Vec::new(),
-                }
-            }
-
-            fn recursive_terminations(
-                &mut self,
-                _machine: SymbolHandle,
-                _body: arena::HandleSpan<typed_trees::state::State>,
-            ) -> Result<Vec<checked_trees::CheckedRuntimeRankMember>, String> {
-                Err(
-                    "no product route yet: compile-time proof requires the lowered-form checker"
-                        .into(),
-                )
-            }
-        }
-
-        fn machine_termination_violation(
-            _call_edges: &[BuildTimeCallEdge],
-            _input: &dyn validation::CheckingInput,
-            _machine_symbol: SymbolHandle,
-            _walk: &mut ClosureWalk<'_>,
-            _discharge_authored_requires: bool,
-        ) -> Option<String> {
-            Some(
-                "no product route yet: compile-time proof requires the lowered-form checker".into(),
-            )
-        }
-
-        fn machine_precondition_violation(
-            program: &TypedTrees,
-            machine: &Machine,
-            path: &[String],
-        ) -> Option<String> {
-            if has_authored_requires(program.machine_contracts(machine)) {
-                return Some(format!(
-                    "machine `{}` has an authored `requires` premise along `{}`; pre-check semantic evaluation has no checked invocation proof for that premise",
-                    machine.name,
-                    path.join(" -> ")
-                ));
-            }
-            program.machine_states(machine).iter().find_map(|state| {
-        has_authored_requires(program.state_contracts(state)).then(|| {
-            format!(
-                "state `{}` has an authored `requires` premise along `{}`; pre-check semantic evaluation has no checked invocation proof for that premise",
-                state.name,
-                path.join(" -> ")
-            )
-        })
-    })
-        }
-
         pub(super) fn has_authored_requires(contracts: &[SignatureContract]) -> bool {
             contracts.iter().any(|contract| {
                 contract.kind == typed_trees::signature::SignatureContractKind::Requires
             })
-        }
-
-        fn machine_linear_carrier_violation(
-            program: &TypedTrees,
-            machine: &Machine,
-            _path: &[String],
-        ) -> Option<String> {
-            validation::compiler_evaluation::linear_carrier_violation(program, machine)
         }
 
         fn callable_signature(
@@ -312,60 +220,11 @@ pub(crate) mod admission {
                 has_authored_requires(program.state_signature_contracts(signature))
             })
         }
-
-        fn callable_contract_violation(
-            program: &TypedTrees,
-            symbol: SymbolHandle,
-            path: &[String],
-            discharge_authored_requires: bool,
-        ) -> Option<String> {
-            let signature = callable_signature(program, symbol)?;
-
-            if !discharge_authored_requires
-                && has_authored_requires(program.state_signature_contracts(signature))
-            {
-                return Some(format!(
-                    "callable contract `{}` has an authored `requires` premise along `{}`; pre-check semantic evaluation has no checked invocation proof for that premise",
-                    signature.name,
-                    path.join(" -> ")
-                ));
-            }
-
-            for parameter in program.state_signature_parameters(signature) {
-                if program.type_multiplicity(parameter.type_reference) == Multiplicity::Linear {
-                    return Some(format!(
-                        "callable contract `{}` parameter `{}` has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
-                        signature.name,
-                        parameter.name,
-                        program.display_type_reference(parameter.type_reference),
-                        path.join(" -> ")
-                    ));
-                }
-            }
-            if program.type_multiplicity(signature.return_type) == Multiplicity::Linear {
-                return Some(format!(
-                    "callable contract `{}` result has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
-                    signature.name,
-                    program.display_type_reference(signature.return_type),
-                    path.join(" -> ")
-                ));
-            }
-
-            if signature.termination_guarantee.promises_termination() {
-                return None;
-            }
-
-            let name = signature.name.as_str();
-            Some(format!(
-                "callable contract `{name}` reached from `{}` publishes no `Terminates` guarantee",
-                path.join(" -> ")
-            ))
-        }
     }
     mod concrete_invocation {
         use symbols::{SymbolHandle, SymbolKind};
         use typed_trees::TypedTrees;
-        use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+        use typed_trees::expression::ExpressionHandle;
         use typed_trees::machine::Machine;
         use typed_trees::state::State;
         use typed_trees::statement::{StatementNode, TableTransition, TransitionTargetNode};
@@ -373,7 +232,6 @@ pub(crate) mod admission {
         use super::BuildTimeProgram;
         use super::closure_validation::has_authored_requires;
         use crate::syntax_probes::PreparedEvaluationInputs;
-        use typed_trees_to_typed_trees::prepare_typed_trees;
 
         pub(super) fn zero_argument_invocation_discharges(
             program: &TypedTrees,
@@ -390,22 +248,6 @@ pub(crate) mod admission {
             _source_span: Option<source::SourceSpan>,
         ) -> Result<(), String> {
             Err("no product route yet: compile-time proof requires the lowered-form checker".into())
-        }
-
-        fn probe_name_path(
-            probe: &mut TypedTrees,
-            symbol: SymbolHandle,
-            name: typed_trees::name::Identifier,
-        ) -> typed_trees::expression::TableNamePath {
-            let mut members = arena::HandleSpan::empty();
-            probe
-                .expression_table
-                .push_name_path_member(&mut members, name);
-            let mut member_symbols = arena::HandleSpan::empty();
-            probe
-                .expression_table
-                .push_name_path_member_symbol(&mut member_symbols, symbol);
-            typed_trees::expression::TableNamePath::new(members, member_symbols, symbol, symbol)
         }
 
         pub(super) fn require_empty_failure_summary(
@@ -473,68 +315,6 @@ pub(crate) mod admission {
                 .iter()
                 .find(|state| state.name.as_str() == leaf)
                 .or_else(|| states.first())
-        }
-
-        pub(crate) struct SnapshotArgument {
-            pub original: ExpressionHandle,
-            pub literal: ExpressionNode,
-        }
-
-        pub(crate) fn snapshot_arguments_discharge(
-            _admission: &super::BuildTimeAdmissionPlan,
-            _program: &TypedTrees,
-            _retained: &[SymbolHandle],
-            _owner: SymbolHandle,
-            _probe_name: &str,
-            _preparation_request: &typed_trees_to_typed_trees::PreparationRequest,
-            _expression: ExpressionHandle,
-            _callee: &str,
-            _return_type: typed_trees::types::TypeReferenceHandle,
-            _snapshots: Vec<SnapshotArgument>,
-        ) -> Result<(), String> {
-            Err("no product route yet: compile-time proof requires the lowered-form checker".into())
-        }
-
-        fn require_public_call_floor(
-            checked: &checked_trees::CheckedTrees,
-            owner: SymbolHandle,
-            expression: ExpressionHandle,
-            callee: &str,
-        ) -> Result<(), String> {
-            let program = checked.typed.as_ref();
-            let call = program
-                .expression_table
-                .call_node(expression)
-                .ok_or("checked constant invocation has no call expression")?;
-            let site = validation::CallSite::Expression { expression, call };
-            if call.static_requirement_dispatch.is_none()
-                && validation::selected_requirement_signature(program, call.target_symbol).is_none()
-            {
-                return Ok(());
-            }
-            let (_, signature) = validation::resolve_requirement_contract(program, owner, &site)?;
-            let services = validation::trait_signature_service_reach(checked, signature.symbol)
-                .ok_or("constant call has no exact applied public service envelope")?;
-            let services = services
-                .iter()
-                .map(|service| {
-                    program
-                        .service_reaches
-                        .definition(*service)
-                        .map(|definition| definition.name.to_string())
-                        .ok_or("constant call's public envelope names an unavailable service")
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            semantic_vocabulary::compiler_evaluation::require_compiler_evaluation_floor(
-                callee,
-                &semantic_vocabulary::compiler_evaluation::CompilerEvaluationEffects {
-                    services,
-                    may_suspend: signature.suspends,
-                    may_block: signature.blocks,
-                },
-                None,
-                None,
-            )
         }
 
         pub(super) fn append_invocation_probe(
@@ -1322,11 +1102,6 @@ pub(crate) mod admission {
         }
     }
 
-    pub(crate) use concrete_invocation::{
-        SnapshotArgument,
-        require_complete_invocation_conditions as require_complete_checked_conditions,
-        snapshot_arguments_discharge,
-    };
     pub(crate) mod const_evaluable {
         use language_semantics::{DataSupplyMode, Multiplicity};
         use typed_trees::TypedTrees;
@@ -2114,11 +1889,10 @@ pub(crate) mod admission {
         }
     }
     mod selection_authority {
-        use crate::build_time_evaluation::expression_table;
-        use language_semantics::declaration_selection::BuildOperation;
+
         use semantic_vocabulary::PackageKeyIdentity;
         use source::{SourceOrigin, SourceSpan};
-        use symbols::{SymbolHandle, SymbolKind};
+        use symbols::SymbolHandle;
         use typed_trees::{
             TypedTrees,
             expression::{ExpressionHandle, ExpressionNode},
@@ -2128,8 +1902,7 @@ pub(crate) mod admission {
         };
 
         use super::{BuildTimeCallEdge, BuildTimeInvocationCustody, BuildTimeSelectionAuthority};
-        use typed_trees::AuthoredDeclarationSelectionTarget;
-        use validation::compiler_operations::build_product_request_intrinsic;
+
         use validation::has_builtin_binary_expression_meaning;
 
         #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2534,104 +2307,6 @@ pub(crate) mod admission {
             Some(SelectionViolation::unlocated(
                 "no product route yet: compile-time proof requires the lowered-form checker".into(),
             ))
-        }
-
-        fn unresolved_spelling_confinement(
-            program: &TypedTrees,
-            spelling: &str,
-            requester: PackageCustody,
-            authority: &dyn BuildTimeSelectionAuthority,
-            binding: typed_trees::AuthoredDeclarationSelectionLateBinding,
-        ) -> Result<(), String> {
-            use typed_trees::AuthoredDeclarationSelectionLateBinding as Binding;
-
-            if !matches!(
-                binding,
-                Binding::CheckedCall
-                    | Binding::CheckedMember
-                    | Binding::CheckedStaticPathSegment
-                    | Binding::CheckedStructLiteralType
-                    | Binding::CheckedStructLiteralCase
-                    | Binding::CheckedStructLiteralField
-            ) {
-                return Err(format!(
-                    "a {binding:?} occurrence has no spelling-confinement route"
-                ));
-            }
-            let candidates = program
-                .symbols
-                .symbols()
-                .nodes()
-                .iter()
-                .filter_map(|(symbol, data)| {
-                    (program.symbols.name(symbol) == spelling
-                        && candidate_kind_matches_binding(data.kind, binding))
-                    .then_some(symbol)
-                })
-                .collect::<Vec<_>>();
-            if candidates.is_empty() {
-                return Err(format!(
-                    "no declaration spelled `{spelling}` exists in the program"
-                ));
-            }
-            for candidate in candidates {
-                if let Some(violation) = require_selection(
-                    program,
-                    requester,
-                    package_for_symbol(program, candidate),
-                    authority,
-                    "candidate for an unresolved build-time declaration selection",
-                ) {
-                    return Err(format!(
-                        "`{}` is not: {violation}",
-                        program.symbols.display_path(candidate, "::")
-                    ));
-                }
-            }
-            Ok(())
-        }
-
-        fn candidate_kind_matches_binding(
-            kind: SymbolKind,
-            binding: typed_trees::AuthoredDeclarationSelectionLateBinding,
-        ) -> bool {
-            use typed_trees::AuthoredDeclarationSelectionLateBinding as Binding;
-
-            match binding {
-                Binding::CheckedCall => matches!(
-                    kind,
-                    SymbolKind::BuiltinFunction
-                        | SymbolKind::Function
-                        | SymbolKind::Machine
-                        | SymbolKind::MachineParameter
-                        | SymbolKind::State
-                        | SymbolKind::Trait
-                        | SymbolKind::ConformanceParameter
-                ),
-                Binding::CheckedMember | Binding::CheckedStructLiteralField => {
-                    matches!(kind, SymbolKind::Field | SymbolKind::State)
-                }
-                Binding::CheckedStaticPathSegment => !matches!(
-                    kind,
-                    SymbolKind::Root
-                        | SymbolKind::Local
-                        | SymbolKind::Parameter
-                        | SymbolKind::TypeParameter
-                        | SymbolKind::ConformanceParameter
-                        | SymbolKind::MachineParameter
-                        | SymbolKind::PropositionParameter
-                        | SymbolKind::PropositionMachineParameter
-                ),
-                Binding::CheckedStructLiteralType => {
-                    matches!(kind, SymbolKind::BuiltinType | SymbolKind::Data)
-                }
-                Binding::CheckedStructLiteralCase => matches!(kind, SymbolKind::Variant),
-                Binding::CheckedCaseMembership
-                | Binding::CheckedDomainMembership
-                | Binding::CheckedStaticArgument
-                | Binding::CheckedOperator
-                | Binding::CheckedConformance => false,
-            }
         }
 
         fn target_operator_symbol(
@@ -3856,38 +3531,6 @@ pub(crate) mod admission {
             Ok(measured)
         }
 
-        pub(crate) fn require_const_evaluable_invocation(
-            &self,
-            program: &TypedTrees,
-            machine: &Machine,
-            arguments: &[BuildTimeValue],
-            custody: BuildTimeInvocationCustody,
-            discharge_authored_requires: bool,
-        ) -> Result<(), String> {
-            let discharge_authored_requires = discharge_authored_requires
-                || self.zero_argument_invocation_discharge(
-                    program,
-                    machine,
-                    arguments,
-                    Some(custody),
-                );
-            if discharge_authored_requires {
-                self.require_common_floor_for_concrete_premise_invocation(
-                    program, machine, custody,
-                )?;
-            } else {
-                self.require_common_floor_for_invocation(program, machine, custody)?;
-            }
-            let mut snapshots = arguments.to_vec();
-            self.require_invocation_failures(
-                BuildTimeProgram::Typed(program),
-                machine,
-                &mut snapshots,
-                Some(custody),
-            )?;
-            Ok(())
-        }
-
         fn machine_suspension(&self, machine_symbol: SymbolHandle) -> Option<bool> {
             self.suspension
                 .iter()
@@ -4649,7 +4292,6 @@ pub(crate) mod build_machines {
 
     pub struct PreparedBuildMachineProgram {
         program: PreparedBuildMachineBody,
-        identity: Arc<PreparedBuildMachineProgramIdentity>,
     }
 
     enum PreparedBuildMachineBody {
@@ -4665,12 +4307,7 @@ pub(crate) mod build_machines {
 
     #[derive(Clone)]
     pub struct PreparedBuildMachineEntry {
-        program_identity: Arc<PreparedBuildMachineProgramIdentity>,
         symbol: SymbolHandle,
-    }
-
-    struct PreparedBuildMachineProgramIdentity {
-        _private: u8,
     }
 
     impl PreparedBuildMachineEntry {
@@ -4691,7 +4328,6 @@ pub(crate) mod build_machines {
                     checked: Arc::new(program),
                     product_declarations,
                 }),
-                identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),
             }
         }
 
@@ -4709,7 +4345,6 @@ pub(crate) mod build_machines {
             let typed = typed_trees_to_typed_trees::prepare_constant_execution(typed)?;
             Ok(Self {
                 program: PreparedBuildMachineBody::Typed(Box::new(typed)),
-                identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),
             })
         }
 
@@ -4734,85 +4369,6 @@ pub(crate) mod build_machines {
             }
         }
 
-        pub(crate) fn evaluate_checked_constant(
-            &self,
-            entry: &PreparedBuildMachineEntry,
-            operators: &[crate::SelectedBuildTimeBinaryOperator],
-            accounting: &crate::evaluation_accounting::EvaluationAccounting,
-        ) -> Result<terminal_interpreter::TerminalExecutionResult, String> {
-            let PreparedBuildMachineBody::Checked(program) = &self.program else {
-                return Err("constant invocation requires a checked preparation".into());
-            };
-            let symbol = self.validate_entry(entry)?;
-            super::selected_operators::validate_selected_operators(self.typed(), operators)?;
-            accounting.evaluate_terminal(
-            self.interpreter_program(),
-            symbol,
-            operators,
-            |meter, retained_artifact| {
-                let toolchain_sources = source::source_identity::toolchain_source_identities(
-                    program.checked.symbols.source_files(),
-                )?;
-                let mut production = psi_terminal_production::TerminalProductionRequest::new(
-                    &program.checked,
-                    psi_terminal_production::TerminalMachineSelection::Symbol(symbol),
-                    &toolchain_sources,
-                );
-                production.publication = terminal_codec::TerminalPublication::Invocation;
-                let produced = production.produce(
-                    Default::default(),
-                    &mut psi_terminal_production::UnmeasuredProduction,
-                )
-                .map_err(|error| error.to_string())?;
-                *retained_artifact = Some(Arc::new(produced));
-                let artifact = retained_artifact.as_ref().ok_or_else(|| {
-                    "constant Terminal production lost its exact artifact".to_owned()
-                })?;
-                let program = terminal_interpreter::TerminalProgram::borrow(artifact.view());
-                let mut instance = program
-                    .instantiate(terminal_interpreter::TerminalInstantiation {
-                        scalar_arguments: &[],
-                        structural_inputs: Default::default(),
-                        ..Default::default()
-                    })
-                    .map_err(|error| error.to_string())?;
-                numeric_imports::install(&program, &mut instance, self.typed(), operators)?;
-                match instance
-                    .invoke(meter)
-                    .map_err(|error| format!("constant Terminal invocation failed: {error:?}"))?
-                {
-                    terminal_interpreter::TerminalExecutionStatus::Complete(value) => Ok(value),
-                    terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_) => Err(format!(
-                        "constant Terminal execution exhausted its work budget after {} units",
-                        meter.usage().total_units(),
-                    )),
-                    terminal_interpreter::TerminalExecutionStatus::Crashed(crash) => {
-                        Err(format!("constant Terminal execution crashed: {crash:?}"))
-                    }
-                    terminal_interpreter::TerminalExecutionStatus::AwaitingEffect(site) => Err(
-                        format!("constant Terminal execution cannot await a host effect: {site:?}"),
-                    ),
-                    terminal_interpreter::TerminalExecutionStatus::HostComputationPending(site) => Err(
-                        format!("constant Terminal execution has no host computation scheduler: {site:?}"),
-                    ),
-                    terminal_interpreter::TerminalExecutionStatus::ExternalCompletion(completion) => Err(
-                        format!("constant Terminal execution completed externally: {completion:?}"),
-                    ),
-                }
-            },
-        )
-        }
-
-        fn interpreter_program(&self) -> BuildMachineProgram<'_> {
-            match &self.program {
-                PreparedBuildMachineBody::Typed(typed) => BuildMachineProgram::Typed(typed),
-                PreparedBuildMachineBody::Checked(program) => BuildMachineProgram::CheckedClosure {
-                    execution: &program.checked,
-                    product_declarations: &program.product_declarations,
-                },
-            }
-        }
-
         pub fn entry(&self, symbol: SymbolHandle) -> Result<PreparedBuildMachineEntry, String> {
             if !self.typed().machine(symbol).is_some() {
                 return Err(format!(
@@ -4825,23 +4381,7 @@ pub(crate) mod build_machines {
                 super::admission::BuildTimeAdmissionPlan::infer(self.typed(), None)
                     .require_closed_static_applications(self.typed(), symbol)?;
             }
-            Ok(PreparedBuildMachineEntry {
-                program_identity: Arc::clone(&self.identity),
-                symbol,
-            })
-        }
-
-        fn validate_entry(
-            &self,
-            entry: &PreparedBuildMachineEntry,
-        ) -> Result<SymbolHandle, String> {
-            if !Arc::ptr_eq(&self.identity, &entry.program_identity) {
-                return Err(
-                    "prepared build-machine entry belongs to a different prepared program"
-                        .to_owned(),
-                );
-            }
-            Ok(entry.symbol)
+            Ok(PreparedBuildMachineEntry { symbol })
         }
     }
 }

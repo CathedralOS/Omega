@@ -2527,29 +2527,23 @@ pub(crate) mod const_lengths {
 
     pub(crate) fn evaluate_const_array_lengths_in(
         typed: &mut TypedTrees,
-        selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+        _selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
         domain: &EvaluationDomain,
     ) -> Result<(), Vec<Diagnostic>> {
-        LengthJobs::new(
-            selection_authority,
-            domain,
-            LengthProviderSelection::Independent,
-        )
-        .evaluate(typed)
-        .map(|_| ())
+        LengthJobs::new(domain).evaluate(typed).map(|_| ())
     }
 
     pub(crate) fn evaluate_independent_lengths(
         typed: &mut TypedTrees,
-        authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+        _authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
         domain: &EvaluationDomain,
     ) -> Result<bool, Vec<Diagnostic>> {
-        LengthJobs::new(authority, domain, LengthProviderSelection::Pending).evaluate(typed)
+        LengthJobs::new(domain).evaluate(typed)
     }
 
     pub(crate) fn evaluate_selected_array_lengths(
         typed: &mut TypedTrees,
-        authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+        _authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
         selected: crate::SelectedBuildTimeOperators<'_>,
         domain: &EvaluationDomain,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -2560,12 +2554,7 @@ pub(crate) mod const_lengths {
         let selected_program = prepare_selected_execution(typed, provider_bodies, operators)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let mut execution = selected_program.unwrap_or_else(|| typed.clone());
-        LengthJobs::new(
-            authority,
-            domain,
-            LengthProviderSelection::Selected(operators),
-        )
-        .evaluate(&mut execution)?;
+        LengthJobs::new(domain).evaluate(&mut execution)?;
         publish_evaluated_array_lengths(typed, &execution, domain);
         Ok(())
     }
@@ -2588,29 +2577,15 @@ pub(crate) mod const_lengths {
         }
     }
 
-    enum LengthProviderSelection<'selection> {
-        Pending,
-        Independent,
-        Selected(&'selection [crate::SelectedBuildTimeBinaryOperator]),
-    }
-
     struct LengthJobs<'selection> {
-        authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
         domain: &'selection EvaluationDomain,
-        providers: LengthProviderSelection<'selection>,
         active: Vec<(TypeReferenceHandle, String)>,
     }
 
     impl<'selection> LengthJobs<'selection> {
-        fn new(
-            authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
-            domain: &'selection EvaluationDomain,
-            providers: LengthProviderSelection<'selection>,
-        ) -> Self {
+        fn new(domain: &'selection EvaluationDomain) -> Self {
             Self {
-                authority,
                 domain,
-                providers,
                 active: Vec::new(),
             }
         }
@@ -2715,57 +2690,6 @@ pub(crate) mod const_lengths {
         }
     }
 
-    fn require_zero_argument_entry(typed: &TypedTrees, machine: &Machine) -> Result<(), String> {
-        let parameter_count = entry_state_parameter_count(typed, machine);
-        if parameter_count > 0 {
-            let machine_name = machine.name.as_str();
-            return Err(format!(
-                "machine `{machine_name}` takes {parameter_count} parameter(s); a const-evaluated \
-             array length must call a zero-argument machine (const arguments are not supported yet)"
-            ));
-        }
-        Ok(())
-    }
-
-    fn decode_length_result(
-        typed: &TypedTrees,
-        machine: &Machine,
-        value: terminal_interpreter::TerminalExecutionResult,
-    ) -> Result<usize, String> {
-        let value = match value {
-            terminal_interpreter::TerminalExecutionResult::Scalar(
-                terminal_interpreter::TerminalScalarValue::Integer { value, .. },
-            ) => match value {
-                semantic_vocabulary::IntegerValue::Signed(value) => BigInt::from_i128(value),
-                semantic_vocabulary::IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-            },
-            _ => {
-                let primitive = entry_state(typed, machine)
-                    .and_then(|state| typed.primitive_type_reference(state.return_type));
-                return Err(match primitive {
-                    Some(primitive) => format!(
-                        "machine `{}` returns `{}`, not an integer type",
-                        machine.name.as_str(),
-                        primitive.name(),
-                    ),
-                    None => format!(
-                        "machine `{}` does not declare an integer return type",
-                        machine.name.as_str(),
-                    ),
-                });
-            }
-        };
-        if value.is_negative() {
-            return Err(format!(
-                "the call returned {value}, but an array length must be a non-negative integer"
-            ));
-        }
-        value
-            .to_u64()
-            .and_then(|value| usize::try_from(value).ok())
-            .ok_or_else(|| format!("the call returned {value}, which does not fit an array length"))
-    }
-
     pub(crate) fn decode_integer_result(
         typed: &TypedTrees,
         machine: &Machine,
@@ -2794,12 +2718,6 @@ pub(crate) mod const_lengths {
         }
     }
 
-    fn entry_state_parameter_count(typed: &TypedTrees, machine: &Machine) -> usize {
-        entry_state(typed, machine)
-            .map(|state| typed.state_parameters(state).len())
-            .unwrap_or(0)
-    }
-
     fn entry_state<'a>(typed: &'a TypedTrees, machine: &Machine) -> Option<&'a State> {
         let leaf = machine
             .name
@@ -2816,16 +2734,15 @@ pub(crate) mod const_lengths {
 }
 pub(crate) mod const_qualifications {
     use crate::build_time_evaluation::type_references;
-    use crate::syntax_probes::prepare_owned_probe_evaluation;
+
     use diagnostics::Diagnostic;
     use syntax_trees::SyntaxTrees;
-    use syntax_trees::item::{ConstQualification, Item};
+    use syntax_trees::item::Item;
     use syntax_trees::types::TypeReferenceNode;
-    use syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe;
 
     pub(crate) fn prove_ready(
-        mut syntax: SyntaxTrees,
-        context: &crate::BuildTimeSources<'_>,
+        syntax: SyntaxTrees,
+        _context: &crate::BuildTimeSources<'_>,
     ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
         let candidates = syntax
             .root_item_handles()
@@ -2846,55 +2763,6 @@ pub(crate) mod const_qualifications {
         Err(vec![diagnostics::Diagnostic::error(
             "no product route yet: compile-time proof requires the lowered-form checker",
         )])
-    }
-
-    fn destination_inputs_ready(
-        selection: &syntax_trees_to_symbol_resolved_trees::pre_resolution::ConstInitializerSelection,
-        syntax: &SyntaxTrees,
-        definition: &syntax_trees::item::ConstDefinition,
-    ) -> Result<bool, Vec<Diagnostic>> {
-        for (_, source) in selection
-            .initializer_dependencies(syntax, definition)?
-            .constants
-        {
-            let dependency = selection
-                .trees()
-                .const_declaration_at_source_span(source)
-                .ok_or_else(|| {
-                    vec![
-                        Diagnostic::error(
-                            "constant destination dependency lost its exact declaration",
-                        )
-                        .with_source_span(source),
-                    ]
-                })?;
-            if dependency.evaluated_value.is_none() {
-                return Ok(false);
-            }
-        }
-        Ok(true)
-    }
-
-    fn require_complete_destination_judgment(
-        checked: &checked_trees::CheckedTrees,
-        owner: symbols::SymbolHandle,
-        declaration: source::SourceSpan,
-    ) -> Result<(), Vec<Diagnostic>> {
-        if checked.typed.machine_by_symbol(owner).is_none() {
-            return Err(vec![
-                Diagnostic::error("constant qualification lost its exact checked probe root")
-                    .with_source_span(declaration),
-            ]);
-        }
-        crate::machine_execution::admission::require_complete_checked_conditions(checked, owner)
-            .map_err(|reason| {
-                vec![
-                    Diagnostic::error(format!(
-                        "constant destination qualification remains conditional: {reason}",
-                    ))
-                    .with_source_span(declaration),
-                ]
-            })
     }
 
     pub(crate) fn defer_unproved(syntax: &mut SyntaxTrees) {
@@ -3807,9 +3675,7 @@ pub(crate) mod range_endpoints {
         use crate::build_time_evaluation::expression_table;
         use crate::const_evaluation::const_generic_expressions::value::{self, ConstantCalls};
         use crate::const_evaluation::const_lengths::decode_integer_result;
-        use crate::machine_execution::admission::{
-            SnapshotArgument, require_call_expression_selection,
-        };
+        use crate::machine_execution::admission::require_call_expression_selection;
         use crate::unique::extend_unique;
         use crate::{BuildTimeAdmissionPlan, BuildTimeSelectionAuthority, BuildTimeValue};
         use diagnostics::Diagnostic;

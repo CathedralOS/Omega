@@ -67,12 +67,12 @@ pub struct SourcePreparationRequest<'request> {
     pub admission: SourceAdmission<'request>,
 }
 
-pub struct PreparedSource {
+pub struct FrozenSource {
     pub program: Arc<typed_trees::FrozenTypedTrees>,
 }
 
 impl SourcePreparationRequest<'_> {
-    pub fn prepare(self) -> Result<PreparedSource, Vec<Diagnostic>> {
+    pub fn prepare(self) -> Result<FrozenSource, Vec<Diagnostic>> {
         // Opaque property receipts came from the deleted checker. Supplying one
         // cannot stand in for evidence from the new route.
         if !self.admission.external_roots.is_empty() || self.admission.declarations.is_some() {
@@ -107,8 +107,41 @@ impl SourcePreparationRequest<'_> {
             preparation = preparation.with_asm_authority(authority);
         }
         let (program, _) = typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
-        Ok(PreparedSource {
+        Ok(FrozenSource {
             program: Arc::new(program),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SourceAdmission, SourcePreparationRequest};
+
+    #[test]
+    fn preparation_returns_source_without_a_checked_product() {
+        let prepared = SourcePreparationRequest {
+            program: typed_trees::TypedTrees::default(),
+            admission: SourceAdmission::default(),
+        }
+        .prepare()
+        .expect("empty typed source requires no legacy evidence");
+        assert!(prepared.program.machines().is_empty());
+    }
+
+    #[test]
+    fn an_old_external_root_request_is_not_silently_discarded() {
+        let roots = [symbols::SymbolHandle::invalid()];
+        let result = SourcePreparationRequest {
+            program: typed_trees::TypedTrees::default(),
+            admission: SourceAdmission {
+                external_roots: &roots,
+                ..SourceAdmission::default()
+            },
+        }
+        .prepare();
+        let Err(diagnostics) = result else {
+            panic!("legacy authority must not become a prepared product");
+        };
+        assert!(diagnostics[0].message.contains("no product route yet"));
     }
 }

@@ -51,7 +51,7 @@ mod invocations {
         scalar_probe_destination, value::ScalarValue,
     };
     use crate::machine_execution::admission::require_call_expression_selection;
-    use crate::machine_execution::selected_operators::prepare_selected_execution;
+
     use crate::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
     use numerics::literals::{FloatFormat, FloatLiteral};
     use source::SourceSpan;
@@ -64,7 +64,6 @@ mod invocations {
         typed: TypedTrees,
         admission: BuildTimeAdmissionPlan,
         authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
-        probe_symbols: Vec<SymbolHandle>,
         operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
     }
 
@@ -150,20 +149,7 @@ mod invocations {
         lexical_owner: SymbolHandle,
     }
 
-    type ArgumentSnapshot = crate::machine_execution::admission::SnapshotArgument;
-
     impl Invocation<'_> {
-        fn require_concrete_failure_discharge(
-            &self,
-            _program: &TypedTrees,
-            _expression: ExpressionHandle,
-            _callee: String,
-            _return_type: TypeReferenceHandle,
-            _snapshots: Vec<ArgumentSnapshot>,
-        ) -> Result<(), String> {
-            Err("no product route yet: compile-time proof requires the lowered-form checker".into())
-        }
-
         pub(super) fn validate_custody(
             &self,
             declaration: &typed_trees::constant::ConstDeclaration,
@@ -492,116 +478,8 @@ mod invocations {
             Ok((result, target.return_type(), warnings))
         }
 
-        fn admit_call(&self, expression: ExpressionHandle) -> Result<AdmittedCall<'_>, String> {
-            let typed = self.program.typed();
-            let target = self.selected(expression)?;
-            let operands = &target.operands;
-            let mut arguments = vec![None; operands.len()];
-            let mut snapshots = (0..operands.len()).map(|_| None).collect::<Vec<_>>();
-            let mut warnings = self.validate_call_arguments(&target)?;
-            let mut snapshot_program = None;
-            let call = typed
-                .expression_table
-                .call_node(expression)
-                .ok_or("constant execution lost its selected call")?;
-            let order = (validation::CallSite::Expression { expression, call })
-                .argument_evaluation_order(typed)
-                .map_err(str::to_owned)?;
-            for position in order {
-                let (argument, type_reference) = *operands
-                    .get(position)
-                    .ok_or("constant argument schedule names a missing operand")?;
-                let Some(destination) = scalar_probe_destination(typed, type_reference) else {
-                    let (value, argument_warnings) =
-                        self.evaluate_owned_argument(argument, type_reference)?;
-                    let canonical =
-                        super::materialize::canonical_value(typed, type_reference, &value)?;
-                    let probe = snapshot_program.get_or_insert_with(|| typed.clone());
-                    let literal = probe
-                        .materialize_canonical_const_value(type_reference, &canonical)
-                        .ok_or(
-                            "cannot represent the evaluated constant argument as its declared type",
-                        )?;
-                    snapshots[position] = Some(ArgumentSnapshot {
-                        original: argument,
-                        literal,
-                    });
-                    arguments[position] = Some(value);
-                    extend_unique(&mut warnings, argument_warnings);
-                    continue;
-                };
-                let (value, argument_warnings) = value::evaluate_scalar(
-                    typed,
-                    self.machine,
-                    self.state,
-                    argument,
-                    destination,
-                    Some(self),
-                )?;
-                snapshots[position] = Some(ArgumentSnapshot {
-                    original: argument,
-                    literal: match &value {
-                        ScalarValue::UndeterminedNaN(format) => {
-                            ExpressionNode::UndeterminedNaN(*format)
-                        }
-                        _ => scalar_snapshot(&value, destination)?,
-                    },
-                });
-                arguments[position] = Some(match value {
-                    ScalarValue::UndeterminedNaN(format) => BuildTimeValue::UndeterminedNaN(format),
-                    ScalarValue::Float { format, bits } => BuildTimeValue::Float(
-                        format
-                            .widen_representation(bits)
-                            .ok_or("invalid floating snapshot")?,
-                    ),
-                    ScalarValue::Index(value) => match value.decode_encoding() {
-                        Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
-                            let bits = if destination.is_signed_integer() {
-                                i64::try_from(value).map_err(
-                                    |_| "constant argument exceeds signed interpreter storage",
-                                )?
-                            } else {
-                                u64::try_from(value).map_err(
-                                    |_| "constant argument exceeds unsigned interpreter storage",
-                                )? as i64
-                            };
-                            BuildTimeValue::Int(bits)
-                        }
-                        Some(DecodedCanonicalConstValue::Boolean(value)) => {
-                            BuildTimeValue::Bool(value)
-                        }
-                        _ => {
-                            return Err(
-                                "constant argument is not a canonical scalar snapshot".into()
-                            );
-                        }
-                    },
-                });
-                extend_unique(&mut warnings, argument_warnings);
-            }
-            let callee = match target.target {
-                SelectedCall::Entry { machine, .. } => machine.name.to_string(),
-                SelectedCall::Operator(operator) => {
-                    typed.symbols.display_path(operator.symbol, "::")
-                }
-            };
-            self.require_concrete_failure_discharge(
-            snapshot_program.as_ref().unwrap_or(typed),
-            expression,
-            callee,
-            target.return_type(),
-            snapshots.into_iter().collect::<Option<Vec<_>>>().ok_or(
-                "constant call did not evaluate every argument before checking its preconditions",
-            )?,
-        )?;
-            Ok(AdmittedCall {
-                target,
-                arguments: arguments
-                    .into_iter()
-                    .collect::<Option<Vec<_>>>()
-                    .ok_or("constant call did not produce every argument value")?,
-                warnings,
-            })
+        fn admit_call(&self, _expression: ExpressionHandle) -> Result<AdmittedCall<'_>, String> {
+            Err("no product route yet: compile-time call admission".into())
         }
 
         fn call_operands(
@@ -695,39 +573,6 @@ mod invocations {
                 }
             }
             Ok(warnings)
-        }
-
-        fn evaluate_owned_argument(
-            &self,
-            expression: ExpressionHandle,
-            destination: TypeReferenceHandle,
-        ) -> Result<(BuildTimeValue, Vec<Diagnostic>), String> {
-            if self
-                .program
-                .typed()
-                .expression_table
-                .call_node(expression)
-                .is_some()
-            {
-                let (value, actual, warnings) = self.evaluate_admitted_call(expression)?;
-                if !result_carriers_match(self.program.typed(), actual, destination) {
-                    return Err("constant argument result does not match its declared type".into());
-                }
-                return Ok((value, warnings));
-            }
-            let (probe, owner) = self.owned_argument_probe(expression, destination)?;
-            let admission = BuildTimeAdmissionPlan::infer(&probe, self.program.authority.clone())
-                .with_accounting(self.program.admission.accounting.clone())
-                .with_selected_operators(&probe, &self.program.operators)?;
-            let custody =
-                BuildTimeInvocationCustody::Source(probe.expression_table.source_span(expression));
-            let value = admission.evaluate_const_evaluable_machine_symbol_for_invocation(
-                &probe,
-                owner,
-                Vec::new(),
-                custody,
-            )?;
-            Ok((value, Vec::new()))
         }
 
         fn owned_argument_probe(
@@ -1727,231 +1572,7 @@ mod materialize {
         })
     }
 }
-mod probe_projection {
-    use crate::build_time_evaluation::expression_table;
-    use std::collections::HashSet;
-    use symbols::SymbolHandle;
-    use typed_trees::TypedTrees;
-    use typed_trees::references::{DeclarationSelection, collect_declaration_symbol_dependencies};
-    use typed_trees::typed_trees::{EvidenceForwarding, MachineSpecialization, ProofOutputCall};
 
-    pub(super) struct ProbeProjection<'program> {
-        original: &'program TypedTrees,
-        removed: DeclarationSelection,
-    }
-
-    impl<'program> ProbeProjection<'program> {
-        pub(super) fn new(original: &'program TypedTrees, probes: &[SymbolHandle]) -> Self {
-            let probe_roots = DeclarationSelection::from_symbols(probes.iter().copied());
-            let mut candidates = DeclarationSelection::from_symbols([]);
-            loop {
-                let before = candidates.clone();
-                let private_owner = |owner| {
-                    owned_by(original, &probe_roots, owner)
-                        || owned_by(original, &candidates, owner)
-                };
-                let mut discovered = Vec::new();
-                for (_, capture) in original.captured_machine_applications.iter() {
-                    if capture.instance != capture.template
-                        && capture.supplying_application.is_valid()
-                        && private_owner(
-                            expression_table(original)
-                                .static_machine_application(capture.supplying_application)
-                                .lexical_owner,
-                        )
-                    {
-                        discovered.push(capture.instance);
-                    }
-                }
-                for specialization in &original.machine_specializations {
-                    if specialization.instance != specialization.template
-                        && specialization.binding_application.is_valid()
-                        && private_owner(
-                            expression_table(original)
-                                .static_machine_application(specialization.binding_application)
-                                .lexical_owner,
-                        )
-                    {
-                        discovered.push(specialization.instance);
-                    }
-                }
-                for machine in original.machines() {
-                    let declaration = original.symbols.get(machine.symbol);
-                    if (declaration.generated_from.is_valid() && private_owner(declaration.parent))
-                        || machine
-                            .lexical_region_origin
-                            .is_some_and(|origin| private_owner(origin.machine))
-                    {
-                        discovered.push(machine.symbol);
-                    }
-                }
-                for symbol in discovered {
-                    candidates.include(symbol);
-                }
-                if candidates == before {
-                    break;
-                }
-            }
-
-            let dependencies = collect_declaration_symbol_dependencies(original);
-            let mut retained = DeclarationSelection::from_symbols([]);
-            loop {
-                let before = retained.clone();
-                for (owner, references) in &dependencies {
-                    if probe_roots.contains(*owner)
-                        || (candidates.contains(*owner) && !retained.contains(*owner))
-                    {
-                        continue;
-                    }
-                    for &reference in references {
-                        let mut symbol = reference;
-                        while symbol.is_valid() {
-                            if candidates.contains(symbol) {
-                                retained.include(symbol);
-                            }
-                            symbol = original.symbols.get(symbol).parent;
-                        }
-                    }
-                }
-                if retained == before {
-                    break;
-                }
-            }
-            let removed = DeclarationSelection::from_symbols(
-                original.machines().iter().filter_map(|machine| {
-                    (probe_roots.contains(machine.symbol)
-                        || (candidates.contains(machine.symbol)
-                            && !retained.contains(machine.symbol)))
-                    .then_some(machine.symbol)
-                }),
-            );
-            Self { original, removed }
-        }
-
-        pub(super) fn helper_bodies(&self) -> TypedTrees {
-            let mut program = self.original.clone();
-            program.identity = Default::default();
-            let removed = program
-                .machines()
-                .iter()
-                .filter_map(|machine| {
-                    self.removed
-                        .contains(machine.symbol)
-                        .then_some(machine.symbol)
-                })
-                .collect::<HashSet<_>>();
-            let retained = program
-                .machines()
-                .iter()
-                .filter_map(|machine| {
-                    (!self.removed.contains(machine.symbol)).then_some(machine.symbol)
-                })
-                .collect::<HashSet<_>>();
-            validation::execution_projection::retain_machine_roster(
-                &mut program,
-                &retained,
-                &removed,
-            );
-            program
-        }
-
-        pub(super) fn rejoin_unjudged(&self, mut program: TypedTrees) -> TypedTrees {
-            program.identity = Default::default();
-            for machine in self
-                .original
-                .machines()
-                .iter()
-                .filter(|machine| self.removed.contains(machine.symbol))
-            {
-                program.push_machine(machine.clone());
-            }
-            macro_rules! restore_vector {
-                ($field:ident, $owner:expr) => {
-                    for row in &self.original.$field {
-                        if owned_by(self.original, &self.removed, ($owner)(row))
-                            && !program.$field.contains(row)
-                        {
-                            program.$field.push(row.clone());
-                        }
-                    }
-                };
-            }
-            restore_vector!(machine_specializations, |row: &MachineSpecialization| row
-                .instance);
-            restore_vector!(
-                authored_service_reach_rows,
-                |row: &typed_trees::signature::AuthoredServiceReachRow| row.owner
-            );
-            restore_vector!(evidence_forwardings, |row: &EvidenceForwarding| row
-                .machine_symbol);
-            restore_vector!(proof_output_calls, |row: &ProofOutputCall| row
-                .machine_symbol);
-            restore_vector!(
-                ranking_expression_custody,
-                |row: &typed_trees::ranking::RankingExpressionCustody| row.machine
-            );
-
-            for (_, row) in self.original.captured_machine_applications.iter() {
-                if self.removed.contains(row.instance)
-                    && !program
-                        .captured_machine_applications
-                        .iter()
-                        .any(|(_, current)| current.instance == row.instance)
-                {
-                    program.captured_machine_applications.insert(row.clone());
-                }
-            }
-            for (_, row) in self.original.data_implementation_applications.iter() {
-                if owned_by(self.original, &self.removed, row.lexical_owner)
-                    && !program
-                        .data_implementation_applications
-                        .iter()
-                        .any(|(_, current)| current == row)
-                {
-                    program.data_implementation_applications.insert(row.clone());
-                }
-            }
-            for (_, row) in self.original.trait_implementation_applications.iter() {
-                let source_owner = row.source_scope.supplying_owner();
-                let supplying_owner = if row.supplying_application.is_valid() {
-                    {
-                        expression_table(self.original)
-                            .static_machine_application(row.supplying_application)
-                            .lexical_owner
-                    }
-                } else {
-                    Default::default()
-                };
-                if (owned_by(self.original, &self.removed, source_owner)
-                    || owned_by(self.original, &self.removed, supplying_owner))
-                    && !program
-                        .trait_implementation_applications
-                        .iter()
-                        .any(|(_, current)| current == row)
-                {
-                    program
-                        .trait_implementation_applications
-                        .insert(row.clone());
-                }
-            }
-            program
-        }
-    }
-
-    fn owned_by(
-        program: &TypedTrees,
-        owners: &DeclarationSelection,
-        mut symbol: SymbolHandle,
-    ) -> bool {
-        while symbol.is_valid() {
-            if owners.contains(symbol) {
-                return true;
-            }
-            symbol = program.symbols.get(symbol).parent;
-        }
-        false
-    }
-}
 mod replay {
     use crate::build_time_evaluation::{expression_table, type_reference_table};
     use crate::unique::push_unique;

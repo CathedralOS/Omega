@@ -92,11 +92,6 @@ pub(crate) mod build_time_evaluation {
     impl Eq for EvaluationDomain {}
 
     impl EvaluationDomain {
-        pub(crate) fn with_accounting(mut self, accounting: EvaluationAccounting) -> Self {
-            self.accounting = accounting;
-            self
-        }
-
         pub(crate) fn admission(
             &self,
             program: &TypedTrees,

@@ -119,7 +119,7 @@ impl<'a> SourceDeclarationInput<'a> {
         _expression: typed_trees::_expression::ExpressionHandle,
     ) -> Result<Option<symbols::SymbolHandle>, Vec<diagnostics::Diagnostic>> {
         Err(vec![diagnostics::Diagnostic::error(
-            "no product route yet: package review requires lowered-form evidence",
+            "no product route yet: package-review nominal call target evidence",
         )])
     }
 

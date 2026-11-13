@@ -1,31 +1,15 @@
-/*
-Callable crash policy projection (`crash`, `validate_crash_publication`, and
-`crash_routes`).
-
-Concrete machines own a `MachineContractPlan`, which we cross-check against
-`derive_authored_machine_crash_buckets` and the realized contract envelope
-(including virtual family heads and their members against immutable compiler
-custody). When projecting guarded crash routes in `crash_routes`, we pass `None`
-for the proof-fact handle because crash predicates are ceiling guards rather
-than established requires/ensures facts with proof-place dependencies.
-*/
+//! Crash projections requiring old judgments refuse; explicit route projection remains.
 
 use super::rejected;
 use crate::capture::contracts::{
     expressions::projection::project_contract_expression, facts::ContractProjectionContext,
 };
-use crate::capture::semantics::facts::exactly_one;
 use crate::capture::{PackageReviewInput, SourceDeclarationInput};
-use crate::record::{
-    PackagePolicyCrash, PackagePolicyCrashGuard, PackagePolicyCrashRoute,
-    PackagePolicyInferredCrash, PackageReviewCrashCause, PackageReviewCrashInterface,
-};
-use checked_trees::CrashInterface;
+use crate::record::{PackagePolicyCrash, PackagePolicyCrashGuard, PackagePolicyCrashRoute};
 use checked_trees::RealizedMachineContractEnvelope;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{
-    expression::ExpressionNode,
     machine::Machine,
     signature::{CrashCause, SignatureContractKind},
     state::State,
@@ -41,7 +25,7 @@ pub(crate) fn crash(
     _inferred_causes: &[(SymbolHandle, Vec<checked_trees::CrashCause>)],
 ) -> Result<PackagePolicyCrash, Vec<Diagnostic>> {
     Err(vec![diagnostics::Diagnostic::error(
-        "no product route yet: package review requires lowered-form evidence",
+        "no product route yet: package-review callable crash evidence",
     )])
 }
 
