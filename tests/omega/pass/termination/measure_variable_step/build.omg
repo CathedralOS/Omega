@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "measure_variable_step");
-    builder.freestanding = true;
-}

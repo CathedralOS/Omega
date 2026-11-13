@@ -1,1 +1,0 @@
-merely naming a declaration `FloatSemantics::from_integer` grants no primitive

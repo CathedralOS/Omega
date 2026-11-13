@@ -1,8 +1,0 @@
-// The constant twin of `directed_fma_unsupported_target`: the only use of the
-// unrealized operation is a named constant's initializer, so no runtime call
-// reaches it. The target's realization table still decides, and the program
-// rejects at checking before any constant is computed.
-machine build(builder: &mut Build) {
-    Build::application(builder, "directed_fma_target_realization_constant");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-}

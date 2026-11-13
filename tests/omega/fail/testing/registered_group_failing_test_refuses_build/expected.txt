@@ -1,1 +1,0 @@
-test `addition_is_correct` in group `Tests::arithmetic` failed on the

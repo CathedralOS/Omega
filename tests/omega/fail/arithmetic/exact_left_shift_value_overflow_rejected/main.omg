@@ -1,4 +1,0 @@
-machine invalid(value: u8) -> u8
-    requires value >= 128, value <= 255
-    ensures (value << 1u16) >= 0
-{ value << 1u16 }

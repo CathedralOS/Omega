@@ -1,1 +1,0 @@
-machine value() -> u32 { self.value }

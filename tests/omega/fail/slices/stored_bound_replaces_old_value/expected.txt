@@ -1,1 +1,0 @@
-cannot prove index `cursor.offset` is within length 64

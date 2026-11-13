@@ -1,2 +1,0 @@
-cannot prove requires contract for call retain from main
-needs fact `choice == Choice::Cell`

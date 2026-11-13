@@ -1,1 +1,0 @@
-machine `false_constant_equation` ensures contract proof fact `false` is disproved by constant arithmetic

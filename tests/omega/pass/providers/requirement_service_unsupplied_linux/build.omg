@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "requirement_service_unsupplied_linux");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-}

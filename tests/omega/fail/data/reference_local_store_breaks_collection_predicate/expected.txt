@@ -1,1 +1,0 @@
-this write left the `requires` facts of `b` (data `B`) unproved

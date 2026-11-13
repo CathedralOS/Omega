@@ -1,6 +1,0 @@
-machine observe(bytes: &[u8], replacement: u64) -> &[u8] {
-    let mut measured: u64 = bytes.len;
-    measured = replacement;
-    bytes[0..measured]
-}
-machine main() {}

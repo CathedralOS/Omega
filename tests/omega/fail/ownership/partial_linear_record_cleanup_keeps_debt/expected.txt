@@ -1,3 +1,0 @@
-linear value `value.required` reaches scope exit without being consumed or transferred
-linear value `value.slot::Held.token` reaches scope exit without being consumed or transferred
-linear value `known.slot::Held.token` reaches scope exit without being consumed or transferred

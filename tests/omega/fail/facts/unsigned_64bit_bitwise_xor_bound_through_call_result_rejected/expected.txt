@@ -1,1 +1,0 @@
-machine `produce_xored` ensures contract proof fact `result >= 40 && result <= 63` is disproved by constant arithmetic

@@ -1,7 +1,0 @@
-// Matching names do not make these declarations core hardware services.
-boundary trait MachineControl {}
-boundary trait PortIo {}
-
-machine halt() reaches MachineControl { asm { hlt } }
-machine write_port() reaches PortIo { asm { out 1016, 66 } }
-machine main() { write_port(); halt(); }

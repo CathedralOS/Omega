@@ -1,2 +1,0 @@
-machine unused<Element, const Tag: u8>() {}
-machine Main::main() { unused<7, u8>(); }

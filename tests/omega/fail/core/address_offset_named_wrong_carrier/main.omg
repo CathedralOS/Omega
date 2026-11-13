@@ -1,1 +1,0 @@
-machine offset(base: addr, count: u32) -> addr { base + count }

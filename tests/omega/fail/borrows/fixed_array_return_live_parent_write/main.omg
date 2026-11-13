@@ -1,2 +1,0 @@
-machine select(matrix: &mut [[u64; 13]; 33]) -> &mut [u64; 13] { &mut matrix[2] }
-machine invalid(matrix: &mut [[u64; 13]; 33]) { let row: &mut [u64; 13] = select(matrix); matrix[2][0] = 7; row[0] = 4; }

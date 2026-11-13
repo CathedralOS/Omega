@@ -1,7 +1,0 @@
-// An ordinary private productive loop is legal without a termination claim.
-// Its existence does not make the loop a total denotational predicate.
-machine productive(value: u64) -> u64 {
-    transition { _ -> productive(value) }
-}
-
-machine main() {}

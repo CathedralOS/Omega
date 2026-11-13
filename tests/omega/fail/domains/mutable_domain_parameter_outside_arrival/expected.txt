@@ -1,1 +1,0 @@
-cannot prove requires contract for call mirror from main: 105 in i32::Counted

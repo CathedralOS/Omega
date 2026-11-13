@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "receiver_view_writeback_local_escape");
-}

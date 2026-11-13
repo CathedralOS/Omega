@@ -1,8 +1,0 @@
-use token;
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "opaque_descriptor_invalid_carrier");
-    // Describing the choice still requires a valid carrier; no host Token
-    // value is needed to expose this invalid explicit selection.
-    Build::select_representation<Token, TokenRepresentation>(builder);
-}

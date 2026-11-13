@@ -1,2 +1,0 @@
-default body in trait `Resettable` calls `set`, which is not a requirement of `Resettable` or a trait it inherits; its instantiation for `ValueCounter`
-default body in trait `Resettable` calls `set`, which is not a requirement of `Resettable` or a trait it inherits; its instantiation for `GaugeCounter`

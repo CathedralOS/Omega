@@ -1,7 +1,0 @@
-module marks;
-
-public data Flag [copy] { kept: bool; other: bool; }
-
-public machine project(kept: bool) -> Flag {
-    Flag { kept: kept, other: true }
-}

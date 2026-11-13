@@ -1,9 +1,0 @@
-// The taken branch abandons on crash; the skipped branch still owes its claim.
-data Receipt [linear] { value: u64; }
-data Holder { receipt: Receipt; }
-machine abandon(receipt: Receipt) -> bool crashes Trap { crash Trap; }
-machine choose(enabled: bool) crashes Trap {
-    let holder: Holder = Holder { receipt: Receipt { value: 9 } };
-    let observed: bool = enabled && abandon(holder.receipt);
-}
-machine main() crashes Trap { choose(false); }

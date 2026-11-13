@@ -18,8 +18,9 @@ Consumers remain ordinary programs at their current paths. For example,
 `samples/cli/scientific/w100` has independent consumer build roots and separate
 source-invalid controls; the outer grouping directory is not an executable.
 The [sample discovery contract](../../samples/README.md#project-roles-and-discovery)
-defines those harness roles. Small compiler behavior witnesses live in
-`tests/omega`, rather than another library or sample hierarchy.
+defines those harness roles. Small compiler behavior witnesses are programs
+Rust tests read, kept in `tests/fixtures`, rather than another library or sample
+hierarchy.
 
 A kernel can start private in a sample and become a library when actual use
 establishes a reusable contract. Stable contracts preserve observable behavior
@@ -106,8 +107,8 @@ context, result propagation, early stop or runtime dispatch. It is library
 code, not loop syntax or a compiler intrinsic.
 
 Hollow's [input routing](../../samples/gui/dungeon_crawler/engine/control/routing.omg)
-uses the helper. The [executable fixture](../../tests/omega/pass/generics/core_slice_for_each/main.omg)
-covers mutable records, non-copy elements, a forwarded view and empty input;
+uses the helper. The executable fixture `pass/generics/core_slice_for_each` of
+the former corpus (`tests/README.md`) covered mutable records, non-copy elements, a forwarded view and empty input;
 separate reject controls enforce callback and access obligations.
 
 The effectful-callback behavior requires the

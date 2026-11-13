@@ -1,1 +1,0 @@
-`align_of(value)` on a case payload field needs a proof that the case is active

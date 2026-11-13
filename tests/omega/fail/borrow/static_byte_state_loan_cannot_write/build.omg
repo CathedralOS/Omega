@@ -1,1 +1,0 @@
-machine build(builder: &mut Build) { Build::package(builder, "static_byte_state_loan_cannot_write"); }

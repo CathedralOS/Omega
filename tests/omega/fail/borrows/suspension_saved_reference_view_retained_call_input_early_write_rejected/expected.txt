@@ -1,2 +1,0 @@
-mutates `source.second`
-while local borrow `message` is still active

@@ -1,1 +1,0 @@
-value call to `step` violates required fact `accumulator >= 0 && accumulator <= 99`

@@ -1,4 +1,0 @@
-module copied;
-public data Token [copy] { value: u8; }
-public machine identity<T>(value: T) -> T { value }
-public machine read(token: Token) -> u8 { let kept: Token = identity<Token>(token); kept.value }

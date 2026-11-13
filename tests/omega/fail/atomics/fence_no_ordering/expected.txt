@@ -1,1 +1,0 @@
-uses `NoOrdering`, which is not a declared local

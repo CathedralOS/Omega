@@ -1,7 +1,0 @@
-module right;
-
-public data Pair<T> { first: T; second: u8; }
-
-public machine second_sum<T>(pair: &Pair<T>) -> u8 requires pair.second <= 100 {
-    pair.second + pair.second
-}

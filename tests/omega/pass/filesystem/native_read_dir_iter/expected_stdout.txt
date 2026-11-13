@@ -1,1 +1,0 @@
-PASS: read_dir iteration walked 4 entries (., .., alpha, beta) natively

@@ -1,1 +1,0 @@
-requires a modeled 32-bit register left input

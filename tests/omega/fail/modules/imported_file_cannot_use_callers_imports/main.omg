@@ -1,4 +1,0 @@
-use m::a::A;
-use m::b;
-data Main {}
-machine Main::main() {}

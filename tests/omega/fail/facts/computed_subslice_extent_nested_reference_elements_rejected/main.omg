@@ -1,7 +1,0 @@
-// Forbidden input or result authority does not become a repeatable value.
-data Held<'a> { slot: &'a u64; }
-machine accepts<'a>(items: &[Held<'a>]) -> bool { items.len == 2 }
-machine inspect<'a>(items: &[Held<'a>])
-requires accepts(items) == true
-{}
-machine main() {}

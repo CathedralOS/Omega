@@ -1,6 +1,0 @@
-// Matching UTF-8 predicates do not supply an authorized issuer occurrence.
-domain [u8; 4]::Ascii requires ascii_only(self);
-domain [u8; 4]::Issued requires valid_utf8(self) established by Issuer::issue;
-trait Issuer { machine issue() -> [u8; 4] ensures result in Issued; }
-machine narrow(bytes: [u8; 4] in Ascii) -> [u8; 4] in Issued { bytes }
-machine main() { _ = narrow("abcd"); }

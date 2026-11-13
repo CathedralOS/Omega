@@ -1,2 +1,0 @@
-module models;
-public const MAX: u8 = 255;

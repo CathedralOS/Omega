@@ -1,4 +1,0 @@
-use family_import_kit::carrier;
-machine inspect(carrier: &Carrier) -> u64 {
-    family_import_kit::Carrier::private_value(carrier)
-}

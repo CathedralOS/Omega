@@ -1,1 +1,0 @@
-machine `step` state `entry` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`

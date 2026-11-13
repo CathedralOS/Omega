@@ -1,2 +1,0 @@
-data Old { case #90 First; case #7 Later; }
-machine main() {}

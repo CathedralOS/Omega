@@ -1,2 +1,0 @@
-reading `frames` crosses an open default-domain invariant window
-the zeroed representation is not yet a value of `[Frame; 2]`

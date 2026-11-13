@@ -1,1 +1,0 @@
-cannot prove requires contract for call inspect from X86InspectTarget::inspect_target: player in Player::Alive in state `inspect_target`

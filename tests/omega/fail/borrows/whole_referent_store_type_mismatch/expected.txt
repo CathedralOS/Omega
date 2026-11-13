@@ -1,1 +1,0 @@
-expects the `Verdict` data type but got `Outcome`

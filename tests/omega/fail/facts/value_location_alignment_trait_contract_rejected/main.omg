@@ -1,4 +1,0 @@
-trait Probe { machine m(value: &u64) -> u64 requires align_of(value) >= 8u64; }
-Impl satisfies Probe { machine m(value: &u64) -> u64 requires align_of(value) >= 8u64 { let al: u64 = align_of(value); al - 8u64 } }
-machine run(a: &u64, b: &u8) -> u64 { Impl::m(a) }
-machine main() crashes Trap { let a: u64 = 1u64; let b: u8 = 2u8; let r: u64 = run(&a, &b); transition r == 0u64 { true -> done() _ -> bad() } machine done() {} machine bad() { crash Trap; } }

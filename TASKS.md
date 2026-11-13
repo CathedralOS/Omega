@@ -2,7 +2,7 @@
 
 Use [advance](.agents/skills/advance/SKILL.md) and [sample loop](AGENTS.md#the-sample-loop) (`omega run --both`).
 
-The fixture corpus under `tests/omega/` was retired on the owner's ruling of 2026-11-13 ([tests/README.md](tests/README.md#the-former-corpus)). An acceptance below that names a fixture or a fixture family (`runtime_dutch_flag_partition_exit`, `pass/wire/*_exit`, `modules/`) names programs of that corpus: the ones kept are under `tests/fixtures/` at the same `<tier>/<group>/<name>`, and the rest are read from history. Such an acceptance is met by the named programs passing `omega run --both`, restored beside the tests that prove the item; there is no corpus run and no ledger to consult.
+The fixture corpus under `tests/omega/` was deleted on the owner's ruling of 2026-11-13 ([tests/README.md](tests/README.md#the-former-corpus)). An acceptance below that names a fixture or a fixture family (`runtime_dutch_flag_partition_exit`, `pass/wire/*_exit`, `modules/`) names programs of that corpus: the ones kept are under `tests/fixtures/` at the same `<tier>/<group>/<name>`, and the rest are read from history. Such an acceptance is met by the named programs passing `omega run --both`, restored beside the tests that prove the item; there is no corpus run and no ledger to consult.
 
 ### Development-health outcomes
 

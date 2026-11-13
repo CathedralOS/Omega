@@ -1,1 +1,0 @@
-does not satisfy trait `SizedHook` machine `read` parameter `items`: expected `[u8; 3]`, got `[u8; 2]`

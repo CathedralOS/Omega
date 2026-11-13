@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "qualified_case_membership");
-    let mut leaf_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "leaf" });
-    dependency::with_alias(&mut leaf_dependency, "leaf");
-    let leaf_registration: DependencyRegistration = Build::dependency(builder, leaf_dependency);
-}

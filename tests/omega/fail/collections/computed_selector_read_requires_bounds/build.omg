@@ -1,1 +1,0 @@
-machine build(builder:&mut Build){Build::application(builder,"computed_selector_out_of_bounds_rejected");Build::bind(builder,linux_x86_64::ProgramEntry,main);}

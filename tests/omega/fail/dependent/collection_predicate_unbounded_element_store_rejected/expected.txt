@@ -1,3 +1,0 @@
-cannot complete return from machine `store_unbounded` state `entry`
-the `requires` facts of `context.grid` (data `Grid`)
-unproved; restore them first

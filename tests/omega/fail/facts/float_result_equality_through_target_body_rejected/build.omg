@@ -1,7 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "float_result_equality_target_body_invalid");
-    Build::select_provider<FloatObservation, SelectedFloatObservation>(builder, windows_x86_64);
-    Build::select_provider<FloatObservation, SelectedFloatObservation>(builder, linux_x86_64);
-    Build::select_provider<FloatObservation, SelectedFloatObservation>(builder, macos_arm64);
-    Build::select_provider<FloatObservation, SelectedFloatObservation>(builder, linux_arm64);
-}

@@ -1,4 +1,0 @@
-trait Reading { machine read() -> i32; }
-SelectedReading satisfies Reading { machine read() -> i32 { 7 } }
-data Main { stored: SelectedReading; }
-machine Main::main() { }

@@ -18,7 +18,7 @@ There is no fixture corpus to run and no ledger: everything that ran or
 recorded the corpus under `tests/omega/` (`corpus_runner`, `cargo xtask corpus`,
 `cargo xtask corpus-gate`, the post-merge row measurement and the published
 ledger) was removed on the owner's ruling of 2026-11-13, and the fixtures
-themselves are retired with it.
+themselves were deleted with it.
 [tests/README.md](../tests/README.md) says how to read a deleted fixture from
 history. A program a test reads is kept beside the tests, under
 `tests/fixtures/`.

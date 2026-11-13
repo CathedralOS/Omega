@@ -1,3 +1,0 @@
-The selected shared reference retains a branch-local anonymous `Pair` through a completed call and a subsequent observation. Each `Pair` has linear children and nominal cleanup. Both engines must exit 0. `runtime_borrowed_temporary_selected_first_child_cleanup_exit` executes the other arm with the same operation and cleanup obligations.
-
-Checked conditional cleanup must retain the completed producer home after lowering restores the sibling source frontier. That home is cleanup geometry; it does not become an operand available to the sibling. The borrowed-temporary controls retain owner-disposition, required-child cleanup, lifetime and live-write refusals.

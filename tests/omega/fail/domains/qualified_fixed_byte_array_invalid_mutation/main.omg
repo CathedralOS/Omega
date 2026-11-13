@@ -1,9 +1,0 @@
-// A lent array's additional input qualification expires unless the contract
-// promises it again (dependent_values.md, "An additional input domain need not
-// survive a call unless the ordinary contract guarantees it"). This callee
-// promises `bytes in Ascii` at return, so storing 255 breaks that promise.
-// The ratified neighbor is pass/domains/qualified_mutable_scalar_input_domain_expires.
-domain [u8; 2]::Ascii requires ascii_only(self);
-machine mutate(bytes: &mut [u8; 2] in Ascii)
-ensures bytes in Ascii
-{ bytes[0] = 255u8; }

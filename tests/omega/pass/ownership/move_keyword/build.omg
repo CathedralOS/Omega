@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "move_keyword");
-    builder.freestanding = true;
-}

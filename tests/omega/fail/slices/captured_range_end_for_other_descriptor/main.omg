@@ -1,5 +1,0 @@
-machine observe<'a>(bytes: &'a [u8], other: &'a [u8]) -> &'a [u8] {
-    let measured: u64 = bytes.len;
-    other[0..measured]
-}
-machine main() {}

@@ -1,2 +1,0 @@
-cannot prove assignment value `0` satisfies bounded target `observation.count`
-expected 1..=2147483647

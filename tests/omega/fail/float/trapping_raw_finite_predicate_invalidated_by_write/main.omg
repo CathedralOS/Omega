@@ -1,9 +1,0 @@
-use omega::language::core::F32::is_finite;
-
-machine scale(mut value: f32 in Trapping) -> f32 in Trapping
-requires F32::is_finite((value as f32) * 2.0f32)
-crashes Trap false {
-    value = 340282346638528859811704183484516925440.0f32 as f32 in Trapping;
-    let doubled: f32 in Trapping = value * 2.0f32;
-    doubled
-}

@@ -1,1 +1,0 @@
-cannot compare against payload-bearing case `Choice::Cell`

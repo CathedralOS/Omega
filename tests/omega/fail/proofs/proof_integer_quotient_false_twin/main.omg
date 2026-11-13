@@ -1,4 +1,0 @@
-machine false_quotient()
-ensures embed(-7i32) / 2 == -4
-{}
-machine main() {}

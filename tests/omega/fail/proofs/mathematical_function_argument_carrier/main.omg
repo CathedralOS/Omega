@@ -1,4 +1,0 @@
-let wide(value: i32): core::Strict<0> = value == value;
-let apply(predicate: u8 -> core::Strict<0>, value: u8): core::Strict<0> = predicate(value);
-machine bad(value: u8) ensures apply(wide(), value) {}
-machine main() {}

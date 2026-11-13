@@ -1,2 +1,0 @@
-machine `RelayValue::read` state `read` calls `Helper::firmware_only`, which is declared only for target `uefi_x86_64`
-is an inert sibling and the call has no implementation

@@ -1,1 +1,0 @@
-run relocation requires address: movable for the retained element type

@@ -1,1 +1,0 @@
-mutates `original` while local borrow `holder` is still active

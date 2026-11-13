@@ -1,1 +1,0 @@
-receives `t` as both mutable and read-only

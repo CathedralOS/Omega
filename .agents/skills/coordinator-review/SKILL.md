@@ -79,8 +79,8 @@ the five checks below fail:
   purpose: something this review can check.
 
 ### Point 3: Outcomes and Diagnostic Expectations
-- **No corpus, no ledger:** Nothing runs `tests/omega/` and nothing may be
-  added to it. The `Proof:` line names the tests on the change and on the
+- **No corpus, no ledger:** `tests/omega/` is deleted and nothing may be
+  added under that path. The `Proof:` line names the tests on the change and on the
   small area around it; reject a PR that widened its run instead of
   investigating a failure there.
 - **Read actual focused results:** Positive programs must pass their intended

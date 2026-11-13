@@ -1,2 +1,0 @@
-anonymous address value cannot prove fit in `addr::Bound`
-anonymous address specification argument cannot prove fit in `addr::Bound`

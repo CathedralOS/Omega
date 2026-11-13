@@ -1,1 +1,0 @@
-assignment cannot write `choice` because it is not mutable

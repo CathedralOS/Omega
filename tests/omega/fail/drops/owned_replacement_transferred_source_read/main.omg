@@ -1,8 +1,0 @@
-data Token { value: u64; }
-
-machine main() {
-    let mut token: Token = Token { value: 7 };
-    let replacement: Token = Token { value: 9 };
-    token = move replacement;
-    let stale: u64 = replacement.value;
-}

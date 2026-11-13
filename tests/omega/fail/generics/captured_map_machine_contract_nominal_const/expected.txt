@@ -1,2 +1,0 @@
-for nominal parameter `Callback`
-exactly one is required

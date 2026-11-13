@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "same_spelling_other");
-    let mut api_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../api" });
-    dependency::with_alias(&mut api_dependency, "api");
-    let api_registration: DependencyRegistration = Build::dependency(builder, api_dependency);
-}

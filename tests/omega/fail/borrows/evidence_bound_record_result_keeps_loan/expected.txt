@@ -1,1 +1,0 @@
-mutates `source` while local borrow `forwarded` is still active

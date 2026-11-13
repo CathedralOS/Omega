@@ -1,5 +1,0 @@
-// An explicit exact conversion precedes membership in the other carrier's
-// domain, so a contract may test a converted u8 against a u16 domain.
-domain u16::Small requires self <= 10;
-machine guarded(narrow: u8) -> u16 requires (narrow as u16) in Small { 10 - (narrow as u16) }
-machine main() -> i32 { 0 }

@@ -1,4 +1,0 @@
-statement 3 reads `value` while local borrow `borrowed` is still active
-statement 2 reads `value` while local borrow `lent` is still active
-statement 2 reads `value` while local borrow `held` is still active
-state `truth` receives `view[3]` while local borrow `middle` is still active

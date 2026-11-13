@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "signed_index_bounds");
-    builder.freestanding = true;
-}

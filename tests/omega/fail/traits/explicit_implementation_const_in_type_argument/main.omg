@@ -1,8 +1,0 @@
-// The nested generic selection has the right arity, but its type slot receives
-// a static integer. The implementation category must not turn 7 into a type.
-trait Reading<Value> { machine read(value: Value) -> Value; }
-SelectedReading<Value> satisfies Reading<Value> {
-    machine read(value: Value) -> Value { value }
-}
-trait Consumer<Value, Reader satisfies Reading<Value>> {}
-trait Invalid: Consumer<i32, SelectedReading<7> > {}

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "scratch_input_rank");
-    builder.freestanding = true;
-}

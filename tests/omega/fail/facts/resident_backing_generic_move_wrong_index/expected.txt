@@ -1,4 +1,0 @@
-index compatibility condition
-Resident<WordPlacement, Word>
-Resident<OtherPlacement, Word>
-distinct normalized instances

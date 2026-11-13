@@ -1,5 +1,0 @@
-Exact integer cast
-from `i16` to `u8` is not provably representable
-from `i16` to `i8` is not provably representable
-from `u16` to `i8` is not provably representable
-from `i16` to `u64` is not provably representable

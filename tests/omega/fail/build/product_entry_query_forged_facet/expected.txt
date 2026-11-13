@@ -1,1 +1,0 @@
-product selection requires the compiler-issued Build.product facet

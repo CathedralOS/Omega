@@ -1,8 +1,0 @@
-use digits::Digit;
-use digits::Digit::Decimal;
-// This same-leaf definition must not replace the domain owner's definition.
-let is_digit(value: i32): core::Strict<0> = value < 0;
-const DIGIT: Digit in Decimal = Digit { value: 4 };
-const ALIAS: Digit in Decimal = DIGIT;
-machine take(value: Digit in Decimal) -> i32 { value.value }
-machine main() -> i32 { take(ALIAS) }

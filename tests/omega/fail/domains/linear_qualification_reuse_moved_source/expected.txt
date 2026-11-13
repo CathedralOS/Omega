@@ -1,1 +1,0 @@
-after `claim` was transferred or consumed

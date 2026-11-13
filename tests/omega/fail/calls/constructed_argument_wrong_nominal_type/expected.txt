@@ -1,2 +1,0 @@
-argument `value`
-expects `Required<i32>`, got `struct literal`

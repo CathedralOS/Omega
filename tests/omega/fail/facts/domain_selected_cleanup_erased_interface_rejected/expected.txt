@@ -1,2 +1,0 @@
-cannot prove contextual cleanup prerequisite
-clause `keeper.code == 7`

@@ -1,5 +1,0 @@
-
-machine main() {
-    transition 1 / 0 == 0 { _ -> done() }
-    machine done() {}
-}

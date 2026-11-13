@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "terminal_build_forged_path");
-    let forged: BuildPath = BuildPath {};
-    _ = BuildOutput::create(&mut builder.output, forged, 0);
-}

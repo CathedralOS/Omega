@@ -1,3 +1,0 @@
-constant invocation of `read` failed checking
-violates required fact `packet.first == 7`
-structurally false (`8 == 7`)

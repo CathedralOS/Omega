@@ -1,4 +1,0 @@
-// Expected exit: 0
-data Index<Count: u64> { value: u64; }
-trait Contract { machine unused(flag: bool) -> Index<(flag)>; }
-machine main() {}

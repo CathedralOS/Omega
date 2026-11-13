@@ -1,2 +1,0 @@
-generic machine `CompactBinary::packed_field` has a static selection
-Type slot `Element` has no proposal

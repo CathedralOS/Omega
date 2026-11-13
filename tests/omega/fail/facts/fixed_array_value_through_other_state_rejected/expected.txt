@@ -1,1 +1,0 @@
-cannot prove index `passed_index` is within length 2

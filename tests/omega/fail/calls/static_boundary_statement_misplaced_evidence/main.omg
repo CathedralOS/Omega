@@ -1,9 +1,0 @@
-public data Observation { value: i32; }
-public boundary trait RawSource { machine fill(destination: &mut Observation) reaches; }
-Selected satisfies RawSource {
-    machine fill(destination: &mut Observation) { destination.value = 41; }
-}
-machine main() {
-    let mut observed: Observation;
-    RawSource::fill<Selected, i32>(&mut observed);
-}

@@ -1,6 +1,0 @@
-actual `Indexed<N + 0>` and expected `Indexed<N>` are distinct normalized instances
-`add` of `IndexAdditive` licenses no law
-actual `Indexed<N * 1>` and expected `Indexed<N>` are distinct normalized instances
-`multiply` of `IndexAdditive` licenses no law
-actual `Indexed<8 + 0>` and expected `Indexed<8>` are distinct normalized instances
-actual `Indexed<8 * 1>` and expected `Indexed<8>` are distinct normalized instances

@@ -1,6 +1,0 @@
-// Matching fields do not make one nominal carrier a member of another's domain.
-data Meters [copy] { amount: u16; }
-data Feet [copy] { amount: u16; }
-domain Meters::Short requires self.amount <= 10;
-machine take(value: Feet) -> u16 requires value in Short { value.amount }
-machine main() -> i32 { 0 }

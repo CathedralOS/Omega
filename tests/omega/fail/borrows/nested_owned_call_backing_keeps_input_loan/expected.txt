@@ -1,1 +1,0 @@
-mutates `second.payload` while local borrow

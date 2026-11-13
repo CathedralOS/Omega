@@ -1,1 +1,0 @@
-call to `scan` has operational envelope `block` but acknowledges neither suspension nor blocking

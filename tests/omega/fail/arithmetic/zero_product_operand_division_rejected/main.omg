@@ -1,2 +1,0 @@
-machine product(value: u64, divisor: u64) -> u64 { 0 * (value / divisor) }
-machine main() {}

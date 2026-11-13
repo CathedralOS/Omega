@@ -1,9 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "match pattern does not select a record or case of its subject's exact carrier",
-    "Other::Value",
-    "Choice<u64>"
-  ]
-}

@@ -1,8 +1,0 @@
-data Token dropped by drop_token { ready: bool; value: u64; }
-machine drop_token(token: &mut Token) requires token.ready { token.ready = false; }
-machine make_token() -> Token ensures result.ready == true { Token { ready: true, value: 7 } }
-machine read(token: &Token) -> u64 { token.value }
-data Bundle dropped by drop_bundle { token: Token; }
-machine drop_bundle(bundle: &mut Bundle) { bundle.token.ready = false; }
-machine make_bundle() -> Bundle ensures result.token.ready == true { Bundle { token: Token { ready: true, value: 7 } } }
-machine main() { let bundle: Bundle = make_bundle(); }

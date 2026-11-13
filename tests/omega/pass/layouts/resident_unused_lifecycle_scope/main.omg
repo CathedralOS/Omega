@@ -1,8 +1,0 @@
-// A closed lifecycle signature is not an initialization/extraction request.
-// This policy deliberately has no plan machine.
-use omega::language::core::AccessLifecycle;
-
-public data Word { value: u64; }
-public data WordPlacement {}
-
-public boundary trait UnusedLifecycle: AccessLifecycle<WordPlacement, Word> {}

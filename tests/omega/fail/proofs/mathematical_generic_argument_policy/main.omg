@@ -1,6 +1,0 @@
-let identity<A: core::Type<0> >(value: A): A = value;
-
-machine invalid(value: u8 in Wrapping)
-ensures identity<u8>(value) == value {}
-
-machine main() {}

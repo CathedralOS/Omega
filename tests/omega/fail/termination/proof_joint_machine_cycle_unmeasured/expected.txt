@@ -1,2 +1,0 @@
-no complete structural ranking establishes strict descent on every cycle
-the proof component has no authored ranking entry

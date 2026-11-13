@@ -1,2 +1,0 @@
-cannot prove requires contract for call read_through from apply
-match choose() { true => chosen, false => spare } == 17

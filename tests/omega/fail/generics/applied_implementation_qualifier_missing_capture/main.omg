@@ -1,7 +1,0 @@
-trait Identity<Value> { machine read(value: Value) -> Value; }
-Selected<Value, const Captured: u64> satisfies Identity<Value> {
-    machine read(value: Value) -> Value { value }
-}
-machine main() -> u64 {
-    Selected<u64>::read(17u64)
-}

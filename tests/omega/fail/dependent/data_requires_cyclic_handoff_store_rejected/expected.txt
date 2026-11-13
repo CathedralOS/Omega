@@ -1,1 +1,0 @@
-reading `pump` crosses an open default-domain invariant window

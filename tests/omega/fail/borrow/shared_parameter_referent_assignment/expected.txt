@@ -1,2 +1,0 @@
-machine `invalid_scalar` state `entry` assignment requires mutable source access
-machine `invalid_nested` state `entry` assignment requires mutable source access

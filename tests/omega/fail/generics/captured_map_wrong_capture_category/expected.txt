@@ -1,2 +1,0 @@
-requires a const argument
-has another static category

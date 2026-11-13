@@ -1,2 +1,0 @@
-cannot prove ensures contract for exit from produce_computed
-cannot prove ensures contract for exit from produce_literal

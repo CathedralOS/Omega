@@ -1,5 +1,0 @@
-// A dynamic count keeps its u64 carrier. Its unknown upper bound cannot
-// establish that an Exact successor is representable.
-machine increment(items: &[u8]) -> u64 {
-    items.len + 1
-}

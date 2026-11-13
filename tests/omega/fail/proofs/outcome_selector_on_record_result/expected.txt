@@ -1,1 +1,0 @@
-outcome proof selectors require an exact guarded result-case arm

@@ -1,4 +1,0 @@
-data Cell<T [copy]> [copy] { value: T; }
-machine main() {
-    let wrong: Cell<f32> = Cell { value: 3.0f64 };
-}

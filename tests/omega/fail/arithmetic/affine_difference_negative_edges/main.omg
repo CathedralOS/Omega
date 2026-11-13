@@ -1,5 +1,0 @@
-// Negative difference bounds cannot establish the stronger zero lower bound.
-machine negative_edges(first: u64, second: u64, third: u64, fourth: u64) -> u64
-requires embed(first) + 1 >= embed(second) && embed(third) + 2 >= embed(fourth)
-ensures embed(first) + embed(third) >= embed(second) + embed(fourth)
-{ 0 }

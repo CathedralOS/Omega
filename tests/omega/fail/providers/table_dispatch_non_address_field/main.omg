@@ -1,9 +1,0 @@
-use omega::language::core::ForeignBinding;
-data Table { before: u64; invoke: u64; after: u64; }
-boundary trait Query { machine query(table: &Table) -> u32 reaches; }
-machine query(table: &Table) -> u32
-    satisfies Query::query via ForeignBinding::TableFunction(invoke);
-machine main() reaches Query {
-    let table: Table = Table { before: 71, invoke: 0, after: 93 };
-    let result: u32 = Query::query(&table);
-}

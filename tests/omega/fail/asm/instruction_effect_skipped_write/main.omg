@@ -1,9 +1,0 @@
-use omega::language::core::port_written;
-machine observe(port: u16, byte: u8) reaches PortIo {
-    asm {
-    entry: jmp done;
-    skipped: out port, byte;
-    done ensures port_written(port, byte): nop
-    }
-}
-machine main() {}

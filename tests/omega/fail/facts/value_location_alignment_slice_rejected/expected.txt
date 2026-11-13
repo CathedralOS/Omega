@@ -1,1 +1,0 @@
-needs the nonempty fact `items.len >= 1`

@@ -1,2 +1,0 @@
-module first;
-public proposition valid(value: u32);

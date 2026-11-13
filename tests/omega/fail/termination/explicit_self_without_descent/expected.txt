@@ -1,2 +1,0 @@
-terminating machine spin: cannot prove strict rank decrease on a recurrent arrival
-the transition from `spin` back to itself is not shown to strictly decrease the rank

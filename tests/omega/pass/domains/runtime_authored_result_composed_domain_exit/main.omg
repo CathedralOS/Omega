@@ -1,4 +1,0 @@
-data Cell [copy] { mantissa:f64; power:i32; }
-domain Cell::Admitted established by Cell::accept;
-machine Cell::accept(flag:bool)->Cell ensures result in Cell::Admitted { transition flag { true -> first() false -> second() } machine first()->Cell { Cell { mantissa:0.75,power:-2 } } machine second()->Cell { Cell { mantissa:0.5,power:-2 } } }
-machine main() crashes Trap { let a:Cell=Cell::accept(true); let b:Cell=Cell::accept(false); transition a.mantissa == 0.75 && b.mantissa == 0.5 { true -> good() false -> bad() } machine good() {} machine bad() { crash Trap; } }

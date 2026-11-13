@@ -1,1 +1,0 @@
-Frozen retained-loan boundary control: a nested call returns exclusive authority, which must remain active while the same root is lent for reading. Public --check must refuse the conflict. This control grants no new reference-result support.

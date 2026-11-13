@@ -1,1 +1,0 @@
-a mutable recast must prove fact implication in BOTH directions

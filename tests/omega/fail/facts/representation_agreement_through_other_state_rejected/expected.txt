@@ -1,2 +1,0 @@
-cannot prove ensures contract for exit from FirstAgreement::round_trip
-ReadFirst.try_from(frame)

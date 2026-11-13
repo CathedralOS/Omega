@@ -1,3 +1,0 @@
-cannot complete return from machine `update` state `entry`
-the `requires` facts of `main.pair` (data `Pair`)
-unproved; restore them first

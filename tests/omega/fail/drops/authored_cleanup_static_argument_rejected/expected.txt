@@ -1,1 +1,0 @@
-machine argument `drop_resource` for `accept` does not refine `Selected`

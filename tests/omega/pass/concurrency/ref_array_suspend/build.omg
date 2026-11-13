@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "ref_array_suspend");
-    builder.subsystem = Subsystem::EfiApplication;
-    builder.freestanding = true;
-}

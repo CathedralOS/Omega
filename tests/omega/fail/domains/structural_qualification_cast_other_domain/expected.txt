@@ -1,1 +1,0 @@
-implicit domain strengthening in argument `counter` for state `ready_code` assumes `Counter::Ready`

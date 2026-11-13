@@ -1,1 +1,0 @@
-while local borrow `loans` is still active

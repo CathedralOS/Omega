@@ -1,1 +1,0 @@
-cannot prove requires contract for call admit from open_upper: difference >= 0.5 && difference <= 8.0

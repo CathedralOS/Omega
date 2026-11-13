@@ -1,7 +1,0 @@
-data Cell { value: i32; }
-data Other { value: i32; }
-data Held<'storage> { target: &'storage Cell; }
-
-machine invalid<'storage>(first: &'storage Cell, second: &'storage Other, selected: bool) -> Held<'storage> {
-    Held { target: match selected { true -> first, false -> second } }
-}

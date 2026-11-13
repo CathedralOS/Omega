@@ -1,1 +1,0 @@
-PASS: a missing open returns -ENOENT (-2)

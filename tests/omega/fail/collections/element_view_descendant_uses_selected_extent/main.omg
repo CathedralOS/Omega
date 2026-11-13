@@ -1,9 +1,0 @@
-// An outer bound cannot discharge a different indexing occurrence.
-data Row { cells: [i32 in Wrapping; 2]; }
-machine read(rows: &[Row], row: u64, column: u64) -> i32 in Wrapping
-requires row < rows.len
-requires column < 3
-{
-    rows[row].cells[column]
-}
-machine main() {}

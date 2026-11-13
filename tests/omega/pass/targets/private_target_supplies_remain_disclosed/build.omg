@@ -1,8 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "private_target_supplies_remain_disclosed");
-    let authored_target_supplies_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../packages/authored-target-supplies" }));
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-}

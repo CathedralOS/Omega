@@ -1,1 +1,0 @@
-while local borrow `out_line` is still active

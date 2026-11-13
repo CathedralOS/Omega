@@ -1,2 +1,0 @@
-cannot prove ensures contract for exit from split
-core::Identity<<structural type>>(Owned.content(old(&whole)), separate(Owned.content(&result.right), Owned.content(&result.left)))

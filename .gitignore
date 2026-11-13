@@ -5,7 +5,6 @@
 /build/
 /samples/**/build/
 /samples/*/build_win/
-/tests/omega/*/*/build/
 /tests/fixtures/*/*/build/
 
 # Package-manager state is host-local: a project's omega.lock names its
@@ -13,9 +12,7 @@
 # (tools/benchmark/README.md).
 /samples/**/omega.lock
 /samples/**/omega.admissions
-/tests/omega/**/omega.lock
 /tests/fixtures/**/omega.lock
-/tests/omega/**/omega.admissions
 /tests/fixtures/**/omega.admissions
 /tests/psi/**/build/
 /tests/psi/**/omega.lock

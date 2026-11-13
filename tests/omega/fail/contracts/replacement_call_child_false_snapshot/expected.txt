@@ -1,3 +1,0 @@
-cannot prove ensures contract for exit from false_producer
-cannot prove ensures contract for exit from overwrite
-cannot prove ensures contract for exit from install_interval

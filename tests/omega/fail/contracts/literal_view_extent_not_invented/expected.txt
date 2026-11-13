@@ -1,5 +1,0 @@
-cannot prove requires contract for call nonempty from empty_is_not_nonempty
-cannot prove requires contract for call one_byte from codepoints_are_not_bytes
-cannot prove requires contract for call nonempty from replaced_descriptor_is_not_its_initializer
-cannot prove requires contract for call nonempty from capacity_is_not_live_length
-cannot prove requires contract for call nonempty from projected_capacity_is_not_live_length

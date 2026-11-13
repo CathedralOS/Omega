@@ -1,3 +1,0 @@
-// Expected exit: 0
-// Build resumes only after its named helper returns the layout-derived 64.
-machine main() {}

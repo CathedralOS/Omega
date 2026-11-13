@@ -1,5 +1,0 @@
-trait Operations<Value> { machine read(value: Value) -> Value; }
-Selected<Value, const Captured: u64> satisfies Operations<Value> {
-    machine read(value: Value) -> Value { value }
-}
-machine main() -> u64 { Selected<u64, 31>::read<11>(17u64) }

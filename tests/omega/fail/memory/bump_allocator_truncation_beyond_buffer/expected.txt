@@ -1,2 +1,0 @@
-cannot prove requires contract for call split_vacant_extent from invalid
-requested <= whole.length

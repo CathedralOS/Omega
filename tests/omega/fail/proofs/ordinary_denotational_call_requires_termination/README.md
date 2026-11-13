@@ -1,1 +1,0 @@
-The same stalled call equality is both a hypothesis and a guarantee. Assumption discharge does not prove that either call forms a total denotational term. The entry point leaves this helper unused so runtime reachability cannot hide invalid contract formation.

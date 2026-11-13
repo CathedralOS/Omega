@@ -1,2 +1,0 @@
-mutates `first_buffer.value` while local borrow
-is still active

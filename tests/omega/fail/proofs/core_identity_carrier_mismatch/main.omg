@@ -1,5 +1,0 @@
-// A well-formed u16 subject cannot become a u8 identity endpoint.
-machine malformed(value: u16) reaches terminates
-ensures core::Identity<u8>(value, 1u8)
-{ }
-machine main() { }

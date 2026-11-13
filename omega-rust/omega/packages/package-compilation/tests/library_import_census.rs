@@ -163,8 +163,7 @@ fn library_imports_ride_declared_edges_not_the_mount() {
         let Ok(text) = fs::read_to_string(source) else {
             continue;
         };
-        let fail_tier = source.starts_with(repo.join("tests/fixtures/fail"))
-            || source.starts_with(repo.join("tests/omega/fail"));
+        let fail_tier = source.starts_with(repo.join("tests/fixtures/fail"));
         for (head, is_mount) in imports_of(&text) {
             if is_mount && MOUNTED_LIBRARIES.contains(&head.as_str()) {
                 let self_dir = repo.join("source/library").join(&head);

@@ -1,5 +1,0 @@
-public domain u64::ProductPositive requires self > 0;
-
-public machine preserve_product(value: u64 in ProductPositive) -> u64 in ProductPositive {
-    value
-}

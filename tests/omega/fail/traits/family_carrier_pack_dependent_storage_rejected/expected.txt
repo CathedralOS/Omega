@@ -1,1 +1,0 @@
-conformance borrow contract: unimplemented: callable input region frontier is incomplete

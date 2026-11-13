@@ -1,1 +1,0 @@
-is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim

@@ -1,9 +1,0 @@
-// Both operands are known exactly, so the sum's range is closed at 20. An
-// address result is limited by the target model's `addr::Bound`, here 16, not
-// by its 64-bit carrier, so the sum does not fit and the return is rejected.
-machine cut(base: addr, requested: u64) -> addr
-requires addr::Bound == 16
-requires base == 10
-requires requested == 10
-{ base + requested }
-machine main() {}

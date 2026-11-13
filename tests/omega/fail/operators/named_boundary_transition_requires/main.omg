@@ -1,5 +1,0 @@
-boundary operator probe(value: i32) -> i32
-requires value > 0;
-machine main(value: i32) -> i32 {
-    transition { _ -> probe(value) }
-}

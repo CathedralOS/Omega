@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
-    Build::application(builder, "fixed_vec_wire_member");
-    builder.freestanding = true;
-}

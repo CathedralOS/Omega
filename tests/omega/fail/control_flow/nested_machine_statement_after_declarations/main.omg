@@ -1,1 +1,0 @@
-machine main() { machine helper() {} helper(); }

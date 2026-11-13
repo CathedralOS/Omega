@@ -1,7 +1,0 @@
-data Choice { case Cell(counter: AtomicU32); case Empty; }
-
-machine overwrite(choice: &Choice)
-requires choice in Choice::Cell
-{
-    choice.counter = 9;
-}

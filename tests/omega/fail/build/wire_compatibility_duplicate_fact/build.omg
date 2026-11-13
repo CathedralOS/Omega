@@ -1,8 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "wire_compatibility_duplicate_fact");
-    request_duplicate(builder);
-}
-
-machine request_duplicate(builder: &mut Build) {
-    Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Readable, Readable>(builder);
-}

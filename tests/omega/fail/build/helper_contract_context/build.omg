@@ -1,6 +1,0 @@
-machine incorrect() -> u64 ensures result == 4 { 3 }
-
-machine build(builder: &mut Build) {
-    Build::package(builder, "helper_contract_context");
-    let value: u64 = incorrect();
-}

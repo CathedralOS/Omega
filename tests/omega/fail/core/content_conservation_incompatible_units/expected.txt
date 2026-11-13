@@ -1,1 +1,0 @@
-expression `separate(Bytes.content(shared result.left), Words.content(shared result.right))` has no kernel denotation yet

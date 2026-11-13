@@ -1,7 +1,0 @@
-machine seven() -> u64 { 7u64 }
-machine main() crashes Trap {
-    let alignment: u64 = align_of(seven());
-    transition alignment == 8u64 { true -> done() _ -> bad() }
-    machine done() {}
-    machine bad() { crash Trap; }
-}

@@ -1,2 +1,0 @@
-machine step<T>(subject: &mut T) {}
-machine forward<U>(subject: &U) { step<U>(subject); }

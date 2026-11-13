@@ -1,2 +1,0 @@
-cannot prove ensures contract for exit from apply
-result.sibling.len == source.sibling.len

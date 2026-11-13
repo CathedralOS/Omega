@@ -1,6 +1,0 @@
-data Source [copy] { value: u64; }
-const SOURCE: Source = Source { value: 7 };
-const PROJECTED: u64 = SOURCE.value;
-data Indexed<const Choice: u64> { value: u8; }
-machine keep(value: Indexed<PROJECTED>) -> Indexed<7> { value }
-machine main() {}

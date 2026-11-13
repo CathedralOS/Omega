@@ -1,1 +1,0 @@
-cannot prove ensures contract for exit from open_total at statement 0: result <= 80

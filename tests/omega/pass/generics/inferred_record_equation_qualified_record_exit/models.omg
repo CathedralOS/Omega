@@ -1,3 +1,0 @@
-module models;
-public data Configuration [copy] { minimum: u64; }
-public const SEVEN: Configuration = Configuration { minimum: 7 };

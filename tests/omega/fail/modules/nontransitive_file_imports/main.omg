@@ -1,5 +1,0 @@
-// Loading a helper does not import the helper's own dependencies.
-use m::b;
-data Holder { value: A; }
-data Main {}
-machine Main::main() {}

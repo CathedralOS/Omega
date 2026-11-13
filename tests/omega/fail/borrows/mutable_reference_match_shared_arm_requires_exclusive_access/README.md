@@ -1,1 +1,0 @@
-A mutable reference local receives a Match with one exclusive source and one shared source. Every completed alternative must independently supply mutable access, even when the caller supplies a literal condition selecting the exclusive arm. The destination type and exclusive sibling cannot turn the shared alternative into a mutable reference.
