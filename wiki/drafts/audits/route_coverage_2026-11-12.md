@@ -72,6 +72,8 @@ By shard (`current_verdict=stopped`):
 
 ### PARTIAL breakdown (construct vs non-construct primary)
 
+**`bucket:partial-unjudged-defect`:** fail-tier partial programs where at least one machine root is route-accepted while a sibling machine or compilation root stays unjudged (`no-entry` / `outside`), so the fixture is not a wholesale program accept.
+
 | kind | primary reason | count |
 | --- | --- | ---: |
 | construct | parameter mutable parameter | 265 |
@@ -87,7 +89,6 @@ By shard (`current_verdict=stopped`):
 | construct | type float | 32 |
 | construct | machine service reach | 29 |
 | non-construct | no-entry | 29 |
-| non-construct | unspecified | 20 |
 | construct | contract term other than a formal or literal | 20 |
 | construct | type fixed array | 17 |
 | construct | machine target selection | 17 |
@@ -95,12 +96,14 @@ By shard (`current_verdict=stopped`):
 | construct | expression match on a scalar subject | 14 |
 | construct | machine operator spelling | 12 |
 | construct | contract domain membership | 12 |
+| non-construct | first_refusal:outside | 12 |
 | construct | type generic data | 11 |
 | construct | machine supply mode other than a checked body | 9 |
 | construct | machine assembly target | 8 |
 | construct | expression match arm on a value pattern | 8 |
 | construct | contract disjunction | 8 |
 | construct | call receiver, requirement or coercion call | 8 |
+| non-construct | first_refusal:(empty) | 8 |
 | construct | type generic application | 7 |
 | construct | type addr | 7 |
 | construct | contract ranking witness | 6 |
@@ -133,7 +136,7 @@ Partial subtotals: non-construct **382**, construct **1141**, sum **1523**.
 
 ## Top first-refusal constructs — OUTSIDE programs
 
-(Only `construct-blocked` OUTSIDE rows; non-construct buckets excluded.)
+(Ranked over **12259** `construct-blocked` OUTSIDE rows only; non-construct buckets excluded.)
 
 | construct | programs blocked | example fixtures |
 | --- | ---: | --- |
