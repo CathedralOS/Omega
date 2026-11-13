@@ -2,6 +2,7 @@
 //! elements keep the canonical indexed namespace; they never acquire invented
 //! field declarations or a nominal schema.
 
+use crate::body::Qualification;
 use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, StructuralTypeId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
@@ -23,7 +24,7 @@ impl Program<'_> {
         expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        let Some(ValueType::Record(array)) = expected else {
+        let Some(ValueType::Record(array, _)) = expected else {
             return Err(refuse(
                 machine,
                 Construct::Machine,
@@ -67,7 +68,7 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let base = self.expression(machine, slots, indexed.collection, None)?;
-        let Some(ValueType::Record(array)) = base.result else {
+        let Some(ValueType::Record(array, _)) = base.result else {
             return Err(refuse(
                 machine,
                 Construct::Machine,
@@ -87,7 +88,7 @@ impl Program<'_> {
             machine,
             slots,
             indexed.index,
-            Some(ValueType::Scalar(ScalarType::Integer(index_type))),
+            Some(ValueType::Scalar(ScalarType::Integer(index_type), Qualification::NONE)),
         )?;
         if !matches!(index.result.and_then(ValueType::scalar), Some(ScalarType::Integer(integer)) if !integer.is_address())
         {
@@ -134,12 +135,12 @@ impl Program<'_> {
             StorageShape::PrimitiveScalar {
                 scalar_type,
                 policy: None,
-            } => ValueType::Scalar(scalar_type),
+            } => ValueType::Scalar(scalar_type, Qualification::NONE),
             StorageShape::PrimitiveScalar {
                 scalar_type,
                 policy: Some(policy),
-            } => ValueType::Qualified(scalar_type, policy),
-            _ => ValueType::Record(storage),
+            } => ValueType::Scalar(scalar_type, Qualification::of_policy(policy)),
+            _ => ValueType::Record(storage, Qualification::NONE),
         })
     }
 
@@ -171,7 +172,7 @@ impl Program<'_> {
             matches!(&row.shape, StorageShape::FixedArray { element: known, length }
                 if *known == element && *length == extent)
         }) {
-            return Ok(ValueType::Record(id));
+            return Ok(ValueType::Record(id, Qualification::NONE));
         }
         let copyable = self.data_type(machine, element)?.copyable;
         let identity = self.storage_identity(machine, reference)?;
@@ -185,7 +186,7 @@ impl Program<'_> {
             requires: Vec::new(),
         });
         self.record_sources.push(physical_source(reference));
-        Ok(ValueType::Record(id))
+        Ok(ValueType::Record(id, Qualification::NONE))
     }
 
     fn storage_type(
@@ -195,9 +196,17 @@ impl Program<'_> {
         value: ValueType,
     ) -> Checked<StructuralTypeId> {
         let (scalar_type, policy) = match value {
-            ValueType::Scalar(scalar) => (scalar, None),
-            ValueType::Qualified(scalar, policy) => (scalar, Some(policy)),
-            ValueType::Record(id) => return Ok(id),
+            ValueType::Scalar(scalar, qualification) if qualification.domains.is_empty() => {
+                (scalar, qualification.policy)
+            }
+            ValueType::Scalar(..) => {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("array of elements that carry a declared domain"),
+                ));
+            }
+            ValueType::Record(id, _) => return Ok(id),
             ValueType::Rigid(_) => {
                 return Err(refuse(
                     machine,

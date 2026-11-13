@@ -4,6 +4,7 @@ gate), their signatures and formals, and
 the driver that reads one body statement by statement.
 */
 
+use crate::body::Qualification;
 use language_semantics::{TerminationGuarantee, TerminationInterface};
 use semantic_vocabulary::{MachineId, ValueId};
 use symbols::SymbolHandle;
@@ -809,7 +810,7 @@ impl<'t> Program<'t> {
             });
         }
         for binder in binders {
-            let value_type = ValueType::Scalar(binder.scalar_type);
+            let value_type = ValueType::Scalar(binder.scalar_type, Qualification::NONE);
             parameters.push(value_type);
             slots.push(Slot {
                 symbol: binder.symbol,
@@ -865,13 +866,13 @@ impl<'t> Program<'t> {
         let exit = ClauseScope {
             result: match result {
                 // A policy-qualified result is named as its stored value.
-                Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) => {
+                Some(ValueType::Scalar(scalar_type, _)) => {
                     ResultTerm::Named(result_value, scalar_type)
                 }
                 // A clause over a record result projects it
                 // (`result.field`), which a later slice serves from the
                 // result place.
-                Some(ValueType::Record(_)) => ResultTerm::Absent("result of a record machine"),
+                Some(ValueType::Record(_, _)) => ResultTerm::Absent("result of a record machine"),
                 Some(ValueType::Rigid(_)) => ResultTerm::Absent("result of a rigid type"),
                 None => ResultTerm::Absent("result of a Unit machine"),
             },
@@ -1215,7 +1216,7 @@ impl<'t> Program<'t> {
         // A data type with `requires` may be stored into by the callee, so
         // its domain is owed again where the loan returns; no slice follows
         // a domain across a call yet.
-        if let ValueType::Record(record) = value_type
+        if let ValueType::Record(record, _) = value_type
             && self.restricted(record)
         {
             return unserved("reference to data with requires");
@@ -1224,11 +1225,11 @@ impl<'t> Program<'t> {
             ValueType::Rigid(_) => return unserved("reference to a value of a type parameter"),
             // Its place would be declared with the identity of a primitive
             // type the lowered form has no row for.
-            ValueType::Qualified(..) => {
-                return unserved("reference to a policy-qualified integer");
+            ValueType::Scalar(_, qualification) if !qualification.is_none() => {
+                return unserved("reference to a qualified scalar");
             }
-            ValueType::Record(_) => None,
-            ValueType::Scalar(_) => Some(
+            ValueType::Record(_, _) => None,
+            ValueType::Scalar(..) => Some(
                 Some(self.typed.normalized_type_identity_text(referee))
                     .filter(|identity| !identity.is_empty())
                     .ok_or_else(|| {
@@ -1269,7 +1270,7 @@ impl<'t> Program<'t> {
                 .iter()
                 .chain(data.cases().iter().flat_map(|case| &case.fields))
             {
-                if let ValueType::Record(nested) = field.value_type {
+                if let ValueType::Record(nested, _) = field.value_type {
                     pending.push(nested);
                 }
             }

@@ -5,6 +5,7 @@ are the same computation. Record literals and member paths are read in
 `places`.
 */
 
+use crate::body::Qualification;
 use semantic_vocabulary::{MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::{
@@ -106,14 +107,14 @@ impl<'t> Program<'t> {
                 let slot = self.slot_of(id, slots, path)?;
                 let bound = &slots[slot];
                 match bound.value_type {
-                    ValueType::Scalar(scalar_type) if !bound.homed => {
+                    ValueType::Scalar(scalar_type, Qualification::NONE) if !bound.homed => {
                         (ExpressionKind::Slot(slot), scalar_type)
                     }
-                    ValueType::Scalar(_) => return unserved("erased term that reads storage"),
-                    ValueType::Qualified(..) => {
-                        return unserved("erased term of a policy-qualified type");
+                    ValueType::Scalar(_, Qualification::NONE) => return unserved("erased term that reads storage"),
+                    ValueType::Scalar(..) => {
+                        return unserved("erased term of a qualified type");
                     }
-                    ValueType::Record(_) | ValueType::Rigid(_) => {
+                    ValueType::Record(_, _) | ValueType::Rigid(_) => {
                         return unserved("erased term of a data type");
                     }
                 }
@@ -122,7 +123,7 @@ impl<'t> Program<'t> {
         };
         Ok(Expression {
             kind,
-            result: Some(ValueType::Scalar(result)),
+            result: Some(ValueType::Scalar(result, Qualification::NONE)),
             source,
         })
     }
@@ -167,12 +168,12 @@ impl<'t> Program<'t> {
             ExpressionNode::Unary(unary) => {
                 let operand = self.expression(id, slots, unary.operand, expected)?;
                 match (unary.operator, operand.result) {
-                    (UnaryOperator::LogicalNot, Some(ValueType::Scalar(ScalarType::Boolean))) => {
+                    (UnaryOperator::LogicalNot, Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE))) => {
                         (ExpressionKind::Not(Box::new(operand)), ScalarType::Boolean)
                     }
                     (
                         UnaryOperator::BitwiseNot,
-                        Some(ValueType::Scalar(integer @ ScalarType::Integer(_))),
+                        Some(ValueType::Scalar(integer @ ScalarType::Integer(_), Qualification::NONE)),
                     ) => (ExpressionKind::BitwiseNot(Box::new(operand)), integer),
                     _ => {
                         return Err(refuse(
@@ -242,24 +243,24 @@ impl<'t> Program<'t> {
                 }
                 let (left, right) = if self.wholly_anonymous(binary.left) {
                     let right =
-                        self.expression(id, slots, binary.right, hint.map(ValueType::Scalar))?;
+                        self.expression(id, slots, binary.right, hint.map(ValueType::plain))?;
                     let partner = right.result.and_then(ValueType::scalar);
                     let left = self.expression(
                         id,
                         slots,
                         binary.left,
-                        hint.or(partner).map(ValueType::Scalar),
+                        hint.or(partner).map(ValueType::plain),
                     )?;
                     (left, right)
                 } else {
                     let left =
-                        self.expression(id, slots, binary.left, hint.map(ValueType::Scalar))?;
+                        self.expression(id, slots, binary.left, hint.map(ValueType::plain))?;
                     let partner = left.result.and_then(ValueType::scalar);
                     let right = self.expression(
                         id,
                         slots,
                         binary.right,
-                        hint.or(partner).map(ValueType::Scalar),
+                        hint.or(partner).map(ValueType::plain),
                     )?;
                     (left, right)
                 };
@@ -319,7 +320,7 @@ impl<'t> Program<'t> {
         };
         Ok(Expression {
             kind,
-            result: Some(ValueType::Scalar(result)),
+            result: Some(ValueType::Scalar(result, Qualification::NONE)),
             source,
         })
     }
@@ -342,7 +343,7 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         let subject = self.expression(id, slots, matched.subject, None)?;
-        let Some(ValueType::Record(record)) = subject.result else {
+        let Some(ValueType::Record(record, _)) = subject.result else {
             return Err(unserved("match on a scalar subject"));
         };
         if !names_storage(&subject) {
@@ -386,7 +387,7 @@ impl<'t> Program<'t> {
                 arms,
                 default,
             },
-            result: Some(ValueType::Scalar(result)),
+            result: Some(ValueType::Scalar(result, Qualification::NONE)),
             source,
         })
     }
@@ -426,7 +427,7 @@ impl<'t> Program<'t> {
                         id,
                         slots,
                         pattern.condition,
-                        Some(ValueType::Scalar(ScalarType::Boolean)),
+                        Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
                     )?;
                     if !same_computation(&condition, &case_condition(subject, case)) {
                         return Err(unserved("match arm whose condition is not its case test"));
@@ -437,12 +438,12 @@ impl<'t> Program<'t> {
                     Some(case)
                 }
             };
-            let value = self.expression(id, slots, arm.value, result.map(ValueType::Scalar))?;
+            let value = self.expression(id, slots, arm.value, result.map(ValueType::plain))?;
             let value_type = match value.result {
-                Some(ValueType::Scalar(scalar_type)) => scalar_type,
-                Some(ValueType::Record(_)) => return Err(unserved("match with a data result")),
-                Some(ValueType::Qualified(..)) => {
-                    return Err(unserved("match with a policy-qualified result"));
+                Some(ValueType::Scalar(scalar_type, Qualification::NONE)) => scalar_type,
+                Some(ValueType::Record(_, _)) => return Err(unserved("match with a data result")),
+                Some(ValueType::Scalar(..)) => {
+                    return Err(unserved("match with a qualified result"));
                 }
                 Some(ValueType::Rigid(_)) => {
                     return Err(unserved("match with a result of a rigid type"));
@@ -502,7 +503,7 @@ pub(super) fn case_test_of(subject: &Expression, case: usize) -> Expression {
             subject: Box::new(subject.clone()),
             case,
         },
-        result: Some(ValueType::Scalar(ScalarType::Boolean)),
+        result: Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
         source: subject.source,
     }
 }
@@ -516,11 +517,11 @@ pub(super) fn case_condition(subject: &Expression, case: usize) -> Expression {
             left: Box::new(case_test_of(subject, case)),
             right: Box::new(Expression {
                 kind: ExpressionKind::Boolean(true),
-                result: Some(ValueType::Scalar(ScalarType::Boolean)),
+                result: Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
                 source: subject.source,
             }),
         },
-        result: Some(ValueType::Scalar(ScalarType::Boolean)),
+        result: Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
         source: subject.source,
     }
 }
@@ -570,9 +571,14 @@ fn binary_expression(
     // the sentence reads that way, and the current checker rejects it as
     // mixed arithmetic domains.
     let carried = |value_type| match value_type {
-        ValueType::Scalar(scalar_type) => Some((scalar_type, None)),
-        ValueType::Qualified(carrier, policy) => Some((carrier, Some(policy))),
-        ValueType::Record(_) | ValueType::Rigid(_) => None,
+        // domains.md, "Operands": builtin operators take unqualified
+        // operands only. An arithmetic policy is the one qualification that
+        // gives the bare operator a meaning; an operand that carries a
+        // declared domain has no builtin operator.
+        ValueType::Scalar(carrier, qualification) if qualification.domains.is_empty() => {
+            Some((carrier, qualification.policy))
+        }
+        ValueType::Scalar(..) | ValueType::Record(_, _) | ValueType::Rigid(_) => None,
     };
     let (Some((left_type, left_policy)), Some((right_type, right_policy))) =
         (carried(left_type), carried(right_type))
@@ -620,7 +626,7 @@ fn binary_expression(
                     left: Box::new(left),
                     right: Box::new(right),
                 },
-                result: Some(ValueType::Scalar(ScalarType::Boolean)),
+                result: Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
                 source,
             });
         }
@@ -650,12 +656,12 @@ fn binary_expression(
     };
     let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
     let integer = |scalar_type| matches!(scalar_type, ScalarType::Integer(_));
-    let boolean = ValueType::Scalar(ScalarType::Boolean);
+    let boolean = ValueType::Scalar(ScalarType::Boolean, Qualification::NONE);
     // The type an arithmetic or shift result has: its value operand's
     // carrier, under the operation's policy when it has one.
     let computed = |carrier| match policy {
-        Some(policy) => ValueType::Qualified(carrier, policy),
-        None => ValueType::Scalar(carrier),
+        Some(policy) => ValueType::Scalar(carrier, Qualification::of_policy(policy)),
+        None => ValueType::Scalar(carrier, Qualification::NONE),
     };
     let result = match operands {
         // The policy catalog has no bitwise row: `&`, `|` and `^` cannot
@@ -920,10 +926,10 @@ mod tests {
     /// name, and two plain operands are untouched.
     #[test]
     fn an_operator_takes_its_policy_from_its_operands_and_never_from_a_plain_binding() {
-        let plain = ValueType::Scalar(carrier());
-        let wrapping = ValueType::Qualified(carrier(), Policy::Wrapping);
-        let saturating = ValueType::Qualified(carrier(), Policy::Saturating);
-        let boolean = ValueType::Scalar(ScalarType::Boolean);
+        let plain = ValueType::Scalar(carrier(), Qualification::NONE);
+        let wrapping = ValueType::Scalar(carrier(), Qualification::of_policy(Policy::Wrapping));
+        let saturating = ValueType::Scalar(carrier(), Qualification::of_policy(Policy::Saturating));
+        let boolean = ValueType::Scalar(ScalarType::Boolean, Qualification::NONE);
         let neither = (false, false);
         for operator in [
             BinaryOperator::Add,
@@ -984,9 +990,9 @@ mod tests {
             Ok(plain)
         );
         // A policy does not make two carriers one.
-        let wider = ValueType::Qualified(
+        let wider = ValueType::Scalar(
             ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
-            Policy::Wrapping,
+            Qualification::of_policy(Policy::Wrapping),
         );
         assert_eq!(
             typed(BinaryOperator::Add, wrapping, wider, neither).unwrap_err(),

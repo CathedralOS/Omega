@@ -4,6 +4,7 @@ application and authored selection it must leave unused, and the call itself
 with its arguments.
 */
 
+use crate::body::Qualification;
 use language_core::ReferenceAccess;
 use semantic_vocabulary::MachineId;
 use symbols::{SymbolHandle, SymbolKind};
@@ -1247,7 +1248,7 @@ impl<'t> Program<'t> {
             return unserved("loan of a policy-qualified integer");
         }
         let home = match (&place.kind, lender.value_type) {
-            (ExpressionKind::Slot(_), ValueType::Scalar(_)) if !lender.homed => {
+            (ExpressionKind::Slot(_), ValueType::Scalar(_, Qualification::NONE)) if !lender.homed => {
                 Some(formal.home.clone().ok_or_else(|| {
                     refuse(
                         id,
@@ -1512,8 +1513,8 @@ mod tests {
         let capture = typed.expression_table.insert_match_subject(marker);
         let foreign = typed.expression_table.insert_match_subject(marker);
         let source = SourceOrigin::Unpositioned(Unpositioned::SpanAbsent);
-        let record = ValueType::Record(StructuralTypeId::new(1).unwrap());
-        let scalar = ValueType::Scalar(ScalarType::Integer(
+        let record = ValueType::Record(StructuralTypeId::new(1).unwrap(), Qualification::NONE);
+        let scalar = ValueType::plain(ScalarType::Integer(
             IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
         ));
         let slot = |slot| Expression {
@@ -1521,7 +1522,7 @@ mod tests {
             result: Some(if slot == 1 {
                 scalar
             } else if slot == 0 {
-                ValueType::Record(StructuralTypeId::new(2).unwrap())
+                ValueType::Record(StructuralTypeId::new(2).unwrap(), Qualification::NONE)
             } else {
                 record
             }),

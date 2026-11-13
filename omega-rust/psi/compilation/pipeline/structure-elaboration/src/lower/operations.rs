@@ -4,6 +4,7 @@ evaluation order, and the `OperationSafety` obligation of each partial one.
 A record-typed expression is storage and goes to `places`.
 */
 
+use crate::body::Qualification;
 use semantic_vocabulary::{ObligationId, OperationId, ScalarType, ValueId};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::ValueOrigin;
@@ -69,13 +70,13 @@ impl Lowering<'_> {
     /// "contributes no runtime field, address, read, or cleanup."
     pub(super) fn witness(&mut self, expression: &Expression) -> Checked<Witness> {
         match (&expression.kind, expression.result) {
-            (ExpressionKind::Integer(value), Some(ValueType::Scalar(ScalarType::Integer(t)))) => {
+            (ExpressionKind::Integer(value), Some(ValueType::Scalar(ScalarType::Integer(t), Qualification::NONE))) => {
                 Ok(Witness::Integer(t, *value))
             }
             (ExpressionKind::Boolean(value), _) => Ok(Witness::Boolean(*value)),
             (
                 ExpressionKind::Slot(slot),
-                Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)),
+                Some(ValueType::Scalar(scalar_type, _)),
             ) => match *self.slot_mut(*slot)? {
                 Some(Bound::Scalar(value)) => Ok(Witness::Value(value, scalar_type)),
                 Some(Bound::Erased(witness)) => Ok(witness),
@@ -105,8 +106,8 @@ impl Lowering<'_> {
         // A record-typed expression names storage; its value is a root that
         // holds it. Everything below is scalar or Unit.
         let result = match expression.result {
-            Some(ValueType::Record(_)) => return self.record(expression).map(Value::Record),
-            Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) => {
+            Some(ValueType::Record(_, _)) => return self.record(expression).map(Value::Record),
+            Some(ValueType::Scalar(scalar_type, _)) => {
                 Some(scalar_type)
             }
             // A value of a rigid type is only ever named: no operation

@@ -24,23 +24,24 @@ use terminal_psi::CrashRouteBucket;
 
 use crate::SourceOrigin;
 
-/// The type of a formal, local, result or expression: a builtin scalar, or a
-/// record type by its dense identity in the module's record table.
+/// The type of a formal, local, result or expression: a carrier (a builtin
+/// scalar, a record type by its dense identity in the module's record table,
+/// or a rigid type parameter) and the domains the type carries on it.
 /// `wiki/spec/terminal-psi/calls_and_outcomes.md`: "Scalar values and
 /// structural places retain separate namespaces".
+///
+/// `wiki/spec/language/domains.md`: "Qualification never selects or changes
+/// storage representation", so everything that stores, moves or lowers a
+/// value reads the carrier alone. The qualification is part of the type all
+/// the same: two types with the same carrier and different domains are
+/// different types, and every typing rule that compares two types (a `let`,
+/// an argument, a field initializer, a return, the arms of a join) tells
+/// them apart ("the supplied expression's static type must carry exactly the
+/// domains the destination declares").
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueType {
-    Scalar(ScalarType),
-    /// An integer whose type carries an arithmetic policy, `u32 in Wrapping`
-    /// or `u32 in Saturating`. It is stored and compared as its carrier; the
-    /// policy only chooses what an arithmetic operator over it means
-    /// (`wiki/spec/language/numeric_values.md`, "Overflow policies": "Adding
-    /// and removing a policy domain ... change future operations, not
-    /// existing payloads"). It is a different type from the bare carrier, so
-    /// every typing rule that compares two types tells them apart. The
-    /// carrier is always a `ScalarType::Integer`.
-    Qualified(ScalarType, Policy),
-    Record(StructuralTypeId),
+    Scalar(ScalarType, Qualification),
+    Record(StructuralTypeId, Qualification),
     /// A value of a type parameter that a generic check form leaves rigid.
     /// It is neither a scalar nor a record: no operator, field or literal
     /// applies to it, so every typing rule that asks for one refuses it. It
@@ -48,8 +49,100 @@ pub enum ValueType {
     Rigid(RigidType),
 }
 
-/// An arithmetic policy a type can carry. `Exact` is the bare carrier, which
-/// is `ValueType::Scalar`; `Trapping` is refused by the reader.
+/// The domains a type carries, one mechanism for every kind of domain: the
+/// arithmetic policy of an integer (`u32 in Wrapping`) and the declared
+/// domains (`i32 in Km`, `Seal in Issued`) are members of the same set, and
+/// the same casts add and remove them.
+///
+/// The policy has its own field because a type carries at most one
+/// (`wiki/spec/language/numeric_values.md`, "Overflow policies": "A type may
+/// carry any number of value qualifications but at most one arithmetic
+/// policy") and it alone chooses what a builtin operator means. A policy is
+/// only ever carried by a `ScalarType::Integer`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Qualification {
+    pub policy: Option<Policy>,
+    pub domains: DomainSet,
+}
+
+impl Qualification {
+    /// The bare carrier: no policy and no declared domain.
+    pub const NONE: Self = Self {
+        policy: None,
+        domains: DomainSet::EMPTY,
+    };
+
+    pub const fn of_policy(policy: Policy) -> Self {
+        Self {
+            policy: Some(policy),
+            domains: DomainSet::EMPTY,
+        }
+    }
+
+    pub fn is_none(self) -> bool {
+        self == Self::NONE
+    }
+}
+
+/// The declared domains of one type, each by its declaration's symbol, kept
+/// sorted so that equal sets are equal values. The set is held inline, as
+/// the two numbers of each symbol handle, which keeps a type `Copy` and lets
+/// `Qualification::NONE` be matched as a pattern; a type naming more than
+/// `DomainSet::CAPACITY` declared domains is refused by the reader.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DomainSet {
+    len: u8,
+    members: [(u32, u32); Self::CAPACITY],
+}
+
+impl DomainSet {
+    pub const CAPACITY: usize = 4;
+    pub const EMPTY: Self = Self {
+        len: 0,
+        members: [(0, 0); Self::CAPACITY],
+    };
+
+    const fn key(domain: symbols::SymbolHandle) -> (u32, u32) {
+        (domain.arena_index(), domain.generation())
+    }
+
+    pub fn members(&self) -> impl Iterator<Item = symbols::SymbolHandle> + '_ {
+        self.members[..usize::from(self.len)]
+            .iter()
+            .map(|(index, generation)| symbols::SymbolHandle::from_parts(*index, *generation))
+    }
+
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    pub fn contains(&self, domain: symbols::SymbolHandle) -> bool {
+        self.members[..usize::from(self.len)].contains(&Self::key(domain))
+    }
+
+    /// Whether every member of this set is a member of `other`.
+    pub fn is_subset_of(&self, other: &Self) -> bool {
+        self.members().all(|domain| other.contains(domain))
+    }
+
+    /// This set with `domain` added: `None` when it is already a member or
+    /// the set is full.
+    pub fn with(mut self, domain: symbols::SymbolHandle) -> Option<Self> {
+        let count = usize::from(self.len);
+        if self.contains(domain) || count == Self::CAPACITY {
+            return None;
+        }
+        let key = Self::key(domain);
+        let position = self.members[..count].partition_point(|member| *member < key);
+        self.members.copy_within(position..count, position + 1);
+        self.members[position] = key;
+        self.len += 1;
+        Some(self)
+    }
+}
+
+/// An arithmetic policy a type can carry. `Exact` is no policy; `Trapping`
+/// is refused by the reader.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Policy {
     /// Overflow reduces modulo the carrier.
@@ -60,38 +153,60 @@ pub enum Policy {
 
 impl From<ScalarType> for ValueType {
     fn from(scalar_type: ScalarType) -> Self {
-        Self::Scalar(scalar_type)
+        Self::plain(scalar_type)
     }
 }
 
 impl ValueType {
-    /// The scalar a value of this type is stored as: the type itself, or a
-    /// policy-qualified integer's carrier.
+    /// The bare scalar carrier, with no domain.
+    pub const fn plain(scalar_type: ScalarType) -> Self {
+        Self::Scalar(scalar_type, Qualification::NONE)
+    }
+
+    /// The bare record carrier, with no domain.
+    pub const fn record(record: StructuralTypeId) -> Self {
+        Self::Record(record, Qualification::NONE)
+    }
+
+    /// The scalar a value of this type is stored as, whatever it carries.
     pub const fn scalar(self) -> Option<ScalarType> {
         match self {
-            Self::Scalar(scalar_type) => Some(scalar_type),
-            Self::Qualified(carrier, _) => Some(carrier),
-            Self::Record(_) | Self::Rigid(_) => None,
+            Self::Scalar(scalar_type, _) => Some(scalar_type),
+            Self::Record(..) | Self::Rigid(_) => None,
         }
+    }
+
+    /// The domains this type carries; a rigid type parameter carries none.
+    pub const fn qualification(self) -> Qualification {
+        match self {
+            Self::Scalar(_, qualification) | Self::Record(_, qualification) => qualification,
+            Self::Rigid(_) => Qualification::NONE,
+        }
+    }
+
+    /// This type's carrier with `qualification` in place of its own; a rigid
+    /// type parameter has no qualified form.
+    pub const fn qualified(self, qualification: Qualification) -> Option<Self> {
+        match self {
+            Self::Scalar(scalar_type, _) => Some(Self::Scalar(scalar_type, qualification)),
+            Self::Record(record, _) => Some(Self::Record(record, qualification)),
+            Self::Rigid(_) => None,
+        }
+    }
+
+    /// The arithmetic policy this type carries, if it carries one.
+    pub const fn policy(self) -> Option<Policy> {
+        self.qualification().policy
     }
 
     /// How a value of this type is declared on the lowered form, when it is
     /// a value there and not a place: its declared type, and the rigid type
     /// that declaration stands in for.
-    /// The arithmetic policy this type carries, if it carries one.
-    pub const fn policy(self) -> Option<Policy> {
-        match self {
-            Self::Qualified(_, policy) => Some(policy),
-            Self::Scalar(_) | Self::Record(_) | Self::Rigid(_) => None,
-        }
-    }
-
     pub const fn declared(self) -> Option<(ScalarType, Option<RigidType>)> {
         match self {
-            Self::Scalar(scalar_type) => Some((scalar_type, None)),
-            Self::Qualified(carrier, _) => Some((carrier, None)),
+            Self::Scalar(scalar_type, _) => Some((scalar_type, None)),
             Self::Rigid(rigid) => Some((RigidType::DECLARED_AS, Some(rigid))),
-            Self::Record(_) => None,
+            Self::Record(..) => None,
         }
     }
 }
@@ -335,7 +450,7 @@ impl Signature {
     /// a clause names it.
     pub fn is_place(&self, position: usize) -> bool {
         self.borrowed(position).is_some()
-            || matches!(self.parameters.get(position), Some(ValueType::Record(_)))
+            || matches!(self.parameters.get(position), Some(ValueType::Record(..)))
     }
 
     /// The value identity of each formal, by position; `None` for a record

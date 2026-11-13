@@ -532,7 +532,7 @@ mod tests {
 
     fn record_fixture() -> (RecordType, RecordSource) {
         let (_, data, reference) = application_fixture();
-        let scalar = ValueType::Scalar(ScalarType::Integer(
+        let scalar = ValueType::plain(ScalarType::Integer(
             IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
         ));
         let declaration = RecordType {
@@ -784,20 +784,20 @@ mod tests {
         let nested = fixture.apply(second, second);
         let alias = fixture.apply(fixture.u64_type, fixture.u64_type);
         let mut program = Program::new(&fixture.typed, false);
-        let ValueType::Record(first_record) = program.record_at(machine(), first).unwrap() else {
+        let ValueType::Record(first_record, _) = program.record_at(machine(), first).unwrap() else {
             panic!("record");
         };
-        let ValueType::Record(second_record) = program.record_at(machine(), second).unwrap() else {
+        let ValueType::Record(second_record, _) = program.record_at(machine(), second).unwrap() else {
             panic!("record");
         };
-        let ValueType::Record(nested_record) = program.record_at(machine(), nested).unwrap() else {
+        let ValueType::Record(nested_record, _) = program.record_at(machine(), nested).unwrap() else {
             panic!("record");
         };
         assert_ne!(first_record, second_record);
         assert_ne!(nested_record, second_record);
         assert_eq!(
             program.record_at(machine(), alias).unwrap(),
-            ValueType::Record(second_record)
+            ValueType::record(second_record)
         );
         let source = program.record_sources.get(second_record).unwrap();
         assert_eq!(source.application.as_ref().unwrap().reference, second);
@@ -807,7 +807,7 @@ mod tests {
         );
         assert_eq!(
             program.records.get(nested_record).unwrap().cases()[1].fields[0].value_type,
-            ValueType::Record(second_record)
+            ValueType::record(second_record)
         );
         assert_eq!(
             program
@@ -901,7 +901,7 @@ mod tests {
         // An ambient interpretation of T cannot close the source tuple.
         program.scope.push((
             fixture.parameter,
-            ValueType::Scalar(ScalarType::Integer(
+            ValueType::plain(ScalarType::Integer(
                 IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
             )),
         ));

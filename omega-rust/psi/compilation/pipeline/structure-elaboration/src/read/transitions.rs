@@ -4,6 +4,7 @@ target (a value, a terminal call or Unit) and the crash exit; and dispatch
 over a sum, which stage 01 writes as one guarded transition per case arm.
 */
 
+use crate::body::Qualification;
 use semantic_vocabulary::{MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::ExpressionHandle;
@@ -58,13 +59,13 @@ impl Program<'_> {
                     id,
                     slots,
                     guard,
-                    Some(ValueType::Scalar(ScalarType::Boolean)),
+                    Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
                 )?;
                 let read_condition = self.expression(
                     id,
                     slots,
                     condition,
-                    Some(ValueType::Scalar(ScalarType::Boolean)),
+                    Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
                 )?;
                 if !same_computation(&read_guard, &read_condition) {
                     return Err(refuse(
@@ -90,9 +91,9 @@ impl Program<'_> {
                     id,
                     slots,
                     guard,
-                    Some(ValueType::Scalar(ScalarType::Boolean)),
+                    Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
                 )?;
-                if guard.result != Some(ValueType::Scalar(ScalarType::Boolean)) {
+                if guard.result != Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)) {
                     return Err(refuse(
                         id,
                         Construct::Machine,
@@ -165,7 +166,7 @@ impl Program<'_> {
                     if pattern.pattern.head.is_valid() =>
                 {
                     let read = self.expression(id, slots, pattern.subject, None)?;
-                    let (ExpressionKind::Slot(_), Some(ValueType::Record(record))) =
+                    let (ExpressionKind::Slot(_), Some(ValueType::Record(record, _))) =
                         (&read.kind, read.result)
                     else {
                         return Err(unserved("case arm whose subject is not a data local"));
@@ -186,13 +187,13 @@ impl Program<'_> {
                         id,
                         slots,
                         guard,
-                        Some(ValueType::Scalar(ScalarType::Boolean)),
+                        Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
                     )?;
                     let condition = self.expression(
                         id,
                         slots,
                         pattern.pattern.condition,
-                        Some(ValueType::Scalar(ScalarType::Boolean)),
+                        Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
                     )?;
                     if !same_computation(&guard, &case_test_of(&read, case))
                         || !same_computation(&condition, &case_condition(&read, case))
