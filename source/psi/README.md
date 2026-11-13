@@ -3,12 +3,20 @@
 This sibling package owns the Omega-written, target-neutral Psi half of the
 production compiler. `source/omega/` consumes it through the `psi` package
 identity; Omega does not own this source tree. The parser/typing inventory below
-describes current implementation, including retired target prefixes and `via`
+describes current implementation, including data-owned machine declarations, retired target prefixes and `via`
 binding clauses. Those are migration debt, not accepted alternative syntax.
 Package-local `Build::bind<Requirement>(builder, target, locator)` replaces the
 per-symbol native forwarding declaration, with locator lengths inferred;
 `BUILD-OWNED-NATIVE-BINDINGS` and `BUILD-OWNED-TARGET-SELECTION` in
 [the task board](../../TASKS.md#pipeline-route) own the implementation changes.
+The compiler source closure still uses retired whole-type domain casts and
+implicit domain qualification accepted by the Rust development comparator.
+The source frontend now requires explicit domain accounting for its bounded
+policy slice; its compiler source has not yet been migrated to that same input
+language. The scalar execution gate admits only unqualified `u8` machines and
+refuses other root kinds and erased bindings; it does not establish full
+frontend conformance or self-compilation.
+
 The current live slice contains
 source/span and token representations, a UTF-8-framed lexer that stores only
 semantic tokens, and a fail-closed whole-file parser for ordinary
@@ -64,7 +72,10 @@ and Boolean literals, names and
 its own row, and only a path's members fill the shared member table),
 `.field`, `[index]`, range slices `[a..b]`, `[a..=b]`, `[a..]`, `[..b]` and
 `[..]` as an index's operand, calls,
-static applications `path<arguments>(...)`, `as Type` casts,
+static applications `path<arguments>(...)`, unqualified `as Type` carrier casts,
+and explicit singleton policy casts `as +Policy`, `as =Policy`, `as -Policy`
+or `as Type +Policy` (retired whole-type qualification and simultaneous
+multi-entry accounting refuse),
 `Path { field: value }` constructions (always inside brackets, never before an
 unbracketed body), prefix `!`, `-`, `~`, `&`, `&mut`, `&write` and the call
 acknowledgements `suspend`, `block` and `suspend block`, the binary
@@ -101,7 +112,8 @@ named conformance `[public] Name [<generic parameters>] satisfies Trait<argument
 { ... }` holds checked machines only: the reference row `Trait::requirement = Path;`
 is retired and rejects at its first token
 ([`parse/traits.omg`](parse/traits.omg), [`parse/conformance.omg`](parse/conformance.omg));
-`[public] domain [<generic parameters>] Carrier::Name [<indices>] [(subject)]`
+`[public] domain [<generic parameters>] Carrier::Name [<indices>]`
+uses the fixed predicate subject `self`; authored subject binders reject. It
 is a transparent alias `= A & B;` or takes `requires` facts and
 `established by Path, ...` routes, closed by `;` or an empty `{ }`
 ([`parse/domain.omg`](parse/domain.omg)); `[public] const [Owner::]NAME: Type =
@@ -149,7 +161,7 @@ the retired authored state spelling and its separate syntax table are removed.
 
 Name resolution follows parsing over the compilation's source set
 ([`source/source.omg`](source/source.omg)): up to 64 packages, 256
-requester-local dependency edges and 128 units, each unit belonging to a
+requester-local dependency edges and 512 units, each unit belonging to a
 package and to the module its path names there (`a::b`), parsed into the
 shared syntax tables, with its position as its source id. Those tables are
 whole-program, sized above what the psi package fills: 4,096 roots, 1,024
@@ -338,8 +350,11 @@ literal is anonymous ([`typing/literals.omg`](typing/literals.omg)): wholly
 anonymous `+`, `-`, `*` and `/` fold over exact rationals (`7 / 2 * 2` is 7;
 [`integers/integers.omg`](integers/integers.omg)), an anonymous `%` or a
 division by zero rejects, and the tree lands once at a destination it fits,
-its value integral there: a declared local, a parameter, a field, a typed
-operand, a cast or a result. A
+its value integral there. Fractional origin survives cancellation and negation:
+a computational integer landing after a fractional intermediate requires `as`
+around the completed anonymous operand. Declared locals, parameters, fields,
+typed peers and results do not acknowledge that history. Explicit casts still
+require final integrality and range. A
 suffix types its literal at that carrier, under a destination's policy. Arithmetic and bitwise operators take
 one fixed-integer or float type, policy included, so differing policies never
 mix; integer comparisons relate exact values of any carriers; `==` also
@@ -772,3 +787,12 @@ owns bounded token selection and trivia traversal;
 Generated data belongs under the semantic phase that consumes it. No retained
 lexical contract consumes the current Unicode identifier table, so it must be
 deleted rather than moved into a generic `generated/` owner.
+
+The initial source-owned [`lowering/scalar.omg`](lowering/scalar.omg) lowers a
+bounded checked scalar subset into stable value and callable operations for
+Omega's Alpha realization. It follows the existing portable operation meanings;
+it is not a second serialized product. Unsupported forms and recursive call
+cycles refuse before publication. The [Alpha execution gate](../../tests/product/alpha/README.md)
+exercises the full frontend before lowering and executes the resulting tape.
+Full portable publication still needs canonical declaration, contract and
+obligation identities beyond the checker's current verdict/count records.

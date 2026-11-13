@@ -340,13 +340,23 @@ crashes Trap
         }
     }
 
-    // A recast `operand as &T` holds what its operand lends: a borrow's
-    // place, or a reference value's referent.
+    // A reference cast keeps the loan of its original operand through any
+    // number of explicit views. A scalar result carries no reference loan.
     machine recast(syntax: &SyntaxTrees, typing: &Typing, argument: u64 in Trapping, expression: Expression) -> Hold {
-        let operand: Expression = syntax_trees_expression(syntax, expression.left);
+        let result_type: u64 in Trapping = typing_expression_type(typing, argument);
+        let row: TypeRow = type_table_row(&typing.types, result_type);
+        transition row.kind == TypeKind::Reference {
+            true -> reference_cast(syntax, typing, argument)
+            _ -> answer(Hold::Released)
+        }
+    }
+
+    machine reference_cast(syntax: &SyntaxTrees, typing: &Typing, argument: u64 in Trapping) -> Hold {
+        let origin: u64 in Trapping = reference_cast_source(syntax, typing, argument);
+        let operand: Expression = syntax_trees_expression(syntax, origin);
         transition operand.kind == ExpressionKind::Unary {
-            true -> borrowed(typing, expression.left, operand)
-            _ -> referenced(typing, expression.left)
+            true -> borrowed(typing, origin, operand)
+            _ -> referenced(typing, origin)
         }
     }
 

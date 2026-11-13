@@ -17,19 +17,19 @@ blocks
     clear(&mut request);
     let mut slot_review: OmegaSlotReview;
     prepare(&mut slot_review);
-    transition { _ -> read(context, &mut request) }
+    transition { _ -> block read(context, &mut request) }
 
     machine read(context: &mut Main, request: &mut Request) {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> stage(context, request, value)
+            ByteRead::Byte { value } -> block stage(context, request, value)
             _ -> envelope(context, request)
         }
     }
 
     machine stage(context: &mut Main, request: &mut Request, value: i32) {
         request_stage(request, value as u8);
-        transition { _ -> read(context, request) }
+        transition { _ -> block read(context, request) }
     }
 
     machine envelope(context: &mut Main, request: &Request) {
