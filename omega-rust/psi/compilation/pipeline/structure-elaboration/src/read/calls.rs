@@ -906,6 +906,13 @@ impl<'t> Program<'t> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
         let (target, access) = match self.node(id, argument)? {
+            // `&bytes` of a formal that is already `&[u8]` would be a
+            // reference to the view's descriptor, not the view.
+            ExpressionNode::Borrow(borrow)
+                if self.names_byte_view(slots, borrow.target).is_some() =>
+            {
+                return unserved("borrow of a byte view");
+            }
             ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access),
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
@@ -926,7 +933,16 @@ impl<'t> Program<'t> {
             root = member.receiver;
         }
         let lender_text = self.typed.expression_table.display_name(root);
-        let place = self.expression(id, slots, target, None)?;
+        // A byte view formal named whole is lent on as the view it is; the
+        // expression reader refuses that name everywhere else.
+        let place = match self.names_byte_view(slots, target) {
+            Some(slot) => Expression {
+                kind: ExpressionKind::Slot(slot),
+                result: Some(ValueType::Bytes),
+                source,
+            },
+            None => self.expression(id, slots, target, None)?,
+        };
         if !names_storage(&place) {
             return unserved("borrow of a value that is not a place");
         }
@@ -1035,6 +1051,7 @@ fn mentions(expression: &Expression, slots: &[usize]) -> bool {
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Length(operand)
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {

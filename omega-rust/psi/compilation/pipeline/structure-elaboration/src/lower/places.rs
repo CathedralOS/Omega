@@ -66,12 +66,13 @@ use terminal_check_tables::{
     Checked, Construct, ExactPlaceId, ProgramPoint, PsiSemanticId, Refusal, RefusalReason,
 };
 use terminal_psi::{
-    NativeLayoutCatalog, NativeLayoutFieldIdentity, Operation, OperationKind, OperationResult,
-    RecordFieldInitializer, RecordFieldValue, StructuralAccess, StructuralArgument,
-    StructuralCaseDeclaration, StructuralCaseSuccessorEdge, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
-    StructuralRecordStorage, StructuralStoreDisposition, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalAffineCleanupAction, TerminalIdentityIndex, TerminalIdentityTable,
+    ByteSequenceCarrier, NativeLayoutCatalog, NativeLayoutFieldIdentity, Operation, OperationKind,
+    OperationResult, RecordFieldInitializer, RecordFieldValue, StructuralAccess,
+    StructuralArgument, StructuralCaseDeclaration, StructuralCaseSuccessorEdge,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralOperationResult, StructuralPathSegment, StructuralRecordStorage,
+    StructuralStoreDisposition, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction, TerminalIdentityIndex, TerminalIdentityTable,
     TerminalIdentityTableBuilder, Terminator,
 };
 
@@ -91,6 +92,9 @@ pub(crate) struct Records<'a> {
     /// in, declared after the record types. A handful at most, searched by
     /// the scalar type itself.
     primitives: Vec<(ScalarType, StructuralTypeId)>,
+    /// The canonical byte-view type, declared after the primitives when
+    /// some signature has a `&[u8]` formal.
+    view: Option<StructuralTypeId>,
     /// `field_identities[record][position]`: the field's index in the
     /// module's identity table. It is written into `StructuralLeafCopy`
     /// paths, which is the form Terminal Psi gives them; nothing compares it.
@@ -150,6 +154,15 @@ pub(crate) fn declare<'a>(
                             entry,
                             Construct::Machine,
                             Unserved::Type("generic data"),
+                        ));
+                    }
+                    // `[u8]` is no field's type; a `&[u8]` field is a
+                    // reference, which the reader refuses.
+                    ValueType::Bytes => {
+                        return Err(refuse(
+                            entry,
+                            Construct::Machine,
+                            Unserved::Type("byte view field"),
                         ));
                     }
                     ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
@@ -305,10 +318,61 @@ pub(crate) fn declare<'a>(
             primitives.push((scalar_type, id));
         }
     }
+    // The one type of a view passed as `&[u8]`, declared when a signature
+    // has such a formal: the canonical view, whose access is the
+    // parameter's. encoding.md: "access `None` denotes a canonical view
+    // occurrence whose access is on the parameter or operation ... A
+    // canonical view parameter transports the descriptor value", where a
+    // descriptor type with `Some(access)` is stored pointer data and a
+    // borrowed parameter of it would lend "that descriptor's original
+    // storage address", a reference to a reference. The occurrence is not
+    // itself copyable storage and owns no claim; these are the flags the
+    // current pipeline declares the type with. Its identity is the text the
+    // typed trees give the referent type, as a scalar home's is.
+    let mut view = None;
+    for (_, signature) in signatures.iter() {
+        for borrowed in &signature.borrowed {
+            if view.is_some()
+                || signature.parameters.get(borrowed.position) != Some(&ValueType::Bytes)
+            {
+                continue;
+            }
+            let Some(identity) = borrowed.home.as_ref() else {
+                return Err(refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Spelling("byte view without a type identity"),
+                ));
+            };
+            let id = StructuralTypeId::new(structural_types.len() as u64 + 1).ok_or_else(|| {
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Type("structural type identity overflow"),
+                )
+            })?;
+            structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
+                quotient_carrier: None,
+                id,
+                identity: identities.intern(identity),
+                owns_linear_claim: false,
+                copyable: false,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: true,
+                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: None,
+                }),
+                scalar_restriction: None,
+            });
+            view = Some(id);
+        }
+    }
     Ok(Declared {
         records: Records {
             types,
             primitives,
+            view,
             field_identities,
             payload_identities,
         },
@@ -378,6 +442,7 @@ fn expression_homes<'b>(
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Length(operand)
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
@@ -444,6 +509,17 @@ impl Records<'_> {
             StructuralMultiplicity::Affine
         })
     }
+    /// The canonical byte-view type `declare` declared, when some signature
+    /// has a `&[u8]` formal.
+    pub(super) fn view(&self, machine: MachineId) -> Checked<StructuralTypeId> {
+        self.view.ok_or_else(|| Refusal {
+            reason: RefusalReason::ForeignIdentity,
+            machine,
+            concerns: Construct::Machine,
+            detail: String::from("the canonical byte-view type is not declared"),
+        })
+    }
+
     /// The primitive structural type `declare` declared for `scalar_type`.
     pub(super) fn primitive(
         &self,
@@ -472,6 +548,10 @@ pub(super) enum Bound {
     Scalar(ValueId),
     Record(PlaceId),
     Home(PlaceId),
+    /// A formal passed as `&[u8]`: the root place that holds the view. It is
+    /// measured and lent whole; nothing reads it as a value or stores into
+    /// it.
+    View(PlaceId),
     /// An `[erased]` formal or local: the term it names. Nothing evaluates
     /// it and no runtime expression may read it.
     Erased(Witness),
@@ -681,6 +761,9 @@ impl<'a> Lowering<'a> {
     fn entry_leaves(&mut self, place: ExactPlaceId, value_type: ValueType) -> Checked<()> {
         match value_type {
             ValueType::Rigid(_) => Err(self.internal("a field of a rigid type")),
+            // A view has no scalar leaf to name: its octets are read by
+            // index and its extent is observed, neither through a leaf row.
+            ValueType::Bytes => Ok(()),
             ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
                 self.entry_content(place, scalar_type).map(drop)
             }
@@ -827,6 +910,7 @@ impl<'a> Lowering<'a> {
                     Some(Bound::Scalar(_) | Bound::Home(_) | Bound::Erased(_)) => {
                         Err(self.internal("a scalar slot is used as a record"))
                     }
+                    Some(Bound::View(_)) => Err(self.internal("a byte view is used as a record")),
                     None => Err(self.internal("a slot is read before it is bound")),
                 }
             }
@@ -897,6 +981,7 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::BitwiseNot(_)
             | ExpressionKind::Cast(_)
             | ExpressionKind::Requalify(_)
+            | ExpressionKind::Length(_)
             | ExpressionKind::ShortCircuit { .. } => {
                 Err(self.internal("a scalar operation has a record type"))
             }
@@ -1076,6 +1161,12 @@ impl<'a> Lowering<'a> {
                 }
                 (at.root, at.path, at.place)
             }
+            // A byte view formal named whole: the view itself is lent on,
+            // under the loan its own formal arrived with.
+            (ExpressionKind::Slot(slot), ValueType::Bytes) => match *self.slot_mut(*slot)? {
+                Some(Bound::View(view)) => (view, Vec::new(), self.exact_root(view)?),
+                _ => return Err(self.internal("a lent byte view slot holds no view")),
+            },
             _ => return Err(self.internal("a loan of something that is not a place")),
         };
         if steps
@@ -1144,7 +1235,9 @@ impl<'a> Lowering<'a> {
                 .get(*position)
                 .ok_or_else(|| self.internal("a literal names a field past its record"))?;
             let evaluated = match field.value_type {
-                ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
+                ValueType::Rigid(_) | ValueType::Bytes => {
+                    return Err(self.internal("a field of a rigid type or a byte view"));
+                }
                 ValueType::Scalar(_) | ValueType::Qualified(..) => {
                     Operand::Scalar(self.scalar(operand)?)
                 }
@@ -1222,7 +1315,9 @@ impl<'a> Lowering<'a> {
                 .get(*position)
                 .ok_or_else(|| self.internal("a literal names a field past its case"))?;
             let evaluated = match field.value_type {
-                ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
+                ValueType::Rigid(_) | ValueType::Bytes => {
+                    return Err(self.internal("a field of a rigid type or a byte view"));
+                }
                 ValueType::Scalar(_) | ValueType::Qualified(..) => {
                     Operand::Scalar(self.scalar(operand)?)
                 }
@@ -1345,7 +1440,9 @@ impl<'a> Lowering<'a> {
             let mut payload_fields = Vec::new();
             for field in &selected.fields {
                 parameters.push(match field.value_type {
-                    ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
+                    ValueType::Rigid(_) | ValueType::Bytes => {
+                        return Err(self.internal("a field of a rigid type or a byte view"));
+                    }
                     ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
                         let value = self.value(
                             scalar_type,
@@ -1594,8 +1691,8 @@ impl<'a> Lowering<'a> {
     /// domain clause and is never gated.
     pub(super) fn declare_local(&mut self, slot: usize, source: SourceOrigin) -> Checked<()> {
         let bound = match self.slot_type(slot)? {
-            ValueType::Rigid(_) => {
-                return Err(self.internal("a local of a rigid type is declared"));
+            ValueType::Rigid(_) | ValueType::Bytes => {
+                return Err(self.internal("a local of a rigid type or a byte view is declared"));
             }
             ValueType::Record(record) => {
                 // The zero of each scalar leaf, as a constant the module
@@ -1727,6 +1824,9 @@ impl<'a> Lowering<'a> {
                 );
             }
             (Some(Bound::Record(root)), Some(last)) => (root, last),
+            (Some(Bound::View(_)), _) => {
+                return Err(self.internal("a byte view is stored to"));
+            }
             (Some(Bound::Scalar(_) | Bound::Home(_) | Bound::Erased(_)), Some(_)) => {
                 return Err(self.internal("a field of a scalar slot is stored to"));
             }
@@ -1750,7 +1850,10 @@ impl<'a> Lowering<'a> {
             place = self.step(place, step)?;
             record = match declared.value_type {
                 ValueType::Record(nested) => nested,
-                ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_) => {
+                ValueType::Scalar(_)
+                | ValueType::Qualified(..)
+                | ValueType::Rigid(_)
+                | ValueType::Bytes => {
                     return Err(self.internal("a store path crosses a scalar field"));
                 }
             };
@@ -1775,7 +1878,9 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a stored value has another type than its field"));
         }
         match declared.value_type {
-            ValueType::Rigid(_) => Err(self.internal("a field of a rigid type")),
+            ValueType::Rigid(_) | ValueType::Bytes => {
+                Err(self.internal("a field of a rigid type or a byte view"))
+            }
             ValueType::Scalar(_) | ValueType::Qualified(..) => {
                 let stored = self.scalar(value)?;
                 let operation = self.operation_identity(source);
@@ -1868,7 +1973,9 @@ impl<'a> Lowering<'a> {
         for field in fields {
             prefix.push(Segment::Field(field.id));
             match field.value_type {
-                ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
+                ValueType::Rigid(_) | ValueType::Bytes => {
+                    return Err(self.internal("a field of a rigid type or a byte view"));
+                }
                 ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
                     let zero = self.zero(scalar_type, source)?;
                     zeros.push((prefix.clone(), zero));

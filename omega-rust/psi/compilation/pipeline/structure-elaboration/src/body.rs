@@ -45,6 +45,16 @@ pub enum ValueType {
     /// applies to it, so every typing rule that asks for one refuses it. It
     /// can be named, passed to a call and returned.
     Rigid(RigidType),
+    /// The octets a byte view denotes: `[u8]`, which exists only behind a
+    /// reference. It is the referent type of a formal passed as `&[u8]`
+    /// (`Signature::borrowed`), whose place holds the view for the
+    /// activation. It is not a value: nothing binds, copies, stores or
+    /// returns it, and the only things done with the view are to measure it
+    /// (`ExpressionKind::Length`) and to pass it on.
+    /// `wiki/spec/terminal-psi/byte_views.md`: "A byte view retains exact
+    /// raw octets ... Its structural type and reference access are
+    /// explicit."
+    Bytes,
 }
 
 /// An arithmetic policy a type can carry. `Exact` is the bare carrier, which
@@ -70,27 +80,27 @@ impl ValueType {
         match self {
             Self::Scalar(scalar_type) => Some(scalar_type),
             Self::Qualified(carrier, _) => Some(carrier),
-            Self::Record(_) | Self::Rigid(_) => None,
+            Self::Record(_) | Self::Rigid(_) | Self::Bytes => None,
+        }
+    }
+
+    /// The arithmetic policy this type carries, if it carries one.
+    pub const fn policy(self) -> Option<Policy> {
+        match self {
+            Self::Qualified(_, policy) => Some(policy),
+            Self::Scalar(_) | Self::Record(_) | Self::Rigid(_) | Self::Bytes => None,
         }
     }
 
     /// How a value of this type is declared on the lowered form, when it is
     /// a value there and not a place: its declared type, and the rigid type
     /// that declaration stands in for.
-    /// The arithmetic policy this type carries, if it carries one.
-    pub const fn policy(self) -> Option<Policy> {
-        match self {
-            Self::Qualified(_, policy) => Some(policy),
-            Self::Scalar(_) | Self::Record(_) | Self::Rigid(_) => None,
-        }
-    }
-
     pub const fn declared(self) -> Option<(ScalarType, Option<RigidType>)> {
         match self {
             Self::Scalar(scalar_type) => Some((scalar_type, None)),
             Self::Qualified(carrier, _) => Some((carrier, None)),
             Self::Rigid(rigid) => Some((RigidType::DECLARED_AS, Some(rigid))),
-            Self::Record(_) => None,
+            Self::Record(_) | Self::Bytes => None,
         }
     }
 }
@@ -547,6 +557,12 @@ pub enum ExpressionKind {
     /// policy, so no operation is emitted and the operand keeps the
     /// operations its own type chose.
     Requalify(Box<Expression>),
+    /// `bytes.len`: the byte count of the view its operand names, a `u64`.
+    /// The operand is a slot whose formal is passed as `&[u8]`. Each
+    /// occurrence is its own observation of the view
+    /// (`ByteSequenceLength`); byte_views.md: "neither observation consumes
+    /// its source".
+    Length(Box<Expression>),
     /// `&&` when `conjunction`, else `||`: the right operand runs only when
     /// the left does not decide the result.
     ShortCircuit {

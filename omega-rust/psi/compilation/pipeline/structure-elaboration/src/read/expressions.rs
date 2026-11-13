@@ -59,6 +59,37 @@ impl<'t> Program<'t> {
             })
     }
 
+    /// The slot `expression` names when it is a bare name of a formal
+    /// passed as `&[u8]`, resolved by the name's symbol.
+    pub(super) fn names_byte_view(
+        &self,
+        slots: &[Slot],
+        expression: ExpressionHandle,
+    ) -> Option<usize> {
+        if !expression.is_valid() {
+            return None;
+        }
+        let ExpressionNode::Name(path) = self.typed.expression_table.expression(expression) else {
+            return None;
+        };
+        if !path.symbol.is_valid()
+            || path.reserved_result_of.is_valid()
+            || self
+                .typed
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+        {
+            return None;
+        }
+        slots.iter().position(|slot| {
+            slot.symbol == path.symbol
+                && slot.value_type == ValueType::Bytes
+                && slot.borrowed == Some(language_core::ReferenceAccess::Shared)
+        })
+    }
+
     pub(super) fn node(
         &self,
         id: MachineId,
@@ -109,7 +140,7 @@ impl<'t> Program<'t> {
                     ValueType::Qualified(..) => {
                         return unserved("erased term of a policy-qualified type");
                     }
-                    ValueType::Record(_) | ValueType::Rigid(_) => {
+                    ValueType::Record(_) | ValueType::Rigid(_) | ValueType::Bytes => {
                         return unserved("erased term of a data type");
                     }
                 }
@@ -152,6 +183,13 @@ impl<'t> Program<'t> {
                 // own that rejection yet, so the closure falls back to it.
                 if slots[slot].erased {
                     return unserved("runtime use of an erased binding");
+                }
+                // A byte view is not a value: it is measured (`length`) and
+                // lent whole (`calls`, `loan`), and both read its slot
+                // themselves. Naming it anywhere else would bind, copy,
+                // compare or return the view, which no slice lowers.
+                if slots[slot].value_type == ValueType::Bytes {
+                    return unserved("byte view used as a value");
                 }
                 return Ok(Expression {
                     kind: ExpressionKind::Slot(slot),
@@ -283,6 +321,39 @@ impl<'t> Program<'t> {
             ExpressionNode::Float(_) => return unserved("float literal"),
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(_) => return unserved("index"),
+            // `bytes.len`: the builtin measure, which the typed trees hold
+            // as a member with no field symbol.
+            ExpressionNode::Member(_)
+                if typed
+                    .expression_table
+                    .authored_length_receiver(handle)
+                    .is_some_and(|receiver| self.names_byte_view(slots, receiver).is_some()) =>
+            {
+                let receiver = typed
+                    .expression_table
+                    .authored_length_receiver(handle)
+                    .and_then(|receiver| self.names_byte_view(slots, receiver));
+                let Some(slot) = receiver else {
+                    return unserved("length of something that is not a byte view formal");
+                };
+                return Ok(Expression {
+                    kind: ExpressionKind::Length(Box::new(Expression {
+                        kind: ExpressionKind::Slot(slot),
+                        result: Some(ValueType::Bytes),
+                        source,
+                    })),
+                    result: Some(ValueType::Scalar(ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            64,
+                        )
+                        .map_err(|_| {
+                            refuse(id, Construct::Machine, Unserved::Type("integer width"))
+                        })?,
+                    ))),
+                    source,
+                });
+            }
             ExpressionNode::Member(member) => return self.member(id, slots, member, source),
             ExpressionNode::Borrow(_) => return unserved("borrow"),
             ExpressionNode::Range(_) => return unserved("range"),
@@ -390,6 +461,7 @@ impl<'t> Program<'t> {
                 Some(ValueType::Rigid(_)) => {
                     return Err(unserved("match with a result of a rigid type"));
                 }
+                Some(ValueType::Bytes) => return Err(unserved("match with a byte view result")),
                 None => return Err(unserved("match with a Unit arm")),
             };
             if result.is_some_and(|result| result != value_type) {
@@ -431,6 +503,7 @@ pub(super) fn names_storage(expression: &Expression) -> bool {
         | ExpressionKind::BitwiseNot(_)
         | ExpressionKind::Cast(_)
         | ExpressionKind::Requalify(_)
+        | ExpressionKind::Length(_)
         | ExpressionKind::ShortCircuit { .. }
         | ExpressionKind::Call { .. } => false,
     }
@@ -513,7 +586,7 @@ fn binary_expression(
     let carried = |value_type| match value_type {
         ValueType::Scalar(scalar_type) => Some((scalar_type, None)),
         ValueType::Qualified(carrier, policy) => Some((carrier, Some(policy))),
-        ValueType::Record(_) | ValueType::Rigid(_) => None,
+        ValueType::Record(_) | ValueType::Rigid(_) | ValueType::Bytes => None,
     };
     let (Some((left_type, left_policy)), Some((right_type, right_policy))) =
         (carried(left_type), carried(right_type))
@@ -790,6 +863,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::BitwiseNot(_)
                 | ExpressionKind::Cast(_)
             | ExpressionKind::Requalify(_)
+            | ExpressionKind::Length(_)
                 | ExpressionKind::ShortCircuit { .. }
                 | ExpressionKind::Call { .. }
                 // A loan is formed afresh each time; two are never one.

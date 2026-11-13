@@ -226,6 +226,9 @@ impl Lowering<'_> {
             Statement::Bind { slot, value } => {
                 let bound = match value.result {
                     Some(ValueType::Record(_)) => Bound::Record(self.bind_record(value)?),
+                    Some(ValueType::Bytes) => {
+                        return Err(self.internal("a byte view is bound to a local"));
+                    }
                     Some(ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_))
                     | None => Bound::Scalar(self.scalar(value)?),
                 };

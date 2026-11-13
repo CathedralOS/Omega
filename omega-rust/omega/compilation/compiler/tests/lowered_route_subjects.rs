@@ -1071,13 +1071,6 @@ const POLICY_INTEGERS: &[(&str, &str)] = &[
         "machine spare(left: u32 in Wrapping, right: u32 in Wrapping) -> u32 in Wrapping\n\
          requires right > 0\n{\n    left / right\n}",
     ),
-    // Both operands are at least 2^31, so the mathematical sum is nonzero
-    // and the wrapped sum can be zero.
-    (
-        "wrapped_sum_as_divisor",
-        "machine spare(left: u32, right: u32) -> u32\n\
-         requires left >= 2147483648, right >= 2147483648\n{\n    1 / (left +% right)\n}",
-    ),
     // A Wrapping operation beside it excuses no Exact one.
     (
         "exact_add_beside_a_wrapping_one",
@@ -1146,9 +1139,11 @@ const POLICY_INTEGERS: &[(&str, &str)] = &[
 /// named such a type (`type constrained`) and every suffixed operator's
 /// rewrite. A policy operation owes what Terminal semantics says it owes: an
 /// add nothing, a divide its divisor. It is never read as the Exact
-/// operation: a wrapped sum is not known to be nonzero where the
-/// mathematical sum is, and an Exact add beside a Wrapping one still owes
-/// its range. A cast into a policy converts the carrier exactly and owes
+/// operation: an Exact add beside a Wrapping one still owes its range. That
+/// a wrapped sum is not taken for the mathematical sum is pinned in
+/// `lowered-discharge` (`a_wrapped_sum_is_not_the_mathematical_sum`), whose
+/// verdict there is "no rule for this goal", which this table has no row
+/// for. A cast into a policy converts the carrier exactly and owes
 /// that the value fits. What the route does not serve is refused by name.
 #[test]
 fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
@@ -1161,7 +1156,6 @@ fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
         Verdict::Accepted(2),
         Verdict::Rejected,
         Verdict::Accepted(2),
-        Verdict::Rejected,
         Verdict::Rejected,
         Verdict::Accepted(2),
         Verdict::Accepted(2),
@@ -1180,6 +1174,86 @@ fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
     assert_eq!(expected.len(), POLICY_INTEGERS.len());
     let mut wrong = Vec::new();
     for ((name, declaration), expected) in POLICY_INTEGERS.iter().zip(expected) {
+        let found = verdict_on_unused(name, declaration);
+        if found != expected {
+            wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// One program per thing the route decides about a formal passed as
+/// `&[u8]`. Each is the declaration followed by `machine main() {}`.
+const BYTE_VIEWS: &[(&str, &str)] = &[
+    (
+        "measured",
+        "machine spare(bytes: &[u8]) -> u64 { bytes.len }",
+    ),
+    (
+        "compared",
+        "machine spare(bytes: &[u8]) -> bool { bytes.len > 0 }",
+    ),
+    (
+        "passed_on",
+        "machine measure(bytes: &[u8]) -> u64 { bytes.len }\n\
+         machine spare(bytes: &[u8]) -> u64 { measure(bytes) }",
+    ),
+    // The view may be empty.
+    (
+        "length_as_divisor",
+        "machine spare(bytes: &[u8]) -> u64 { 1 / bytes.len }",
+    ),
+    // The length is one observation, bound to a local and guarded.
+    (
+        "guarded_length_as_divisor",
+        "machine spare(bytes: &[u8]) -> u64 {\n    let count: u64 = bytes.len;\n    \
+         transition count > 0 {\n        true -> 1 / count\n        false -> 0\n    }\n}",
+    ),
+    ("indexed", "machine spare(bytes: &[u8]) -> u8 { bytes[0] }"),
+    (
+        "length_in_requires",
+        "machine spare(bytes: &[u8]) -> u64 requires bytes.len > 0 { bytes.len }",
+    ),
+    (
+        "mutable_view",
+        "machine spare(bytes: &mut [u8]) -> u64 { bytes.len }",
+    ),
+    (
+        "other_element",
+        "machine spare(words: &[u32]) -> u64 { words.len }",
+    ),
+    (
+        "literal_argument",
+        "machine measure(bytes: &[u8]) -> u64 { bytes.len }\n\
+         machine spare() -> u64 { measure(\"abc\") }",
+    ),
+];
+
+/// A formal passed as `&[u8]` is a shared byte view: the route measures it
+/// and passes it on, and used to refuse every machine that declared one
+/// (`type slice`). Nothing is known of a length but its carrier, so a
+/// division by it is rejected unless a guard on that same observation
+/// excludes zero. Indexing, a length in a contract clause, a mutable view,
+/// a slice of another element and a literal argument are refused by name.
+#[test]
+fn a_byte_view_formal_is_measured_and_passed_on() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let falls_back = |detail: &str| Verdict::FallsBack(detail.to_owned());
+    let expected = [
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Accepted(3),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        falls_back("expression index"),
+        falls_back("contract length of a byte view in a clause"),
+        falls_back("parameter mutable byte view parameter"),
+        falls_back("parameter slice of an element other than u8"),
+        falls_back("call argument for a borrowed formal that is not a borrow"),
+    ];
+    assert_eq!(expected.len(), BYTE_VIEWS.len());
+    let mut wrong = Vec::new();
+    for ((name, declaration), expected) in BYTE_VIEWS.iter().zip(expected) {
         let found = verdict_on_unused(name, declaration);
         if found != expected {
             wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));

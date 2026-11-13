@@ -531,6 +531,49 @@ refuses, by name, what the slice does not serve:
 | an `ensures` or crash guard that names a borrowed formal: what it holds at the return is a version no slice states yet | `contract clause that names a borrowed formal outside requires`, `contract clause that projects a formal or result` |
 | a borrowed formal on a call cycle | `machine storage on a call cycle` |
 
+### Byte views
+
+The first slice of byte views: a formal passed as `&[u8]`, measured and
+passed on.
+
+- **The formal.** Its referent is the octets a view denotes
+  (`ValueType::Bytes`), a type that exists only behind the reference. It is
+  a root `Parameter` place of the module's canonical byte-view type,
+  `ByteSequence(BorrowedView { access: None })`, declared under
+  `SharedBorrow`
+  ([encoding](../../../../../wiki/spec/terminal-psi/encoding.md): "access
+  `None` denotes a canonical view occurrence whose access is on the
+  parameter or operation ... A canonical view parameter transports the
+  descriptor value"). A view type with `Some(access)` is a stored
+  descriptor, and a borrowed parameter of it would be a reference to a
+  reference. The element type is read from the slice node and its builtin
+  atom.
+- **`bytes.len`** is one `ByteSequenceLength` over the whole place and
+  yields a `u64` ("Exact `u64` byte count"; "neither observation consumes
+  its source"). The checker knows nothing of that value but its carrier:
+  "Reading length supplies no indexing proof", and two observations of one
+  view are two values it does not relate. A guard on one observation bounds
+  that observation.
+- **Passing it on.** A view formal named whole as the argument for another
+  `&[u8]` formal lends the place it arrived in: one `Loan`,
+  `Lender::Incoming`, shared, formed for the call like every loan of
+  [References](#references).
+
+A view is not a value. Naming the formal anywhere but under `.len` or as
+that argument is refused (`expression byte view used as a value`), so
+nothing binds, copies, compares, stores or returns one.
+
+Refused by name until the slice that serves it:
+
+| Construct | Refusal detail |
+| --- | --- |
+| `bytes[i]`, which owes `index < length` over a length observation of the identical view | `expression index` |
+| `bytes.len` in a `requires`, `ensures` or crash route guard: the view's extent at entry, a term the checker has no knowledge row for | `contract length of a byte view in a clause` |
+| `&mut [u8]`, an affine descriptor that writes through to the caller's bytes | `parameter mutable byte view parameter` |
+| a slice of any other element | `parameter slice of an element other than u8` |
+| a string or array literal as the argument, a `&[u8]` local, field or result, a range | `call argument for a borrowed formal that is not a borrow`, `type reference`, `expression range` |
+| `&bytes` of a view formal | `call borrow of a byte view` |
+
 ### Sums
 
 A `data` declaration marked `[copy]` whose members are all cases is a sum,

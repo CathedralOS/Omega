@@ -158,6 +158,7 @@ impl Program<'_> {
                             ValueType::Scalar(scalar_type) => Some(Closed::Scalar(*scalar_type)),
                             ValueType::Rigid(_)
                             | ValueType::Record(_)
+                            | ValueType::Bytes
                             | ValueType::Qualified(..) => None,
                         };
                     }

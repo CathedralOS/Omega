@@ -139,11 +139,15 @@ pub(crate) fn machine(
         // holds at entry is entry content. A scalar referent is a place of
         // its primitive type, read and stored like a home.
         if let Some(borrowed) = signature.borrowed(position) {
-            let (referent, scalar) = match *value_type {
-                ValueType::Record(record) => (record, false),
+            let (referent, bound): (_, fn(PlaceId) -> Bound) = match *value_type {
+                ValueType::Record(record) => (record, Bound::Record),
                 ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
-                    (records.primitive(scalar_type, id)?, true)
+                    (records.primitive(scalar_type, id)?, Bound::Home)
                 }
+                // A `&[u8]` formal: its place holds the view the caller
+                // passed, of the module's canonical byte-view type, under
+                // the reference's access.
+                ValueType::Bytes => (records.view(id)?, Bound::View),
                 ValueType::Rigid(_) => {
                     return Err(lowering.internal("a borrowed formal of a rigid type"));
                 }
@@ -167,11 +171,7 @@ pub(crate) fn machine(
             });
             formals.order.push(BoundaryParameterKind::Structural);
             lowering.borrowed_roots.push(place);
-            *lowering.slot_mut(position)? = Some(if scalar {
-                Bound::Home(place)
-            } else {
-                Bound::Record(place)
-            });
+            *lowering.slot_mut(position)? = Some(bound(place));
             continue;
         }
         match *value_type {
@@ -200,6 +200,11 @@ pub(crate) fn machine(
             }
             // A record formal is a root place the machine owns for the
             // activation; what it holds at entry is entry content.
+            // `[u8]` is unsized and is never passed by value; the reader
+            // gives the type to borrowed formals only.
+            ValueType::Bytes => {
+                return Err(lowering.internal("a byte view formal that is not borrowed"));
+            }
             ValueType::Record(record) => {
                 let lane = lowering.position(formals.records.len())?;
                 let (place, _) =
@@ -244,6 +249,7 @@ pub(crate) fn machine(
             }
             TerminalMachineResult::Scalar(declaration(value, scalar_type))
         }
+        Some(ValueType::Bytes) => return Err(lowering.internal("a machine returns a byte view")),
         Some(ValueType::Record(record)) => {
             let (place, _) = lowering.root(StructuralPlaceKind::Result, record)?;
             TerminalMachineResult::Structural(StructuralResultDeclaration {

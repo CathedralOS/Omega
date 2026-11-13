@@ -1047,6 +1047,15 @@ impl<'a> Storage<'a> {
                     at.segments.pop();
                 }
             }
+            // A shared byte view is one leaf, its descriptor: the place is
+            // established when the view was put there, and nothing lies
+            // beneath it that a store could reach (byte_views.md: a shared
+            // view grants "immutable observations").
+            StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
+            ) => found.push(at.clone()),
             _ => return Err(self.unsupported(concerns, "storage that is no plain data")),
         }
         Ok(())

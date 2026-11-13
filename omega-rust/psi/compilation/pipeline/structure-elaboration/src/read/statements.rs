@@ -99,6 +99,7 @@ impl Program<'_> {
                         | ExpressionKind::BitwiseNot(_)
                         | ExpressionKind::Cast(_)
                         | ExpressionKind::Requalify(_)
+                        | ExpressionKind::Length(_)
                         | ExpressionKind::ShortCircuit { .. }
                         | ExpressionKind::Borrow { .. }
                         | ExpressionKind::Call { .. } => {
@@ -189,6 +190,7 @@ impl Program<'_> {
             let value_type = self.value_type(id, local.type_reference)?;
             let home = match value_type {
                 ValueType::Rigid(_) => return unserved("local of a rigid type"),
+                ValueType::Bytes => return unserved("local of a byte view"),
                 // Its home would be declared with the identity of a
                 // primitive type the lowered form has no row for.
                 ValueType::Qualified(..) => {

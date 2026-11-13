@@ -102,6 +102,10 @@ impl Lowering<'_> {
                         .push(StructuralArgument::whole(root, StructuralAccess::Owned));
                     evaluated.consumed.push(root);
                 }
+                // A byte view reaches a call only as a loan, handled above.
+                Some(ValueType::Bytes) => {
+                    return Err(self.internal("a byte view is passed by value"));
+                }
                 Some(ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_))
                 | None => {
                     let value = self.scalar(argument)?;
@@ -184,6 +188,7 @@ impl Lowering<'_> {
             | ExpressionKind::BitwiseNot(_)
             | ExpressionKind::Cast(_)
             | ExpressionKind::Requalify(_)
+            | ExpressionKind::Length(_)
             | ExpressionKind::ShortCircuit { .. }
             | ExpressionKind::Borrow { .. } => Ok(None),
         }
@@ -350,8 +355,8 @@ impl Lowering<'_> {
         let value = match result {
             // The reader refuses a call whose result is rigid: its value
             // would need a row that says so, which `emit` does not make.
-            Some(ValueType::Rigid(_)) => {
-                return Err(self.internal("a call returns a value of a rigid type"));
+            Some(ValueType::Rigid(_) | ValueType::Bytes) => {
+                return Err(self.internal("a call returns a value of a rigid type or a byte view"));
             }
             Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) => {
                 let kind = if structural_arguments.is_empty() {

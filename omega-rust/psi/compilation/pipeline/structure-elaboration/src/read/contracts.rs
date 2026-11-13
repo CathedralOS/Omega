@@ -467,6 +467,20 @@ impl Program<'_> {
                     scalar_type,
                 ))
             }
+            // `bytes.len` in a clause is the view's extent at entry, a term
+            // over the formal's place (`ScalarTerm::ViewExtent`) that the
+            // checker has no knowledge row for yet.
+            ExpressionNode::Member(_)
+                if scope.subject.is_none()
+                    && typed
+                        .expression_table
+                        .authored_length_receiver(expression)
+                        .is_some_and(|receiver| {
+                            self.names_byte_view(scope.slots, receiver).is_some()
+                        }) =>
+            {
+                unserved("length of a byte view in a clause")
+            }
             // `self.value`, `self.from.x`: a field of the value a data
             // clause is about.
             ExpressionNode::Member(_) if scope.subject.is_some() => {
@@ -523,6 +537,7 @@ impl Program<'_> {
         };
         match value_type {
             ValueType::Rigid(_) => unserved("field of a rigid type in a clause"),
+            ValueType::Bytes => unserved("byte view in a clause"),
             ValueType::Scalar(ScalarType::Integer(scalar_type))
             | ValueType::Qualified(ScalarType::Integer(scalar_type), _) => Ok((
                 ScalarTerm::IntegerField {

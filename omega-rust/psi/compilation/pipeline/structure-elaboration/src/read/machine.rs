@@ -851,6 +851,7 @@ impl<'t> Program<'t> {
                 // (`result.field`), which a later slice serves from the
                 // result place.
                 Some(ValueType::Record(_)) => ResultTerm::Absent("result of a record machine"),
+                Some(ValueType::Bytes) => ResultTerm::Absent("result of a byte view"),
                 Some(ValueType::Rigid(_)) => ResultTerm::Absent("result of a rigid type"),
                 None => ResultTerm::Absent("result of a Unit machine"),
             },
@@ -1176,7 +1177,35 @@ impl<'t> Program<'t> {
                 return unserved("write-only reference parameter");
             }
         }
-        let value_type = self.value_type(id, referee)?;
+        // `&[u8]`: the referent is the octets of a byte view, a type that
+        // exists only here, behind the reference (`ValueType::Bytes`). The
+        // element is read from the slice node and its builtin atom, never
+        // from a spelling. Only the shared view is read: an exclusive one
+        // is affine and writes through to the caller's bytes
+        // (byte_views.md: "mutable descriptors are affine and retain exact
+        // mutable authority through every source link").
+        let value_type = match self.typed.type_reference_table.type_reference(referee) {
+            TypeReferenceNode::Slice { element_type } => {
+                if self.scalar_type(id, *element_type)
+                    != Ok(semantic_vocabulary::ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            8,
+                        )
+                        .map_err(|_| {
+                            refuse(id, Construct::Machine, Unserved::Type("integer width"))
+                        })?,
+                    ))
+                {
+                    return unserved("slice of an element other than u8");
+                }
+                if access != language_core::ReferenceAccess::Shared {
+                    return unserved("mutable byte view parameter");
+                }
+                ValueType::Bytes
+            }
+            _ => self.value_type(id, referee)?,
+        };
         // A data type with `requires` may be stored into by the callee, so
         // its domain is owed again where the loan returns; no slice follows
         // a domain across a call yet.
@@ -1193,7 +1222,10 @@ impl<'t> Program<'t> {
                 return unserved("reference to a policy-qualified integer");
             }
             ValueType::Record(_) => None,
-            ValueType::Scalar(_) => Some(
+            // A view's place has the module's canonical byte-view type, declared
+            // with this text identity; a scalar referent's place its
+            // primitive type, likewise.
+            ValueType::Scalar(_) | ValueType::Bytes => Some(
                 Some(self.typed.normalized_type_identity_text(referee))
                     .filter(|identity| !identity.is_empty())
                     .ok_or_else(|| {
@@ -1755,7 +1787,8 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
-        | ExpressionKind::Requalify(operand) => {
+        | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Length(operand) => {
             spans(operand, binder, out);
         }
         ExpressionKind::Call { arguments, .. } => {
@@ -1879,7 +1912,8 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
-        | ExpressionKind::Requalify(operand) => {
+        | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Length(operand) => {
             expression_slot_uses(operand, uses);
         }
         ExpressionKind::Call { arguments, .. } => {

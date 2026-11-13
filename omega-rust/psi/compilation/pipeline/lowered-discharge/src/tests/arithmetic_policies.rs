@@ -182,10 +182,32 @@ fn a_wrapped_sum_is_not_the_mathematical_sum() {
     // zero for `a = b = 2^31`. The division by it must stay unproved: a
     // checker that read the Wrapping add as the Exact one would accept a
     // division by zero.
+    //
+    // The verdict is that the route has no rule for the goal (`Incomplete`)
+    // or that it is unproved (`Rejected`), whichever the integer rules
+    // report for a divisor they know only as a Wrapping sum; what matters
+    // here is that the one obligation is the division's and is not
+    // discharged.
     let wrapped = divided_by_a_sum(Policy::Wrapping);
-    assert_eq!(
-        unsafe_operations(judge(lower_lending(vec![wrapped])).unwrap()),
-        1
+    let undecided = match judge(lower_lending(vec![wrapped])).unwrap() {
+        RouteVerdict::Incomplete(undecided) => undecided,
+        RouteVerdict::Rejected {
+            unproved,
+            unestablished,
+            conflicts,
+            ..
+        } if unestablished.is_empty() && conflicts.is_empty() => unproved,
+        verdict => panic!("the division must not be accepted: {verdict:?}"),
+    };
+    assert!(
+        matches!(
+            undecided.as_slice(),
+            [UnprovedObligation {
+                kind: ObligationKind::OperationSafety { .. },
+                ..
+            }]
+        ),
+        "{undecided:?}"
     );
     // The casts compute nothing: the operations are the literal, the add
     // and the divide.

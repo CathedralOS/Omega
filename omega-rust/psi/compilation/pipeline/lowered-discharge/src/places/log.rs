@@ -410,7 +410,10 @@ impl Storage<'_> {
             OperationKind::PrimitiveScalarRead { .. }
             | OperationKind::ScalarStructuralField { .. }
             | OperationKind::BooleanStructuralField { .. }
-            | OperationKind::StructuralCaseMembership { .. } => {}
+            | OperationKind::StructuralCaseMembership { .. }
+            // byte_views.md: a length observation does not "consume[] its
+            // source", and it stores nowhere.
+            | OperationKind::ByteSequenceLength { .. } => {}
             kind if kind.module_invocation().is_some() => {
                 if produced.is_some() {
                     rows.push((fresh()?, Stored::Returned));

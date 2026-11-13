@@ -8,7 +8,9 @@ use semantic_vocabulary::{ObligationId, OperationId, ScalarType, ValueId};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{Checked, Construct, ProgramPoint};
-use terminal_psi::{Operation, OperationKind, OperationResult};
+use terminal_psi::{
+    Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
+};
 
 use super::places::{Bound, Witness};
 use super::{Lowering, Value, declaration};
@@ -77,7 +79,7 @@ impl Lowering<'_> {
             ) => match *self.slot_mut(*slot)? {
                 Some(Bound::Scalar(value)) => Ok(Witness::Value(value, scalar_type)),
                 Some(Bound::Erased(witness)) => Ok(witness),
-                Some(Bound::Home(_) | Bound::Record(_)) | None => Err(refuse(
+                Some(Bound::Home(_) | Bound::Record(_) | Bound::View(_)) | None => Err(refuse(
                     self.id,
                     self.current.map_or(Construct::Machine, Construct::Block),
                     Unserved::Expression("erased term that reads storage"),
@@ -107,6 +109,9 @@ impl Lowering<'_> {
             Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) => {
                 Some(scalar_type)
             }
+            // The reader names a byte view only where it is measured or
+            // lent, and both read the slot themselves.
+            Some(ValueType::Bytes) => return Err(self.internal("a byte view is used as a value")),
             // A value of a rigid type is only ever named: no operation
             // produces one, so no result row is minted for it here.
             Some(ValueType::Rigid(_)) => {
@@ -145,7 +150,9 @@ impl Lowering<'_> {
                         let scalar_type = self.result_type(expression)?;
                         self.read_home(home, scalar_type, source)
                     }
-                    Some(Bound::Record(_)) => Err(self.internal("a record slot has a scalar type")),
+                    Some(Bound::Record(_) | Bound::View(_)) => {
+                        Err(self.internal("a place slot has a scalar type"))
+                    }
                     // The reader refuses a runtime read of an erased
                     // binding, so reaching one here is a broken body.
                     Some(Bound::Erased(_)) => {
@@ -214,6 +221,31 @@ impl Lowering<'_> {
                     return Err(self.internal("a cast with no exact conversion"));
                 };
                 self.emit(operation, result, kind)
+            }
+            // `bytes.len`: one observation of the view the slot holds.
+            // byte_views.md: "`ByteSequenceLength { source }` | Exact `u64`
+            // byte count", whose source "retain[s] a complete
+            // `StructuralArgument`: carrier place, selected descriptor path
+            // and requested access"; an empty path is the whole view.
+            ExpressionKind::Length(view) => {
+                let ExpressionKind::Slot(slot) = &view.kind else {
+                    return Err(self.internal("a length of something that is not a slot"));
+                };
+                let Some(Bound::View(place)) = *self.slot_mut(*slot)? else {
+                    return Err(self.internal("a length of a slot that holds no byte view"));
+                };
+                let operation = self.operation_identity(source);
+                self.emit(
+                    operation,
+                    result,
+                    OperationKind::ByteSequenceLength {
+                        source: StructuralArgument {
+                            place,
+                            path: Vec::new(),
+                            access: StructuralAccess::SharedBorrow,
+                        },
+                    },
+                )
             }
             // The operand's value under another policy: nothing is computed.
             ExpressionKind::Requalify(operand) => self.scalar(operand).map(Value::Scalar),

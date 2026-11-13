@@ -823,7 +823,7 @@ fn copy_field_is_unrestricted(
         // A policy changes no payload: the integer copies as its carrier does.
         ValueType::Scalar(_) | ValueType::Qualified(..) => true,
         ValueType::Record(record) => records.get(record).is_some_and(|record| record.copyable),
-        ValueType::Rigid(_) => false,
+        ValueType::Rigid(_) | ValueType::Bytes => false,
     }
 }
 
