@@ -15,15 +15,15 @@ authority.
 | 01 — parsing | [parser.rs](01_tokens-to-syntax-trees/src/parser.rs) | [syntax trees](../representations/syntax-trees/) |
 | 02 — resolution | [resolution.rs](02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs) | [resolved trees](../representations/symbol-resolved-trees/) |
 | 03 — typing | [lowerer.rs](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | [typed trees](../representations/typed-trees/) |
-| 04 — preparation boundary (nonempty work unserved) | [preparation.rs](04_typed-trees-to-typed-trees/src/preparation.rs) | [frozen typed trees](../representations/typed-trees/) |
+| 04 — typed preparation (one ordered pass list) | [preparation.rs](04_typed-trees-to-typed-trees/src/preparation.rs) | [frozen typed trees](../representations/typed-trees/) |
 | Structural lowering | [structure-elaboration](structure-elaboration/src/lib.rs) | unsealed Terminal Psi |
 | Lowered-form checking | [lowered-discharge](lowered-discharge/src/lib.rs) | accepted closure and evidence |
 | Publication | [accepted source factory](../psi-compiler/terminal-production/src/accepted.rs) | [Terminal Psi and codec](../representations/terminal-psi/) |
 
-The 04 interface currently passes through only a genuinely empty semantic program
-with no requested layout, representation-selection or wire work. That no-work
-result is frozen source data, not acceptance. Nonempty preparation and Product
-operands refuse with `no product route yet`. This owner map and the implementation
+Every program crosses 04, which runs one ordered pass list over the typed trees
+and freezes the result; that is prepared source data, not acceptance. Requested
+layout, representation-selection and wire work, and Product operands, refuse
+with `no product route yet`. This owner map and the implementation
 notes below do not establish working default source, Build or native compilation;
 unfinished producers remain on [TASKS.md](../../../../TASKS.md).
 
@@ -849,9 +849,10 @@ Erased arrival/bundle subjects do not acquire runtime storage.
 Source-authored selections must preserve original lexical owners and exact
 conformance applications through any future copying or specialization. Generated
 fields and signatures cannot invent public exposure, visibility or supply. The
-old capture/finalization and checking owners are removed; the retained
-[preparation boundary](04_typed-trees-to-typed-trees/README.md) refuses nonempty
-work until a structural producer serves those obligations. Original template
+old capture/finalization and checking owners are removed;
+[typed preparation](04_typed-trees-to-typed-trees/README.md) has no
+specialization pass yet, so those obligations are refused where a program
+demands them. Original template
 contracts and body selections remain obligations; package identity alone cannot
 replace the exact closed conformance owner.
 
