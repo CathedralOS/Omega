@@ -210,12 +210,13 @@ pub fn check_bound_callable_shapes(
     Ok(failures)
 }
 
-// Handles are generational, as in the typed reference visitor. Keep one
-// membership set for this binding's parameters and result so shared type
-// children are resolved once, including the later identity comparisons.
+// The type table owns one arena for this immutable binding check. Validate
+// each handle's generation before indexing its dense slot, so a foreign handle
+// cannot reuse another type's visit mark. Shared children are resolved once
+// across parameters, the result, and the later identity comparisons.
 struct TypeResolution<'a> {
     typed: &'a TypedTrees,
-    visited: std::collections::HashSet<TypeReferenceHandle, symbols::BuildSymbolHasher>,
+    visited: Vec<bool>,
     error: Option<&'static str>,
 }
 impl Extend<SymbolHandle> for TypeResolution<'_> {
@@ -267,9 +268,6 @@ impl TypedReferences for TypeResolution<'_> {
     }
 
     fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
-        if !self.visited.insert(reference) {
-            return false;
-        }
         if !self
             .typed
             .type_reference_table
@@ -278,6 +276,14 @@ impl TypedReferences for TypeResolution<'_> {
             self.error = Some("callable type has a foreign reference");
             return false;
         }
+        let slot = reference.arena_index() as usize;
+        if self.visited.len() <= slot {
+            self.visited.resize(slot + 1, false);
+        }
+        if self.visited[slot] {
+            return false;
+        }
+        self.visited[slot] = true;
         let node = self.typed.type_reference_table.type_reference(reference);
         match node {
             TypeReferenceNode::Named { symbol, .. } => self.extend([*symbol]),
