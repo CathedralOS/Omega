@@ -20,7 +20,6 @@ artifacts = { path = "../../foundation/artifacts" }
 compilation-products = { path = "../../compilation/products" }
 arena = { path = "../../../psi/foundation/arena" }
 language-core = { path = "../../../psi/foundation/language-core" }
-validation = { path = "../../../psi/compilation/validation" }
 build-output = { path = "../../packages/build-output" }
 effects = { path = "../../compilation/backend/plans/effects" }
 optimization-core = { path = "../../foundation/optimization-core" }
@@ -29,7 +28,6 @@ provider-planning = { path = "../../compilation/realization/provider-planning" }
 provider-admission = { path = "../../compilation/realization/provider-admission" }
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 selected-dispatch = { path = "../../compilation/realization/selected-dispatch" }
-representation-planning = { path = "../../../psi/compilation/validation/representation-planning" }
 target = { path = "../../compilation/backend/target" }
 runtime-abi = { path = "../../compilation/backend/runtime/runtime-abi" }
 trust-model = { path = "../../compilation/realization/trust-model" }

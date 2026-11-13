@@ -1,6 +1,6 @@
 /*
 Run every ordinary source `via` binding producer once and hand its result to
-provider planning (`evaluate_via_bindings`, `evaluate_checked_via_bindings`).
+provider planning (`evaluate_checked_via_bindings`).
 
 A `via` leaf names a machine whose build-time result says which foreign import
 or syscall realizes a requirement. Running that machine is source-side
@@ -29,19 +29,6 @@ use provider_planning::evaluated_via_bindings::{
 };
 use std::sync::Arc;
 use target::TargetProfile;
-
-pub(crate) fn evaluate_via_bindings(
-    context: ProviderPlanningContext<'_>,
-    selected_target: Option<TargetProfile>,
-    package_inputs: Option<&PackageCompilationInputs>,
-) -> Result<EvaluatedViaBindingTable, Vec<Diagnostic>> {
-    evaluate_program_via_bindings(
-        BuildTimeProgram::Typed(context.typed),
-        context.scope,
-        selected_target,
-        package_inputs,
-    )
-}
 
 pub fn evaluate_checked_via_bindings(
     checked: &checked_trees::CheckedTrees,

@@ -19,30 +19,6 @@ pub(crate) struct BuildProviderInstallation {
 }
 
 impl BuildProviderPlans {
-    pub(crate) fn capture(
-        typed: &typed_trees::TypedTrees,
-        selected: effects::SelectedProviderPlanFacts,
-        provenance: &[provider_planning::SelectedProviderReviewProvenance],
-    ) -> Result<Self, Vec<Diagnostic>> {
-        let toolchain =
-            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let declarations =
-            provider_planning::provider_declarations::retain_selected_provider_declarations(
-                provider_planning::ProviderPlanningContext::new(
-                    typed,
-                    source::DependencyScope::Build,
-                ),
-                &toolchain,
-                &selected,
-                provenance,
-            )?;
-        Ok(Self {
-            selected,
-            declarations,
-        })
-    }
-
     pub(crate) fn admit(
         &self,
         artifact: terminal_codec::TerminalExecutionView<'_>,

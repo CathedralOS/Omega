@@ -46,18 +46,17 @@ Architecture & Ownership Boundaries:
 Start at `build_evaluation.rs`: `prepare_build_evaluation` selects the
 source-owned `build` entry before semantic admission, filesystem preparation, and
 restricted-request consent. Its private admitted checkpoint (`AdmittedBuildProgram`)
-binds the exact checked program and entry before any host effects occur. The
+binds the exact accepted invocation source and entry before any host effects occur. The
 caller (`orchestration`) then starts and steps one retained `TerminalBuildActivation`
 and rejoins its normal return (`ReturnedBuild`) with `PreparedBuildEvaluation::complete`
 to produce `EvaluatedBuild`.
 
 The crate is organized along that lifecycle:
-- `admission/` checks the `Build` program and its target helpers before any
-  effect occurs (`checking.rs`, `target_helpers.rs`), pre-evaluates selected
-  scalar constants and provider demands (`selected_constants.rs`,
-  `provider_execution.rs`), answers their layout queries with the selected
-  target's geometry (`target_layout_queries.rs`), and seals the private
-  checkpoint (`program.rs`).
+- `admission/` owns source and package admission before effects. Build source
+  preparation explicitly refuses until a structural producer supplies its real
+  source, declaration-authority and constant/provider custody (`checking.rs`).
+  `provider_execution.rs` admits actual selected runtime supplies, while
+  `program.rs` binds a future accepted source to its private checkpoint.
 - `activation.rs` and `activation/` own the step-by-step `TerminalBuildActivation`
   that `orchestration` drives (`preparation.rs`, `project.rs`,
   `provider_installation.rs`, `scalar_completion.rs`, `source_join.rs`,
