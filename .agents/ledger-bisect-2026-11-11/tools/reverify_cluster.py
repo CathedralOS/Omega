@@ -160,9 +160,12 @@ def bisect(witness: str, predicate: str, bad: str, good: str) -> tuple[str, int,
             stderr=subprocess.STDOUT,
         )
     text = log_path.read_text()
+    # git bisect prints "<sha> is the first bad commit" and may leave HEAD on the
+    # last midpoint. Take the sha from that line, not from HEAD.
     first = ""
-    if any(line.endswith("is the first bad commit") or " is the first bad commit" in line for line in text.splitlines()):
-        first = git("rev-parse", "HEAD", check=False).stdout.strip()
+    match = re.search(r"(?m)^([0-9a-f]{40}) is the first bad commit$", text)
+    if match:
+        first = match.group(1)
     subprocess.run(["git", "-C", str(REPO), "bisect", "log"], check=False, stdout=Path(f"/tmp/bisect_{predicate}_gitlog.txt").open("w"))
     restore_branch()
     return first, proc.returncode, text
@@ -460,7 +463,11 @@ def _write(cluster_id: str, result: dict) -> None:
     restore_branch()
     dest = REPO / ".agents/ledger-bisect-2026-11-11/results" / f"{cluster_id}.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(json.dumps(result, indent=2) + "\n")
+    text = json.dumps(result, indent=2) + "\n"
+    dest.write_text(text)
+    mirror = Path("/tmp/part10_results")
+    mirror.mkdir(parents=True, exist_ok=True)
+    (mirror / dest.name).write_text(text)
     print(f"wrote {dest}", flush=True)
 
 
