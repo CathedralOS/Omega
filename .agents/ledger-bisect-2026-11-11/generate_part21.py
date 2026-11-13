@@ -173,8 +173,12 @@ def main() -> None:
         "",
         "- Fixed PIN ledger + PIN witness observation in `/tmp`.",
         "- Good: exponential first-parent walk back from PIN; refine to **latest** exit 0.",
-        "- Break: `git bisect --first-parent` between good and PIN; per-commit `target/verify-<sha>`.",
-        "- Confirm: 3× exit 1 at break, 3× exit 0 at break^1 (PIN diagnostic match); else **flaky**.",
+        "- Break: `git bisect start --first-parent` between that good and PIN.",
+        "- Score: 0 = ledger-expected outcome, 1 = any other outcome, 125 = did not build or did not run.",
+        "- Build: one wiped `/tmp/bisect-target-<sha>` per commit, reused for every witness at that commit.",
+        "- Confirm: 3× exit 1 at first-bad and 3× exit 0 at `first-bad^1`.",
+        "- If that edge is not the PIN diagnostic class, a class-only bisect (1 = PIN class, 0 = anything else) finds the class edge.",
+        "- PIN `51e8c45c793007f211d0d9baee7de16767172444` and `f3612364ffbb9489d7be1409397df6867fcbebc6` (#2228) are not edges.",
         "",
     ]
     (AG / "part-21.md").write_text("\n".join(lines) + "\n")

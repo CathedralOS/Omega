@@ -35,7 +35,16 @@ for item in "${clusters[@]}"; do
   rm -f ".agents/ledger-bisect-2026-11-11/bisect-${id}.log"
   nice -n 19 .agents/ledger-bisect-2026-11-11/run_bisect_cluster.sh "$w" "$id" 2>&1 | tee "/tmp/bisect-${id}.log"
   git checkout -f -q work/ledger-bisect-part-21
-  cp "/tmp/bisect-${id}.log" ".agents/ledger-bisect-2026-11-11/bisect-${id}.log" 2>/dev/null || true
+  L=/tmp/ledger-bisect-logs
+  dest=.agents/ledger-bisect-2026-11-11
+  cp "$L/bisect-${id}.log" "$dest/bisect-${id}.log" 2>/dev/null || true
+  cp "$L/find-good-${id}.log" "$dest/find-good-${id}.log" 2>/dev/null || true
+  cp "$L/cluster-${id}.md" "$dest/cluster-${id}.md" 2>/dev/null || true
+  cp "$L"/git-bisect-${id}-*.log "$dest/" 2>/dev/null || true
+  cp "$L"/bisect-${id}.*.log "$dest/" 2>/dev/null || true
+  cp "$L"/find-good-${id}.*.log "$dest/" 2>/dev/null || true
+  cp "$L"/cluster-${id}.*.md "$dest/" 2>/dev/null || true
+  rm -rf /tmp/bisect-target-*
   commit_slice "$id"
   mark_id "$id"
 done

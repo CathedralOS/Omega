@@ -10,9 +10,15 @@ import sys
 from pathlib import Path
 
 PIN = "51e8c45c793007f211d0d9baee7de16767172444"
+# Neither the measured commit nor #2228 is an admissible break edge.
+FORBIDDEN_EDGES = {
+    PIN,
+    "f3612364ffbb9489d7be1409397df6867fcbebc6",
+}
 ROOT = Path(__file__).resolve().parents[2]
 AG = Path(__file__).resolve().parent
 TOOLHOME = Path("/tmp/ledger-bisect-part-21-tools")
+LOGROOT = Path("/tmp/ledger-bisect-logs")
 WITNESS_SH = TOOLHOME / "tools" / "bisect_witness.sh"
 
 
@@ -24,9 +30,11 @@ def run(cmd: list[str], *, cwd: Path = ROOT, check: bool = True, env: dict | Non
 
 
 def flush_logs(cluster_id: str, out_lines: list[str], findlog: list[str]) -> None:
-    (AG / f"find-good-{cluster_id}.log").write_text("\n".join(findlog) + "\n")
+    # Outside the worktree: git checkout during bisect must not restore a tracked log.
+    LOGROOT.mkdir(parents=True, exist_ok=True)
+    (LOGROOT / f"find-good-{cluster_id}.log").write_text("\n".join(findlog) + "\n")
     if out_lines:
-        (AG / f"bisect-{cluster_id}.log").write_text("\n".join(out_lines + findlog) + "\n")
+        (LOGROOT / f"bisect-{cluster_id}.log").write_text("\n".join(out_lines) + "\n\n" + "\n".join(findlog) + "\n")
 
 
 def setup_tools() -> None:
@@ -67,13 +75,15 @@ def fixture_intro(witness: str) -> str:
     return lines[0]
 
 
-def witness_env(witness: str, spec: Path, rev: str) -> dict[str, str]:
-    td = ROOT / "target" / f"verify-{rev}"
+def witness_env(witness: str, spec: Path, rev: str, mode: str = "outcome") -> dict[str, str]:
+    # The witness script keys the cache on HEAD. This dir is only the default for that rev.
+    td = Path(f"/tmp/bisect-target-{rev}")
     return {
         "BISECT_WITNESS": witness,
         "BISECT_REPO_ROOT": str(ROOT),
         "BISECT_SPEC": str(spec),
         "BISECT_LEDGER": "/tmp/ledger-bisect-pin-corpus_outcomes.txt",
+        "BISECT_MODE": mode,
         "BISECT_TARGET_DIR": str(td),
         "CARGO_TARGET_DIR": str(td),
         "CARGO_PROFILE_DEV_OPT_LEVEL": "1",
@@ -84,11 +94,16 @@ def witness_env(witness: str, spec: Path, rev: str) -> dict[str, str]:
 
 
 def test_witness(
-    witness: str, spec: Path, rev: str, log: list[str], label: str, cluster_id: str
+    witness: str,
+    spec: Path,
+    rev: str,
+    log: list[str],
+    label: str,
+    cluster_id: str,
+    mode: str = "outcome",
 ) -> int:
     run(["git", "checkout", "-f", "-q", rev], check=True)
-    run(["chmod", "-R", "u+w", str(ROOT / "target")], check=False)
-    env = witness_env(witness, spec, rev)
+    env = witness_env(witness, spec, rev, mode)
     proc = run(["nice", "-n", "19", str(WITNESS_SH)], check=False, env=env)
     oneline = subprocess.check_output(["git", "log", "-1", "--oneline", rev], text=True).strip()
     log.append(f"{label} {rev} exit={proc.returncode} {oneline}")
@@ -128,19 +143,34 @@ def find_latest_good(
 
 
 def triple_verify(
-    witness: str, spec: Path, rev: str, want: int, log: list[str], label: str, cluster_id: str
+    witness: str,
+    spec: Path,
+    rev: str,
+    want: int,
+    log: list[str],
+    label: str,
+    cluster_id: str,
+    mode: str = "outcome",
 ) -> tuple[bool, list[int]]:
     codes: list[int] = []
     for i in range(3):
-        ec = test_witness(witness, spec, rev, log, f"{label}_{i+1}", cluster_id)
+        ec = test_witness(witness, spec, rev, log, f"{label}_{i+1}", cluster_id, mode)
         codes.append(ec)
     return all(c == want for c in codes), codes
 
 
-def git_bisect_break(witness: str, spec: Path, good: str, bad: str, log: list[str]) -> str:
+def git_bisect_break(
+    witness: str,
+    spec: Path,
+    good: str,
+    bad: str,
+    log: list[str],
+    cluster_id: str,
+    mode: str = "outcome",
+) -> str:
     run(["git", "bisect", "reset"], check=False)
     env = os.environ.copy()
-    env.update(witness_env(witness, spec, bad))
+    env.update(witness_env(witness, spec, bad, mode))
     subprocess.run(
         ["git", "bisect", "start", "--first-parent", bad, good],
         cwd=ROOT,
@@ -153,7 +183,13 @@ def git_bisect_break(witness: str, spec: Path, good: str, bad: str, log: list[st
         env=env,
         text=True,
     )
-    log.append(f"bisect_run rc={proc.returncode}")
+    blog = subprocess.check_output(["git", "bisect", "log"], text=True, cwd=ROOT)
+    LOGROOT.mkdir(parents=True, exist_ok=True)
+    tag = "outcome" if mode == "outcome" else "class"
+    (LOGROOT / f"git-bisect-{cluster_id}-{tag}.log").write_text(blog)
+    if "--first-parent" not in blog.splitlines()[2:3] and "--first-parent" not in blog:
+        raise SystemExit("bisect did not record --first-parent")
+    log.append(f"bisect_run mode={mode} rc={proc.returncode} first_parent=yes")
     brk = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     run(["git", "bisect", "reset"], check=False)
     return brk
@@ -224,13 +260,22 @@ def first_pin_class_commit(
 
 
 def member_flip_rows(
-    members: list[str], parent: str, brk: str, log: list[str], cluster_id: str
+    members: list[str],
+    parent: str,
+    brk: str,
+    log: list[str],
+    cluster_id: str,
+    mode: str = "outcome",
 ) -> list[tuple[str, int, int]]:
     rows: list[tuple[str, int, int]] = []
     for fix in sorted(members):
         spec = prepare_spec(fix)
-        pe = test_witness(fix, spec, parent, log, f"member_parent_{fix.split('/')[-1]}", cluster_id)
-        be = test_witness(fix, spec, brk, log, f"member_break_{fix.split('/')[-1]}", cluster_id)
+        pe = test_witness(
+            fix, spec, parent, log, f"member_parent_{mode}_{fix.split('/')[-1]}", cluster_id, mode
+        )
+        be = test_witness(
+            fix, spec, brk, log, f"member_break_{mode}_{fix.split('/')[-1]}", cluster_id, mode
+        )
         rows.append((fix, pe, be))
     return rows
 
@@ -276,7 +321,8 @@ def write_detail(
         detail += ["", "### First commit showing PIN diagnostic class", "", f"`{class_rev}`"]
     if extra:
         detail += ["", *extra]
-    (AG / f"cluster-{cluster_id}.md").write_text("\n".join(detail) + "\n")
+    LOGROOT.mkdir(parents=True, exist_ok=True)
+    (LOGROOT / f"cluster-{cluster_id}.md").write_text("\n".join(detail) + "\n")
 
 
 def run_cluster_pipeline(witness: str, cluster_id: str, *, do_splits: bool = True) -> None:
@@ -316,10 +362,22 @@ def run_cluster_pipeline(witness: str, cluster_id: str, *, do_splits: bool = Tru
         run(["git", "checkout", "-f", "-q", PIN], check=False)
         return
 
-    brk = git_bisect_break(witness, spec, good, PIN, findlog)
+    brk = git_bisect_break(witness, spec, good, PIN, findlog, cluster_id, "outcome")
+    if brk in FORBIDDEN_EDGES:
+        out_lines.append(
+            f"cluster={cluster_id} witness={witness} good={good} break={brk} "
+            f"status=inadmissible_edge reason=forbidden_commit"
+        )
+        flush_logs(cluster_id, out_lines, findlog)
+        write_detail(
+            cluster_id, witness, good, "", brk, False, [], [], [], "n/a", None,
+            ["**Verdict:** inadmissible edge (PIN or #2228)."],
+        )
+        run(["git", "checkout", "-f", "-q", "work/ledger-bisect-part-21"], check=False)
+        return
     parent = subprocess.check_output(["git", "rev-parse", f"{brk}^1"], text=True).strip()
-    ok_bad, codes_bad = triple_verify(witness, spec, brk, 1, findlog, "verify_break", cluster_id)
-    ok_good, codes_good = triple_verify(witness, spec, parent, 0, findlog, "verify_parent", cluster_id)
+    ok_bad, codes_bad = triple_verify(witness, spec, brk, 1, findlog, "verify_break", cluster_id, "outcome")
+    ok_good, codes_good = triple_verify(witness, spec, parent, 0, findlog, "verify_parent", cluster_id, "outcome")
     if not (ok_bad and ok_good):
         out_lines.append(
             f"cluster={cluster_id} witness={witness} good={good} parent={parent} break={brk} "
@@ -345,12 +403,47 @@ def run_cluster_pipeline(witness: str, cluster_id: str, *, do_splits: bool = Tru
 
     on_chain = good in chain and brk in chain and chain.index(good) < chain.index(brk)
     mech = diff_hunk(brk)
-    brk_i = chain.index(brk) if brk in chain else -1
-    class_rev = (
-        first_pin_class_commit(chain, witness, spec, brk_i, findlog, cluster_id) if brk_i >= 0 else None
-    )
-    flip_rows = member_flip_rows(members, parent, brk, findlog, cluster_id)
-    split_notes: list[str] = []
+    class_at_break = test_witness(witness, spec, brk, findlog, "class_at_outcome_break", cluster_id, "class")
+    class_notes: list[str] = []
+    class_edge: str | None = brk if class_at_break == 1 else None
+    if class_at_break == 1:
+        ok_c_bad, c_bad = triple_verify(witness, spec, brk, 1, findlog, "verify_class_break", cluster_id, "class")
+        ok_c_par, c_par = triple_verify(witness, spec, parent, 0, findlog, "verify_class_parent", cluster_id, "class")
+        class_notes.append(
+            f"- PIN-class matches this outcome edge. Class codes break `{c_bad}` parent `{c_par}` "
+            f"stable={ok_c_bad and ok_c_par}."
+        )
+        if not (ok_c_bad and ok_c_par):
+            class_edge = None
+            class_notes.append("- PIN-class did not hold 1,1,1 at the break and 0,0,0 at `^1`.")
+    else:
+        class_notes.append("- Outcome edge diagnostic class differs from the PIN class. Class-only bisect follows.")
+        cbrk = git_bisect_break(witness, spec, brk, PIN, findlog, cluster_id, "class")
+        if cbrk in FORBIDDEN_EDGES:
+            class_notes.append(f"- **PIN-class edge inadmissible** (`{cbrk}`).")
+        else:
+            cparent = subprocess.check_output(["git", "rev-parse", f"{cbrk}^1"], text=True).strip()
+            ok_c_bad, c_bad = triple_verify(witness, spec, cbrk, 1, findlog, "verify_class_break", cluster_id, "class")
+            ok_c_par, c_par = triple_verify(
+                witness, spec, cparent, 0, findlog, "verify_class_parent", cluster_id, "class"
+            )
+            class_edge = cbrk if ok_c_bad and ok_c_par else None
+            class_notes.append(
+                f"- PIN-class first-bad `{cbrk}` parent `{cparent}` PR #{pr_number(cbrk)} "
+                f"codes break `{c_bad}` parent `{c_par}`."
+            )
+            if class_edge:
+                class_notes.append("")
+                class_notes.append(diff_hunk(cbrk))
+                class_flips = member_flip_rows(members, cparent, cbrk, findlog, cluster_id, "class")
+                class_notes.append("")
+                class_notes.append("| fixture | class parent | class first-bad |")
+                class_notes.append("| --- | ---: | ---: |")
+                for fix, pe, be in class_flips:
+                    class_notes.append(f"| `{fix}` | {pe} | {be} |")
+    flip_rows = member_flip_rows(members, parent, brk, findlog, cluster_id, "outcome")
+    split_notes: list[str] = list(class_notes)
+    split_ids: set[str] = set()
 
     if do_splits and len(members) > 1:
         for fix, pe, be in flip_rows:
@@ -359,6 +452,7 @@ def run_cluster_pipeline(witness: str, cluster_id: str, *, do_splits: bool = Tru
             if pe == 0 and be == 1:
                 continue
             split_id = f"{cluster_id}.{fix.split('/')[-1]}"
+            split_ids.add(split_id)
             split_notes.append(f"- Split bisect `{fix}` → cluster `{split_id}` (parent {pe} → break {be})")
             run_cluster_pipeline(fix, split_id, do_splits=False)
 
@@ -373,7 +467,7 @@ def run_cluster_pipeline(witness: str, cluster_id: str, *, do_splits: bool = Tru
         codes_good,
         flip_rows,
         mech,
-        class_rev,
+        class_edge,
         split_notes or None,
     )
     out_lines.append(

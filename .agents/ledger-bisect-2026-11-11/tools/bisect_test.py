@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
-"""Compare one corpus record against fixed PIN ledger + PIN witness observation."""
+"""Score one corpus record for git bisect.
+
+BISECT_MODE=outcome (default):
+  0 = ledger-expected status for this fixture
+  1 = any other observed outcome
+  125 = no record (the commit did not run)
+
+BISECT_MODE=class:
+  1 = PIN status and PIN diagnostic class
+  0 = any other observed outcome
+  125 = no record
+"""
 from __future__ import annotations
 
 import json
@@ -49,36 +60,33 @@ def expected_success_status(flags: list[str], ledger_status: str, tier: str) -> 
 
 
 def main() -> int:
+    mode = os.environ.get("BISECT_MODE", "outcome")
     witness, rec_path = sys.argv[1], Path(sys.argv[2])
     spec = json.loads(SPEC.read_text())
     text = rec_path.read_text() if rec_path.exists() else ""
     line = next((l for l in text.splitlines() if l.startswith(witness + " ")), None)
     if not line:
         return 125
-    fixture, status = parse_header(line)
-    if fixture != witness:
+    parsed = parse_header(line)
+    if parsed is None or parsed[0] != witness:
         return 125
-    tier = fixture.split("/")[0]
+    fixture, status = parsed
+    diags = [l[1:].strip() for l in text.splitlines() if l.startswith("\t")]
+    first_diag = diags[0] if diags else ""
+    if mode == "class":
+        pin_status = spec["pin_status"]
+        pin_diag = spec.get("pin_first_diag") or ""
+        if status == pin_status and norm_diag(first_diag) == norm_diag(pin_diag):
+            return 1
+        return 0
     try:
         ledger_status, flags = ledger_row(fixture)
     except KeyError:
         return 125
-    diags = [l[1:].strip() for l in text.splitlines() if l.startswith("\t")]
-    first_diag = diags[0] if diags else ""
-    ok_statuses = expected_success_status(flags, ledger_status, tier)
-
-    if status in ok_statuses:
+    tier = fixture.split("/")[0]
+    if status in expected_success_status(flags, ledger_status, tier):
         return 0
-
-    pin_status = spec["pin_status"]
-    pin_diag = spec["pin_first_diag"]
-    if status != pin_status:
-        return 125
-    if not pin_diag:
-        return 1
-    if norm_diag(first_diag) == norm_diag(pin_diag):
-        return 1
-    return 125
+    return 1
 
 
 if __name__ == "__main__":
