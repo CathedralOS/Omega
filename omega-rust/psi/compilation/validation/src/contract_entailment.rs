@@ -88480,13 +88480,29 @@ pub(crate) mod structural_terms {
         ) -> Option<StructuralTerm> {
             let view = program.prepared_mathematics()?;
             let application = view.application(expression)?;
+            let owner = program
+                .machine_holding_state(application.owner)
+                .map_or(application.owner, |machine| machine.symbol);
+            let trace = super::super::struct_trace_owner(program, owner);
+            if trace {
+                eprintln!(
+                    "MATH application={application:?} identities={:?}",
+                    view.applications
+                        .identity_values
+                        .span_or_empty(application.identity_values)
+                );
+            }
             let captures = view
                 .applications
                 .captures
                 .span_or_empty(application.captures)
                 .iter()
                 .map(|capture| {
-                    let mut value = observe(capture)?;
+                    let observed = observe(capture);
+                    if trace {
+                        eprintln!("MATH capture={capture:?} observed={observed:?}");
+                    }
+                    let mut value = observed?;
                     let mut value_type = capture.source_type;
                     if crate::reference_shell(program, capture.source_type).is_some()
                         && program
@@ -88537,7 +88553,15 @@ pub(crate) mod structural_terms {
                     Some(Some(value))
                 })
                 .collect::<Option<Vec<_>>>()?;
-            read_term(program, view, application, application.term, &captures, 0)
+            read_term(
+                program,
+                view,
+                application,
+                application.term,
+                &captures,
+                0,
+                trace,
+            )
         }
 
         fn read_term(
@@ -88547,11 +88571,13 @@ pub(crate) mod structural_terms {
             term: TermHandle,
             captures: &[Option<StructuralTerm>],
             depth: usize,
+            trace: bool,
         ) -> Option<StructuralTerm> {
             if depth >= 128 {
                 return None;
             }
-            let read = |term| read_term(program, view, application, term, captures, depth + 1);
+            let read =
+                |term| read_term(program, view, application, term, captures, depth + 1, trace);
             let source_captures = view
                 .applications
                 .captures
@@ -88559,9 +88585,14 @@ pub(crate) mod structural_terms {
                 .len();
             let inserted_binders =
                 u32::try_from(captures.len().checked_sub(source_captures)?).ok()?;
-            if let Some((carrier, [left, right])) =
-                view.identity_value(application, term, inserted_binders)
-            {
+            let identity = view.identity_value(application, term, inserted_binders);
+            if trace {
+                eprintln!(
+                    "MATH read term={term:?} depth={depth} node={:?} identity={identity:?}",
+                    view.arena.get(term)
+                );
+            }
+            if let Some((carrier, [left, right])) = identity {
                 return Some(StructuralTerm::Identity {
                     carrier: carrier.type_identity,
                     left: Box::new(read(left)?),
@@ -88634,6 +88665,7 @@ pub(crate) mod structural_terms {
                                 zero_branch,
                                 &extended,
                                 depth + 1,
+                                trace,
                             )?,
                             read_term(
                                 program,
@@ -88642,18 +88674,33 @@ pub(crate) mod structural_terms {
                                 one_branch,
                                 &extended,
                                 depth + 1,
+                                trace,
                             )?,
                         ));
                     }
                     Some(binary(
                         BinaryOperator::And,
                         read(domain)?,
-                        read_term(program, view, application, codomain, &extended, depth + 1)?,
+                        read_term(
+                            program,
+                            view,
+                            application,
+                            codomain,
+                            &extended,
+                            depth + 1,
+                            trace,
+                        )?,
                     ))
                 }
                 _ => {
                     let (declaration, arguments) =
                         crate::mathematical_applications::application_spine(view, term)?;
+                    if trace {
+                        eprintln!(
+                            "MATH constant declaration={declaration} meaning={:?} arguments={arguments:?}",
+                            view.constant(declaration)
+                        );
+                    }
                     match (view.constant(declaration)?, arguments.as_slice()) {
                         (PreparedConstantMeaning::Integer(value), []) => {
                             Some(StructuralTerm::Integer(value.clone()))
@@ -88732,7 +88779,7 @@ pub(crate) mod structural_terms {
                             ) {
                                 Ok(value) => Some(value),
                                 Err(reason) => {
-                                    if super::super::struct_trace() {
+                                    if trace || super::super::struct_trace() {
                                         eprintln!(
                                             "source value {:?} under {:?} cannot be read: {reason}",
                                             expression, owner
@@ -91291,10 +91338,28 @@ pub(crate) mod structural_terms {
             }
             ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
             ExpressionNode::Call(call) => {
-                if crate::mathematical_applications::is_mathematical_call(program, call) {
-                    return mathematical_application_term(program, expression, |capture| {
+                let mathematical =
+                    crate::mathematical_applications::is_mathematical_call(program, call);
+                let trace = frame
+                    .map(|(owner, _)| owner)
+                    .or_else(|| scope.map(|(machine, _, _)| machine.symbol))
+                    .is_some_and(|owner| super::struct_trace_owner(program, owner));
+                if trace {
+                    let prepared = program.prepared_mathematics();
+                    eprintln!(
+                        "MATH source expression={expression:?} call={call:?} mathematical={mathematical} prepared={} application={:?}",
+                        prepared.is_some(),
+                        prepared.and_then(|view| view.application(expression))
+                    );
+                }
+                if mathematical {
+                    let value = mathematical_application_term(program, expression, |capture| {
                         structural_term(program, scope, frame, capture.expression, bindings)
                     });
+                    if trace {
+                        eprintln!("MATH value expression={expression:?} result={value:?}");
+                    }
+                    return value;
                 }
                 let target = structural_call_target_in_frame(program, call, frame);
                 let realization = realized_requirement_state(call);
