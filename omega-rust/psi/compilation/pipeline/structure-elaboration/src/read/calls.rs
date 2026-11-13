@@ -316,12 +316,29 @@ impl<'t> Program<'t> {
         }
     }
 
+    /// A call the typed trees bound to no declaration is refused before
+    /// anything asks what its target is: an unbound symbol has no kind,
+    /// parent or generated origin to read. Typing leaves such a call unbound
+    /// when the callee is chosen from a receiver's type or the name resolves
+    /// to nothing.
+    fn bound_target(&self, id: MachineId, target: SymbolHandle) -> Checked<()> {
+        if target.is_valid() && self.typed.symbols.symbols().nodes().is_valid(target) {
+            return Ok(());
+        }
+        Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Call("without a bound target"),
+        ))
+    }
+
     pub(super) fn call_statement(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         call: &TableCall,
     ) -> Checked<Expression> {
+        self.bound_target(id, call.target_symbol)?;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if let Some(read) = self.rigid_call(
             id,
@@ -385,6 +402,7 @@ impl<'t> Program<'t> {
         handle: ExpressionHandle,
         source: SourceOrigin,
     ) -> Checked<Expression> {
+        self.bound_target(id, call.target_symbol)?;
         if let Some(description) = self.declaration_query(id, call, source)? {
             return Ok(description);
         }

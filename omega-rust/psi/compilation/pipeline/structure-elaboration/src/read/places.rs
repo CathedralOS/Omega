@@ -138,6 +138,7 @@ impl Program<'_> {
     ) -> Checked<ValueType> {
         let typed = self.typed;
         let symbol = data.symbol;
+        self.served(id, symbol)?;
         let same = |owner: SymbolHandle, retained: &Option<typed_trees::SourceTypeApplication>| {
             owner == symbol
                 && match (retained, &application) {
