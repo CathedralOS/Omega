@@ -91,6 +91,12 @@ platform-custody = { path = "../../foundation/platform-custody" }
 installation-evidence = { path = "../backend/runtime/installation-evidence" }
 object-file = { path = "../backend/object/object-file" }
 mimalloc = { version = "0.1", default-features = false }
+# tests/target_supply.rs types its programs from source before the
+# lowered-form checker judges them.
+source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
+tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 # The checker on the lowered form (route one) is also used by the corpus
 # probe (examples/structure_elaboration_corpus.rs) and the side-by-side
 # comparison (examples/route_one_comparison.rs).
@@ -215,3 +221,9 @@ path = "tests/filesystem_receiver.rs"
 [[test]]
 name = "lowered_route_ownership"
 path = "tests/lowered_route_ownership.rs"
+
+# Target preparation and provider settlement decide a target's supply from
+# the accepted Terminal module of programs typed from source.
+[[test]]
+name = "target_supply"
+path = "tests/target_supply.rs"

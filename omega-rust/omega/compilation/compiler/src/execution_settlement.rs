@@ -1,7 +1,10 @@
-// Source-driven provider settlement depended on the deleted checker's
-// application custody and is unavailable. Accepted Terminal publication and
-// the native request interfaces remain; neither typed declarations nor empty
-// provider facts can stand in for a route-owned target plan.
+// Provider settlement chooses, for one target, the provider of every boundary
+// requirement the Product's accepted Terminal module reaches
+// (`provider_planning::target_supply`): a requirement with no declared supply
+// or with competing supplies rejects the program, and a module that reaches
+// none settles to no plan. The selected execution custody that carries
+// settled plans on to products has no producer yet, so selection still ends
+// in a refusal that says so.
 
 use crate::checked::CheckedCompilation;
 use crate::checked::PreparedProductTarget;
@@ -38,11 +41,21 @@ pub(crate) struct SelectedProductTarget {
 impl SelectedProductTarget {
     pub(crate) fn select(
         _source: &CheckedProductSource,
-        _prepared: PreparedProductTarget,
+        prepared: PreparedProductTarget,
     ) -> Result<Self, Vec<Diagnostic>> {
-        Err(vec![Diagnostic::error(
-            "no product route yet: provider settlement requires route-owned application custody",
-        )])
+        // Settlement rejects a demanded requirement with no supply or with
+        // competing supplies, then forms the plans of the chosen ones. A
+        // module that demands nothing settles to no plan.
+        let PreparedProductTarget { profile, supply } = prepared;
+        let settled = supply.settle()?;
+        let plans = settled.plans()?;
+        Err(vec![Diagnostic::error(format!(
+            "no product route yet: provider settlement for `{}`: {} provider plans are settled, and the selected execution custody that carries them to products has no producer",
+            profile
+                .unwrap_or_else(target::TargetProfile::host)
+                .target_name(),
+            plans.len(),
+        ))])
     }
 
     pub(crate) fn retain_independent_component_products(

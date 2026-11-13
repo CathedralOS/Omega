@@ -14,6 +14,20 @@ pub struct AcceptedTerminalSource {
     publication: terminal_codec::TerminalPublication,
 }
 
+/// One boundary requirement a machine of an accepted module calls.
+///
+/// `boundary` is the callable the module declares for it, `requirement` the
+/// source declaration of that callable and `slot` the boundary trait that
+/// owns the requirement: the two declarations a provider selection can name.
+/// `name` is the authored `Trait::requirement` spelling, for messages only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReachedBoundaryRequirement {
+    pub boundary: semantic_vocabulary::BoundaryMachineId,
+    pub requirement: symbols::SymbolHandle,
+    pub slot: symbols::SymbolHandle,
+    pub name: String,
+}
+
 impl AcceptedTerminalSource {
     pub fn judge(
         source: Arc<FrozenTypedTrees>,
@@ -183,6 +197,54 @@ impl AcceptedTerminalSource {
             }
         }
         names
+    }
+
+    /// The boundary requirements this accepted module's machines call, in
+    /// the order the module declares them.
+    ///
+    /// The module holds the closure of its entry and nothing else, and it
+    /// declares a boundary callable exactly when a machine of that closure
+    /// calls one, so these are the requirements a product of this module
+    /// needs a provider for. An empty answer is a statement about the
+    /// artifact: its entry reaches no boundary requirement. Each row is
+    /// rejoined to the source declaration the elaboration lowered it from.
+    pub fn boundary_requirements_reached(
+        &self,
+    ) -> Result<Vec<ReachedBoundaryRequirement>, Diagnostic> {
+        let elaboration = &self.closure.elaboration;
+        let lost = |detail: &str| {
+            Diagnostic::error(format!(
+                "no product route yet: accepted boundary declarations {detail}"
+            ))
+        };
+        if elaboration.module.boundary_machines.len() != elaboration.boundaries.len() {
+            return Err(lost(
+                "differ from the requirements the module was lowered from",
+            ));
+        }
+        let mut reached = Vec::with_capacity(elaboration.boundaries.len());
+        for (boundary, symbol) in elaboration.boundaries.iter() {
+            if elaboration.module.boundary_machine(boundary).is_none() {
+                return Err(lost("omit a requirement the module was lowered from"));
+            }
+            let (owner, requirement) = self
+                .source
+                .trait_machine_signature(*symbol)
+                .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == *symbol)
+                .ok_or_else(|| lost("lost the boundary trait that owns a requirement"))?;
+            reached.push(ReachedBoundaryRequirement {
+                boundary,
+                requirement: *symbol,
+                slot: owner.symbol,
+                name: format!("{}::{}", owner.name.as_str(), requirement.name.as_str()),
+            });
+        }
+        Ok(reached)
+    }
+
+    /// The module the route judged and accepted, as publication emits it.
+    pub fn module(&self) -> &terminal_psi::TerminalModule {
+        &self.closure.elaboration.module
     }
 
     pub fn source(&self) -> &Arc<FrozenTypedTrees> {

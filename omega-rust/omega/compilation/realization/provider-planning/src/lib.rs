@@ -15,6 +15,7 @@ pub mod service_declarations;
 #[cfg(test)]
 mod source_guards;
 pub mod target_machines;
+pub mod target_supply;
 
 pub use provider_settlement::SettledTargetMachineDeclarations;
 pub use provider_settlement::{
