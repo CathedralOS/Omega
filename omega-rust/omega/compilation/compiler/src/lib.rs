@@ -43,10 +43,10 @@ pub mod checked;
 
 pub use crate::checked::{
     CheckedCompilation, CheckedCompileRequest, CompilationSession, CompletedBuild,
-    CurrentCheckerVerdict, IndependentComponentDiscovery, IndependentComponentSelection,
-    OptimizationRollback, OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
+    IndependentComponentDiscovery, IndependentComponentSelection, OptimizationRollback,
+    OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
     PackageCompilationRequest, PackageCompileFailure, PackageProductOptions,
-    PackageProductSourceRequest, PackageSourceRequest, PreparedPackageProduct,
+    PackageProductSourceRequest, PackageSourceRequest, PreparedPackageProduct, ProductCheckOutcome,
     RestrictedBuildGrants, SourceBuildDeclaration, SourceCompilation, TypedFrontier,
     TypedFrontierCheck, TypedFrontierRequest, checked_compilation_call_count,
     preliminary_check_totals, settled_check_totals, source_assembly_invocation_count,

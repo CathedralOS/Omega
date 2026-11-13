@@ -17,14 +17,14 @@ copied into the module's identity table in the text form that table holds,
 exactly as a record type's is (`RecordType::identity`). Nothing here or in
 the checker compares those texts, and none is formed from a name.
 
-The contract commitment is this route's own. The current checker commits to
+The contract commitment is this route's own. The deleted checker committed to
 the contract as it publishes it in checked trees, which this crate may not
 read. Here the commitment is a digest of the contract the lowered form
 publishes for the machine: its callable identity, each formal's type and
 binding mode, its result type, the `requires` and `ensures` propositions and
 crash routes of its `MachineContract`, and what its header says about
 termination. Two machines with one commitment publish one contract. A
-commitment from this route and one from the current checker are never equal,
+commitment from this route and one from the deleted checker are never equal,
 so a consumer that compares the two refuses instead of pairing them.
 
 A machine this cannot state is left without a declaration and listed in

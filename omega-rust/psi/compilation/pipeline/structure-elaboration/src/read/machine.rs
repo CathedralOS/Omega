@@ -505,8 +505,9 @@ impl<'t> Program<'t> {
         // parameter, no storage and no `self`: its formals and body are read
         // like any other machine's, and a caller passes every argument
         // (`calls`, `names_carrier`). That page also retires the spelling;
-        // the typed trees still hold it, and refusing it here would only
-        // send the same program to the current checker, which accepts it.
+        // the typed trees still hold it. It was served while a refusal here
+        // sent the program to the deleted checker, which accepted it; no
+        // one has ruled since whether this reader should refuse it.
         //
         // What stays refused is a data type that could give the machine
         // something after all: one applied at type arguments, or a generic

@@ -324,7 +324,7 @@ impl Program<'_> {
 
     /// A clause's authored text, each formal left open by position, for
     /// diagnostics (`names`). Rendered as `ExpressionTable::display_name`
-    /// renders the clause, so a message reads as the current checker's.
+    /// renders the clause, so a message reads as the deleted checker's.
     pub(super) fn clause_text(&self, slots: &[Slot], expression: ExpressionHandle) -> ClauseText {
         let mut text = ClauseText::default();
         self.write_clause_text(slots, expression, &mut text);
