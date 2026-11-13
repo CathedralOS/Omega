@@ -77,8 +77,8 @@ use terminal_psi::{
 
 use super::{Lowering, Value};
 use crate::body::{
-    Body, Expression, ExpressionKind, RecordField, RecordType, Statement, StorageShape, Target,
-    ValueType,
+    Body, Expression, ExpressionKind, RecordField, RecordType, Signature, Statement, StorageShape,
+    Target, ValueType,
 };
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 

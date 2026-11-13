@@ -544,6 +544,7 @@ mod tests {
         program
             .expression_table
             .insert(ExpressionNode::Call(TableCallExpression {
+                runtime_call: None,
                 authored_call_selection: None,
                 authored_call_binding: None,
                 build_selection: Default::default(),
@@ -634,6 +635,7 @@ mod tests {
             program
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
+                    runtime_call: None,
                     authored_call_selection: None,
                     authored_call_binding: None,
                     build_selection: Default::default(),

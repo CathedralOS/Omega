@@ -70,7 +70,7 @@ fn equal_selectors_do_not_share_bounds_between_different_extents() {
         ))],
     );
     let mut elaboration = elaborate_over(vec![program], &array_types());
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap();
     let actual = verdicts(&elaboration, &result, 1, safety);
     assert_eq!(actual.len(), 2);
     assert_kernel_checked(&elaboration, 1, actual[0].0, certificate(actual[0].1));

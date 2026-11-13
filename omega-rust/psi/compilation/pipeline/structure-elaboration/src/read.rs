@@ -417,6 +417,7 @@ mod tests {
         let (typed, [served, _]) = unit_machines();
         let call = |target_symbol| {
             ExpressionNode::Call(TableCallExpression {
+                runtime_call: None,
                 authored_call_selection: None,
                 authored_call_binding: None,
                 build_selection: arena::Handle::invalid(),
@@ -1230,6 +1231,7 @@ mod tests {
             typed
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
+                    runtime_call: None,
                     authored_call_selection: None,
                     authored_call_binding: None,
                     build_selection: arena::Handle::invalid(),

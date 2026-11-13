@@ -51,6 +51,7 @@ fn machine(id: u64) -> TerminalMachine {
         declared_service_reach: Vec::new(),
         closed_reach_application: None,
         published_service_ceiling: Vec::new(),
+        published_synchronous_entries: Vec::new(),
         content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),

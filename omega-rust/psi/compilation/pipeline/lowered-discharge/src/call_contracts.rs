@@ -161,10 +161,13 @@ pub(crate) fn inputs_at(
                     requirements: call.requirement_obligations,
                     claim_transfers: &[],
                     completion_receipts: match call.completion {
-                        terminal_psi::BoundaryInvocationCompletion::Normal { receipts, .. } => {
-                            receipts
+                        terminal_psi::control_flow::BoundaryInvocationCompletion::Normal {
+                            receipts,
+                            ..
+                        } => receipts,
+                        terminal_psi::control_flow::BoundaryInvocationCompletion::External(_) => {
+                            &[]
                         }
-                        terminal_psi::BoundaryInvocationCompletion::External(_) => &[],
                     },
                     crash_continuations: None,
                 }),

@@ -491,9 +491,12 @@ pub mod reflection {
                     };
                     crate::references::visit_signature(typed, &mut inputs, &row.signature);
                     for (reference, own_bound) in inputs.roots {
+                        // Own signature binders are masked separately; free
+                        // applications keep the enclosing operand's owner.
                         collect_nominal_expectations(
                             typed,
                             reference,
+                            argument_owner,
                             root_owner_identity,
                             root_application_identity,
                             &own_bound,

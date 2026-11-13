@@ -122,7 +122,8 @@ fn an_unserved_operational_contract_cannot_be_added_to_a_lowered_boundary() {
             .source;
         declaration.published_may_block = blocks;
         declaration.published_may_suspend = !blocks;
-        let refusal = discharge(&mut elaboration).unwrap_err();
+        let refusal =
+            discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap_err();
         assert_eq!(refusal.reason, RefusalReason::Unsupported);
         assert_eq!(
             refusal.detail,
@@ -177,7 +178,7 @@ crashes none
 #[test]
 fn borrowed_generic_requirements_preserve_input_proofs_and_exclusive_loans() {
     let mut valid = borrowed_requirement("right", "< 10");
-    let discharged = discharge(&mut valid).unwrap();
+    let discharged = discharge(&mut valid, &mut crate::ProofSearchActivity::default()).unwrap();
     let entry = discharged.machines.get(id(1)).unwrap();
     assert!(entry.conflicts.is_empty());
     assert!(entry.unestablished().next().is_none());
@@ -188,7 +189,11 @@ fn borrowed_generic_requirements_preserve_input_proofs_and_exclusive_loans() {
     );
 
     let mut missing_input = borrowed_requirement("right", "<= 10");
-    let discharged = discharge(&mut missing_input).unwrap();
+    let discharged = discharge(
+        &mut missing_input,
+        &mut crate::ProofSearchActivity::default(),
+    )
+    .unwrap();
     assert!(
         discharged
             .machines
@@ -200,6 +205,6 @@ fn borrowed_generic_requirements_preserve_input_proofs_and_exclusive_loans() {
     );
 
     let mut alias = borrowed_requirement("left", "< 10");
-    let discharged = discharge(&mut alias).unwrap();
+    let discharged = discharge(&mut alias, &mut crate::ProofSearchActivity::default()).unwrap();
     assert!(!discharged.machines.get(id(1)).unwrap().conflicts.is_empty());
 }

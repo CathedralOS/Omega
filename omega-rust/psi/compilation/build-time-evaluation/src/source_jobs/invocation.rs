@@ -209,6 +209,8 @@ pub(crate) fn direct_call(
     let entry =
         entry_state(program, machine).ok_or("constant invocation has no exact entry state")?;
     Ok(TableCallExpression {
+        // This call names its entry directly; it has no runtime callee value.
+        runtime_call: None,
         authored_call_selection: None,
         authored_call_binding: None,
         authored_machine_application: Default::default(),

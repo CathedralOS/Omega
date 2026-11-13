@@ -377,6 +377,7 @@ machine supplied(value: u32) {supplied} {{ Console::write(value); }}
             &typed,
             requirement,
             structure_elaboration::CallableDeclaration::Machine(machine),
+            &mut crate::ProofSearchActivity::default(),
         )
     };
     let inside = "reaches Output crashes none invokes Handler";

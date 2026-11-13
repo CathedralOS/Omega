@@ -71,6 +71,7 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
                 kind: ExpressionKind::Call {
                     callee: id::<MachineId>(2).into(),
                     arguments: vec![borrowed],
+                    designated: None,
                 },
                 result: None,
                 source: nowhere(),
@@ -106,6 +107,8 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
             ensures: Vec::new(),
             crashes: CrashCeiling::Authored(trap_when(vec![terminal_psi::CrashRouteGuard::Truth])),
             termination: Termination::Silent,
+            reaches: structure_elaboration::Ceiling::Inferred,
+            invokes: structure_elaboration::Ceiling::Inferred,
         });
     }
     let elaboration =

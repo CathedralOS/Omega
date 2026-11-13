@@ -231,7 +231,8 @@ fn declared_refinement_module() -> TerminalModule {
         &typed,
         structure_elaboration::Compilation {
             entries: &[selected],
-            subject: package,
+            subjects: &[package],
+            purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
         },

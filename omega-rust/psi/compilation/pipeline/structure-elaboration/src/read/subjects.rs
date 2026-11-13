@@ -193,12 +193,12 @@ impl Program<'_> {
             }
         }
         for declaration in typed.traits() {
-            if self.owner(entry, declaration.symbol, subjects)? == Owner::Subject {
+            if self.owner(entry, declaration.symbol, subjects, purpose)? == Owner::Subject {
                 self.trait_declaration(entry, declaration.symbol)?;
             }
         }
         for declaration in typed.conformances() {
-            if self.owner(entry, declaration.symbol, subjects)? == Owner::Subject {
+            if self.owner(entry, declaration.symbol, subjects, purpose)? == Owner::Subject {
                 self.conformance_declaration(entry, declaration.symbol)?;
             }
         }
