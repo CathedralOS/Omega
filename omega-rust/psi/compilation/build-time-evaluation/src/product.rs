@@ -425,27 +425,318 @@ pub mod provider_declarations {
     }
     /// The provider defaults a program declares, one row per target.
     ///
-    /// A default is declared by a machine whose purpose is
-    /// `ProviderDefaults`; the selections come from the calls in its body.
-    /// Nothing on the lowered-form route harvests those calls yet, so a
-    /// program that declares such a machine in this planning context is
-    /// refused by the machine's name. A program that declares none has no
-    /// defaults, which is what the empty answer states.
+    /// "The selected target package supplies ordinary named default provider
+    /// implementations" (`wiki/spec/build/provider_selection.md`,
+    /// "Declaration and choice"). A package declares them in a machine named
+    /// `Type::provider_defaults`, whose body is a list of
+    /// `Type::select_provider<Slot, Provider>(defaults)` calls. Each call
+    /// becomes one selection, read from the typed trees: this is source
+    /// policy, not code the Product runs. Machines of one target share a
+    /// row, and rows come out ordered by target.
     pub fn retain_provider_defaults(
         context: ProviderPlanningContext<'_>,
     ) -> Result<Vec<TargetProviderDefaults>, Vec<Diagnostic>> {
-        let declared = context.typed.machines().iter().find(|machine| {
+        let mut rows: Vec<TargetProviderDefaults> = Vec::new();
+        for machine in context.typed.machines().iter().filter(|machine| {
             machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
                 && !machine.target_family_interface
                 && context.contains(machine.symbol)
                 && (context.scope == source::DependencyScope::Product || machine.target.is_none())
-        });
-        match declared {
-            None => Ok(Vec::new()),
-            Some(machine) => Err(vec![Diagnostic::error(format!(
-                "no product route yet: source provider defaults: `{}` declares provider defaults",
-                machine.name.as_str()
-            ))]),
+        }) {
+            let target = machine
+                .authored_target
+                .as_ref()
+                .map(|name| name.as_str().to_owned());
+            let selections = defaults::harvest(context, machine)?;
+            match rows.iter_mut().find(|row| row.target == target) {
+                Some(row) => {
+                    row.machines.push(machine.symbol);
+                    row.selections.extend(selections);
+                }
+                None => rows.push(TargetProviderDefaults {
+                    target,
+                    machines: vec![machine.symbol],
+                    selections,
+                }),
+            }
+        }
+        rows.sort_by(|left, right| left.target.cmp(&right.target));
+        Ok(rows)
+    }
+
+    /// Reads the selections one `provider_defaults` machine declares.
+    ///
+    /// Only the forms the reader states are harvested. Anything else in such
+    /// a machine is refused by name rather than skipped: a statement that is
+    /// not a selection, an explicit composition mode, a slot or provider
+    /// applied to static arguments, and a boundary-operator family as the
+    /// slot. A skipped statement would be a default the Product silently
+    /// does without.
+    mod defaults {
+        use super::{
+            CompositionMode, ProviderPlanningContext, ProviderSelection, ProviderSelectionIdentity,
+            ProviderSelectionSubject,
+        };
+        use diagnostics::Diagnostic;
+        use symbols::SymbolKind;
+        use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
+        use typed_trees::machine::Machine;
+        use typed_trees::statement::StatementNode;
+
+        /// One `select_provider` call as its statement holds it.
+        struct Call<'typed> {
+            target: &'typed str,
+            resolved: bool,
+            arguments: &'typed [StaticMachineArgument],
+            values: usize,
+            source_span: source::SourceSpan,
+        }
+
+        pub(super) fn harvest(
+            context: ProviderPlanningContext<'_>,
+            machine: &Machine,
+        ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+            let typed = context.typed;
+            let name = machine.name.as_str();
+            let refuse = |what: &str, source_span: source::SourceSpan| {
+                vec![
+                    Diagnostic::error(format!(
+                        "no product route yet: source provider defaults: `{name}` {what}"
+                    ))
+                    .with_source_span(source_span),
+                ]
+            };
+            let mut selections: Vec<ProviderSelection> = Vec::new();
+            for state in typed.machine_states(machine) {
+                for statement in typed.statement_table.statements(state.statement_nodes) {
+                    let call = match statement {
+                        StatementNode::Call(call) => Call {
+                            target: call.target.as_str(),
+                            resolved: call.target_symbol.is_valid(),
+                            arguments: &call.machine_arguments,
+                            values: typed
+                                .statement_table
+                                .expression_handles(call.arguments)
+                                .len(),
+                            source_span: call.source_span,
+                        },
+                        StatementNode::Expression(expression) => {
+                            let source_span = typed.expression_table.source_span(*expression);
+                            match typed.expression_table.expression(*expression) {
+                                ExpressionNode::Call(call) => Call {
+                                    target: call.target.as_str(),
+                                    resolved: call.target_symbol.is_valid(),
+                                    arguments: &call.machine_arguments,
+                                    values: typed
+                                        .expression_table
+                                        .expression_handles(call.arguments)
+                                        .len(),
+                                    source_span,
+                                },
+                                _ => {
+                                    return Err(refuse(
+                                        "holds a statement that is not a `select_provider` call",
+                                        source_span,
+                                    ));
+                                }
+                            }
+                        }
+                        _ => {
+                            return Err(refuse(
+                                "holds a statement that is not a `select_provider` call",
+                                typed
+                                    .symbols
+                                    .symbol_source_span(machine.symbol)
+                                    .unwrap_or_default(),
+                            ));
+                        }
+                    };
+                    // Typing leaves the selection intrinsic unresolved; a
+                    // call that resolved to a machine is an ordinary call.
+                    if call.target != "select_provider" || call.resolved {
+                        return Err(refuse(
+                            "holds a statement that is not a `select_provider` call",
+                            call.source_span,
+                        ));
+                    }
+                    let [slot, provider] = call.arguments else {
+                        return Err(refuse(
+                            "selects a provider without exactly a slot and a provider",
+                            call.source_span,
+                        ));
+                    };
+                    // The one value argument is the defaults value itself. A
+                    // second one is an explicit `CompositionMode`.
+                    if call.values != 1 {
+                        return Err(refuse(
+                            "selects a provider with an explicit composition mode",
+                            call.source_span,
+                        ));
+                    }
+                    if slot.application.is_some() || provider.application.is_some() {
+                        return Err(refuse(
+                            "selects a slot or provider applied to static arguments",
+                            call.source_span,
+                        ));
+                    }
+                    let selection = form(context, machine, slot, provider, call.source_span)
+                        .map_err(|diagnostic| {
+                            vec![diagnostic.with_source_span(call.source_span)]
+                        })?;
+                    if let Some(existing) = selections
+                        .iter()
+                        .find(|existing| existing.subject.same_declaration_as(&selection.subject))
+                        && existing.provider_type.symbol != selection.provider_type.symbol
+                    {
+                        return Err(vec![
+                            Diagnostic::error(format!(
+                                "build selects two provider types for slot `{}`: `{}` and `{}`",
+                                selection.subject.canonical_path(),
+                                existing.provider_type.canonical_path,
+                                selection.provider_type.canonical_path,
+                            ))
+                            .with_source_span(call.source_span),
+                        ]);
+                    }
+                    selections.push(selection);
+                }
+            }
+            Ok(selections)
+        }
+
+        fn identity(
+            context: ProviderPlanningContext<'_>,
+            argument: &StaticMachineArgument,
+        ) -> ProviderSelectionIdentity {
+            let symbols = &context.typed.symbols;
+            ProviderSelectionIdentity {
+                symbol: argument.symbol,
+                application: Default::default(),
+                applied: false,
+                application_identity: None,
+                package: symbols.symbol_package_identity(argument.symbol),
+                canonical_path: symbols.display_path(argument.symbol, "::"),
+                authored_path: argument
+                    .path
+                    .iter()
+                    .map(|segment| segment.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::"),
+            }
+        }
+
+        /// Classifies the slot, checks the provider is a declaration that can
+        /// provide, and states the selection with its authored origin.
+        fn form(
+            context: ProviderPlanningContext<'_>,
+            machine: &Machine,
+            slot: &StaticMachineArgument,
+            provider: &StaticMachineArgument,
+            source_span: source::SourceSpan,
+        ) -> Result<ProviderSelection, Diagnostic> {
+            let typed = context.typed;
+            let slot = identity(context, slot);
+            let provider = identity(context, provider);
+            if !slot.symbol.is_valid() || !provider.symbol.is_valid() {
+                return Err(Diagnostic::error(format!(
+                    "provider default `{}` for `{}` does not resolve to declarations",
+                    provider.authored_path, slot.authored_path
+                )));
+            }
+            if !context.contains(slot.symbol) || !context.contains(provider.symbol) {
+                return Err(Diagnostic::error(format!(
+                    "provider selection subject or provider is outside the {:?} planning context",
+                    context.scope
+                )));
+            }
+            let slot_kind = typed.symbols.get(slot.symbol).kind;
+            let subject = if slot_kind == SymbolKind::Trait
+                && typed
+                    .traits()
+                    .iter()
+                    .any(|definition| definition.symbol == slot.symbol && definition.is_boundary)
+            {
+                ProviderSelectionSubject::BoundaryTrait(slot)
+            } else if slot_kind == SymbolKind::Machine
+                && typed.machines().iter().any(|requirement| {
+                    requirement.symbol == slot.symbol
+                        && requirement.spelling.is_none()
+                        && requirement.supply_mode
+                            == language_semantics::MachineSupplyMode::TopLevelRequirement
+                })
+            {
+                ProviderSelectionSubject::BoundaryRequirement(slot)
+            } else if slot_kind == SymbolKind::Operator
+                || typed
+                    .machine_token_bindings()
+                    .iter()
+                    .any(|binding| binding.is_boundary && binding.symbol == slot.symbol)
+            {
+                return Err(Diagnostic::error(format!(
+                    "no product route yet: source provider defaults: slot `{}` is a boundary-operator family",
+                    slot.authored_path
+                )));
+            } else {
+                return Err(Diagnostic::error(format!(
+                    "provider selection subject `{}` does not resolve to an exact boundary trait, top-level boundary requirement, or boundary-operator family",
+                    slot.authored_path
+                )));
+            };
+            let implementation = typed
+                .conformances()
+                .iter()
+                .find(|definition| definition.symbol == provider.symbol);
+            if typed.symbols.get(provider.symbol).kind != SymbolKind::Data
+                && implementation.is_none()
+            {
+                return Err(Diagnostic::error(format!(
+                    "provider selection type `{}` does not resolve to an exact provider data declaration or named implementation",
+                    provider.authored_path
+                )));
+            }
+            // A named implementation with lifetime parameters provides a
+            // requirement its parent trait declares only when the parent's
+            // lifetimes are spelled by the implementation's own.
+            if let Some(implementation) =
+                implementation.filter(|definition| definition.type_parameters.is_empty())
+            {
+                let root = typed.trait_definition_by_symbol(implementation.trait_symbol);
+                let arguments = implementation.trait_lifetime_arguments.as_slice();
+                let own = implementation.lifetime_parameters.len();
+                let spelled = root.is_some_and(|root| {
+                    arguments.len() == root.lifetime_parameters.len()
+                        && arguments.iter().all(|ordinal| {
+                            usize::try_from(*ordinal).is_ok_and(|ordinal| ordinal < own)
+                        })
+                });
+                for row in &implementation.rows {
+                    let inherited_without_lifetimes = typed
+                        .trait_definition_by_symbol(row.declaring_trait)
+                        .is_some_and(|declaring| declaring.lifetime_parameters.is_empty());
+                    let direct = root.is_some_and(|root| root.symbol == row.declaring_trait);
+                    if !spelled || !(direct || inherited_without_lifetimes) {
+                        return Err(Diagnostic::error(format!(
+                            "named provider `{}` requires an unsupported inherited declaring-trait lifetime application for `{}`; the exact parent substitution is not retained",
+                            provider.authored_path, row.requirement_name,
+                        )));
+                    }
+                }
+            }
+            let origin = language_semantics::declaration_selection::BuildSelectionOrigin::capture(
+                &typed.symbols,
+                machine.symbol,
+                machine.symbol,
+                source_span,
+                None,
+            )
+            .map_err(Diagnostic::error)?;
+            Ok(ProviderSelection {
+                target: None,
+                subject,
+                provider_type: provider,
+                composition_mode: CompositionMode::Fused,
+                origin,
+            })
         }
     }
 }
@@ -580,7 +871,9 @@ mod tests {
         }
     }
 
-    fn provider_defaults_of(source: &str) -> Result<usize, String> {
+    /// The defaults a program declares, as (target, slot, provider) rows,
+    /// or the first refusal.
+    fn provider_defaults_of(source: &str) -> Result<Vec<(Option<String>, String, String)>, String> {
         let typed = crate::source_jobs::tests::typed(source);
         provider_declarations::retain_provider_defaults(
             provider_declarations::ProviderPlanningContext::new(
@@ -588,30 +881,63 @@ mod tests {
                 source::DependencyScope::Product,
             ),
         )
-        .map(|rows| rows.len())
+        .map(|rows| {
+            rows.into_iter()
+                .flat_map(|row| {
+                    let target = row.target.clone();
+                    row.selections.into_iter().map(move |selection| {
+                        (
+                            target.clone(),
+                            selection.subject.authored_path().to_owned(),
+                            selection.provider_type.authored_path,
+                        )
+                    })
+                })
+                .collect()
+        })
         .map_err(|diagnostics| diagnostics[0].message.clone())
     }
 
-    /// A program that declares no provider-defaults machine has no
-    /// defaults. The twin declares one: its selections are not harvested
-    /// yet, so the program is refused by that machine's name.
+    const SLOT: &str = "boundary trait Service {\n    machine go() reaches none crashes none;\n}\ndata Native {}\n";
+
+    /// A program that declares no provider-defaults machine has no defaults,
+    /// and one that declares a default states it as slot and provider.
     #[test]
-    fn provider_defaults_are_absent_only_when_no_machine_declares_them() {
+    fn a_provider_default_is_read_from_its_select_provider_call() {
         assert_eq!(
-            provider_defaults_of(
-                "data Native {}\nmachine Native::configure(defaults: &mut Native) { }\n"
-            ),
-            Ok(0)
+            provider_defaults_of(&format!(
+                "{SLOT}machine Native::configure(defaults: &mut Native) {{ }}\n"
+            )),
+            Ok(Vec::new())
         );
         assert_eq!(
-            provider_defaults_of(
-                "data Native {}\nmachine Native::provider_defaults(defaults: &mut Native) { }\n"
-            ),
-            Err(concat!(
-                "no product route yet: source provider defaults: ",
-                "`Native::provider_defaults` declares provider defaults"
-            )
-            .into())
+            provider_defaults_of(&format!(
+                "{SLOT}machine Native::provider_defaults(defaults: &mut Native) {{\n    Native::select_provider<Service, Native>(defaults);\n}}\n"
+            )),
+            Ok(vec![(None, "Service".to_owned(), "Native".to_owned())])
+        );
+    }
+
+    /// The twins: the same machine selecting for a slot that is not a
+    /// boundary, and holding a statement that is not a selection. Neither is
+    /// skipped.
+    #[test]
+    fn a_provider_default_that_is_not_a_selection_of_a_boundary_is_refused() {
+        let refused = provider_defaults_of(&format!(
+            "{SLOT}machine Native::provider_defaults(defaults: &mut Native) {{\n    Native::select_provider<Native, Native>(defaults);\n}}\n"
+        ))
+        .unwrap_err();
+        assert!(
+            refused.contains("subject `Native` does not resolve to an exact boundary trait"),
+            "{refused}"
+        );
+        let refused = provider_defaults_of(&format!(
+            "{SLOT}machine other() {{ }}\nmachine Native::provider_defaults(defaults: &mut Native) {{\n    other();\n}}\n"
+        ))
+        .unwrap_err();
+        assert_eq!(
+            refused,
+            "no product route yet: source provider defaults: `Native::provider_defaults` holds a statement that is not a `select_provider` call"
         );
     }
 }
