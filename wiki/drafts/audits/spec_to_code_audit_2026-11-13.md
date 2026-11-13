@@ -287,7 +287,9 @@ Two further shapes were searched and did not become findings.
   describes validation's arithmetic engine surrounded by recognizers for
   incidental source shapes. No live pair of that form was confirmed.
   `proof/admission`'s `verify_obligation` is the kernel `lowered-discharge`
-  calls, which is the single verdict the design record asks for.
+  calls, which is the single proof verdict the design record asks for.
+  The closed crash guard is a different decision, and two live walkers
+  disagree on it (LF-1).
 - **A shim that still builds a checked tree or an empty proof.** The
   surviving checker connection points refuse. `require_source_owner` and
   the carrier rows return `no product route yet` when the judgment or the
@@ -379,15 +381,17 @@ and the checked-tree phase the spec still names.
 ## 3. Findings, grouped by the four patterns
 
 The pass covered the six partitions at
-`a93022df945edf9147d3e75332c7ee944594029a`. It did not find a second live
-implementation of a judgment the specification assigns to one stage.
+`a93022df945edf9147d3e75332c7ee944594029a`. One judgment is implemented
+twice and the two copies disagree (LF-1). The proof kernel itself is still
+one implementation.
 
 - No `Cargo.toml` still depends on `checked-trees`, `validation`,
   `typed-trees-to-checked-trees`, `lowered-psi`, or `representation-planning`
   (`rg` over `Cargo.toml`).
 - `proof/admission` re-decides certificates, which
   [verification placement](omega-rust/pipeline.md#verification-placement)
-  requires. `proof/src/lib.rs` is a syntax surface and says so.
+  requires. Package `proof` is a separate syntax-report crate with no
+  production caller (LF-4).
 - Explicit refusals in `psi-compiler` and `lowered-discharge` are the end
   state #2823 left. They are not shims that still succeed.
 
@@ -399,6 +403,9 @@ implementation of a judgment the specification assigns to one stage.
 | Second lowering, or a phase running on the wrong representation | PL-1, PL-2 |
 | A retired spelling is still the implementation | OC-3, TL-4, TL-5 |
 | A lookup that still accepts the previous address | OC-4 |
+| Two evaluators of one closed proposition | LF-1 |
+| Storage whose producer never writes it | LF-2, LF-3 |
+| A named surface with no caller | LF-4, LF-5 |
 
 The register is
 `wiki/drafts/audits/spec_to_code_audit_2026-11-13.tsv`. Line estimates use
@@ -770,6 +777,124 @@ Follow-up: delete the three scripts and the sentences that only describe
 the missing launcher. Dispatch stays `cargo xtask worktree` and
 `cargo xtask claims`.
 
+### LF-1. Two closed-proposition walkers disagree when a child is unknown
+
+Pattern: two evaluators of one closed proposition. Category: confirmed
+duplication. Confidence: high. Owner: terminal installation and the
+interpreter. The two functions are 58 and 85 lines. A repair keeps one
+walker, so this is not a net deletion of both.
+
+[Crash outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md#crash) say
+build-time evaluation rejects an invocation with a surviving crash route,
+and an invocation that disproves every route remains admissible. The
+interpreter returns a distinct crash outcome. Both decisions walk the same
+closed proposition to true, false, or unknown.
+
+`closed_guard` in
+`terminal-installation/src/evaluation_and_synchronous_calls.rs` (lines
+274–331) keeps scanning a conjunction or disjunction after an unknown
+child. A deciding sibling still wins: `false` ends a conjunction and
+`true` ends a disjunction. `closed_guard` in
+`terminal-interpreter/src/boundary_effects.rs` (lines 397–481) returns
+unknown as soon as any child is unknown, so `false && unknown` is unknown
+there and false in the installation walker. Implication differs the same
+way: the installation walker accepts `unknown => true` (line 327), and the
+interpreter walker returns unknown (line 477). The interpreter walker also
+evaluates IEEE-float literals (lines 404–427). The installation walker has
+no float arm and falls through to unknown.
+
+`InputObservations::evaluate` in the same interpreter file (lines 131–166)
+is a third walk of the connectives. It returns on the first deciding
+sibling or the first unknown, so the result depends on child order, and
+then it calls the interpreter `closed_guard` for a leaf. Build-time
+admission calls the installation walker through `admit_compiler_evaluation`
+(`source_jobs.rs`, `calling_policy_plans.rs`). Boundary admission calls
+the interpreter walker through `admit_boundary_crash`.
+
+The crash-bucket shape test copied beside both walks is already
+`terminal_codec::semantic_module::crash_routes_are_canonical`.
+
+Follow-up: one walker, shared by both admissions, using the installation
+rule that an unknown sibling does not hide a deciding child. Crash-bucket
+shape stays the codec predicate. Validation: `mbx test -p terminal-installation --lib`
+and `mbx test -p terminal-interpreter --lib`.
+
+### LF-2. Check-table summaries and may-sets have no producer
+
+Pattern: storage nothing writes. Category: likely unnecessary. Confidence:
+high. Owner: terminal check tables.
+
+`CheckTables::summaries` is a default-empty table. `lowered-discharge`
+`places.rs` says it stays empty. `Summary` and `SummaryBasis` in
+`check-tables/src/edges.rs` are not constructed, and their `reach` and
+`invokes` fields are `MaySet`. `MaySet::of` and `MaySet::Unknown` occur
+only in `may_sets.rs` tests. Service reach that the checker does judge is
+`TerminalMachine::published_service_ceiling`, which `ceilings::judge`
+reads. That record stays.
+
+Follow-up: drop the unread summary column, `Summary`, and `MaySet`. Leave
+the module ceiling. Validation: `mbx test -p terminal-check-tables --lib`,
+`mbx test -p structure-elaboration --lib`, and
+`mbx test -p lowered-discharge --lib`.
+
+### LF-3. Scalar-leaf elision rewrites an operation, and nothing calls it
+
+Pattern: a second discharge beside the kernel. Category: likely
+unnecessary. Confidence: high. Owner: terminal semantics. The `elision`
+module in `semantics/src/scalars.rs` is lines 802–1191.
+
+`elidable_proof_bearing_scalar_leaf` asks for the canonical goal, decides
+that goal from literals, and returns a replacement `OperationKind`. It
+does not call `proof_admission`. `rg` of the function and of
+`canonical_goal_is_discharged` finds only that module and the re-export in
+`semantics/src/lib.rs`. [Integer certificates](wiki/spec/terminal-psi/integer_certificates.md)
+say a producer proves the canonical goal and cannot substitute a different
+question. [Optimization ordering](wiki/spec/terminal-psi/product.md#optimization-ordering)
+says an empty selection constructs no rule candidates. Publication records
+an empty Psi selection. `lowered-discharge` is the path that states this
+goal and sends it to the kernel.
+
+Follow-up: delete the module and the re-export. The canonical-goal
+constructor stays. Validation: `mbx test -p terminal-semantics --lib` and
+`mbx test -p lowered-discharge --lib`.
+
+### LF-4. The syntax-only proof crate has no production caller
+
+Pattern: a named surface with no caller. Category: spec question.
+Confidence: high that nothing calls it, medium on whether the architecture
+still wants the crate. Owner: `psi/compilation/proof`. Non-test lines are
+about 961.
+
+`pipeline.md` assigns this directory syntax-only proof surface
+descriptions and keeps `proof/admission` as the mathematical checker. The
+crate comment says the reports establish no source judgment and no
+certificate. `build_proof_surface_report`, `BoundaryProofObligation`, and
+`ProofLemma::discharging` occur only under `proof/src`. The workspace
+`Cargo.toml` lists the package. No other manifest depends on it. The
+specification pages for proofs do not name these reports. The lemma search
+is a second prover beside `verify_obligation`, and it has no caller either.
+
+Follow-up: if the surface is not a product report, drop the package and
+leave `proof-admission`. If a report is required, name the caller. Do not
+delete the kernel.
+
+### LF-5. Production stage labels still name CheckedTrees and Lowered Psi
+
+Pattern: sidecar names. Category: likely unnecessary. Confidence: medium.
+Owner: terminal production. The label table is 28 lines.
+
+`OBSERVATION_LABELS` in `terminal-production/src/lib.rs` (lines 51–78)
+records `CheckedTrees`, `LoweredPsi`, and `OptimizedLoweredPsi` for machine
+selection, lowering, optimization, entry receipt, and publication. The
+publication row says its input is `OptimizedLoweredPsi`. Those three
+representations were the deleted chain. `pipeline.md` says the served
+route is structural elaboration, lowered-form judgment, and accepted-source
+publication, with no checked-tree or legacy optimization fallback.
+
+Follow-up: label the live publication and entry-receipt rows with the
+representations they carry. Leave elaboration and discharge as the route.
+Validation: `mbx test -p psi-terminal-production --lib`.
+
 ## 4. Independent review
 
 This pass re-read the callers of each finding above and tried to break the
@@ -790,8 +915,13 @@ simplification. It did not re-open the directory census.
 | DOCS-1 | Stands, and is not its own change. The comments do not affect compilation. The stage READMEs that say elaboration and discharge are unwired are stale relative to `RouteScope::judge`. |
 | PL-1 | Stands as a spec question. Publication refuses a nonempty Psi selection, native lowering excludes pre-terminal selections, and the catalog executor sits in the abstract-operations stage. Do not delete the passes to make the map look clean. |
 | PL-2 | Stands as a spec question. The `TargetOperations` and `AbstractOperations` refusals are fail-closed. The question is whether those phases stay selectable. |
+| LF-1 | Stands. The installation walker lets a deciding sibling survive an unknown child. The interpreter walker returns unknown on the first unknown child, and `InputObservations::evaluate` depends on child order. One shared walker, with the installation rule. |
+| LF-2 | Stands. The summary column and `MaySet` have no production constructor. The module ceiling `ceilings::judge` reads stays. |
+| LF-3 | Stands. The elision module has no caller outside its re-export. Discharge stays in `lowered-discharge` and `proof_admission`. |
+| LF-4 | Stands as a spec question. Nothing depends on package `proof`. `pipeline.md` still names the directory. `proof-admission` stays. |
+| LF-5 | Stands. The publication label still says its input is `OptimizedLoweredPsi`. |
 
-No finding was upgraded to confirmed duplication. Similar names
+LF-1 is the one confirmed duplication. Similar names
 (`CheckedCompilation`, `compiler/src/checked/`, `PsiOptimization`) are the
 current product coordinator and the abstract-operation optimizer, which have
 live callers.
@@ -799,32 +929,40 @@ live callers.
 ## 5. Ranking and follow-ups
 
 Rank is maintenance saved, then confidence, then how likely the change is to
-break a real reader. Confirmed duplication: 0. Likely unnecessary: 7
-(TL-1, TL-2, OC-2, DOCS-1, OC-3, TL-4, TL-5). Unresolved spec questions: 5
-(OC-1, FD-1, PL-1, PL-2, OC-4). Dropped by review: 1 (TL-3). PL-1, PL-2,
-and OC-3 do not add to the line count below. OC-3 is a retarget.
+break a real reader. Confirmed duplication: 1 (LF-1). Likely
+unnecessary: 10 (TL-1, TL-2, OC-2, DOCS-1, OC-3, TL-4, TL-5, LF-2, LF-3,
+LF-5). Unresolved spec questions: 6 (OC-1, FD-1, PL-1, PL-2, OC-4, LF-4).
+Dropped by review: 1 (TL-3). PL-1, PL-2, OC-3, and LF-1 do not add to the
+line count below. OC-3 is a retarget. LF-1 keeps one walker.
 
 | Rank | Id | Why this order |
 | --- | --- | --- |
-| 1 | TL-1 | Removes a command that builds an instrumented compiler to count lines in directories that are gone. |
-| 2 | OC-1 | The helper is dead, but the selection is still in the versioned vocabulary and in the specification. Ask before touching the tag. |
-| 3 | FD-1 | Schema 7 is still "current." Decoding and the refusal fence stay until the question is answered. |
-| 4 | TL-2 | The lint silently skips two roots on every rules run. The edit is small and the stage 04 scan stays. |
-| 5 | OC-3 | The public command tree is still the one the spec retired. One parser change, with its tests. |
-| 6 | OC-2 | Four lines of unread constants, the uncalled preliminary-check recorder, and a stale label on a live timer. |
-| 7 | TL-5 | Three scripts whose pool directory is gone. |
-| 8 | TL-4 | The testing guide runs Python files that are not in the tree. |
-| 9 | DOCS-1 | Stale sentences. No behavior. |
-| 10 | PL-1 | The Psi phase is missing before publication, and its catalog runs in the abstract-operations stage. A repair chooses a stage; it does not delete the passes. |
-| 11 | PL-2 | `TargetOperations` and `AbstractOperations` are selectable and then refused. Keep the refusal until the phase list changes. |
-| 12 | OC-4 | The legacy snapshot scan re-verifies. Ask whether `source-<digest>` directories are still required before deleting it. |
+| 1 | LF-1 | The only confirmed duplication. Build-time admission and the interpreter can disagree on `false && unknown`. |
+| 2 | TL-1 | Removes a command that builds an instrumented compiler to count lines in directories that are gone. |
+| 3 | OC-1 | The helper is dead, but the selection is still in the versioned vocabulary and in the specification. Ask before touching the tag. |
+| 4 | FD-1 | Schema 7 is still "current." Decoding and the refusal fence stay until the question is answered. |
+| 5 | TL-2 | The lint silently skips two roots on every rules run. The edit is small and the stage 04 scan stays. |
+| 6 | OC-3 | The public command tree is still the one the spec retired. One parser change, with its tests. |
+| 7 | OC-2 | Four lines of unread constants, the uncalled preliminary-check recorder, and a stale label on a live timer. |
+| 8 | TL-5 | Three scripts whose pool directory is gone. |
+| 9 | TL-4 | The testing guide runs Python files that are not in the tree. |
+| 10 | DOCS-1 | Stale sentences. No behavior. |
+| 11 | PL-1 | The Psi phase is missing before publication, and its catalog runs in the abstract-operations stage. A repair chooses a stage; it does not delete the passes. |
+| 12 | PL-2 | `TargetOperations` and `AbstractOperations` are selectable and then refused. Keep the refusal until the phase list changes. |
+| 13 | OC-4 | The legacy snapshot scan re-verifies. Ask whether `source-<digest>` directories are still required before deleting it. |
+| 14 | LF-3 | The scalar-leaf elision module has no caller. About 390 lines. |
+| 15 | LF-2 | The check-table summary column and `MaySet` are never built. The module ceiling stays. |
+| 16 | LF-5 | Publication still labels its input `OptimizedLoweredPsi`. |
+| 17 | LF-4 | Package `proof` has no production caller. Ask before dropping a directory `pipeline.md` still names. |
 
 Authored Rust that these follow-ups can remove, from the commands above:
 495 (`stage_coverage.rs`) plus the four `main.rs` lines, about 10 for
 `checked_tree_product_roots` if that helper is removed without the wire tag,
 4 for the unused timing constants, 19 for the uncalled preliminary-check
 recorder and its statics, and 2 path strings. The three swarm slot scripts
-add 107 lines. That is about 641 lines. Generated, vendored, and fixture
+add 107 lines. That is about 641 lines. The uncalled scalar-leaf elision module is another
+390 lines (`semantics/src/scalars.rs` 802–1191) and is separate from that
+figure because the canonical-goal constructor beside it stays. Generated, vendored, and fixture
 reduction from these follow-ups: 0. OC-3 rewrites the parser rather than
 deleting it. Documentation reduction is the stage-coverage section in
 `tools/testing.md` (lines 440–497, 58 lines), the Python baseline commands
