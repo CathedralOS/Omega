@@ -2631,7 +2631,7 @@ pub(crate) mod identity_context {
                     {
                         Some(argument) => substitution::index_argument(
                             program,
-                            IndexIdentityArgument::StaticArgument(argument),
+                            crate::type_identity::IndexIdentityArgument::StaticArgument(argument),
                             context,
                         ),
                         None => substitution::rejected(context),
