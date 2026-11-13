@@ -146,7 +146,7 @@ pub(crate) mod declaration_selection {
             The namespace boundary for early declaration consistency, including
             dependency purpose. A logical path alone is not a foreign owner.
         */
-        pub(super) fn same_checked_package(
+        pub(crate) fn same_checked_package(
             &self,
             left: source::SourceSpan,
             right: source::SourceSpan,
@@ -1522,15 +1522,17 @@ pub(crate) mod declaration_selection {
         }
 
         /*
-            Return exact declaration custody, not a handle from the header table.
-            No match includes unresolved or ambiguous selection; callers must defer
-            it to ordinary validation, never fall back to a lexical constant map.
+            The constant header one authored name selects from its own source
+            scope, named by its declaration's source span. The header may
+            belong to this forest or to the retained base, so the caller joins
+            the span to whichever holds the declaration. A name that selects no
+            constant, or more than one, has no header.
         */
-        pub(crate) fn select(
+        pub(crate) fn const_header(
             &self,
             syntax: &SyntaxTrees,
             name: &Identifier,
-        ) -> Result<Option<ConstDefinition>, Diagnostic> {
+        ) -> Result<Option<source::SourceSpan>, Diagnostic> {
             if name.source_span().span.start == name.source_span().span.end {
                 return Ok(None);
             }
@@ -1541,10 +1543,28 @@ pub(crate) mod declaration_selection {
             ) else {
                 return Ok(None);
             };
-            let declaration_span = self.symbols.symbol_source_span(selected).ok_or_else(|| {
-                Diagnostic::error("selected constant header has no retained declaration source")
-                    .with_source_span(name.source_span())
-            })?;
+            self.symbols
+                .symbol_source_span(selected)
+                .map(Some)
+                .ok_or_else(|| {
+                    Diagnostic::error("selected constant header has no retained declaration source")
+                        .with_source_span(name.source_span())
+                })
+        }
+
+        /*
+            Return exact declaration custody, not a handle from the header table.
+            No match includes unresolved or ambiguous selection; callers must defer
+            it to ordinary validation, never fall back to a lexical constant map.
+        */
+        pub(crate) fn select(
+            &self,
+            syntax: &SyntaxTrees,
+            name: &Identifier,
+        ) -> Result<Option<ConstDefinition>, Diagnostic> {
+            let Some(declaration_span) = self.const_header(syntax, name)? else {
+                return Ok(None);
+            };
             let mut declarations = syntax.root_items().filter_map(|item| {
                 let Item::Const(definition) = item else {
                     return None;
@@ -5527,6 +5547,14 @@ pub(crate) fn prepare(
     )?;
     declared_types::normalize(&mut syntax, &constant_selection)?;
     generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;
+    /*
+        Only the complete route owns a constant's value. The selection routes
+        exist to read initializers as their author wrote them, so they keep
+        every initializer authored.
+    */
+    if constants == crate::resolution::lowerer::ConstResolutionMode::Complete {
+        generic_data::fold_closed_scalar_initializers(&mut syntax, &constant_selection)?;
+    }
     validate_with_const_resolution_mode(&syntax, &constant_selection, constants)?;
     synthesize_trait_defaults_after_module_validation(&mut syntax, &constant_selection)?;
     Ok(Prepared {
