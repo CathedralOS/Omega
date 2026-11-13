@@ -19,14 +19,16 @@ here: just fix it.
 The best moment is your first hour in an area, before you have a change of your
 own to defend. Say what you saw, not what you would build.
 
-- Put the entry under the category it fits, newest first within the category.
-- Keep it to the five lines of the template. Link the file and line.
+- Add the entry at the top of the list under "Entries"; the list is flat, newest first.
+- Name one category from the list below on its `Category` line.
+- Keep it to the lines of the template. Link the file and line.
 - Add it in the pull request you are already landing; never open one for it.
 - If two entries collide in a merge, keep both.
 - Only the owner removes an entry or marks it settled.
 
 ```markdown
 ### <one line naming the concern>
+- Category: <one of the ten below>
 - Where: <path:line, crate, or tool>
 - Saw: <what is there, concretely>
 - Cost: <who it misleads or what it makes expensive>
@@ -65,49 +67,43 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
-### 1. One idea, several implementations
-
 ### An evaluated const operand is recognised separately by at least three readers
+- Category: one idea, several implementations
 - Where: `omega-rust/psi/compilation/representations/typed-trees/src/type_identity.rs` (`index_argument`, `StaticArgument` arm), and two readers in the validation crate (`close_const_argument`, `validate_types`)
 - Saw: build-time evaluation folds a closed record operand into a type reference named `#omega-const:...`; each reader decides on its own whether a `StaticMachineArgument` is a const, and each missed this form, so the program failed at one reader after another
 - Cost: a fix at one reader moves the failure to the next; about 96 `ConstExpression` matches suggest more readers exist
 - Reported: 2026-11-11, Claude Code, while repairing a record-literal operand `category_error`
 
-### 2. Knowledge crossing a boundary
-
 ### Earlier stages and later representations import the stage 05 output type
+- Category: knowledge crossing a boundary
 - Where: the `Cargo.toml` dependencies of stage 03, stage 04, `lowered-psi`, stage 08 and `build-time-evaluation` (read with `cargo metadata --no-deps`)
 - Saw: stage 04 depends on `checked-trees`, which stage 05 produces after it; the `lowered-psi` representation and stage 08 depend on it too; `build-time-evaluation` depends on the stage 05 crate itself
 - Cost: "each stage knows only its input and output" holds on paper while one stage's output type is visible up and down the pipeline
 - Reported: 2026-11-12, Claude Code, while mapping what depends on the old checker before its removal
 
-### 5. Too big to read
-
 ### `terminal-installation` lives under the validation directory but serves the whole back half
+- Category: knowledge crossing a boundary
 - Where: `omega-rust/psi/compilation/validation/terminal-installation/`
 - Saw: about twenty backend, interpreter and CLI crates depend on it; it sits inside the directory of a crate being deleted
 - Cost: its location says "old checker" and its users say "shared runtime contract"; it will be swept up or left stranded by the removal
 - Reported: 2026-11-12, Claude Code, while mapping what depends on the old checker
 
-### 7. Tests that pin the bug
-
 ### A corpus check can stop running without anything noticing
+- Category: tests that pin the bug
 - Where: `omega-rust/omega/compilation/compiler/tests/corpus_runner.rs`, fixtures carrying `expected_native_rejection.txt`
 - Saw: the reader of that file lived in Python tooling deleted by #2086; for weeks nothing read it, nine ledger rows still claimed a match, and three regressions hid behind it until #2564 restored the reader
 - Cost: nothing asserts that every `expected_*` file a fixture carries has a reader, so the next deleted check fails the same silent way
 - Reported: 2026-11-11, Claude Code, while repairing three `scalar_reference_*_backing_foreign_export` rows
 
-### 9. The documents disagree
-
 ### `pipeline.md` blesses a shared pool of judgments beside the pipeline
+- Category: the documents disagree
 - Where: `omega-rust/pipeline.md` ("`psi/compilation/validation/` owns reusable judgments"; "none of these is a pipeline program IR")
 - Saw: a third category next to stages and representations, with no limit on size or on who imports it; it grew to 344,661 lines imported by stages 03, 04, 05 and 08
 - Cost: the next agent can rebuild the pool after the removal and cite the document for it
 - Reported: 2026-11-12, Claude Code, while answering how the old checker got that large
 
-### 10. Verifying costs more than writing
-
 ### One fixture takes minutes in the front end on a shared workstation
+- Category: verifying costs more than writing
 - Where: `omega --check` on a single `tests/omega` fixture; `tests/psi/checking` harness
 - Saw: 220 to 420 seconds per fixture at Idle priority with other builds running; one `tests/psi/checking` pass took 2,067 seconds and about 11 GB
 - Cost: agents validate with a few named probes instead of the corpus, and skip coverage tools; a wider check is not practical locally
