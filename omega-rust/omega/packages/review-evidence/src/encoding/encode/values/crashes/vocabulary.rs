@@ -1,38 +1,55 @@
 // Stable numeric tags and spellings for structural arithmetic, primitive types, and integer comparisons.
 // Each row helper pairs the persisted wire tag with the authored canonical spelling so binary encoding, canonical text, and recovery share one roster.
 
+use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::values::crashes::Encoder;
 use crate::record::PackageReviewArithmeticDomain;
 use crate::record::PackageReviewIntegerBinaryKind;
 use crate::record::PackageReviewIntegerComparisonKind;
 use crate::record::PackageReviewPrimitiveType;
 
+/*
+    This published form names an integer by one tag per carrier and has rows
+    for the eight conventional carriers only. An integer of any other width
+    has no row, so the review record that mentions it is refused rather than
+    written under another carrier's tag.
+*/
 pub(super) const fn primitive_type_row(
     primitive_type: PackageReviewPrimitiveType,
-) -> (u8, &'static str) {
-    match primitive_type {
+) -> Option<(u8, &'static str)> {
+    Some(match primitive_type {
         PackageReviewPrimitiveType::Bool => (0, "bool"),
         PackageReviewPrimitiveType::F32 => (1, "f32"),
         PackageReviewPrimitiveType::F64 => (2, "f64"),
-        PackageReviewPrimitiveType::I8 => (3, "i8"),
-        PackageReviewPrimitiveType::I16 => (4, "i16"),
-        PackageReviewPrimitiveType::I32 => (5, "i32"),
-        PackageReviewPrimitiveType::I64 => (6, "i64"),
-        PackageReviewPrimitiveType::U8 => (7, "u8"),
-        PackageReviewPrimitiveType::U16 => (8, "u16"),
-        PackageReviewPrimitiveType::U32 => (9, "u32"),
-        PackageReviewPrimitiveType::U64 => (10, "u64"),
+        PackageReviewPrimitiveType::Integer(carrier) => {
+            match (carrier.is_signed(), carrier.width()) {
+                (true, 8) => (3, "i8"),
+                (true, 16) => (4, "i16"),
+                (true, 32) => (5, "i32"),
+                (true, 64) => (6, "i64"),
+                (false, 8) => (7, "u8"),
+                (false, 16) => (8, "u16"),
+                (false, 32) => (9, "u32"),
+                (false, 64) => (10, "u64"),
+                _ => return None,
+            }
+        }
         PackageReviewPrimitiveType::Addr => (11, "addr"),
         PackageReviewPrimitiveType::Selector => (12, "selector"),
-    }
+    })
 }
+
+const UNPUBLISHED_INTEGER_WIDTH: &str =
+    "package review has no published form for an integer of this width";
 
 pub(crate) fn encode_primitive_type(
     encoder: &mut Encoder,
     primitive_type: PackageReviewPrimitiveType,
-) {
-    let (tag, name) = primitive_type_row(primitive_type);
+) -> Result<(), PackageReviewEncodingError> {
+    let (tag, name) = primitive_type_row(primitive_type)
+        .ok_or_else(|| PackageReviewEncodingError::new(UNPUBLISHED_INTEGER_WIDTH))?;
     encoder.tag(name, tag);
+    Ok(())
 }
 
 pub(crate) const fn integer_comparison_row(
@@ -81,10 +98,12 @@ pub(crate) const fn integer_binary_row(kind: PackageReviewIntegerBinaryKind) -> 
     }
 }
 
-pub(super) const fn primitive_type_name(
+pub(super) fn primitive_type_name(
     primitive_type: PackageReviewPrimitiveType,
-) -> &'static str {
-    primitive_type_row(primitive_type).1
+) -> Result<&'static str, PackageReviewEncodingError> {
+    primitive_type_row(primitive_type)
+        .map(|(_, name)| name)
+        .ok_or_else(|| PackageReviewEncodingError::new(UNPUBLISHED_INTEGER_WIDTH))
 }
 
 pub(super) const fn arithmetic_domain_name(domain: PackageReviewArithmeticDomain) -> &'static str {
@@ -93,5 +112,48 @@ pub(super) const fn arithmetic_domain_name(domain: PackageReviewArithmeticDomain
         PackageReviewArithmeticDomain::Wrapping => "Wrapping",
         PackageReviewArithmeticDomain::Saturating => "Saturating",
         PackageReviewArithmeticDomain::Trapping => "Trapping",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{primitive_type_name, primitive_type_row};
+    use crate::record::PackageReviewPrimitiveType as Primitive;
+    use numerics::integer_carrier::FixedInteger;
+
+    /*
+        The published rows keep their tags and spellings for the eight
+        conventional carriers, and a carrier with no row is refused instead
+        of borrowing a neighbour's tag.
+    */
+    #[test]
+    fn integer_rows_are_keyed_by_carrier_and_other_widths_are_refused() {
+        let rows = [
+            (FixedInteger::signed(8), 3, "i8"),
+            (FixedInteger::signed(16), 4, "i16"),
+            (FixedInteger::signed(32), 5, "i32"),
+            (FixedInteger::signed(64), 6, "i64"),
+            (FixedInteger::unsigned(8), 7, "u8"),
+            (FixedInteger::unsigned(16), 8, "u16"),
+            (FixedInteger::unsigned(32), 9, "u32"),
+            (FixedInteger::unsigned(64), 10, "u64"),
+        ];
+        for (carrier, tag, name) in rows {
+            assert_eq!(
+                primitive_type_row(Primitive::Integer(carrier)),
+                Some((tag, name))
+            );
+            assert_eq!(carrier.to_string(), name);
+        }
+        assert_eq!(primitive_type_row(Primitive::Bool), Some((0, "bool")));
+        assert_eq!(primitive_type_row(Primitive::Addr), Some((11, "addr")));
+        for carrier in [
+            FixedInteger::unsigned(13),
+            FixedInteger::signed(1),
+            FixedInteger::unsigned(128),
+        ] {
+            assert_eq!(primitive_type_row(Primitive::Integer(carrier)), None);
+            assert!(primitive_type_name(Primitive::Integer(carrier)).is_err());
+        }
     }
 }

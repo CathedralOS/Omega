@@ -222,13 +222,9 @@ mod integer_types {
         }
     }
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
-    pub enum IntegerSign {
-        Signed,
-        Unsigned,
-    }
+    /* The sign belongs to the one integer carrier identity in `numerics`. */
+    use numerics::integer_carrier::FixedInteger;
+    pub use numerics::integer_carrier::IntegerSign;
 
     #[derive(
         Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
@@ -460,6 +456,15 @@ mod integer_types {
                 sign,
                 bits,
             })
+        }
+
+        /*
+            The checker's statement of a source carrier. Its values are host
+            128-bit integers, so a wider carrier has no statement here yet
+            and its reader refuses it rather than narrowing it.
+        */
+        pub fn from_fixed(carrier: FixedInteger) -> Option<Self> {
+            Self::new(carrier.sign(), u16::try_from(carrier.width()).ok()?).ok()
         }
 
         pub fn address(bits: u16) -> Result<Self, PropositionError> {

@@ -79,6 +79,20 @@ framework or a list of features that remain unimplemented.
 - Saw: both build a witness machine that has the required contract and calls the supplied one. The first has no caller outside its own test and adds a ceiling check by hand; the second is what every implementation row, `satisfies` clause and chosen provider goes through
 - Cost: a rule added to one (a new ceiling axis, a new clause form) is missing from the other, and a reader cannot tell which one decides
 - Reported: 2026-11-13, Claude Code, while having chosen providers judged against the requirement they supply
+### Whether a type is a scalar is decided twice, once by its spelling and once by its symbol
+- Category: one idea, several implementations
+- Where: `typed-trees/src/type_system.rs` (`TypeReferenceNode::primitive_type` calls `PrimitiveType::from_name(name)`; `type_symbol` returns no symbol when the name spells a primitive); `structure-elaboration/src/read/types.rs` (`atom_type` through `SymbolTable::builtin_type_atom`); `symbol-resolved-trees/src/type_system_and_names.rs` (a second `PrimitiveType` with its own `from_name`)
+- Saw: typing reads `u32` as an integer because the text of the name is `u32`, with `AtomicU32` and `AtomicU32#AccessField<` mapped to the same carrier by string prefix; the lowered-form checker reads it as an integer because its symbol sits in a compiler-installed root slot. Two enums named `PrimitiveType` restate the answer for the two tree representations
+- Cost: a package type spelled like a primitive and the width-indexed spellings (`u13`, `u<N>`) each have to be taught to both routes, and the two can disagree about one type reference
+- Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
+
+### Three vocabularies still list eight integer widths by name
+- Category: branch per shape
+- Where: `language-semantics/src/numeric_intrinsics.rs` (`NumericType`, published in Terminal Psi); `numerics/src/float_semantics.rs` (the integer side of float conversions); `omega/packages/review-evidence` (`primitive_type_row`, one wire tag per width)
+- Saw: the front end now states an integer as a sign and a width, and these three convert that pair back into one of eight variants at their door, refusing the rest. Stage 02's const evaluator (`preparation_const_evaluation.rs`) keys carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
+- Cost: every width beyond the eight stops at whichever of these it meets first, and each is a published or cross-stage vocabulary that needs its own versioned change
+- Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
+
 ### The lowered form drops declared domains, so only the reader knows a value's type
 - Category: a verdict with nothing behind it
 - Where: `structure-elaboration/src/lower.rs` and `policy.rs` (`qualifications: ScalarQualificationSetId::ZERO`); `terminal-psi/src/types_and_values.rs` (`ScalarQualificationCatalog`, `ScalarDomainDeclaration`, `ScalarQualificationCoercion`)
@@ -289,13 +303,6 @@ framework or a list of features that remain unimplemented.
 - Cost: an overflow or zero divisor that native code would trap on shows up as "the verified artifact is malformed" with no reason, so a native and Psi disagreement reads as an interpreter failure and the cause must be found by hand
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Windows x64 and UEFI x64 are the same `NativeTarget` value, so "UEFI only" checks also pass for Windows
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/omega/compilation/backend/target/src/target_profile.rs:695-711`; checks at `.../images/image-emission/src/function_fragments.rs:1883`, `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/control_flow.rs:476`, `omega-rust/omega/compilation/realization/provider-admission/src/provider_admission/compiler_builtins.rs:176`, `.../isa-x86_64/src/semantic_unit_wrapper_encoding.rs:408`
-- Saw: `windows_x64()` and `uefi_x64()` return identical fields (x86-64, COFF, 8-byte pointers) and the type has no operating-system field; at least 8 non-test sites compare against `NativeTarget::uefi_x64()`, one with the message "image residence requires the selected UEFI image"
-- Cost: an agent reading those checks believes Windows is refused there; whether it is depends on a separate `TargetProfile` check somewhere else, which each site leaves unstated
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### A missing target profile is replaced by the build host at 16 places
 - Category: a verdict with nothing behind it
 - Where: `omega-rust/omega/build-system/build-settings/src/admission/checking.rs:149`, `:190`; `omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs:104`, `execution_settlement.rs:286`, `:368`, `:412`, `product_execution/component.rs:132`, `terminal/terminal_artifact.rs:238`, `:365`, `:389`; `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement.rs:246`, `:395`, `target_machines.rs:143`, `:167`, `target_machines/prepared_providers.rs:352`, `provider_planning/provenance_replay/plan_derivation.rs:192`
@@ -336,13 +343,6 @@ framework or a list of features that remain unimplemented.
 - Where: `omega-rust/psi/foundation/access-plans/src/placements.rs` (3,028 lines; `admit_access` at `:244`, `admit_owned_access` at `:264`, `adopt_owned_stable` at `:1754`), `primitive_access.rs` (1,251 lines), `plan_policy.rs:694`
 - Saw: no file outside the crate names `admit_access`, `admit_owned_access`, the three `adopt_owned_*` functions, `bind_schema_correspondence_to_access_plan`, `effect_footprints_conflict`, `PrimitiveAccessRequest`, `EstablishedOwnedAccess`, `SchemaCorrespondedAccessView` or `AccessAdmission`; inside the crate only `tests.rs` (7,168 lines, 109 tests) calls them; twelve crates depend on the crate for its validators
 - Cost: the crate header (`lib.rs:9-15`) says every stable, atomic or external access request is authorized before lowering, and a reader will believe a pipeline stage does that when none calls it
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### Proof surface reports and vocabulary remain exported with no production consumer
-- Category: zombie machinery
-- Where: `omega-rust/psi/compilation/proof/src/lemmas.rs`, `boundary.rs`, `lib.rs` (`build_proof_surface_report`)
-- Saw: the checker, cache and duplicate checked-tree vocabulary have been deleted. The remaining crate honestly describes syntax-only reports, but the report is still called only by its own tests and the boundary/lemma descriptions have no external consumer.
-- Cost: unused public report and vocabulary APIs still require maintenance and look available for a new caller; establish a real product consumer or retire them, without touching the separate proof-admission kernel.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### Public resolution entry points have no production callers

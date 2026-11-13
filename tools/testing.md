@@ -347,7 +347,12 @@ that historical count.
 `mbx xtask sample-gate` runs each sample's `omega update`, then builds
 and runs it. Without `--cli` it first builds the opt-level 1 CLI with `mbx`
 (direct Cargo fallback is forbidden) in the checkout's own Cargo target directory
-(`target/`, or `CARGO_TARGET_DIR`) and measures that. Package review of a
+(`target/`, or `CARGO_TARGET_DIR`) and measures that. The default input inventory
+keeps the sample's files, assets and module subdirectories, stopping at nested
+projects with their own `build.omg` or `sample.json`. Those projects are discovered
+separately. An authored `source_inputs` list overrides that default. The gate
+passes the same explicit inventory to preparation, checking and execution.
+Package review of a
 std-using sample takes minutes with an unoptimized binary: 31 projects took
 66 s with the optimized CLI against 436 s unoptimized, with identical results.
 The dev profile is opt-level 1, so the gate's build and a plain

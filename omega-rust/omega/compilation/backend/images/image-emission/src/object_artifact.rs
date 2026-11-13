@@ -30,7 +30,7 @@ mod carriers {
         pub(crate) composition_source: Option<std::sync::Arc<ObjectArtifact>>,
         pub(crate) psi: TerminalPsiIdentity,
         pub(crate) target: NativeTarget,
-        pub(crate) x86_feature_profile: Option<target::TargetProfile>,
+        pub(crate) profile: Option<target::TargetProfile>,
         pub(crate) entry: MachineId,
         pub(crate) object: ObjectPlan,
         pub(crate) relocations: RelocationPlan,
@@ -177,8 +177,9 @@ mod carriers {
             self.target
         }
 
-        pub const fn x86_feature_profile(&self) -> Option<target::TargetProfile> {
-            self.x86_feature_profile
+        /// Returns the retained deployment, never inferred from machine geometry.
+        pub const fn profile(&self) -> Option<target::TargetProfile> {
+            self.profile
         }
 
         pub fn verify_private_entry_origin(

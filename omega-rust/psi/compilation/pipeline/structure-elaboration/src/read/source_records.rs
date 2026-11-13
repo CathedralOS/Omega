@@ -692,7 +692,14 @@ mod tests {
                     name: name.into(),
                 })
             };
-            let u32_type = reference(&mut typed, builtins[BuiltinTypeAtom::U32.ordinal()], "u32");
+            let u32_type = reference(
+                &mut typed,
+                builtins[BuiltinTypeAtom::Integer(
+                    numerics::integer_carrier::FixedInteger::unsigned(32),
+                )
+                .ordinal()],
+                "u32",
+            );
             let u64_type = reference(&mut typed, builtins[BuiltinTypeAtom::U64.ordinal()], "u64");
             let formal = reference(&mut typed, children[0], "T");
             let parameters = typed.data_type_parameters.insert_many([TypeParameter {

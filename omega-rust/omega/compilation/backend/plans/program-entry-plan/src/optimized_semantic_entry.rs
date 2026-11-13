@@ -209,8 +209,8 @@ fn validate(
     semantic_application: &OptimizedProgramStorageSemanticCallingApplication<'_>,
 ) -> Result<ValidatedSemanticEntryInputs, ProgramStorageEntryDiagnostic> {
     let slot = selected.target_slot();
-    if target != target::NativeTarget::uefi_x64()
-        || slot != target::TargetProfile::UefiX64.program_entry_slot()
+    if slot != target::TargetProfile::UefiX64.program_entry_slot()
+        || target != slot.owner.native_target()
         || source.target_slot() != slot
         || slot.schema != target::ProgramEntrySchema::ProgramStorageApplication
         || slot.visible_parameters != target::ProgramEntryVisibleParameters::ImageAndInitialStorage

@@ -654,3 +654,56 @@ fn a_machine_with_a_lifetime_returns_a_view_of_that_lifetime_only() {
         ["not-supported"]
     );
 }
+
+/// A built-in integer name is a spelling of a sign and a width
+/// (`wiki/spec/language/numeric_values.md`, "Width-indexed integers": "the
+/// existing fixed-width names abbreviate those applications"), so the front
+/// end and the checker are told the carrier, never one of eight names. Each
+/// name is shown here as a parameter type, a result type and a literal
+/// suffix, and each is judged at its own range: "the unsigned range is
+/// `0 <= value < 2^N`; the signed range is `-2^(N-1) <= value < 2^(N-1)`".
+///
+/// For every name, `value + 1` is accepted when `requires` keeps `value`
+/// below that carrier's greatest value and rejected when it allows the
+/// greatest value itself; the two programs differ only in that bound. The
+/// suffixed literal has the parameter's carrier, so the Wrapping add of the
+/// two is accepted with nothing known about `value`.
+#[test]
+fn each_built_in_integer_name_is_judged_at_its_own_sign_and_width() {
+    let mut wrong = Vec::new();
+    for (carrier, greatest) in [
+        ("u8", "255"),
+        ("u16", "65535"),
+        ("u32", "4294967295"),
+        ("u64", "18446744073709551615"),
+        ("i8", "127"),
+        ("i16", "32767"),
+        ("i32", "2147483647"),
+        ("i64", "9223372036854775807"),
+    ] {
+        let bounded = |relation: &str| {
+            format!(
+                "machine next(value: {carrier}) -> {carrier} requires value {relation} {greatest} {{ value + 1 }}
+                 machine main() {{ }}
+"
+            )
+        };
+        let wrapped = format!(
+            "machine next(value: {carrier}) -> {carrier} {{ value +% 1{carrier} }}
+             machine main() {{ }}
+"
+        );
+        for (case, source, expected) in [
+            ("below_greatest", bounded("<"), "accepted"),
+            ("at_greatest", bounded("<="), "rejected"),
+            ("suffixed_literal", wrapped, "accepted"),
+        ] {
+            let name = format!("{carrier}_{case}");
+            let found = verdicts(&name, &source);
+            if found != [expected] {
+                wrong.push(format!("{name}: {found:?}, expected {expected}"));
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}

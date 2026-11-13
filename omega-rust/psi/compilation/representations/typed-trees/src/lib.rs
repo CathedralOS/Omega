@@ -808,7 +808,7 @@ pub(crate) mod canonical_values {
             DecodedCanonicalConstValue::Float { .. } => None,
             DecodedCanonicalConstValue::Integer { type_name, value } => {
                 let primitive = program.type_reference_table.primitive_type(declared_type)?;
-                if type_name != primitive.name() {
+                if *type_name != primitive.name() {
                     return None;
                 }
                 let literal = IntegerLiteral::from_parts(
