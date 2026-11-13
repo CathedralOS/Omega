@@ -85,13 +85,16 @@ pub(crate) fn open_captured_directory(
     directory: &CapabilityDirectory,
     name: &OsStr,
     display_path: &Path,
-) -> Result<CapabilityDirectory, SourceResolveError> {
-    let child = directory.open_dir_nofollow(name).at(display_path)?;
-    let metadata = child.dir_metadata().at(display_path)?;
-    if !metadata.is_dir() {
-        return Err(SourceResolveError::UnsupportedFileType {
-            path: display_path.to_path_buf(),
-        });
+) -> Result<CapabilityDirectory, std::io::Error> {
+    let child = directory.open_dir_nofollow(name)?;
+    if !child.dir_metadata()?.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotADirectory,
+            format!(
+                "captured source {} is not a directory",
+                display_path.display()
+            ),
+        ));
     }
     Ok(child)
 }

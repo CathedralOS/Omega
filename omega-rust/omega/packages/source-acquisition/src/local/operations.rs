@@ -14,6 +14,7 @@
 
 pub use super::recovery::recover_cached_local_source_in_lane;
 
+use filesystem_authority::{SourceCaptureObligation, SourceCaptureRequest};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -34,7 +35,7 @@ use super::resolution_observations::{
 use super::snapshot::publish_local_snapshot_in_lane;
 use crate::tree::capture::{
     CapturedLocalEntryKind, SourceTreePolicy, capture_local_source,
-    capture_local_source_from_open_root,
+    capture_local_source_from_open_root, capture_selected_local_source,
 };
 use crate::tree::filesystem::open_absolute_directory_nofollow;
 
@@ -50,11 +51,22 @@ pub fn capture_local_source_input(
     root: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<CapturedLocalSource, SourceResolveError> {
+    capture_selected_local_source_input(root, limits, &SourceCaptureRequest::entire_tree())
+}
+
+/// Capture caller-authorized source membership before any source consumer can
+/// discover declarations or request Build reads from the immutable namespace.
+pub fn capture_selected_local_source_input(
+    root: impl AsRef<Path>,
+    limits: LocalSourceLimits,
+    selected: &SourceCaptureRequest,
+) -> Result<CapturedLocalSource, SourceResolveError> {
     let requested_root = root.as_ref().to_path_buf();
-    let captured = capture_local_source(
+    let captured = capture_selected_local_source(
         &requested_root,
         limits.compiler_bounded(),
         SourceTreePolicy::LocalPackage,
+        selected,
     )?;
     let mut entries = Vec::with_capacity(captured.entries.len());
     for entry in captured.entries {
@@ -80,7 +92,22 @@ pub fn capture_local_source_input(
         requested_root,
         normalized: captured.normalized,
         tree: Arc::new(tree),
+        selection_identity: selection_identity(&captured.selected),
     })
+}
+
+pub(crate) fn selection_identity(selected: &SourceCaptureRequest) -> [u8; 32] {
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-source-selection-v1\0");
+    digest.u64(selected.entries().count() as u64);
+    for (path, obligation) in selected.entries() {
+        digest.bytes(path);
+        digest.byte(match obligation {
+            SourceCaptureObligation::Required => 0,
+            SourceCaptureObligation::Optional => 1,
+        });
+    }
+    digest.finish()
 }
 
 #[cfg(unix)]

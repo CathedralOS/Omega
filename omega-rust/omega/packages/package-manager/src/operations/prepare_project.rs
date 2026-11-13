@@ -59,6 +59,7 @@ pub struct LocalProjectPreparation {
     targets: Vec<PreparedProjectTarget>,
     canonical_root: PathBuf,
     entry_relative: PathBuf,
+    authored_build_present: bool, // Preflight source observation, independent of acceptance state.
     storage: SourceResolver,
     offline: bool,
 }
@@ -232,7 +233,8 @@ fn begin_local_project_preparation_in_storage(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
         Err(error) => return Err(PrepareLocalProjectError::Locked(error.to_string())),
     };
-    if !project_root.join("build.omg").is_file() && !lock_present {
+    let authored_build_present = project_root.join("build.omg").is_file();
+    if !authored_build_present && !lock_present {
         return Ok(None);
     }
     let baseline = transaction
@@ -300,6 +302,7 @@ fn begin_local_project_preparation_in_storage(
         targets: prepared_targets,
         canonical_root: canonical_project_root,
         entry_relative,
+        authored_build_present,
         storage,
         offline,
     }))
@@ -311,12 +314,29 @@ impl LocalProjectPreparation {
     }
 
     pub fn acquire_root(&self) -> Result<AcquiredBuildSource, PrepareLocalProjectError> {
-        AcquiredBuildSource::capture_local(
+        self.acquire_selected_root(&package_source::SourceCaptureRequest::entire_tree())
+    }
+
+    pub fn acquire_selected_root(
+        &self,
+        selected: &package_source::SourceCaptureRequest,
+    ) -> Result<AcquiredBuildSource, PrepareLocalProjectError> {
+        let acquired = AcquiredBuildSource::capture_selected_local(
             &self.canonical_root,
             LocalSourceLimits::default(),
             ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
+            selected,
         )
-        .map_err(PrepareLocalProjectError::Acquisition)
+        .map_err(PrepareLocalProjectError::Acquisition)?;
+        acquired
+            .require_compilation_source(&self.entry_relative)
+            .map_err(PrepareLocalProjectError::Acquisition)?;
+        if self.authored_build_present {
+            acquired
+                .require_compilation_source(Path::new("build.omg"))
+                .map_err(PrepareLocalProjectError::Acquisition)?;
+        }
+        Ok(acquired)
     }
 
     pub fn source_acquisitions(
