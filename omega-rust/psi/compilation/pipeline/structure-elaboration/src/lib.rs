@@ -138,6 +138,11 @@ pub struct MachineSources {
     /// which machine's body a head begins; a diagnostic about an arrival
     /// names it as the callee.
     pub heads: Vec<(BlockId, MachineId)>,
+    /// The block each `value as +D` of a domain with predicates continues
+    /// in (`lower`, `prove_membership`), with the domain and predicates the
+    /// cast owes as written. The lowered form holds only the block's
+    /// invariant; a diagnostic about the arrival names the domain.
+    pub memberships: Vec<(BlockId, String)>,
 }
 
 /// What one compilation asks to have judged. This is request information: the

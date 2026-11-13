@@ -524,6 +524,12 @@ impl Program<'_> {
         if self.value_type(id, definition.target_type)? != plain {
             return unserved("constrained by a domain declared on another carrier");
         }
+        // A predicate over the fields of a data value has no owning
+        // contract to join when that value is a local or a formal
+        // (`predicates`); only a scalar's is stated yet.
+        if super::authority::has_predicates(definition) && !matches!(plain, ValueType::Scalar(..)) {
+            return unserved("constrained by a domain with predicates on a data carrier");
+        }
         Ok(())
     }
 

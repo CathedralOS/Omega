@@ -32,6 +32,7 @@ mod contracts;
 mod expressions;
 mod machine;
 mod places;
+mod predicates;
 mod reflection;
 mod services;
 mod source_records;

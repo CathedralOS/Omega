@@ -8,7 +8,7 @@ with `self` and its fields as the names in scope (`ClauseScope::subject`).
 use crate::body::{Policy, Qualification};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerMathLiteral, IntegerMathTerm, MachineId, PlaceId,
-    Proposition, ScalarTerm, ScalarType, StructuralCaseSubject, StructuralTypeId, ValueId,
+    Proposition, ScalarTerm, ScalarType, StructuralCaseSubject, ValueId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
@@ -44,7 +44,7 @@ pub(super) struct ClauseScope<'s> {
     /// value `self` is. Such a clause may also test a case and be a
     /// disjunction, because it never enters the module's contracts: the
     /// checker replaces its names by values before it is a goal.
-    pub(super) subject: Option<DataSubject>,
+    pub(super) subject: Option<DataSubject<'s>>,
     /// Whether a term may project a record formal (`p.first`): so for an
     /// entry `requires` clause, whose term is then the field of the
     /// formal's place, about what that place holds at entry
@@ -73,15 +73,27 @@ pub(super) enum MathematicalTerms {
     Refused(&'static str),
 }
 
-/// The value a data declaration's `requires` is about.
+/// The stored value a `requires` clause is about: the value of a data
+/// declaration for its own clauses, or the field a named domain qualifies
+/// for that domain's clauses (`predicates`).
 #[derive(Clone, Copy)]
-pub(super) struct DataSubject {
-    pub(super) record: StructuralTypeId,
+pub(super) struct DataSubject<'s> {
+    /// The type of the value `self` is. In a domain's clause it is the
+    /// carrier without the domain being defined (domains.md, "Operands").
+    pub(super) value_type: ValueType,
     /// The symbol stage 02 gave the clause's `self`; invalid when the
     /// declaration never names it.
     pub(super) symbol: SymbolHandle,
-    /// The root that stands for `self` in the clause (`body::self_place`).
+    /// The root that stands for the owning data value in the clause
+    /// (`body::self_place`).
     pub(super) root: PlaceId,
+    /// From the root down to the value `self` is: empty for a data
+    /// declaration's own clause.
+    pub(super) path: &'s [CanonicalStructuralPathSegment],
+    /// Whether a name written bare is a field of `self`: so in a data
+    /// declaration (domains.md: "Existing unqualified data-field names in
+    /// data predicates remain field references"), never in a domain's.
+    pub(super) bare_fields: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -989,12 +1001,18 @@ impl Program<'_> {
                 if subject.symbol.is_valid() && path.symbol == subject.symbol {
                     return Ok(Some((
                         subject.root,
-                        Vec::new(),
-                        ValueType::Record(subject.record, Qualification::NONE),
+                        subject.path.to_vec(),
+                        subject.value_type,
                     )));
                 }
                 // A field named bare is that field of `self`.
-                (subject.root, Vec::new(), subject.record, path.symbol)
+                let ValueType::Record(record, _) = subject.value_type else {
+                    return Ok(None);
+                };
+                if !subject.bare_fields {
+                    return Ok(None);
+                }
+                (subject.root, subject.path.to_vec(), record, path.symbol)
             }
             ExpressionNode::Member(member) => {
                 if !member.member_symbol.is_valid() {

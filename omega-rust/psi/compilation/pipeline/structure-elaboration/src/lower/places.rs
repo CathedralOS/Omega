@@ -494,6 +494,7 @@ fn expression_homes<'b>(
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
@@ -1238,6 +1239,9 @@ impl<'a> Lowering<'a> {
             // storage, and nothing is computed (domains.md: "removing `D`
             // with a cast changes no bits or geometry").
             ExpressionKind::Requalify(operand) => self.located(operand),
+            ExpressionKind::Establish { .. } => {
+                Err(self.internal("a cast that proves predicates of a data value"))
+            }
             ExpressionKind::Borrow { .. } => {
                 Err(self.internal("a loan outside a call's arguments"))
             }

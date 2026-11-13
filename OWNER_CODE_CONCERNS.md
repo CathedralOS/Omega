@@ -67,6 +67,13 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### The lowered form drops declared domains, so only the reader knows a value's type
+- Category: a verdict with nothing behind it
+- Where: `structure-elaboration/src/lower.rs` and `policy.rs` (`qualifications: ScalarQualificationSetId::ZERO`); `terminal-psi/src/types_and_values.rs` (`ScalarQualificationCatalog`, `ScalarDomainDeclaration`, `ScalarQualificationCoercion`)
+- Saw: Terminal Psi has a catalog for scalar domains, their predicates and the edge where a value is coerced into one, and the lowered route fills none of it. Which domains a value carries, and who may add one, is decided in the reader and erased before the checker sees the program. A domain's predicates do reach the checker, as ordinary contracts and as the invariant of the block a cast continues in, but the nominal part does not.
+- Cost: the checker cannot re-derive that `value as +D` was authorized or that an argument carries the domain its parameter declares; a reader bug there is accepted with no row to contradict it, and a published artifact says nothing about domains
+- Reported: 2026-11-13, Claude Code, while stating domain predicates as contracts
+
 ### Data applied at a lifetime is one record whose stored views name only the data's own binders
 - Category: a verdict with nothing behind it
 - Where: `structure-elaboration/src/read/types.rs` (`value_type`, the `Inner<'a>` arm), `read/places.rs` (`lifetime_binders`, `declared_field`), `read/bytes.rs` (`byte_view_type`)

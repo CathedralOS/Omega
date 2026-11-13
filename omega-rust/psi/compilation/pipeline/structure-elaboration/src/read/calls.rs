@@ -1565,6 +1565,7 @@ fn mentions<'a>(
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
