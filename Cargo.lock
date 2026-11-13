@@ -1813,10 +1813,14 @@ dependencies = [
  "lowered-discharge",
  "semantic-vocabulary",
  "source",
+ "source-files-to-tokens",
  "structure-elaboration",
+ "symbol-resolved-trees-to-typed-trees",
  "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
  "terminal-psi",
+ "tokens-to-syntax-trees",
  "typed-trees",
 ]
 

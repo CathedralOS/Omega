@@ -4,8 +4,8 @@
     queries, filesystem protocol calls, and standalone Build providers.
 
     Each companion is bound to the exact custody identity of its Terminal
-    program. The captures that filled them read checked trees beside the
-    removed checked-tree lowering; these are the retained record shapes.
+    program. These are the record shapes; `build_companions` fills them from
+    the accepted elaboration.
 */
 
 mod native_locator {

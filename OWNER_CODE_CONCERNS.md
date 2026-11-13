@@ -67,6 +67,13 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### The Build host finds a call's row by an operation number that is unique only within one machine
+- Category: one idea, several implementations
+- Where: `build-settings/src/host/{bindings,requests,filesystem}.rs` (`call.operation == *operation && call.boundary == *boundary`); `terminal-interpreter` `TerminalEffect::BoundaryCall` (carries no machine); `structure-elaboration/src/lower/operations.rs` (`operation_identity`)
+- Saw: the deleted lowering numbered operations across the whole module, and the Build host, the effect it is handed and the module rows the encoding calls "strictly ordered by operation id" still assume that; the lowered-form route numbers operations within each machine, so two helpers that each bind an entry yield two host rows under one key
+- Cost: production refuses such a Build script (`terminal-production/src/build_companions.rs`, `admit`) instead of publishing a row the host could misread, so a Build script that selects from two helper machines stops there until the effect names its machine or the route numbers operations per module
+- Reported: 2026-11-13, Claude Code, while publishing Build selections from the lowered-form route
+
 ### Constant operands are still read from a table keyed by spelling
 - Category: a verdict with nothing behind it
 - Where: `02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs` (`module_constants::lexical_integer_const_values`), built at five call sites in `preparation_const_evaluation.rs`, `preparation_generic_data.rs` and `preparation_machine_equations.rs` and handed to `evaluate_const_argument_expression` and the fact evaluators

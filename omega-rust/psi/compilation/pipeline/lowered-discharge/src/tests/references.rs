@@ -132,6 +132,7 @@ pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
         kind: ExpressionKind::Call {
             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
             arguments,
+            designated: None,
         },
         result: None,
         source: nowhere(),
@@ -587,6 +588,7 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
                                 named(1, u32_type().into()),
                                 true,
                             )],
+                            designated: None,
                         },
                         result: None,
                         source: nowhere(),

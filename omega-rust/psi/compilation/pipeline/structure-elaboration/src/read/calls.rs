@@ -399,7 +399,9 @@ impl<'t> Program<'t> {
         // parameter targets that parameter's requirement child. Which
         // requirement the child stands for is the typed trees' own relation
         // (`evidence_requirement_declaration`), never the member's name.
-        if self.rigid && id.get() == 1 {
+        // A Build selection is neither: it is read below, where its
+        // designated operands are attached, and nowhere else.
+        if self.rigid && id.get() == 1 && !call.build_selection.is_valid() {
             if let Some(read) = self.rigid_call(
                 id,
                 slots,
@@ -423,9 +425,6 @@ impl<'t> Program<'t> {
         )?;
         if call.static_requirement_dispatch.is_some() {
             return unserved("static requirement dispatch");
-        }
-        if call.build_selection.is_valid() {
-            return unserved("Build source selection needs its actual host companion producer");
         }
         self.direct_selection(
             id,
@@ -466,7 +465,82 @@ impl<'t> Program<'t> {
             .typed
             .expression_table
             .expression_handles(call.arguments);
-        self.call(id, slots, call.target_symbol, arguments, source)
+        let mut read = self.call(id, slots, call.target_symbol, arguments, source)?;
+        if call.build_selection.is_valid() {
+            self.designate(id, call.build_selection, &mut read)?;
+        }
+        Ok(read)
+    }
+
+    /// Attaches a Build selection's designated operands to the call typing
+    /// spelled for it. scoped_execution.md: the operations "themselves run
+    /// as admitted Build operations. No product receiver, function body,
+    /// initializer, or provider is executed." So the call stays the
+    /// ordinary boundary call it is, and the reference to the declarations
+    /// it names rides beside it to the operation lowering emits.
+    ///
+    /// Only an operation of the toolchain's own selection protocol receives
+    /// one: the Build host hands the reference to no other callee. The two
+    /// selections whose host row needs more than the reference are refused
+    /// by name rather than published without it.
+    fn designate(
+        &self,
+        id: MachineId,
+        selection: arena::Handle<typed_trees::expression::BuildSelectionRequest>,
+        read: &mut Expression,
+    ) -> Checked<()> {
+        use language_semantics::declaration_selection::{BuildOperation, BuildSelectionRequest};
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let Some(request) = self
+            .typed
+            .expression_table
+            .build_selection_request(selection)
+        else {
+            return unserved("Build selection without its designated operands");
+        };
+        let ExpressionKind::Call {
+            callee: semantic_vocabulary::TargetMachineCallable::Boundary(boundary),
+            designated,
+            ..
+        } = &mut read.kind
+        else {
+            return unserved("Build selection on a call that is no boundary operation");
+        };
+        let protocol = self
+            .boundary_symbols
+            .get(*boundary)
+            .and_then(|requirement| self.typed.trait_machine_signature(*requirement))
+            .is_some_and(|(owner, _)| {
+                language_semantics::build_requests::is_build_protocol(
+                    &self.typed.symbols,
+                    owner.symbol,
+                    language_semantics::build_requests::SELECTION_PROTOCOL,
+                )
+            });
+        if !protocol {
+            return unserved("Build selection outside the toolchain's selection protocol");
+        }
+        match request {
+            // Its host row names the requirement's application and the
+            // boundaries that application covers.
+            BuildSelectionRequest::ProviderReadiness(_) => {
+                return unserved("Build provider readiness needs its requirement application");
+            }
+            // Its host row carries the locator value's shape.
+            BuildSelectionRequest::Declaration(declaration)
+                if declaration.operation == BuildOperation::NativeBinding =>
+            {
+                return unserved("native Build binding needs its locator shape");
+            }
+            BuildSelectionRequest::Entry(_)
+            | BuildSelectionRequest::Declaration(_)
+            | BuildSelectionRequest::Exclusion(_) => {}
+        }
+        *designated = Some(crate::body::DesignatedOperands {
+            request: selection,
+            selecting: id,
+        });
+        Ok(())
     }
 
     /// A call through an implementation parameter, `Selected::apply(x)`.
@@ -1061,6 +1135,7 @@ impl<'t> Program<'t> {
             kind: ExpressionKind::Call {
                 callee,
                 arguments: read,
+                designated: None,
             },
             result: signature.result,
             source,

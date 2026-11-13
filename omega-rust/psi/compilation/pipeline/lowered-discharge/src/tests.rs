@@ -100,6 +100,7 @@ fn call(callee: u64, arguments: Vec<Expression>) -> Expression {
         ExpressionKind::Call {
             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
             arguments,
+            designated: None,
         },
         Some(u32_type()),
     )
@@ -1926,6 +1927,7 @@ fn a_copy_reads_as_what_its_source_held_and_an_unknown_content_reads_as_nothing(
                     ExpressionKind::Call {
                         callee: semantic_vocabulary::TargetMachineCallable::Machine(id(3)),
                         arguments: Vec::new(),
+                        designated: None,
                     },
                     point(),
                 ),
@@ -2917,6 +2919,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
                     ExpressionKind::Call {
                         callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                         arguments: vec![place(4, point())],
+                        designated: None,
                     },
                     point(),
                 ),
@@ -3932,6 +3935,7 @@ fn a_clause_over_a_field_with_no_value_identity_is_unproved_and_says_so() {
                         ExpressionKind::Call {
                             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                             arguments: Vec::new(),
+                            designated: None,
                         },
                         data(SPAN),
                     ),
@@ -4541,6 +4545,7 @@ fn a_read_of_what_a_call_returned_carries_its_types_clause() {
                         ExpressionKind::Call {
                             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(3)),
                             arguments: Vec::new(),
+                            designated: None,
                         },
                         data(BOUNDED),
                     ),
@@ -4594,6 +4599,7 @@ fn peeking(argument: Expression) -> Expression {
         ExpressionKind::Call {
             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
             arguments: vec![argument],
+            designated: None,
         },
         u32_type().into(),
     )
@@ -4642,6 +4648,7 @@ fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf(
                 ExpressionKind::Call {
                     callee: semantic_vocabulary::TargetMachineCallable::Machine(id(3)),
                     arguments: Vec::new(),
+                    designated: None,
                 },
                 point(),
             )))],
@@ -4743,6 +4750,7 @@ fn taking(callee: u64, argument: Expression) -> Expression {
         ExpressionKind::Call {
             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
             arguments: vec![argument],
+            designated: None,
         },
         u32_type().into(),
     )
