@@ -890,14 +890,29 @@ mod tests {
             assert_eq!(typed.symbols.symbol_package_identity(requester), owner);
             let program =
                 PreparedBuildMachineProgram::prepare(&typed, None).expect("retain source");
-            assert_eq!(
-                program
-                    .entry(requester, callee)
-                    .unwrap()
-                    .invoke(target(), &[], &mut psi_work::WorkMeter::unbounded())
-                    .expect("one invocation does not claim the unused generic declaration"),
-                BuildTimeValue::Int(17)
-            );
+            let entry = program.entry(requester, callee).unwrap();
+            if owner.is_some() {
+                assert_eq!(
+                    entry
+                        .invoke(target(), &[], &mut psi_work::WorkMeter::unbounded())
+                        .expect("one invocation does not claim the unused generic declaration"),
+                    BuildTimeValue::Int(17)
+                );
+            } else {
+                let accepted = entry
+                    .accept_invocation(&[])
+                    .expect("the standalone call closure excludes the unused declaration");
+                let produced = entry
+                    .produce_invocation(&accepted)
+                    .expect("the checked standalone call has a concrete program");
+                let error = entry
+                    .admit_invocation(&produced, target())
+                    .expect_err("source checking cannot supply missing package custody");
+                assert!(
+                    error.contains("build-time invocation has user source without reconciled package custody"),
+                    "{error}"
+                );
+            }
             let source = Arc::new(typed_trees::FrozenTypedTrees::from(typed));
             let full_subject = |subject| {
                 psi_terminal_production::AcceptedTerminalSource::judge(
