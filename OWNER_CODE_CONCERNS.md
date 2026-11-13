@@ -607,10 +607,17 @@ own to defend. Say what you saw, not what you would build.
 
 ### Executable products have consumers downstream and no producer in the compiler
 - Category: a verdict with nothing behind it
-- Where: `compiler/src/product_execution.rs` (`refuse_executable_product`); `CompilationOutput::{Native, Component}`, `CheckedProductReport::{Terminal, Native}`; `provider-planning/src/program_entry.rs` (`SelectedCompilerProgramEntry`), `provider_planning::{SelectedProviderReviewProvenance, ProviderPlanProvenance, DerivedProviderPlan}`, `psi-compiler/terminal-production/src/external_providers.rs` (`PreparedExternalProviderDeclarations`), `compiler/src/checked/compilation_session.rs` (`component_products`)
+- Where: `compiler/src/product_execution.rs` (`refuse_executable_product`); `CompilationOutput::{Native, Component}`, `CheckedProductReport::{Terminal, Native}`; `provider-planning/src/program_entry.rs` (`SelectedCompilerProgramEntry`), `provider_planning::{SelectedProviderReviewProvenance, ProviderPlanProvenance, DerivedProviderPlan}`, `compiler/src/checked/compilation_session.rs` (`component_products`)
 - Saw: the compiler now refuses Terminal, native and component products by name, because the selected program entry, callback roots, behavior exclusions and native provider declarations they need have no producer. Their downstream shape is still standing: output variants nothing constructs, entry and provenance records with private fields and no constructor, a component-product roster the session fills and nothing reads, and Omega 00's `TerminalNativeProposalRequest` with about seventeen inputs of the old custody
 - Cost: the lane that makes a program run has to decide for each of those whether it is derived from the accepted artifact and the settled plans or deleted; left as they are they read as working machinery and invite a producer shaped like the deleted checker's
 - Reported: 2026-11-13, Claude Code, while narrowing the selected-execution custody to the target and its settled plans
+
+### One refusal text for five different constructs
+- Category: a verdict with nothing behind it
+- Where: `structure-elaboration/src/read/machine.rs` (`unserved("generic parameters")` four times: a machine's lifetime parameters, its type parameters, a requirement's binders, a requirement's lifetimes or bounds) and `lowered-discharge/src/verdict.rs` (`examine`, leftover templates)
+- Saw: all five print `not supported yet: machine generic parameters` with no declaration name. The Build of `default_console_provider_reached` is refused for the lifetime parameter of the Build prelude's `dependency::from_source<'storage>`; a worker located the cause in `verdict.rs` by reading and it was wrong, found only by printing at each site
+- Cost: a refusal that names neither the declaration nor which of five constructs it met cannot be acted on without rebuilding the compiler with prints
+- Reported: 2026-11-13, Claude Code, while confirming what stops a Build that registers a dependency
 
 ### Tests of the compiler crate assert on source text
 - Category: a test that pins a bug
