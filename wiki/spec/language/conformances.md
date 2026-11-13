@@ -407,9 +407,10 @@ Each inherited requirement overload contributes one key:
 (declaring trait, complete normalized requirement overload)
 ```
 
-The overload includes its parameter signature and dispatch-bearing result-domain
-set. For an explicitly finite generic method family, concrete executable rows
-also retain the [canonical value tuple](../terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
+The overload includes its parameter signature and complete normalized declared
+[result-domain set](domains.md#result-domain-overloads), independently of
+operator ownership. For an explicitly finite generic method family, concrete
+executable rows also retain the [canonical value tuple](../terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
 One selected conformance covers the whole declared roster; a generic member may
 provide its checked specializations without separately authored width methods.
 This does not permit arbitrary generic virtual methods or partial coverage.

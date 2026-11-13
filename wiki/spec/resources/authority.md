@@ -24,7 +24,7 @@ A conserved resource fact requires a non-copyable carrier. A must-discharge
 obligation requires a linear carrier or an independent linear token; a reusable
 historical fact may instead qualify a reusable carrier. Non-copyability does not
 itself imply divisibility. [Domains](../language/domains.md) owns qualification,
-weakening, aliases, and semantic-role composition.
+explicit casts, aliases, and domain composition.
 
 ## Domain access authority
 

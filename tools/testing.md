@@ -786,6 +786,17 @@ author validation uses one focused selection against the fixed candidate;
 do not start paired main/head runs or dispatch the retired Compiler queue pilot.
 Use retained source-reader and dependency evidence to attribute a failure.
 
+The current authenticated `corpus-gate build --at <revision>` and automated
+`corpus-gate check` base attribution lease an isolated detached `worker-N` pool
+slot at the exact baseline commit. Builds use that slot's own `target/`, even
+with an inherited `CARGO_TARGET_DIR`; prebuilt base runners still read fixtures
+and library sources there and must match its clean revision, tree and bytes.
+The caller's HEAD and files stay in place on success and failure. The tool
+releases only its own topic/Git lock after verification and keeps the source
+and cache for normal safe pool reuse; an interrupted lease remains protected.
+See [the current CI implementation](ci/README.md#post-merge-check). The older
+comparison cache layout below is historical.
+
 The base is built from its commit in a separate worktree
 (`build/compare-bases/<sha>`) with its own build directory, so neither uncommitted edits nor artifacts from
 this tree can leak into it. That worktree and the base's cached rows live in the
