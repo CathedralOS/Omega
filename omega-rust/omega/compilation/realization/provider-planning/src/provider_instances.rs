@@ -1,23 +1,15 @@
 // Selected provider source custody and instance projection for explicit
-// inspection and checked-interpreter execution. Equal-looking source from
-// another checked owner is not interchangeable (`Arc::ptr_eq`), whereas derived
-// instance declaration cache state is. Preparing declarations neither reports
-// deferred failures nor admits the projected provider closure.
+// inspection. Equal-looking source from another owner is not interchangeable
+// (`Arc::ptr_eq`). Source declarations do not replace route-owned provider
+// application evidence; projection refuses while that evidence is unavailable.
 
-use crate::exact_checked_adapter;
-use checked_trees::typed_trees::machine::Machine;
 use diagnostics::Diagnostic;
-use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
+use typed_trees::{FrozenTypedTrees, provider_declarations::PreparedProviderInventory};
 
 pub struct SelectedProviderSource {
-    inventory: Arc<checked_trees::PreparedProviderInventory>,
+    inventory: Arc<PreparedProviderInventory>,
     plans: Arc<effects::SelectedProviderPlanFacts>,
-    declarations: OnceLock<PreparedProviderInstances>,
-}
-
-struct PreparedProviderInstances {
-    plans: Vec<provider_selection::ProviderPlanInstanceDeclarations>,
 }
 
 impl std::fmt::Debug for SelectedProviderSource {
@@ -38,20 +30,16 @@ impl Eq for SelectedProviderSource {}
 
 impl SelectedProviderSource {
     pub fn new(
-        inventory: Arc<checked_trees::PreparedProviderInventory>,
+        inventory: Arc<PreparedProviderInventory>,
         plans: Arc<effects::SelectedProviderPlanFacts>,
     ) -> Self {
-        Self {
-            inventory,
-            plans,
-            declarations: OnceLock::new(),
-        }
+        Self { inventory, plans }
     }
 
-    pub fn program(&self) -> &Arc<checked_trees::CheckedTrees> {
+    pub fn program(&self) -> &Arc<FrozenTypedTrees> {
         self.inventory.program()
     }
-    pub fn inventory(&self) -> &Arc<checked_trees::PreparedProviderInventory> {
+    pub fn inventory(&self) -> &Arc<PreparedProviderInventory> {
         &self.inventory
     }
     pub fn plans(&self) -> &effects::SelectedProviderPlanFacts {
@@ -59,233 +47,11 @@ impl SelectedProviderSource {
     }
 
     pub fn project_instances(&self) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>> {
-        let prepared = self.declarations();
-        let declarations = self
-            .plans
-            .plans()
-            .iter()
-            .zip(&prepared.plans)
-            .map(
-                |(plan, instances)| provider_selection::ProviderInstanceDeclarations {
-                    plan,
-                    instances,
-                },
-            )
-            .collect::<Vec<_>>();
-        provider_selection::project_provider_instances(&self.plans, &declarations)
-    }
-
-    fn declarations(&self) -> &PreparedProviderInstances {
-        self.declarations.get_or_init(|| {
-            let adapters = CheckedAdapterDeclarations::prepare(&self.program().typed, &self.plans);
-            let plans = prepare_instance_declarations(
-                &self.program().typed,
-                &self.program().facts,
-                &self.plans,
-                &adapters,
-            );
-            PreparedProviderInstances { plans }
-        })
-    }
-}
-
-struct CheckedAdapterDeclaration<'typed, 'plan> {
-    plan: &'plan ProviderPlan,
-    row: &'plan ProviderPlanRow,
-    machine: Result<&'typed Machine, Diagnostic>,
-}
-
-struct CheckedAdapterDeclarations<'typed, 'plan> {
-    rows: Vec<CheckedAdapterDeclaration<'typed, 'plan>>,
-}
-
-impl<'typed, 'plan> CheckedAdapterDeclarations<'typed, 'plan> {
-    fn prepare(
-        typed: &'typed checked_trees::typed_trees::TypedTrees,
-        selected: &'plan effects::SelectedProviderPlanFacts,
-    ) -> Self {
-        let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
-        let mut rows = Vec::new();
-        for plan in selected.plans() {
-            for row in &plan.rows {
-                if matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
-                    rows.push(CheckedAdapterDeclaration {
-                        plan,
-                        row,
-                        machine: exact_checked_adapter(context, plan, row),
-                    });
-                }
-            }
+        if self.plans.plans().is_empty() {
+            return provider_selection::project_provider_instances(&self.plans, &[]);
         }
-        Self { rows }
-    }
-
-    fn machine(
-        &self,
-        plan: &ProviderPlan,
-        row: &ProviderPlanRow,
-    ) -> Result<&'typed Machine, Diagnostic> {
-        self.rows
-            .iter()
-            .find(|prepared| std::ptr::eq(prepared.plan, plan) && std::ptr::eq(prepared.row, row))
-            .ok_or_else(|| {
-                Diagnostic::error(
-                    "checked provider instance lost its original prepared plan/row custody",
-                )
-            })?
-            .machine
-            .clone()
-    }
-}
-
-fn prepare_instance_declarations(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
-    selected: &effects::SelectedProviderPlanFacts,
-    adapters: &CheckedAdapterDeclarations<'_, '_>,
-) -> Vec<provider_selection::ProviderPlanInstanceDeclarations> {
-    use language_semantics::provider_declarations::{
-        ClosedProviderInstance, ProviderInstanceApplication,
-    };
-    use provider_selection::{
-        GenericProviderInstanceDeclarations, ProviderInstanceRowDeclarations,
-        ProviderPlanInstanceDeclarations,
-    };
-    let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
-    let mut templates = Vec::new();
-    for requirement in typed.machines().iter() {
-        if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
-            || typed.machine_type_parameters(requirement).is_empty()
-        {
-            continue;
-        }
-        if let Some(schema) =
-            crate::service_schema::from_typed_boundary_requirement(context, requirement)
-        {
-            templates.push((requirement, schema));
-        }
-    }
-    let mut declarations = Vec::new();
-    for plan in selected.plans() {
-        let selecting =
-            crate::provider_identity::named_provider(context, plan).map(|owner| owner.symbol);
-        let mut rows = Vec::new();
-        for row in &plan.rows {
-            let inherited = match row.binding {
-                ProviderBinding::CompilerIntrinsic { .. } | ProviderBinding::Syscall { .. } => {
-                    let template = plan.identities.text(row.requirement_identity);
-                    checked_trees::provider_declarations::closed_provider_leaf_applications(
-                        typed, template,
-                    )
-                    .map(|applications| {
-                        applications
-                            .into_iter()
-                            .map(|application| ProviderInstanceApplication {
-                                declaration_application: Ok(application
-                                    .receiving_application
-                                    .clone()),
-                                receiving_application: Ok(application.receiving_application),
-                                candidates: vec![Ok(ClosedProviderInstance {
-                                    requirement: application.requirement,
-                                    realization: template.to_owned(),
-                                })],
-                            })
-                            .collect()
-                    })
-                    .map_err(|reasons| reasons.into_iter().map(Diagnostic::error).collect())
-                }
-                ProviderBinding::CheckedAdapter {
-                    machine_package_identity,
-                    ..
-                } => adapters
-                    .machine(plan, row)
-                    .map(|provider| {
-                        let applications = checked_trees::provider_instances::inherited_instances(
-                            typed,
-                            check_facts,
-                            plan.identities.text(row.requirement_identity),
-                            provider,
-                            selecting,
-                            machine_package_identity,
-                        );
-                        let mut projected = Vec::new();
-                        for application in applications {
-                            let candidates = application
-                                .candidates
-                                .into_iter()
-                                .map(|candidate| {
-                                    candidate.map(|instance| render_instance(typed, instance))
-                                })
-                                .collect();
-                            projected.push(ProviderInstanceApplication {
-                                declaration_application: application.declaration_application,
-                                receiving_application: application.receiving_application,
-                                candidates,
-                            });
-                        }
-                        projected
-                    })
-                    .map_err(|error| vec![error]),
-                _ => Ok(Vec::new()),
-            };
-            rows.push(ProviderInstanceRowDeclarations { inherited });
-        }
-        let mut generic_templates = Vec::new();
-        for (template, schema) in &templates {
-            if *schema != plan.schema {
-                continue;
-            }
-            let mut instance_rows = Vec::new();
-            for row in &plan.rows {
-                let instances = match row.binding {
-                    ProviderBinding::CheckedAdapter {
-                        machine_package_identity,
-                        ..
-                    } => adapters.machine(plan, row).map(|provider| {
-                        checked_trees::provider_instances::generic_instances(
-                            typed,
-                            check_facts,
-                            provider,
-                            template,
-                            machine_package_identity,
-                        )
-                        .into_iter()
-                        .map(|instance| instance.map(|instance| render_instance(typed, instance)))
-                        .collect()
-                    }),
-                    _ => Ok(Vec::new()),
-                };
-                instance_rows.push(instances);
-            }
-            generic_templates.push(GenericProviderInstanceDeclarations {
-                template: typed
-                    .machine_callable_identity_text(template)
-                    .unwrap_or_default(),
-                rows: instance_rows,
-                required_instances: checked_trees::provider_instances::closed_requirements(
-                    typed, template,
-                )
-                .into_iter()
-                .map(|identity| typed.callable_identity_text(identity))
-                .collect(),
-            });
-        }
-        declarations.push(ProviderPlanInstanceDeclarations {
-            rows,
-            generic_templates,
-        });
-    }
-    declarations
-}
-
-fn render_instance(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    instance: language_semantics::provider_declarations::ClosedProviderInstance<
-        checked_trees::typed_trees::type_identity::CallableIdentityId,
-    >,
-) -> language_semantics::provider_declarations::ClosedProviderInstance<String> {
-    language_semantics::provider_declarations::ClosedProviderInstance {
-        requirement: typed.callable_identity_text(instance.requirement),
-        realization: typed.callable_identity_text(instance.realization),
+        Err(vec![Diagnostic::error(
+            "no product route yet: selected provider instances require route-owned application custody",
+        )])
     }
 }

@@ -43,7 +43,7 @@ mod evaluated_build;
 mod independent_component;
 mod package_build;
 mod prepared_build;
-pub use prepared_build::ProductSourceIdentity;
+pub use typed_trees::ProductSourceIdentity;
 mod prepared_source;
 pub mod publication;
 mod terminal_publication;
@@ -55,7 +55,7 @@ pub use test_products::{
 
 pub use checked_compilation::{
     CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, CompileReportSettlement,
-    ProductReportPlan, ProductReportRequest, RetainedCompilationChecks,
+    ProductReportPlan, ProductReportRequest,
 };
 pub use compilation_products::{
     CompileOutputKind, CompileReport, PendingNativeProduct, RetainedNativeProgram,

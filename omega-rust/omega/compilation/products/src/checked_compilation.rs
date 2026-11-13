@@ -18,7 +18,6 @@ separate checked semantic identity: `PartialEq` compares only `execution` and
 
 use crate::{BuildAdmission, ComputedBuildConfig};
 use artifacts::compile_timings::CompileTimings;
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use package_compilation::CheckedSourceCustody;
 use provider_planning::ProviderSettlement;
@@ -27,20 +26,13 @@ use std::sync::Arc;
 use terminal_psi_to_abstract_operations::{
     BoundaryApplicationSettlement, TerminalNativeProposalRequest,
 };
+use typed_trees::FrozenTypedTrees;
 
 mod report;
 
 pub use report::{
     CheckedProductReport, CompileReportSettlement, ProductReportPlan, ProductReportRequest,
 };
-
-#[derive(Debug, Clone, Default)]
-pub struct RetainedCompilationChecks {
-    pub build: Option<psi_compiler::RetainedCheck>,
-    pub product: Option<psi_compiler::RetainedCheck>,
-    pub sibling_build_checks: Vec<psi_compiler::RetainedCheck>, // invocation-local build judgments across sibling occurrences
-    pub sibling_product_checks: Vec<psi_compiler::RetainedCheck>, // invocation-local product judgments across earlier targets
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCompilationInputs {
@@ -52,7 +44,6 @@ pub struct CheckedCompilationInputs {
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub providers: ProviderSettlement,
     pub independent_components: Result<Vec<crate::SelectedIndependentComponent>, String>,
-    pub product_selection: Option<psi_compiler::CheckedTreeProductSelection>,
 }
 
 /// ```compile_fail
@@ -66,7 +57,6 @@ pub struct CheckedCompilation {
     execution: CheckedCompilationInputs,
     sources: Arc<CheckedSourceCustody>,
     timings: CompileTimings,
-    settled_checks: RetainedCompilationChecks,
     terminal_publication: Arc<crate::ProductTerminalPublication>,
 }
 
@@ -84,15 +74,17 @@ impl CheckedCompilation {
         sources: Arc<CheckedSourceCustody>,
         timings: CompileTimings,
         terminal_publication: Arc<crate::ProductTerminalPublication>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, Vec<Diagnostic>> {
+        sources
+            .require_owner(execution.source_inspection.program())
+            .map_err(|error| vec![error])?;
+        Ok(Self {
             source_completion_accounting: Default::default(),
             execution,
             sources,
             timings,
-            settled_checks: RetainedCompilationChecks::default(),
             terminal_publication,
-        }
+        })
     }
 
     pub fn source_inspection(&self) -> &provider_planning::SelectedProviderSource {
@@ -115,15 +107,6 @@ impl CheckedCompilation {
         &self,
     ) -> &build_time_evaluation::SourceCompletionAccounting {
         &self.source_completion_accounting
-    }
-
-    pub fn with_settled_checks(mut self, settled_checks: RetainedCompilationChecks) -> Self {
-        self.settled_checks = settled_checks;
-        self
-    }
-
-    pub const fn settled_checks(&self) -> &RetainedCompilationChecks {
-        &self.settled_checks
     }
 
     pub const fn execution(&self) -> &SelectedExecution {
@@ -189,13 +172,13 @@ impl CheckedCompilation {
             )
             .map_err(str::to_owned)?
             .with_checked_provider_selections(
-                &self.typed,
+                self,
                 &self.build().config.provider_selections,
                 self.build().observation_summary.as_ref(),
             )?;
         let (declarations, intents) =
             build_time_evaluation::native_bindings::capture_package_intents(
-                &self.typed,
+                self,
                 handoff.package(),
                 &self.build().native_formations,
                 &self.build().native_binding_requests,
@@ -301,7 +284,7 @@ impl CheckedCompilation {
 }
 
 impl std::ops::Deref for CheckedCompilation {
-    type Target = CheckedTrees;
+    type Target = FrozenTypedTrees;
 
     fn deref(&self) -> &Self::Target {
         self.source_inspection().program()
