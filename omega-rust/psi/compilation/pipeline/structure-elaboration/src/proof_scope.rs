@@ -35,10 +35,15 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
                 )
             })?;
         let declaration = machine.declaration.clone().ok_or_else(|| {
+            let reason = elaboration
+                .undeclared
+                .iter()
+                .find_map(|(owner, reason)| (*owner == machine.id).then_some(*reason))
+                .unwrap_or("proof scope without an exact machine declaration");
             refuse(
                 machine.id,
                 Construct::Machine,
-                Unserved::Declaration("proof scope without an exact machine declaration"),
+                Unserved::Declaration(reason),
             )
         })?;
         scope
