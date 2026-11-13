@@ -5633,58 +5633,14 @@ pub mod effects {
         use language_core::inline_assembly::AsmAuthorityRequirement;
         use typed_trees::statement::StatementNode;
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-        pub struct AsmAuthorityAdmission {
-            machine_owner: bool,
-            port_io: bool,
-            idt_control: bool,
-        }
+        pub use language_core::inline_assembly::AsmAuthorityAdmission;
 
-        impl AsmAuthorityAdmission {
-            pub const HOSTED: Self = Self {
-                machine_owner: false,
-                port_io: false,
-                idt_control: false,
-            };
-
-            pub const MACHINE_OWNER: Self = Self {
-                machine_owner: true,
-                port_io: true,
-                idt_control: true,
-            };
-
-            pub const fn from_freestanding(freestanding: bool) -> Self {
-                if freestanding {
-                    Self::MACHINE_OWNER
-                } else {
-                    Self::HOSTED
-                }
-            }
-
-            pub const fn with_grants(self, port_io: bool, interrupt_table: bool) -> Self {
-                Self {
-                    machine_owner: self.machine_owner,
-                    port_io: self.port_io || port_io,
-                    idt_control: self.idt_control || interrupt_table,
-                }
-            }
-
-            pub const fn admits(&self, requirement: AsmAuthorityRequirement) -> bool {
-                match requirement {
-                    AsmAuthorityRequirement::None => true,
-                    AsmAuthorityRequirement::MachineOwner => self.machine_owner,
-                    AsmAuthorityRequirement::PortIo => self.port_io,
-                    AsmAuthorityRequirement::IdtControl => self.idt_control,
-                }
-            }
-
-            fn description(requirement: AsmAuthorityRequirement) -> &'static str {
-                match requirement {
-                    AsmAuthorityRequirement::None => "no authority",
-                    AsmAuthorityRequirement::MachineOwner => "machine-owner authority",
-                    AsmAuthorityRequirement::PortIo => "port-I/O authority",
-                    AsmAuthorityRequirement::IdtControl => "interrupt-table publication authority",
-                }
+        fn asm_authority_description(requirement: AsmAuthorityRequirement) -> &'static str {
+            match requirement {
+                AsmAuthorityRequirement::None => "no authority",
+                AsmAuthorityRequirement::MachineOwner => "machine-owner authority",
+                AsmAuthorityRequirement::PortIo => "port-I/O authority",
+                AsmAuthorityRequirement::IdtControl => "interrupt-table publication authority",
             }
         }
 
@@ -5732,7 +5688,7 @@ pub mod effects {
                      privileged-service admission does not supply it). {}",
                             machine.name,
                             instruction,
-                            AsmAuthorityAdmission::description(required_authority),
+                            asm_authority_description(required_authority),
                             authored_admission_fix(required_authority)
                         )));
                     }

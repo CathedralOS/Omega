@@ -42,14 +42,16 @@ mod constant_entries {
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
     pub external_roots: &'request [symbols::SymbolHandle],
-    pub completion: validation::source_completion::SourceCompletionAdmission<'request>,
+    pub completion: typed_trees::boundary_completions::SourceCompletionAdmission<'request>,
     pub representations: ProductRepresentationInput<'request>,
     pub layout_scopes: &'request [build_time_evaluation::FixedLayoutTargetScope],
     pub layout_selection_authority:
         Option<Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>>,
-    pub asm_authority: Option<validation::AsmAuthorityAdmission>,
+    pub asm_authority: Option<language_core::inline_assembly::AsmAuthorityAdmission>,
     pub wire_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
-    pub declarations: Option<&'request dyn validation::DeclarationSelectionAuthority>,
+    pub declarations: Option<
+        &'request dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority,
+    >,
 }
 
 #[derive(Default)]
@@ -91,7 +93,7 @@ impl SourcePreparationRequest<'_> {
             )]);
         }
         let mut program = self.program;
-        validation::source_completion::prepare_source_completion(
+        typed_trees::boundary_completions::prepare_source_completion(
             &mut program,
             self.admission.completion,
         )?;

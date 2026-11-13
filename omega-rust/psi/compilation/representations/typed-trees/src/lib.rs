@@ -767,6 +767,7 @@ pub(crate) use declaration_tables_and_index::{
     data_definitions, declaration_tables, machine_declarations, machine_parameter_signatures,
     spelled_declarations, type_parameters, type_reference_queries,
 };
+pub mod declaration_authority;
 pub mod declarations;
 mod evidence_and_inspection;
 mod operator_declarations;

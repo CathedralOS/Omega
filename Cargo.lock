@@ -1921,6 +1921,7 @@ dependencies = [
  "compiler-storage",
  "diagnostics",
  "flow-effects",
+ "language-core",
  "language-semantics",
  "layout-plans",
  "optimization",
@@ -1941,7 +1942,6 @@ dependencies = [
  "tokens-to-syntax-trees",
  "typed-trees",
  "typed-trees-to-typed-trees",
- "validation",
 ]
 
 [[package]]
