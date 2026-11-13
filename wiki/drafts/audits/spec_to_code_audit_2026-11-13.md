@@ -381,9 +381,12 @@ and the checked-tree phase the spec still names.
 ## 3. Findings, grouped by the four patterns
 
 The pass covered the six partitions at
-`a93022df945edf9147d3e75332c7ee944594029a`. One judgment is implemented
-twice and the two copies disagree (LF-1). The proof kernel itself is still
-one implementation.
+`a93022df945edf9147d3e75332c7ee944594029a`. Seven judgments are implemented
+more than once, and the copies can disagree: the crash guard (LF-1), the
+IEEE denotation (PA-1), the three domain lookups (RS-1, RS-2, RS-3), and
+the two sum-layout walks (IS-1, IS-2). The other rows are walkers with no
+production caller, or questions the spec has not settled. The proof kernel
+itself is still one implementation.
 
 - No `Cargo.toml` still depends on `checked-trees`, `validation`,
   `typed-trees-to-checked-trees`, `lowered-psi`, or `representation-planning`
@@ -973,11 +976,22 @@ unknown. `normalize` runs on the proof path: `lowered-discharge`
 (`prove.rs`, `joins.rs`, `prove/ranges.rs`, `known.rs`) and terminal
 semantics (`descriptors.rs`, `scalars.rs`).
 
-The challenge stands. This is not the integer conversion the spec
-requires. Collapsing `+0 == -0` to `Truth` lets a later proof step treat
-an IEEE relation as a Boolean constant. The repair leaves
-`ScalarIeeeFloatComparison` unchanged in `normalize`. Crash-route
-evaluation stays on the one walker from LF-1. The fixed-integer arm stays.
+The challenge stands. This is the integer conversion's neighbor, and the
+spec keeps IEEE relations out of it. `PredicateDenotation` accepts a step
+when the two sides normalize to the same proposition, so a proof of
+`Truth` discharges `Equal(+0, -0)` and the reverse: `cmp_value` compares
+the numerators and treats the two zeros as equal. Fact validity says this
+conversion leaves that relation unchanged, so those two sides must not
+match. The collapsed Boolean is the one `FloatSemantics` already gives.
+`Equal` and `LessThan` on a NaN literal become `Falsehood`, because
+`equal_value` is false when either side is NaN and unordered `less` is
+false. `NotLessThan(NaN, NaN)` becomes `Truth`, because that kind is the
+negation of `less`. A proof of `Truth` does not discharge `NaN == NaN`.
+The function has no rounding-mode argument. A format mismatch or a
+non-literal operand returns `None`, so only binary32 and binary64
+literals collapse. The repair leaves `ScalarIeeeFloatComparison`
+unchanged in `normalize`. Crash-route evaluation stays on the one walker
+from LF-1. The fixed-integer arm stays.
 
 ### PA-2. The source-integer theory search has no production caller
 
@@ -1056,6 +1070,17 @@ use `domain_name_reaches`, which accepts a leaf through
 `domain_exposed_to`, because the authored text contains `::` and is not
 the full path string. The operator home is not recomputed after the
 symbol table exists.
+
+That changes which program is accepted. `explicit_domain_homes` skips the
+import tier when the owner contains `::`, and the last tier requires the
+full domain path. For `operator Carrier::Leaf::op` in a module that
+imported the declaring module, the match list is empty. When the operand
+types also infer no domain, `normalize_domain_operator_homes` pushes the
+operator back onto the root list and returns success. `same_semantic_name`
+accepts the leaf `Leaf`, and `domain_name_reaches` accepts the import of
+the declaring module, so that rule would have moved the operator into the
+domain. The accepted program has a root operator. A later call that names
+the domain operator then fails, or binds a different root declaration.
 
 Follow-up: install the namespace symbols first and home operators with
 `domain_name_reaches`. Drop `NamespaceScope`.
@@ -1301,10 +1326,10 @@ simplification. It did not re-open the directory census.
 | LF-3 | Stands. The elision module has no caller outside its re-export. Discharge stays in `lowered-discharge` and `proof_admission`. |
 | LF-4 | Stands as a spec question. Nothing depends on package `proof`. `pipeline.md` still names the directory. `proof-admission` stays. |
 | LF-5 | Stands. The publication label still says its input is `OptimizedLoweredPsi`. |
-| PA-1 | Stands. `normalize` collapses a closed IEEE literal comparison to `Truth` or `Falsehood`. Fact validity says IEEE relations remain unchanged in this conversion. The fixed-integer arm stays. |
+| PA-1 | Stands. A proof of `Truth` discharges `Equal(+0, -0)`, which the spec would refuse. The Boolean matches `FloatSemantics`: NaN equality and `LessThan` become `Falsehood`, and a proof of `Truth` does not discharge `NaN == NaN`. No rounding mode is consulted. The fixed-integer arm stays. |
 | PA-2 | Stands. `SourceIntegerTheory` is constructed only in the two test modules. The kernel stays. |
 | RS-1 | Stands, with one correction. Proof-fact membership and ordinary expression membership are different slots. Each calls a different function. `domain_named` returns on a signature-free unique hit before `prefer_module_local_domain`. The three rules do not collapse the same way. |
-| RS-2 | Stands. `domain_exposed_to` matches path strings. Later facts use `domain_name_reaches`. A qualified spelling can pass one and fail the other. |
+| RS-2 | Stands. `operator Carrier::Leaf::op` in an importing module stays a root operator and the function returns success. `domain_name_reaches` would have homed it. That is a different accepted program. |
 | RS-3 | Stands. `child_symbol_by_kinds_matching` does not call `symbol_source_is_selected`. `machine_entry_symbol` prefers a state named the call target. `static_call_target` asks only for `"entry"`. |
 | IS-1 | Stands. `StructuralCaseMembership` stores `case_tag` and `tag_byte_offset`. `project_structural_case_membership` ignores that row and calls `membership_layout`. The off-path checker in `legalization_target.rs` stays off the default path. |
 | IS-2 | Stands. Selection rebuilds the same layout and errors when the copy differs. The pointer-slot list is the part the legalized row dropped. |
@@ -1749,3 +1774,51 @@ searches named in SM-1 through SM-3. No `mbx` run.
   `callable_applications.rs`, `declaration_tables_and_index.rs`,
   `values.rs`, and the rest of `type_identity.rs`, and the scalar-goal
   bodies in terminal semantics.
+
+## 7. What the code is telling us
+
+The deleted checker was a second representation of the program, and it
+both judged that representation and lowered it. The live tree no longer
+has `checked-trees`. The findings are that habit at the size of a
+function: a second answer kept beside the answer an earlier stage, or the
+spec, already gave.
+
+Stages recompute a row they were handed. Legalization rebuilds the case
+tag and byte offset stored on `StructuralCaseMembership` (IS-1). Selection
+rebuilds that layout and rejects the instruction when the copies differ
+(IS-2). Selection also runs `evaluate_call_plan` again against the plan
+legalization copied (IS-3). The check tables still carry a summary column
+and a `MaySet` that nothing constructs (LF-2). That is the same shape as
+the deleted representation: extra storage, and a second walk, for a
+verdict the previous stage already sealed. The rule that stops the
+recurrence is a stage boundary. On the default path, a field the previous
+stage stored is copied. Recomputing it stays in the off-path validator,
+which `legalization_target.rs` already is.
+
+Exploratory judgments stay in the production crate after the live path
+stopped calling them. The static type and boolean walkers (TT-2), both
+proposition normalizers (TT-3), the 64-summand index expansion (TT-4),
+and the plan-laid offset copy (TT-1) have no production caller. The
+scalar-demand rewrite (SM-1), the proposition roster (SM-3), the
+source-integer search (PA-2), and the scalar-leaf elision (LF-3) are the
+same. Tests are the callers that remain, where any caller remains. That
+is the validation sidecar after the pipeline had a checker of its own.
+The check that stops the recurrence is a lint: a public function whose
+callers are all inside `#[cfg(test)]` does not stay on the production
+path.
+
+One question still has several answers. The two crash-guard walkers
+disagree on `false && unknown` (LF-1). Predicate denotation decides an
+IEEE literal the spec leaves unchanged, so a proof of `Truth` discharges
+`Equal(+0, -0)` (PA-1). Three domain lookups collapse one spelling three
+ways (RS-1). The operator-home string map accepts a root operator where
+`domain_name_reaches` would have homed `Carrier::Leaf` (RS-2). The static
+call keeps `entry` after the first scan preferred a state named the call
+target (RS-3). That is Psi 05 and the sidecar both owning one verdict.
+The check that stops the recurrence is one named function for each
+judgment, plus a test on the case that already diverges: `false &&
+unknown`, `+0 == -0`, and `Carrier::Leaf`.
+
+The deletion was enforcing one rule. One representation holds the
+verdict, a later stage copies it, and a second implementation of that
+verdict does not remain in the tree.
