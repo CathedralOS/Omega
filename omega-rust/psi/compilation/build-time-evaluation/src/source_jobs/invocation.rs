@@ -5,6 +5,7 @@
 use crate::BuildTimeValue;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
+use typed_trees::data::DataMemberIdentity;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableStructLiteral,
     TableStructLiteralField,
@@ -18,6 +19,17 @@ fn entry_state<'a>(program: &'a TypedTrees, machine: &Machine) -> Option<&'a Sta
     match program.machine_states(machine) {
         [state] => Some(state),
         _ => None,
+    }
+}
+
+// Authored inputs may name the declared member; returned values retain its
+// stable schema identity. Both select only within the actual formal roster.
+fn selects_member(spelling: &str, member: &DataMemberIdentity) -> bool {
+    let supplied = DataMemberIdentity::of_spelling(spelling);
+    if supplied.ordinal.is_some() {
+        supplied == *member
+    } else {
+        supplied.name == member.name
     }
 }
 
@@ -137,7 +149,7 @@ fn literal(
                         .data_members(&definition)
                         .iter()
                         .filter_map(DataMember::as_variant)
-                        .filter(|case| case.name.as_str() == variant);
+                        .filter(|case| selects_member(variant, &case.member_identity()));
                     let selected = cases
                         .next()
                         .cloned()
@@ -164,7 +176,7 @@ fn literal(
                 }
                 let mut matching = supplied
                     .iter_mut()
-                    .filter(|(name, _)| name == field.name.as_str());
+                    .filter(|(name, _)| selects_member(name, &field.member_identity()));
                 let (_, value) = matching
                     .next()
                     .ok_or("invocation value is missing a declared field")?;

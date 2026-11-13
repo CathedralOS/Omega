@@ -703,6 +703,62 @@ mod tests {
     }
 
     #[test]
+    fn source_jobs_round_trip_numbered_members_with_their_exact_formal() {
+        // Numbered members keep their schema identity when materialized.
+        // An authored name and its returned number select the same member.
+        let entry = entry(
+            "data Choice [copy] { #7 case Ready(#9 bytes: &[u8]); #8 case Empty; }
+             machine answer(value: Choice) -> Choice { value }",
+        );
+        let value = BuildTimeValue::Case {
+            variant: "Ready".into(),
+            payload: vec![("bytes".into(), BuildTimeValue::Text(vec![0, 255, b'x']))],
+        };
+        let returned = entry
+            .invoke(target(), &[value], &mut psi_work::WorkMeter::unbounded())
+            .expect("authored member selects its exact numbered case");
+        assert_eq!(
+            returned,
+            BuildTimeValue::Case {
+                variant: "#7".into(),
+                payload: vec![("#9".into(), BuildTimeValue::Text(vec![0, 255, b'x']))],
+            }
+        );
+        assert_eq!(
+            entry
+                .invoke(
+                    target(),
+                    std::slice::from_ref(&returned),
+                    &mut psi_work::WorkMeter::unbounded()
+                )
+                .expect("returned identities rejoin the same formal"),
+            returned
+        );
+        let mut meter = psi_work::WorkMeter::unbounded();
+        let unknown = BuildTimeValue::Case {
+            variant: "#99".into(),
+            payload: vec![("#9".into(), BuildTimeValue::Text(vec![]))],
+        };
+        let error = entry
+            .invoke(target(), &[unknown], &mut meter)
+            .expect_err("unknown case is not supplied by a number");
+        assert!(
+            error.contains("case is not declared by its formal"),
+            "{error}"
+        );
+        assert_eq!(meter.usage().total_units(), 0);
+        let wrong_field = BuildTimeValue::Case {
+            variant: "#7".into(),
+            payload: vec![("#10".into(), BuildTimeValue::Text(vec![]))],
+        };
+        let error = entry
+            .invoke(target(), &[wrong_field], &mut meter)
+            .expect_err("a field number names only its declared payload");
+        assert!(error.contains("missing a declared field"), "{error}");
+        assert_eq!(meter.usage().total_units(), 0);
+    }
+
+    #[test]
     fn source_jobs_record_actual_bytes_and_charges_without_exporting_local_code() {
         let entry = entry("machine answer(bytes: &[u8]) -> &[u8] { bytes }");
         let bytes = BuildTimeValue::Text(vec![0, 255, b'x']);
