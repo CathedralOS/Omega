@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Classify one witness run against frozen PIN ledger + PIN observation."""
+"""Classify one corpus record for a bisect witness.
+
+BISECT_MODE=stop: 0 when the frozen PIN ledger outcome is met, 1 for any other outcome.
+BISECT_MODE=class: 1 when the first diagnostic is the PIN class, 0 otherwise.
+Exit 125 only when the record is missing, unreadable, or timed out (the runner did not finish).
+"""
 from __future__ import annotations
 
 import json
@@ -11,7 +16,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from classify_corpus import norm_diag, parse_records  # noqa: E402
 
 BASE = Path("/tmp/ledger-bisect-pin")
-LEDGER = Path(os.environ.get("LEDGER_PIN_FILE", str(BASE / "corpus_outcomes.txt")))
 
 
 def slug(fixture: str) -> str:
@@ -27,42 +31,42 @@ def meets_ledger(expected: str, observed: str, tier: str) -> bool:
         if expected in ("rejected", "incomplete"):
             return observed in ("rejected", "incomplete")
         return observed == expected
-    exp_r = status_rank(expected)
-    obs_r = status_rank(observed)
-    return obs_r >= exp_r and exp_r >= 0
+    return status_rank(observed) >= status_rank(expected) >= 0
 
 
-def reproduces_pin(pin_status: str, pin_norm: str, observed: str, diag: str) -> bool:
-    if observed != pin_status:
-        return False
-    if not pin_norm:
-        return True
+def same_class(pin_norm: str, diag: str) -> bool:
     dn = norm_diag(diag)
-    return dn == pin_norm or pin_norm[:40] in dn or dn[:40] in pin_norm
+    if not pin_norm or not dn:
+        return False
+    if dn == pin_norm:
+        return True
+    stem = pin_norm[:48]
+    other = dn[:48]
+    if len(stem) < 24 or len(other) < 24:
+        return False
+    return stem in dn or other in pin_norm
 
 
 def main() -> int:
     witness = sys.argv[1]
     rec_path = Path(sys.argv[2])
+    mode = os.environ.get("BISECT_MODE", "stop")
     meta_path = BASE / "witnesses" / f"{slug(witness)}.json"
-    if not meta_path.exists():
+    if not meta_path.exists() or not rec_path.exists():
         return 125
     meta = json.loads(meta_path.read_text())
-    text = rec_path.read_text() if rec_path.exists() else ""
+    text = rec_path.read_text()
     if not any(ln.startswith(witness + " ") for ln in text.splitlines()):
         return 125
     records = parse_records(text)
-    if witness not in records:
-        return 125
-    obs = records[witness]
-    status = obs["status"]
-    if status == "timeout":
+    obs = records.get(witness)
+    if obs is None or obs["status"] == "timeout":
         return 125
     diag = (obs["diagnostics"] or [""])[0]
-    if meets_ledger(meta["expected_status"], status, meta["tier"]):
-        return 0
-    if reproduces_pin(meta["pin_status"], meta["pin_diag_norm"], status, diag):
-        return 1
+    if mode == "class":
+        return 1 if same_class(meta["pin_diag_norm"], diag) else 0
+    if mode == "stop":
+        return 0 if meets_ledger(meta["expected_status"], obs["status"], meta["tier"]) else 1
     return 125
 
 

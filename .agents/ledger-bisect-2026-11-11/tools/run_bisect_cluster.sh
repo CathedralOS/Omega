@@ -1,143 +1,157 @@
 #!/bin/bash
-set -euo pipefail
-WITNESS="${1:?}"
+# Exponential first-parent walk from the PIN, then git bisect run --first-parent.
+# One witness. Members are rechecked at the edges and listed for splits.
+set -uo pipefail
+WITNESS="${1:?witness}"
 PIN="${2:-51e8c45c793007f211d0d9baee7de16767172444}"
+shift 2
+MEMBERS=("$@")
+if ((${#MEMBERS[@]} == 0)); then
+  MEMBERS=("$WITNESS")
+fi
 TOOL="$(cd "$(dirname "$0")" && pwd)"
-ROOT="${BISECT_ROOT:-$(git -C "$TOOL" rev-parse --show-toplevel)}"
+ROOT="${BISECT_ROOT:-/tmp/bisect-wt}"
+SLUG="${WITNESS//\//__}"
+OUT="$TOOL/../runs/$SLUG"
+mkdir -p "$OUT"
+RCLOG="$OUT/rc.log"
+: >"$RCLOG"
+export BISECT_ROOT="$ROOT" BISECT_WITNESS="$WITNESS" BISECT_RC_LOG="$RCLOG"
 cd "$ROOT"
-export BISECT_ROOT="$ROOT" BISECT_WITNESS="$WITNESS"
-export LEDGER_PIN_FILE=/tmp/ledger-bisect-pin/corpus_outcomes.txt
+git bisect reset >/dev/null 2>&1 || true
+git checkout -q "$PIN"
 
-witness_rc() {
-  ( set +e; "$TOOL/bisect_witness.sh" >/dev/null; echo $? )
-}
+intro=$(git log --diff-filter=A --format=%H -1 -- "tests/omega/$WITNESS" || true)
+echo "$intro" >"$OUT/fixture-add.txt"
 
-is_ledger_only_commit() {
-  local sha=$1
-  parent=$(git rev-parse --verify "${sha}^@" 2>/dev/null) || return 1
-  mapfile -t touched < <(git diff --name-only "$parent" "$sha")
-  ((${#touched[@]} == 0)) && return 1
-  local f
-  for f in "${touched[@]}"; do
-    [[ "$f" == "tests/omega/corpus_outcomes.txt" ]] && continue
-    [[ "$f" == *.md ]] && continue
-    return 1
-  done
-  return 0
-}
-
-mechanism_for() {
-  local sha=$1
-  [[ -n "$sha" ]] || { echo "unknown"; return; }
-  if is_ledger_only_commit "$sha"; then
-    echo "ledger-only commit; skipped"
+run_both() {
+  local sha rc
+  git checkout -q "$1"
+  sha=$(git rev-parse HEAD)
+  export BISECT_MODE=both
+  set +e
+  "$TOOL/bisect_witness.sh"
+  rc=$?
+  set -e
+  if [[ "$rc" -eq 125 ]]; then
+    echo 125 125
     return
   fi
-  subject=$(git log -1 --format=%s "$sha")
-  mapfile -t code < <(git diff --name-only "${sha}^@" "$sha" | grep -E '\.(rs|omg)$' | grep -v corpus_outcomes | head -3)
-  if ((${#code[@]} > 0)); then
-  printf '%s ({ %s })' "$subject" "$(IFS=,; echo "${code[*]}")"
-  else
-  printf '%s' "$subject"
-  fi
+  grep "^${sha} both stop=" "$RCLOG" | tail -1 | sed -n 's/.*stop=\([0-9]*\) class=\([0-9]*\).*/\1 \2/p'
 }
 
-git checkout -q "$PIN"
-pin_rc=$(witness_rc)
-[[ "$pin_rc" -eq 1 ]] || {
-  printf '{"witness":"%s","error":"PIN not bad under frozen baseline","rc":%s}\n' "$WITNESS" "$pin_rc"
+read -r pin_stop pin_class < <(run_both "$PIN")
+echo "pin $PIN $pin_stop $pin_class" | tee "$OUT/pin.txt"
+if [[ "$pin_stop" != "1" || "$pin_class" != "1" ]]; then
+  echo "PIN is not bad for both witnesses: stop=$pin_stop class=$pin_class" | tee "$OUT/ERROR"
   exit 2
-}
-
-good=""
-fixture_path="tests/omega/${WITNESS}"
-intro=$(git log --diff-filter=A --format=%H -1 -- "$fixture_path" 2>/dev/null || true)
-if [[ -n "$intro" ]]; then
-  git checkout -q "$intro"
-  rc=$(witness_rc)
-  [[ "$rc" -eq 0 ]] && good="$intro"
 fi
 
-cur="$PIN"
-for _ in $(seq 1 20000); do
-  cur=$(git rev-parse --verify "${cur}^@" 2>/dev/null) || break
-  git checkout -q "$cur"
-  rc=$(witness_rc)
-  if [[ "$rc" -eq 0 ]]; then
-    good="$cur"
+echo "dist sha stop class" >"$OUT/walk.txt"
+stop_good=""
+class_good=""
+dist=1
+while true; do
+  cand=$(git rev-parse --verify "${PIN}~${dist}" 2>/dev/null) || break
+  read -r stop class < <(run_both "$cand")
+  echo "$dist $cand $stop $class" | tee -a "$OUT/walk.txt"
+  [[ -z "$stop_good" && "$stop" == "0" ]] && stop_good=$cand
+  [[ -z "$class_good" && "$class" == "0" ]] && class_good=$cand
+  if [[ -n "$stop_good" && -n "$class_good" ]]; then
     break
   fi
-  # 125 = build/transient skip; retry once before walking further.
-  if [[ "$rc" -eq 125 ]]; then
-    sleep 5
-    rc=$(witness_rc)
-    [[ "$rc" -eq 0 ]] && good="$cur" && break
-    [[ "$rc" -eq 125 ]] && continue
+  if [[ -n "$intro" && "$cand" == "$intro" ]]; then
+    break
   fi
+  if [[ -n "$intro" ]] && git merge-base --is-ancestor "$cand" "$intro" >/dev/null 2>&1; then
+    break
+  fi
+  dist=$((dist * 2))
+  [[ "$dist" -gt 200000 ]] && break
 done
-git checkout -q "$PIN"
-[[ -n "$good" ]] || {
-  printf '{"witness":"%s","error":"no good first-parent ancestor"}\n' "$WITNESS"
-  exit 3
+
+if [[ -n "$intro" ]] && ! grep -q "$intro" "$OUT/walk.txt"; then
+  read -r stop class < <(run_both "$intro")
+  echo "fixture-add $intro $stop $class" | tee -a "$OUT/walk.txt"
+  [[ -z "$stop_good" && "$stop" == "0" ]] && stop_good=$intro
+  [[ -z "$class_good" && "$class" == "0" ]] && class_good=$intro
+fi
+
+echo "$stop_good" >"$OUT/good-stop.txt"
+echo "$class_good" >"$OUT/good-class.txt"
+if [[ -z "$stop_good" ]]; then
+  echo "never-good since ${intro:-unknown}" >"$OUT/never-good-stop.txt"
+fi
+if [[ -z "$class_good" ]]; then
+  echo "never-good since ${intro:-unknown}" >"$OUT/never-good-class.txt"
+fi
+
+bisect_mode() {
+  local mode=$1 good=$2
+  [[ -n "$good" ]] || return 0
+  git bisect reset >/dev/null 2>&1 || true
+  git checkout -q "$PIN"
+  export BISECT_MODE="$mode" BISECT_WITNESS="$WITNESS"
+  git bisect start --first-parent "$PIN" "$good"
+  set +e
+  git bisect run "$TOOL/bisect_witness.sh" >"$OUT/bisect-${mode}.log" 2>&1
+  set -e
+  git bisect log >"$OUT/bisect-${mode}.gitlog" 2>/dev/null || true
+  local first
+  first=$(grep -oE '^[0-9a-f]{40} is the first bad commit' "$OUT/bisect-${mode}.log" | awk '{print $1}' | head -1)
+  if [[ -z "$first" ]]; then
+    first=$(sed -n 's/^# first bad commit: \[\([0-9a-f]\{40\}\)\] .*/\1/p' "$OUT/bisect-${mode}.gitlog" | head -1)
+  fi
+  git bisect reset >/dev/null 2>&1 || true
+  git checkout -q "$PIN"
+  if [[ -z "$first" ]]; then
+    echo "no-first-bad" >"$OUT/first-${mode}.txt"
+    return 0
+  fi
+  git rev-parse "$first" >"$OUT/first-${mode}.txt"
+  git rev-parse "${first}^" >"$OUT/parent-${mode}.txt"
+  git log -1 --format=%s "$first" >"$OUT/subject-${mode}.txt"
+  git show --format=fuller --unified=6 "$first" >"$OUT/show-${mode}.diff"
 }
 
-flaky_good=0
-flaky_bad=0
-for _ in 1 2 3; do
-  git checkout -q "$good"
-  r=$(witness_rc)
-  [[ "$r" -ne 0 ]] && flaky_good=1
-done
-for _ in 1 2 3; do
-  git checkout -q "$PIN"
-  r=$(witness_rc)
-  [[ "$r" -ne 1 ]] && flaky_bad=1
-done
-git checkout -q "$PIN"
+bisect_mode stop "$stop_good"
+bisect_mode class "$class_good"
 
-export BISECT_ROOT="$ROOT" BISECT_WITNESS="$WITNESS"
-mapfile -t commits < <(
-  while read -r sha; do
-    is_ledger_only_commit "$sha" && continue
-    echo "$sha"
-  done < <(git rev-list --first-parent --reverse "$good".."$PIN")
-)
-first_bad=""
-bisect_rc=1
-if ((${#commits[@]} == 0)); then
-  :
-elif ((${#commits[@]} == 1)); then
-  first_bad="${commits[0]}"
-  bisect_rc=0
-else
-  lo=0
-  hi=$((${#commits[@]} - 1))
-  : >/tmp/bisect_run.log
-  while ((hi - lo > 1)); do
-    mid=$(((lo + hi) / 2))
-    git checkout -q "${commits[mid]}"
-    rc=$(witness_rc)
-    echo "probe ${commits[mid]} rc=$rc" >>/tmp/bisect_run.log
-    if [[ "$rc" -eq 0 ]]; then
-      lo=$mid
-    elif [[ "$rc" -eq 1 ]]; then
-      hi=$mid
-    else
-      hi=$mid
-    fi
+triple() {
+  local mode=$1 sha=$2 label=$3
+  local i rc
+  : >"$OUT/triple-${mode}-${label}.txt"
+  export BISECT_MODE="$mode" BISECT_WITNESS="$WITNESS"
+  for i in 1 2 3; do
+    git checkout -q "$sha"
+    set +e
+    "$TOOL/bisect_witness.sh"
+    rc=$?
+    set -e
+    echo "$rc" | tee -a "$OUT/triple-${mode}-${label}.txt"
   done
-  first_bad="${commits[hi]}"
-  bisect_rc=0
-fi
-git checkout -q "$PIN"
+}
 
-if [[ -z "$first_bad" ]]; then
-  printf '{"witness":"%s","good":"%s","error":"bisect produced no first_bad","flaky_good":%s,"flaky_bad":%s,"bisect_rc":%s}\n' \
-    "$WITNESS" "$good" "$flaky_good" "$flaky_bad" "$bisect_rc"
-  exit 5
-fi
+for mode in stop class; do
+  first=$(cat "$OUT/first-${mode}.txt" 2>/dev/null || true)
+  [[ -n "$first" && "$first" != "no-first-bad" ]] || continue
+  parent=$(cat "$OUT/parent-${mode}.txt")
+  triple "$mode" "$first" bad
+  triple "$mode" "$parent" good
+  : >"$OUT/members-${mode}.txt"
+  for member in "${MEMBERS[@]}"; do
+    export BISECT_WITNESS="$member" BISECT_MODE="$mode"
+    git checkout -q "$parent"
+    set +e
+    "$TOOL/bisect_witness.sh"
+    prc=$?
+    git checkout -q "$first"
+    "$TOOL/bisect_witness.sh"
+    brc=$?
+    set -e
+    echo "$member parent=$prc bad=$brc" | tee -a "$OUT/members-${mode}.txt"
+  done
+done
 
-mech=$(mechanism_for "$first_bad")
-pr=$(echo "$mech" | sed -n 's/.*(#\([0-9][0-9]*\)).*/\1/p')
-printf '{"witness":"%s","good":"%s","first_bad":"%s","pr":"%s","mechanism":"%s","flaky_good":%s,"flaky_bad":%s,"bisect_rc":%s}\n' \
-  "$WITNESS" "$good" "$first_bad" "$pr" "$mech" "$flaky_good" "$flaky_bad" "$bisect_rc"
+python3 "$TOOL/count_125.py" "$RCLOG" "$OUT" >"$OUT/skip125.txt"
+echo "done $WITNESS" | tee "$OUT/DONE"
