@@ -1,0 +1,58 @@
+// Fact: an exact permitted Stable field operation writes its original storage.
+// Expected native rejection: one caller's allocation lacks the required base congruence.
+use omega::language::core::layout;
+
+public data Value { number: u64; padding: u64; }
+data Aligned { value: Value; }
+
+Wide satisfies FixedLayout<Aligned> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    let entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    LayoutPlan { entries: entries, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 16 }
+}
+}
+public data StablePlacement {}
+
+machine StablePlacement::plan(schema: Schema) -> AccessPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        representation: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
+    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16,
+                       size_is_dynamic: false, align: 16 };
+    let first_access: AccessPlan = AccessPlan::with(
+        AccessPlan::inaccessible(layout), schema.fields[0].key,
+        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported }
+    );
+    let access: AccessPlan = AccessPlan::with(first_access, schema.fields[1].key,
+        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported });
+    let mut services: [u64; 32];
+    AccessPlan::with_reach(
+        access,
+        BoundaryReach { services: services, service_count: 0 }
+    )
+}
+
+
+machine update(value: &mut Value) {
+    let view: &mut Access<StablePlacement, Value> = Access::view_mut<StablePlacement, Value>(value);
+    write(&mut view.number, 29u64);
+}
+
+machine main() crashes Trap {
+    let mut aligned: LayoutStorage<Aligned, Wide>;
+    aligned.value.number = 17;
+    aligned.value.padding = 0;
+    let mut ordinary: Value = Value { number: 17, padding: 0 };
+    update(&mut aligned.value);
+    update(&mut ordinary);
+    transition aligned.value.number == 29 && ordinary.number == 29 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

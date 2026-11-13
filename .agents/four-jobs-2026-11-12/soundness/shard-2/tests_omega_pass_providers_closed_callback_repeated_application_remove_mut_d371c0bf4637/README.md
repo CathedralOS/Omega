@@ -1,0 +1,1 @@
+Source-only control: two distinct calls share the same closed Type/Machine tuple, while a third differs only in its unused Type operand. All three retain separate exact registrar occurrences, nominal callback contracts and private native-place contexts. The callback returns a constant and assumes no foreign RAM capability. Do not execute qsort or run this fixture with `--both`.

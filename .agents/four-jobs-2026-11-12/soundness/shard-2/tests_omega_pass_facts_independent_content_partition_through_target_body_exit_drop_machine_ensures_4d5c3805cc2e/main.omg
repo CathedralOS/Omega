@@ -1,0 +1,117 @@
+// Fact: Two independent routed interval claims on one owned region remain independently conserved by one checked split.
+// Expected exit: 0
+// Numeric custody model only; no physical backing or access is granted.
+use omega::language::core::content;
+use omega::language::core::drop;
+use omega::language::core::nat;
+data Region [linear] dropped by drop_region { base: u64; length: u64; }
+domain Region::First established by issue;
+domain Region::Second established by issue;
+machine First::content(region: &Region) -> IntervalSet<Nat>
+satisfies Content<Region, IntervalSet<Nat>>::project {
+    IntervalSet { start: embed(region.base) as Nat,
+        end: (embed(region.base) + embed(region.length)) as Nat }
+}
+machine Second::content(region: &Region) -> IntervalSet<Nat>
+satisfies Content<Region, IntervalSet<Nat>>::project {
+    IntervalSet { start: embed(region.base) as Nat,
+        end: (embed(region.base) + embed(region.length)) as Nat }
+}
+machine issue() -> Region in First & Second
+{ Region { base: 10, length: 48 } }
+machine drop_region(region: &mut Region) {}
+data Parts { left: Region in First & Second; right: Region in First & Second; }
+machine partition(whole: Region in First & Second, requested: u64) -> Parts
+requires whole.base == 10 && whole.length == 48 && requested == 16
+ensures
+    core::Identity<IntervalSet<Nat>>(
+        First::content(old(&whole)),
+        separate(First::content(&result.left), First::content(&result.right))
+    ),
+    core::Identity<IntervalSet<Nat>>(
+        Second::content(old(&whole)),
+        separate(Second::content(&result.left), Second::content(&result.right))
+    )
+{
+    let { base, length } = whole;
+    Parts { left: Region { base: base, length: requested },
+        right: Region { base: base + requested, length: length - requested } }
+}
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedProbe {
+    machine exercise(select: bool) -> Parts
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine exercise(select: bool) -> Parts
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let whole: Region in First & Second = issue();
+        partition(whole, 16)
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(select: bool) -> Parts
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let whole: Region in First & Second = issue();
+        partition(whole, 16)
+    }
+}
+
+
+
+
+
+
+machine inspect(parts: Parts) -> bool {
+    let correct: bool = parts.left.base == 10 && parts.left.length == 16
+        && parts.right.base == 26 && parts.right.length == 32;
+    let { left, right } = parts;
+    drop(left);
+    drop(right);
+    correct
+}
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    invokes SelectedProbe invokes SelectedBodyCheck
+    crashes Trap
+{
+    let first: bool = inspect(SelectedProbe::exercise(true));
+    let second: bool = inspect(SelectedProbe::exercise(false));
+    transition first && second { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck invokes SelectedProbe invokes SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck invokes SelectedProbe invokes SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

@@ -1,0 +1,10 @@
+// Importing slice helpers leaves builtin bounds in force.
+use omega::language::core::slice;
+
+data Main {
+    values: [i32; 3];
+}
+
+machine inspect(main: &Main) {
+    let first: i32 = main.values[0];
+}

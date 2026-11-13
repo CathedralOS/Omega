@@ -1,0 +1,88 @@
+// Fact: align_of(value) observes the storage location of a live u64 place, the referent of a &mut u64, or the first element of a nonempty [u64] slice, and reports that location's guaranteed alignment, at least 8u64 on every hosted target, discharging exact subtraction alignment - 8u64 across all nine places.
+// Place: another selected target implementation. Each Build-selected implementation observes a local u64 and subtracts.
+// Expected exit: 0
+
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedObserveSlack {
+    machine observe_slack() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86ObserveSlack satisfies SelectedObserveSlack {
+    machine observe_slack() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let cell: u64 = 41u64;
+        let tag: u8 = 3u8;
+        let alignment: u64 = align_of(cell);
+        let slack: u64 = alignment - 8u64;
+        verify(alignment, align_of(tag), slack);
+        slack
+    }
+}
+
+ArmObserveSlack satisfies SelectedObserveSlack {
+    machine observe_slack() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let cell: u64 = 41u64;
+        let tag: u8 = 3u8;
+        let alignment: u64 = align_of(cell);
+        let slack: u64 = alignment - 8u64;
+        verify(alignment, align_of(tag), slack);
+        slack
+    }
+}
+
+machine probe() -> u64 crashes Trap {
+    SelectedObserveSlack::observe_slack()
+}
+
+machine main() crashes Trap {
+    let slack: u64 = probe();
+    transition slack == 0u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Runtime verification follows the subtraction; it cannot establish the
+// subtraction's static range obligation.
+machine verify(alignment: u64, tag_alignment: u64, slack: u64) crashes Trap {
+    transition alignment == 8u64 && tag_alignment == 1u64 && slack == 0u64 {
+        true -> {}
+        _ -> bad()
+    }
+    machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

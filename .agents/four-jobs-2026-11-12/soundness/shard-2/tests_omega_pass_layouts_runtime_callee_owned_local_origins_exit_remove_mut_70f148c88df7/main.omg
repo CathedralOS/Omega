@@ -1,0 +1,65 @@
+use omega::language::core::layout;
+// A narrow IntegerAt layout activates performed-write checking for this unit.
+// Loans of ordinary owned scalar and record locals retain their full-width origins.
+
+
+SignedByte satisfies FixedLayout<PortableByte> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    let entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        representation: FieldPlan::IntegerAt {
+            offset: 0,
+            stored_width: 8,
+            interpretation: IntegerInterpretation::Signed,
+        },
+    };
+    LayoutPlan {
+        entries: entries,
+        entry_count: 1,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+}
+
+data PortableByte [copy] { value: i64; }
+data RawView { value: LayoutStorage<PortableByte, SignedByte>; }
+data Main { bytes: [u8; 2]; }
+
+machine set(dst: &mut i64, value: i64) { dst = value; }
+machine forward(dst: &mut i64, value: i64) { set(dst, value); }
+
+machine set_sentinel(main: &mut Main) { main.bytes[1] = 85; }
+
+// A narrow layout elsewhere does not narrow ordinary owned storage. Both the
+// scalar-only prefix and the aggregate prefix retain their lent local roots.
+machine write_owned_scalar() -> i64 {
+    let mut value: i64 = 0;
+    set(&mut value, 128);
+    value
+}
+
+machine write_owned_record() -> i64 {
+    let mut value: PortableByte = PortableByte { value: 0 };
+    forward(&mut value.value, 256);
+    value.value
+}
+
+machine Main::main(main: &mut Main) crashes Trap {
+    let scalar: i64 = write_owned_scalar();
+    let record: i64 = write_owned_record();
+    transition scalar == 128 && record == 256 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

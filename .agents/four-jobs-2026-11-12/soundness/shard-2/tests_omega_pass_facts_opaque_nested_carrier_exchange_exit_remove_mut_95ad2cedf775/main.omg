@@ -1,0 +1,62 @@
+// Expected exit: 70
+// libc returns an IPv4 address record and consumes the same record by value.
+use omega_language_std::console;
+
+use omega::language::core::representation;
+public boundary data InternetAddress;
+public data AddressWord { address: u32; }
+public data AddressCarrier<T> { payload: T; }
+public AddressRepresentation satisfies OpaqueRepresentation<InternetAddress, AddressCarrier<AddressCarrier<AddressWord>>> { }
+
+public boundary trait AddressParts {
+    machine make(network: u32, host: u32) -> InternetAddress reaches;
+    machine host(address: InternetAddress) -> u32 reaches;
+}
+
+public data AddressBox { value: InternetAddress; }
+public data AddressPair { first: InternetAddress; second: InternetAddress; }
+
+machine relay(input: InternetAddress) -> InternetAddress {
+    let stored: AddressBox = AddressBox { value: input };
+    stored.value
+}
+
+data Main {
+}
+
+machine observe() -> bool reaches AddressParts {
+    let pair: AddressPair = AddressPair {
+        first: relay(AddressParts::make(10, 66051)),
+        second: relay(AddressParts::make(44048, 513)),
+    };
+    let first_host: u32 = AddressParts::host(pair.first);
+    let second_host: u32 = AddressParts::host(pair.second);
+    first_host == 66051 && second_host == 513
+}
+
+machine observe_replacement() -> bool reaches AddressParts {
+    let pair: AddressPair = AddressPair {
+        first: AddressParts::make(10, 66051),
+        second: AddressParts::make(44048, 513),
+    };
+    let old_host: u32 = AddressParts::host(pair.first);
+    pair.first = AddressParts::make(10, 1027);
+    let sibling_host: u32 = AddressParts::host(pair.second);
+    let replacement_host: u32 = AddressParts::host(pair.first);
+    old_host == 66051 && sibling_host == 513 && replacement_host == 1027
+}
+
+machine Main::main(main: &mut Main) reaches AddressParts + Console {
+    transition observe() && observe_replacement() {
+        true -> passed(main)
+        _ -> failed(main)
+    }
+    machine passed(main: &mut Main) { Console::exit_process(70); }
+    machine failed(main: &mut Main) { Console::exit_process(71); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches AddressParts + Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

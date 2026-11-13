@@ -1,0 +1,5 @@
+// Derived placed accessors retain the exact managed policy/schema owners.
+// This declaration supplies source provenance, not backing execution authority.
+machine build(builder: &mut Build) {
+    Build::package(builder, "placed_factory_accepts_source_interval");
+}

@@ -1,0 +1,38 @@
+// A suffixed operator inside a Build-selected target implementation. Each
+// target's body wraps with a different multiplier, so the value the entry
+// compares against shows which body ran and that its operations wrapped:
+// 4000000000 * 31 and 4000000000 * 33 both leave `u32`.
+use omega_language_std::console;
+data Main { }
+
+boundary trait SelectedMix {
+    machine mix(hash: u32, byte: u32) -> u32 reaches;
+}
+
+X86Mix satisfies SelectedMix {
+    machine mix(hash: u32, byte: u32) -> u32 { (hash *% 31) +% byte }
+}
+
+ArmMix satisfies SelectedMix {
+    machine mix(hash: u32, byte: u32) -> u32 { (hash *% 33) +% byte }
+}
+
+machine Main::run(main: &mut Main, expected: u32) reaches Console {
+    transition SelectedMix::mix(4000000000, 7) == expected {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine x86_entry() reaches Console {
+    let entry_storage: Main;
+    Main::run(&mut entry_storage, 3740915719);
+}
+
+machine arm_entry() reaches Console {
+    let mut entry_storage: Main;
+    Main::run(&mut entry_storage, 3150981127);
+}

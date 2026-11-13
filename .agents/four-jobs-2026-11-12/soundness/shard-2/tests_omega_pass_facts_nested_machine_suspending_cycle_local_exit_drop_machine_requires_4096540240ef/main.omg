@@ -1,0 +1,38 @@
+// A ranked terminal cycle of nested machines whose every edge acknowledges `suspend` adds each parked step's answer and forwards the total to its ordinary caller.
+// Place: local. The round count is a local binding.
+// Expected exit: 0
+public boundary trait Scheduler {
+    machine advance(value: u64) -> u64 reaches suspends;
+}
+InlineScheduler satisfies Scheduler {
+    machine advance(value: u64) -> u64 { (value as u64 in Wrapping * 3) as u64 }
+}
+machine sum(total: u64, remaining: u64) -> u64 reaches Scheduler suspends terminates by remaining {
+    transition remaining == 0 {
+        true -> total
+        false -> suspend step(total, remaining)
+    }
+    machine step(total: u64, remaining: u64) -> u64 reaches Scheduler suspends
+    {
+        let seen: u64 = suspend Scheduler::advance(remaining);
+        transition { _ -> suspend fold(total, seen, remaining) }
+    }
+    machine fold(total: u64, seen: u64, remaining: u64) -> u64 reaches Scheduler suspends
+    requires remaining > 0
+    {
+        let next: u64 = ((total as u64 in Wrapping) + (seen as u64 in Wrapping)) as u64;
+        transition { _ -> suspend sum(next, remaining - 1) }
+    }
+}
+machine main() reaches Scheduler crashes Trap {
+    let rounds: u64 = 100000;
+    let full: u64 = suspend sum(0, rounds);
+    let none: u64 = 0;
+    let empty: u64 = suspend sum(7, none);
+    transition full == 15000150000 && empty == 7 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

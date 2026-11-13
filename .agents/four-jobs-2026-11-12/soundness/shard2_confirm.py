@@ -228,9 +228,10 @@ def reconcile_section(total_rows: int, reviewed: list[dict]) -> list[str]:
     st = prog.get("stats", {})
     fx_total = st.get("fixtures_total", 1130)
     fx_done = len(prog.get("fixtures_done", []))
-    no_mut = st.get("fixtures_no_mutation", len(prog.get("fixtures_no_mutation", [])))
-    mutated = st.get("fixtures_mutated", fx_done - no_mut - st.get("fixtures_skipped_original_fails", 0))
+    fixtures_with_rows = len({r["fixture"] for r in reviewed})
     skipped = st.get("fixtures_skipped_original_fails", 0)
+    no_mut = max(0, fx_done - skipped - fixtures_with_rows)
+    mutated = fixtures_with_rows
     by_fx = Counter(r["fixture"] for r in reviewed)
     multi = [fx for fx, n in by_fx.items() if n > 1]
     lines = [
@@ -343,6 +344,11 @@ def main() -> None:
     lines.extend(["", "## Confirmed holes by accepted_by", ""])
     for k, c in sorted(by_acc.items()):
         lines.append(f"- `{k}`: {c}")
+    by_sub = Counter(r.get("hole_subtype") or "(none)" for r in confirmed)
+    lines.extend(["", "## Confirmed holes by hole_subtype", ""])
+    for k, c in sorted(by_sub.items()):
+        lines.append(f"- `{k}`: {c}")
+    lines.extend(hand_block("Hand check: 5 confirmed holes", confirmed))
     lines.extend(confirmed_hole_writeup(confirmed))
     lines.extend(
         hand_block(

@@ -1,0 +1,111 @@
+use omega::language::core::wire;
+use omega::language::core::reflect;
+// CANONICAL LEB128 ESTABLISHMENT. Overlong encodings and payload bits beyond
+// u64 must reject, while the canonical ten-group representation of u64::MAX
+// remains valid.
+
+use omega_language_std::console;
+
+data Scalar {
+    #0 value: u64;
+}
+
+data ScalarValue {
+    value: u64;
+}
+
+data OwnerVerdict {
+    case Invalid;
+    case Sound;
+}
+
+data Main {
+    overlong_read: u64;
+    overlong_verdict: OwnerVerdict;
+    overflow_read: u64;
+    overflow_verdict: OwnerVerdict;
+    good_read: u64;
+    good_verdict: OwnerVerdict;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    // Era 0, tag 0, then zero encoded with two groups instead of one.
+    let overlong_payload: [u8; 4] = [0, 0, 128, 0];
+    let overlong: ScalarValue = ScalarValue { value: 7 };
+    ScalarCodec::decode(
+        &mut overlong,
+        &overlong_payload,
+        &mut main.overlong_read,
+        &mut main.overlong_verdict,
+    );
+
+    // The tenth group may contain only bit 63. A terminal payload of two would
+    // require bit 64 and must not be truncated into an apparently valid u64.
+    let overflow_payload: [u8; 12] = [
+        0, 0,
+        128, 128, 128, 128, 128, 128, 128, 128, 128, 2
+    ];
+    let overflow: ScalarValue = ScalarValue { value: 9 };
+    ScalarCodec::decode(
+        &mut overflow,
+        &overflow_payload,
+        &mut main.overflow_read,
+        &mut main.overflow_verdict,
+    );
+
+    // u64::MAX is the legal ten-group boundary: nine 0xFF groups and a final 1.
+    let good_payload: [u8; 12] = [
+        0, 0,
+        255, 255, 255, 255, 255, 255, 255, 255, 255, 1
+    ];
+    let good: ScalarValue = ScalarValue { value: 0 };
+    ScalarCodec::decode(
+        &mut good,
+        &good_payload,
+        &mut main.good_read,
+        &mut main.good_verdict,
+    );
+
+    transition {
+        main.overlong_verdict == OwnerVerdict::Sound -> accepted_overlong(main)
+        main.overflow_verdict == OwnerVerdict::Sound -> accepted_overflow(main)
+        main.good_verdict == OwnerVerdict::Sound
+            && good.value == 18446744073709551615 -> proven(main)
+        _ -> broken(main)
+    }
+
+    machine accepted_overlong(main: &mut Main)  { Console::exit_process(66); }
+    machine accepted_overflow(main: &mut Main)  { Console::exit_process(68); }
+    machine proven(main: &mut Main)             { Console::exit_process(70); }
+    machine broken(main: &mut Main)             { Console::exit_process(71); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let entry_storage: Main;
+    Main::main(&mut entry_storage);
+}
+
+// The source-owned constructor receives carrier-validated words only.
+data ScalarCodec {}
+machine ScalarCodec::plan(context: &mut ScalarPlanContext) {
+    reflect::inspect_record_fields<Scalar, CompactBinary::plan_scalar>(context);
+}
+machine ScalarCodec::construct(bytes: &[u8], fields: &[ScalarSlot]) -> DecodeResult<ScalarValue> {
+    transition fields.len == 1u64 { true -> create(fields) false -> DecodeResult::Invalid }
+    machine create(fields: &[ScalarSlot]) -> DecodeResult<ScalarValue>
+    requires fields.len == 1u64
+    { DecodeResult::Sound { value: ScalarValue { value: fields[0u64].unsigned as u64 } } }
+}
+machine ScalarCodec::decode<const N: u64>(value: &mut ScalarValue, bytes: &[u8; N], read: &mut u64, verdict: &mut OwnerVerdict) {
+    let mut fields: [ScalarSlot; 1];
+    transition CompactBinary::decode_record<ScalarValue, ScalarCodec::plan, ScalarCodec::construct>(&bytes[..], &mut fields[..], read, 10000u64) {
+        DecodeResult::Sound { value as decoded } -> commit(value, decoded, verdict)
+        _ -> invalid(verdict)
+    }
+    machine commit(value: &mut ScalarValue, decoded: ScalarValue, verdict: &mut OwnerVerdict) {
+        value = decoded;
+        verdict = OwnerVerdict::Sound;
+    }
+    machine invalid(verdict: &mut OwnerVerdict) { verdict = OwnerVerdict::Invalid; }
+}

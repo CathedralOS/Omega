@@ -1,0 +1,25 @@
+// Fact: align_of(value) observes the storage location of a live u64 place, the referent of a &mut u64, or the first element of a nonempty [u64] slice, and reports that location's guaranteed alignment, at least 8u64 on every hosted target, discharging exact subtraction alignment - 8u64 across all nine places.
+// Place: call result. A helper returns the observed alignment of its borrowed referent; the caller subtracts.
+// Expected exit: 0
+
+machine observe(value: &u64) -> u64 {
+    align_of(value)
+}
+
+machine observe_tag(tag: &u8) -> u64 {
+    align_of(tag)
+}
+
+machine main() crashes Trap {
+    let cell: u64 = 41u64;
+    let tag: u8 = 3u8;
+    let alignment: u64 = observe(&cell);
+    let slack: u64 = alignment - 8u64;
+    let tag_alignment: u64 = observe_tag(&tag);
+    transition alignment == 8u64 && slack == 0u64 && tag_alignment == 1u64 && cell == 41u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
