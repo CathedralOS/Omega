@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "measure_param_endpoint");
-    builder.freestanding = true;
-}

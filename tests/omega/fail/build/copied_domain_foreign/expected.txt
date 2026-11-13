@@ -1,1 +1,0 @@
-cannot prove requires contract for call consume_foreign from main: parcel.value in u64::Seventeen

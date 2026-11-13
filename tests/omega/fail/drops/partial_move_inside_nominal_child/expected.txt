@@ -1,1 +1,0 @@
-cannot partially move a value of `Token` because `drop_token` requires the whole value

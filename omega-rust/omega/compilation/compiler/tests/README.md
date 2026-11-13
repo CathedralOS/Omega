@@ -5,21 +5,24 @@ the crate's `Cargo.toml`. Prove a change with a test on the changed code, then
 a very small area around it (for the lowered-form checker, the
 `lowered_route_*` tests here).
 
-A program a test reads is kept under `fixtures/`, in the layout the former
-corpus used, so a fixture keeps the name it always had:
+A program a test reads is kept in the repository's `tests/fixtures/`, in the
+layout the former corpus used, so a fixture keeps the name it always had:
 
-- `fixtures/pass/<group>/<name>/main.omg` compiles.
-- `fixtures/fail/<group>/<name>/main.omg` rejects, and its `expected.txt` holds
-  a fragment of the expected diagnostic.
-- `fixtures/run/<group>/<name>/` compiles and runs; its `main.omg` header or
-  expectation files state the exit.
-- `fixtures/packages/` holds the package projects the package tests read.
+- `tests/fixtures/pass/<group>/<name>/main.omg` compiles.
+- `tests/fixtures/fail/<group>/<name>/main.omg` rejects, and its `expected.txt`
+  holds a fragment of the expected diagnostic.
+- `tests/fixtures/run/<group>/<name>/` compiles and runs; its `main.omg` header
+  or expectation files state the exit.
+- `tests/fixtures/packages/` holds the package projects fixtures depend on.
 
-Tests in other crates read the same directory by relative path. Keep the few
-programs a test names, never a matrix: `cargo xtask check-rules` caps new
-`.omg` files at six per pull request. Name a fixture for the compiler behavior
-it pins. A fixture that imports `omega_language_std` needs a `build.omg`: it
-depends on `source/library/std` and binds the program entry roots.
+The directory sits at the depth `tests/omega/` had because a fixture's
+`build.omg` reaches the bundled library by a relative path
+(`../../../../../source/library/std`); moving a fixture deeper breaks it.
+Tests in other crates read the same directory. Keep the few programs a test
+names, never a matrix: `cargo xtask check-rules` caps new `.omg` files at six
+per pull request. Name a fixture for the compiler behavior it pins. A fixture
+that imports `omega_language_std` needs a `build.omg`: it depends on
+`source/library/std` and binds the program entry roots.
 
 Nothing runs every fixture and nothing records outcomes. The fixture corpus
 that used to live in `tests/omega/`, its runner (`corpus_runner.rs`) and its
@@ -42,7 +45,7 @@ For example, prepare the reference-pressure witness on macOS ARM64 from the
 repository root:
 
 ```text
-omega update --project tests/omega/pass/borrows/runtime_reference_array_pressure_exit --target macos_arm64
+omega update --project tests/fixtures/pass/borrows/runtime_reference_array_pressure_exit --target macos_arm64
 ```
 
 If review requests decisions, inspect the reported file and accept or reject
@@ -50,8 +53,8 @@ the actual findings. Only after resolving them, resume without repeating
 `--target`, then run the original source:
 
 ```text
-omega update --resume --project tests/omega/pass/borrows/runtime_reference_array_pressure_exit
-omega run tests/omega/pass/borrows/runtime_reference_array_pressure_exit/main.omg
+omega update --resume --project tests/fixtures/pass/borrows/runtime_reference_array_pressure_exit
+omega run tests/fixtures/pass/borrows/runtime_reference_array_pressure_exit/main.omg
 ```
 
 The authored success is process exit 70, not 0; compilation failure is CLI
@@ -74,7 +77,7 @@ compilation entrance. For the byte-conversion fact's named target implementation
 ```bash
 OMEGA_PHASE_PROFILE=1 mbx run -p compiler --example terminal_sharing -- \
   --assert-native-stage-counts --compare-single-targets --run \
-  tests/omega/pass/facts/unsigned_byte_to_signed_case_domain_through_target_body_exit/main.omg \
+  tests/fixtures/pass/facts/unsigned_byte_to_signed_case_domain_through_target_body_exit/main.omg \
   linux_x86_64 windows_x86_64
 ```
 
@@ -101,7 +104,7 @@ The existing target-local refusal control uses the same entrance:
 OMEGA_PHASE_PROFILE=1 mbx run -p compiler --example terminal_sharing -- \
   --assert-native-stage-counts --compare-single-targets --run \
   --reject macos_arm64 --reason 'behavior exclusion violated: crash cause Trap' \
-  tests/omega/fail/targets/distinct_roots_exclusion_selected_body/main.omg \
+  tests/fixtures/fail/targets/distinct_roots_exclusion_selected_body/main.omg \
   linux_x86_64 macos_arm64
 ```
 

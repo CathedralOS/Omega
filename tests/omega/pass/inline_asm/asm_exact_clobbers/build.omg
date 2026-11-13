@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "asm_exact_clobbers");
-    builder.freestanding = true;
-}

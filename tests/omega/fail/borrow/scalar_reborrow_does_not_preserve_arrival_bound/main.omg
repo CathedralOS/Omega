@@ -1,7 +1,0 @@
-machine mutate(position: &mut u64) { position = 2; }
-machine replace(position: &mut u64)
-requires position <= 1
-ensures position <= 1
-{
-    mutate(&mut position);
-}

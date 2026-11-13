@@ -1,5 +1,0 @@
-use omega_language_std::WindowsFilesystemHost;
-use omega::language::core::DirectoryEnumeration;
-machine inspect(output: &mut [u8]) -> i32 reaches DirectoryEnumeration {
-    block WindowsFilesystemHost::canonicalize(".", output)
-}

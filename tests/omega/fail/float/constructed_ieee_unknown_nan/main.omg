@@ -1,2 +1,0 @@
-data Reflexive [copy] requires value == value {value:f64;}
-machine make(value:f64)->Reflexive { Reflexive{value:value} }

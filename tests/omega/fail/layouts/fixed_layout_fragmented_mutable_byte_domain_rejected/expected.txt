@@ -1,1 +1,0 @@
-mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions

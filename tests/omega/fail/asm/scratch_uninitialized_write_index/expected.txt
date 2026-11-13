@@ -1,1 +1,0 @@
-reads uninitialized scratch register/flag value

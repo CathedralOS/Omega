@@ -1,1 +1,0 @@
-cleanup machine `drop_receipt` may not declare a crash outcome

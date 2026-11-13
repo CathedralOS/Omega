@@ -1,2 +1,0 @@
-construction of `Pieces` field `left` is not proven in domain `Extent::Granted`
-construction of `Pieces` field `right` is not proven in domain `Extent::Granted`

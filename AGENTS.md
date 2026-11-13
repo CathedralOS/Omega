@@ -162,12 +162,12 @@ pull request has to run.
 A pull request proves the thing it built. Test the changed code, then a very
 small area around it. If that is fine, land. If it is not, investigate that
 failure; do not widen the run. There is no fixture corpus to run and no ledger:
-the corpus under `tests/omega/` is retired on the owner's ruling of 2026-11-13
+the corpus under `tests/omega/` was deleted on the owner's ruling of 2026-11-13
 ([tests/README.md](tests/README.md) says how to recover a fixture from
-history). Nothing runs it, nothing may be added to it, and nothing replaces it.
+history), and nothing replaces it.
 
 A program a test reads lives beside that test, under
-`omega-rust/omega/compilation/compiler/tests/fixtures/`. Its pinned diagnostic
+`tests/fixtures/`. Its pinned diagnostic
 is a photograph of the object the compiler carries. Done means the compiler
 still holds that same object. Changing the fact, the bound, or the operation so
 a place passes is repainting that photograph: a different object, and a green
@@ -175,7 +175,7 @@ check on it does not count.
 
 ### No `.omg` file bloat
 
-`samples/cli/facts/` is a **frozen finite set**, and `tests/omega/` is retired.
+`samples/cli/facts/` is a **frozen finite set**, and `tests/omega/` is gone.
 `cargo xtask check-rules` rejects any new `.omg` file under
 `samples/cli/facts/`, rejects any new file under `tests/omega/`, and caps new
 `.omg` files anywhere in the repository at **at most 6 per PR**

@@ -1,2 +1,0 @@
-constant checking: scalar predicate is false
-requires contract for call required from forward state entry statement 0

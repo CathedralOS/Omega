@@ -1,1 +1,0 @@
-An exclusive indexed primitive loan retains its declared scalar range. Assigning 2 through the bounded loan must reject because the exact selected field permits only 0 and 1. Shared reference capture cannot authorize an unrestricted exclusive store.

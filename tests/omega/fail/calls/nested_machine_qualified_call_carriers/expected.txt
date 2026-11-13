@@ -1,4 +1,0 @@
-call `outer::value_helper` names a nested machine private to `outer`
-call `outer::generic_helper` names a nested machine private to `outer`
-call `outer::subject_helper` names a nested machine private to `outer`
-call `outer::terminal_helper` names a nested machine private to `outer`

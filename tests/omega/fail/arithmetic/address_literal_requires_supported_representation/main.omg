@@ -1,9 +1,0 @@
-data Address { value: addr; }
-machine too_wide_address() { let value: addr = 18446744073709551616; }
-machine negative_address() { let value: addr = -1; }
-machine too_wide_address_field() {
-    let value: Address = Address { value: 18446744073709551616 };
-}
-machine negative_address_field() {
-    let value: Address = Address { value: -1 };
-}

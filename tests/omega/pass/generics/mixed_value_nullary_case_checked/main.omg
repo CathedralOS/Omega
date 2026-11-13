@@ -1,4 +1,0 @@
-data Tagged<T,Limit:u64>
-    requires ((self in Tagged::Empty) && (Limit<10))
-{case Empty;}
-machine main(){let item:Tagged<u64,9> = Tagged::Empty;}

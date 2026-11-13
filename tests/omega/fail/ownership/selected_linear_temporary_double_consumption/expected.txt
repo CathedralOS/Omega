@@ -1,2 +1,0 @@
-cannot use `receipt`
-after `receipt` was transferred or consumed

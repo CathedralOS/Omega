@@ -1,3 +1,0 @@
-requires explicit AVX+FMA3 admission
-for slot `F32::fused_multiply_add`
-for slot `F64::fused_multiply_add`

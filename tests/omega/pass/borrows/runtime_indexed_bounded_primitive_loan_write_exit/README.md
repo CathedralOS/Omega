@@ -1,1 +1,0 @@
-A checked indexed exclusive local lends its exact bounded scalar field to a Unit helper. A valid store clears the selected cell, leaves its neighbor and padding unchanged, and exits 0 in native and Terminal execution. The paired invalid bounded-store control must reject 2.

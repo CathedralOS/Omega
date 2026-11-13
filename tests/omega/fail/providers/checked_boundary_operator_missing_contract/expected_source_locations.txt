@@ -1,2 +1,0 @@
-main.omg 12 9
-main.omg 25 9

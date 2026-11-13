@@ -145,7 +145,7 @@ fn main() {
 
 fn pure_build_accounting() {
     let root = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg");
+        .join("tests/fixtures/pass/targets/shared_program_distinct_roots_exit/main.omg");
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &root,
         Some("linux_x86_64"),
@@ -325,7 +325,7 @@ fn pure_build_accounting() {
 /// Discovery binds the complete root snapshot before its first effect.
 fn nested_readiness_jobs() {
     let authored = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/build/nested_provider_readiness");
+        .join("tests/fixtures/pass/build/nested_provider_readiness");
     let temporary = exclusive_workspace("nested-readiness-jobs");
     let root = temporary.path().join("project");
     for package in ["", "backing", "backing/leaf"] {
@@ -406,7 +406,7 @@ machine build(builder: &mut Build) suspends {
 fn source_discovery_root_inputs() {
     let temporary = exclusive_workspace("discovery-root-inputs");
     let repository = fixture_package_inputs::repo_root();
-    let fixture = repository.join("tests/omega/pass/build/captured_named_input_required_output");
+    let fixture = repository.join("tests/fixtures/pass/build/captured_named_input_required_output");
     let project = temporary.path().join("project");
     std::fs::create_dir(&project).unwrap();
     for name in ["main.omg", "build.omg", "input.txt", "package-only.txt"] {
@@ -546,7 +546,7 @@ fn source_discovery_root_inputs() {
 fn source_discovery_root_resources() {
     let temporary = exclusive_workspace("discovery-root-resources");
     let root = fixture_package_inputs::repo_root()
-        .join("tests/omega/fail/build/staging_byte_limit_exhausted/main.omg");
+        .join("tests/fixtures/fail/build/staging_byte_limit_exhausted/main.omg");
     let profile = target::TargetProfile::host_if_supported().unwrap();
     let preparation = || {
         package_manager::operations::begin_local_project_preparation(&root, &[profile], true)
@@ -656,7 +656,7 @@ fn source_discovery_root_resources() {
 fn anonymous_generator_source_scope() {
     let temporary = exclusive_workspace("anonymous-build-generator");
     let fixture = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/build/captured_source_generated_constant");
+        .join("tests/fixtures/pass/build/captured_source_generated_constant");
     let project = temporary.path().join("project");
     std::fs::create_dir(&project).unwrap();
     for name in ["main.omg", "build.omg", "asset.txt"] {
@@ -944,7 +944,7 @@ fn terminal_build_filesystem() {
         }
     }
     let root = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/build/captured_source_generated_constant/main.omg");
+        .join("tests/fixtures/pass/build/captured_source_generated_constant/main.omg");
     let profile = target::TargetProfile::host_if_supported().expect("host profile");
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &root,
@@ -1015,7 +1015,7 @@ fn terminal_build_filesystem() {
     assert_eq!(
         generated[0].bytes(),
         include_bytes!(
-            "../../../../../tests/omega/pass/build/captured_source_generated_constant/asset.txt"
+            "../../../../../tests/fixtures/pass/build/captured_source_generated_constant/asset.txt"
         )
     );
     let checked = session
@@ -1094,7 +1094,7 @@ fn terminal_build_filesystem() {
 /// Both phases still consume the same closed source capture.
 fn initial_build_source_isolation() {
     let root = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/build/separate_build_product_imports_exit/main.omg");
+        .join("tests/fixtures/pass/build/separate_build_product_imports_exit/main.omg");
     let mut timings = artifacts::compile_timings::CompileTimings::default();
     let mut catalogue = source::SourceCatalogue::default();
     let checkpoint = package_compilation::source_assembly::ImmutableSourceParseCheckpoint::prepare(
@@ -1164,7 +1164,7 @@ fn initial_build_source_isolation() {
 /// including existence/canonicalization, not just the final file-byte read.
 fn deferred_product_uses_captured_imports() {
     let authored = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/build/separate_build_product_imports_exit");
+        .join("tests/fixtures/pass/build/separate_build_product_imports_exit");
     let nonce = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("clock after epoch")
@@ -1209,7 +1209,7 @@ fn deferred_product_uses_captured_imports() {
 
 fn unbound_build_invocation(project_name: &str) {
     let authored = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/build")
+        .join("tests/fixtures/pass/build")
         .join(project_name);
     let temporary =
         platform_custody::temporary_directory::TemporaryDirectory::create("unbound-build", false)
@@ -1289,7 +1289,7 @@ fn unbound_build_invocation(project_name: &str) {
 
     let other = package_source::local::operations::capture_local_source_input(
         fixture_package_inputs::repo_root()
-            .join("tests/omega/pass/build/activation_yields_without_replay"),
+            .join("tests/fixtures/pass/build/activation_yields_without_replay"),
         package_source::LocalSourceLimits::default(),
     )
     .expect("different acquired namespace for refusal control");
@@ -1418,7 +1418,7 @@ fn executed_source_workspace(
         false,
     )
     .expect("exclusive source graph workspace");
-    let fixtures = fixture_package_inputs::repo_root().join("tests/omega/pass/build");
+    let fixtures = fixture_package_inputs::repo_root().join("tests/fixtures/pass/build");
     for package in [project, "executed_dependency_source_library"] {
         std::fs::create_dir(temporary.path().join(package)).unwrap();
         for name in ["main.omg", "build.omg"] {
@@ -1432,7 +1432,7 @@ fn executed_source_workspace(
     if private_call {
         std::fs::copy(
             fixture_package_inputs::repo_root()
-                .join("tests/omega/fail/build/executed_dependency_private_call/main.omg"),
+                .join("tests/fixtures/fail/build/executed_dependency_private_call/main.omg"),
             temporary.path().join(project).join("main.omg"),
         )
         .unwrap();
@@ -1823,7 +1823,7 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
 fn project_session_lifecycle() {
     let temporary = exclusive_workspace("project-session");
     let fixture = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/build/project_session_shared_budget_exit");
+        .join("tests/fixtures/pass/build/project_session_shared_budget_exit");
     let project = temporary.path().join("project");
     std::fs::create_dir(&project).unwrap();
     for name in ["main.omg", "build.omg"] {
@@ -1915,7 +1915,7 @@ fn project_session_lifecycle() {
 fn completed_build_target_fanout() {
     let temporary = exclusive_workspace("build-target-fanout");
     let fixture = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/build/project_session_shared_budget_exit");
+        .join("tests/fixtures/pass/build/project_session_shared_budget_exit");
     let project = temporary.path().join("project");
     std::fs::create_dir(&project).unwrap();
     for name in ["main.omg", "build.omg"] {
@@ -2061,7 +2061,7 @@ fn completed_build_target_fanout() {
 fn settled_build_product_contexts() {
     let temporary = exclusive_workspace("settled-product-contexts");
     let repository = fixture_package_inputs::repo_root();
-    let fixture = repository.join("tests/omega/pass/build/project_session_shared_budget_exit");
+    let fixture = repository.join("tests/fixtures/pass/build/project_session_shared_budget_exit");
     let project = temporary.path().join("project");
     std::fs::create_dir(&project).unwrap();
     std::fs::copy(fixture.join("main.omg"), project.join("main.omg")).unwrap();
@@ -2235,7 +2235,7 @@ fn settled_default_build_contexts() {
 fn production_project_discovery() {
     let temporary = exclusive_workspace("production-source-discovery");
     let fixture = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/build/executed_project_identity_exit");
+        .join("tests/fixtures/pass/build/executed_project_identity_exit");
     let project = temporary.path().join("project");
     std::fs::create_dir(&project).unwrap();
     for name in ["main.omg", "build.omg", "naming.omg", "result.omg"] {
@@ -2335,7 +2335,7 @@ fn unbound_join_inputs(
 
 fn package_invocation_requests(fixture: &str) -> impl Fn() -> CheckedCompileRequest {
     let repository = fixture_package_inputs::repo_root();
-    let authored = repository.join("tests/omega").join(fixture);
+    let authored = repository.join("tests/fixtures").join(fixture);
     let captured = fixture_package_inputs::sealed_fixture_staging::stage_sealed_snapshot(
         &repository,
         &authored,
@@ -2421,7 +2421,8 @@ fn foreign_source_return_refuses() {
 
 fn source_native_roundtrip() {
     let repository = fixture_package_inputs::repo_root();
-    let root = repository.join("tests/omega/pass/build/activation_yields_without_replay/main.omg");
+    let root =
+        repository.join("tests/fixtures/pass/build/activation_yields_without_replay/main.omg");
     let directory = repository.join("build/one-shot-native");
     let request = compiler::CompileRequest::for_targets(
         root,
@@ -2609,7 +2610,7 @@ fn ignored_build_request_still_requires_join() {
 /// early project declaration and late entry bindings must each execute once.
 fn sliced_build_retains_effects() {
     let root = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/build/activation_yields_without_replay/main.omg");
+        .join("tests/fixtures/pass/build/activation_yields_without_replay/main.omg");
     let account = sponsor(limits(1_000_000));
     let mut request = CheckedCompileRequest::new(&root, Some("linux_x86_64"));
     request.build.evaluation_sponsor = Some(account.clone());
@@ -2674,7 +2675,7 @@ fn sliced_build_retains_effects() {
 /// Two requested targets consume the same completed anonymous Build.
 fn anonymous_build_completes_before_product() {
     let repository = fixture_package_inputs::repo_root();
-    let root = repository.join("tests/omega/pass/build/terminal_project_requests/main.omg");
+    let root = repository.join("tests/fixtures/pass/build/terminal_project_requests/main.omg");
     let targets = ["windows_x86_64", "linux_x86_64"]
         .into_iter()
         .map(|name| Some(target::TargetProfile::from_omega_target_name(Some(name)).unwrap()))
@@ -2727,7 +2728,7 @@ fn anonymous_build_completes_before_product() {
 /// occurrences must retain the exact bytes, but only one executes guest code.
 fn logged_build_reuse() {
     let root = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/build/build_log_line_written/main.omg");
+        .join("tests/fixtures/pass/build/build_log_line_written/main.omg");
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &root,
         Some("linux_x86_64"),

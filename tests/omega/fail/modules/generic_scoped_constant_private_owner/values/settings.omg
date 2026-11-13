@@ -1,2 +1,0 @@
-module settings;
-data Holder<T [copy]> [copy] { value: T; }

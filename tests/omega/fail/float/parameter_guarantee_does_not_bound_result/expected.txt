@@ -1,1 +1,0 @@
-machine `narrow` state `entry` cannot prove Exact float-to-`f32` cast

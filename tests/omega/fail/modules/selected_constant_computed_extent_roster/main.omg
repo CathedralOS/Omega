@@ -1,4 +1,0 @@
-const SIZE:u64=2+0;
-const SOURCE:[u64;SIZE]=[3];
-const ALIAS:[u64;1]=SOURCE;
-machine main(){}

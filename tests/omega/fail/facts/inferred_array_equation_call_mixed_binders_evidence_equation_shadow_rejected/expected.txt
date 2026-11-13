@@ -1,1 +1,0 @@
-cannot replace non-type binder `Evidence` with a global declaration

@@ -1,4 +1,0 @@
-before data `Coupled<Token>` is established
-cannot complete a call at statement 4 in machine `invalidated` state `entry`
-the `requires` facts of `established` (data `Coupled<Token>`)
-unproved; restore them first

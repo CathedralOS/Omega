@@ -1,2 +1,0 @@
-boundary machine == Float::equal(left: f64, right: f64) -> bool;
-machine main() {}

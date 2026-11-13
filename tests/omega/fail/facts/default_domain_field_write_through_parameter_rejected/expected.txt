@@ -1,3 +1,0 @@
-cannot complete a call at statement 4 in machine `revise` state `entry`
-the `requires` facts of `held` (data `Interval`)
-unproved; restore them first

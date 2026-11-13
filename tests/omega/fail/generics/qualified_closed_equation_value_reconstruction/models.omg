@@ -1,2 +1,0 @@
-module models;
-public const COUNT: u64 = 4;

@@ -1,1 +1,0 @@
-cannot prove requires contract for call inspect_ready from main: sibling in Ticket::Ready

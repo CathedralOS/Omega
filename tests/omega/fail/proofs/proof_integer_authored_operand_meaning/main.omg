@@ -1,7 +1,0 @@
-domain i16::Degrees;
-machine + i16::Degrees::replace(left: i16, right: i16) -> i16 { 9i16 }
-machine false_bridge(left: i16, right: i16)
-requires ((left as i16 in Degrees) + (right as i16 in Degrees)) != 0i16
-ensures embed(left) + embed(right) != 0
-{}
-machine main() {}

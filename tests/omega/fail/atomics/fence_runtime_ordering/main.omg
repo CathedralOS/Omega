@@ -1,6 +1,0 @@
-use omega::language::core::Atomic;
-use omega::language::core::FenceOrdering;
-use omega::language::core::Atomic::fence;
-machine fence_unknown(ordering: FenceOrdering) {
-    Atomic::fence(ordering);
-}

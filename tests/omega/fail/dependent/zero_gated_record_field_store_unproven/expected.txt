@@ -1,1 +1,0 @@
-this write left the `requires` facts of `player` (data `Player`) unproved

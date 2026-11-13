@@ -1,5 +1,0 @@
-// An issued required-output path survives ordinary byte-view transport, so Build seals that exact reserved member and selects the product from its observed bytes.
-// Place: field
-// Intended-invalid: shared path result cannot supply mutable source access.
-machine main() {}
-machine wrong_entry() crashes Trap { crash Trap; }

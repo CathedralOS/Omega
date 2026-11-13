@@ -1,8 +1,0 @@
-data Cursor {calls:u32 in Wrapping;}
-machine select(cursor:&mut Cursor)->u64 ensures result < 3 {cursor.calls=cursor.calls+1;2}
-machine keep(value:u32 in Wrapping)->u32 in Wrapping {value}
-machine main() {
- let cells:[u32 in Wrapping;2]=[7,3];
- let mut cursor:Cursor=Cursor{calls:0};
- let observed:u32 in Wrapping=keep(cells[select(&mut cursor)]);
-}

@@ -1,9 +1,0 @@
-// A bare borrow retains its referent type. Exposing the same bytes through a
-// different checked shape requires an explicit `as` recast.
-data Bits {
-    x: i64;
-}
-
-machine Bits::implicit_pun(bits: & Bits) {
-    let v: &f32 = &bits.x;
-}

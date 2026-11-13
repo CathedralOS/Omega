@@ -1,1 +1,0 @@
-A selected public identity guarantee follows the completed operand into a ranked recursive arrival. Prefix direct, nested and composed calls preserve the same captured values. Run `omega run --both main.omg`; both engines exit 0.

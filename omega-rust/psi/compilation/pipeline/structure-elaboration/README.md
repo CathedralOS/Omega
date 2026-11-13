@@ -52,7 +52,9 @@ arithmetic, bitwise operations, shifts and comparisons; integers of type
 formals and `ensures` clauses over their formals and `result`; `crashes Trap`
 and `crashes Abort` clauses with or without route guards over the formals;
 `crashes none`; an integer `!=` in a clause, read as `a < b or b < a`, the
-form the kernel denotes a false integer equality by;
+form the kernel denotes a false integer equality by; a `requires` or
+`ensures` clause that compares mathematical integers
+([Mathematical integers in a clause](#mathematical-integers-in-a-clause));
 `crash Trap;` and `crash Abort;`; guarded transition arms; and returns. A call
 of a machine that may return is an operation wherever it stands, and carries
 the callee's crash routes when it publishes any. A call of a machine with no
@@ -327,6 +329,59 @@ Refused by name:
 | a cast that changes the carrier of an integer that already carries a policy ("Rejected: each of these changes the carrier of a qualified value") | `expression cast that changes the carrier of a policy-qualified integer` |
 | a literal or other plain value where a policy-qualified one is declared: `let x: u32 in Wrapping = 5;`, an argument, a field initializer, a result ("An expected type selects the carrier in which an anonymous literal lands. It never inserts a domain cast") | `typing local initializer without the arithmetic policy of its local`, `typing argument types`, `typing record literal field type`, `typing arm value type`, `typing final value type`, `typing assigned value type` |
 | a policy-qualified local declared without an initializer, `&T in Wrapping`, a loan of such a place, an `[erased]` one, and a value `match` that yields one | `statement uninitialized local of a policy-qualified type`, `parameter reference to a policy-qualified integer`, `call loan of a policy-qualified integer`, `parameter erased parameter of a policy-qualified type`, `expression match with a policy-qualified result` |
+
+### Mathematical integers in a clause
+
+A machine's `requires` or `ensures` may compare mathematical integers:
+`requires embed(rest) + embed(count) * 10 <= 99`. `embed` takes a runtime
+integer into the unbounded integers
+([proof contracts](../../../../../wiki/spec/proofs/contracts.md#mathematical-values-and-quantification):
+"Runtime integer/address values enter mathematical integer arithmetic through
+the total `embed` projection, retaining exact carrier range"), where `+`, `-`
+and `*` cannot overflow
+([mathematical values](../../../../../wiki/spec/terminal-psi/mathematical_values.md#integer-terms):
+"These terms denote unbounded mathematical integers and cannot overflow"). So
+such a clause computes nothing in a carrier and owes no formation condition,
+which is what sets it apart from carrier arithmetic in a clause
+(`requires a + b <= 99`, which "discharge[s] representability before
+formation" and is refused until a slice states that obligation).
+
+A comparison is mathematical when an `embed` stands on either side beneath
+binary operators only (`mathematical`). `embed` is the builtin by the symbol
+stage 02 resolved the call to, never by its spelling. Each side is read by
+`mathematical_term`:
+
+- `embed(t)`, where `t` is any term a clause of that kind may already name:
+  a formal, a field of a record formal or a borrowed formal in an entry
+  `requires`, `result` in an `ensures`, a bound value parameter, a typed
+  literal. The embedding keeps `t`'s carrier (`IntegerMathTerm::MathValue`
+  for a value, `Embed` for a field of a place).
+- an anonymous integer literal, or a wholly anonymous tree whose exact value
+  is integral ("An anonymous integral final value can land in mathematical
+  `Int` or `Nat` without fractional-history acknowledgment");
+- `+`, `-` and `*` of those.
+
+`<=`, `<`, `==`, `>=`, `>` become `IntegerMathLessOrEqual`,
+`IntegerMathLessThan` and `IntegerMathEqual` (operands in the vocabulary's
+order, as the codec requires); `!=` is `a < b or b < a`, as for carrier
+integers. A clause's text for diagnostics keeps each embedded formal open, so
+a call's statement reads `embed(a) + embed(b) * 10 <= 99` over its own
+arguments.
+
+| Construct | Refusal detail |
+| --- | --- |
+| carrier arithmetic in a clause term, `requires a + b <= 99` | `contract carrier arithmetic in a clause term` |
+| a suffixed operator in a clause term, `a +% b` | `contract policy operator in a clause term` |
+| a cast, or a call other than `embed`, in a clause term | `contract cast in a clause term`, `contract call in a clause term` |
+| `embed` that is not a side of a comparison or beneath its arithmetic, `embed(embed(a))` | `contract embed outside a mathematical comparison` |
+| `embed` of a Boolean, or with other than one argument | `contract embed of a value that is not an integer`, `contract embed of other than one value` |
+| `/` or `%` between mathematical integers (rational division, or the named quotient and remainder) | `contract mathematical division in a clause` |
+| a shift or bitwise operator, or a suffixed operator, between mathematical integers | `contract mathematical operator other than add, subtract and multiply`, `contract policy operator in a mathematical term` |
+| a runtime value or typed literal that is not embedded, `embed(a) + b` or `embed(a) <= 99u8` | `contract runtime value in a mathematical term without embed`, `contract typed literal in a mathematical term without embed` |
+| a cast or a call inside a mathematical term, `embed(a) as Nat`, `integer::quotient(..)` | `contract cast in a mathematical term`, `contract call in a mathematical term` |
+| a literal past 64 bits, or an anonymous tree whose value is fractional | `contract mathematical literal beyond 64 bits`, `contract fractional anonymous value in a mathematical term` |
+| the comparison in a crash route guard or in a data `requires`, each restated by a substitution that knows only scalar comparisons | `contract mathematical comparison in a crash route guard`, `contract mathematical comparison in a data requires` |
+| the comparison in the `requires` of a member of a call cycle, which becomes a loop head's invariant | `contract mathematical comparison required on a call cycle` |
 
 ### Erased scalar bindings
 
@@ -1272,7 +1327,7 @@ worked around by adding to `terminal-check-tables`.
     declared in, with a generated machine placed where its declaration is
     (`visible_to`). Any other call is refused as `call private machine of
     another package`, so the current checker decides the compilation
-    (`tests/omega/fail/build/executed_dependency_private_call`).
+    (`tests/fixtures/fail/build/executed_dependency_private_call`).
 34. **A runtime read of an erased binding falls back; it is not yet rejected
     here.** The current checker rejects `let total: i32 = bound;` for an
     erased `bound` ("erased parameter `bound` has no runtime value"). That is

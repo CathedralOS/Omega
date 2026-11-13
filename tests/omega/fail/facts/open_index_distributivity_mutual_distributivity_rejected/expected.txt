@@ -1,2 +1,0 @@
-`multiply` of `IndexSemiring` licenses distributivity over `add`
-`add` of `IndexSemiring` licenses distributivity over `multiply`

@@ -1,9 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "component_assumption_policy_missing");
-    builder.privileged_services.port_io = true;
-    let mut mechanism_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../../pass/build/component_assumption_policy_accepted/mechanism" });
-    dependency::with_alias(&mut mechanism_dependency, "mechanism");
-    let mechanism_registration: DependencyRegistration = Build::dependency(builder, mechanism_dependency);
-    Build::select_provider<mechanism::Signal, mechanism::Serial>(builder, linux_x86_64, CompositionMode::Independent);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-}

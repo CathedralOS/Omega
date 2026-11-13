@@ -1,8 +1,0 @@
-data Natural { case Zero; case Succ(previous: Natural); }
-data Namespace { unrelated: u64; }
-
-machine Namespace::answer(value: Natural) -> i32 { 70 }
-
-machine main() {
-    let answer: i32 = Namespace::answer(Natural::Zero {});
-}

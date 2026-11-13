@@ -1,2 +1,0 @@
-cannot prove automatic cleanup requires
-drop_token clause `token.value == 42`

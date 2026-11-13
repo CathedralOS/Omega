@@ -1,9 +1,0 @@
-// An owned operand retains the write reach of its exclusive-reference field.
-data Payload { value: &mut i32; }
-boundary operator Actions::touch(payload: Payload) -> ();
-machine demand(value: i32) requires value == 7 {}
-machine exercise() {
-    let mut value: i32 = 7;
-    Actions::touch(Payload { value: &mut value });
-    demand(value);
-}

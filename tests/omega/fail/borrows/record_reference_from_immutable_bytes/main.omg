@@ -1,5 +1,0 @@
-data Holder { bytes: &mut [u8]; }
-machine main() { inspect(Holder { bytes: "immutable" }); }
-machine inspect(holder: Holder) {}
-
-machine shared_parameter(bytes: &[u8]) { inspect(Holder { bytes: bytes }); }

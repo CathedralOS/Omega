@@ -1,9 +1,0 @@
-// Being nested inside an explicitly selected synthesized call does not make
-// a constructor field a proposition. Its data comparison needs Equatable.
-trait Equatable<T> { machine equals(left: &T, right: &T) -> bool; }
-data Packet [copy] { value: u64; }
-data Holder [copy] { flag: bool; }
-HolderEquality satisfies Equatable<Holder> { }
-data Input [copy] { left: Packet; right: Packet; }
-domain Input::Invalid requires HolderEquality::equals(
-    &(Holder { flag: self.left == self.right }), &(Holder { flag: true }));

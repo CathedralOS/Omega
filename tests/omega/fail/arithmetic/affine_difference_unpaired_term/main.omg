@@ -1,5 +1,0 @@
-// An unmatched term needs its own bound; one difference is insufficient.
-machine incomplete(first: u64, second: u64, third: u64, fourth: u64) -> u64
-requires first >= second
-ensures embed(first) + embed(third) >= embed(second) + embed(fourth)
-{ 0 }

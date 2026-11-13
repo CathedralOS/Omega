@@ -1,8 +1,0 @@
-// The expected trait application cannot fill a selected map's own telescope.
-trait Reading<Value> { machine read(value: Value) -> Value; }
-SelectedReading<Value, const Tag: i32> satisfies Reading<Value> {
-    machine read(value: Value) -> Value { value }
-}
-data Packet { value: i32; }
-trait Consumer<Value, Reader satisfies Reading<Value>, Result> {}
-trait Incomplete: Consumer<Packet, SelectedReading<Packet>, i32> {}

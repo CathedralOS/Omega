@@ -1686,6 +1686,12 @@ impl<T: Default> OrderedRootArena<T> {
         }
     }
 
+    /// Read exact retained declaration metadata, including records no longer
+    /// present in the live root roster. This does not restore root membership.
+    pub fn retained_records(&self) -> impl Iterator<Item = &T> {
+        self.storage.iter().map(|(_, record)| record)
+    }
+
     pub fn retain(&mut self, mut keep: impl FnMut(&T) -> bool) {
         let retained = self
             .handles
@@ -1823,6 +1829,27 @@ impl<T: Default + compiler_storage::Record + 'static> compiler_storage::Record
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn removed_ordered_roots_retain_metadata_without_membership() {
+        let mut roots = super::OrderedRootArena::new();
+        let original = roots.push(String::from("original"));
+        roots.push(String::from("selected"));
+        roots.retain(|value| value == "selected");
+        let copy = roots.clone();
+        assert!(!copy.contains(original));
+        assert_eq!(
+            copy.iter().map(String::as_str).collect::<Vec<_>>(),
+            ["selected"]
+        );
+        assert_eq!(copy.get(original), "original");
+        assert_eq!(
+            copy.retained_records()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            ["original", "selected"]
+        );
+    }
+
     use std::collections::HashSet;
 
     use super::{

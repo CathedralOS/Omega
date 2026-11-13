@@ -41,6 +41,12 @@ completion surface. Unaccepted experiments are not counted as accepted features.
 | `RC-DIAGNOSTICS` | Rejected source and failed product admission report stable, actionable diagnostics rather than panics, silent fallback, or accidental acceptance. | `python tools/corpus_gate.py --filter fail/`, which also belongs to `RC-SOURCE-SEMANTICS`. |
 | `RC-REPRESENTATIVE-PROGRAMS` | Every maintained sample reaches checked semantics; every sample with an authored host entry reaches its native product; every documented deterministic exit/output oracle passes. | `python tools/sample_native_gate.py` on every required host. |
 
+The `tools/corpus_gate.py` invocations in this table no longer exist: the
+fixture corpus and its gates were deleted on the owner's ruling of 2026-11-13
+(`tests/README.md`). Until the owner restates these gates, their evidence is the
+Rust tests of the crates involved, the kept programs under `tests/fixtures/`
+and `samples/`.
+
 `RC-REPOSITORY` is:
 
 ```bash

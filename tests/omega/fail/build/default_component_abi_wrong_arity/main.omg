@@ -1,2 +1,0 @@
-use producer::main::Inspect;
-machine main() {}

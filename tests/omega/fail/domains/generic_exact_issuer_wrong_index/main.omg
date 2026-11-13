@@ -1,7 +1,0 @@
-data Ticket { value: u64; }
-data First {}
-data Second {}
-domain<P> Ticket::Issued<P> established by issue;
-machine issue<P>(value: u64) -> Ticket in Issued<P> { Ticket { value: value } }
-machine read(ticket: Ticket in Issued<Second>) -> u64 { ticket.value }
-machine main() { let observed: u64 = read(issue<First>(73)); }

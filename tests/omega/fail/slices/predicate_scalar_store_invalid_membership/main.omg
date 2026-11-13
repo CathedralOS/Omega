@@ -1,2 +1,0 @@
-domain i32::Selected requires self == 0 || self == 38;
-machine main() { let mut items: [i32 in Selected;3]; items[1]=37; }

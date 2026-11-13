@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "wire_compatibility_unknown_fact");
-    Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Imaginary>(builder);
-}

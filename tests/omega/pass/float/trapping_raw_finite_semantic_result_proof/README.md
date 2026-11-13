@@ -1,1 +1,0 @@
-The public total F32::is_finite predicate supplies the exact sealed raw semantic result precondition for arithmetic and named format conversion. Private proof projections remain private. The closed operand control executes and checks the raw IEEE result. Trapping adapted-result normal-return facts do not discharge their own failure obligation.

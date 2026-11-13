@@ -1,6 +1,0 @@
-// `crash Trap;` is an explicit unrecoverable, unwind-free terminal
-// outcome — a statement, not a call. Control flow after it is dead.
-data Main { }
-machine Main::main(main: &mut Main) {
-    crash Trap;
-}

@@ -1,3 +1,0 @@
-emit_sequence
-Device::emit_between_calls
-emit_selected_state

@@ -1,9 +1,0 @@
-// Equal carrier fields do not recreate the routed membership owed on return.
-// Ticket is copyable, so the intended failure is not a linear-disposal error.
-data Ticket [copy] { number: u64; }
-domain Ticket::Issued established by issue;
-machine issue() -> Ticket in Issued { Ticket { number: 7 } }
-machine replace(ticket: &mut Ticket)
-requires ticket in Issued
-ensures ticket in Issued
-{ ticket = Ticket { number: 7 }; }

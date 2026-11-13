@@ -1,2 +1,0 @@
-call from `scale` to `risky`
-has an uncovered Trap crash route

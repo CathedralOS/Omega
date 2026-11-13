@@ -1,9 +1,0 @@
-trait Narrow { machine choose() -> u32 ensures result <= 50; }
-trait Wide { machine choose() -> u32 ensures result <= 100; }
-// An identically named sibling requirement cannot donate its stronger result.
-machine selected<First satisfies Narrow, Second satisfies Wide>() -> u32
-ensures result <= 100
-{
-    Second::choose()
-}
-machine main() {}

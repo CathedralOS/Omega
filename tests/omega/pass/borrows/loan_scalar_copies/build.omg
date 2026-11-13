@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "loan_scalar_copies");
-    builder.freestanding = true;
-}

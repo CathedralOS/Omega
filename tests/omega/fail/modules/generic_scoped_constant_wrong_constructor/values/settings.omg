@@ -1,4 +1,0 @@
-module settings;
-public data Holder<T [copy]> [copy] { value: T; }
-public data Other [copy] { value: u32; }
-public const Holder::VALUE: Holder<u32> = Other { value: 7u32 };

@@ -1,2 +1,0 @@
-machine `Helper::relay` state `relay` calls `Helper::firmware_only`, which is declared only for targets `macos_x86_64`, `uefi_x86_64`
-so those bodies are inert siblings and the call has no implementation

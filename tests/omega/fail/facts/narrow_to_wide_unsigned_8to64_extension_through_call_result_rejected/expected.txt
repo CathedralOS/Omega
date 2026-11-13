@@ -1,1 +1,0 @@
-cannot prove ensures contract proof fact `result >= 50 && result <= 180`

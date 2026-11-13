@@ -1,1 +1,0 @@
-machine `scale` parameter `factor` references unknown data type `Ratio`

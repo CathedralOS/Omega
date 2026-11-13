@@ -1,1 +1,0 @@
-machine `main` ensures contract proof fact `result <= 10` is disproved by constant arithmetic

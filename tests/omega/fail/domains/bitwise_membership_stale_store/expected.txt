@@ -1,1 +1,0 @@
-cannot prove requires contract for call accept from main: options.flags in u32::Clear

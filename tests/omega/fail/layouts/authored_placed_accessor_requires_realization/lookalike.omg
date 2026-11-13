@@ -1,3 +1,0 @@
-module lookalike;
-public boundary data Accessor<T>;
-public boundary machine Accessor::read<T>(value: &Accessor<T>) -> u32;

@@ -1,3 +1,0 @@
-machine max(left: i32, right: i32) -> i32 { 300i32 }
-
-machine main() -> u8 { max(0i32, 0i32) as u8 }

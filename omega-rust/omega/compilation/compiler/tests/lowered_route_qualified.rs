@@ -63,19 +63,19 @@ fn route_verdict(fixture: &str) -> (RouteVerdict, bool) {
 const ACCEPTED: &[&str] = &[
     // An expression call and a transition target, `Main::countdown(..)`,
     // the second from inside the machine itself.
-    "tests/omega/pass/calls/machine_self_call_recursion_compile",
+    "tests/fixtures/pass/calls/machine_self_call_recursion_compile",
     // Call statements and expression calls of five machines under one name,
     // two of them lending a scalar local.
-    "tests/omega/run/calls/qualified_atomic_operation_names",
+    "tests/fixtures/run/calls/qualified_atomic_operation_names",
     // The qualified machine owes an `ensures` it meets through its callee's.
-    "tests/omega/pass/calls/attached_terminal_machine_call_exit",
+    "tests/fixtures/pass/calls/attached_terminal_machine_call_exit",
     // The qualified machine declares a nested machine and calls a free one
     // of the same name.
-    "tests/omega/pass/calls/state_and_machine_names_exit",
+    "tests/fixtures/pass/calls/state_and_machine_names_exit",
     // The qualified machine is the bound entry and ends in a call of a
     // private helper that returns nothing, whose input conditions are
     // inferred from this one arrival.
-    "tests/omega/pass/calls/attached_context_terminal_machine_call_exit",
+    "tests/fixtures/pass/calls/attached_context_terminal_machine_call_exit",
 ];
 
 #[test]
@@ -98,7 +98,7 @@ fn a_program_with_data_qualified_machines_is_judged_and_accepted() {
 #[test]
 fn a_data_qualified_machine_that_breaks_its_callees_requires_is_rejected() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let fixture = "tests/omega/fail/calls/free_machine_named_transition_rejected";
+    let fixture = "tests/fixtures/fail/calls/free_machine_named_transition_rejected";
     let (verdict, accepted) = route_verdict(fixture);
     assert!(!accepted, "{fixture}: the current checker rejects it");
     let RouteVerdict::Rejected { unproved, .. } = &verdict else {

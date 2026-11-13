@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "contract_declaration_boundary");
-    // Declaration checking does not activate the UEFI-only provider.
-}

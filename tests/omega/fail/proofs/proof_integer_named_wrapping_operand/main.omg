@@ -1,6 +1,0 @@
-let below_limit(value: u8 in Wrapping): core::Strict<0> = embed(value) + 1 != 256;
-machine false_wrapping_bridge(value: u8 in Wrapping)
-requires value + 1 != 256u16
-ensures below_limit(value)
-{}
-machine main() {}

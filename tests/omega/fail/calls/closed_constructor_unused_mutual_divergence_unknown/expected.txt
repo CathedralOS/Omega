@@ -1,2 +1,0 @@
-value call to `take` violates required fact `core::Identity<Point>(point, Point.zero())`
-the instantiated fact is structurally false

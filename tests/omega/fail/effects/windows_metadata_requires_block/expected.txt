@@ -1,2 +1,0 @@
-call to `metadata` has operational envelope `block`
-acknowledges neither suspension nor blocking

@@ -107,7 +107,7 @@ mod tests {
     fn project() -> TemporaryDirectory {
         let project = TemporaryDirectory::create("command-review", false).expect("test directory");
         let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../../tests/omega/pass/calls/machine_self_call_recursion_compile");
+            .join("../../../../tests/fixtures/pass/calls/machine_self_call_recursion_compile");
         for name in ["main.omg", "build.omg"] {
             std::fs::copy(fixture.join(name), project.path().join(name)).expect("fixture copy");
         }

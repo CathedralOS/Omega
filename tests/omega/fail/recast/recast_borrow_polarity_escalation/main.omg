@@ -1,9 +1,0 @@
-// FAIL CANARY (rung-A polarity): `&x as &mut T` mints an exclusive view
-// from a shared borrow -- the authored source `&` must agree with the view
-// polarity the `as` form claims. The binding's declared `&mut` type alone
-// cannot grant write authority the source borrow never lent.
-data Bits { x: u32; }
-
-machine Bits::escalate(bits: & Bits) {
-    let v: &mut u32 = &bits.x as &mut u32;
-}

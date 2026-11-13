@@ -1,4 +1,0 @@
-constant initializer
-cannot prove requires contract for call read
-8 == 7
-needs fact `value == 7`

@@ -1,1 +1,0 @@
-`Order` is bound as `Ranked<T>`, not the `Ranked<Card>`

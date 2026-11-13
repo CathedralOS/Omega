@@ -1,2 +1,0 @@
-argument `second` for state `run` expects `&[u8; 4096]`
-declared place carrier `array(named(name(u8)),literal(4095))`

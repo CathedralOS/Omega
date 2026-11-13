@@ -1,5 +1,0 @@
-// `[u8; 4]` parses as a type operand wherever an expression may appear.
-// Only a static type predicate may use it; a runtime value may not.
-machine main() {
-    let bytes: u64 = [u8; 4];
-}

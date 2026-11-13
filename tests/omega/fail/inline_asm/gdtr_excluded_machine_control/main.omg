@@ -1,2 +1,0 @@
-// An explicit empty reach ceiling excludes MachineControl.
-machine main() reaches { let mut bytes: [u8; 10] = [0,0,0,0,0,0,0,0,0,0]; asm clobbers r10 { sgdt &write bytes } }

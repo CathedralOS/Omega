@@ -1,9 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "unimported_build_tool");
-    let generated: BuildPath = BuildOutput::resolve(&builder.output, "generated.omg");
-    let writer: i32 = BuildOutput::create(&mut builder.output, generated, 0);
-    let bytes: [u8; 179] = "public data Pair { left: i32; right: i32; }\npub machine offset() -> i32 { seed() }\npub machine total() -> i32 { let pair: Pair = Pair { left: seed(), right: offset() }; pair.right }\n";
-    _ = BuildOutput::write(&mut builder.output, writer, &bytes);
-    _ = BuildOutput::close(&mut builder.output, writer);
-    BuildOutput::include_source(&mut builder.output, generated);
-}

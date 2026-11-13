@@ -10,7 +10,7 @@ use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inpu
 
 // A package with a selected program entry, so it reaches a Terminal artifact.
 const FIXTURE: &str =
-    "tests/omega/pass/providers/checked_boundary_requirement_dispatch_exit/main.omg";
+    "tests/fixtures/pass/providers/checked_boundary_requirement_dispatch_exit/main.omg";
 
 fn terminal_product(run: &str) -> (Vec<u8>, u64, u64) {
     let target_name = "linux_x86_64";

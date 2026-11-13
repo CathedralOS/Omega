@@ -1,8 +1,0 @@
-// Each authored dispatch owes its own total coverage. A later statement
-// or separate block cannot supply the missing outcome.
-data Choice { case First; case Second; }
-machine choose(value: Choice) -> u64 crashes Trap {
- transition value { Choice::First -> (70) }
- crash Trap;
-}
-machine main() crashes Trap { let result: u64 = choose(Choice::Second); }

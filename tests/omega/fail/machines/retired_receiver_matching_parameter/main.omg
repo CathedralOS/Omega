@@ -1,7 +1,0 @@
-// Invalid: declaration qualification must never supply an implicit argument.
-data Dice { state: u32; }
-machine Dice::roll(dice: &mut Dice) -> u32 { dice.state }
-machine main() -> u32 {
-    let dice: Dice;
-    dice.roll()
-}

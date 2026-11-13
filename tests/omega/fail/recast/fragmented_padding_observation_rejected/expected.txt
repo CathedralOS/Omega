@@ -1,1 +1,0 @@
-shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact

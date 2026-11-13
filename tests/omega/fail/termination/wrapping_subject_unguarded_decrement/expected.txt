@@ -1,1 +1,0 @@
-terminating machine Main::drain: cannot prove strict rank decrease on a recurrent arrival: the transition from `drain` back to itself is not shown to strictly decrease the rank

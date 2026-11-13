@@ -1,8 +1,0 @@
-data Ordinal { case Zero; case Step(previous: Ordinal); }
-machine zero(value: Ordinal)
-requires core::Identity<Ordinal>(value, Ordinal::Zero)
-ensures core::Identity<Ordinal>(value, Ordinal::Zero)
-{}
-machine main() {
-    zero(Ordinal::Step { previous: Ordinal::Zero });
-}

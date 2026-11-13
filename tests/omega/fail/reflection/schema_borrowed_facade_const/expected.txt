@@ -1,1 +1,0 @@
-borrowed or dynamically sized text cannot cross the semantic const boundary

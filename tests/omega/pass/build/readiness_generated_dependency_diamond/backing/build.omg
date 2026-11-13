@@ -1,9 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "readiness_diamond_backing");
-    let mut left_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../left" });
-    dependency::with_alias(&mut left_dependency, "left");
-    let left_registration: DependencyRegistration = Build::dependency(builder, left_dependency);
-    let mut right_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../right" });
-    dependency::with_alias(&mut right_dependency, "right");
-    let right_registration: DependencyRegistration = Build::dependency(builder, right_dependency);
-}

@@ -79,8 +79,8 @@ the five checks below fail:
   purpose: something this review can check.
 
 ### Point 3: Outcomes and Diagnostic Expectations
-- **No corpus, no ledger:** Nothing runs `tests/omega/` and nothing may be
-  added to it. The `Proof:` line names the tests on the change and on the
+- **No corpus, no ledger:** `tests/omega/` is deleted and nothing may be
+  added under that path. The `Proof:` line names the tests on the change and on the
   small area around it; reject a PR that widened its run instead of
   investigating a failure there.
 - **Read actual focused results:** Positive programs must pass their intended
@@ -95,7 +95,7 @@ the five checks below fail:
   `samples/cli/facts/` is frozen against new folder creation (`cargo xtask check-rules`
   enforces this). Repairs target existing failing programs in `samples/` or
   add a test on the changed code with, at most, a focused positive/negative
-  pair kept beside it under `omega-rust/omega/compilation/compiler/tests/fixtures/`.
+  pair kept beside it under `tests/fixtures/`.
 - **No weakened positive witnesses:** Confirm the worker did not make a fixture
   or sample pass by adding a caller post-hoc equality guard (`transition x == 100`),
   changing the bound or operation, or simplifying the construct under test.

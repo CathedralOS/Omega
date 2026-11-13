@@ -1,6 +1,0 @@
-trait Reading<Value> { machine read(value: Value) -> Value blocks; }
-trait LocalReading<Value> = Reading<Value> { machine * blocks false; }
-trait Consumer<Value, Reader satisfies LocalReading<Value>> { }
-trait Forward<Value, Reader satisfies Reading<Value>>: Consumer<Value, Reader> { }
-data Main { }
-machine Main::main() { }

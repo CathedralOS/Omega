@@ -1,1 +1,0 @@
-machine extent(values: &[f64]) -> u64 ensures result == values.len { 7 }

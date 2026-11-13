@@ -1,1 +1,0 @@
-`terminates { decreases ...; }` block form is retired

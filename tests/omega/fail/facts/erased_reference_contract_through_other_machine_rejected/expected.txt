@@ -1,4 +1,0 @@
-cannot prove requires contract for call relay from
-witness == 7
-cannot prove requires contract for call record_relay from
-record.value == 7

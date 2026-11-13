@@ -1,6 +1,0 @@
-machine risky() -> bool crashes Trap { crash Trap; }
-machine safe() -> i32 { 47 }
-machine choose() -> i32 crashes Trap false {
-    transition risky() { true -> safe() false -> (47) }
-}
-machine main() crashes Trap { let value: i32 = choose(); }

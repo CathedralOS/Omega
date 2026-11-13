@@ -1,1 +1,0 @@
-product entry `support::setup::launch` is not a product declaration visible from this build occurrence's package

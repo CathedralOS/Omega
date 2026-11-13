@@ -1,5 +1,0 @@
-use omega::language::core::reflect;
-data Selected { value: u8; }
-machine main() {
-    let described: reflect::TypeSchema = reflect::schema<Selected>(9u64);
-}

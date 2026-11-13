@@ -21,7 +21,7 @@ wrong.
    below) and read its current spelling. Do not rely on an earlier read in
    another session; the files move.
 2. **Find a passing instance.** Search `samples/` and the kept fixtures under
-   `omega-rust/omega/compilation/compiler/tests/fixtures/pass/` for a
+   `tests/fixtures/pass/` for a
    program that uses the form. Copy from that file verbatim and adapt as
    little as possible; step 3 says whether it still compiles.
 3. **Prove it.** Run the example through the current compiler, built from the
@@ -60,7 +60,7 @@ plainly. Do not invent a middle spelling.
 - **Whole programs:** `samples/` (each `main.omg` header states its expected
   exit or output) and `samples/README.md`.
 - **Focused behaviors and their diagnostics:** the kept fixtures under
-  `omega-rust/omega/compilation/compiler/tests/fixtures/{pass,fail,run}/`. The
+  `tests/fixtures/{pass,fail,run}/`. The
   former corpus is in history only; `tests/README.md` says how to read it.
 - **Known compiler gaps:** `TASKS.md`. Search there for the diagnostic you hit
   before working around it.

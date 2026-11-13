@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "utf8_member_verdict");
-    builder.freestanding = true;
-}

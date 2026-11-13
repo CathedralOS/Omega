@@ -1,1 +1,0 @@
-An outer row bound does not establish the inner cell extent. Forming the named shared primitive loan must reject because column lacks the exact length-3 bound; passing that local to a helper creates no new bound.

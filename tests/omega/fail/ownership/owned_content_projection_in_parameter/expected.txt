@@ -1,1 +1,0 @@
-captured scalar store changes logical conserved Content

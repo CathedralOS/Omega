@@ -1,6 +1,0 @@
-// Without an Empty premise, replacement could discard a live token.
-data Token [linear] { value: u64; }
-data Slot { case Empty; case Held(token: Token); }
-machine invalid(slot: &mut Slot) {
-    slot = Slot::Held { token: Token { value: 73 } };
-}

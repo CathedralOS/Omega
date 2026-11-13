@@ -1,2 +1,0 @@
-callable `InvalidSplit::split` has an invalid content-conservation contract
-content conservation identity requires an exact closed content algebra carrier

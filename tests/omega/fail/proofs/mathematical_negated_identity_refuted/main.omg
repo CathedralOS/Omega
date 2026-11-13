@@ -1,9 +1,0 @@
-// A named negation cannot contradict the same established Nat identity.
-use omega::language::core::Nat;
-let different<A: core::Type<0>>(left: A, right: A): core::Strict<0> =
-    !core::Identity<A>(left, right);
-machine bogus(a: Nat)
-requires core::Identity<Nat>(a, Nat::Zero)
-ensures different<Nat>(a, Nat::Zero)
-{ }
-machine main() { }

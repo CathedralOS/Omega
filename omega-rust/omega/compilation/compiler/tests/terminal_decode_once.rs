@@ -28,7 +28,7 @@ use terminal_psi_to_abstract_operations::provider_admission;
 /// installation, object custody, physical evidence and image emission. Every
 /// one of those used to decode the artifact's semantic section for itself.
 const FIXTURE: &str =
-    "tests/omega/pass/providers/checked_boundary_requirement_dispatch_exit/main.omg";
+    "tests/fixtures/pass/providers/checked_boundary_requirement_dispatch_exit/main.omg";
 
 #[test]
 fn realization_and_execution_borrow_the_retained_terminal_module() {
@@ -304,7 +304,7 @@ fn exercise_owned_and_borrowed_instances() {
     };
 
     let root = repo_root()
-        .join("tests/omega/pass/optimizer/rollback_to_no_selection_empty_entry/main.omg");
+        .join("tests/fixtures/pass/optimizer/rollback_to_no_selection_empty_entry/main.omg");
     let prepared = reviewed_repository_fixture_package_inputs(&root, Some("linux_x86_64"))
         .unwrap_or_else(|diagnostics| panic!("empty-entry package inputs: {diagnostics:#?}"));
     let mut request = CompileRequest::new(CompileOptions {

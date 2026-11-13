@@ -1,3 +1,0 @@
-cannot complete return from machine `fill`
-`requires` facts of `counter`
-unproved; restore them first

@@ -1,7 +1,0 @@
-// The right declared type does not manufacture activation-local authority.
-machine build(builder: &mut Build) {
-    Build::application(builder, "product_entry_query_forged_facet");
-    let forged: BuildProduct = BuildProduct {};
-    let entry: ProductEntryRef = BuildProduct::entry(&forged, "launch", "windows_x86_64::ProgramEntry");
-    Build::bind(builder, windows_x86_64::ProgramEntry, launch);
-}

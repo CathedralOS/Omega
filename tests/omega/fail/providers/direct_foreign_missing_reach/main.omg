@@ -1,9 +1,0 @@
-boundary trait Process { machine current() -> u32 reaches; }
-boundary trait Other { machine unrelated() reaches; }
-trait Restricted { machine current() -> u32 reaches Other; }
-RestrictedProvider satisfies Restricted {
-    machine current() -> u32 reaches Other, Process {
-        Process::current()
-    }
-}
-machine main() {}

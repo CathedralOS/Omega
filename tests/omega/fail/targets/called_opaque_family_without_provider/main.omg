@@ -1,6 +1,0 @@
-// Both deployments have an exact family member, but neither member has an
-// installed provider or host realization. Membership cannot authorize emit.
-macos_arm64 boundary machine emit();
-linux_x86_64 boundary machine emit();
-
-machine main() { emit(); }

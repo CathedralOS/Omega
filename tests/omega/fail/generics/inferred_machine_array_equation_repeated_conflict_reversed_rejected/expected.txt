@@ -1,1 +1,0 @@
-requires type equation has conflicting element types

@@ -1,6 +1,0 @@
-public boundary trait Value {
-    machine read() -> u64 reaches ensures result == 42;
-}
-public data ValueProvider {}
-public machine ValueProvider::read() -> u64
-satisfies Value::read ensures result == 42 { 42 }

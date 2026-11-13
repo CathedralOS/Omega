@@ -1,1 +1,0 @@
-while local borrow `pending` is still active

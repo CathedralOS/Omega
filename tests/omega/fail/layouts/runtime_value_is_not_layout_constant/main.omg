@@ -1,3 +1,0 @@
-data Cell { code: u64; tag: u64; }
-machine required(value: u64) requires value >= size_of<Cell>() {}
-machine forward(value: u64) { required(value); }

@@ -1,2 +1,0 @@
-cannot prove ensures contract for exit from quantize
-result >= value - tolerance + 1

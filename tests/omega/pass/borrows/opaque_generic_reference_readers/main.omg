@@ -1,3 +1,0 @@
-boundary machine inspect<T>(value: &T);
-boundary machine copy_input<T [copy]>(value: T);
-boundary machine copy_referent<T [copy]>(value: &mut T);

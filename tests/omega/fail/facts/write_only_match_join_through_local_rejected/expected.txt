@@ -1,1 +1,0 @@
-reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation

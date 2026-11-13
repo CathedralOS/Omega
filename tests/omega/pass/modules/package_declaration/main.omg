@@ -1,4 +1,0 @@
-package dungeon_crawler_cli
-
-machine main() {
-}

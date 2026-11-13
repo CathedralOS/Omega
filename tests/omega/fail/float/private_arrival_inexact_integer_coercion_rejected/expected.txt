@@ -1,1 +1,0 @@
-machine `convert` state `entry` cannot prove integer-to-`f64` cast

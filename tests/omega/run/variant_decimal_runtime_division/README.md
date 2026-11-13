@@ -1,1 +1,0 @@
-Reduced complete NEW061 decimal-output control. Reads runtime byte x (120), runs the unchanged full-u64 decimal routine, expects exact stdout 120 and exit0. Expectations frozen before execution; no fixed-byte loan extension is used. Actual source and native controls—not a constant witness.

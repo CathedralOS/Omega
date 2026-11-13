@@ -1,4 +1,0 @@
-data Holder<Value> { value: Value; }
-data Invalid<Count: u64> { nested: Holder<[Count; 2]>; }
-data Main {}
-machine main() {}

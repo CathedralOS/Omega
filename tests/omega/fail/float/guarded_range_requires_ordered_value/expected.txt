@@ -1,7 +1,0 @@
-cannot prove requires contract for call bounded from negated_bounds: unordered >= 0.0 && unordered <= 1.0
-cannot prove requires contract for call bounded from false_exit_bounds: unordered >= 0.0 && unordered <= 1.0
-cannot prove requires contract for call bounded from inequality_is_not_ordered: unordered >= 0.0 && unordered <= 1.0
-cannot prove requires contract for call bounded from nan_only: unordered >= 0.0 && unordered <= 1.0
-cannot prove requires contract for call bounded from narrow_negation: unordered >= 0.0 && unordered <= 1.0
-cannot prove requires contract for call bounded from wrong_subject: unordered >= 0.0 && unordered <= 1.0
-cannot prove requires contract for call bounded from integer_view: unordered >= 0.0 && unordered <= 1.0

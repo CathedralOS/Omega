@@ -1,5 +1,0 @@
-// The same lower bounds cannot pay for a different coefficient distribution.
-machine weighted(first: u64, second: u64, third: u64, fourth: u64) -> u64
-requires first >= second && third >= fourth
-ensures 2 * embed(first) + 3 * embed(third) >= 3 * embed(second) + 2 * embed(fourth)
-{ 0 }

@@ -1,4 +1,0 @@
-module reader;
-use values::settings;
-data Storage { bytes: [u8; values::settings::Count]; }
-machine main() {}

@@ -1,8 +1,0 @@
-// A requirement's unused fresh region cannot supply a conformance header's
-// phantom operand. No copied parameter/result can reject this in its place.
-data Marker<'held> {}
-trait Reader<Value> {
-    machine read<'same>() -> i32 { 37 }
-}
-Mapped<'outer> satisfies Reader<Marker<'same>> {}
-machine main() {}

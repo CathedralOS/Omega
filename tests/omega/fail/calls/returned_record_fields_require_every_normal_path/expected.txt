@@ -1,1 +1,0 @@
-needs fact `place.kept == 17`

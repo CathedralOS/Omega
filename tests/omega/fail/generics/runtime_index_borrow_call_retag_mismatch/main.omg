@@ -1,3 +1,0 @@
-data Indexed<Limit:u32>{value:u32;}
-machine read(limit:u32,item:&mut Indexed<limit>) {}
-machine main() { let mut limit:u32=7; let mut saved:Indexed<limit> = Indexed{value:8}; limit=9; read(limit,&mut saved); }

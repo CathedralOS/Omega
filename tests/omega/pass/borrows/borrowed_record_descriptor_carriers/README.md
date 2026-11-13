@@ -1,5 +1,0 @@
-An ordinary borrowed record carries two independent exclusive pointers. Each of two calls increments the first counter by 3 and the second by 5. The program checks 17/39 after releasing the record, together with three pointer-record canaries and three backing-storage canaries. A wrong field, stale value, missing update or doubled update traps.
-
-Reading the stored pointers uses the original record borrow. Updating their arrays still requires each separate exclusive loan. The compiler change permits only those pointer reads; it preserves lifetime debts, active children, write-only access and write/disposal restrictions. The existing ownership controls selected in the qualification record test those boundaries. This fixture has no nominal cleanup hook or finite-family call.
-
-The native exit oracle is 0, and qualification requires actual native/Terminal Psi agreement at 0. A duplicate interpreter-oracle file is unnecessary because the combined runner requires both engine exits to equal the native oracle. Execution of this program remains pending.

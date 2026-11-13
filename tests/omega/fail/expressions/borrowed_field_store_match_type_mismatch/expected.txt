@@ -1,1 +1,0 @@
-assignment expects the `Category` data type but got `Pair`

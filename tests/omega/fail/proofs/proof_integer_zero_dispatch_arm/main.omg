@@ -1,7 +1,0 @@
-machine wrong_edge(divisor: i32)
-requires (match divisor == 0 {
-    true -> embed(7i32) / embed(divisor),
-    _ -> embed(0i32)
-}) >= embed(0i32)
-{}
-machine main() {}

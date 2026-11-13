@@ -1,6 +1,0 @@
-data Token dropped by drop_token { value: u64; }
-machine drop_token(token: &mut Token) crashes Trap {
-    transition { _ -> bad() }
-    machine bad() { crash Trap; }
-}
-machine main() { let token: Token = Token { value: 7 }; }

@@ -1,2 +1,0 @@
-shift count in machine `clamped_left` state `entry` return value is not provably below the operand width for `u32` (`Saturating` governs value overflow, not count validity
-shift count in machine `clamped_right` state `entry` return value is not provably below the operand width for `u32`

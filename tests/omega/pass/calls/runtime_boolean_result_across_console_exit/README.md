@@ -1,1 +1,0 @@
-The EOF-dependent call result lives across subsequent calls and is observed after console output. This preserves main's general admitted recovery when an integer fixed-use split is outside the value family. The expected exit and output were frozen before compiler execution.

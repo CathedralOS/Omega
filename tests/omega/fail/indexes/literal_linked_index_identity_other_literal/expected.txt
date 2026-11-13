@@ -1,4 +1,0 @@
-actual `Indexed<N + 1>` and expected `Indexed<N>` are distinct normalized instances
-actual `Indexed<N * 2>` and expected `Indexed<N>` are distinct normalized instances
-actual `Indexed<8 + 1>` and expected `Indexed<8>` are distinct normalized instances
-actual `Indexed<8 * 2>` and expected `Indexed<8>` are distinct normalized instances

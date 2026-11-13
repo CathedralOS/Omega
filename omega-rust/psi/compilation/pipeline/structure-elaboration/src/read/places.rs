@@ -46,7 +46,7 @@ use typed_trees::expression::{
 use typed_trees::name::Identifier;
 use typed_trees::types::TypeReferenceNode;
 
-use super::contracts::{ClauseScope, DataSubject, ResultTerm};
+use super::contracts::{ClauseScope, DataSubject, MathematicalTerms, ResultTerm};
 use super::{Program, Slot};
 use crate::body::{CaseType, Expression, ExpressionKind, RecordField, RecordType, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
@@ -202,6 +202,7 @@ impl Program<'_> {
             owner: SymbolHandle::invalid(),
             result: ResultTerm::Absent("result in a data clause"),
             formal_fields: false,
+            mathematical: MathematicalTerms::Refused("mathematical comparison in a data requires"),
             subject: Some(DataSubject {
                 record,
                 symbol: data.predicate_subject_symbol,

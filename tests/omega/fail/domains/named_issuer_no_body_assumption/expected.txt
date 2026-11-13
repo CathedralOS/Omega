@@ -1,1 +1,0 @@
-cannot prove requires contract for call consume from Factory::issue: token in Token::Issued

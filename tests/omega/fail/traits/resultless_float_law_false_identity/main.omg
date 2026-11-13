@@ -1,6 +1,0 @@
-
-machine false_identity(first: f64, second: f64)
-ensures first == second
-{}
-
-machine main() { false_identity(1.0f64, 2.0f64); }

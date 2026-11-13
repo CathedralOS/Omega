@@ -1,1 +1,0 @@
-machine `default_is_none` ensures contract proof fact `zero_value<type>() == Optional::Some` is disproved structurally

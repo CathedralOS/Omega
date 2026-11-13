@@ -1,2 +1,0 @@
-module right;
-public const Count: u64 = 3;

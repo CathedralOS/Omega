@@ -1,1 +1,0 @@
-cannot prove requires contract for call write from write: bytes in [u8; N]::Ascii

@@ -1,2 +1,0 @@
-cannot use `value.slot`
-after `value.slot` was transferred or consumed

@@ -1,7 +1,0 @@
-data Point [copy] { horizontal: u64; vertical: u64; }
-domain Point::Screen established by screen;
-machine screen() -> Point in Screen { Point { horizontal: 30, vertical: 40 } }
-machine inspect(point: Point in Screen) {
-    let { horizontal as _, vertical as _ } = point;
-    let discarded: () = point;
-}

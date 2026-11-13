@@ -1,5 +1,0 @@
-machine empty(items: &[u64]) -> bool { items.len == 0 }
-machine main() -> bool {
-    let items: [i32; 0] = [];
-    empty(&items)
-}

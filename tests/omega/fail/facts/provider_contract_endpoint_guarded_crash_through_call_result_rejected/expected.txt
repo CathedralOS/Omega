@@ -1,2 +1,0 @@
-constant expression `limit()` can crash with [Trap]
-a build-time value must be formed without an unhandled crash route

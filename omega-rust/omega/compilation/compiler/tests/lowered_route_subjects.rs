@@ -50,55 +50,55 @@ enum Expected {
 /// includes the four that PR names.
 const UNCALLED_DEFECTS: &[(&str, Expected)] = &[
     (
-        "tests/omega/fail/arithmetic/unformed_contradiction_cannot_hide_overflow",
+        "tests/fixtures/fail/arithmetic/unformed_contradiction_cannot_hide_overflow",
         Expected::Rejected,
     ),
     (
-        "tests/omega/fail/constants/target_layout_derived_ground_guarantee_reject",
+        "tests/fixtures/fail/constants/target_layout_derived_ground_guarantee_reject",
         Expected::Rejected,
     ),
     (
-        "tests/omega/fail/contracts/overwritten_requirement_cannot_rule_out_branch",
+        "tests/fixtures/fail/contracts/overwritten_requirement_cannot_rule_out_branch",
         Expected::Rejected,
     ),
     (
-        "tests/omega/fail/contracts/ruled_out_caller_does_not_bound_callee_body",
+        "tests/fixtures/fail/contracts/ruled_out_caller_does_not_bound_callee_body",
         Expected::Rejected,
     ),
     (
-        "tests/omega/fail/contracts/unproved_branch_is_not_contradiction",
+        "tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction",
         Expected::Rejected,
     ),
     (
-        "tests/omega/fail/arithmetic/integer_multiple_remainder_stale_capture",
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_stale_capture",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/adapter_input_membership_is_not_result",
+        "tests/fixtures/fail/contracts/adapter_input_membership_is_not_result",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/ruled_out_branch_requires_resolved_names",
+        "tests/fixtures/fail/contracts/ruled_out_branch_requires_resolved_names",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/dyn_requirement_float_nonreflexive",
+        "tests/fixtures/fail/proofs/dyn_requirement_float_nonreflexive",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/normal_return_expression_statement_is_not_return",
+        "tests/fixtures/fail/proofs/normal_return_expression_statement_is_not_return",
         Expected::Incomplete,
     ),
     (
-        "tests/omega/fail/proofs/wrapping_zero_product_does_not_cancel_factor",
+        "tests/fixtures/fail/proofs/wrapping_zero_product_does_not_cancel_factor",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/termination/computed_rank_no_decrease",
+        "tests/fixtures/fail/termination/computed_rank_no_decrease",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/termination/native_layout_family_circular",
+        "tests/fixtures/fail/termination/native_layout_family_circular",
         Expected::FallsBack,
     ),
 ];
@@ -109,147 +109,147 @@ const UNCALLED_DEFECTS: &[(&str, Expected)] = &[
 /// whose entry is `machine main() {}`.
 const OTHER_SWEPT_DEFECTS: &[(&str, Expected)] = &[
     (
-        "tests/omega/fail/arithmetic/integer_multiple_remainder_exact_overflow",
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_exact_overflow",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/arithmetic/integer_multiple_remainder_saturation",
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_saturation",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/arithmetic/integer_multiple_remainder_signed_minimum",
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_signed_minimum",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/arithmetic/integer_multiple_remainder_wrapping",
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_wrapping",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/arithmetic/integer_multiple_remainder_zero_divisor",
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_zero_divisor",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/match_contract_partial_operand_rejected",
+        "tests/fixtures/fail/contracts/match_contract_partial_operand_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/match_contract_replaced_subject_rejected",
+        "tests/fixtures/fail/contracts/match_contract_replaced_subject_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/match_contract_unknown_arm_rejected",
+        "tests/fixtures/fail/contracts/match_contract_unknown_arm_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/match_contract_wrong_case_rejected",
+        "tests/fixtures/fail/contracts/match_contract_wrong_case_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/recursive_result_bound_changed_actual",
+        "tests/fixtures/fail/contracts/recursive_result_bound_changed_actual",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/ruled_out_arm_value_does_not_reach_join",
+        "tests/fixtures/fail/contracts/ruled_out_arm_value_does_not_reach_join",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/written_element_cannot_rule_out_branch",
+        "tests/fixtures/fail/contracts/written_element_cannot_rule_out_branch",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/core/content_projection_foreign_package",
+        "tests/fixtures/fail/core/content_projection_foreign_package",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/core/scoped_integer_call_wrapping_actual_requires_formation",
+        "tests/fixtures/fail/core/scoped_integer_call_wrapping_actual_requires_formation",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/applied_callable_unproven_law",
+        "tests/fixtures/fail/proofs/applied_callable_unproven_law",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/dyn_requirement_float_alias_inequality",
+        "tests/fixtures/fail/proofs/dyn_requirement_float_alias_inequality",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/dyn_requirement_float_alias_negated",
+        "tests/fixtures/fail/proofs/dyn_requirement_float_alias_negated",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/dyn_requirement_float_alias_strict",
+        "tests/fixtures/fail/proofs/dyn_requirement_float_alias_strict",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/mathematical_negated_custom_order",
+        "tests/fixtures/fail/proofs/mathematical_negated_custom_order",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/mathematical_negated_ieee_order",
+        "tests/fixtures/fail/proofs/mathematical_negated_ieee_order",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/quotient_runtime_affine_carrier",
+        "tests/fixtures/fail/proofs/quotient_runtime_affine_carrier",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/quotient_runtime_false_relation",
+        "tests/fixtures/fail/proofs/quotient_runtime_false_relation",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/quotient_runtime_false_result",
+        "tests/fixtures/fail/proofs/quotient_runtime_false_result",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/quotient_runtime_routed_carrier",
+        "tests/fixtures/fail/proofs/quotient_runtime_routed_carrier",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/quotient_theorem_private_crash_rejected",
+        "tests/fixtures/fail/proofs/quotient_theorem_private_crash_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/referenced_law_slot_ambiguous",
+        "tests/fixtures/fail/proofs/referenced_law_slot_ambiguous",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/result_index_authored_operator",
+        "tests/fixtures/fail/proofs/result_index_authored_operator",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/result_index_lexical_operator",
+        "tests/fixtures/fail/proofs/result_index_lexical_operator",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/result_index_shadowed_result",
+        "tests/fixtures/fail/proofs/result_index_shadowed_result",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/structural_application_premise_unknown_rejected",
+        "tests/fixtures/fail/proofs/structural_application_premise_unknown_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/targets/target_local_precondition_rejected",
+        "tests/fixtures/fail/targets/target_local_precondition_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/termination/computed_rank_guard_write",
+        "tests/fixtures/fail/termination/computed_rank_guard_write",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/termination/computed_rank_operand_write",
+        "tests/fixtures/fail/termination/computed_rank_operand_write",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/termination/computed_rank_static_arity",
+        "tests/fixtures/fail/termination/computed_rank_static_arity",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/termination/native_layout_family_missing_premise",
+        "tests/fixtures/fail/termination/native_layout_family_missing_premise",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/termination/native_layout_family_unpromised",
+        "tests/fixtures/fail/termination/native_layout_family_unpromised",
         Expected::FallsBack,
     ),
 ];
@@ -343,7 +343,7 @@ fn no_other_swept_program_with_an_uncalled_defect_is_accepted() {
 fn an_uncalled_machine_is_lowered_and_judged_like_a_called_one() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let frontier =
-        rejected_frontier("tests/omega/fail/contracts/unproved_branch_is_not_contradiction");
+        rejected_frontier("tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction");
     let entry = *frontier.entries.first().expect("the Build binds an entry");
     let (machines, verdict) = route_verdict(&frontier);
     let machines = machines.expect("the whole program is inside the lowered subset");
@@ -390,42 +390,42 @@ fn an_uncalled_machine_is_lowered_and_judged_like_a_called_one() {
 /// --every-machine` judges it.
 const ANONYMOUS_TREES_WITHOUT_A_LANDING: &[(&str, &str, &str)] = &[
     (
-        "tests/omega/fail/arithmetic/fractional_integer_landing",
+        "tests/fixtures/fail/arithmetic/fractional_integer_landing",
         "value",
         "expression fractional anonymous value",
     ),
     (
-        "tests/omega/fail/arithmetic/fractional_integer_operand",
+        "tests/fixtures/fail/arithmetic/fractional_integer_operand",
         "value",
         "expression fractional anonymous value",
     ),
     (
-        "tests/omega/fail/arithmetic/anonymous_remainder_rejected",
+        "tests/fixtures/fail/arithmetic/anonymous_remainder_rejected",
         "run",
         "expression anonymous operation without an exact meaning",
     ),
     (
-        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "returned",
         "expression anonymous value with a fractional intermediate",
     ),
     (
-        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "local",
         "expression anonymous value with a fractional intermediate",
     ),
     (
-        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "field",
         "expression anonymous value with a fractional intermediate",
     ),
     (
-        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "argument",
         "expression anonymous value with a fractional intermediate",
     ),
     (
-        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "half",
         "expression anonymous value with a fractional intermediate",
     ),
@@ -482,7 +482,7 @@ fn another_package(frontier: &compiler::TypedFrontier) -> semantic_vocabulary::P
 fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let frontier =
-        rejected_frontier("tests/omega/fail/contracts/unproved_branch_is_not_contradiction");
+        rejected_frontier("tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction");
     let another = another_package(&frontier);
     // Checked as a dependency of some other package, the fixture's machines
     // are judged only when an entry reaches them.
@@ -511,7 +511,7 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
 fn a_declaration_the_build_selects_is_judged_or_handed_back() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let frontier =
-        rejected_frontier("tests/omega/fail/contracts/unproved_branch_is_not_contradiction");
+        rejected_frontier("tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction");
     let entry = *frontier.entries.first().expect("the Build binds an entry");
     let another = another_package(&frontier);
     let typed = &frontier.typed;
@@ -897,7 +897,7 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
 fn a_requirement_rules_out_the_crash_routes_it_contradicts() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let ruled_out = rejected_frontier(
-        "tests/omega/pending/contracts/requires_disequality_rules_out_crash_route_exit",
+        "tests/fixtures/pending/contracts/requires_disequality_rules_out_crash_route_exit",
     );
     let verdict = route_verdict(&ruled_out).1;
     assert!(
@@ -905,7 +905,7 @@ fn a_requirement_rules_out_the_crash_routes_it_contradicts() {
         "every route is ruled out: {verdict:?}"
     );
     let left_open = rejected_frontier(
-        "tests/omega/fail/contracts/requires_disequality_leaves_crash_route_open",
+        "tests/fixtures/fail/contracts/requires_disequality_leaves_crash_route_open",
     );
     let verdict = route_verdict(&left_open).1;
     assert!(
@@ -924,7 +924,7 @@ fn a_requirement_rules_out_the_crash_routes_it_contradicts() {
 fn a_call_into_another_packages_private_machine_is_never_accepted() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let wrong = wrong_verdicts(&[(
-        "tests/omega/fail/build/executed_dependency_private_call",
+        "tests/fixtures/fail/build/executed_dependency_private_call",
         Expected::FallsBack,
     )]);
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
@@ -939,7 +939,7 @@ fn a_call_into_another_packages_private_machine_is_never_accepted() {
 fn a_statement_that_drops_its_value_is_never_accepted() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let wrong = wrong_verdicts(&[(
-        "tests/omega/fail/calls/non_unit_compound_expression_requires_use",
+        "tests/fixtures/fail/calls/non_unit_compound_expression_requires_use",
         Expected::FallsBack,
     )]);
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));

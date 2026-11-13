@@ -1,5 +1,0 @@
-domain u64::Issued established by issue;
-machine issue() -> u64 in Issued { 7 }
-// A completed value and a destination annotation do not issue membership.
-const FORGED: u64 in Issued = 7;
-machine main() {}

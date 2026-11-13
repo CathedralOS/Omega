@@ -9,7 +9,7 @@ fn project(fixture: &str) -> TemporaryDirectory {
         .ancestors()
         .nth(4)
         .unwrap()
-        .join("tests/omega/pass")
+        .join("tests/fixtures/pass")
         .join(fixture);
     for name in ["build.omg", "main.omg"] {
         std::fs::copy(fixture.join(name), temporary.path().join(name)).unwrap();

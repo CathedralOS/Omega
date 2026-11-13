@@ -1,5 +1,0 @@
-use lookalike;
-// A generated generic name has no compiler accessor execution authority.
-machine rejected(value: &lookalike::Accessor<u32>) -> u32 {
-    lookalike::Accessor::read<u32>(value)
-}

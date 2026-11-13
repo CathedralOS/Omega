@@ -1,1 +1,0 @@
-cannot prove ensures contract for exit from Main::spoil at statement 1: main.raw in [u8; N]::Utf8

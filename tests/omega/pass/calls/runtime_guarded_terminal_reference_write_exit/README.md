@@ -1,1 +1,0 @@
-Both guarded terminal call arms and a generic identity helper return an exclusive reference to caller storage. Writes through successive returned references must update that storage from 70 to 71 to 72 to 73, and reads through the references and the original owner must agree. Both engines must exit zero.

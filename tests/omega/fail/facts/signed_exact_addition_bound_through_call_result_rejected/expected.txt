@@ -1,1 +1,0 @@
-machine `compute_sum` cannot prove ensures contract proof fact `result >= 30 && result <= 70`

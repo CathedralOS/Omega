@@ -1,1 +1,0 @@
-named constant `Short` has type `[u8; 1]`, expected `[u8; 2]`

@@ -1,5 +1,0 @@
-use foreign::SELECTED;
-data Token [copy] { value: u64; }
-data Indexed<const Choice: Token> { value: u8; }
-machine keep(value: Indexed<SELECTED>) -> Indexed<SELECTED> { value }
-machine main() {}

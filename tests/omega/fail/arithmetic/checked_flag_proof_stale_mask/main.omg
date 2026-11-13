@@ -1,6 +1,0 @@
-machine main() { observe(7u64); }
-machine observe(raw:u64) {
- let mut snapshot:u64=(raw &18446744073709549354u64)|64u64;
- snapshot=0u64;
- asm { observed requires (snapshot &64u64)==64u64: nop }
-}

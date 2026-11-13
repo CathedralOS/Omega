@@ -1,6 +1,0 @@
-machine inspect(values: &mut [u64]) -> u64 { values.len }
-
-machine main() -> u64 {
-    let mut values: [u64; 4];
-    inspect(&values[0..2])
-}

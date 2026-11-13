@@ -1,9 +1,0 @@
-// One scalar occurs at two different indexed sites. After mutation it still
-// fits the inner extent three, but it cannot select the outer extent two.
-data Matrix { cells: [[u8; 3]; 2]; }
-machine main() {
-    let mut matrix: Matrix;
-    let mut index: u64 = 1;
-    index = 2;
-    matrix.cells[index][index] = 70;
-}

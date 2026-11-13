@@ -1,7 +1,0 @@
-data Scratch { value: u64; }
-machine convert(value: addr) -> u64
-requires addr::Bound == 340282366920938463463374607431768211456
-{
-    let scratch: Scratch;
-    value as u64
-}

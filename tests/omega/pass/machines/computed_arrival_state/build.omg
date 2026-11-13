@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "computed_arrival_state");
-    builder.freestanding = true;
-}

@@ -1,9 +1,0 @@
-machine narrow(value: u32) -> u8 {
-    let selected: u8 = match value <= 255u32 {
-        true -> value as u8,
-        _ -> 0u8
-    };
-    value as u8
-}
-
-machine main() { let value: u8 = narrow(300u32); }

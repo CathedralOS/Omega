@@ -1,3 +1,0 @@
-// Prepared scalar interval facts do not change the mathematical carrier.
-let same(value:i64):core::Strict<0> = value == value;
-machine main() ensures same(1i64 + 2i64) {}

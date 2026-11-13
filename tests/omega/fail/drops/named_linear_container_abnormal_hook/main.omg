@@ -1,6 +1,0 @@
-data Receipt [linear] dropped by drop_receipt { code: u64; }
-data Envelope { receipt: Receipt; }
-machine drop_receipt(receipt: &mut Receipt) crashes Trap { crash Trap; }
-machine main() crashes Trap {
-    let envelope: Envelope = Envelope { receipt: Receipt { code: 13 } };
-}

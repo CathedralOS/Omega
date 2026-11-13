@@ -1,5 +1,0 @@
-machine invalid(value: u64) -> u64
-    requires value >= 16, value <= 31
-    ensures (value & 16u64) >= 17
-{ value & 16u64 }
-machine main() {}

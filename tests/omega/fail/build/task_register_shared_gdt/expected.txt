@@ -1,1 +1,0 @@
-argument `gdt` for state `activate` is declared `&mut` (`&mut [u64; 5]`), but the caller lends only immutable access

@@ -1,2 +1,0 @@
-data Quotient [linear] = Carrier % equivalent;
-machine main() {}

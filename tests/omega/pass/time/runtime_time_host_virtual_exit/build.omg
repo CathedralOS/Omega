@@ -1,6 +1,0 @@
-// Interpreter-only time-host canary: the virtual host has no native entry.
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "runtime_time_host_virtual_exit");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
-}

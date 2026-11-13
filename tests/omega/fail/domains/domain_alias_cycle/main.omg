@@ -1,6 +1,0 @@
-data Socket {}
-
-public domain Socket::Usable = Socket::Ready;
-public domain Socket::Ready = Socket::Usable;
-
-machine main() {}

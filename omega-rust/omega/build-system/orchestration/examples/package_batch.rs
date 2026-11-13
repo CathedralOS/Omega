@@ -164,7 +164,7 @@ fn request() -> Result<Request, Box<dyn std::error::Error>> {
     let root_argument = arguments.next();
     let root = root_argument
         .unwrap_or_else(|| {
-            "tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg".to_owned()
+            "tests/fixtures/pass/targets/shared_program_distinct_roots_exit/main.omg".to_owned()
         })
         .into();
     let targets = target::ExplicitTargetSet::from_caller_names(target_names.split(','))

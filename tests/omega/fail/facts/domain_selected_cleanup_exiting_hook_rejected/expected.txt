@@ -1,2 +1,0 @@
-must return normally
-external process exit

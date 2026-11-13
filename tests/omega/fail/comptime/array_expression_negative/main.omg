@@ -1,2 +1,0 @@
-// Refuse the authored extent obligation before execution.
-machine main() { let cells: [u8; 2 - 3]; }

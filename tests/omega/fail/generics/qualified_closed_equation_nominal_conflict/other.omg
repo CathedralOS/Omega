@@ -1,2 +1,0 @@
-module other;
-public data Token [copy] { value: u64; }
