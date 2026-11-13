@@ -653,6 +653,73 @@ pub fn lower_generic(
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
     }
+    for machine in &mut module.machines {
+        let plan = terminal_semantics::plain_affine::plan(machine, &module.structural_types)
+            .map_err(|error| {
+                let (reason, detail) = match error {
+                    terminal_semantics::plain_affine::Error::Unsupported(detail) => {
+                        (terminal_check_tables::RefusalReason::Unsupported, detail)
+                    }
+                    terminal_semantics::plain_affine::Error::Malformed(detail) => (
+                        terminal_check_tables::RefusalReason::ForeignIdentity,
+                        detail,
+                    ),
+                };
+                terminal_check_tables::Refusal {
+                    reason,
+                    machine: machine.id,
+                    concerns: Construct::Machine,
+                    detail: detail.to_owned(),
+                }
+            })?;
+        // Planning records disposal; it does not establish ownership. The
+        // checker reconstructs unavailable uses and the complete edge schedule.
+        for block in &mut machine.blocks {
+            use terminal_psi::Terminator;
+            let append = |edge, actions: &mut Vec<terminal_psi::TerminalAffineCleanupAction>| {
+                if let Ok(position) = plan.cleanup.binary_search_by_key(&edge, |(edge, _)| *edge) {
+                    actions.extend(plan.cleanup[position].1.iter().cloned());
+                }
+            };
+            match &mut block.terminator {
+                Terminator::Jump {
+                    edge,
+                    cleanup_actions,
+                    ..
+                }
+                | Terminator::Return {
+                    edge,
+                    cleanup_actions,
+                    ..
+                }
+                | Terminator::ReturnStructural {
+                    edge,
+                    cleanup_actions,
+                    ..
+                }
+                | Terminator::ReturnUnit {
+                    edge,
+                    cleanup_actions,
+                } => append(*edge, cleanup_actions),
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    append(when_true.edge, &mut when_true.cleanup_actions);
+                    append(when_false.edge, &mut when_false.cleanup_actions);
+                }
+                Terminator::StructuralCase { cases, .. } => {
+                    for case in cases {
+                        append(case.edge, &mut case.cleanup_actions);
+                    }
+                }
+                Terminator::Crash { .. }
+                | Terminator::InvokeNoNormal { .. }
+                | Terminator::ExternalCompletion { .. } => {}
+            }
+        }
+    }
     let mut domains = IdTable::default();
     for (_, record) in records.iter() {
         domains.push(record.requires.clone());

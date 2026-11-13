@@ -229,7 +229,7 @@ pub(crate) fn declare<'a>(
             id,
             identity: identities.intern(&record.identity),
             owns_linear_claim: false,
-            copyable: true,
+            copyable: record.copyable,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
             shape,
@@ -412,6 +412,18 @@ pub(crate) fn borrowed_access(access: language_core::ReferenceAccess) -> Option<
 }
 
 impl Records<'_> {
+    pub(super) fn multiplicity(
+        &self,
+        record: StructuralTypeId,
+        machine: MachineId,
+    ) -> Checked<StructuralMultiplicity> {
+        let record = terminal_check_tables::row(self.types, record, machine, Construct::Machine)?;
+        Ok(if record.copyable {
+            StructuralMultiplicity::Unrestricted
+        } else {
+            StructuralMultiplicity::Affine
+        })
+    }
     /// The primitive structural type `declare` declared for `scalar_type`.
     pub(super) fn primitive(
         &self,
@@ -517,11 +529,15 @@ enum Operand {
     Record(PlaceId),
 }
 
-fn unrestricted_result(place: PlaceId, record: StructuralTypeId) -> StructuralOperationResult {
+fn owned_result(
+    place: PlaceId,
+    record: StructuralTypeId,
+    multiplicity: StructuralMultiplicity,
+) -> StructuralOperationResult {
     StructuralOperationResult {
         place,
         structural_type: record,
-        multiplicity: StructuralMultiplicity::Unrestricted,
+        multiplicity,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
         additional_input_qualifications: Vec::new(),
@@ -748,9 +764,10 @@ impl<'a> Lowering<'a> {
             },
             record,
         )?;
+        let multiplicity = self.records.multiplicity(record, self.id)?;
         self.draft()?.operations.push(Operation::unsuspended(
             operation,
-            OperationResult::Structural(unrestricted_result(place, record)),
+            OperationResult::Structural(owned_result(place, record, multiplicity)),
             kind,
         ));
         self.point = Some(ProgramPoint::AfterOperation(operation));
@@ -876,14 +893,32 @@ impl<'a> Lowering<'a> {
             return Ok(at.root);
         }
         let path = self.storage_path(&at.path)?;
+        let moving = !self.record_type(at.record)?.copyable;
+        if moving && self.borrowed_roots.contains(&at.root) {
+            return Err(refuse(
+                self.id,
+                Construct::Machine,
+                Unserved::Expression("owned extraction from borrowed storage"),
+            ));
+        }
         self.name_entry(at.root, at.place, ValueType::Record(at.record))?;
         let operation = self.operation_identity(expression.source);
         let (root, exact) = self.produce(
             operation,
             at.record,
-            OperationKind::StructuralLeafCopy {
-                source: at.root,
-                path,
+            if moving {
+                OperationKind::MoveStructuralValue {
+                    source: StructuralArgument {
+                        place: at.root,
+                        path,
+                        access: StructuralAccess::Owned,
+                    },
+                }
+            } else {
+                OperationKind::StructuralLeafCopy {
+                    source: at.root,
+                    path,
+                }
             },
         )?;
         // The copy's source is the operation's own `source` and `path`; the
@@ -893,6 +928,16 @@ impl<'a> Lowering<'a> {
             ProgramPoint::AfterOperation(operation),
             Content::Overwritten,
         )?;
+        if moving {
+            self.write(
+                at.place,
+                ProgramPoint::AfterOperation(operation),
+                Content::Vacated,
+            )?;
+            if at.path.is_empty() {
+                self.retire_homes(&[at.root], expression.source)?;
+            }
+        }
         Ok(root)
     }
 

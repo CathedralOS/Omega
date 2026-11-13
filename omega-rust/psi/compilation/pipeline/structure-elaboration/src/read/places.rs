@@ -175,7 +175,15 @@ impl Program<'_> {
                 fields,
             });
         }
+        let copyable =
+            data.properties.multiplicity == language_semantics::Multiplicity::Unrestricted;
+        if copyable && declared.iter().chain(case_types.iter().flat_map(|case| &case.fields)).any(|field| {
+            matches!(field.value_type, ValueType::Record(nested) if self.records.get(nested).is_some_and(|record| !record.copyable))
+        }) {
+            return Err(unserved("copy data with an owned field"));
+        }
         let record: StructuralTypeId = self.records.push(RecordType {
+            copyable,
             identity,
             fields: declared,
             cases: case_types,
@@ -745,11 +753,10 @@ fn record_shape<'m>(
     if data.quotient.is_some() {
         return unserved("quotient data");
     }
-    // Copy eligibility (`places_foundation_lane.md`): "data with no disposal
-    // obligation, no linear or affine field, no reference field and no
-    // attached `Drop`". ownership.md: "Plain unrestricted primitive-array,
-    // scalar-case, and plain record payloads have no disposal obligation."
-    if data.properties.multiplicity != language_semantics::Multiplicity::Unrestricted
+    // Plain affine values need explicit moves and no-code disposal, even when
+    // every field is copyable. Linear claims and selected cleanup machines
+    // require their own disposition contracts and remain outside this reader.
+    if data.properties.multiplicity == language_semantics::Multiplicity::Linear
         || data.cleanup_selection.is_some()
     {
         return unserved("data with custody");

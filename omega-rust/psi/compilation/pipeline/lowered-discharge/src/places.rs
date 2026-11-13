@@ -1204,6 +1204,9 @@ impl<'a> Storage<'a> {
             return Ok(Reached::Unknown);
         };
         Ok(match (&row.stored, asked) {
+            (Stored::Vacated, Asked::Contents(_)) => Reached::Unestablished,
+            (Stored::Vacated, Asked::Case(_)) => Reached::Unknown,
+            (Stored::Vacated, Asked::Window { .. }) => unreachable!("windows are handled above"),
             (Stored::Value(value), Asked::Contents(_)) if beneath.is_empty() => {
                 Reached::Value(*value)
             }
@@ -1807,6 +1810,9 @@ impl<'a> Storage<'a> {
         match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
+            }
+            OperationKind::MoveStructuralValue { source } => {
+                Ok(vec![self.argument(source, concerns)?])
             }
             // structural_access.md: "The source must be readable and
             // established on every incoming path."

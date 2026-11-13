@@ -428,12 +428,68 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
             "machine generic parameters",
         )));
     }
+    let mut affine_unestablished = Vec::new();
+    for machine in &elaboration.module.machines {
+        let plan = match terminal_semantics::plain_affine::plan(
+            machine,
+            &elaboration.module.structural_types,
+        ) {
+            Ok(plan) => plan,
+            Err(error) => {
+                let (reason, detail) = match error {
+                    terminal_semantics::plain_affine::Error::Unsupported(detail) => {
+                        (RefusalReason::Unsupported, detail)
+                    }
+                    terminal_semantics::plain_affine::Error::Malformed(detail) => {
+                        (RefusalReason::ForeignIdentity, detail)
+                    }
+                };
+                return fall_back_or_defect(refusal(
+                    reason,
+                    machine.id,
+                    Construct::Machine,
+                    detail,
+                ));
+            }
+        };
+        if !plan.cleanup.is_empty() {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                machine.id,
+                Construct::Machine,
+                "normal edges omit an affine disposal or home retirement",
+            ));
+        }
+        let sources = elaboration.sources.get(machine.id).ok_or_else(|| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                machine.id,
+                Construct::Machine,
+                "affine machine has no source correspondence",
+            )
+        })?;
+        for unavailable in plan.unavailable {
+            let at = match unavailable.site {
+                terminal_semantics::plain_affine::Site::Operation(operation) => {
+                    Construct::Operation(operation)
+                }
+                terminal_semantics::plain_affine::Site::Edge(edge) => Construct::Edge(edge),
+            };
+            affine_unestablished.push(UnestablishedUse {
+                machine: machine.id,
+                at,
+                site: Some(source_of(sources, machine.id, at)?),
+                detail: "owned storage is used after its value was transferred or ended".to_owned(),
+                declared: None,
+            });
+        }
+    }
     let discharged = match discharge(&mut elaboration) {
         Ok(discharged) => discharged,
         Err(refused) => return fall_back_or_defect(refused),
     };
     let mut unproved = Vec::new();
-    let mut unestablished = Vec::new();
+    let mut unestablished = affine_unestablished;
     let mut conflicts = Vec::new();
     for (machine, result) in discharged.machines.iter() {
         let tables = terminal_check_tables::row(
