@@ -22,7 +22,7 @@ Members: `pass/borrows/runtime_reassigned_view_capture_exit`
 Good: `c2bf4573a2ba`
 Members: `pass/facts/open_const_implementation_private_record_package_exit`
 
-| 1 | pass/run rejected | cannot prove requires contract for call require_cell_value from Main::main: first >= 0 && first <= 100 (needs fact `valu | `pass/borrows/runtime_shared_reference_array_cohort_restoration_exit` | `` |  |  | pending |
+| 1 | pass/run rejected | cannot prove requires contract for call require_cell_value from Main::main: first >= 0 && first <= 100 (needs fact `valu | `pass/borrows/runtime_shared_reference_array_cohort_restoration_exit` | `` |  |  | propagated |
 Members: `pass/borrows/runtime_shared_reference_array_cohort_restoration_exit`
 
 ## Prior-slice rows fixed on main
