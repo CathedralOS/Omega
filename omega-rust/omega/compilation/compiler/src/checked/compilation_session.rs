@@ -29,7 +29,7 @@ use crate::execution_settlement::SelectedCompileOutcome;
 use artifacts::compile_timings::counters;
 use compilation_products::{
     CheckedCompileOutcome, CheckedCompileRequest, CompileFailure, IndependentComponentDiscovery,
-    PreparedCheckedSource, PreparedPackageBuild, RetainedCompilationChecks, SettledCheckReuse,
+    PreparedCheckedSource, PreparedPackageBuild,
 };
 use package_compilation::{PackageCompilationInputs, PackageCompilationSourceInputs};
 use std::path::PathBuf;
@@ -40,9 +40,7 @@ pub struct CompilationSession {
     preparation: compilation_products::SourcePreparation,
     sources: Vec<PreparedSource>,
     pure_builds: build_settings::PureBuildCompilation,
-    checks: RetainedCompilationChecks,
     component_products: Vec<Arc<compilation_products::IndependentComponentProduct>>,
-    pub(crate) selections: psi_compiler::ProductSelections,
 }
 
 struct PreparedSource {
@@ -94,7 +92,6 @@ impl CompilationSession {
                 package_inputs: inputs,
                 build: request.build.resolve_compilation_defaults(inputs),
                 optimization_rollback: request.optimization_rollback,
-                settled_check_reuse: self.reuse(),
             };
             prepare_source_compilation(&request.root_path, source, child, &self.pure_builds)
         })
@@ -172,19 +169,58 @@ impl CompilationSession {
         TypedFrontierCheck::join(frontier, result)
     }
 
+    /// The frozen typed trees of a standalone source program, as the
+    /// lowered-form checker is shown them, without running the program's
+    /// Build and without Psi 05, validation's judgments or Psi 06.
+    ///
+    /// The machine named `entry` in `request.root_path` (`main`, when `entry`
+    /// is `None` and the source declares one) is bound to the request
+    /// target's `ProgramEntry`, as a Build's `Build::bind` would bind it;
+    /// nothing else a Build decides is present. Judge the result with
+    /// `lowered_discharge::judge_compilation`. This is the route's probe
+    /// (`checking::unbuilt_source`), not a way to compile: it yields no
+    /// product.
+    pub fn typed_frontier_without_build(
+        &mut self,
+        request: CheckedCompileRequest,
+        entry: Option<&str>,
+    ) -> Result<Box<super::checking::typed_frontier::TypedFrontier>, CompileFailure> {
+        run_on_compile_thread(|| {
+            let source = self.prepare_source(&request)?;
+            let target = request
+                .target_name
+                .as_deref()
+                .map(|name| target::TargetProfile::from_omega_target_name(Some(name)))
+                .transpose()
+                .map_err(|diagnostic| vec![diagnostic])?;
+            let inputs = request.package_inputs.as_ref();
+            let child = compilation_products::CheckedExecutionRequest {
+                selected_target_profile: target,
+                package_inputs: inputs,
+                build: request.build.resolve_compilation_defaults(inputs),
+                optimization_rollback: request.optimization_rollback,
+                settled_check_reuse: self.reuse(),
+            };
+            super::checking::unbuilt_source::typed_frontier_without_build(
+                &request.root_path,
+                entry,
+                source,
+                child,
+            )
+            .map(Box::new)
+        })
+    }
+
     fn select_completed_source(
         &mut self,
         source: SourceCompilation,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
         frontier: Option<&mut Option<super::checking::typed_frontier::TypedFrontier>>,
     ) -> SelectedCompileOutcome {
-        let mut outcome = match source.select(returned, &mut self.selections, frontier) {
+        let mut outcome = match source.select(returned, frontier) {
             Ok(outcome) => outcome,
             Err(failure) => return refusal(failure),
         };
-        if let Ok(selected) = &outcome.result {
-            self.retain(&selected.retained_checks);
-        }
         self.attach_component_products(&mut outcome);
         outcome
     }
@@ -194,7 +230,7 @@ impl CompilationSession {
         request: CheckedCompileRequest,
     ) -> Result<super::checking::PreparedPackageInvocation, CompileFailure> {
         let source = self.prepare_source(&request)?;
-        begin_package_build_worker(request, source, self.reuse(), &self.pure_builds)
+        begin_package_build_worker(request, source, &self.pure_builds)
     }
 
     pub(super) fn complete_build(
@@ -309,8 +345,7 @@ impl CompilationSession {
             target.build_snapshot(),
             shared.timings,
         )?;
-        let mut execution = target.checked_execution(&shared.build_directory);
-        execution.settled_check_reuse = self.reuse();
+        let execution = target.checked_execution(&shared.build_directory);
         prepare_source_compilation(&shared.root_path, parsed, execution, &self.pure_builds)
     }
 
@@ -319,39 +354,7 @@ impl CompilationSession {
         source: SourceCompilation,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
     ) -> Result<compilation_products::CheckedProductSource, Vec<diagnostics::Diagnostic>> {
-        let checked = source.check(returned, &mut self.selections)?;
-        self.retain(&checked.retained_checks);
-        Ok(checked)
-    }
-
-    pub(crate) fn reuse(&self) -> SettledCheckReuse {
-        SettledCheckReuse {
-            prior: self.checks.clone(),
-            retain: true,
-        }
-    }
-
-    pub(crate) fn retain(&mut self, checks: &RetainedCompilationChecks) {
-        if let Some(build) = &checks.build {
-            retain_judgment(&mut self.checks.sibling_build_checks, build);
-        }
-        if let Some(product) = &checks.product {
-            retain_judgment(&mut self.checks.sibling_product_checks, product);
-        }
-    }
-}
-
-fn retain_judgment(
-    checks: &mut Vec<psi_compiler::RetainedCheck>,
-    check: &psi_compiler::RetainedCheck,
-) {
-    if let Some(retained) = checks
-        .iter_mut()
-        .find(|retained| retained.same_judgment(check))
-    {
-        *retained = check.clone();
-    } else {
-        checks.push(check.clone());
+        source.check(returned)
     }
 }
 

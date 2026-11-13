@@ -16,7 +16,7 @@ checked-trees = { path = "../representations/checked-trees" }
 validation = { path = "../validation" }
 arena = { path = "../../foundation/arena" }
 access-plans = { path = "../../foundation/access-plans" }
-checked-interpreter = { path = "../../interpreter/checked-interpreter" }
+filesystem-authority = { path = "../../foundation/filesystem-authority" }
 psi-terminal-production = { path = "../psi-compiler/terminal-production" }
 terminal-interpreter = { path = "../../interpreter/terminal-interpreter" }
 terminal-installation = { path = "../terminal-installation" }
@@ -39,7 +39,6 @@ symbol-resolved-trees-to-typed-trees = { path = "../pipeline/03_symbol-resolved-
 syntax-trees = { path = "../representations/syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 typed-trees = { path = "../representations/typed-trees" }
-typed-trees-to-checked-trees = { path = "../pipeline/05_typed-trees-to-checked-trees" }
 
 [dev-dependencies]
 source-files-to-tokens = { path = "../pipeline/00_source-files-to-tokens" }

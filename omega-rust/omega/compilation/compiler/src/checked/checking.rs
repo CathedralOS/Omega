@@ -23,11 +23,12 @@ mod product_selections;
 pub(super) mod source_build;
 mod source_checking;
 pub(crate) mod typed_frontier;
+pub(super) mod unbuilt_source;
 
 pub use compilation_products::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
-    PreparedPackageBuild, SettledCheckReuse,
+    PreparedPackageBuild,
 };
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 pub use product_queries::ProductQueries;
@@ -333,7 +334,6 @@ pub(super) fn prepare_settled_package_product(
 pub(super) fn begin_package_build_worker(
     request: CheckedCompileRequest,
     source: PreparedCheckedSource,
-    reuse: SettledCheckReuse,
     owner: &build_settings::PureBuildCompilation,
 ) -> Result<PreparedPackageInvocation, CompileFailure> {
     let selected_target =
@@ -345,7 +345,6 @@ pub(super) fn begin_package_build_worker(
         package_inputs: inputs.as_ref(),
         build: request.build.resolve_compilation_defaults(inputs.as_ref()),
         optimization_rollback: request.optimization_rollback.clone(),
-        settled_check_reuse: reuse,
     };
     let source = source_build::SourceBuild::prepare(&request.root_path, source, child, owner)?;
     Ok(PreparedPackageInvocation {
@@ -363,7 +362,6 @@ pub struct SourceCompilation {
     target: Option<target::TargetProfile>,
     inputs: Option<PackageCompilationInputs>,
     rollback: crate::OptimizationRollback,
-    reuse: SettledCheckReuse,
     source: source_build::SourceBuild,
 }
 
@@ -394,7 +392,6 @@ impl SourceCompilation {
     pub(super) fn select(
         self,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
-        selections: &mut psi_compiler::ProductSelections,
         frontier: Option<&mut Option<typed_frontier::TypedFrontier>>,
     ) -> Result<SelectedCompileOutcome, CompileFailure> {
         let prepared = self.source.complete(returned?, None, None)?;
@@ -403,8 +400,6 @@ impl SourceCompilation {
             self.target,
             self.inputs.as_ref(),
             &self.rollback,
-            self.reuse,
-            selections,
             frontier,
         ))
     }
@@ -412,7 +407,6 @@ impl SourceCompilation {
     pub(super) fn check(
         self,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
-        selections: &mut psi_compiler::ProductSelections,
     ) -> Result<compilation_products::CheckedProductSource, Vec<Diagnostic>> {
         let prepared = self
             .source
@@ -423,14 +417,7 @@ impl SourceCompilation {
             )
             .map_err(CompileFailure::into_diagnostics)?;
         let source = complete_prepared_build(prepared, self.inputs.as_ref())?;
-        check_product_source(
-            source,
-            self.inputs.as_ref(),
-            &self.rollback,
-            self.reuse,
-            selections,
-            None,
-        )
+        check_product_source(source, self.inputs.as_ref(), &self.rollback, None)
     }
 }
 
@@ -443,14 +430,12 @@ pub(super) fn prepare_source_compilation(
     let target = child.selected_target_profile;
     let inputs = child.package_inputs.cloned();
     let rollback = child.optimization_rollback.clone();
-    let reuse = child.settled_check_reuse.clone();
     let source = source_build::SourceBuild::prepare(root, source, child, pure_build_compilation)?;
     Ok(SourceCompilation {
         root: root.to_path_buf(),
         target,
         inputs,
         rollback,
-        reuse,
         source,
     })
 }
@@ -518,24 +503,15 @@ pub(super) fn select_completed_build(
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     rollback: &crate::OptimizationRollback,
-    settled_check_reuse: SettledCheckReuse,
-    selections: &mut psi_compiler::ProductSelections,
     frontier: Option<&mut Option<typed_frontier::TypedFrontier>>,
 ) -> SelectedCompileOutcome {
     let independent_components = prepared
         .built
         .computed_build_config
         .independent_components();
-    match complete_prepared_build(prepared, package_inputs).and_then(|source| {
-        check_product_source(
-            source,
-            package_inputs,
-            rollback,
-            settled_check_reuse,
-            selections,
-            frontier,
-        )
-    }) {
+    match complete_prepared_build(prepared, package_inputs)
+        .and_then(|source| check_product_source(source, package_inputs, rollback, frontier))
+    {
         Ok(source) => crate::execution_settlement::select_product_target(
             &source,
             crate::checked::PreparedProductTarget::capture(

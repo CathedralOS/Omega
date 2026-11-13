@@ -1,33 +1,21 @@
 /*
-    Shared checked-program-to-Terminal Psi (`Psi 06 -> 07 -> 08`) production,
-    calling-signature capture, observation stages, and post-publication
-    application attachment.
+Shared Terminal production and artifact custody. `AcceptedTerminalSource` captures
+an immutable typed owner before the lowered-form checker judges the compilation,
+retains its actual accepted closure, and publishes that exact module with paired
+evidence and genuinely captured source companions. Invocation scope is fixed
+before structural lowering and cannot be added to a portable publication later.
 
-    We sequence `checked-trees-to-lowered-psi`, `lowered-psi-to-lowered-psi`,
-    and `lowered-psi-to-terminal-psi` through `TerminalProductionRequest::produce`,
-    capture boundary calling signatures and source-issued Build companions before
-    publication erases source joins, and attach application roots and `ProgramEntry`
-    receipts to the sealed artifact.
-*/
-
-/*
-    Keeping checked-to-Terminal production below `psi-compiler` lets early
-    build-time evaluation jobs and final product compilation share the exact
-    same lowering, optimization, and canonical publication sequence without
-    recursively importing the source compilation coordinator or duplicating stage
-    pipelines.
-*/
-
-/*
-    Start at `terminal_production` (`TerminalProductionRequest::produce` and
-    `TerminalArtifactProductionError`), `calling_signatures`, `observation`, and
-    `composition_roots` (`TerminalApplicationCustody::attach`) in this file;
-    `build_bindings` owns source-issued Build binding, request, query,
-    filesystem, and provider companions; and `custody` owns
-    `ProducedTerminalProgram` and `PortableTerminalProgram`.
+`custody` binds companions, provenance and independent application receipts to
+the produced code owner. `build_bindings` owns the host-facing companion vocabulary.
+The old checked-tree producer remains only until its separately owned deletion;
+new consumers use the accepted-source factory and never fall back to it.
 */
 
 #![forbid(unsafe_code)]
+
+mod accepted;
+pub use accepted::AcceptedTerminalSource;
+pub use structure_elaboration::Compilation as TerminalSourceCompilation;
 
 mod build_bindings;
 pub(crate) use build_bindings::{
@@ -510,6 +498,7 @@ pub(crate) mod terminal_production {
                 crate::TerminalBuildFilesystem::new(program.view(), filesystem_calls);
             Ok(ProducedTerminalProgram {
                 program,
+                evidence: None,
                 build_bindings,
                 build_requests,
                 build_filesystem,

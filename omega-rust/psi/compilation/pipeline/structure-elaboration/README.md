@@ -8,7 +8,9 @@ tests, dispatch and `match` with payload bindings). It is the second piece of
 [check on the lowered form](../../../../../wiki/drafts/designs/check_on_lowered_form.md):
 it proves nothing, reads no checker fact, and mints every obligation the
 lowered form implies without discharging any. It is not wired into the
-default compile and replaces nothing yet.
+default compile and replaces nothing yet. To run it and the discharge on a source
+program without the Build or the old checker, see
+[Running the checker on a source program](../lowered-discharge/README.md#running-the-checker-on-a-source-program).
 
 Start at [lib.rs](src/lib.rs) (`elaborate`). [read.rs](src/read.rs) resolves a
 machine's typed trees into the closed body of [body.rs](src/body.rs);
@@ -43,7 +45,9 @@ assignment to them; integer and Boolean literals; wholly anonymous `+`, `-`,
 is an integer of the context's type reached with no fractional intermediate,
 any other such tree (fractional anywhere, out of range, or under an operator
 with no anonymous meaning) being refused; builtin `Exact` integer
-arithmetic, bitwise operations, shifts and comparisons; `!`, `~`, `&&` and
+arithmetic, bitwise operations, shifts and comparisons; integers of type
+`T in Wrapping` and `T in Saturating` with their arithmetic
+([Arithmetic policies](#arithmetic-policies)); `!`, `~`, `&&` and
 `||`; `as` between two integer carriers ([Casts](#casts)); direct calls of other such machines with `requires` clauses over their
 formals and `ensures` clauses over their formals and `result`; `crashes Trap`
 and `crashes Abort` clauses with or without route guards over the formals;
@@ -255,11 +259,74 @@ nothing and is its operand.
 
 The reader decides from what the typed trees record, never from the cast's
 spelling: a recast (`CastForm::Recast`), a cast with a domain symbol, a cast
-into a `Wrapping`, `Saturating` or `Trapping` type, a target that is a
-constrained type, and an operand with no carrier of its own (an anonymous
+into `Trapping`, a cast that changes the carrier of a policy-qualified
+integer ([Arithmetic policies](#arithmetic-policies) serves the one that
+keeps it), and an operand with no carrier of its own (an anonymous
 literal or rational expression, which the
 [numeric landing rules](../../../../../wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics)
 land) are each refused as `Unsupported`.
+
+### Arithmetic policies
+
+An integer formal, local, result or field may be of type `T in Wrapping` or
+`T in Saturating`, for a builtin integer `T`. Such a type is a different
+type from `T` (`ValueType::Qualified`), stored and compared as `T`
+([numeric values](../../../../../wiki/spec/language/numeric_values.md#overflow-policies):
+"Adding and removing a policy domain ... change future operations, not
+existing payloads"). Every typing rule compares the whole type, so a
+destination takes only a value whose type carries exactly its policy
+([domains](../../../../../wiki/spec/language/domains.md#literals-and-expected-types):
+"the supplied expression's static type must carry exactly the domains the
+destination declares").
+
+- **Operators.** `+`, `-`, `*`, `/`, `%`, `<<` and `>>` over two operands of
+  one policy, or over one such operand and a literal, are that policy's
+  operation and their result carries the policy
+  ([policy domains](../../../../../wiki/spec/language/numeric_values.md#policy-domains)).
+  Lowering names the operation, `WrappingIntegerAdd`, `SaturatingIntegerAdd`
+  and so on. A Wrapping or Saturating add, subtract and multiply is total
+  and owes nothing; a divide and a remainder owe their divisor under either
+  policy ("An overflow policy does not invent a result for undefined
+  operands such as an integer zero divisor"); a Wrapping shift reduces its
+  count and is total. A shift's count keeps its own plain type. The
+  comparisons compare the stored values and return `bool`.
+- **Casts.** `x as T in Wrapping` and `w as T` add and remove the policy.
+  The cast is its operand (`ExpressionKind::Requalify`): no operation is
+  emitted, and the operand keeps whatever operations its own type chose.
+  When `x` is a plain integer of another carrier, the carrier is converted
+  first by the one exact conversion of [Casts](#casts), with its
+  `OperationSafety` obligation when it narrows: a policy never makes `as`
+  truncate or clamp
+  ([domains](../../../../../wiki/spec/language/domains.md#domain-casts):
+  "`as` never calls user code, rounds, saturates, traps"). A literal operand
+  lands in the carrier the cast names, so `5 as u32 in Wrapping` is the
+  Wrapping constant.
+- **Suffixed operators.** Stage 04 rewrites `a +% b` to
+  `((a as T in Wrapping) + (b as T in Wrapping)) as T` and `a +| b`
+  likewise, so both are read as the casts and the operation above.
+- **Contracts.** A clause names a policy-qualified formal, field or result
+  as its stored value.
+
+The checker takes each operation's obligation and result equation from
+Terminal semantics, so a policy operation is judged as itself: nothing here
+tells it that a Wrapping sum is the mathematical sum, and it has no rule that
+bounds one.
+
+Refused by name:
+
+| Construct | Refusal detail |
+| --- | --- |
+| `T in Trapping`, whose every operation is its own `Trap` site, and a cast into it | `type constrained by Trapping`, `expression cast into Trapping` |
+| a type constrained by a declared domain, alone or beside a policy | `type constrained by a domain that is not one arithmetic policy` |
+| a policy on `bool` or a float | `type arithmetic policy on a type that is not an integer` |
+| an operator over a policy-qualified operand and a plain binding: open owner question `policy-operator-plain-operand` | `expression operator between a policy-qualified operand and a plain operand that is not a literal` |
+| operands under two different policies | `typing operands under two arithmetic policies` |
+| `&`, `\|`, `^` and `~` over a policy-qualified operand, which the policy catalog has no row for | `expression bitwise operator on a policy-qualified operand`, `typing unary operand type` |
+| a Saturating shift, which owes the Exact count proof under an operation the lowering does not emit | `expression saturating shift` |
+| a shift whose count is policy-qualified | `expression shift by a policy-qualified count` |
+| a cast that changes the carrier of an integer that already carries a policy ("Rejected: each of these changes the carrier of a qualified value") | `expression cast that changes the carrier of a policy-qualified integer` |
+| a literal or other plain value where a policy-qualified one is declared: `let x: u32 in Wrapping = 5;`, an argument, a field initializer, a result ("An expected type selects the carrier in which an anonymous literal lands. It never inserts a domain cast") | `typing local initializer without the arithmetic policy of its local`, `typing argument types`, `typing record literal field type`, `typing arm value type`, `typing final value type`, `typing assigned value type` |
+| a policy-qualified local declared without an initializer, `&T in Wrapping`, a loan of such a place, an `[erased]` one, and a value `match` that yields one | `statement uninitialized local of a policy-qualified type`, `parameter reference to a policy-qualified integer`, `call loan of a policy-qualified integer`, `parameter erased parameter of a policy-qualified type`, `expression match with a policy-qualified result` |
 
 ### Erased scalar bindings
 
@@ -369,6 +436,28 @@ Named affine locals reserve storage distinct from their initializer or call
 result. This first ownership slice requires no-code cleanup and no conserved
 claim: nominal cleanup hooks, linear data, reference-bearing fields, borrowed
 extraction and incompatible affine frontiers at joins are refused.
+
+A declaration may state lifetime parameters, `data Outer<'a>`, and a field
+may apply such data at them, `inner: Inner<'a>`. A lifetime argument selects
+nothing a value is made of
+([lifetimes](../../../../../wiki/spec/language/lifetimes.md#binders-and-source-applications):
+"Lifetime arguments are erased regions, separate from runtime generic arity,
+layout and monomorphization."), so the declaration is one record type
+whatever lifetimes a use applies it at, and a formal, local or result may
+name it bare. What a lifetime relates is a stored view ("A lifetime relates a
+borrowed result or stored view to storage that remains valid for its use"),
+and no field type served here stores one, so a served declaration carries no
+lifetime relation or loan: a reference field is refused as `type reference`
+until the slice that stores views and accounts for them. The reader checks
+the declaration and each application itself, because the stage that did is
+being removed ("They must match the declaration's lifetime arity and use
+binders declared in the lexical owner. Duplicate binders and undeclared tags
+reject."). The owner of the lifetimes an application names is the typed
+trees' answer: the declaration they retained for that occurrence of the type,
+as stage 03 does for the type of a literal nested in another literal, and
+otherwise the data declaration whose member is being read. A machine is read
+under no owner, since one that declares lifetime parameters is refused
+(`machine generic parameters`).
 
 A `mut` formal that holds its own value (`mut x: u32`, `mut p: R`) is the
 callee's own storage, initialised from the argument, and is written as a
@@ -497,10 +586,11 @@ the slice that serves it:
 | --- | --- |
 | a `requires` on a case | `type data requires` |
 | a data `requires` clause that calls a machine, compares Booleans with `!=`, does arithmetic, or names something other than `self`, its fields and literals | `contract clause that is not a comparison or conjunction`, `contract ordering of Booleans`, `contract arithmetic clause`, `contract term other than a field of the value or a literal` |
-| a constrained field type or a named domain | `type constrained` |
+| a field type constrained by a declared domain or by `Trapping` | `type constrained by a domain that is not one arithmetic policy`, `type constrained by Trapping` |
 | linear data, or data with a cleanup selection | `type data with custody` |
 | data with common fields beside its cases | `type mixed data` |
-| generic, quotient or opaque data, data with a carry policy, an erased field, retired field identities or no field | `type generic data`, `type quotient data`, `type data without a checked shape`, `type data with a carry policy`, `type data with an erased field`, `type data with retired field identities`, `type data without fields` |
+| a lifetime binder stated twice, a lifetime application with another count of arguments than its declaration's binders or with a tag its owner does not declare, a field that names lifetime-parameterised data without its arguments | `typing data that declares a lifetime twice`, `typing lifetime argument count differs from the data declaration's`, `typing lifetime argument its owner does not declare`, `typing data field that elides a lifetime argument` |
+| data with type, const or machine parameters, an instance of such data, quotient or opaque data, data with a carry policy, an erased field, retired field identities or no field | `type generic data`, `type quotient data`, `type data without a checked shape`, `type data with a carry policy`, `type data with an erased field`, `type data with retired field identities`, `type data without fields` |
 | a store into, or assignment to, a binding that is not `mut` | `statement store into an immutable binding`, `statement assignment to an immutable binding` |
 | a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |
 | `let x;` with neither a type nor an initializer | `statement uninitialized local without a declared type` |
@@ -826,8 +916,9 @@ before it
 "If zero satisfies the default domain, the value is zero-constructible.
 Otherwise the type is gated: construction or checked qualification must
 establish the domain before observation."). Every scalar type the reader
-accepts (`i8`..`u64`, `bool`) admits zero, and a qualified or ranged scalar
-type is refused as `type constrained`, so a scalar home owes no domain
+accepts (`i8`..`u64`, `bool`) admits zero, a scalar type under a declared
+domain is refused, and a policy-qualified local without an initializer is
+refused, so a scalar home owes no domain
 clause and no gated scalar occurs in this subset. The sentence "An
 unestablished local cannot be read"
 ([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md))
@@ -914,7 +1005,7 @@ interpreter loads and runs both.
 
 | Kind | Where | Created at |
 | --- | --- | --- |
-| `OperationSafety` | each `Exact` add, subtract, multiply, divide, remainder, shift (every primitive whose `integer_policy_bridge` has formation conditions), and each cast that is not a widening | the point before the operation |
+| `OperationSafety` | each `Exact` add, subtract, multiply, divide, remainder, shift, each Wrapping or Saturating divide and remainder (every primitive whose `integer_policy_bridge` has formation conditions), and each cast that is not a widening | the point before the operation |
 | `CallRequirement` | one per callee `requires` clause per call, clause = position in the callee's canonical `requires` | the point before the call |
 | `PublishedGuarantee` | one per `ensures` clause, the identity `ContractClause` carries | the entry block |
 | `NormalGuarantee` | one per `ensures` clause per normal exit edge, naming its `PublishedGuarantee` | that edge |

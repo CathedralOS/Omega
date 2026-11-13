@@ -29,6 +29,7 @@ mod contracts;
 mod expressions;
 mod machine;
 mod places;
+mod source_records;
 mod statements;
 mod subjects;
 mod transitions;
@@ -44,6 +45,7 @@ use crate::body::{RecordType, Signature, ValueType};
 use crate::{Unserved, refuse};
 
 pub(crate) struct Program<'t> {
+    pub publication: terminal_codec::TerminalPublication,
     typed: &'t TypedTrees,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
@@ -98,6 +100,13 @@ pub(crate) struct Program<'t> {
     /// The data declarations being resolved, outermost first: a declaration
     /// reached again while on this stack contains itself.
     resolving: Vec<SymbolHandle>,
+    /// The data declaration whose members are being read, which is the
+    /// lexical owner of the lifetimes their types name. Invalid while a
+    /// machine is read: a machine that declares lifetime parameters is
+    /// refused before its formals are (`machine_shape`), so there a type
+    /// may name only lifetimes the typed trees retained an owner for
+    /// (`types`, `value_type`).
+    lifetime_owner: SymbolHandle,
     /// How many `StructuralFieldId`s the records above hold.
     fields_minted: u64,
     /// How many `StructuralCaseId`s the sums above hold.
@@ -152,6 +161,7 @@ fn span<'a, T: Default>(
 impl<'t> Program<'t> {
     pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
         Self {
+            publication: terminal_codec::TerminalPublication::Portable,
             typed,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
@@ -172,6 +182,7 @@ impl<'t> Program<'t> {
             records: IdTable::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
+            lifetime_owner: SymbolHandle::invalid(),
             fields_minted: 0,
             cases_minted: 0,
             captures: Vec::new(),
@@ -915,6 +926,7 @@ mod tests {
         let mut program = Program::new(&typed, false);
         program.record_sources.push(places::RecordSource {
             declaration: point,
+            application: None,
             fields: vec![a, b],
             cases: Vec::new(),
         });

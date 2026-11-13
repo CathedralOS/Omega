@@ -243,7 +243,7 @@ impl CheckingCompilation {
             });
         }
         let runtime_policy = std::sync::Arc::clone(&self.realization.runtime_policy);
-        let checked = self.realization.into_checked_compilation();
+        let checked = self.realization.into_checked_compilation()?;
         let accounting = checked.source_completion_accounting().clone();
         let report = (|| {
             admit_permissions(&checked, &runtime_policy, self.permissions.as_ref(), false)?;
@@ -374,7 +374,7 @@ impl RequestedTerminalCompilation {
         produced: TerminalApplication,
     ) -> Result<CompilationOutput, CompilationProductError> {
         let runtime_policy = std::sync::Arc::clone(&self.realization.runtime_policy);
-        let checked = self.realization.into_checked_compilation();
+        let checked = self.realization.into_checked_compilation()?;
         (|| -> Result<_, CompilationProductError> {
             admit_permissions(&checked, &runtime_policy, self.permissions.as_ref(), true)?;
             checked

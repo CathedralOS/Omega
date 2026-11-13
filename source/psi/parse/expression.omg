@@ -858,26 +858,42 @@ crashes Trap
         }
     }
 
-    // `value as Type`: the shared type grammar reads the target, `in Domain`
-    // included. Prefix operators bind tightest
-    // (wiki/spec/language/expressions.md#operator-declarations),
-    // so a pending borrow or negation reduces first: `&x as &T` casts the
-    // borrow.
+    // A carrier cast and its optional addition are separate semantic nodes.
+    // Domain-only entries retain their written operation; they never reuse a
+    // type's `in` qualifier, which would hide what was added or removed.
     machine cast(parser: &mut Parser, input: &TokenStream) {
         let base: u64 in Trapping = frame_operator_base(parser);
         reduce_until(parser, input, base, 11);
         transition parser.output.accepted {
-            true -> cast_target(parser, input)
+            true -> cast_begin(parser, input)
             _ -> done()
         }
     }
 
-    machine cast_target(parser: &mut Parser, input: &TokenStream) {
+    machine cast_begin(parser: &mut Parser, input: &TokenStream) {
         take_current(parser, input);
+        let addition: bool = at_punctuation(parser, input, PunctuationKind::Plus);
+        let removal: bool = at_punctuation(parser, input, PunctuationKind::Minus);
+        let retention: bool = at_punctuation(parser, input, PunctuationKind::Equal);
+        transition addition || removal || retention {
+            true -> cast_entry(parser, input, false)
+            _ -> cast_target(parser, input)
+        }
+    }
+
+    machine cast_target(parser: &mut Parser, input: &TokenStream) {
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedCastType);
         transition parser.output.accepted {
-            true -> cast_node(parser, input)
+            true -> cast_type_checked(parser, input)
             _ -> done()
+        }
+    }
+
+    machine cast_type_checked(parser: &mut Parser, input: &TokenStream) {
+        let reference: TypeReference = syntax_trees_type_reference(&parser.output, parser.type_result);
+        transition reference.has_domain {
+            true -> reject(parser, input, ParseDiagnosticCode::RetiredCastQualifier)
+            _ -> cast_node(parser, input)
         }
     }
 
@@ -896,6 +912,85 @@ crashes Trap
             type_reference: parser.type_result,
             first_row: 0,
             source_span: parser_source_span(parser, value_expression.source_span.span.start, parser.type_end)
+        };
+        emit_expression(parser, input, node);
+        transition parser.output.accepted {
+            true -> cast_suffix(parser, input)
+            _ -> done()
+        }
+    }
+
+    machine cast_suffix(parser: &mut Parser, input: &TokenStream) {
+        let addition: bool = at_punctuation(parser, input, PunctuationKind::Plus);
+        let removal: bool = at_punctuation(parser, input, PunctuationKind::Minus);
+        let retention: bool = at_punctuation(parser, input, PunctuationKind::Equal);
+        transition addition || removal || retention {
+            true -> cast_entry(parser, input, true)
+            _ -> after_operand(parser, input)
+        }
+    }
+
+    machine cast_entry(parser: &mut Parser, input: &TokenStream, carrier: bool) {
+        let addition: bool = at_punctuation(parser, input, PunctuationKind::Plus);
+        let removal: bool = at_punctuation(parser, input, PunctuationKind::Minus);
+        transition carrier && !addition {
+            true -> reject(parser, input, ParseDiagnosticCode::InvalidCarrierCastEntry)
+            _ -> cast_operation(parser, input, addition, removal)
+        }
+    }
+
+    machine cast_operation(parser: &mut Parser, input: &TokenStream, addition: bool, removal: bool) {
+        transition addition {
+            true -> cast_domain(parser, input, OperatorKind::Add)
+            _ -> cast_nonaddition(parser, input, removal)
+        }
+    }
+
+    machine cast_nonaddition(parser: &mut Parser, input: &TokenStream, removal: bool) {
+        transition removal {
+            true -> cast_domain(parser, input, OperatorKind::Subtract)
+            _ -> cast_domain(parser, input, OperatorKind::Equal)
+        }
+    }
+
+    machine cast_domain(parser: &mut Parser, input: &TokenStream, operation: OperatorKind) {
+        take_current(parser, input);
+        let first: u64 in Trapping = parser.output.name_path_count as u64 +Trapping;
+        parse_name_path(parser, input, ParseDiagnosticCode::ExpectedCastDomain);
+        transition parser.output.accepted {
+            true -> cast_domain_end(parser, input, operation, first)
+            _ -> done()
+        }
+    }
+
+    // The current type row carries one domain. A second entry is an explicit
+    // coverage refusal, never a sequence of separately interpreted casts.
+    machine cast_domain_end(parser: &mut Parser, input: &TokenStream, operation: OperatorKind, first: u64 in Trapping) {
+        let addition: bool = at_punctuation(parser, input, PunctuationKind::Plus);
+        let removal: bool = at_punctuation(parser, input, PunctuationKind::Minus);
+        let retention: bool = at_punctuation(parser, input, PunctuationKind::Equal);
+        let arguments: bool = at_punctuation(parser, input, PunctuationKind::Less);
+        transition addition || removal || retention || arguments {
+            true -> reject(parser, input, ParseDiagnosticCode::UnsupportedCastEntries)
+            _ -> cast_domain_node(parser, input, operation, first)
+        }
+    }
+
+    machine cast_domain_node(parser: &mut Parser, input: &TokenStream, operation: OperatorKind, first: u64 in Trapping) {
+        let value: u64 in Trapping = pop_operand(parser);
+        let value_expression: Expression = syntax_trees_expression(&parser.output, value);
+        let node: Expression = Expression {
+            kind: ExpressionKind::Cast,
+            operator: operation,
+            left: value,
+            right: 0,
+            first: first,
+            count: 1,
+            flag: true,
+            name: identifier_span(parser, 0, 0),
+            type_reference: 0,
+            first_row: 0,
+            source_span: parser_source_span(parser, value_expression.source_span.span.start, parser.name_end)
         };
         emit_expression(parser, input, node);
         transition parser.output.accepted {

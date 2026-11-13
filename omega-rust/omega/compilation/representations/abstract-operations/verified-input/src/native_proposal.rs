@@ -4,6 +4,7 @@
   scope preparation then borrows the complete immutable result.
 */
 use backend_plan::TerminalCallbackOccurrenceProposal;
+use diagnostics::Diagnostic;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeProviders {
     pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
@@ -692,6 +693,10 @@ pub use proposal::{TerminalNativeProposalRequest, project_terminal_native_realiz
 pub struct RetainedTerminalArtifact {
     artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     native_realization_proposal: Option<TerminalNativeRealizationProposal>,
+    /// The evidence seals produced beside this exact in-memory artifact by
+    /// the checker on the lowered form. Terminal Psi's bytes carry no
+    /// evidence, so a product rebuilt from bytes has none.
+    evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
 }
 
 impl RetainedTerminalArtifact {
@@ -702,7 +707,25 @@ impl RetainedTerminalArtifact {
         Self {
             artifact,
             native_realization_proposal: Some(native_realization_proposal),
+            evidence: None,
         }
+    }
+
+    /// Keeps the seals that were produced beside this artifact, so native
+    /// production hands them to Omega 00 with the module they name.
+    pub fn with_evidence(
+        mut self,
+        evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if let Some(evidence) = &evidence {
+            validate_operation_evidence(&self.artifact, evidence)?;
+        }
+        self.evidence = evidence;
+        Ok(self)
+    }
+
+    pub const fn evidence(&self) -> Option<&std::sync::Arc<terminal_codec::EvidenceSeals>> {
+        self.evidence.as_ref()
     }
 
     pub fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
@@ -725,4 +748,24 @@ impl RetainedTerminalArtifact {
     ) {
         (self.artifact, self.native_realization_proposal)
     }
+}
+
+/// Validate the complete in-memory bundle before selecting executable machines.
+/// A foreign or damaged dormant seal cannot disappear through scope filtering.
+pub(crate) fn validate_operation_evidence(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    evidence: &terminal_codec::EvidenceSeals,
+) -> Result<(), Vec<Diagnostic>> {
+    if evidence.module != artifact.view().identity() {
+        return Err(vec![Diagnostic::error(
+            "operation evidence belongs to another canonical artifact",
+        )]);
+    }
+    terminal_codec::EvidenceSealValidator::new(artifact.semantic_module(), &evidence.seals)
+        .validate_all()
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "canonical operation evidence: {error}"
+            ))]
+        })
 }

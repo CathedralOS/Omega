@@ -1,0 +1,83 @@
+// Product compiler entry: one sealed OCREQ V1 request on stdin, one outcome
+// on stdout. Nothing outside the request supplies meaning. The request's
+// phases run in contract order; the first refusal publishes its OCOUT frame
+// and exits with the outcome's tag.
+
+use omega_language_std::Console;
+use omega_language_std::ByteRead;
+
+data Main { }
+
+machine main(context: &mut Main)
+reaches Console
+crashes Trap
+blocks
+{
+    let mut request: Request;
+    clear(&mut request);
+    let mut slot_review: OmegaSlotReview;
+    prepare(&mut slot_review);
+    transition { _ -> block read(context, &mut request) }
+
+    machine read(context: &mut Main, request: &mut Request) {
+        let input: ByteRead = block Console::read_byte();
+        transition input {
+            ByteRead::Byte { value } -> block stage(context, request, value)
+            _ -> envelope(context, request)
+        }
+    }
+
+    machine stage(context: &mut Main, request: &mut Request, value: i32) {
+        request_stage(request, value as u8);
+        transition { _ -> block read(context, request) }
+    }
+
+    machine envelope(context: &mut Main, request: &Request) {
+        let verdict: Verdict = request_envelope(request);
+        transition verdict.complete {
+            true -> structure(context, request, verdict.sections)
+            _ -> publish(context, verdict.outcome)
+        }
+    }
+
+    machine structure(context: &mut Main, request: &Request, sections: Sections) {
+        let outcome: Outcome = request_structure(request, sections);
+        transition { _ -> publish(context, outcome) }
+    }
+
+    machine publish(context: &mut Main, outcome: Outcome) {
+        write_frame(context, outcome);
+        let tag: u8 = outcome_tag_value(outcome.tag);
+        Console::exit_process(tag as i32);
+    }
+}
+
+// The outcome's frame, byte by byte.
+machine write_frame(context: &mut Main, outcome: Outcome)
+reaches Console
+crashes Trap
+{
+    transition { _ -> next(context, outcome, 0) }
+
+    machine next(context: &mut Main, outcome: Outcome, index: u64 in Trapping) {
+        let length: u64 in Trapping = frame_length(outcome);
+        transition index < length {
+            true -> write(context, outcome, index)
+            _ -> done()
+        }
+    }
+
+    machine write(context: &mut Main, outcome: Outcome, index: u64 in Trapping) {
+        let value: u8 = frame_byte(outcome, index);
+        Console::write_byte(value as i32);
+        transition { _ -> next(context, outcome, index + 1) }
+    }
+
+    machine done() {}
+}
+
+// ProgramEntry selects code; ordinary local ownership supplies compiler state.
+machine entry_start() reaches Console crashes Trap blocks {
+    let mut entry_storage: Main;
+    block main(&mut entry_storage);
+}

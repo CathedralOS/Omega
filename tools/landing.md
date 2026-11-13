@@ -17,11 +17,10 @@ Use an isolated detached `worker-N` pool slot, acquired with
 develop in the primary checkout or create local named branches.
 
 Run the checks that establish the changed behavior. Compiler changes need the
-affected crates' unit tests and Clippy, plus one focused corpus run over the
-known affected rows and samples. Documentation changes need a consistency and
-link check. Do not expand these into a full corpus or workspace sweep. Authors
-do not run `corpus --record` or edit `tests/omega/corpus_outcomes.txt`; post-merge
-verification owns the ledger.
+affected crates' unit tests and Clippy, plus the tests on the small area around
+the change and the known affected samples. Documentation changes need a
+consistency and link check. Do not expand these into a workspace sweep. There
+is no fixture corpus to run and no ledger.
 
 Review the actual diff using
 [coordinator-review](../.agents/skills/coordinator-review/SKILL.md), including

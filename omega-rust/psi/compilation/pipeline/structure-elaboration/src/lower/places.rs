@@ -130,8 +130,8 @@ pub(crate) fn declare<'a>(
     types: &'a IdTable<StructuralTypeId, RecordType>,
     bodies: &IdTable<MachineId, Body>,
     signatures: &IdTable<MachineId, Signature>,
+    mut identities: TerminalIdentityTableBuilder,
 ) -> Checked<Declared<'a>> {
-    let mut identities = TerminalIdentityTableBuilder::default();
     let mut field_identities = IdTable::default();
     let mut structural_types = Vec::with_capacity(types.len());
     let mut native_layouts = NativeLayoutCatalog::default();
@@ -152,7 +152,9 @@ pub(crate) fn declare<'a>(
                             Unserved::Type("generic data"),
                         ));
                     }
-                    ValueType::Scalar(scalar_type) => StructuralFieldType::Scalar(scalar_type),
+                    ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
+                        StructuralFieldType::Scalar(scalar_type)
+                    }
                     ValueType::Record(nested) => {
                         // A data type holds only types declared before it,
                         // so the table is acyclic and in dependency order.
@@ -247,7 +249,7 @@ pub(crate) fn declare<'a>(
     let mut homes: Vec<(ScalarType, Option<&String>)> = Vec::new();
     for (_, signature) in signatures.iter() {
         for borrowed in &signature.borrowed {
-            if let Some(ValueType::Scalar(scalar_type)) =
+            if let Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) =
                 signature.parameters.get(borrowed.position).copied()
             {
                 homes.push((scalar_type, borrowed.home.as_ref()));
@@ -260,7 +262,9 @@ pub(crate) fn declare<'a>(
             let Statement::Declare { slot, home, .. } = statement else {
                 continue;
             };
-            let Some(ValueType::Scalar(scalar_type)) = body.slots.get(*slot).copied() else {
+            let Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) =
+                body.slots.get(*slot).copied()
+            else {
                 continue;
             };
             homes.push((scalar_type, home.as_ref()));
@@ -361,7 +365,11 @@ fn expression_homes<'b>(
     match &expression.kind {
         ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) | ExpressionKind::Slot(_) => {}
         ExpressionKind::Borrow { place, home, .. } => {
-            if let (Some(home), Some(ValueType::Scalar(scalar_type))) = (home, place.result) {
+            if let (
+                Some(home),
+                Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)),
+            ) = (home, place.result)
+            {
                 homes.push((scalar_type, Some(home)));
             }
             expression_homes(place, homes);
@@ -369,6 +377,7 @@ fn expression_homes<'b>(
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
+        | ExpressionKind::Requalify(operand)
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
@@ -672,7 +681,9 @@ impl<'a> Lowering<'a> {
     fn entry_leaves(&mut self, place: ExactPlaceId, value_type: ValueType) -> Checked<()> {
         match value_type {
             ValueType::Rigid(_) => Err(self.internal("a field of a rigid type")),
-            ValueType::Scalar(scalar_type) => self.entry_content(place, scalar_type).map(drop),
+            ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
+                self.entry_content(place, scalar_type).map(drop)
+            }
             ValueType::Record(record) => {
                 let data = self.record_type(record)?;
                 for field in &data.fields {
@@ -885,6 +896,7 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)
             | ExpressionKind::Cast(_)
+            | ExpressionKind::Requalify(_)
             | ExpressionKind::ShortCircuit { .. } => {
                 Err(self.internal("a scalar operation has a record type"))
             }
@@ -1020,7 +1032,10 @@ impl<'a> Lowering<'a> {
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
         let (root, steps, exact) = match (&place.kind, value_type) {
-            (ExpressionKind::Slot(slot), ValueType::Scalar(scalar_type)) => {
+            (
+                ExpressionKind::Slot(slot),
+                ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _),
+            ) => {
                 let bound = *self.slot_mut(*slot)?;
                 let home = match bound {
                     Some(Bound::Home(home)) => home,
@@ -1040,7 +1055,10 @@ impl<'a> Lowering<'a> {
                 };
                 (home, Vec::new(), self.exact_root(home)?)
             }
-            (ExpressionKind::Field { base, field }, ValueType::Scalar(_)) => {
+            (
+                ExpressionKind::Field { base, field },
+                ValueType::Scalar(_) | ValueType::Qualified(..),
+            ) => {
                 let at = self.located(base)?;
                 let step = Step::Field {
                     owner: at.record,
@@ -1127,7 +1145,9 @@ impl<'a> Lowering<'a> {
                 .ok_or_else(|| self.internal("a literal names a field past its record"))?;
             let evaluated = match field.value_type {
                 ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
-                ValueType::Scalar(_) => Operand::Scalar(self.scalar(operand)?),
+                ValueType::Scalar(_) | ValueType::Qualified(..) => {
+                    Operand::Scalar(self.scalar(operand)?)
+                }
                 ValueType::Record(_) => Operand::Record(self.record(operand)?),
             };
             if operands[*position].replace(evaluated).is_some() {
@@ -1203,7 +1223,9 @@ impl<'a> Lowering<'a> {
                 .ok_or_else(|| self.internal("a literal names a field past its case"))?;
             let evaluated = match field.value_type {
                 ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
-                ValueType::Scalar(_) => Operand::Scalar(self.scalar(operand)?),
+                ValueType::Scalar(_) | ValueType::Qualified(..) => {
+                    Operand::Scalar(self.scalar(operand)?)
+                }
                 ValueType::Record(_) => Operand::Record(self.record(operand)?),
             };
             if operands[*position].replace(evaluated).is_some() {
@@ -1324,7 +1346,7 @@ impl<'a> Lowering<'a> {
             for field in &selected.fields {
                 parameters.push(match field.value_type {
                     ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
-                    ValueType::Scalar(scalar_type) => {
+                    ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
                         let value = self.value(
                             scalar_type,
                             ValueOrigin::BlockParameter {
@@ -1601,7 +1623,7 @@ impl<'a> Lowering<'a> {
                 }
                 Bound::Record(root)
             }
-            ValueType::Scalar(scalar_type) => {
+            ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
                 let home = self
                     .records
                     .primitives
@@ -1728,7 +1750,7 @@ impl<'a> Lowering<'a> {
             place = self.step(place, step)?;
             record = match declared.value_type {
                 ValueType::Record(nested) => nested,
-                ValueType::Scalar(_) | ValueType::Rigid(_) => {
+                ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_) => {
                     return Err(self.internal("a store path crosses a scalar field"));
                 }
             };
@@ -1754,7 +1776,7 @@ impl<'a> Lowering<'a> {
         }
         match declared.value_type {
             ValueType::Rigid(_) => Err(self.internal("a field of a rigid type")),
-            ValueType::Scalar(_) => {
+            ValueType::Scalar(_) | ValueType::Qualified(..) => {
                 let stored = self.scalar(value)?;
                 let operation = self.operation_identity(source);
                 self.owe_domains(operation, owed, source)?;
@@ -1847,7 +1869,7 @@ impl<'a> Lowering<'a> {
             prefix.push(Segment::Field(field.id));
             match field.value_type {
                 ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
-                ValueType::Scalar(scalar_type) => {
+                ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
                     let zero = self.zero(scalar_type, source)?;
                     zeros.push((prefix.clone(), zero));
                 }

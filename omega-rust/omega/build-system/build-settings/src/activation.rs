@@ -39,7 +39,6 @@ mod source_join;
 mod source_result;
 pub use source_join::BuildDependencySelection;
 pub use source_result::BuildSourceResult;
-pub(crate) use source_result::CompletedBuildSource;
 
 use evaluation_accounting::EvaluationInvocationAccount;
 use language_semantics::declaration_selection::{

@@ -9,14 +9,13 @@
 
 use std::sync::{Arc, Mutex};
 
-use checked_interpreter::{
-    BuildMachineEntry, BuildMachineEvaluationError, BuildMachineEvaluationRequest,
-    BuildMachineProgram, BuildTimeOperationEvaluation, EvaluationSemanticsIdentity,
-    EvaluationUsage,
+use crate::evaluation_requests::{
+    BuildMachineEvaluationError, BuildMachineEvaluationRequest, BuildMachineProgram,
+    BuildTimeOperationEvaluation,
 };
 use typed_trees::TypedTrees;
 
-use crate::{BuildTimeValue, SelectedBuildTimeBinaryOperator, SelectedBuildTimeMachineBody};
+use crate::{BuildTimeValue, SelectedBuildTimeBinaryOperator};
 use compiler_storage::{RecordError, RecordReader};
 use terminal_interpreter::TerminalExecutionResult;
 
@@ -244,91 +243,7 @@ impl PureEvaluationProgram {
 }
 
 #[derive(Debug, Clone, compiler_storage::Record)]
-pub struct PureEvaluationReceipt {
-    program: Arc<PureEvaluationProgram>,
-    machine: symbols::SymbolHandle,
-    arguments: Vec<BuildTimeValue>,
-    operators: Vec<SelectedBuildTimeBinaryOperator>,
-    machine_bodies: Vec<SelectedBuildTimeMachineBody>,
-    outcome: PureEvaluationOutcome,
-    semantics: EvaluationSemanticsIdentity,
-}
-
-#[derive(Debug, Clone, compiler_storage::Record)]
-pub enum PureEvaluationOutcome {
-    Returned {
-        value: BuildTimeValue,
-        usage: EvaluationUsage,
-    },
-    UnmeasuredFailure {
-        reason: BuildMachineEvaluationError,
-    },
-}
-
-impl PureEvaluationReceipt {
-    pub fn program(&self) -> &PureEvaluationProgram {
-        &self.program
-    }
-    pub fn machine(&self) -> symbols::SymbolHandle {
-        self.machine
-    }
-    pub fn arguments(&self) -> &[BuildTimeValue] {
-        &self.arguments
-    }
-    pub fn operators(&self) -> &[SelectedBuildTimeBinaryOperator] {
-        &self.operators
-    }
-    pub fn machine_bodies(&self) -> &[SelectedBuildTimeMachineBody] {
-        &self.machine_bodies
-    }
-    pub fn outcome(&self) -> &PureEvaluationOutcome {
-        &self.outcome
-    }
-    pub fn semantics(&self) -> EvaluationSemanticsIdentity {
-        self.semantics
-    }
-
-    pub fn usage(&self) -> Option<EvaluationUsage> {
-        match &self.outcome {
-            PureEvaluationOutcome::Returned { usage, .. } => Some(*usage),
-            PureEvaluationOutcome::UnmeasuredFailure { .. } => None,
-        }
-    }
-
-    pub fn validate_charge(&self) -> Result<(), String> {
-        if self.semantics != checked_interpreter::CURRENT_EVALUATION_SEMANTICS {
-            return Err("source-completion evaluator semantics changed".to_owned());
-        }
-        if let Some(usage) = self.usage() {
-            SelectedBuildTimeMachineBody::validate_all(self.program.typed(), &self.machine_bodies)?;
-            if usage.schema() != checked_interpreter::CURRENT_EVALUATION_USAGE_SCHEMA
-                || usage.schedule() != checked_interpreter::CURRENT_EVALUATION_STEP_SCHEDULE
-                || usage.work_budget() != checked_interpreter::pure_evaluation_step_ceiling()
-            {
-                return Err(
-                    "source-completion evaluation policy, usage schema or step schedule changed"
-                        .to_owned(),
-                );
-            }
-            checked_interpreter::capture_checked_build_evaluation_usage(usage, None).map_err(
-                |reason| format!("source-completion evaluation usage is invalid: {reason:?}"),
-            )?;
-            if self
-                .program
-                .typed()
-                .machine_by_symbol(self.machine)
-                .is_none()
-            {
-                return Err("source-completion evaluation lost its exact machine".to_owned());
-            }
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, compiler_storage::Record)]
 pub enum PureEvaluationRecord {
-    Checked(PureEvaluationReceipt),
     Terminal(PureTerminalEvaluationReceipt),
     CanonicalScalar(CanonicalScalarEvaluationReceipt),
 }
@@ -336,7 +251,6 @@ pub enum PureEvaluationRecord {
 impl PureEvaluationRecord {
     fn has_complete_usage(&self) -> bool {
         match self {
-            Self::Checked(receipt) => receipt.usage().is_some(),
             Self::CanonicalScalar(receipt) => receipt.returned(),
             Self::Terminal(receipt) => {
                 receipt.program.is_some()
@@ -351,7 +265,6 @@ impl PureEvaluationRecord {
 
     fn validate_charge(&self) -> Result<(), String> {
         match self {
-            Self::Checked(receipt) => receipt.validate_charge(),
             Self::Terminal(receipt) => receipt.validate_charge(),
             Self::CanonicalScalar(receipt) => receipt.validate_charge(),
         }
@@ -658,56 +571,6 @@ impl EvaluationAccounting {
         Ok(Some((ordinal, retained)))
     }
 
-    pub(crate) fn evaluate_terminal(
-        &self,
-        program: BuildMachineProgram<'_>,
-        machine: symbols::SymbolHandle,
-        operators: &[SelectedBuildTimeBinaryOperator],
-        execute: impl FnOnce(
-            &mut psi_work::WorkMeter,
-            &mut Option<Arc<psi_terminal_production::ProducedTerminalProgram>>,
-        ) -> Result<TerminalExecutionResult, String>,
-    ) -> Result<TerminalExecutionResult, String> {
-        if !matches!(
-            program,
-            BuildMachineProgram::Checked(_) | BuildMachineProgram::CheckedClosure { .. }
-        ) {
-            return Err("Terminal source-completion accounting requires checked input".to_owned());
-        }
-        let input = self.reserve_invocation(program)?;
-        let operators = input.as_ref().map(|_| operators.to_vec());
-        let mut meter = psi_work::WorkMeter::with_budget(PURE_PSI_WORK_BUDGET);
-        let mut artifact = None;
-        let evaluation = execute(&mut meter, &mut artifact);
-        if let (Some(state), Some((ordinal, source_program)), Some(operators)) =
-            (&self.state, input, operators)
-        {
-            let receipt = PureTerminalEvaluationReceipt {
-                source_program,
-                machine,
-                arguments: Vec::new(),
-                operators,
-                program: artifact,
-                outcome: match &evaluation {
-                    Ok(value) => PureTerminalEvaluationOutcome::Returned {
-                        value: value.clone(),
-                    },
-                    Err(reason) => PureTerminalEvaluationOutcome::Failed {
-                        reason: reason.clone(),
-                    },
-                },
-                usage: meter.into_usage(),
-                work_budget: PURE_PSI_WORK_BUDGET,
-            };
-            receipt.validate_charge()?;
-            state
-                .lock()
-                .map_err(|_| "source-completion accounting owner is poisoned".to_owned())?
-                .receipts[ordinal] = Some(PureEvaluationRecord::Terminal(receipt));
-        }
-        evaluation
-    }
-
     /// Run one admitted checked invocation as a Terminal program and record the
     /// exact arguments, artifact, materialized value, work and storage usage.
     /// The caller's `execute` owns production, instantiation and readback; it
@@ -775,62 +638,17 @@ impl EvaluationAccounting {
         evaluation
     }
 
+    // The seam for a machine that runs before the program is checked. The tree
+    // interpreter that served it is removed and no build-time job produces a
+    // Terminal program from trees that are not checked yet, so every request is
+    // refused; none is skipped and none is answered with a default value.
     pub(crate) fn evaluate(
         &self,
-        program: BuildMachineProgram<'_>,
-        request: BuildMachineEvaluationRequest<'_>,
+        _program: BuildMachineProgram<'_>,
+        _request: BuildMachineEvaluationRequest<'_>,
+        job: &str,
     ) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, BuildMachineEvaluationError> {
-        let input = self
-            .reserve_invocation(program)?
-            .map(|(ordinal, retained)| {
-                (
-                    ordinal,
-                    retained,
-                    request.entry,
-                    request.arguments.clone(),
-                    request.operators.to_vec(),
-                    request.machine_bodies.to_vec(),
-                )
-            });
-        let evaluation =
-            checked_interpreter::evaluate_prepared_build_time_machine(program, request);
-        if let (
-            Some(receipts),
-            Some((ordinal, program, entry, arguments, operators, machine_bodies)),
-        ) = (&self.state, input)
-        {
-            let machine = match entry {
-                BuildMachineEntry::Symbol(symbol) => symbol,
-                BuildMachineEntry::Name(name) => program
-                    .typed()
-                    .realized_machine_named(name)
-                    .map(|machine| machine.symbol)
-                    .unwrap_or_default(),
-            };
-            let receipt = PureEvaluationReceipt {
-                program,
-                machine,
-                arguments,
-                operators,
-                machine_bodies,
-                outcome: match &evaluation {
-                    Ok(evaluation) => PureEvaluationOutcome::Returned {
-                        value: evaluation.value().clone(),
-                        usage: evaluation.usage(),
-                    },
-                    Err(reason) => PureEvaluationOutcome::UnmeasuredFailure {
-                        reason: reason.clone(),
-                    },
-                },
-                semantics: checked_interpreter::CURRENT_EVALUATION_SEMANTICS,
-            };
-            receipt.validate_charge()?;
-            receipts
-                .lock()
-                .map_err(|_| "source-completion accounting owner is poisoned".to_owned())?
-                .receipts[ordinal] = Some(PureEvaluationRecord::Checked(receipt));
-        }
-        evaluation
+        Err(crate::evaluation_requests::no_typed_tree_engine(job))
     }
 }
 

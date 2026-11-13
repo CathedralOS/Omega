@@ -30,7 +30,7 @@ use std::sync::Arc;
 
 const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
     "terminal-production",
-    "CheckedTrees",
+    "FrozenTypedTrees",
     "CanonicalTerminalArtifact",
 );
 
@@ -159,11 +159,6 @@ impl<'a> TerminalProductRequest<'a> {
         selections: &'a OptimizationSelections,
     ) -> Self {
         let source = ProductCodeSource {
-            program: selection.source_inspection.program(),
-            inventory: selection.source_inspection.inventory(),
-            sources: &selection.sources,
-            build: &selection.build,
-            defaults: &selection.provider_defaults,
             publication: &selection.terminal_publication,
         };
         let view = TerminalProductionView {
@@ -455,13 +450,14 @@ pub(crate) fn produce_retained_terminal_artifacts(
                 Ok(program) => {
                     for (application, custody) in cohort.into_iter().zip(applications) {
                         let mut timings = std::mem::take(application.request.view.timings);
+                        let artifact = program.artifact();
                         let produced = program
                             .attach_application(&custody, &mut PsiStageTimings::new(&mut timings));
                         *application.request.view.timings = timings;
                         let outcome = produced.and_then(|produced| {
                             if let Some(policy) = &application.policy {
                                 policy.admit(
-                                    program.artifact().semantic_module(),
+                                    artifact.semantic_module(),
                                     &mut produced.roots.into_iter(),
                                 )?;
                             }
@@ -478,14 +474,15 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                     .and_then(|entry| entry.physical_adapter())
                                     .is_some(),
                                 provider_proposals: application.provider_publication.publish(
-                                    program.artifact().view(),
+                                    artifact.view(),
                                     application.request.selections.identity(),
                                     &realization_scopes,
                                     &application.request.view.callback_declarations.identities,
                                     &application.request.view.callback_declarations.callbacks,
                                     &application.request.view.callback_calling_requirements,
                                 ),
-                                artifact: Arc::clone(program.artifact()),
+                                artifact: Arc::clone(artifact),
+                                evidence: program.evidence().cloned(),
                                 receipt,
                             }))
                         });

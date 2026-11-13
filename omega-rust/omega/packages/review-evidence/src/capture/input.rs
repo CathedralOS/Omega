@@ -15,7 +15,6 @@ use provider_planning::ProviderPlanningContext;
 use provider_planning::service_declarations::ServiceDeclarations;
 use psi_terminal_production::ExternalProviderDeclarations;
 use typed_trees::machine::Machine;
-use validation::expression_owners::OwnerEnvironmentIndex;
 
 #[derive(Clone, Copy)]
 pub struct PackageReviewInput<'a> {
@@ -30,7 +29,6 @@ pub struct SourceDeclarationInput<'a> {
     pub(crate) program: &'a CheckedTrees,
     pub(crate) checking_input: &'a dyn validation::CheckingInput, // Supplied candidate query state.
     pub(crate) original_checking_input: &'a dyn validation::CheckingInput, // Immutable custody query state.
-    pub(crate) contract_owner_queries: Option<&'a ContractOwnerQueries<'a>>, // Batch-local owner index scratch.
     pub(crate) mathematical_calls:
         Option<&'a super::contracts::mathematical_calls::MathematicalCallQueries<'a>>,
     pub(crate) original_mathematical_calls:
@@ -45,7 +43,6 @@ impl<'a> SourceDeclarationInput<'a> {
         Self {
             program: self.original_program,
             checking_input: self.original_checking_input,
-            contract_owner_queries: None,
             mathematical_calls: self.original_mathematical_calls,
             ..self
         }
@@ -101,17 +98,11 @@ impl<'a> PackageReviewInput<'a> {
 impl<'a> SourceDeclarationInput<'a> {
     pub(crate) fn derive_checked_nominal_call_target(
         &self,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> Option<symbols::SymbolHandle> {
-        match self.contract_owner_queries {
-            Some(queries) => queries.derive_checked_nominal_call_target(expression),
-            None => typed_trees_to_checked_trees::derive_checked_nominal_call_target(
-                self.checking_input,
-                &self.facts,
-                expression,
-                None,
-            ),
-        }
+        _expression: typed_trees::_expression::ExpressionHandle,
+    ) -> Result<Option<symbols::SymbolHandle>, Vec<diagnostics::Diagnostic>> {
+        Err(vec![diagnostics::Diagnostic::error(
+            "no product route yet: package-review nominal call target evidence",
+        )])
     }
 
     pub(crate) fn exact_machine(&self, symbol: symbols::SymbolHandle) -> Option<&Machine> {
@@ -206,44 +197,6 @@ impl std::ops::Deref for SourceDeclarationInput<'_> {
         self.program
     }
 }
-
-pub(crate) struct ContractOwnerQueries<'program> {
-    program: &'program dyn validation::CheckingInput,
-    facts: &'program checked_trees::CheckFacts,
-    owners: std::cell::OnceCell<OwnerEnvironmentIndex>,
-}
-
-impl<'program> ContractOwnerQueries<'program> {
-    pub(crate) fn new(
-        program: &'program dyn validation::CheckingInput,
-        facts: &'program checked_trees::CheckFacts,
-    ) -> Self {
-        Self {
-            program,
-            facts,
-            owners: std::cell::OnceCell::new(),
-        }
-    }
-
-    fn derive_checked_nominal_call_target(
-        &self,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> Option<symbols::SymbolHandle> {
-        self.program.expression_table.call_node(expression)?;
-        let owners = self.owners.get_or_init(|| {
-            OwnerEnvironmentIndex::new(self.program, &self.facts.proof.contract_facts)
-        });
-        typed_trees_to_checked_trees::derive_checked_nominal_call_target(
-            self.program,
-            self.facts,
-            expression,
-            Some(owners),
-        )
-    }
-}
-
-#[cfg(test)]
-mod owner_query_tests;
 
 #[cfg(test)]
 mod route_review_input_tests {

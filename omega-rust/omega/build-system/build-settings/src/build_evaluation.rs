@@ -9,7 +9,7 @@ authored `build.omg` code can run:
    When a synthesized default `build` machine is used, we reject `artifact_only`
    applications or non-empty `required_outputs` requests up front because a
    default `build` machine cannot stage outputs.
-2. Semantic checking (`admission::checking::prepare_checked_build`) validates the
+2. Semantic checking (`admission::checking::prepare_admitted_build`) validates the
    `Build` machine and its helpers before any snapshot capture or host effects.
    Package authority narrows what is allowed on top of that semantic floor;
    standalone source never bypasses it.
@@ -19,25 +19,18 @@ authored `build.omg` code can run:
    request must be admitted before execution; otherwise any non-empty request
    list halts immediately with `CompileFailure::BuildConsentRequired` before the
    reviewed action can execute.
-4. Pure build reuse (`PureBuildCompilation::matching_result`): because product
-   bindings and target custody may differ across occurrences, neither a whole
-   checked result nor a prior grant is reusable without fresh admission. Once
-   fresh admission succeeds, if `PureBuildCompilation` holds a completed `Pure`
-   value for the exact `CompletedPureBuildInputs`, we charge its recorded
-   evaluation usage to the current `evaluation_sponsor` and transition straight
-   to `BuildEvaluationState::Complete` without spawning a new interpreter
-   activation.
+4. The accepted invocation executes under its fresh admission and account.
+   The old checked-tree cache is deleted; no prior checked result substitutes
+   for this source owner, accepted module, or invocation authority.
 
-`PreparedBuildEvaluation` holds the admitted state (`Execute` or `Complete`)
+`PreparedBuildEvaluation` holds the admitted execution
 without borrowing the source map or compiler session, allowing `orchestration`
 to compile dependency packages while the activation is suspended and then rejoin
 the returned activation via `validate_return`, `source_result`,
 `validate_source_join`, and `complete`.
 */
 
-use crate::activation::CompletedBuildSource;
-use crate::activation::completed_pure_build::CompletedPureBuildInputs;
-use crate::{ComputedBuildConfig, PreparedBuildExecution, PureBuildCompilation};
+use crate::{PreparedBuildExecution, PureBuildCompilation};
 use artifacts::compile_timings::CompileTimings;
 use compilation_products::CompileFailure;
 use diagnostics::Diagnostic;
@@ -64,67 +57,36 @@ pub struct BuildEvaluationRequest<'request> {
         &'request [(source::SourceId, build_output::PackageGeneratedSource)],
     pub execution: BuildExecutionInputs,
     pub artifact_only: bool,
-    pub prior_checks: Vec<&'request psi_compiler::RetainedCheck>, // Scan-ordered prior Build language judgments (own slot chain + equal-projection siblings).
-    pub retain_check: bool, // Retain a successful judgment only when a subsequent review pass will consume it.
-    pub checked_slices: Option<&'request dyn psi_compiler::CheckedSliceStore>, // Local store of checked dependency slices; `None` checks every slice afresh.
 }
 
 pub use compilation_products::EvaluatedBuild;
 
-enum BuildEvaluationState {
-    Complete {
-        configuration: Arc<ComputedBuildConfig>,
-        source: Arc<CompletedBuildSource>,
-        source_join: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
-    },
-    Execute(PreparedBuildExecution),
-}
-
 pub struct PreparedBuildEvaluation {
-    state: BuildEvaluationState,
+    execution: PreparedBuildExecution,
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
-    retained_check: Option<psi_compiler::RetainedCheck>,
     provider_folded_constants: bool,
-    pure_retention: Option<(CompletedPureBuildInputs, PureBuildCompilation)>,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
 }
 
 impl PreparedBuildEvaluation {
     pub fn validate_return(&self, returned: &crate::ReturnedBuild) -> Result<(), CompileFailure> {
-        match &self.state {
-            BuildEvaluationState::Execute(execution) => execution
-                .validate_return(returned)
-                .map_err(CompileFailure::from),
-            BuildEvaluationState::Complete { .. } => Err(vec![Diagnostic::error(
-                "Build declaration observation requires an executed activation",
-            )]
-            .into()),
-        }
+        self.execution
+            .validate_return(returned)
+            .map_err(CompileFailure::from)
     }
 
     pub fn source_result<'result>(
         &'result mut self,
         returned: Option<&'result mut crate::ReturnedBuild>,
     ) -> Result<crate::BuildSourceResult<'result>, CompileFailure> {
-        match (&mut self.state, returned) {
-            (BuildEvaluationState::Execute(execution), Some(returned)) => {
-                execution.validate_return(returned)?;
-                Ok(crate::BuildSourceResult::executed(returned))
-            }
-            (
-                BuildEvaluationState::Complete {
-                    source,
-                    source_join,
-                    ..
-                },
-                None,
-            ) => Ok(crate::BuildSourceResult::reused(source, source_join)),
-            _ => Err(vec![Diagnostic::error(
-                "Build source result does not belong to its admitted evaluation",
+        let returned = returned.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "Build source result requires its executed activation",
             )]
-            .into()),
-        }
+        })?;
+        self.execution.validate_return(returned)?;
+        Ok(crate::BuildSourceResult::executed(returned))
     }
 
     pub fn validate_source_join(
@@ -133,29 +95,19 @@ impl PreparedBuildEvaluation {
         inputs: Option<&PackageCompilationInputs>,
         initially_unbound: bool,
     ) -> Result<(), CompileFailure> {
-        let result = match (&self.state, returned) {
-            (BuildEvaluationState::Execute(execution), Some(returned)) => {
-                execution.validate_return(returned)?;
-                returned.validate_source_join(inputs, initially_unbound)
-            }
-            (
-                BuildEvaluationState::Complete {
-                    source,
-                    source_join,
-                    ..
-                },
-                None,
-            ) => source.validate_source_join(source_join.as_ref(), inputs, initially_unbound),
-            _ => Err("Build source join does not belong to its admitted evaluation".into()),
-        };
-        result.map_err(|reason| vec![Diagnostic::error(reason)].into())
+        let returned = returned.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "Build source join requires its executed activation",
+            )]
+        })?;
+        self.execution.validate_return(returned)?;
+        returned
+            .validate_source_join(inputs, initially_unbound)
+            .map_err(|reason| vec![Diagnostic::error(reason)].into())
     }
 
     pub fn execution(&mut self) -> Option<&mut PreparedBuildExecution> {
-        match &mut self.state {
-            BuildEvaluationState::Complete { .. } => None,
-            BuildEvaluationState::Execute(execution) => Some(execution),
-        }
+        Some(&mut self.execution)
     }
 
     pub fn complete(
@@ -163,43 +115,23 @@ impl PreparedBuildEvaluation {
         returned: Option<crate::ReturnedBuild>,
     ) -> Result<EvaluatedBuild, CompileFailure> {
         let Self {
-            state,
+            execution,
             restricted_build_requests,
             base_source_consumption_commitment,
-            retained_check,
             provider_folded_constants,
-            pure_retention,
             restricted_build_grants,
         } = self;
-        let configuration = match (state, returned) {
-            (BuildEvaluationState::Complete { configuration, .. }, None) => configuration,
-            (BuildEvaluationState::Execute(execution), Some(returned)) => {
-                let source = Arc::new(CompletedBuildSource::capture(&returned));
-                let configuration = Arc::new(execution.complete(returned)?);
-                if let Some((inputs, owner)) = pure_retention {
-                    owner.retain_completed(inputs, configuration.clone(), source)?;
-                }
-                configuration
-            }
-            (BuildEvaluationState::Execute(_), None) => {
-                return Err(vec![Diagnostic::error(
-                    "Build completion requires its returned activation",
-                )]
-                .into());
-            }
-            (BuildEvaluationState::Complete { .. }, Some(_)) => {
-                return Err(vec![Diagnostic::error(
-                    "Build completion supplied an activation for defaults or Pure reuse",
-                )]
-                .into());
-            }
-        };
+        let returned = returned.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "Build completion requires its returned activation",
+            )]
+        })?;
+        let configuration = Arc::new(execution.complete(returned)?);
         drop(restricted_build_grants);
         Ok(EvaluatedBuild {
             configuration,
             restricted_build_requests,
             base_source_consumption_commitment,
-            retained_check,
             provider_folded_constants,
         })
     }
@@ -211,7 +143,7 @@ pub fn prepare_build_evaluation(
 ) -> Result<PreparedBuildEvaluation, CompileFailure> {
     let BuildEvaluationRequest {
         execution_purpose,
-        pure_build_compilation,
+        pure_build_compilation: _,
         root_path,
         typed,
         pre_checks,
@@ -222,9 +154,6 @@ pub fn prepare_build_evaluation(
         generated_source_custody,
         execution,
         artifact_only,
-        prior_checks,
-        retain_check,
-        checked_slices,
     } = request;
     let BuildExecutionInputs {
         profile: execution_profile,
@@ -273,16 +202,8 @@ pub fn prepare_build_evaluation(
             "Build execution requires its source-owned selection",
         )]
     })?;
-    let completed_checks = pure_build_compilation
-        .map(PureBuildCompilation::completed_checks)
-        .transpose()?
-        .unwrap_or_default();
-    let prior_checks = prior_checks
-        .into_iter()
-        .chain(completed_checks.iter().map(AsRef::as_ref))
-        .collect::<Vec<_>>();
-    let (prepared, providers, retained_check, provider_folded_constants) =
-        crate::admission::checking::prepare_checked_build(
+    let (prepared, providers, provider_folded_constants) =
+        crate::admission::checking::prepare_admitted_build(
             typed,
             pre_checks,
             selected_machine,
@@ -290,9 +211,6 @@ pub fn prepare_build_evaluation(
             dependency_activation,
             execution_profile,
             timings,
-            &prior_checks,
-            retain_check || pure_build_compilation.is_some(),
-            checked_slices,
         )?;
     let filesystem_scope = crate::prepare_filesystem_scope(
         root_path,
@@ -325,52 +243,12 @@ pub fn prepare_build_evaluation(
             restricted_build_requests,
         ));
     }
-    let inputs = admitted.pure_consumption_inputs(package_inputs, snapshot, retained_check.clone());
-    let retained_check = retain_check.then_some(retained_check).flatten();
-    let reusable = inputs
-        .as_ref()
-        .zip(pure_build_compilation)
-        .map(|(inputs, owner)| owner.matching_result(inputs))
-        .transpose()?
-        .flatten();
-    let state = if let Some(completed) = reusable {
-        let configuration = completed.configuration.clone();
-        let configuration = if let Some(sponsor) = admitted.evaluation_sponsor.as_ref() {
-            let usage = configuration.evaluation_usage.ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "completed Pure Build has no recorded evaluation usage",
-                )]
-            })?;
-            let usage = sponsor.charge_pure_usage(usage).map_err(|reason| {
-                vec![Diagnostic::error(format!(
-                    "build-time evaluation of `{}` failed: {reason}",
-                    admitted.machine.name
-                ))]
-            })?;
-            let mut current = (*configuration).clone();
-            current.evaluation_usage = Some(usage);
-            Arc::new(current)
-        } else {
-            configuration
-        };
-        BuildEvaluationState::Complete {
-            configuration,
-            source: completed.source.clone(),
-            source_join: None,
-        }
-    } else {
-        BuildEvaluationState::Execute(PreparedBuildExecution::prepare(
-            admitted,
-            execution_purpose,
-        )?)
-    };
+    let execution = PreparedBuildExecution::prepare(admitted, execution_purpose)?;
     Ok(PreparedBuildEvaluation {
-        state,
+        execution,
         restricted_build_requests,
         base_source_consumption_commitment,
-        retained_check,
         provider_folded_constants,
-        pure_retention: inputs.zip(pure_build_compilation.cloned()),
         restricted_build_grants,
     })
 }

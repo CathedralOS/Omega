@@ -77,7 +77,12 @@ mod native_providers {
             &provenance,
         )?;
         let input = scope
-            .lower(artifact, &[], &selection)
+            .lower(
+                artifact,
+                &[],
+                &selection,
+                execution.evidence().map(std::sync::Arc::as_ref),
+            )
             .map_err(crate::native_admission::artifact_lowering_error)?;
         let input = input
             .bind_selected_provider_coordinates(artifact, execution.selection())
@@ -95,6 +100,16 @@ mod native_providers {
     }
 
     impl PreparedNativeWork<'_> {
+        pub fn with_evidence(
+            mut self,
+            evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
+        ) -> Result<Self, Vec<Diagnostic>> {
+            self.execution = self
+                .execution
+                .with_operation_evidence(self.artifact, evidence)?;
+            Ok(self)
+        }
+
         pub fn execution_scope(&self) -> &crate::NativeExecutionScope {
             self.execution.scope()
         }
@@ -127,6 +142,7 @@ mod native_providers {
                         callbacks: &self.proposal.occurrences().callbacks,
                         entry_call: self.entry_call.as_ref(),
                     },
+                    self.execution.evidence().map(std::sync::Arc::as_ref),
                 )
                 .map_err(crate::native_admission::artifact_lowering_error)?;
             let input = input

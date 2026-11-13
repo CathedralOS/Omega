@@ -12,7 +12,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::Program;
-use crate::body::ValueType;
+use crate::body::{Policy, ValueType};
 use crate::{Unserved, refuse};
 
 fn integer(sign: IntegerSign, bits: u16, machine: MachineId) -> Checked<ScalarType> {
@@ -156,7 +156,9 @@ impl Program<'_> {
                     {
                         return match bound {
                             ValueType::Scalar(scalar_type) => Some(Closed::Scalar(*scalar_type)),
-                            ValueType::Rigid(_) | ValueType::Record(_) => None,
+                            ValueType::Rigid(_)
+                            | ValueType::Record(_)
+                            | ValueType::Qualified(..) => None,
                         };
                     }
                     self.typed
@@ -307,9 +309,112 @@ impl Program<'_> {
             && self.typed.symbols.builtin_type_atom(*symbol).is_none()
             && self.data_declaration(*symbol).is_some()
         {
-            return self.record(id, *symbol);
+            let value = self.record(id, *symbol)?;
+            if let ValueType::Record(record) = value {
+                self.record_application(id, record, handle)?;
+            }
+            return Ok(value);
+        }
+        if handle.is_valid()
+            && let TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } = self.typed.type_reference_table.type_reference(handle)
+        {
+            return self.qualified_type(id, *base_type, *constraints);
+        }
+        // `Inner<'a>`: data applied at lifetime arguments and nothing else
+        // is the declaration's one record type, because a lifetime argument
+        // is an erased region (`places`, `lifetime_binders`). The
+        // application itself is checked against the declaration and the
+        // owner of the lifetimes it names (`lifetime_application`). An
+        // application with a type, const or machine argument, or of data
+        // that declares one, stays with the scalar route's refusal (`type
+        // generic application`).
+        if handle.is_valid()
+            && let TypeReferenceNode::Generic {
+                base_symbol,
+                lifetime_arguments,
+                arguments,
+                ..
+            } = self.typed.type_reference_table.type_reference(handle)
+            && arguments.is_empty()
+            && base_symbol.is_valid()
+            && self.typed.symbols.builtin_type_atom(*base_symbol).is_none()
+            && let Some(data) = self.data_declaration(*base_symbol)
+            && data.type_parameters.is_empty()
+        {
+            use super::places::RetainedLifetime;
+            use typed_trees::type_identity::{
+                lifetime_parameter_identity, lifetime_parameter_name,
+            };
+            let typed = self.typed;
+            let table = &typed.type_reference_table;
+            let retained: Vec<RetainedLifetime<'_>> = table
+                .operand_lifetimes(handle)
+                .iter()
+                .map(|region| {
+                    if region.declaration.is_valid() {
+                        RetainedLifetime::Resolved(
+                            lifetime_parameter_name(typed, *region).map(|name| name.as_str()),
+                        )
+                    } else {
+                        RetainedLifetime::Open
+                    }
+                })
+                .collect();
+            let owner = match table.operand_lifetime_owner(handle) {
+                retained if retained.is_valid() => retained,
+                _ => self.lifetime_owner,
+            };
+            super::places::lifetime_application(
+                id,
+                data.lifetime_parameters.len(),
+                lifetime_arguments,
+                &retained,
+                |tag| owner.is_valid() && lifetime_parameter_identity(typed, owner, tag).is_some(),
+            )?;
+            return self.record(id, *base_symbol);
         }
         self.scalar_type(id, handle).map(ValueType::Scalar)
+    }
+
+    /// `T in Wrapping` and `T in Saturating` over a builtin integer `T`: the
+    /// one constraint is an arithmetic policy, read from the constraint
+    /// node's kind and never from its spelling. numeric_values.md, "Overflow
+    /// policies": "A type may carry any number of value qualifications but
+    /// at most one arithmetic policy."
+    ///
+    /// Everything else a type can be constrained by stays refused by name:
+    /// `Trapping`, whose every operation is its own `Trap` site; a declared
+    /// domain, alone or beside a policy; and a policy on anything but a
+    /// builtin integer.
+    fn qualified_type(
+        &self,
+        id: MachineId,
+        base_type: TypeReferenceHandle,
+        constraints: arena::HandleSpan<typed_trees::types::TypeConstraintNode>,
+    ) -> Checked<ValueType> {
+        use numerics::arithmetic::ArithmeticDomain;
+        use typed_trees::types::TypeConstraintNode;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
+        let policy = match self.typed.type_reference_table.constraints(constraints) {
+            [TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Wrapping)] => Policy::Wrapping,
+            [TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Saturating)] => {
+                Policy::Saturating
+            }
+            [TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Trapping)] => {
+                return unserved("constrained by Trapping");
+            }
+            _ => return unserved("constrained by a domain that is not one arithmetic policy"),
+        };
+        match self.scalar_type(id, base_type) {
+            Ok(carrier @ ScalarType::Integer(_)) => Ok(ValueType::Qualified(carrier, policy)),
+            Ok(ScalarType::Boolean | ScalarType::IeeeFloat(_)) => {
+                unserved("arithmetic policy on a type that is not an integer")
+            }
+            Err(refusal) => Err(refusal),
+        }
     }
 
     /// A state's result: the invalid handle and `Unit` are both a Unit

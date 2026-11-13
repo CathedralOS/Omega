@@ -777,9 +777,11 @@ fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
 /// contract with no body; `forward`'s own check form, judged in the same
 /// compilation, is what proves that contract for every `T`, so `relay`'s
 /// form is accepted on its own proofs. A bound the callee does not give
-/// still rejects the caller. A machine that applies itself is handed back:
-/// its form would take its own guarantee as given, and nothing in a form
-/// judges that the recursion ends.
+/// still rejects the caller. A machine that applies itself is refused by
+/// name, with or without an `ensures`: its form would take its own contract
+/// as given, and nothing in a form judges the cycle. The one with no
+/// `ensures` and a `terminates` promise is the case that was once accepted:
+/// it has no contract row to leave undecided, and it never returns.
 #[test]
 fn a_generic_body_that_applies_another_generic_machine_is_judged() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
@@ -817,9 +819,31 @@ fn a_generic_body_that_applies_another_generic_machine_is_judged() {
         ),
         [
             Verdict::Accepted(1),
-            Verdict::FallsBack(
-                "a requirement's guarantee is proved by each implementation, not here".to_owned()
-            )
+            Verdict::FallsBack("generic machine `again` on a call cycle".to_owned())
+        ]
+    );
+    assert_eq!(
+        judged_parts(
+            "generic_application_of_itself_with_no_guarantee",
+            "machine forever<T>(item: T, limit: u32) -> u32              terminates { forever<T>(item, limit) }"
+        ),
+        [
+            Verdict::Accepted(1),
+            Verdict::FallsBack("generic machine `forever` on a call cycle".to_owned())
+        ]
+    );
+    // Two generic machines that reach each other are one cycle; each is
+    // refused.
+    assert_eq!(
+        judged_parts(
+            "generic_application_cycle_of_two",
+            "machine ping<T>(item: T, limit: u32) -> u32 { pong<T>(item, limit) }
+             machine pong<T>(item: T, limit: u32) -> u32 { ping<T>(item, limit) }"
+        ),
+        [
+            Verdict::Accepted(1),
+            Verdict::FallsBack("generic machine `ping` on a call cycle".to_owned()),
+            Verdict::FallsBack("generic machine `pong` on a call cycle".to_owned())
         ]
     );
 }
@@ -1005,7 +1029,7 @@ const WRITTEN_FORMALS: &[(&str, &str)] = &[
 /// formal, a store into that field of a record formal, a whole assignment or
 /// an exclusive loan, and each such program is rejected for the operation
 /// that needed it. A formal that is not `mut` is still not written, and the
-/// cases the route does not serve are refused by name.
+/// case the route does not serve is refused by name.
 #[test]
 fn a_mut_formal_is_written_as_a_mut_local_is_and_no_other_formal_is_written() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
@@ -1022,11 +1046,159 @@ fn a_mut_formal_is_written_as_a_mut_local_is_and_no_other_formal_is_written() {
         Verdict::Accepted(3),
         Verdict::Rejected,
         falls_back("contract clause that names a mutable parameter outside requires"),
-        falls_back("type data with custody"),
+        // Plain data without `[copy]` is served since affine moves landed:
+        // the callee owns the value, stores into it and drops it.
+        Verdict::Accepted(2),
     ];
     assert_eq!(expected.len(), WRITTEN_FORMALS.len());
     let mut wrong = Vec::new();
     for ((name, declaration), expected) in WRITTEN_FORMALS.iter().zip(expected) {
+        let found = verdict_on_unused(name, declaration);
+        if found != expected {
+            wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// One program per thing the route decides about an integer whose type
+/// carries an arithmetic policy. Each is the declaration followed by
+/// `machine main() {}`.
+const POLICY_INTEGERS: &[(&str, &str)] = &[
+    // A Wrapping add is total: nothing is owed.
+    (
+        "wrapping_add",
+        "machine spare(left: u32 in Wrapping, right: u32 in Wrapping) -> u32 in Wrapping {\n    \
+         left + right\n}",
+    ),
+    // The literal lands in the carrier and the operator is still Wrapping's.
+    (
+        "wrapping_literal_operand",
+        "machine spare(left: u32 in Wrapping) -> u32 in Wrapping { left * 31 + 1 }",
+    ),
+    (
+        "saturating_add",
+        "machine spare(left: i32 in Saturating, right: i32 in Saturating) -> i32 in Saturating {\n    \
+         left + right\n}",
+    ),
+    // Stage 04 rewrites `+%` to the casts and the Wrapping add.
+    (
+        "suffixed_operator",
+        "machine spare(left: u32, right: u32) -> u32 { left +% right }",
+    ),
+    // A policy supplies no divisor.
+    (
+        "wrapping_divide_unproved",
+        "machine spare(left: u32 in Wrapping, right: u32 in Wrapping) -> u32 in Wrapping {\n    \
+         left / right\n}",
+    ),
+    (
+        "wrapping_divide_proved",
+        "machine spare(left: u32 in Wrapping, right: u32 in Wrapping) -> u32 in Wrapping\n\
+         requires right > 0\n{\n    left / right\n}",
+    ),
+    // A Wrapping operation beside it excuses no Exact one.
+    (
+        "exact_add_beside_a_wrapping_one",
+        "machine spare(left: u32, right: u32) -> u32 {\n    \
+         let wrapped: u32 = left +% right;\n    left + right\n}",
+    ),
+    (
+        "wrapping_field",
+        "data Counter [copy] { ticks: u32 in Wrapping; }\n\
+         machine spare(mut counter: Counter) -> u32 in Wrapping {\n    \
+         counter.ticks = counter.ticks + 1;\n    counter.ticks\n}",
+    ),
+    (
+        "wrapping_loop",
+        "machine spare(count: u32 in Wrapping, left: u32) -> u32 in Wrapping {\n    \
+         transition left > 0 {\n        true -> spare(count + 1, left - 1)\n        \
+         false -> count\n    }\n}",
+    ),
+    (
+        "wrapping_call",
+        "machine twice(value: u32 in Wrapping) -> u32 in Wrapping { value + value }\n\
+         machine spare(value: u32 in Wrapping) -> u32 in Wrapping { twice(twice(value)) }",
+    ),
+    // The literal lands in the carrier the cast names.
+    (
+        "wrapping_constant",
+        "machine spare() -> u32 in Wrapping { (5 as u32 in Wrapping) + 1 }",
+    ),
+    // A cast into a policy converts the carrier exactly first: no policy
+    // makes `as` truncate.
+    (
+        "narrowing_cast_into_wrapping",
+        "machine spare(value: u16) -> u8 in Wrapping { value as u8 in Wrapping }",
+    ),
+    (
+        "bounded_narrowing_cast_into_wrapping",
+        "machine spare(value: u16) -> u8 in Wrapping requires value <= 255 {\n    \
+         value as u8 in Wrapping\n}",
+    ),
+    (
+        "wrapping_and_plain_binding",
+        "machine spare(left: u32 in Wrapping, right: u32) -> u32 in Wrapping { left + right }",
+    ),
+    (
+        "two_policies",
+        "machine spare(left: u8 in Wrapping, right: u8 in Saturating) -> u8 in Wrapping {\n    \
+         left + right\n}",
+    ),
+    (
+        "wrapping_value_as_plain_result",
+        "machine spare(left: u32 in Wrapping) -> u32 { left }",
+    ),
+    (
+        "literal_into_wrapping_local",
+        "machine spare() -> u32 in Wrapping { let start: u32 in Wrapping = 5; start }",
+    ),
+    (
+        "trapping",
+        "machine spare(left: u32 in Trapping, right: u32 in Trapping) -> u32 in Trapping {\n    \
+         left + right\n}",
+    ),
+];
+
+/// An integer of type `T in Wrapping` or `T in Saturating` is judged with
+/// its policy's operations; the route used to refuse every machine that
+/// named such a type (`type constrained`) and every suffixed operator's
+/// rewrite. A policy operation owes what Terminal semantics says it owes: an
+/// add nothing, a divide its divisor. It is never read as the Exact
+/// operation: an Exact add beside a Wrapping one still owes its range. That
+/// a wrapped sum is not taken for the mathematical sum is pinned in
+/// `lowered-discharge` (`a_wrapped_sum_is_not_the_mathematical_sum`): its
+/// verdict is "no rule for this goal", which this table has no row for. A cast into a policy converts the carrier exactly and owes
+/// that the value fits. What the route does not serve is refused by name.
+#[test]
+fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let falls_back = |detail: &str| Verdict::FallsBack(detail.to_owned());
+    let expected = [
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Accepted(3),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        falls_back(
+            "expression operator between a policy-qualified operand and a plain operand that is not a literal",
+        ),
+        falls_back("typing operands under two arithmetic policies"),
+        falls_back("typing arm value type"),
+        falls_back("typing local initializer without the arithmetic policy of its local"),
+        falls_back("type constrained by Trapping"),
+    ];
+    assert_eq!(expected.len(), POLICY_INTEGERS.len());
+    let mut wrong = Vec::new();
+    for ((name, declaration), expected) in POLICY_INTEGERS.iter().zip(expected) {
         let found = verdict_on_unused(name, declaration);
         if found != expected {
             wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));

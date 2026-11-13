@@ -28,7 +28,7 @@ use crate::checked::{PreparedProductTarget, PreparedTargetDeclarations};
 use artifacts::compile_timings::{CompileTimings, EXECUTION_SETTLEMENT};
 use compilation_products::{
     BuildAdmission, CheckedCompilationInputs, CheckedCompileOutcome, CheckedProductSource,
-    CompileFailure, RetainedCompilationChecks,
+    CompileFailure,
 };
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
@@ -50,7 +50,6 @@ pub(crate) struct SelectedProviderCustody {
     pub(crate) build_admission: BuildAdmission,
     pub(crate) provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
-    pub(crate) product_selection: Option<psi_compiler::CheckedTreeProductSelection>,
     pub(crate) sources: Arc<package_compilation::CheckedSourceCustody>,
     pub(crate) timings: CompileTimings,
 }
@@ -58,7 +57,6 @@ pub(crate) struct SelectedProviderCustody {
 pub(crate) struct SelectedProductTarget {
     pub(crate) runtime_policy: Arc<package_evidence::permission_acceptance::PreparedRuntimePolicy>,
     pub(crate) custody: SelectedProviderCustody,
-    pub(crate) retained_checks: RetainedCompilationChecks,
     pub(crate) independent_components:
         Result<Vec<compilation_products::SelectedIndependentComponent>, String>,
 }
@@ -86,7 +84,6 @@ impl SelectedProductTarget {
         Ok(Self {
             runtime_policy,
             custody,
-            retained_checks: source.retained_checks.clone(),
             independent_components,
         })
     }
@@ -243,7 +240,7 @@ impl SelectedProductTarget {
     pub(crate) fn finish_check(mut self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         let terminal = crate::terminal::check_terminal_conditions(&mut self.custody)?;
         self.check_declaration_requirements(terminal.as_ref().map(|product| product.module()))?;
-        Ok(self.into_checked_compilation())
+        self.into_checked_compilation()
     }
 
     pub(crate) fn check_declaration_requirements(
@@ -265,12 +262,8 @@ impl SelectedProductTarget {
         )
     }
 
-    pub(crate) fn into_checked_compilation(self) -> CheckedCompilation {
-        checked_compilation(
-            self.custody,
-            self.retained_checks,
-            self.independent_components,
-        )
+    pub(crate) fn into_checked_compilation(self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+        checked_compilation(self.custody, self.independent_components)
     }
 }
 
@@ -460,7 +453,7 @@ fn select_product_providers(
         )
     });
     let selection = selection.map_err(|mut diagnostics| {
-        if let Some(sources) = source.program.typed.symbols.source_map().as_deref() {
+        if let Some(sources) = source.program.symbols.source_map().as_deref() {
             attribute_diagnostics(&mut diagnostics, sources, package_inputs);
         }
         diagnostics
@@ -479,7 +472,6 @@ fn select_product_providers(
         build: Arc::clone(&source.computed_build_config),
         build_admission: source.admission.clone().for_target(selected_target_profile),
         provider_defaults: Arc::clone(&source.provider_defaults),
-        product_selection: source.product_selection.clone(),
         sources: Arc::clone(&source.sources),
         timings,
     })
@@ -487,9 +479,8 @@ fn select_product_providers(
 
 fn checked_compilation(
     selection: SelectedProviderCustody,
-    retained_checks: RetainedCompilationChecks,
     independent_components: Result<Vec<compilation_products::SelectedIndependentComponent>, String>,
-) -> CheckedCompilation {
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let SelectedProviderCustody {
         terminal_publication,
         source_completion_accounting,
@@ -499,7 +490,6 @@ fn checked_compilation(
         build,
         build_admission,
         provider_defaults,
-        product_selection,
         sources,
         timings,
     } = selection;
@@ -512,14 +502,12 @@ fn checked_compilation(
             provider_defaults,
             providers: settlement,
             independent_components,
-            product_selection,
         },
         sources,
         timings,
         terminal_publication,
     )
-    .with_source_completion_accounting(source_completion_accounting)
-    .with_settled_checks(retained_checks)
+    .map(|checked| checked.with_source_completion_accounting(source_completion_accounting))
 }
 
 pub(crate) fn select_product_target(

@@ -410,7 +410,10 @@ impl<'t> Program<'t> {
         //
         // What stays refused is a data type that could give the machine
         // something after all: one applied at type arguments, or a generic
-        // one, whose parameters the body would be read under.
+        // one, whose parameters the body would be read under. Lifetime
+        // parameters of the data type give it nothing either: the machine
+        // is read under no lifetime binder, so a formal that names one of
+        // them is refused where its type is read (`lifetime_application`).
         if machine.attached_data_application.is_valid() {
             return unserved("attached data applied at type arguments");
         }
@@ -418,8 +421,7 @@ impl<'t> Program<'t> {
             let plain = self
                 .data_declaration(machine.attached_data_symbol)
                 .is_some_and(|data| {
-                    data.lifetime_parameters.is_empty()
-                        && data.type_parameters.is_empty()
+                    data.type_parameters.is_empty()
                         && data.generic_instance.is_none()
                         && data.conformance_bounds.is_empty()
                 });
@@ -843,7 +845,8 @@ impl<'t> Program<'t> {
         };
         let exit = ClauseScope {
             result: match result {
-                Some(ValueType::Scalar(scalar_type)) => {
+                // A policy-qualified result is named as its stored value.
+                Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) => {
                     ResultTerm::Named(result_value, scalar_type)
                 }
                 // A clause over a record result projects it
@@ -1140,6 +1143,13 @@ impl<'t> Program<'t> {
                     return unserved("mutable parameter of a type parameter");
                 }
             }
+            if erased && value_type.policy().is_some() {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Parameter("erased parameter of a policy-qualified type"),
+                ));
+            }
             if erased && value_type.scalar().is_none() {
                 return Err(refuse(
                     id,
@@ -1179,6 +1189,11 @@ impl<'t> Program<'t> {
         }
         let home = match value_type {
             ValueType::Rigid(_) => return unserved("reference to a value of a type parameter"),
+            // Its place would be declared with the identity of a primitive
+            // type the lowered form has no row for.
+            ValueType::Qualified(..) => {
+                return unserved("reference to a policy-qualified integer");
+            }
             ValueType::Record(_) => None,
             ValueType::Scalar(_) => Some(
                 Some(self.typed.normalized_type_identity_text(referee))
@@ -1741,7 +1756,8 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         }
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
-        | ExpressionKind::Cast(operand) => {
+        | ExpressionKind::Cast(operand)
+        | ExpressionKind::Requalify(operand) => {
             spans(operand, binder, out);
         }
         ExpressionKind::Call { arguments, .. } => {
@@ -1864,7 +1880,8 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         }
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
-        | ExpressionKind::Cast(operand) => {
+        | ExpressionKind::Cast(operand)
+        | ExpressionKind::Requalify(operand) => {
             expression_slot_uses(operand, uses);
         }
         ExpressionKind::Call { arguments, .. } => {

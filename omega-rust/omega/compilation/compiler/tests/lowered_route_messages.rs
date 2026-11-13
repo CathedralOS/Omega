@@ -23,10 +23,13 @@ static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Each fixture and the machine whose closure the route rejects.
 const REJECTIONS: &[(&str, &str)] = &[
-    // A callee clause stated over the caller's actual.
+    // A callee clause stated over the caller's actual. The actual is the
+    // formal itself: a clause over an exclusive or or a mask is one the
+    // route's rules cannot decide, which it reports as `Incomplete`, not as
+    // a rejection (`lowered-discharge`, `prove/reach`).
     (
-        "tests/omega/fail/arithmetic/bitwise_non_singleton_endpoint_bounds",
-        "probe",
+        "tests/omega/fail/arithmetic/signed_zero_does_not_prove_positive",
+        "check",
     ),
     // The same, where the fixture pins the whole sentence: the fact the
     // callee asked for in its own words, and the caller's state.

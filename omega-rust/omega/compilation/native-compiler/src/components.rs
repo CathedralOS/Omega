@@ -49,7 +49,8 @@ pub(crate) fn prepare_components<'input>(
                     proposal,
                     artifact,
                     terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate),
-                )
+                )?
+                .with_evidence(input.evidence().cloned())
             })
             .collect::<Result<Vec<_>, _>>()?;
         let scalars = crate::NativeScalarCompletion::new(

@@ -134,7 +134,7 @@ symbol resolution or independent component publication.
 
 Representation migrations must preserve exact places, widths, call results,
 argument transfers, control flow, and byte/relocation correspondence. Use the
-affected corpus cases under `mbx xtask corpus --both` (interpreter
+tests of the affected crates, the affected programs under `omega run --both` (interpreter
 against native) and x86-64/AArch64 encoder checks as acceptance evidence. Extending calls or frames requires exact stack ownership
 and disjointness evidence, not an assumption that whole-image addresses remain
 valid across a component boundary. Existing frame and spill work owns wider

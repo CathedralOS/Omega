@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "omega_compiler");
+    let mut psi: DependencyDescription = dependency::from_source(Source::Path { location: "../../psi" });
+    dependency::with_alias(&mut psi, "psi");
+    let registered: DependencyRegistration = Build::dependency(builder, psi);
+}
