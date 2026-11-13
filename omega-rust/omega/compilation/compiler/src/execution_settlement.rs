@@ -18,7 +18,7 @@ pub(crate) struct SelectedProviderCustody {
     pub(crate) terminal_publication: Arc<compilation_products::ProductTerminalPublication>,
     pub(crate) source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub(crate) execution: SelectedExecution,
-    pub(crate) source_inspection: Arc<provider_planning::SelectedProviderSource>,
+    pub(crate) source_inspection: Arc<compilation_products::SelectedProviderSource>,
     pub(crate) settlement: provider_planning::ProviderSettlement,
     pub(crate) build: Arc<compilation_products::ComputedBuildConfig>,
     pub(crate) build_admission: BuildAdmission,

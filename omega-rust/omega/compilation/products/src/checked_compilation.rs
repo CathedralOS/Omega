@@ -37,7 +37,7 @@ pub use report::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCompilationInputs {
     pub settled: SelectedExecution,
-    pub source_inspection: Arc<provider_planning::SelectedProviderSource>, // retained only for explicit inspection and reference interpretation
+    pub source_inspection: Arc<crate::SelectedProviderSource>, // retained only for explicit inspection and reference interpretation
     pub build: Arc<ComputedBuildConfig>,
     pub build_admission: BuildAdmission,
     pub provider_defaults:
@@ -90,7 +90,7 @@ impl CheckedCompilation {
         })
     }
 
-    pub fn source_inspection(&self) -> &provider_planning::SelectedProviderSource {
+    pub fn source_inspection(&self) -> &crate::SelectedProviderSource {
         &self.execution.source_inspection
     }
 

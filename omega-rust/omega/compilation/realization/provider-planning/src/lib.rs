@@ -33,11 +33,9 @@ mod sealed_accessors;
 pub use sealed_accessors::{SealedAccessor, SealedAccessorScalarOperation};
 pub mod program_entry;
 mod provider_identity;
-mod provider_instances;
 pub use provider_identity::{
     provider_row_matches, provider_trait_application, provider_trait_requirement_matches,
 };
-pub use provider_instances::SelectedProviderSource;
 pub mod intrinsic_declarations;
 mod provider_planning;
 mod provider_settlement;
