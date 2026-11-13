@@ -68,6 +68,7 @@ pub use product_execution::{
     CompilationOutput, CompilationProduct, CompilationProductError, TargetProductOutcome,
 };
 pub use psi_compiler::ProducedTerminalProgram;
+pub use terminal::prepare_program_entry;
 pub use target::ExplicitTargetSet;
 pub use target_batch::PreparedCompilation;
 

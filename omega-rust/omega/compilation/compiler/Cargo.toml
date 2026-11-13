@@ -27,6 +27,7 @@ build-settings = { path = "../../build-system/build-settings" }
 build-output = { path = "../../packages/build-output" }
 package-compilation = { path = "../../packages/package-compilation" }
 provider-planning = { path = "../realization/provider-planning" }
+program-entry-plan = { path = "../backend/plans/program-entry-plan" }
 trust-model = { path = "../realization/trust-model" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }
 calling-conventions = { path = "../backend/calling-conventions" }
@@ -188,6 +189,10 @@ path = "tests/lowered_route_governance.rs"
 [[test]]
 name = "lowered_route_publication"
 path = "tests/lowered_route_publication.rs"
+
+[[test]]
+name = "program_entry_product"
+path = "tests/program_entry_product.rs"
 
 # The lowered route's rejection messages contain each fixture's pinned
 # fragment.

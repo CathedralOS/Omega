@@ -455,6 +455,7 @@ dependencies = [
  "package-manager",
  "package-source",
  "platform-custody",
+ "program-entry-plan",
  "proof-admission",
  "provider-planning",
  "provider-selection",
