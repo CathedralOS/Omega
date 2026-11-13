@@ -1734,6 +1734,8 @@ pub(crate) mod identity_context {
         pub(crate) invalid_application: Option<&'binders Cell<bool>>,
         pub(crate) encountered_regions: Option<&'binders Cell<bool>>,
         pub(crate) binders: &'binders [(SymbolHandle, String)],
+        pub(crate) contract_result_owner: Option<SymbolHandle>,
+        pub(crate) exact_contract_names: bool,
         pub(crate) substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
         pub(crate) substitution_scope_starts: &'binders [usize],
         pub(crate) substitution_semantics: SubstitutionSemantics,
@@ -2007,6 +2009,23 @@ pub(crate) mod identity_context {
                 .find(|(candidate, _)| *candidate == symbol)
             {
                 return replacement.clone();
+            }
+            if self.exact_contract_names && !symbol.is_valid() {
+                return substitution::rejected(self);
+            }
+            if self.exact_contract_names
+                && matches!(
+                    program.symbols.get(symbol).kind,
+                    symbols::SymbolKind::Parameter
+                        | symbols::SymbolKind::Local
+                        | symbols::SymbolKind::MachineParameter
+                        | symbols::SymbolKind::TypeParameter
+                        | symbols::SymbolKind::ConformanceParameter
+                        | symbols::SymbolKind::PropositionParameter
+                        | symbols::SymbolKind::PropositionMachineParameter
+                )
+            {
+                return substitution::rejected(self);
             }
             if !symbol.is_valid() && !fallback.contains("::") {
                 let mut replacements = self.binders.iter().filter(|(candidate, _)| {
@@ -2625,6 +2644,19 @@ pub(crate) mod identity_context {
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
                 let members = program.expression_table.name_path_members(path.members);
+                if context.exact_contract_names && path.reserved_result_of.is_valid() {
+                    let Some(owner) = context.contract_result_owner else {
+                        return substitution::rejected(context);
+                    };
+                    if path.reserved_result_of != owner
+                        || path.symbol.is_valid()
+                        || path.head_symbol.is_valid()
+                        || members.len() != 1
+                    {
+                        return substitution::rejected(context);
+                    }
+                    return atom(IndexForm::ConstName, "$R");
+                }
                 let fallback = members.joined_path();
                 let symbol = if path.symbol.is_valid() {
                     path.symbol
@@ -7393,6 +7425,181 @@ pub fn normalized_expression_identity(
         binders,
         &[],
     )
+}
+
+/// A source contract's values have exact formal and result owners. Preserve
+/// those coordinates through nested expressions rather than resolving an
+/// unresolved occurrence by the spelling of a nearby formal.
+/// `None` forbids the reserved result, as input and crash clauses require.
+pub fn normalized_contract_argument_identity(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    binders: &[(SymbolHandle, String)],
+    result_owner: Option<SymbolHandle>,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+) -> Option<String> {
+    if result_owner.is_some_and(|owner| !owner.is_valid())
+        || binders.iter().any(|(symbol, _)| !symbol.is_valid())
+    {
+        return None;
+    }
+    let invalid = Cell::new(false);
+    let missing_owner = Cell::new(false);
+    let identity = substitution::index_argument(
+        program,
+        argument,
+        &TypeIdentityContext {
+            binders,
+            contract_result_owner: result_owner,
+            exact_contract_names: true,
+            qualification: TypeIdentityQualification::PackageQualified,
+            exact_toolchain_sources,
+            missing_exact_nominal_owner: Some(&missing_owner),
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get() && !missing_owner.get()).then_some(identity)
+}
+
+#[cfg(test)]
+mod contract_argument_identity_tests {
+    use super::{IndexIdentityArgument, normalized_contract_argument_identity};
+    use crate::TypedTrees;
+    use crate::expression::{Expression, NamePath};
+    use crate::name::Identifier;
+    use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    #[test]
+    fn result_identity_uses_its_owner_and_never_a_same_named_formal() {
+        let mut symbols = SymbolTableBuilder::default();
+        let owner = symbols.insert_root(SymbolKind::State, SymbolNameRef::Static("first"));
+        let other = symbols.insert_root(SymbolKind::State, SymbolNameRef::Static("second"));
+        let formal = symbols.insert_root(SymbolKind::Parameter, SymbolNameRef::Static("result"));
+        let mut typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..TypedTrees::default()
+        };
+        let mut name = |path| typed.expression_table.insert_tree(&Expression::Name(path));
+        let result = name(
+            NamePath::unresolved(vec![Identifier::from("result")])
+                .denoting_reserved_result_of(owner),
+        );
+        let displayed_differently = name(
+            NamePath::unresolved(vec![Identifier::from("display")])
+                .denoting_reserved_result_of(owner),
+        );
+        let wrong_owner = name(
+            NamePath::unresolved(vec![Identifier::from("result")])
+                .denoting_reserved_result_of(other),
+        );
+        let parameter = name(NamePath::resolved(
+            vec![Identifier::from("result")],
+            formal,
+            formal,
+        ));
+        let unresolved = name(NamePath::unresolved(vec![Identifier::from("result")]));
+        let binders = [(formal, "$V0".to_owned())];
+        let identity = |expression| {
+            normalized_contract_argument_identity(
+                &typed,
+                IndexIdentityArgument::Expression(expression),
+                &binders,
+                Some(owner),
+                &[],
+            )
+        };
+        let expected = identity(result).expect("the owned result normalizes");
+        assert_eq!(identity(displayed_differently).as_ref(), Some(&expected));
+        assert_ne!(identity(parameter).as_ref(), Some(&expected));
+        assert_eq!(identity(wrong_owner), None);
+        assert_eq!(identity(unresolved), None);
+        assert_eq!(
+            normalized_contract_argument_identity(
+                &typed,
+                IndexIdentityArgument::Expression(result),
+                &[(SymbolHandle::invalid(), "$R".to_owned())],
+                Some(owner),
+                &[],
+            ),
+            None,
+        );
+        assert_eq!(
+            normalized_contract_argument_identity(
+                &typed,
+                IndexIdentityArgument::Expression(result),
+                &binders,
+                None,
+                &[],
+            ),
+            None,
+            "input and crash clauses cannot name their callable's result",
+        );
+    }
+
+    #[test]
+    fn another_scopes_formal_or_local_is_not_a_portable_contract_name() {
+        use semantic_vocabulary::PackageKeyIdentity;
+        use source::{SourceMap, SourceOrigin, SourceSpan, Span};
+        use std::{path::PathBuf, sync::Arc};
+
+        let mut sources = SourceMap::default();
+        let source = sources
+            .add_with_metadata(
+                PathBuf::from("scope.omg"),
+                "slot".to_owned(),
+                PathBuf::from("package"),
+                PackageKeyIdentity::from_digest([7; 32]),
+                SourceOrigin::User,
+            )
+            .source_id;
+        let mut symbols = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let owner = symbols.insert_root(SymbolKind::State, SymbolNameRef::Static("own"));
+        let other = symbols.insert_root(SymbolKind::State, SymbolNameRef::Static("other"));
+        let spelling = SymbolNameRef::Source(SourceSpan::new(source, Span::new(0, 4)));
+        let formal = symbols
+            .insert_children(owner, [(SymbolKind::Parameter, spelling)])
+            .handles()
+            .next()
+            .unwrap();
+        let foreign = symbols
+            .insert_children(
+                other,
+                [
+                    (SymbolKind::Parameter, spelling),
+                    (SymbolKind::Local, spelling),
+                ],
+            )
+            .handles()
+            .collect::<Vec<_>>();
+        let mut typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..TypedTrees::default()
+        };
+        for symbol in foreign {
+            // A genuine package owner must not turn a lexical value into a
+            // nominal declaration when it is outside the supplied binders.
+            assert!(typed.symbols.symbol_package_identity(symbol).is_some());
+            let expression =
+                typed
+                    .expression_table
+                    .insert_tree(&Expression::Name(NamePath::resolved(
+                        vec![Identifier::from("slot")],
+                        symbol,
+                        symbol,
+                    )));
+            assert_eq!(
+                normalized_contract_argument_identity(
+                    &typed,
+                    IndexIdentityArgument::Expression(expression),
+                    &[(formal, "$V0".to_owned())],
+                    None,
+                    &[],
+                ),
+                None,
+            );
+        }
+    }
 }
 
 pub fn try_normalized_index_identity(

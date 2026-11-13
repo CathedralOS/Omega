@@ -106,6 +106,78 @@ fn declaration(
     machine: &TerminalMachine,
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<CheckedMachineDeclaration, &'static str> {
+    let shape = source_shape(typed, sources, symbol)?;
+    let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
+    shape.callable.hash(&mut commitment);
+    for (formal, type_text) in shape.formals.iter().zip(&shape.parameter_types) {
+        (
+            formal.is_mutable,
+            formal.is_const,
+            formal.relevance,
+            type_text,
+        )
+            .hash(&mut commitment);
+    }
+    shape.result_type.hash(&mut commitment);
+    machine.contract.requires.hash(&mut commitment);
+    for clause in &machine.contract.ensures {
+        clause.proposition.hash(&mut commitment);
+    }
+    machine.contract.crash_routes.hash(&mut commitment);
+    signature.termination.hash(&mut commitment);
+
+    // The body reader refuses authored suspension and blocking, so the
+    // lowered contract above publishes neither operational effect.
+    Ok(shape.finish(identities, commitment.0.finish(), false, false))
+}
+
+/// Source coordinates are independent of how a producer commits to its
+/// contract. Both executable bodies and authenticated external realizations
+/// use this shape, with their own complete contract envelope.
+pub(crate) struct DeclarationShape<'typed> {
+    pub declared: &'typed typed_trees::machine::Machine,
+    pub state: &'typed typed_trees::state::State,
+    pub formals: &'typed [typed_trees::signature::StateParameter],
+    pub callable: String,
+    pub parameter_types: Vec<String>,
+    pub result_type: String,
+    semantic: String,
+    machine_identity: String,
+    state_identity: String,
+}
+
+impl DeclarationShape<'_> {
+    pub(crate) fn finish(
+        self,
+        identities: &mut TerminalIdentityTableBuilder,
+        contract: [u8; 32],
+        published_may_suspend: bool,
+        published_may_block: bool,
+    ) -> CheckedMachineDeclaration {
+        CheckedMachineDeclaration {
+            machine: NominalDeclarationIdentity::new(identities.intern(&self.machine_identity)),
+            state: NominalDeclarationIdentity::new(identities.intern(&self.state_identity)),
+            semantic_declaration: identities.intern(&self.semantic),
+            parameter_types: self
+                .parameter_types
+                .iter()
+                .map(|text| identities.intern(text))
+                .collect(),
+            callable: identities.intern(&self.callable),
+            result_type: identities.intern(&self.result_type),
+            contract,
+            published_may_suspend,
+            published_may_block,
+            specialization: None,
+        }
+    }
+}
+
+pub(crate) fn source_shape<'typed>(
+    typed: &'typed TypedTrees,
+    sources: &[(source::SourceId, [u8; 32])],
+    symbol: SymbolHandle,
+) -> Result<DeclarationShape<'typed>, &'static str> {
     let declared = typed
         .machine_by_symbol(symbol)
         .ok_or("the machine has no typed-tree declaration")?;
@@ -147,48 +219,22 @@ fn declaration(
     let machine_identity = nominal(typed, sources, symbol)?;
     let state_identity = nominal(typed, sources, state.symbol)?;
 
-    let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
-    callable.hash(&mut commitment);
-    for (formal, type_text) in formals.iter().zip(&parameter_types) {
-        (
-            formal.is_mutable,
-            formal.is_const,
-            formal.relevance,
-            type_text,
-        )
-            .hash(&mut commitment);
-    }
-    result_type.hash(&mut commitment);
-    machine.contract.requires.hash(&mut commitment);
-    for clause in &machine.contract.ensures {
-        clause.proposition.hash(&mut commitment);
-    }
-    machine.contract.crash_routes.hash(&mut commitment);
-    signature.termination.hash(&mut commitment);
-
-    Ok(CheckedMachineDeclaration {
-        machine: NominalDeclarationIdentity::new(identities.intern(&machine_identity)),
-        state: NominalDeclarationIdentity::new(identities.intern(&state_identity)),
-        semantic_declaration: identities.intern(&semantic),
-        parameter_types: parameter_types
-            .iter()
-            .map(|text| identities.intern(text))
-            .collect(),
-        callable: identities.intern(&callable),
-        result_type: identities.intern(&result_type),
-        contract: commitment.0.finish(),
-        // The reader refuses a machine that declares `suspends` or `blocks`
-        // (`read/machine.rs`, `machine_shape`), so every machine here
-        // publishes neither.
-        published_may_suspend: false,
-        published_may_block: false,
-        specialization: None,
+    Ok(DeclarationShape {
+        declared,
+        state,
+        formals,
+        callable,
+        parameter_types,
+        result_type,
+        semantic,
+        machine_identity,
+        state_identity,
     })
 }
 
 /// The exact-owner identity of `symbol`: its package's, or its toolchain
 /// source's. A declaration neither owns has no portable identity.
-fn nominal(
+pub(crate) fn nominal(
     typed: &TypedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     symbol: SymbolHandle,
