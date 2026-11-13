@@ -436,7 +436,17 @@ pub mod expression {
                         table.write_display_name(expression.target, out);
                     }
                     Self::Name(path) => {
-                        write_display_name_path(table.name_path_members(path.members), "::", out)
+                        if let Some(argument) = table.static_member(path.static_application) {
+                            out.push_str(&argument.display_name_in(table));
+                        } else if path.static_application.is_valid() {
+                            out.push_str("<missing applied declaration>");
+                        } else {
+                            write_display_name_path(
+                                table.name_path_members(path.members),
+                                "::",
+                                out,
+                            )
+                        }
                     }
                     Self::Range(range) => {
                         if range.start.is_valid() {
@@ -1695,13 +1705,15 @@ pub mod expression {
                         self.remap_symbols_in_inner(inner.target, symbols, visited)
                     }
                     ExpressionNode::Name(path) => {
+                        let name_symbols = if path.static_application.is_valid() {
+                            symbols.authored()
+                        } else {
+                            symbols.execution()
+                        };
                         if let Some(mut application) =
                             self.static_member(path.static_application).cloned()
                         {
-                            self.remap_static_argument_symbols(
-                                &mut application,
-                                symbols.execution(),
-                            );
+                            self.remap_static_argument_symbols(&mut application, name_symbols);
                             *self
                                 .static_member_mut(path.static_application)
                                 .expect("declaration application remains in its owning table") =
@@ -1710,13 +1722,13 @@ pub mod expression {
                         let ExpressionNode::Name(current) = self.expression_mut(root) else {
                             unreachable!();
                         };
-                        current.head_symbol = remapped(path.head_symbol, symbols);
-                        current.symbol = remapped(path.symbol, symbols);
+                        current.head_symbol = remapped(path.head_symbol, name_symbols);
+                        current.symbol = remapped(path.symbol, name_symbols);
                         for member_symbol in self
                             .name_path_member_symbols
                             .span_mut_or_empty(path.member_symbols)
                         {
-                            *member_symbol = remapped(*member_symbol, symbols);
+                            *member_symbol = remapped(*member_symbol, name_symbols);
                         }
                     }
                     ExpressionNode::Range(range) => {
@@ -2546,6 +2558,144 @@ pub mod expression {
                 let mut edited = result;
                 edited.push(name("field"));
                 assert!(!edited.reserved_result_of().is_valid());
+            }
+
+            #[test]
+            fn applied_names_keep_authored_targets_and_complete_arguments_in_copies() {
+                use crate::expression::{StaticMachineArgument, StaticSymbolApplication};
+                let original = SymbolHandle::from_arena_index(7);
+                let entry = SymbolHandle::from_arena_index(8);
+                let parameter = SymbolHandle::from_arena_index(9);
+                let replacement = SymbolHandle::from_arena_index(17);
+                let new_entry = SymbolHandle::from_arena_index(18);
+                let new_parameter = SymbolHandle::from_arena_index(19);
+                let mut table = ExpressionTable::default();
+                let member = table.insert_static_member(StaticMachineArgument {
+                    symbol: entry,
+                    application: Some(Box::new(StaticSymbolApplication {
+                        member: Default::default(),
+                        arguments: Box::new([StaticMachineArgument {
+                            const_literal: Some(IntegerLiteral::from_value(3)),
+                            ..Default::default()
+                        }]),
+                        lifetime_arguments: Box::default(),
+                    })),
+                    ..Default::default()
+                });
+                let application = table.insert_static_member(StaticMachineArgument {
+                    symbol: original,
+                    application: Some(Box::new(StaticSymbolApplication {
+                        member,
+                        arguments: Box::new([
+                            StaticMachineArgument {
+                                const_literal: Some(IntegerLiteral::from_value(7)),
+                                ..Default::default()
+                            },
+                            StaticMachineArgument {
+                                symbol: parameter,
+                                ..Default::default()
+                            },
+                        ]),
+                        lifetime_arguments: Box::default(),
+                    })),
+                    ..Default::default()
+                });
+                let mut members = HandleSpan::empty();
+                table.push_name_path_member(&mut members, Identifier::generated("value"));
+                let described = table.insert(ExpressionNode::Name(TableNamePath {
+                    static_application: application,
+                    ..TableNamePath::new(members, Default::default(), original, original)
+                }));
+                let ordinary = table.insert(ExpressionNode::Name(TableNamePath::new(
+                    members,
+                    Default::default(),
+                    original,
+                    original,
+                )));
+                let copied = table.insert_copy(described);
+                assert!(table.expressions_structurally_equal(described, copied));
+                assert!(!table.expressions_structurally_equal(described, ordinary));
+                let copied_application = table.name_path_node(copied).unwrap().static_application;
+                assert_ne!(application, copied_application);
+                table
+                    .static_member_mut(copied_application)
+                    .unwrap()
+                    .application
+                    .as_mut()
+                    .unwrap()
+                    .arguments[0]
+                    .const_literal = Some(IntegerLiteral::from_value(8));
+                assert!(
+                    !table.expressions_structurally_equal(described, copied),
+                    "outer arguments are part of the path"
+                );
+                let local_copy = table.insert_copy(described);
+                let local_application = table
+                    .static_member(table.name_path_node(local_copy).unwrap().static_application)
+                    .unwrap()
+                    .application
+                    .as_ref()
+                    .unwrap()
+                    .member;
+                assert_ne!(member, local_application);
+                table
+                    .static_member_mut(local_application)
+                    .unwrap()
+                    .application
+                    .as_mut()
+                    .unwrap()
+                    .arguments[0]
+                    .const_literal = Some(IntegerLiteral::from_value(4));
+                assert!(
+                    !table.expressions_structurally_equal(described, local_copy),
+                    "member arguments are part of the path"
+                );
+                let executable = [
+                    (original, replacement),
+                    (entry, new_entry),
+                    (parameter, new_parameter),
+                ];
+                let authored = [(parameter, new_parameter)];
+                table.remap_symbols_in(
+                    described,
+                    crate::SymbolRebinding::new(&executable, &authored),
+                );
+                table.remap_symbols_in(
+                    ordinary,
+                    crate::SymbolRebinding::new(&executable, &authored),
+                );
+                let path = table.name_path_node(described).unwrap();
+                assert_eq!((path.head_symbol, path.symbol), (original, original));
+                let selected = table.static_member(path.static_application).unwrap();
+                assert_eq!(selected.symbol, original);
+                let arguments = selected.application.as_ref().unwrap();
+                assert_eq!(arguments.arguments[1].symbol, new_parameter);
+                assert_eq!(table.static_member(arguments.member).unwrap().symbol, entry);
+                let ordinary_path = table.name_path_node(ordinary).unwrap();
+                assert_eq!(
+                    (ordinary_path.head_symbol, ordinary_path.symbol),
+                    (replacement, replacement)
+                );
+                assert!(!table.name_path_is_single_member(path));
+                assert!(table.single_name_member(described).is_none());
+                assert!(path.resolved_symbol().is_none());
+                assert!(!table.names_parameter(
+                    described,
+                    &crate::signature::StateParameter {
+                        symbol: original,
+                        name: Identifier::generated("value"),
+                        ..Default::default()
+                    }
+                ));
+                let result_name = table.insert_name_path_members(&NamePath::unresolved(vec![
+                    Identifier::generated("result"),
+                ]));
+                let result_description = table.insert(ExpressionNode::Name(TableNamePath {
+                    members: result_name,
+                    static_application: application,
+                    ..Default::default()
+                }));
+                assert!(!table.names_reserved_result(result_description));
             }
 
             #[test]
@@ -4024,6 +4174,9 @@ pub mod expression {
             expression: ExpressionHandle,
         ) -> Option<(&TableNamePath, &Identifier)> {
             let path = self.name_path_node(expression)?;
+            if path.static_application.is_valid() {
+                return None;
+            }
             let [name] = self.name_path_members(path.members) else {
                 return None;
             };
@@ -4040,7 +4193,8 @@ pub mod expression {
                 .iter()
                 .filter_map(|(_, node)| match node {
                     ExpressionNode::Name(path)
-                        if path.symbol == symbol
+                        if !path.static_application.is_valid()
+                            && path.symbol == symbol
                             && path.head_symbol == symbol
                             && self.name_path_members(path.members).len() == 1 =>
                     {
@@ -4062,7 +4216,8 @@ pub mod expression {
         }
 
         pub fn name_path_is_single_member(&self, path: &TableNamePath) -> bool {
-            path.symbol.is_valid()
+            !path.static_application.is_valid()
+                && path.symbol.is_valid()
                 && path.head_symbol == path.symbol
                 && self.name_path_members(path.members).len() == 1
         }
@@ -4071,7 +4226,8 @@ pub mod expression {
             let Some(path) = self.name_path_node(expression) else {
                 return false;
             };
-            !path.symbol.is_valid()
+            !path.static_application.is_valid()
+                && !path.symbol.is_valid()
                 && !path.head_symbol.is_valid()
                 && matches!(self.name_path_members(path.members), [name] if name.is_reserved_result())
                 && self
@@ -4088,12 +4244,84 @@ pub mod expression {
             let Some(path) = self.name_path_node(expression) else {
                 return false;
             };
+            if path.static_application.is_valid() {
+                return false;
+            }
             let [name] = self.name_path_members(path.members) else {
                 return false;
             };
             (parameter.symbol.is_valid()
                 && (path.symbol == parameter.symbol || path.head_symbol == parameter.symbol))
                 || name.as_str() == parameter.name.as_str()
+        }
+
+        pub(crate) fn static_arguments_equal_with(
+            &self,
+            left: &StaticMachineArgument,
+            right: &StaticMachineArgument,
+            equal_types: &impl Fn(
+                crate::types::TypeReferenceHandle,
+                crate::types::TypeReferenceHandle,
+            ) -> bool,
+        ) -> bool {
+            self.static_arguments_equal_inner(left, right, equal_types, &mut Vec::new())
+        }
+
+        fn static_arguments_equal_inner(
+            &self,
+            left: &StaticMachineArgument,
+            right: &StaticMachineArgument,
+            equal_types: &impl Fn(
+                crate::types::TypeReferenceHandle,
+                crate::types::TypeReferenceHandle,
+            ) -> bool,
+            members: &mut Vec<(Handle<StaticMachineArgument>, Handle<StaticMachineArgument>)>,
+        ) -> bool {
+            left.symbol == right.symbol
+                && left.path == right.path
+                && left.const_literal == right.const_literal
+                && left.evidence_projection == right.evidence_projection
+                && equal_types(left.type_reference, right.type_reference)
+                && match (&left.application, &right.application) {
+                    (None, None) => true,
+                    (Some(left), Some(right)) => {
+                        left.lifetime_arguments == right.lifetime_arguments
+                            && left.arguments.len() == right.arguments.len()
+                            && left
+                                .arguments
+                                .iter()
+                                .zip(&right.arguments)
+                                .all(|(left, right)| {
+                                    self.static_arguments_equal_inner(
+                                        left,
+                                        right,
+                                        equal_types,
+                                        members,
+                                    )
+                                })
+                            && if !left.member.is_valid() && !right.member.is_valid() {
+                                true
+                            } else if members.contains(&(left.member, right.member)) {
+                                false
+                            } else if let (Some(left_member), Some(right_member)) = (
+                                self.static_member(left.member),
+                                self.static_member(right.member),
+                            ) {
+                                members.push((left.member, right.member));
+                                let equal = self.static_arguments_equal_inner(
+                                    left_member,
+                                    right_member,
+                                    equal_types,
+                                    members,
+                                );
+                                members.pop();
+                                equal
+                            } else {
+                                false
+                            }
+                    }
+                    _ => false,
+                }
         }
 
         pub fn expressions_structurally_equal(
@@ -4150,6 +4378,20 @@ pub mod expression {
                 (ExpressionNode::Name(x), ExpressionNode::Name(y)) => {
                     x.head_symbol == y.head_symbol
                         && x.symbol == y.symbol
+                        && match (
+                            self.static_member(x.static_application),
+                            self.static_member(y.static_application),
+                        ) {
+                            (Some(left), Some(right)) => {
+                                self.static_arguments_equal_with(left, right, &|left, right| {
+                                    left == right
+                                })
+                            }
+                            (None, None) => {
+                                !x.static_application.is_valid() && !y.static_application.is_valid()
+                            }
+                            _ => false,
+                        }
                         && identifier_texts_equal(
                             self.name_path_members(x.members),
                             self.name_path_members(y.members),
@@ -4605,6 +4847,9 @@ pub mod expression {
         }
 
         pub fn resolved_symbol(&self) -> Option<SymbolHandle> {
+            if self.static_application.is_valid() {
+                return None;
+            }
             self.head_symbol
                 .is_valid()
                 .then_some(self.head_symbol)

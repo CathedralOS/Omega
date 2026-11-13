@@ -86,7 +86,13 @@ pub mod expression {
                         table.display_name(expression.target)
                     ),
                     Self::Name(path) => {
-                        display_name_path(table.name_path_members(path.members), "::")
+                        if let Some(argument) = table.static_member(path.static_application) {
+                            argument.display_name_in(table)
+                        } else if path.static_application.is_valid() {
+                            "<missing applied declaration>".to_owned()
+                        } else {
+                            display_name_path(table.name_path_members(path.members), "::")
+                        }
                     }
                     Self::Range(range) => match (range.start.is_valid(), range.end.is_valid()) {
                         (true, true) => format!(

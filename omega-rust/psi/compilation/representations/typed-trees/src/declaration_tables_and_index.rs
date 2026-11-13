@@ -6414,42 +6414,15 @@ pub(crate) mod type_reference_queries {
             right_owner: symbols::SymbolHandle,
         ) -> bool {
             use crate::type_identity::applied_type_identity;
-            left.symbol == right.symbol
-                && left.path == right.path
-                && left.const_literal == right.const_literal
-                && left.evidence_projection == right.evidence_projection
-                && (left.type_reference == right.type_reference
-                    || left.type_reference.is_valid()
-                        && right.type_reference.is_valid()
-                        && applied_type_identity(self, left.type_reference, left_owner, &[])
-                            .zip(applied_type_identity(
-                                self,
-                                right.type_reference,
-                                right_owner,
-                                &[],
-                            ))
-                            .is_some_and(|(left, right)| left == right))
-                && match (&left.application, &right.application) {
-                    (None, None) => true,
-                    (Some(left), Some(right)) => {
-                        left.member == right.member
-                            && left.lifetime_arguments == right.lifetime_arguments
-                            && left.arguments.len() == right.arguments.len()
-                            && left
-                                .arguments
-                                .iter()
-                                .zip(&right.arguments)
-                                .all(|(left, right)| {
-                                    self.same_static_machine_operand(
-                                        left,
-                                        left_owner,
-                                        right,
-                                        right_owner,
-                                    )
-                                })
-                    }
-                    _ => false,
-                }
+            self.expression_table
+                .static_arguments_equal_with(left, right, &|left, right| {
+                    left == right
+                        || left.is_valid()
+                            && right.is_valid()
+                            && applied_type_identity(self, left, left_owner, &[])
+                                .zip(applied_type_identity(self, right, right_owner, &[]))
+                                .is_some_and(|(left, right)| left == right)
+                })
         }
 
         pub fn access_field_plan_for_type_reference(
