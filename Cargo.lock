@@ -19,7 +19,6 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
- "checked-trees-to-lowered-psi",
  "lowered-discharge",
  "optimization",
  "optimization-core",
@@ -38,7 +37,6 @@ dependencies = [
  "terminal-psi-to-abstract-operations",
  "terminal-semantics",
  "tokens-to-syntax-trees",
- "typed-trees-to-checked-trees",
  "typed-trees-to-typed-trees",
  "verified-optimization-input",
 ]
@@ -845,8 +843,6 @@ dependencies = [
  "arena",
  "boundary-applications",
  "calling-conventions",
- "checked-trees",
- "checked-trees-to-lowered-psi",
  "compiler",
  "diagnostics",
  "executable-installation",
@@ -889,7 +885,6 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "tokens-to-syntax-trees",
- "typed-trees-to-checked-trees",
  "verified-optimization-input",
  "x86-encoding",
 ]
