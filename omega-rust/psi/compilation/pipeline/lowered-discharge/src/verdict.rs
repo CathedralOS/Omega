@@ -12,9 +12,11 @@ partly proved closure. A closure is either accepted with every obligation
 discharged by the kernel and every use of storage established, rejected with
 one diagnostic per unproved obligation and per unestablished use, left
 incomplete because the prover has no rule for some goal's
-form, or handed back whole to Psi 05 and 06 because the route does not
-serve some construct in it (`RefusalReason::Unsupported`; the design: "falling
-back to Psi 05 and 06 on any `RefusalReason::Unsupported`").
+form, or refused whole because the route does not serve some construct in it
+(`RefusalReason::Unsupported`). The variant is still named `FallBack`, but
+nothing falls back since the owner's ruling of 2026-11-12: the router refuses
+the compilation with an error naming the construct, and no other checker
+judges it.
 
 The specification says the same: `wiki/spec/packages/review.md`, "Unproved
 source contracts reject in Psi checking"; `wiki/spec/build/configuration.md`,
@@ -38,11 +40,11 @@ no `Diagnostic` constructor here, because the closed `Incomplete` resource
 table has no provision for a proof goal form yet, and a plain error would
 publish it as `Reject`.
 
-`Unsupported` wins over `Unproved`: an unproved obligation in a closure the
-route cannot judge whole is the current checker's to decide. That is not a
-weaker check; Psi 05 and 06 still judge the closure. Any other refusal is a
-defect of the route itself (an identity that does not resolve) and is
-returned as `Err`; a router must not accept the program on it.
+`Unsupported` wins over `Unproved`: the route has not judged a closure it
+cannot lower whole, so it reports what it does not support rather than a
+partial list of failures. Either way the program is not accepted. Any other
+refusal is a defect of the route itself (an identity that does not resolve)
+and is returned as `Err`; a router must not accept the program on it.
 
 A use of storage that some path reaches with nothing established in it
 (`RefusalReason::Unestablished`) is a compile error of the same standing as an
@@ -93,7 +95,8 @@ pub enum RouteVerdict {
     /// `UnprovedCause::NoRuleForGoalForm`. Never empty.
     Incomplete(Vec<UnprovedObligation>),
     /// The route does not serve some construct or obligation of the closure,
-    /// so Psi 05 and 06 decide the whole closure. The first such refusal.
+    /// so the whole closure is refused as not supported yet. The first such
+    /// refusal.
     FallBack(Refusal),
 }
 
