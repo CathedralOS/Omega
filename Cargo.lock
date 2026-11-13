@@ -1718,6 +1718,7 @@ dependencies = [
  "cap-primitives",
  "cap-std",
  "compiler-storage",
+ "filesystem-authority",
  "nix",
  "optimization-core",
  "platform-custody",

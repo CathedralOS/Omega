@@ -165,3 +165,133 @@ fn invalid_lock_refuses_before_storage_or_source_acquisition() {
     );
     assert!(matches!(result, Err(PrepareLocalProjectError::Locked(_))));
 }
+
+#[test]
+fn build_reuse_refuses_both_widening_and_narrowing_the_captured_authority() {
+    use package_source::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
+    let temporary = project("calls/machine_self_call_recursion_compile");
+    std::fs::write(temporary.path().join("other.omg"), "const OTHER: u32 = 1;").unwrap();
+    let pending = begin(temporary.path());
+    let selected = SourceCaptureRequest::new([
+        (b"main.omg".to_vec(), Obligation::Required),
+        (b"build.omg".to_vec(), Obligation::Required),
+    ])
+    .unwrap();
+    let narrow = pending.acquire_selected_root(&selected).unwrap();
+    let wide = pending.acquire_root().unwrap();
+    assert!(narrow.same_source(&wide));
+    assert!(
+        !narrow
+            .source_capture()
+            .tree()
+            .exists(Path::new("other.omg"))
+    );
+    assert!(wide.source_capture().tree().exists(Path::new("other.omg")));
+    for (completed, requested) in [(&wide, &narrow), (&narrow, &wide)] {
+        assert_eq!(
+            completed.verify_reused_capture(requested).unwrap_err(),
+            "reused Build source changed its immutable capture"
+        );
+    }
+    narrow
+        .verify_reused_capture(&pending.acquire_selected_root(&selected).unwrap())
+        .unwrap();
+}
+
+#[test]
+fn build_reuse_preserves_optional_request_authority_even_with_equal_captured_bytes() {
+    use package_source::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
+    let temporary = project("calls/machine_self_call_recursion_compile");
+    let pending = begin(temporary.path());
+    let required = [
+        (b"main.omg".to_vec(), Obligation::Required),
+        (b"build.omg".to_vec(), Obligation::Required),
+    ];
+    let selected = SourceCaptureRequest::new(required.clone()).unwrap();
+    let with_optional = SourceCaptureRequest::new(
+        required
+            .into_iter()
+            .chain([(b"absent.omg".to_vec(), Obligation::Optional)]),
+    )
+    .unwrap();
+    let narrow = pending.acquire_selected_root(&selected).unwrap();
+    let optional = pending.acquire_selected_root(&with_optional).unwrap();
+    assert!(narrow.same_source(&optional));
+    assert_eq!(
+        narrow.source_capture().tree(),
+        optional.source_capture().tree()
+    );
+    for (completed, requested) in [(&narrow, &optional), (&optional, &narrow)] {
+        assert!(completed.verify_reused_capture(requested).is_err());
+    }
+}
+
+#[test]
+fn selected_project_preparation_requires_its_actual_compilation_entry() {
+    use package_source::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
+    let temporary = project("calls/machine_self_call_recursion_compile");
+    let pending = begin(temporary.path());
+    let only_build =
+        SourceCaptureRequest::new([(b"build.omg".to_vec(), Obligation::Required)]).unwrap();
+    let error = pending.acquire_selected_root(&only_build).err().unwrap();
+    assert!(error.to_string().contains("required compilation source"));
+}
+
+#[test]
+fn package_candidate_reacquisition_keeps_the_staged_selection_and_live_lineage() {
+    use crate::declarations::dependencies::edit::BuildFileReplacement;
+    use package_source::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
+    let temporary = project("calls/machine_self_call_recursion_compile");
+    std::fs::write(
+        temporary.path().join("unselected.omg"),
+        "const OTHER: u32 = 1;",
+    )
+    .unwrap();
+    let selected = SourceCaptureRequest::new([
+        (b"main.omg".to_vec(), Obligation::Required),
+        (b"build.omg".to_vec(), Obligation::Required),
+        (b"absent.omg".to_vec(), Obligation::Optional),
+    ])
+    .unwrap();
+    let original = begin(temporary.path())
+        .acquire_selected_root(&selected)
+        .unwrap();
+    let before = std::fs::read_to_string(temporary.path().join("build.omg")).unwrap();
+    let replacement = BuildFileReplacement::from_sources(
+        temporary.path().join("build.omg"),
+        &before,
+        before.clone(),
+    );
+    let storage = SourceResolver::for_current_user(PrimaryGitChoices::default()).unwrap();
+    let staged = crate::operations::stage_build_dependency_edit(
+        &replacement,
+        &storage,
+        LocalSourceLimits::default(),
+        Some(&selected),
+    )
+    .unwrap();
+    let candidate = AcquiredBuildSource::capture_staged(
+        &staged,
+        ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
+    )
+    .unwrap();
+    assert!(candidate.same_source(&original));
+    assert_eq!(
+        candidate.source_capture().tree(),
+        original.source_capture().tree()
+    );
+    assert_eq!(
+        candidate.source_capture().selection_identity(),
+        original.source_capture().selection_identity()
+    );
+    assert!(
+        !candidate
+            .source_capture()
+            .tree()
+            .exists(Path::new("unselected.omg"))
+    );
+    assert_eq!(
+        candidate.source_capture().normalized().content_identity,
+        staged.normalized().content_identity
+    );
+}

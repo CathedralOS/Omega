@@ -42,6 +42,52 @@ fn stage_main(root: &Path, lane: &RetainedStorageLane, replacement: &[u8]) -> St
 }
 
 #[test]
+fn staged_selected_sources_keep_their_projection_and_real_origin_on_reuse() {
+    use crate::local::staging::stage_selected_local_source_replacement_in_lane;
+    use filesystem_authority::{SourceCaptureObligation, SourceCaptureRequest};
+
+    with_staging_source("staging-selected-source", |root, lane| {
+        let selected =
+            SourceCaptureRequest::new([(b"main.omg".to_vec(), SourceCaptureObligation::Required)])
+                .unwrap();
+        let staged = stage_selected_local_source_replacement_in_lane(
+            root,
+            &SourceRelativePath::parse("main.omg").unwrap(),
+            &Sha256::digest(b"before").into(),
+            b"after",
+            lane,
+            LocalSourceLimits::default(),
+            &selected,
+        )
+        .unwrap();
+        assert_eq!(staged.canonical_live_root(), root.canonicalize().unwrap());
+        assert_eq!(staged.selection(), &selected);
+        assert!(!staged.snapshot_root().join("other.omg").exists());
+        let wide = stage_main(root, lane, b"after");
+        assert!(wide.snapshot_root().join("other.omg").is_file());
+        assert_ne!(staged.snapshot_root(), wide.snapshot_root());
+        std::fs::write(root.join("other.omg"), "changed outside selected source").unwrap();
+        staged.verify_live_source_unchanged().unwrap();
+        let reused = stage_selected_local_source_replacement_in_lane(
+            root,
+            &SourceRelativePath::parse("main.omg").unwrap(),
+            &Sha256::digest(b"before").into(),
+            b"after",
+            lane,
+            LocalSourceLimits::default(),
+            &selected,
+        )
+        .unwrap();
+        assert_eq!(reused.snapshot_root(), staged.snapshot_root());
+        std::fs::write(root.join("main.omg"), "changed selected source").unwrap();
+        assert!(matches!(
+            staged.verify_live_source_unchanged(),
+            Err(SourceResolveError::LocalSourceChanged { .. })
+        ));
+    });
+}
+
+#[test]
 fn staged_replacement_preserves_live_source_and_reuses_snapshot_after_edit() {
     with_staging_source("staging-snapshot-reuse", |root, lane| {
         std::fs::create_dir_all(root.join("nested/empty")).expect("create empty directory");

@@ -30,7 +30,9 @@ use crate::resolution::graph::{
     CanonicalRootSourceRequest, GitDependencyPins, GitResolutionOptions, PackageRootSourceRequest,
     ResolvedPackageSourceClosure,
 };
-use crate::resolution::source::{AcquiredBuildSource, BuildSourceAcquisitions};
+use crate::resolution::source::{
+    AcquiredBuildSource, BuildSourceAcquisitionError, BuildSourceAcquisitions,
+};
 use package_compilation::PackageCompilationInputError;
 use package_source::PrimaryGitChoices;
 use package_source::git::resolution::GitExactRevisionAcquisition;
@@ -311,12 +313,35 @@ impl LocalProjectPreparation {
     }
 
     pub fn acquire_root(&self) -> Result<AcquiredBuildSource, PrepareLocalProjectError> {
-        AcquiredBuildSource::capture_local(
+        self.acquire_selected_root(&package_source::SourceCaptureRequest::entire_tree())
+    }
+
+    pub fn acquire_selected_root(
+        &self,
+        selected: &package_source::SourceCaptureRequest,
+    ) -> Result<AcquiredBuildSource, PrepareLocalProjectError> {
+        let acquired = AcquiredBuildSource::capture_selected_local(
             &self.canonical_root,
             LocalSourceLimits::default(),
             ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
+            selected,
         )
-        .map_err(PrepareLocalProjectError::Acquisition)
+        .map_err(PrepareLocalProjectError::Acquisition)?;
+        if !acquired
+            .source_capture()
+            .tree()
+            .is_file(&self.entry_relative)
+        {
+            return Err(PrepareLocalProjectError::Acquisition(
+                BuildSourceAcquisitionError::Source(SourceResolveError::Io {
+                    path: self.entry_path(),
+                    message:
+                        "required compilation source is absent from the caller-selected inventory"
+                            .to_owned(),
+                }),
+            ));
+        }
+        Ok(acquired)
     }
 
     pub fn source_acquisitions(

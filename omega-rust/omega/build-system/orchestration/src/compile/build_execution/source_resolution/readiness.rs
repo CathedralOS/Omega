@@ -192,13 +192,10 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                         .iter()
                         .position(|work| work.acquired.same_source(&acquired))
                     {
-                        if self.sources[position].acquired.source_capture()
-                            != acquired.source_capture()
-                        {
-                            return Err(Source(
-                                "reused Build source changed its immutable capture".into(),
-                            ));
-                        }
+                        self.sources[position]
+                            .acquired
+                            .verify_reused_capture(&acquired)
+                            .map_err(Source)?;
                         completed = Some(CompletedWork::Source(position));
                         continue;
                     }

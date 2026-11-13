@@ -38,6 +38,7 @@ pub(super) struct ProbeCompilation {
 
 pub(super) fn compile(
     private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
+    build_snapshot: Option<compiler::BuildSnapshotRequest>,
     options: CompileOptions,
     destination: NativeDestination,
     reference_inputs: Vec<std::fs::File>,
@@ -64,7 +65,7 @@ pub(super) fn compile(
         verify: false,
         require_package_project: false,
         optimization_rollback: Default::default(),
-        build_snapshot: None,
+        build_snapshot,
     })
     .map_err(BuildError::into_diagnostics)?;
     let [outcome]: [_; 1] = outcomes.try_into().map_err(|_| {

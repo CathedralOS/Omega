@@ -75,6 +75,13 @@ For an ambiguous role or non-`main.omg` entry, add one local `sample.json`:
 }
 ```
 
+`source_inputs`, when supplied, is a nonempty list of source-root-relative files
+or subtrees. The caller captures exactly that inventory before Build execution
+and Product discovery; list the required entry, Build companion, and other
+owned source/data inputs. The gate forwards it to checking, package preparation,
+and execution with `--build-input`; a resumed package review retains its recorded
+selection. Standalone `omega` and `omega run` accept the same flags.
+
 `entry` names one local Omega source. `rejection_contains` is a list of literal
 stderr diagnostic fragments, all required. Optional `rejection_any_contains`
 requires at least one listed literal as well; `rejection_casefold: true`

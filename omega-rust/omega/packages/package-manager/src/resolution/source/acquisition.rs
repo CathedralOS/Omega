@@ -390,6 +390,17 @@ impl AcquiredBuildSource {
         self.lineage == other.lineage && self.navigation == other.navigation
     }
 
+    /// Admit a completed Build only for the same source and exact captured authority.
+    pub fn verify_reused_capture(&self, other: &Self) -> Result<(), String> {
+        if !self.same_source(other) {
+            return Err("reused Build belongs to another source".into());
+        }
+        if self.capture != other.capture {
+            return Err("reused Build source changed its immutable capture".into());
+        }
+        Ok(())
+    }
+
     pub(crate) fn acquisition_origin(&self) -> SourceAcquisitionOrigin<'_> {
         SourceAcquisitionOrigin {
             lineage: &self.lineage,
@@ -403,10 +414,11 @@ impl AcquiredBuildSource {
         stage: &package_source::local::staging::StagedLocalSnapshot,
         context: ExternalSourceContext,
     ) -> Result<Self, String> {
-        let mut acquired = Self::capture_local(
+        let mut acquired = Self::capture_selected_local(
             stage.snapshot_root(),
             LocalSourceLimits::default(),
             context.clone(),
+            stage.selection(),
         )
         .map_err(|error| error.to_string())?;
         if acquired.capture.normalized().content_identity != stage.normalized().content_identity {
@@ -435,9 +447,25 @@ impl AcquiredBuildSource {
         limits: LocalSourceLimits,
         context: ExternalSourceContext,
     ) -> Result<Self, BuildSourceAcquisitionError> {
+        Self::capture_selected_local(
+            root,
+            limits,
+            context,
+            &package_source::SourceCaptureRequest::entire_tree(),
+        )
+    }
+
+    pub fn capture_selected_local(
+        root: &Path,
+        limits: LocalSourceLimits,
+        context: ExternalSourceContext,
+        selected: &package_source::SourceCaptureRequest,
+    ) -> Result<Self, BuildSourceAcquisitionError> {
         let limits = limits.compiler_bounded();
-        let capture = capture_local_source_input(root, limits)
-            .map_err(BuildSourceAcquisitionError::Source)?;
+        let capture = package_source::local::operations::capture_selected_local_source_input(
+            root, limits, selected,
+        )
+        .map_err(BuildSourceAcquisitionError::Source)?;
         let canonical_path = capture.canonical_live_root().to_str().ok_or_else(|| {
             BuildSourceAcquisitionError::Identity(
                 package_source::IdentityError::UnsupportedNonUtf8Path(
